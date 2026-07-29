@@ -9,13 +9,28 @@ class SidebarState {
     // MARK: - Persisted State (saved to UserDefaults)
 
     /// Individual item expansion states (folder/library headers)
+    ///
+    /// The `didSet` guards on a real change for the same reason
+    /// `purgeRetiredDefaults` is guarded (#4104): a `UserDefaults.set` posts
+    /// `didChangeNotification` whether or not the value differs, and that
+    /// notification invalidates every `@AppStorage`/`@SceneStorage` in the
+    /// window. SwiftUI writes back through this binding on paths that do not
+    /// change it (`reset()` on already-clean state, a disclosure binding
+    /// re-committing the same set), so an unguarded write put an
+    /// AttributeGraph invalidation on the click path for free.
     var expandedItems: Set<String> {
-        didSet { saveExpandedItems() }
+        didSet {
+            guard expandedItems != oldValue else { return }
+            saveExpandedItems()
+        }
     }
 
     /// Library expansion states (library ID -> expanded)
     var libraryExpansionStates: [String: Bool] {
-        didSet { saveLibraryExpansionStates() }
+        didSet {
+            guard libraryExpansionStates != oldValue else { return }
+            saveLibraryExpansionStates()
+        }
     }
 
     // MARK: - Transient State (not persisted)

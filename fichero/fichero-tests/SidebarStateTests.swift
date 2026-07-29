@@ -266,4 +266,67 @@ final class SidebarStateTests: XCTestCase {
 
         XCTAssertEqual(changes, 0, "re-init must be read-only — writes here loop the AttributeGraph")
     }
+
+    // MARK: - No-op expansion writes must stay off the click path (#4228)
+
+    /// Same mechanism as the purge guard above, one level out. `expandedItems`
+    /// and `libraryExpansionStates` persist through `didSet`, which fires on
+    /// EVERY assignment — including the ones that change nothing: SwiftUI
+    /// writing the same set back through the disclosure binding, or `reset()`
+    /// on already-clean state. Each of those posted
+    /// `UserDefaults.didChangeNotification` and invalidated every
+    /// `@AppStorage`/`@SceneStorage` in the window, synchronously, on the path
+    /// the user's click is travelling down.
+    func testAssigningAnUnchangedExpansionSetWritesNothing() {
+        // A fresh state is already empty, so these assignments change nothing.
+        // Deliberately no write BEFORE the observer is installed: a preceding
+        // real write could deliver its notification late and be miscounted here.
+        let state = SidebarState(windowId: freshWindowId())
+
+        var changes = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: EngineConfig.defaults,
+            queue: nil
+        ) { _ in changes += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        state.expandedItems = []
+        state.libraryExpansionStates = [:]
+
+        XCTAssertEqual(changes, 0, "an unchanged assignment must not write defaults")
+    }
+
+    /// …and the guard must not swallow a REAL change, which is the way a
+    /// cheap-write optimisation usually breaks persistence.
+    func testAssigningAChangedExpansionSetStillPersists() {
+        let windowId = freshWindowId()
+        let state = SidebarState(windowId: windowId)
+        state.expandedItems = ["a"]
+        state.expandedItems = ["a"]  // no-op, must not clobber
+        state.expandedItems = ["a", "b"]
+
+        let restored = SidebarState(windowId: windowId)
+        XCTAssertEqual(restored.expandedItems, ["a", "b"])
+
+        EngineConfig.defaults.removeObject(forKey: "sidebar.expanded.\(windowId)")
+    }
+
+    /// `reset()` on already-clean state used to post TWO change notifications
+    /// for two no-op writes.
+    func testResetOnCleanStateWritesNothing() {
+        let state = SidebarState(windowId: freshWindowId())
+
+        var changes = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: EngineConfig.defaults,
+            queue: nil
+        ) { _ in changes += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        state.reset()
+
+        XCTAssertEqual(changes, 0, "resetting clean state must not write defaults")
+    }
 }
