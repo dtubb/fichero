@@ -430,6 +430,44 @@ that must never be public goes outside `docs/` entirely — not merely out of `n
 
 ---
 
+## Where Things Live (file placement)
+
+Nothing new lands at the repo root. Root holds the governance docs
+(`AGENTS.md`, `CONSTITUTION.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`,
+`USER.md`, `CHANGELOG.md`, `RELEASE_NOTES.md`), repo-wide config
+(`mkdocs.yml`, `features.yaml`, `coverage-baseline.json`, `.swiftlint.yml`), and
+the product/tooling directories below. A new note, report, or plan at the root
+is misplaced — no exceptions.
+
+**Agent scratch → `agent-work/`.** Never the repo root, never `docs/`.
+
+| What you are writing | Where |
+|---|---|
+| Status / handoff / session notes | `agent-work/status/` (e.g. `agent-work/status/SIDEBAR_STATUS.md`) |
+| Plans, sequencing, dispatch batches | `agent-work/plans/` |
+| Specs and design explorations | `agent-work/specs/` |
+| Reviews, audits, QA logs, validation reports | `agent-work/reviews/` |
+
+The four `*_STATUS.md` files already live in `agent-work/status/` — follow that
+convention; a new `FOO_STATUS.md` at the root is wrong by construction.
+
+**Product code.** Four peer products, one docs tree, one fixtures tree:
+
+| Path | What |
+|---|---|
+| `fichero/` | Swift/SwiftUI app + Xcode project |
+| `fichero-server/` | Python FastAPI server (`src/fichero_server/`) and the Python test suite |
+| `fichero-cli/` | `fichero` CLI (`src/fichero_cli/`, tests in `fichero-cli/tests/`) |
+| `fichero-mcp/` | MCP server product (`src/fichero_mcp/`, tests in `fichero-mcp/tests/`) |
+| `test-fixtures/` | Shared specimen files, resolved only via `tests/fixture_paths.py` / `TestFixtures.swift` |
+| `docs/` | Published documentation — `docs/user/` and `docs/contributor/` (see Docs Placement above) |
+| `agents/` | Harness: skills, prompts, `agents/ROADMAP.md` |
+| `scripts/` | Repo-wide gates and tooling (`check_*.py`, `verify_*.sh`) |
+
+Pure crud or superseded material is `git rm`-ed, not parked at the root.
+
+---
+
 ## Key Paths
 
 | Path | What |
