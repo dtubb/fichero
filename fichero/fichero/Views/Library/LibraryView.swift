@@ -282,7 +282,15 @@ struct LibraryView: View {
         } else if let activeErrorMessage {
             errorState(message: activeErrorMessage)
         } else if isCollectionEmpty {
-            emptyState
+            // "Empty folder" and "contents not here yet" looked identical, so a
+            // folder click or a drop showed "No Documents" and then relaid out
+            // when the data landed (#4235). Show what is already in flight.
+            let placeholder = emptyCollectionPlaceholder
+            if placeholder == .empty {
+                emptyState
+            } else {
+                contentPlaceholderState(placeholder)
+            }
         } else {
             switch displayMode {
             case .icon:

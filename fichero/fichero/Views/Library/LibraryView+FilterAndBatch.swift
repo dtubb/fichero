@@ -3,6 +3,21 @@ import SwiftUI
 
 // MARK: - Filter, Collection State, and Empty State Extension
 
+/// What the library content area shows when it holds no rows (#4235).
+///
+/// "This folder is empty" and "its contents have not arrived yet" are different
+/// answers that used to render identically, which is why every folder click and
+/// every drop flashed "No Documents" and then relaid out when the data landed.
+enum LibraryEmptyPlaceholder: Equatable {
+    /// A real, final answer: there is nothing here.
+    case empty
+    /// A children fetch is in flight for the selected folder.
+    case loadingContents
+    /// A drop registered and the import is being staged — often before the
+    /// engine has a task to report progress for at all.
+    case importing
+}
+
 extension LibraryView {
 
     // MARK: - Filtered Documents
@@ -186,6 +201,61 @@ extension LibraryView {
     }
 
     // MARK: - Empty State
+
+    /// What the content area shows when it currently has no rows (#4235).
+    ///
+    /// "No Documents" and "the contents haven't arrived yet" looked identical,
+    /// so every folder click and every drop showed the empty state first and
+    /// then relaid out when the data landed — the dead interval the issue is
+    /// about. These are different states and must look different.
+    var emptyCollectionPlaceholder: LibraryEmptyPlaceholder {
+        Self.emptyCollectionPlaceholder(
+            isFetchingContents: !isShowingEntitiesCollection && documentStore.isLoadingChildren,
+            isPreparingImport: !isShowingEntitiesCollection
+                && libraryManager.importingLibrary?.id == windowState.libraryId,
+            hasFilterText: !searchText.isEmpty
+        )
+    }
+
+    /// Pure so the precedence is testable without a rendered view or a live
+    /// engine — the same reason `LibraryView.isAwaitingFirstLoad` is pure.
+    /// `nonisolated` is LOAD-BEARING: a static on a `View` inherits the type's
+    /// MainActor isolation under the macOS 26 SDK, and Swift Testing calls it
+    /// off-main (#4201).
+    nonisolated static func emptyCollectionPlaceholder(
+        isFetchingContents: Bool,
+        isPreparingImport: Bool,
+        hasFilterText: Bool
+    ) -> LibraryEmptyPlaceholder {
+        // A filter that matches nothing is a real, final answer about rows the
+        // app already has — never hide it behind a spinner.
+        if hasFilterText { return .empty }
+        // The import outranks the fetch: it is the thing the user just did, and
+        // it is why the fetch will come back non-empty.
+        if isPreparingImport { return .importing }
+        if isFetchingContents { return .loadingContents }
+        return .empty
+    }
+
+    /// The skeleton shown while work already in flight will fill this folder.
+    /// Deliberately the same shape and metrics as `emptyState` so the swap to
+    /// real content doesn't relayout the pane (#3614 "Every Frame Perfect").
+    func contentPlaceholderState(_ placeholder: LibraryEmptyPlaceholder) -> some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .controlSize(.large)
+
+            Text(placeholder == .importing ? "Preparing Import…" : "Loading…")
+                .font(.headline)
+
+            Text(placeholder == .importing
+                 ? "Reading the dropped items"
+                 : "Fetching this folder’s contents")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
     var loadingState: some View {
         VStack(spacing: 12) {
