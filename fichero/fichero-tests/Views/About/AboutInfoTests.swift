@@ -30,7 +30,7 @@ final class AboutInfoTests: XCTestCase {
     }
 
     func testEngineVersionLineUsesVersion() {
-        XCTAssertEqual(AboutInfo.engineVersionLine("2026.7.8b2"), "Engine 2026.7.8b2")
+        XCTAssertEqual(AboutInfo.engineVersionLine("2026.7.8b2"), "Server 2026.7.8b2")
     }
 
     func testEngineVersionLineIsOmittedWhenMissing() {
