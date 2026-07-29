@@ -23,8 +23,11 @@ struct ArtifactPanel: View {
     /// Optional save action. When provided, an edit pencil shows in the
     /// header. The closure receives the new content (RTF source if the
     /// editor produced rich text, plain otherwise) and is responsible for
-    /// persisting it. nil hides the edit affordance (read-only panel).
-    var onSave: ((String) async -> Void)?
+    /// persisting it, returning nil on success or a user-facing error
+    /// message on failure (#4285: a failed save must keep the draft dirty
+    /// and retry — never silently discard). nil hides the edit affordance
+    /// (read-only panel).
+    var onSave: ((String) async -> String?)?
 
     /// The owning document store. Passed only by the Content-tab inspector so
     /// the focused Page Content editor can register its flush with the store —
@@ -72,7 +75,7 @@ struct ArtifactPanel: View {
         fillsHeight: Bool = false,
         documentStore: DocumentStore? = nil,
         onDelete: (() -> Void)? = nil,
-        onSave: ((String) async -> Void)? = nil
+        onSave: ((String) async -> String?)? = nil
     ) {
         self.kind = kind
         self.defaultExpanded = defaultExpanded
@@ -98,13 +101,15 @@ struct ArtifactPanel: View {
     /// coalesced (not dropped), so blur/close truly persists the latest text
     /// (#2536). Extracted from inline @State so the race is unit-testable.
     @State var saver = CoalescingSaveRunner()
-    /// The raw stored content we last seeded the editor from — guards the
-    /// `.task(id:)` reseed against our own save echoing back (#2478).
-    @State var lastLoadedRaw: String = ""
-    /// The canonical encoded form of the seeded/last-saved content — lets
-    /// `scheduleAutoSave` tell a real user edit from a programmatic reseed so
-    /// loading content never triggers a spurious save.
-    @State var lastSavedEncoded: String = ""
+    /// The seeded/saved-content watermarks — reseed guard (#2478) plus the
+    /// failed-save dirtiness transaction (#4285). Pure state machine so the
+    /// paste → failed save → still dirty → retry cycle is unit-testable
+    /// (ArtifactSaveWatermarksTests).
+    @State var watermarks = ArtifactSaveWatermarks()
+    /// Consecutive failed-save auto-retries since the last success or user
+    /// edit (#4285). Bounded so a persistently failing backend doesn't loop
+    /// forever; a new keystroke / blur / flush always retries regardless.
+    @State var saveRetryAttempts: Int = 0
     @FocusState var isEditorFocused: Bool
 
     /// Page Content is primary content and renders always-expanded with no

@@ -549,8 +549,12 @@ extension DocumentService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
-        default:
-            throw DocumentServiceError.unexpectedResponse
+        case .undocumented(let statusCode, _):
+            // #4286: never surface the generic "unexpected response" for a
+            // SAVE — name the operation and the status so a 409 (concurrent
+            // write conflict) or 500 reads as a retryable failure, not a
+            // mystery. The caller keeps the dirty buffer and retries (#4285).
+            throw DocumentServiceError.httpStatus(operation: "save", code: statusCode)
         }
     }
 
@@ -862,6 +866,11 @@ enum DocumentServiceError: Error, LocalizedError {
     case unexpectedResponse
     case notFound(String)
     case serverError(String)
+    /// #4286: an operation got a status the OpenAPI spec doesn't document.
+    /// Carries the operation name and the code so the surfaced message says
+    /// WHAT failed and WHY-shaped ("save failed — HTTP 409"), per the #4269
+    /// error-surface rules — never the bare "unexpected response" string.
+    case httpStatus(operation: String, code: Int)
 
     var errorDescription: String? {
         switch self {
@@ -871,6 +880,11 @@ enum DocumentServiceError: Error, LocalizedError {
             return "Document not found: \(id)"
         case .serverError(let message):
             return "Server error: \(message)"
+        case .httpStatus(let operation, let code):
+            let hint = code == 409
+                ? " (another writer got there first — retrying keeps your edit)"
+                : ""
+            return "The \(operation) failed — the server returned HTTP \(code)\(hint)."
         }
     }
 }

@@ -22,7 +22,9 @@ struct ArtifactDetailView: View {
 
     /// Persist edited content. `nil` → read-only (the `AttributedTextEditor`
     /// becomes non-editable, matching `ArtifactPanel`'s `onSave == nil` path).
-    var onSave: ((Artifact, String) async -> Void)? = nil
+    /// Returns nil on success or a user-facing error message on failure so
+    /// the embedded panel keeps its draft dirty and retries (#4285).
+    var onSave: ((Artifact, String) async -> String?)? = nil
 
     /// Delete this artifact. `nil` hides the trash affordance.
     var onDelete: ((Artifact) -> Void)? = nil

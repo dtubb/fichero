@@ -69,11 +69,13 @@ extension ArtifactPanel {
             // it's our own save echoing back, detected by the lastLoadedRaw
             // watermark (#2478). Seeding also resets lastSavedEncoded so the
             // programmatic write below doesn't read as a user edit.
-            guard lastLoadedRaw != rawArtifactContent else { return }
+            guard watermarks.shouldReseed(from: rawArtifactContent) else { return }
             let decoded = ArtifactRichTextCodec.decodeAttributed(rawArtifactContent)
             draftText = decoded
-            lastLoadedRaw = rawArtifactContent
-            lastSavedEncoded = ArtifactRichTextCodec.encodeAttributed(decoded)
+            watermarks.seed(
+                raw: rawArtifactContent,
+                encoded: ArtifactRichTextCodec.encodeAttributed(decoded)
+            )
         }
     }
 }
