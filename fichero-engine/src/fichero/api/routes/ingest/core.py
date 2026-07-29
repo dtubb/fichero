@@ -34,7 +34,15 @@ _MAX_TERMINAL_TASKS = 100
 
 def _validate_ingest_path(raw_path: str) -> None:
     if not _is_allowed_local_path(raw_path):
-        raise HTTPException(status_code=403, detail="Ingest path is not in an allowed location")
+        # Name the path: "not in an allowed location" alone sends the user
+        # looking at permissions when the answer is which directory it is in
+        # (#4230). This is the ONLY gate — a path that passes here is servable,
+        # because ingest and serving now consult the same authority.
+        logger.warning("Refusing ingest of a path outside every allowed root: %s", raw_path)
+        raise HTTPException(
+            status_code=403,
+            detail=f"Ingest path is not in an allowed location: {raw_path}",
+        )
 
 
 def _require_ingest_owner(request: Request, library_path: str) -> None:

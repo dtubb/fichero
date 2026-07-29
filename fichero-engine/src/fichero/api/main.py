@@ -54,7 +54,10 @@ from fichero.models import (
 )
 from fichero.db.paths import migrate_legacy_engine_state
 from fichero.security.remote_backend import build_remote_backend_status
-from fichero.security.security_scoped_access import granted_paths
+# The ingest allow-list lives in fichero.security.path_security so the SERVING
+# side can consult the same authority (#4230). Kept under the historical
+# private name: every caller and the library-path middleware below use it.
+from fichero.security.path_security import is_allowed_ingest_path as _is_allowed_local_path
 from fichero.db.storage import (
     start_periodic_snapshot_task,
     stop_periodic_snapshot_task,
@@ -886,155 +889,6 @@ async def validate_library_path_header(request: Request, call_next):
             },
         )
     return await call_next(request)
-
-
-def _configured_library_allowed_roots() -> list[Path]:
-    """Extra server-side library roots for remote/Linux engines.
-
-    FICHERO_LIBRARY_ALLOWED_ROOTS accepts an os.pathsep-separated list and also
-    tolerates commas/newlines for deployment systems that make pathsep awkward.
-    The filesystem root is ignored: library access must always be scoped.
-    """
-    raw = os.environ.get("FICHERO_LIBRARY_ALLOWED_ROOTS", "")
-    if not raw.strip():
-        return []
-
-    parts = raw.replace("\n", os.pathsep).replace(",", os.pathsep).split(os.pathsep)
-    roots: list[Path] = []
-    for part in parts:
-        value = part.strip()
-        if not value:
-            continue
-        root = Path(value).expanduser()
-        try:
-            resolved = root.resolve()
-        except Exception:
-            continue
-        if resolved == Path(resolved.anchor):
-            logger.warning("Ignoring unsafe FICHERO_LIBRARY_ALLOWED_ROOTS entry: %s", value)
-            continue
-        roots.append(resolved)
-    return roots
-
-
-def _is_sandbox_container_app_support(path: Path, home: Path) -> bool:
-    """True iff path is under ONE sandbox container's Application Support.
-
-    Matches ~/Library/Containers/<container>/Data/Library/Application Support/...
-    where <container> is exactly one path component (bundle id or the UUID
-    form newer macOS uses on disk). This is where a sandboxed host app's own
-    Application Support lives, so an UNSANDBOXED external Debug engine can
-    open the sandboxed app's default library.
-
-    ponytail: the ceiling is a single container's Data/Library/Application
-    Support subtree — NEVER widen to all of ~/Library/Containers, which would
-    expose every sandboxed app's private data (Mail, Messages, ...) to
-    library-path reads.
-    """
-    try:
-        parts = path.relative_to(home / "Library" / "Containers").parts
-    except ValueError:
-        return False
-    # parts = (<container>, "Data", "Library", "Application Support", <...>+)
-    # len >= 5 forces the .fichero to live BELOW Application Support.
-    return len(parts) >= 5 and parts[1:4] == ("Data", "Library", "Application Support")
-
-
-def _is_sandbox_container_drop_staging(path: Path, home: Path) -> bool:
-    """True iff path is a Finder-drop staging dir inside ONE sandbox container.
-
-    Matches ~/Library/Containers/<container>/Data/tmp/fichero-drop-<uuid>/...
-    where <container> is exactly one path component. The app stages every
-    Finder drop there (`SidebarItemRow+DropHandlers.swift`), and an externally
-    started engine — the default Dev Local scheme — could not read it, so every
-    drop returned 403 (#4223).
-
-    The bookmark fallback cannot rescue this: the app mints a TRANSIENT,
-    unpersisted grant, and grants live in the engine process's own `_GRANTED`.
-    A separately started engine has no channel to receive one.
-
-    ponytail: this is DELIBERATELY narrower than its Application Support
-    sibling. That helper accepts any single container's Application Support;
-    this one additionally requires the `fichero-drop-` prefix, so it grants
-    Fichero's own staging directories and nothing else. Without the prefix
-    check this would open every sandboxed app's Data/tmp — Mail's, Messages' —
-    which is the same exposure the sibling's comment warns against, one
-    directory over. NEVER relax either the single-component container or the
-    prefix.
-
-    TWO SHAPES, because the engine sees this directory under different names
-    depending on how it was started, and BOTH were denied:
-
-    * UNSANDBOXED engine (Dev Local, DMG) — real HOME, so the drop dir is
-      ~/Library/Containers/<container>/Data/tmp/fichero-drop-<uuid>/
-    * SANDBOXED engine (App Store, embedded) — the sandbox redirects HOME
-      INTO the container, so the SAME directory is $HOME/tmp/fichero-drop-
-      <uuid>/ and the `Library/Containers` prefix never matches.
-
-    The second shape was established by simulating the redirected HOME rather
-    than assumed: without it the App Store build would ship with drag-and-drop
-    still returning 403.
-    """
-    # Sandboxed view: HOME is already the container's Data dir.
-    try:
-        parts = path.relative_to(home / "tmp").parts
-    except ValueError:
-        pass
-    else:
-        return bool(parts) and parts[0].startswith("fichero-drop-")
-
-    try:
-        parts = path.relative_to(home / "Library" / "Containers").parts
-    except ValueError:
-        return False
-    # parts = (<container>, "Data", "tmp", "fichero-drop-<uuid>", <...>*)
-    # len >= 4 admits the staging directory itself (a folder drop) as well as
-    # the files staged inside it.
-    return (
-        len(parts) >= 4
-        and parts[1:3] == ("Data", "tmp")
-        and parts[3].startswith("fichero-drop-")
-    )
-
-
-def _is_allowed_local_path(path: str) -> bool:
-    """Return whether a local file path is below an engine-approved root."""
-    try:
-        expanded = Path(path).expanduser()
-        resolved = expanded.resolve()
-    except Exception:
-        return False
-
-    home = Path.home().resolve()
-    icloud = home / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
-    allowed_roots = [
-        home / "Documents",
-        home / "Desktop",
-        home / "Fichero",
-        home / "Dropbox",
-        home / "code",
-        home / "Library" / "Application Support",
-        home / "Library" / "CloudStorage",
-        icloud,
-        Path("/var/folders"),
-        Path("/private/var/folders"),
-        Path("/tmp"),
-        Path("/private/tmp"),
-        *_configured_library_allowed_roots(),
-        *(Path(grant).expanduser().resolve() for grant in granted_paths()),
-    ]
-    candidates = [resolved]
-    if ".." not in expanded.parts:
-        candidates.append(expanded)
-    return any(
-        candidate.is_relative_to(root)
-        for candidate in candidates
-        for root in allowed_roots
-    ) or any(
-        _is_sandbox_container_app_support(candidate, home) for candidate in candidates
-    ) or any(
-        _is_sandbox_container_drop_staging(candidate, home) for candidate in candidates
-    )
 
 
 def _is_allowed_library_path(library_path: str) -> bool:
