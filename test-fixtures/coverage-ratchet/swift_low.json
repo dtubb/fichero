@@ -1,0 +1,21 @@
+{
+  "lineCoverage": 0.415,
+  "targets": [
+    {
+      "name": "Fichero.app",
+      "lineCoverage": 0.415,
+      "files": [
+        {"path": "fichero/fichero/Models/DocumentStore.swift", "lineCoverage": 0.10},
+        {"path": "fichero/fichero/Services/APIClient.swift", "lineCoverage": 0.62},
+        {"path": "fichero/fichero/App/AppState.swift", "lineCoverage": 0.90}
+      ]
+    },
+    {
+      "name": "FicheroTests.xctest",
+      "lineCoverage": 0.99,
+      "files": [
+        {"path": "fichero/fichero-tests/Models/DocumentStoreTests.swift", "lineCoverage": 0.99}
+      ]
+    }
+  ]
+}

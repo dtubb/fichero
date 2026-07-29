@@ -9,10 +9,16 @@
     }
   ],
   "defaultOptions" : {
-
+    "codeCoverage" : true
   },
   "testTargets" : [
-
+    {
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "A10521A82EFDC92400B28C3E",
+        "name" : "FicheroTests"
+      }
+    }
   ],
   "version" : 1
 }

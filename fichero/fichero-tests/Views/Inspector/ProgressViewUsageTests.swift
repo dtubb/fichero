@@ -1,0 +1,23 @@
+import XCTest
+
+final class ProgressViewUsageTests: XCTestCase {
+    func testIndeterminateProgressViewsDoNotUseFixedFrames() throws {
+        let sources = [
+            try Self.appSource("Views/Inspector/Source/Info/DocumentInspectorInfoTab+Prototype.swift"),
+            try Self.appSource("Views/Components/NodeClassPicker.swift"),
+            try Self.appSource("Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift")
+        ]
+
+        for source in sources {
+            XCTAssertFalse(source.contains("ProgressView().scaleEffect(0.6).frame("))
+            XCTAssertTrue(source.contains("ProgressView().controlSize(.mini)"))
+        }
+    }
+
+    private static func appSource(_ relativePath: String) throws -> String {
+        let baseURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("../fichero")
+        return try String(contentsOf: baseURL.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+}

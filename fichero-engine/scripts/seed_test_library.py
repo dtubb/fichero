@@ -12,7 +12,12 @@ models. A checked-in binary would rot; regenerating from the current models
 every run keeps the fixture in lock-step with the code.
 
 Usage:
-    PYTHONPATH=fichero-engine/src python fichero-engine/scripts/seed_test_library.py <path>
+    PYTHONPATH=fichero-engine/src python fichero-engine/scripts/seed_test_library.py <path> [--with-files]
+
+``--with-files`` additionally copies real specimens from the shared
+``test-fixtures/files`` tree into the library and registers file-backed
+documents plus two extra canonical workflows. The default (no flag) output is
+byte-for-byte the historical seed, so existing consumers are unaffected.
 
 Prints a JSON summary (counts + key IDs) to stdout so a harness/CI can verify.
 IDs are fixed so tests can assert on specific values.
@@ -46,6 +51,14 @@ ENTITY_ORG_ID = "test-ent-org"
 CLAIM_IDS = ["test-claim-1", "test-claim-2", "test-claim-3"]
 WORKFLOW_ID = "test-workflow-catalogue"
 ARTIFACT_ID = "test-artifact-transcription"
+# --with-files additions — real specimens from the shared fixture library.
+SAMPLE_FILES_DIR = Path(__file__).resolve().parents[2] / "test-fixtures" / "files"
+FIXTURE_DOC_SPECS = [
+    ("test-doc-fixture-pdf", "multipage.pdf", FileType.pdf),
+    ("test-doc-fixture-jpg", "sample.jpg", FileType.image),
+    ("test-doc-fixture-txt", "sample.txt", FileType.text),
+]
+EXTRA_WORKFLOW_IDS = ["test-workflow-transcribe", "test-workflow-entities"]
 _ONE_PIXEL_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5tQAAAAASUVORK5CYII="
 )
@@ -79,7 +92,39 @@ def _make_package(path: Path) -> None:
     (path / "files").mkdir()
 
 
-def seed(path: Path) -> dict:
+def _seed_fixture_files(db, path: Path) -> None:
+    """Copy real shared specimens into the library as file-backed documents."""
+    for doc_id, fixture_name, file_type in FIXTURE_DOC_SPECS:
+        src = SAMPLE_FILES_DIR / fixture_name
+        if not src.is_file():
+            raise FileNotFoundError(f"shared fixture missing: {src}")
+        dst = path / "files" / f"{doc_id}{src.suffix}"
+        shutil.copyfile(src, dst)
+        db.save(
+            Document(
+                id=doc_id,
+                parent_id=COLLECTION_ID,
+                name=fixture_name,
+                doc_type=DocType.file,
+                file_type=file_type,
+                status=Status.completed,
+                path=str(dst.relative_to(path)),
+            )
+        )
+    for wf_id, wf_name in zip(
+        EXTRA_WORKFLOW_IDS, ["Test Transcribe", "Test Extract Entities"]
+    ):
+        db.save(
+            Workflow(
+                id=wf_id,
+                name=wf_name,
+                description="Seeded canonical workflow for cross-layer tests.",
+                folder_path="/",
+            )
+        )
+
+
+def seed(path: Path, with_files: bool = False) -> dict:
     _make_package(path)
     photo_path = path / "files" / "test-doc-photo.png"
     photo_path.write_bytes(_ONE_PIXEL_PNG)
@@ -164,6 +209,9 @@ def seed(path: Path) -> dict:
         )
     )
 
+    if with_files:
+        _seed_fixture_files(db, path)
+
     expected = _measure(db)
     db_manager.close_all()
     return {
@@ -192,14 +240,19 @@ def seed(path: Path) -> dict:
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("usage: seed_test_library.py <path-to.fichero>", file=sys.stderr)
+    args = [a for a in sys.argv[1:] if a != "--with-files"]
+    with_files = "--with-files" in sys.argv[1:]
+    if len(args) < 1:
+        print(
+            "usage: seed_test_library.py <path-to.fichero> [--with-files]",
+            file=sys.stderr,
+        )
         return 2
-    target = Path(sys.argv[1]).expanduser().resolve()
+    target = Path(args[0]).expanduser().resolve()
     if target.suffix != ".fichero":
         print(f"refusing to seed non-.fichero path: {target}", file=sys.stderr)
         return 2
-    summary = seed(target)
+    summary = seed(target, with_files=with_files)
     print(json.dumps(summary, indent=2))
     return 0
 

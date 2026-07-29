@@ -127,6 +127,7 @@ nav:
       - Action Registry: contributor/action-registry.md
       - Security Model: contributor/security-model.md
       - Setup & Contributing: contributor/setup-and-contributing.md
+      - Testing: contributor/TESTING.md
       - Ingest:
           - Overview: contributor/ingest-overview.md
           - Ingest API: contributor/ingest-api.md

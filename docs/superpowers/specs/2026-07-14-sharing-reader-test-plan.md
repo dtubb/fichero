@@ -10,7 +10,7 @@ Everything below was verified against the tree at `3f091fbb4` (integrate worktre
 
 Issue #2399 ("tappable pair link") was closed while completely dead. The app minted `fichero://` links (`fichero/fichero/Models/SessionStore.swift:45,177,191`), had Copy/ShareLink buttons, and had full receive handlers on both platforms (`FicheroApp.swift:123-142,329-330`, `FicheroApp_iOS.swift:117-127`) — but `CFBundleURLTypes` was registered nowhere, so the OS never delivered a tapped link. Every piece was individually plausible; the **coupling** was dead. Nobody exercised the round trip.
 
-The fix (PR #3793) shipped with `fichero/fichero-tests/URLSchemeRegistrationTests.swift`, which asserts against `Bundle.main` in the test host — i.e. against the **built product's merged Info.plist**, the thing the OS actually reads — not against source. That is the correct shape, and this plan generalises it.
+The fix (PR #3793) shipped with `fichero/fichero-tests/Models/URLSchemeRegistrationTests.swift`, which asserts against `Bundle.main` in the test host — i.e. against the **built product's merged Info.plist**, the thing the OS actually reads — not against source. That is the correct shape, and this plan generalises it.
 
 **Acceptance rule for every test proposed here:** state what breaking looks like, and answer *"if the feature were silently dead the way #2399 was, would this test go red?"* Three classes of test pass that bar:
 

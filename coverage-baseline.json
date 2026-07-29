@@ -1,0 +1,10 @@
+{
+  "comment": "Coverage ratchet baseline (#4249). scripts/check_coverage_ratchet.py fails when measured line coverage drops more than tolerance_pct below these values. Update ONLY deliberately via --update-baseline and commit the diff. Initial values are 0.0 until the manager's first real coverage run records the true numbers.",
+  "tolerance_pct": 0.25,
+  "engine": {
+    "line_rate_pct": 0.0
+  },
+  "swift": {
+    "line_rate_pct": 0.0
+  }
+}

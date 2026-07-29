@@ -10,6 +10,7 @@ Tests for:
 import asyncio
 import pytest
 import httpx
+from tests.fixture_paths import sample_file
 
 # Base URL for API tests
 BASE_URL = "http://127.0.0.1:8765/api"
@@ -378,7 +379,7 @@ class TestCatalogueWorkflowE2E:
         from pathlib import Path
 
         # Step 1: Load fixture PDF
-        fixture_pdf = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+        fixture_pdf = sample_file("sample.pdf")
         if not fixture_pdf.exists():
             pytest.skip(f"Fixture PDF not found at {fixture_pdf}")
 

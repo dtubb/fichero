@@ -3,6 +3,7 @@ import logging
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+from tests.fixture_paths import sample_file
 
 
 def _make_pdf(tmp_path: Path, name: str, page_count: int, *, page_labels=None) -> Path:
@@ -609,7 +610,7 @@ class TestIngestFile:
     ):
         from fichero.importers.ingest import ingest_file, IngestMode
 
-        fixture = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.jpg"
+        fixture = sample_file("sample.jpg")
         source = tmp_path / "source.jpg"
         destination = tmp_path / "library" / "stored.jpg"
         source.write_bytes(fixture.read_bytes())
@@ -1166,7 +1167,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.jpg"
+        file_path = sample_file("sample.jpg")
         
         mock_bookmark.return_value = None
         
@@ -1185,7 +1186,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.png"
+        file_path = sample_file("sample.png")
         
         mock_bookmark.return_value = None
         
@@ -1203,7 +1204,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.tiff"
+        file_path = sample_file("sample.tiff")
         
         mock_bookmark.return_value = None
         
@@ -1221,7 +1222,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.webp"
+        file_path = sample_file("sample.webp")
         
         mock_bookmark.return_value = None
         
@@ -1239,7 +1240,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+        file_path = sample_file("sample.pdf")
         
         mock_bookmark.return_value = None
         
@@ -1257,7 +1258,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.docx"
+        file_path = sample_file("sample.docx")
         
         mock_bookmark.return_value = None
         
@@ -1275,7 +1276,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        file_path = sample_file("sample.txt")
         
         mock_bookmark.return_value = None
         
@@ -1293,7 +1294,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.md"
+        file_path = sample_file("sample.md")
         
         mock_bookmark.return_value = None
         
@@ -1311,7 +1312,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.mp3"
+        file_path = sample_file("sample.mp3")
         
         mock_bookmark.return_value = None
         
@@ -1329,7 +1330,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.wav"
+        file_path = sample_file("sample.wav")
         
         mock_bookmark.return_value = None
         
@@ -1347,7 +1348,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.mp4"
+        file_path = sample_file("sample.mp4")
         
         mock_bookmark.return_value = None
         
@@ -1365,7 +1366,7 @@ class TestIngestWithRealFiles:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
 
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.epub"
+        file_path = sample_file("sample.epub")
         
         mock_bookmark.return_value = None
         
@@ -1684,7 +1685,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        file_path = sample_file("sample.txt")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -1707,7 +1708,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.md"
+        file_path = sample_file("sample.md")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -1732,7 +1733,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.docx"
+        file_path = sample_file("sample.docx")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -1755,7 +1756,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.epub"
+        file_path = sample_file("sample.epub")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -1782,7 +1783,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.pdf"
+        file_path = sample_file("sample.pdf")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -1965,7 +1966,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        file_path = sample_file("sample.txt")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -1988,7 +1989,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        file_path = sample_file("sample.txt")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -2011,7 +2012,7 @@ class TestTextExtraction:
         from fichero.importers.ingest import ingest_file, IngestMode
         from fichero.models import FileType
         
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        file_path = sample_file("sample.txt")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -2036,7 +2037,7 @@ class TestTextExtraction:
         from fichero.models import FileType
         
         # Create a file with unsupported format
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.jpg"
+        file_path = sample_file("sample.jpg")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None
@@ -2059,7 +2060,7 @@ class TestTextExtraction:
         from fichero.models import FileType
         
         # Create a corrupted file
-        file_path = Path(__file__).parent.parent / "fixtures" / "sample_files" / "sample.txt"
+        file_path = sample_file("sample.txt")
         
         with patch("fichero.db.db") as mock_db:
             mock_db.save.return_value = None

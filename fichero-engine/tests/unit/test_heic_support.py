@@ -16,9 +16,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from tests.fixture_paths import sample_file
 
 FIXTURE = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "sample_files" / "sample.heic"
+    sample_file("sample.heic")
 )
 
 

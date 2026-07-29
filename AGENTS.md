@@ -61,6 +61,16 @@ path like `~/code/fichero/.venv` into a doc or a script; it is only true on one 
 - **Ship tests with the change.** Every SwiftUI fix or feature lands with new/updated unit tests in the same commit; write the failing test first for a bug. Test the logic (state, predicates, builders, ID parsing) rather than the rendered pixels, and eyeball pixels by running the built app.
 - **Risky diff?** Anything touching auth, file I/O, network, secrets, or keychain → run `/security-review`.
 
+**Testing manual: `docs/contributor/TESTING.md`.** The short version:
+`fichero/fichero-tests/` mirrors `fichero/fichero/` — a new test goes in the
+folder matching the code under test (plus `Transport/` and `Contract/`
+buckets); shared specimen files live in `test-fixtures/files/`, resolved ONLY
+via `tests/fixture_paths.py` (Python) or `TestFixtures.swift` (Swift); seeded
+libraries come only from `seed_test_library.py`; and the coverage ratchet
+(`scripts/check_coverage_ratchet.py` + `coverage-baseline.json`) fails any
+run whose coverage drops — baselines move only by deliberate
+`--update-baseline` commits.
+
 ---
 
 ## Worker Orchestration

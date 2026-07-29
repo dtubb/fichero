@@ -1,0 +1,9 @@
+{
+  "meta": {"note": "synthetic coverage.py report - fixture for check_coverage_ratchet.py"},
+  "totals": {"percent_covered": 41.5},
+  "files": {
+    "src/fichero/api/main.py": {"summary": {"percent_covered": 12.0}},
+    "src/fichero/db.py": {"summary": {"percent_covered": 55.0}},
+    "src/fichero/models/document.py": {"summary": {"percent_covered": 88.0}}
+  }
+}

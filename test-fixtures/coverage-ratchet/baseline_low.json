@@ -1,0 +1,6 @@
+{
+  "comment": "fixture baseline BELOW the synthetic reports - the ratchet must PASS against this",
+  "tolerance_pct": 0.25,
+  "engine": {"line_rate_pct": 30.0},
+  "swift": {"line_rate_pct": 30.0}
+}
