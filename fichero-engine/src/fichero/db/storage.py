@@ -70,6 +70,42 @@ def _load_pil() -> None:
     except ImportError:
         return
     Image, ImageOps = _Image, _ImageOps
+    _register_heif()
+
+
+def _register_heif() -> bool:
+    """Teach Pillow to open HEIC/HEIF. Returns whether it is now supported.
+
+    HEIC is the iPhone camera default, so without this an imported photo
+    becomes a record with no thumbnail and NO error — Pillow raises
+    UnidentifiedImageError deep in the render and the user concludes the app
+    is broken (#4214). pillow-heif is declared in pyproject, but the import is
+    still guarded: a partial install must degrade to "HEIC unsupported", not
+    take every other format's thumbnail down with it.
+    """
+    try:
+        import pillow_heif
+    except ImportError:
+        logger.info("pillow-heif is not installed — HEIC/HEIF images cannot be decoded")
+        return False
+    try:
+        pillow_heif.register_heif_opener()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("pillow-heif failed to register its Pillow opener: %s", exc)
+        return False
+    return True
+
+
+def heif_supported() -> bool:
+    """Whether this engine can decode HEIC/HEIF right now.
+
+    A capability, answered honestly, so a caller can say "HEIC is unsupported
+    on this install" instead of silently producing a blank record.
+    """
+    _load_pil()
+    if Image is None:
+        return False
+    return "HEIF" in getattr(Image, "OPEN", {})
 
 if TYPE_CHECKING:
     from fichero.db import Database

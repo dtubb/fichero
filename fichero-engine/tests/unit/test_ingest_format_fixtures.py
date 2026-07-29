@@ -125,24 +125,28 @@ class TestKnownGaps:
 
         assert "Asprilla" in content
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "#4206: .heic routes to FileType.image but Pillow cannot decode it — "
-            "`pillow-heif` is not installed. So HEIC imports as a record with no "
-            "thumbnail and no rendering. iPhone photos are HEIC by default."
-        ),
-    )
+
+class TestImagesThatWork:
     def test_heic_can_be_decoded(self):
+        """Was a strict xfail until #4214 added pillow-heif as a dependency.
+
+        HEIC is the iPhone camera default; before the dependency landed, such
+        a photo imported as a record with no thumbnail and no error. The
+        decode goes through the engine's own capability seam, because it is
+        `_load_pil()` that registers the HEIF opener — a passing test that
+        imported pillow_heif itself would prove nothing about the engine.
+        """
         from PIL import Image
+
+        from fichero.db.storage import heif_supported
+
+        assert heif_supported(), "pillow-heif is a declared dependency (#4214)"
 
         image = Image.open(_fixture("sample.heic"))
         image.load()
 
         assert image.size == (64, 64)
 
-
-class TestImagesThatWork:
     def test_jp2_decodes(self):
         """JPEG 2000 is present in the archive corpus, so this one matters."""
         from PIL import Image
