@@ -21,6 +21,12 @@ extension SidebarView {
         }
         lastHandledSelectionDestination = destination
         handleSelectionDestination(destination)
+        // The routed `sidebarMode`/`viewMode` are written: the click is
+        // committed and the content column is now the thing we are waiting on
+        // (#4228). Handing straight from one interval to the next means the two
+        // bars in Instruments abut, so a gap between them is a real gap.
+        InteractionProfile.end(.selectionCommit)
+        InteractionProfile.begin(.selectionToContent, detail: destination.serializedID)
     }
 
     private func handleSelectionDestination(_ destination: SidebarDestination) {
@@ -40,7 +46,7 @@ extension SidebarView {
             viewMode = .activity(selectedRun.toSelectedRun())
             return
         default:
-            let item = findItemById(destination.serializedID, in: allCachedItems)
+            let item = cachedItem(id: destination.serializedID)
             if item == nil {
                 // Launch-restore can arrive before the sidebar caches are
                 // built; the id resolves to nothing yet. Un-stamp the

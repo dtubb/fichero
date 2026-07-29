@@ -61,6 +61,10 @@ struct SidebarView: View {
     // #3862: header-derived, filtered item buckets cached per library so the body
     // stops re-filtering `header.children` on every sidebar state change.
     @State var cachedLibraryItemBuckets: [UUID: CachedLibraryItemBuckets] = [:]
+    // Every cached row keyed by id, rebuilt with `cachedLibraryHeaders`. The
+    // selection path used to answer "which item is this?" with a recursive walk
+    // of the whole forest, ~4× per body pass — see `sidebarItemIndex`.
+    @State var cachedItemIndex: [String: SidebarItem] = [:]
     @State var sidebarFilterText = ""
 
     // Chain service for workflows sidebar (global - not per-library yet)
@@ -302,7 +306,7 @@ struct SidebarView: View {
 // Creation handlers are in SidebarCreationHandlers.swift
 // Import/Delete/Rename actions are in SidebarActions.swift
 // Service observers and data loading are in SidebarObservers.swift
-// Helpers (allCachedItems, selectedItem, rebuildCaches, findItemById) are in SidebarView+Helpers.swift
+// Helpers (allCachedItems, selectedItem, rebuildCaches, cachedItem) are in SidebarView+Helpers.swift
 // View components (sidebarContent, modeContent) are in SidebarView+ViewComponents.swift
 // Selection handling (handleSelection) is in SidebarView+SelectionHandling.swift
 // Environment key (automationRefresh) is in SidebarView+Environment.swift

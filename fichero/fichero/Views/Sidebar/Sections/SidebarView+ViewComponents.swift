@@ -98,6 +98,11 @@ extension SidebarView {
         Binding(
             get: { selectionState.selectedDestinations },
             set: { newValue in
+                // Start of the click timeline (#4228). The setter is the first
+                // of OUR code the click reaches; everything before it is AppKit
+                // hit-testing. Closed in `handleSelectionChange` once the routed
+                // destination has been written.
+                InteractionProfile.begin(.selectionCommit)
                 selectionState.selectedDestinations = newValue
                 let primary = sidebarPrimaryDestination(
                     for: newValue,
@@ -108,6 +113,12 @@ extension SidebarView {
                 // detail pane stays put while the selection is built.
                 if selectionState.selectedDestination != primary {
                     selectionState.selectedDestination = primary
+                } else {
+                    // No reroute — `.onChange` will not fire, so close the
+                    // interval here rather than leaving it open until the next
+                    // click supersedes it. An extend-selection click IS a
+                    // measurable interaction; it just ends early.
+                    InteractionProfile.end(.selectionCommit, detail: "highlight only")
                 }
             }
         )
