@@ -25,6 +25,7 @@ from typing import Any
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.types import State
+from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
 from fichero_server.workflows.tools.llm_base import BASE_OUTPUT_PORTS, merge_config_schema
 from fichero_server.workflows.tools.vision_base import (
     VISION_CONFIG_SCHEMA,
@@ -132,7 +133,10 @@ async def transcribe_review(
     """Re-check an image against its prior transcription and emit a corrected version."""
 
     files = inputs.get("files") or state.get("input_files", [])
-    documents = inputs.get("documents", [])
+    # #4298: recover aligned documents from upstream node outputs when the
+    # `documents` port is unwired, so a page-scoped review stays scoped to
+    # that ONE page instead of the whole PDF.
+    documents = inputs.get("documents") or documents_from_state_outputs(state, files)
     prior_text = inputs.get("context")  # Prior transcription flows in via this port
     if isinstance(prior_text, list) and prior_text and all(
         isinstance(records, list) for records in prior_text

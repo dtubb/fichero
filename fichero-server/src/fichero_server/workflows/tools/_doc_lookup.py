@@ -90,3 +90,47 @@ def resolve_path_to_doc(path_to_doc: dict[str, Any], file_path: str | None) -> A
         if candidate in path_to_doc:
             return path_to_doc[candidate]
     return None
+
+
+def documents_from_state_outputs(
+    state: dict[str, Any] | Any, files: Any
+) -> list[Any]:
+    """Recover the index-aligned ``documents`` list for ``files`` from an
+    upstream node's recorded outputs (#4298).
+
+    Vision tools scope their work per-document: for a page-scoped run the
+    source node emits ``files=[parent.pdf]`` paired with ``documents=[page]``,
+    and the page's ``sequence`` is what confines the vision pass to that ONE
+    page. When a workflow graph wires only the ``files`` port into the tool
+    (older stored copies of presets, hand-built workflows), the pairing is
+    lost — the tool sees a bare PDF path and falls into the whole-PDF branch,
+    processing (and billing) EVERY page of a document the user selected one
+    page of.
+
+    The pairing is still present in the LangGraph state: every completed
+    node's full output dict lives in ``state["outputs"][node_id]``. This scans
+    for a node whose ``files`` output is exactly the list this tool received
+    and returns its ``documents``. Returns ``[]`` when no aligned producer is
+    found (behaviour unchanged: the tool proceeds document-less).
+    """
+    if not files:
+        return []
+    wanted = [files] if isinstance(files, str) else list(files)
+    outputs = state.get("outputs") or {}
+    if not isinstance(outputs, dict):
+        return []
+    for node_output in outputs.values():
+        if not isinstance(node_output, dict):
+            continue
+        out_files = node_output.get("files")
+        docs = node_output.get("documents")
+        if not docs or not isinstance(out_files, list):
+            continue
+        if out_files == wanted and len(docs) == len(wanted):
+            logger.info(
+                "documents port unwired — recovered %d aligned document(s) "
+                "from upstream node outputs (#4298)",
+                len(docs),
+            )
+            return list(docs)
+    return []
