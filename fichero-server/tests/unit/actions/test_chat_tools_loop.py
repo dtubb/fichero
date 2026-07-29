@@ -193,6 +193,49 @@ def test_default_model_without_bind_tools_falls_back_to_single_shot(
     assert data["tool_calls"] == []
 
 
+def test_read_tool_dispatch_failure_surfaces_as_error_tool_call(
+    client, db, monkeypatch
+):
+    """A read tool that RAISES is recorded as a status=error tool_call — the
+    failure is visible in the payload, never silently dropped, and the turn
+    still completes with the model's final answer."""
+    monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
+
+    def _boom_exec(db, params: _EchoParams, ctx: ActionContext):
+        raise RuntimeError("index unavailable")
+
+    global_registry.register(
+        ActionRegistration(
+            name="demo.boom",
+            params_model=_EchoParams,
+            execute=_boom_exec,
+            domains=["demo"],
+            read_only=True,
+        )
+    )
+    try:
+        llm = _ScriptedToolLLM(
+            [
+                _resp(tool_calls=[{"name": "demo_boom", "args": {"value": "x"}, "id": "c1"}]),
+                _resp(content="answered despite tool failure"),
+            ]
+        )
+        _stub_llm(monkeypatch, llm)
+
+        r = client.post("/api/chat", json={"message": "try the broken tool"})
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["message"] == "answered despite tool failure"
+        assert len(data["tool_calls"]) == 1
+        call = data["tool_calls"][0]
+        assert call["action_name"] == "demo.boom"
+        assert call["status"] == "error"
+        assert call["audit_id"] is None
+    finally:
+        global_registry._actions.pop("demo.boom", None)
+
+
 def test_default_llm_error_still_raises_never_silent(client, monkeypatch):
     """An LLM failure inside the default loop surfaces as an error, not a fake answer."""
     monkeypatch.delenv("FICHERO_CHAT_TOOLS", raising=False)
