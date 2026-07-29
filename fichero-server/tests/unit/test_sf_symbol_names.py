@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_SWIFT_ROOT = _REPO_ROOT / "fichero" / "fichero"
+_SWIFT_ROOT = _REPO_ROOT / "fichero_server" / "fichero_server"
 
 _COREGLYPHS = Path(
     "/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources"

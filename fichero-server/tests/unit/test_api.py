@@ -58,7 +58,7 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
-        assert data["backend_version"] == package_version("fichero")
+        assert data["backend_version"] == package_version("fichero-server")
 
     def test_library_health_includes_backend_version(self, client, test_package):
         """Library-scoped health keeps the same version reporting."""
@@ -68,7 +68,7 @@ class TestHealthEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["backend_version"] == package_version("fichero")
+        assert data["backend_version"] == package_version("fichero-server")
 
 
 class TestStatsEndpoint:

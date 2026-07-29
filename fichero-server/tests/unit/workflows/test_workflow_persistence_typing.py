@@ -206,7 +206,7 @@ def _preset_files() -> list[Path]:
     base = (
         Path(__file__).resolve().parents[3]
         / "src"
-        / "fichero"
+        / "fichero_server"
         / "resources"
         / "default_workflows"
     )

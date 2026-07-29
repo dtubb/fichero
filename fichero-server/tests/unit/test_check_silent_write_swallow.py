@@ -16,7 +16,7 @@ scan = _mod.scan
 
 
 def _src(tmp_path: Path, body: str) -> Path:
-    d = tmp_path / "fichero"
+    d = tmp_path / "fichero_server"
     d.mkdir(parents=True, exist_ok=True)
     (d / "m.py").write_text(body)
     return d

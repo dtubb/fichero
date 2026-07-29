@@ -14,7 +14,7 @@ _SPEC.loader.exec_module(check_folder_organization)  # type: ignore[attr-defined
 
 
 def test_scan_flags_known_mixed_library_directory(monkeypatch, tmp_path) -> None:
-    swift_root = tmp_path / "fichero" / "fichero"
+    swift_root = tmp_path / "fichero_server" / "fichero_server"
     library = swift_root / "Views" / "Library"
     library.mkdir(parents=True)
     (library / "LibraryView.swift").write_text("struct LibraryView {}\n", encoding="utf-8")
@@ -28,7 +28,7 @@ def test_scan_flags_known_mixed_library_directory(monkeypatch, tmp_path) -> None
 
 
 def test_scan_flags_new_directory_over_direct_file_limit(monkeypatch, tmp_path) -> None:
-    swift_root = tmp_path / "fichero" / "fichero"
+    swift_root = tmp_path / "fichero_server" / "fichero_server"
     crowded = swift_root / "Views" / "Crowded"
     crowded.mkdir(parents=True)
     for index in range(check_folder_organization.MAX_DIRECT_SWIFT_FILES + 1):
@@ -46,7 +46,7 @@ def test_scan_flags_new_directory_over_direct_file_limit(monkeypatch, tmp_path) 
 
 
 def test_list_output_includes_library_reorg_targets(monkeypatch, tmp_path, capsys) -> None:
-    swift_root = tmp_path / "fichero" / "fichero"
+    swift_root = tmp_path / "fichero_server" / "fichero_server"
     library = swift_root / "Views" / "Library"
     library.mkdir(parents=True)
     (library / "LibraryView.swift").write_text("struct LibraryView {}\n", encoding="utf-8")

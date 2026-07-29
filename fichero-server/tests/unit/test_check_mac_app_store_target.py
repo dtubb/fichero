@@ -35,8 +35,8 @@ CHECK_MAS = SCRIPTS_DIR / "check_mac_app_store_target.py"
 VALIDATE_MAS = SCRIPTS_DIR / "validate_mas_bundle.sh"
 RESIGN_ENGINE = SCRIPTS_DIR / "resign_engine_in_archive.sh"
 RELEASE_ALL = SCRIPTS_DIR / "release-all.sh"
-ENGINE_ENTITLEMENTS = REPO_ROOT / "fichero" / "fichero" / "FicheroEngineAppStore.entitlements"
-ENGINE_EMBED_INPUTS = REPO_ROOT / "fichero" / "fichero.xcodeproj" / "xcshareddata" / "FicheroEngineEmbedInputs.xcfilelist"
+ENGINE_ENTITLEMENTS = REPO_ROOT / "fichero_server" / "fichero_server" / "FicheroEngineAppStore.entitlements"
+ENGINE_EMBED_INPUTS = REPO_ROOT / "fichero_server" / "fichero.xcodeproj" / "xcshareddata" / "FicheroEngineEmbedInputs.xcfilelist"
 
 
 def test_guardrail_passes_on_current_repo() -> None:
@@ -65,7 +65,7 @@ def test_engine_entitlements_have_no_get_task_allow() -> None:
 def _embed_phase(target_name: str) -> dict:
     body = subprocess.run(
         ["plutil", "-convert", "json", "-o", "-",
-         str(REPO_ROOT / "fichero" / "fichero.xcodeproj" / "project.pbxproj")],
+         str(REPO_ROOT / "fichero_server" / "fichero.xcodeproj" / "project.pbxproj")],
         capture_output=True,
         check=True,
     ).stdout
@@ -126,7 +126,7 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
     }
     project = json.loads(
         subprocess.run(
-            ["plutil", "-convert", "json", "-o", "-", str(REPO_ROOT / "fichero" / "fichero.xcodeproj" / "project.pbxproj")],
+            ["plutil", "-convert", "json", "-o", "-", str(REPO_ROOT / "fichero_server" / "fichero.xcodeproj" / "project.pbxproj")],
             capture_output=True,
             check=True,
         ).stdout

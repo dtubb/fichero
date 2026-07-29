@@ -25,7 +25,7 @@ from tests.fixture_paths import sample_file
 from tests.integration._cli_live import cli_live_engine  # noqa: F401  (fixture)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-CLI = Path(sys.executable).parent / "fichero"
+CLI = Path(sys.executable).parent / "fichero_server"
 
 pytestmark = pytest.mark.skipif(
     not CLI.exists(), reason=f"installed fichero CLI not found at {CLI}"

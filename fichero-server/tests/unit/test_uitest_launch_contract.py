@@ -7,8 +7,8 @@ ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_ui_test_launch_uses_isolated_library_hooks() -> None:
-    support = ROOT / "fichero" / "fichero" / "Services" / "UITestSupport.swift"
-    app = ROOT / "fichero" / "fichero" / "FicheroApp.swift"
+    support = ROOT / "fichero_server" / "fichero_server" / "Services" / "UITestSupport.swift"
+    app = ROOT / "fichero_server" / "fichero_server" / "FicheroApp.swift"
 
     support_text = support.read_text(encoding="utf-8")
     app_text = app.read_text(encoding="utf-8")
@@ -26,17 +26,17 @@ def test_reading_surface_has_stable_accessibility_hooks() -> None:
     # So `inspectorTabBar` / `inspectorTab-<tab>` no longer exist — do not "restore"
     # them. The hooks below are their shipped successors on the real controls.
     files = [
-        ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "Document" / "DocumentInspector.swift",
+        ROOT / "fichero_server" / "fichero_server" / "Views" / "Inspector" / "Document" / "DocumentInspector.swift",
         # #4024: the section bar + facet picker (inspectorSectionBar/inspectorFacetPicker)
         # moved to the split extension file when DocumentInspector was split by file_length.
-        ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "Document" / "DocumentInspector+TabBar.swift",
+        ROOT / "fichero_server" / "fichero_server" / "Views" / "Inspector" / "Document" / "DocumentInspector+TabBar.swift",
         # Per-section hook is declared on the enum, not at the call site.
-        ROOT / "fichero" / "fichero" / "Views" / "Inspector" / "InspectorSection.swift",
-        ROOT / "fichero" / "fichero" / "Views" / "Reader" / "Knowledge" / "DocumentKGSurface.swift",
-        ROOT / "fichero" / "fichero" / "Views" / "Reader" / "ReaderToolbar.swift",
+        ROOT / "fichero_server" / "fichero_server" / "Views" / "Inspector" / "InspectorSection.swift",
+        ROOT / "fichero_server" / "fichero_server" / "Views" / "Reader" / "Knowledge" / "DocumentKGSurface.swift",
+        ROOT / "fichero_server" / "fichero_server" / "Views" / "Reader" / "ReaderToolbar.swift",
         # #4024: PDF page-nav hooks (pdfPreviousPage/pdfNextPage) moved to the split
         # Controls extension file when ReaderToolbar was split by file_length.
-        ROOT / "fichero" / "fichero" / "Views" / "Reader" / "ReaderToolbar+Controls.swift",
+        ROOT / "fichero_server" / "fichero_server" / "Views" / "Reader" / "ReaderToolbar+Controls.swift",
     ]
     text = "\n".join(path.read_text(encoding="utf-8") for path in files)
 

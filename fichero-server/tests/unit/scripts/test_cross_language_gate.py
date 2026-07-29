@@ -8,10 +8,10 @@ ROOT = Path(__file__).resolve().parents[4]
 
 def test_cross_language_gate_terminates_spawned_engine_before_verify_python() -> None:
     gate = (
-        ROOT / "fichero" / "fichero-tests" / "Contract" / "CrossLanguageGateTests.swift"
+        ROOT / "fichero_server" / "fichero-tests" / "Contract" / "CrossLanguageGateTests.swift"
     ).read_text(encoding="utf-8")
     harness = (
-        ROOT / "fichero" / "fichero-tests" / "EngineHarness.swift"
+        ROOT / "fichero_server" / "fichero-tests" / "EngineHarness.swift"
     ).read_text(encoding="utf-8")
 
     termination_call = "EngineHarness.terminateSpawnedEngineForNestedVerifier()"

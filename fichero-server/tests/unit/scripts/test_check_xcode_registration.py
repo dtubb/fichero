@@ -14,7 +14,7 @@ _SPEC.loader.exec_module(check_xcode_registration)  # type: ignore[attr-defined]
 
 
 def _write_fake_project(root: Path) -> None:
-    project = root / "fichero" / "fichero.xcodeproj" / "project.pbxproj"
+    project = root / "fichero_server" / "fichero.xcodeproj" / "project.pbxproj"
     project.parent.mkdir(parents=True)
     project.write_text(
         """
@@ -45,7 +45,7 @@ def _write_fake_project(root: Path) -> None:
 
 
 def test_scan_flags_only_unregistered_swift_files(monkeypatch, tmp_path):
-    swift_root = tmp_path / "fichero" / "fichero"
+    swift_root = tmp_path / "fichero_server" / "fichero_server"
     swift_root.mkdir(parents=True)
     (swift_root / "A.swift").write_text("struct A {}\n", encoding="utf-8")
     (swift_root / "B.swift").write_text("struct B {}\n", encoding="utf-8")
@@ -56,7 +56,7 @@ def test_scan_flags_only_unregistered_swift_files(monkeypatch, tmp_path):
     monkeypatch.setattr(
         check_xcode_registration,
         "PROJECT_FILE",
-        tmp_path / "fichero" / "fichero.xcodeproj" / "project.pbxproj",
+        tmp_path / "fichero_server" / "fichero.xcodeproj" / "project.pbxproj",
     )
 
     assert check_xcode_registration.scan() == {

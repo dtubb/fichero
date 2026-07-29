@@ -59,7 +59,7 @@ def _shipped_lists() -> dict[str, list[str]]:
     those are local-dev extras where torch-class deps are allowed.
     """
     data = _pyproject()
-    briefcase = data["tool"]["briefcase"]["app"]["engine"]
+    briefcase = data["tool"]["briefcase"]["app"]["server"]
     return {
         "briefcase.requires": briefcase.get("requires", []),
         "project.dependencies": data["project"]["dependencies"],

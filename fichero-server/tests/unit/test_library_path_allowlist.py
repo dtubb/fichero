@@ -117,7 +117,7 @@ def test_home_code_path_allowed():
 def test_env_configured_remote_roots_allowed(tmp_path, monkeypatch):
     """Remote/Linux engines can add server-side package roots."""
     remote_root = tmp_path / "srv" / "fichero-libraries"
-    other_root = tmp_path / "mnt" / "fichero"
+    other_root = tmp_path / "mnt" / "fichero_server"
     monkeypatch.setenv(
         "FICHERO_LIBRARY_ALLOWED_ROOTS",
         f"  {tmp_path / 'unused'}  {os.pathsep}{remote_root},\n{other_root}",

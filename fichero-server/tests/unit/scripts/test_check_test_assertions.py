@@ -82,7 +82,7 @@ func test_without_assertion() {
     let value = 1 + 1
 }
 """
-    swift_root = tmp_path / "fichero" / "fichero" / "Tests"
+    swift_root = tmp_path / "fichero_server" / "fichero_server" / "Tests"
     swift_root.mkdir(parents=True)
     test_file = swift_root / "GuardrailTests.swift"
     test_file.write_text(source, encoding="utf-8")

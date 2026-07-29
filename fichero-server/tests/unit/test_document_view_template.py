@@ -4,7 +4,7 @@ from pathlib import Path
 TEMPLATE = (
     Path(__file__).parents[2]
     / "src"
-    / "fichero"
+    / "fichero_server"
     / "api"
     / "templates"
     / "document_view.html"
