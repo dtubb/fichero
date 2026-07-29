@@ -106,7 +106,7 @@ extension SidebarView {
         // Finder semantics (#4121): New Folder nests into the SELECTED
         // folder; with no folder selected it lands at the library root.
         if let selectedId = selectedItemId,
-           let selected = findItemById(selectedId, in: allCachedItems),
+           let selected = cachedItem(id: selectedId),
            case .document(let doc) = selected.itemType, doc.docType == .folder {
             sidebarState.newFolderParentId = doc.id
         } else {

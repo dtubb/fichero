@@ -40,7 +40,7 @@ extension SidebarView {
             viewMode = .activity(selectedRun.toSelectedRun())
             return
         default:
-            let item = findItemById(destination.serializedID, in: allCachedItems)
+            let item = cachedItem(id: destination.serializedID)
             if item == nil {
                 // Launch-restore can arrive before the sidebar caches are
                 // built; the id resolves to nothing yet. Un-stamp the

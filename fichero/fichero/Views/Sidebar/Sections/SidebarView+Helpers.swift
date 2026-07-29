@@ -37,6 +37,43 @@ func sidebarTreeRowHash(_ doc: Document) -> Int {
     return hasher.finalize()
 }
 
+/// Every row in the cached sidebar forest, keyed by `SidebarItem.id`.
+///
+/// Resolving one used to be `findItemById`, a recursive walk of the WHOLE
+/// forest, and a single sidebar click performed at least four of them: one to
+/// route the selection
+/// (`handleSelectionDestination`), one for `hasSelection` on the bottom toolbar,
+/// one for `selectedItem` in the focused-values config, and one per highlighted
+/// row for `selectedItems` — and every one of those recomputes on every body
+/// pass of `SidebarView`, because they are computed properties. That is
+/// O(rows × selection) of String comparison on the main thread per click, for a
+/// question a dictionary answers in O(1).
+///
+/// **First-in-DFS-preorder wins**, deliberately: that is exactly what the
+/// recursive `findItemById` returns, and the forest is NOT guaranteed to have
+/// unique ids (a workflow is mirrored into a same-id document node, #4186). A
+/// last-wins index would silently reroute those clicks to the other row.
+///
+/// Top-level rather than a member of `SidebarView`: statics on a `View` inherit
+/// `@MainActor` under the macOS 26 SDK, which makes them unusable from a plain
+/// test (see `sidebarTreeRowHash` above, and the SIGTRAP in #4201).
+func sidebarItemIndex(_ items: [SidebarItem]) -> [String: SidebarItem] {
+    var index: [String: SidebarItem] = [:]
+    sidebarIndexItems(items, into: &index)
+    return index
+}
+
+private func sidebarIndexItems(_ items: [SidebarItem], into index: inout [String: SidebarItem]) {
+    for item in items {
+        if index[item.id] == nil {
+            index[item.id] = item
+        }
+        if let children = item.children {
+            sidebarIndexItems(children, into: &index)
+        }
+    }
+}
+
 extension SidebarView {
     func sidebarLibrarySelectionId(_ libraryId: UUID) -> String {
         "library:\(libraryId.uuidString)"
@@ -59,17 +96,26 @@ extension SidebarView {
         return cachedLibraryHeaders.compactMap { filteredSidebarItem($0, query: query) }
     }
 
+    /// Resolve one cached row by id — a dictionary hit against the index built
+    /// alongside the headers, NOT a walk of the forest. Every selection-path
+    /// lookup goes through here; `findItemById` stays for callers that search a
+    /// caller-supplied subtree (drop handlers, ancestor tests) rather than the
+    /// cache.
+    func cachedItem(id: String) -> SidebarItem? {
+        cachedItemIndex[id]
+    }
+
     /// Derive the selected SidebarItem from the ID
     var selectedItem: SidebarItem? {
         guard let id = selectedItemId else { return nil }
-        return findItemById(id, in: allCachedItems)
+        return cachedItem(id: id)
     }
 
     /// Every highlighted row resolved to its SidebarItem — the multi-selection
     /// set that batch actions (delete, open-in-tabs) operate over.
     var selectedItems: [SidebarItem] {
         selectionState.selectedDestinations.compactMap {
-            findItemById($0.serializedID, in: allCachedItems)
+            cachedItem(id: $0.serializedID)
         }
     }
 
@@ -91,6 +137,15 @@ extension SidebarView {
             cacheLibraryDerivedState(header: header, library: library)
             return header
         }
+        cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
+
+        // Drop derived state for libraries that are no longer open. Without
+        // this, closing a library leaves its buckets and — since the index
+        // answers every selection lookup — its ROWS resolvable, so a stale id
+        // could route the content pane at a library that is gone.
+        let openIds = Set(libraryManager.openLibraries.map(\.id))
+        cachedLibraryItemBuckets = cachedLibraryItemBuckets.filter { openIds.contains($0.key) }
+        sidebarTreeSignatures = sidebarTreeSignatures.filter { openIds.contains($0.key) }
     }
 
     /// Rebuild one library header in place, preserving every other library snapshot.
@@ -99,6 +154,10 @@ extension SidebarView {
         let header = buildLibraryHeader(for: library)
         cacheLibraryDerivedState(header: header, library: library)
         cachedLibraryHeaders = sidebarReplacingLibraryHeader(cachedLibraryHeaders, with: header)
+        // Reindexing the whole forest costs one pass over rows this call has
+        // just rebuilt anyway; a per-library index would have to be merged on
+        // every lookup, which is the cost we are removing.
+        cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
     }
 
     /// Recompute and store the per-library derived state that used to be redone
@@ -132,19 +191,11 @@ extension SidebarView {
         return accumulated
     }
 
-    /// Recursively find an item by ID
-    func findItemById(_ id: String, in items: [SidebarItem]) -> SidebarItem? {
-        for item in items {
-            if item.id == id {
-                return item
-            }
-            if let children = item.children,
-               let found = findItemById(id, in: children) {
-                return found
-            }
-        }
-        return nil
-    }
+    // `findItemById` used to live here. Every caller in `SidebarView` looked up
+    // the CACHED forest by id, which is what `cachedItem(id:)` now answers in
+    // O(1); leaving the walk behind would just invite the next caller to reach
+    // for it again. The top-level `findSidebarItemById` (SidebarItemRow+Helpers)
+    // remains for callers searching a caller-supplied subtree.
 
     func filteredSidebarItem(_ item: SidebarItem, query: String) -> SidebarItem? {
         if item.name.localizedCaseInsensitiveContains(query) {
