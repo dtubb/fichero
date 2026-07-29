@@ -451,6 +451,10 @@ is misplaced — no exceptions.
 The four `*_STATUS.md` files already live in `agent-work/status/` — follow that
 convention; a new `FOO_STATUS.md` at the root is wrong by construction.
 
+`agent-work/` is listed in `.gitignore`, so a note that is worth keeping must be
+added deliberately: `git add -f agent-work/status/<file>.md`. Scratch you do not
+add stays local, which is the point.
+
 **Product code.** Four peer products, one docs tree, one fixtures tree:
 
 | Path | What |
