@@ -81,14 +81,13 @@ logger = logging.getLogger(__name__)
 def _resolve_engine_version() -> str:
     """Best-effort engine version for the health/About surface.
 
-    The Python project is named ``fichero-server``, but Briefcase bundles it
-    under its app key and ships only that ``.dist-info`` — so looking up one
-    name alone made the shipped app report ``dev``. Try each distribution name
-    (dev/editable installs carry ``fichero-server``; the current Briefcase app
-    key is ``fichero_server``, with ``server``/``fichero``/``engine`` from
-    older bundles and legacy venvs) before falling back to ``dev``.
+    The one canonical distribution is ``fichero-server`` (Briefcase writes its
+    dist-info under the app key spelling ``fichero_server`` — the same name
+    after PEP 503 normalization, both tried for metadata-lookup strictness).
+    No legacy names: nothing has ever shipped under them. ``dev`` means
+    "running from an uninstalled source checkout", not a lookup fallback.
     """
-    for dist_name in ("fichero-server", "fichero_server", "server", "fichero", "engine"):
+    for dist_name in ("fichero-server", "fichero_server"):
         try:
             return package_version(dist_name)
         except PackageNotFoundError:

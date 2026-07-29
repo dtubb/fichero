@@ -984,18 +984,20 @@ class TestCORS:
 
 
 # --- Engine version resolution (health/About surface) ------------------------
-# Regression guard for the Briefcase packaging mismatch: the project is named
-# "fichero" but the Briefcase bundle ships only server-<ver>.dist-info, which
-# made the shipped app's /health report backend_version="dev".
+# Regression guard for the Briefcase packaging mismatch: the project dist is
+# "fichero-server" but the Briefcase bundle writes its dist-info under the app
+# key spelling ("fichero_server"), which made the shipped app's /health report
+# backend_version="dev". Canonical names only — nothing ever shipped under the
+# old engine/server/fichero names, so the resolver must not try them.
 
 def test_engine_version_falls_back_to_briefcase_dist_name(monkeypatch):
     from importlib.metadata import PackageNotFoundError
     from fichero_server.api import main as api_main
 
     def fake_version(name: str) -> str:
-        if name == "engine":
+        if name == "fichero_server":
             return "2026.7.20b1"
-        raise PackageNotFoundError(name)  # simulate the bundle: no "fichero" dist-info
+        raise PackageNotFoundError(name)  # simulate the bundle: app-key dist-info only
 
     monkeypatch.setattr(api_main, "package_version", fake_version)
     assert api_main._resolve_engine_version() == "2026.7.20b1"
