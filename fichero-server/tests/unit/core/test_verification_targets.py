@@ -27,7 +27,7 @@ def test_god_node_change_requires_full_gate() -> None:
 
     assert plan.requires_full_gate is True
     assert "database god-node changed" in plan.reasons
-    assert "fichero-server/tests/unit/test_db.py" in plan.pytest_targets
+    assert "fichero-server/tests/unit/db/test_db.py" in plan.pytest_targets
 
 
 def test_contract_change_requires_full_gate_and_includes_changed_test() -> None:
