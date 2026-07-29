@@ -191,11 +191,11 @@ extension SidebarView {
         return accumulated
     }
 
-    // `findItemById` used to live here. Every caller in `SidebarView` looked up
-    // the CACHED forest by id, which is what `cachedItem(id:)` now answers in
-    // O(1); leaving the walk behind would just invite the next caller to reach
-    // for it again. The top-level `findSidebarItemById` (SidebarItemRow+Helpers)
-    // remains for callers searching a caller-supplied subtree.
+    /// `findItemById` used to live here. Every caller looked up the CACHED
+    /// forest by id, which `cachedItem(id:)` now answers in O(1) — leaving the
+    /// walk behind would invite the next caller to reach right back. Subtree
+    /// searches over a caller-supplied node still use the top-level
+    /// `findSidebarItemById` in SidebarItemRow+Helpers.
 
     func filteredSidebarItem(_ item: SidebarItem, query: String) -> SidebarItem? {
         if item.name.localizedCaseInsensitiveContains(query) {
