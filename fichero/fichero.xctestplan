@@ -13,10 +13,18 @@
   },
   "testTargets" : [
     {
+      "parallelizable" : true,
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",
         "identifier" : "A10521C02EFDC94100B28C3E",
         "name" : "FicheroUITests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "A10521A82EFDC92400B28C3E",
+        "name" : "FicheroTests"
       }
     }
   ],
