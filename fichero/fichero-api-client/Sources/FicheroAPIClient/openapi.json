@@ -47381,7 +47381,7 @@
           "path"
         ],
         "title": "LibraryCreateRequest",
-        "description": "Request body for ``POST /api/library`` \u2014 bootstrap a fresh library.\n\nThe path must end in ``.fichero`` and be inside one of the allowlist\nroots enforced by ``fichero.api.main._is_allowed_library_path``. The\nserver expands ``~`` and validates before touching the filesystem."
+        "description": "Request body for ``POST /api/library`` \u2014 bootstrap a fresh library.\n\nThe path must end in ``.fichero`` and be inside one of the allowlist\nroots enforced by ``fichero_server.api.main._is_allowed_library_path``. The\nserver expands ``~`` and validates before touching the filesystem."
       },
       "LibraryCreateResponse": {
         "properties": {
@@ -53539,7 +53539,7 @@
           "model_id"
         ],
         "title": "ProviderModelInfo",
-        "description": "Per-model capability for one configured model (#4187).\n\n``supports_vision`` is NOT ``\"vision\" in capabilities``. Capability\nenforcement (``_model_has_capability`` in ``fichero.llm``) is TRI-STATE:\na model with NO saved capabilities returns ``None``, meaning \"unknown \u2014\nfall back to the provider's capability\", and only an explicit mismatch\nrejects the run. Collapsing that to a membership test would hide every\nmodel whose capabilities were never populated \u2014 which is most of them on\nan existing install \u2014 so the fallback is resolved HERE, server-side, and\nclients consume the resulting bool."
+        "description": "Per-model capability for one configured model (#4187).\n\n``supports_vision`` is NOT ``\"vision\" in capabilities``. Capability\nenforcement (``_model_has_capability`` in ``fichero_server.llm``) is TRI-STATE:\na model with NO saved capabilities returns ``None``, meaning \"unknown \u2014\nfall back to the provider's capability\", and only an explicit mismatch\nrejects the run. Collapsing that to a membership test would hide every\nmodel whose capabilities were never populated \u2014 which is most of them on\nan existing install \u2014 so the fallback is resolved HERE, server-side, and\nclients consume the resulting bool."
       },
       "ProviderRefCreate": {
         "properties": {

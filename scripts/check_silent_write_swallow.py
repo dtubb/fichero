@@ -7,7 +7,7 @@ write to the parent PDF) and the scheduler remove_job swallow are this class —
 mutation path that catches `except Exception` and does NOTHING observable, so a
 genuine failure looks like success.
 
-This is AST static analysis over `fichero-engine/src/fichero/**/*.py`. It flags an
+This is AST static analysis over `fichero-server/src/fichero_server/**/*.py`. It flags an
 `except Exception:` handler whose body is PURELY silent —
 
     only `pass` / `continue` / `break` / `...` / bare `return` / `return None`,
@@ -41,7 +41,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = ROOT / "fichero-engine" / "src" / "fichero"
+SRC = ROOT / "fichero-server" / "src" / "fichero"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 WRITE_MARKERS = (

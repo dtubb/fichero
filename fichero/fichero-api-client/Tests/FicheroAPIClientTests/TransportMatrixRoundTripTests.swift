@@ -9,7 +9,7 @@ import OpenAPIRuntime
 /// `.inMemory` PythonKit transport carries a REAL WORKFLOW, not just a health
 /// probe. This is the acceptance test for the transport nobody was sure
 /// worked — the same round-trip set the Python matrix
-/// (fichero-engine/tests/integration/test_transport_matrix.py) runs over UDS
+/// (fichero-server/tests/integration/test_transport_matrix.py) runs over UDS
 /// and HTTPS:
 ///
 ///     health          -> 200 healthy

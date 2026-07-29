@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_SRC = ROOT / "fichero-engine" / "src" / "fichero"
-ALLOWLIST = ROOT / "fichero-engine" / "tests" / "contracts" / "duplicate_paths_allowlist.json"
+ENGINE_SRC = ROOT / "fichero-server" / "src" / "fichero"
+ALLOWLIST = ROOT / "fichero-server" / "tests" / "contracts" / "duplicate_paths_allowlist.json"
 
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
 KG_ENTITY_TOKENS = {"KnowledgeEntity", "upsert_entity"}
@@ -122,7 +122,7 @@ def _resolve_real_rel_path(root: Path, rel_path: str) -> str:
         except OSError:
             match = None
         if match:
-            suffix = match.group(1).removeprefix("fichero.api.routes.")
+            suffix = match.group(1).removeprefix("fichero_server.api.routes.")
             return "api/routes/" + suffix.replace(".", "/") + ".py"
         return rel_path
     package_core = root / rel_path.removesuffix(".py") / "core.py"

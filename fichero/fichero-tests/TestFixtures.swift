@@ -4,7 +4,7 @@ import Foundation
 ///
 /// The canonical specimen files live at the REPO root in `test-fixtures/files`
 /// (shared with the engine's pytest suites, which resolve the same tree
-/// through `fichero-engine/tests/fixture_paths.py`). Resolution walks UP from
+/// through `fichero-server/tests/fixture_paths.py`). Resolution walks UP from
 /// `#filePath`, so it is immune to this file — or callers — moving deeper in
 /// the test tree, and works from any worktree checkout.
 enum TestFixtures {

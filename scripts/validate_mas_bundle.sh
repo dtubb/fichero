@@ -15,7 +15,7 @@
 #
 #   90296  a nested executable lacks com.apple.security.app-sandbox. This is what
 #          fm-bridge tripped: the Swift CLI the engine spawns, buried at
-#          Contents/Resources/app/fichero/resources/bin/fm-bridge, far from any path
+#          Contents/Resources/app/fichero_server/resources/bin/fm-bridge, far from any path
 #          a rule was looking at. So this checks EVERY Mach-O executable in the
 #          bundle, wherever it sits, rather than the places we happen to expect.
 #

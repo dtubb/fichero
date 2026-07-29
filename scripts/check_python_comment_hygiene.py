@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC_DIR = ROOT / "fichero-engine" / "src" / "fichero"
+SRC_DIR = ROOT / "fichero-server" / "src" / "fichero"
 RULE_DOC = "AGENTS.md"
 
 # Baseline violations filed as #1915 backlog.

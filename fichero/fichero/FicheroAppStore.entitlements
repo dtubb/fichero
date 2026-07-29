@@ -7,7 +7,7 @@
   rejected (code 90296).
 
   Only the App-side entitlements live here. The embedded engine's sandbox is set
-  by Briefcase in fichero-engine/pyproject.toml (deliberately NOT wired yet — see
+  by Briefcase in fichero-server/pyproject.toml (deliberately NOT wired yet — see
   #3340 HOLD note: sandboxing the shared engine build risks the DMG engine and
   needs security-scoped-bookmark plumbing validated first).
 -->

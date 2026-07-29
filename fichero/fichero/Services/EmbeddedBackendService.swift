@@ -196,11 +196,11 @@ enum BackendError: LocalizedError {
             // so the usual cause in a Debug ⌘R is simply no engine running on :8765.
             #if DEBUG
             return "The Fichero Engine isn't running. In a Debug build the engine is "
-                + "not bundled — start it first with fichero-engine/scripts/start_backend.sh "
+                + "not bundled — start it first with fichero-server/scripts/start_backend.sh "
                 + "(or briefcase dev), then Retry."
             #else
             return "Backend app not found in bundle. Build the engine with: "
-                + "briefcase build macOS --app engine (in fichero-engine/), then rebuild Fichero in Xcode."
+                + "briefcase build macOS --app engine (in fichero-server/), then rebuild Fichero in Xcode."
             #endif
         case .launchFailed(let error):
             return "Failed to launch backend app: \(error.localizedDescription)"

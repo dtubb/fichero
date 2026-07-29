@@ -9,7 +9,7 @@ commit the diff.
 
 Inputs (either or both; at least one required):
   --engine-json PATH   coverage.py JSON report
-                       (coverage run -m pytest fichero-engine/tests/unit &&
+                       (coverage run -m pytest fichero-server/tests/unit &&
                         coverage json -o coverage.json)
   --swift-json PATH    xccov JSON report
                        (xcrun xccov view --report --json Result.xcresult)

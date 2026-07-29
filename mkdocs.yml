@@ -144,7 +144,7 @@ nav:
       - Architecture Notes:
           - System Overview: contributor/architecture/overview.md
           - Shared Vocabulary: contributor/architecture/vocabulary.md
-          - Backend API Overview: contributor/architecture/fichero-engine/overview.md
+          - Backend API Overview: contributor/architecture/fichero-server/overview.md
           - SwiftUI Overview: contributor/architecture/fichero/overview.md
       - Release:
           - Release Lane Runbook: contributor/release/release-lane.md

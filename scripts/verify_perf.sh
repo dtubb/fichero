@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Run the engine PERFORMANCE suite (fichero-engine/tests/perf).
+# Run the engine PERFORMANCE suite (fichero-server/tests/perf).
 #
 # This is deliberately NOT part of any gate. The gates cover tests/unit/ and
 # tests/contracts/; nothing runs tests/perf/ automatically, so without this
 # script it is only ever reached by typing the whole-tree `pytest
-# fichero-engine/tests` form — a ~70-minute invocation most people hit by
+# fichero-server/tests` form — a ~70-minute invocation most people hit by
 # accident (#4174).
 #
 # WHY it is excluded: measured 2026-07-28 on a full-tree run (4219s total),
@@ -48,12 +48,12 @@ if pgrep -f xcodebuild >/dev/null 2>&1; then
   sleep 5
 fi
 
-echo "── engine perf suite (fichero-engine/tests/perf) ──"
+echo "── engine perf suite (fichero-server/tests/perf) ──"
 echo "   Expect ~50 minutes; the two entity-list tests are ~25 minutes EACH."
 echo "   Slow is normal here — see #4039 before reporting a hang."
 
-PYTHONPATH="fichero-engine/src" "$PYTHON_BIN" -m pytest \
-  fichero-engine/tests/perf/ -q -s -rf "$@"
+PYTHONPATH="fichero-server/src" "$PYTHON_BIN" -m pytest \
+  fichero-server/tests/perf/ -q -s -rf "$@"
 status=$?
 
 if [ "$status" -eq 0 ]; then

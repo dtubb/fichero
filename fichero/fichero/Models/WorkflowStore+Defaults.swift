@@ -22,7 +22,7 @@ extension WorkflowStore {
         // with backend-shipped defaults (Catalogue, Transcribe,
         // Catalogue (composable), Apple variants) and just created
         // duplicates. Source of truth is now backend JSON in
-        // fichero-engine/src/fichero/resources/default_workflows/. (#722 part 1)
+        // fichero-server/src/fichero_server/resources/default_workflows/. (#722 part 1)
         //
         // The reset path delegates to `reinstallDefaults` which deletes
         // existing presets server-side and re-seeds from the backend's

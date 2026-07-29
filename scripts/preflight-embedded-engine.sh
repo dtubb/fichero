@@ -5,7 +5,7 @@ set -euo pipefail
 # Normal use is a fast no-op; pass --rebuild after changing engine sources.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENGINE_DIR="$ROOT_DIR/fichero-engine"
+ENGINE_DIR="$ROOT_DIR/fichero-server"
 ENGINE_APP="$ENGINE_DIR/build/engine/macos/app/Fichero Engine.app"
 
 case "${1:-}" in
@@ -30,7 +30,7 @@ esac
 # present. Any of those failing falls through to a real rebuild.
 engine_is_current() {
   [ -d "$ENGINE_APP" ] || return 1
-  local staged="$ENGINE_APP/Contents/Resources/app/fichero/api/main.py"
+  local staged="$ENGINE_APP/Contents/Resources/app/fichero_server/api/main.py"
   [ -f "$staged" ] || return 1
   if ! "$ROOT_DIR/scripts/clean-embedded-engine.sh" --check-version "$ENGINE_APP"; then
     echo "Embedded engine has STALE version metadata — rebuilding"
@@ -39,10 +39,10 @@ engine_is_current() {
   # Content, not mtime: git checkouts/merges bump mtimes without changing bytes.
   # The App Store signer changes fm-bridge's signature bytes, so compare its
   # stable Mach-O UUID separately instead of forcing a rebuild after signing.
-  local source_bridge="$ENGINE_DIR/src/fichero/resources/bin/fm-bridge"
-  local staged_bridge="$ENGINE_APP/Contents/Resources/app/fichero/resources/bin/fm-bridge"
+  local source_bridge="$ENGINE_DIR/src/fichero_server/resources/bin/fm-bridge"
+  local staged_bridge="$ENGINE_APP/Contents/Resources/app/fichero_server/resources/bin/fm-bridge"
   if ! diff -rq --exclude=__pycache__ --exclude=.DS_Store --exclude=fm-bridge \
-      "$ENGINE_DIR/src/fichero" "$ENGINE_APP/Contents/Resources/app/fichero" >/dev/null 2>&1 \
+      "$ENGINE_DIR/src/fichero_server" "$ENGINE_APP/Contents/Resources/app/fichero" >/dev/null 2>&1 \
       || [ ! -f "$source_bridge" ] || [ ! -f "$staged_bridge" ] \
       || [ "$(dwarfdump --uuid "$source_bridge" | awk 'NR == 1 { print $2 }')" \
            != "$(dwarfdump --uuid "$staged_bridge" | awk 'NR == 1 { print $2 }')" ]; then

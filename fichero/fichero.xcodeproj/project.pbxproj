@@ -359,7 +359,7 @@
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
 			inputPaths = (
-				"$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app",
+				"$(SRCROOT)/../fichero-server/build/engine/macos/app/Fichero Engine.app",
 			);
 			name = "Embed Fichero Engine";
 			outputPaths = (
@@ -408,7 +408,7 @@
 				"",
 				"",
 				"\"${SRCROOT}/../scripts/preflight-embedded-engine.sh\"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"",
+				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/engine/macos/app/Fichero Engine.app\"",
 				"",
 				"ENGINE_DST=\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/Contents/Resources/Fichero Engine.app\"",
 				"",
@@ -416,7 +416,7 @@
 				"",
 				"if [ ! -d \"$ENGINE_SRC\" ]; then",
 				"",
-				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2",
+				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-server/ first\" >&2",
 				"",
 				"  exit 1",
 				"",
@@ -471,7 +471,7 @@
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
 			inputPaths = (
-				"$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app",
+				"$(SRCROOT)/../fichero-server/build/engine/macos/app/Fichero Engine.app",
 				"$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements",
 			);
 			name = "Embed Fichero Engine";
@@ -515,7 +515,7 @@
 				"# keeps Contents/Resources and is deliberately left alone.",
 				"",
 				"\"${SRCROOT}/../scripts/preflight-embedded-engine.sh\"",
-				"ENGINE_SRC=\"${SRCROOT}/../fichero-engine/build/engine/macos/app/Fichero Engine.app\"",
+				"ENGINE_SRC=\"${SRCROOT}/../fichero-server/build/engine/macos/app/Fichero Engine.app\"",
 				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineAppStore.entitlements\"",
 				"",
 				"# THE APP BUNDLE, AS A REAL PATH. Read this before changing it.",
@@ -553,7 +553,7 @@
 				"echo \"  app bundle (resolved): $APP_DST\"",
 				"",
 				"if [ ! -d \"$ENGINE_SRC\" ]; then",
-				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-engine/ first\" >&2",
+				"  echo \"error: Fichero Engine.app not found at $ENGINE_SRC — run 'briefcase build macOS --app engine' in fichero-server/ first\" >&2",
 				"  exit 1",
 				"fi",
 				"",
@@ -625,7 +625,7 @@
 				"# REJECTED UPLOAD, code 90296: this used to key off the PATH, entitling only",
 				"# ENGINE/Contents/MacOS/*. fm-bridge — the Swift CLI the engine spawns for Apple",
 				"# Intelligence, which Briefcase packages at",
-				"# Contents/Resources/app/fichero/resources/bin/fm-bridge — therefore signed PLAIN and",
+				"# Contents/Resources/app/fichero_server/resources/bin/fm-bridge — therefore signed PLAIN and",
 				"# shipped with no com.apple.security.app-sandbox. Every nested executable inside a",
 				"# sandboxed app must be sandboxed; a path rule cannot know which files those are, and",
 				"# the next one Briefcase adds would have been missed the same way. Mach-O type can.",

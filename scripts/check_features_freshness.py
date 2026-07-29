@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 FILES = (
     Path("docs/user/features.md"),
     Path("fichero/fichero/Models/FeatureTiers.generated.swift"),
-    Path("fichero-engine/src/fichero/api/feature_tiers_generated.py"),
+    Path("fichero-server/src/fichero_server/api/feature_tiers_generated.py"),
 )
 COPIED = (
     Path("features.yaml"),

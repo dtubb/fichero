@@ -53,7 +53,7 @@ if [ ! -x "$RUFF_BIN" ]; then
 fi
 
 if [ -x "$RUFF_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-engine/src" "$RUFF_BIN" check fichero-engine/src/ 2>&1; then
+  if PYTHONPATH="$ROOT_DIR/fichero-server/src" "$RUFF_BIN" check fichero-server/src/ 2>&1; then
     ok "Ruff clean"
   else
     fail "Ruff violations found"
@@ -70,9 +70,9 @@ if [ ! -x "$PYTHON_BIN" ]; then
 fi
 
 if [ -x "$PYTHON_BIN" ]; then
-  if PYTHONPATH="$ROOT_DIR/fichero-engine/src" "$PYTHON_BIN" -m pytest \
-    fichero-engine/tests/unit/ \
-    --ignore=fichero-engine/tests/unit/_archived \
+  if PYTHONPATH="$ROOT_DIR/fichero-server/src" "$PYTHON_BIN" -m pytest \
+    fichero-server/tests/unit/ \
+    --ignore=fichero-server/tests/unit/_archived \
     -q 2>&1; then
     ok "pytest passed"
   else
@@ -84,7 +84,7 @@ fi
 
 # ── 4. Briefcase backend build ──────────────────────────────────────────────
 echo "[4/8] Briefcase backend build"
-cd "$ROOT_DIR/fichero-engine"
+cd "$ROOT_DIR/fichero-server"
 
 if ! command -v briefcase >/dev/null 2>&1; then
   fail "Briefcase not installed (pip install briefcase)"

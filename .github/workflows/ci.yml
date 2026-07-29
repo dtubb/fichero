@@ -32,7 +32,7 @@ jobs:
           cache: 'pip'
 
       - name: Install backend (editable + dev deps)
-        working-directory: fichero-engine
+        working-directory: fichero-server
         run: |
           python -m pip install --upgrade pip
           pip install -e '.[dev]' || pip install -e .
@@ -44,24 +44,24 @@ jobs:
           python -m spacy download es_core_news_sm
 
       - name: ruff check
-        run: ruff check fichero-engine/src/
+        run: ruff check fichero-server/src/
 
       - name: Feature-tier freshness
         env:
-          PYTHONPATH: fichero-engine/src
+          PYTHONPATH: fichero-server/src
         run: python scripts/check_features_freshness.py
 
       - name: pytest (unit, skip ML/embedding)
         env:
-          PYTHONPATH: fichero-engine/src
+          PYTHONPATH: fichero-server/src
           FICHERO_FEATURE_TIER: dev
         run: |
-          pytest fichero-engine/tests/unit/ \
-            --ignore=fichero-engine/tests/unit/_archived \
+          pytest fichero-server/tests/unit/ \
+            --ignore=fichero-server/tests/unit/_archived \
             -q -k "not embedding and not slow" \
             --timeout=60 \
-            || pytest fichero-engine/tests/unit/ \
-                 --ignore=fichero-engine/tests/unit/_archived \
+            || pytest fichero-server/tests/unit/ \
+                 --ignore=fichero-server/tests/unit/_archived \
                  -q -k "not embedding and not slow"
 
   openapi-drift:
@@ -78,16 +78,16 @@ jobs:
           cache: 'pip'
 
       - name: Install backend
-        working-directory: fichero-engine
+        working-directory: fichero-server
         run: |
           python -m pip install --upgrade pip
           pip install -e '.[dev]' || pip install -e .
 
       - name: Regenerate openapi.json
         env:
-          PYTHONPATH: fichero-engine/src
+          PYTHONPATH: fichero-server/src
           FICHERO_FEATURE_TIER: dev
-        run: bash fichero-engine/scripts/sync_openapi_schema.sh
+        run: bash fichero-server/scripts/sync_openapi_schema.sh
 
       - name: Fail if openapi.json drifted from committed copy (key-order-insensitive)
         run: |
@@ -99,12 +99,12 @@ jobs:
           drift=0
           for f in \
             fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json \
-            fichero-engine/tests/contracts/openapi.json; do
+            fichero-server/tests/contracts/openapi.json; do
             committed="$(git show "HEAD:$f" | jq -S .)"
             regenerated="$(jq -S . "$f")"
             if [ "$committed" != "$regenerated" ]; then
               echo "::error::OpenAPI schema drift detected in $f (semantic diff — a real contract change)."
-              echo "Fix: run \`bash fichero-engine/scripts/sync_openapi_schema.sh\` locally and commit the regenerated file."
+              echo "Fix: run \`bash fichero-server/scripts/sync_openapi_schema.sh\` locally and commit the regenerated file."
               echo "--- SEMANTIC DIFF (sorted keys) ---"
               diff <(echo "$committed") <(echo "$regenerated") | head -120
               drift=1
@@ -126,12 +126,12 @@ jobs:
           cache: 'pip'
 
       - name: Install backend
-        working-directory: fichero-engine
+        working-directory: fichero-server
         run: |
           python -m pip install --upgrade pip
           pip install -e '.[dev]' || pip install -e .
 
       - name: Feature-tier freshness
         env:
-          PYTHONPATH: fichero-engine/src
+          PYTHONPATH: fichero-server/src
         run: python scripts/check_features_freshness.py

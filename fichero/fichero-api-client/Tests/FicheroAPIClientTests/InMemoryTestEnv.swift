@@ -20,15 +20,15 @@ enum InMemoryTestEnv {
     /// Call from `setUp` (or per-test) before touching `InMemoryEngineApp`.
     static func configureOrSkip() throws {
         guard let repo = repoRoot() else {
-            throw XCTSkip("No Fichero checkout with .venv + fichero-engine found; "
+            throw XCTSkip("No Fichero checkout with .venv + fichero-server found; "
                 + "in-process engine unavailable.")
         }
         let fileManager = FileManager.default
 
         // FICHERO_ENGINE_SRC
-        let engineSrc = repo.appendingPathComponent("fichero-engine/src")
-        guard fileManager.fileExists(atPath: engineSrc.appendingPathComponent("fichero/api/main.py").path) else {
-            throw XCTSkip("Engine source not found at \(engineSrc.path); cannot import fichero.api.main.")
+        let engineSrc = repo.appendingPathComponent("fichero-server/src")
+        guard fileManager.fileExists(atPath: engineSrc.appendingPathComponent("fichero_server/api/main.py").path) else {
+            throw XCTSkip("Engine source not found at \(engineSrc.path); cannot import fichero_server.api.main.")
         }
         setenvIfUnset("FICHERO_ENGINE_SRC", engineSrc.path)
 
@@ -85,13 +85,13 @@ enum InMemoryTestEnv {
     }
 
     /// Walk up from this source file (always inside the repo) looking for a dir
-    /// that contains both `.venv/bin/python` and `fichero-engine`. Honors
+    /// that contains both `.venv/bin/python` and `fichero-server`. Honors
     /// `FICHERO_REPO_ROOT` when set.
     static func repoRoot() -> URL? {
         let fileManager = FileManager.default
         func looksLikeRepo(_ url: URL) -> Bool {
             fileManager.fileExists(atPath: url.appendingPathComponent(".venv/bin/python").path)
-                && fileManager.fileExists(atPath: url.appendingPathComponent("fichero-engine/src").path)
+                && fileManager.fileExists(atPath: url.appendingPathComponent("fichero-server/src").path)
         }
         if let env = ProcessInfo.processInfo.environment["FICHERO_REPO_ROOT"], !env.isEmpty {
             let url = URL(fileURLWithPath: env)

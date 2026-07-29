@@ -66,7 +66,7 @@
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
                title = "Start Fichero dev engine (transport = FICHERO_DEV_TRANSPORT)"
-               scriptText = "# Pick ONE transport; it starts exactly that engine, no fallback.&#10;# Keep this word in sync with the enabled FICHERO_FORCE_* env below:&#10;#   uds -&gt; FICHERO_FORCE_UDS=1 | https -&gt; none | inmemory -&gt; FICHERO_FORCE_INMEMORY=1&#10;export FICHERO_DEV_TRANSPORT=uds&#10;&quot;${SRCROOT}/../fichero-engine/scripts/dev-uds-engine.sh&quot;&#10;">
+               scriptText = "# Pick ONE transport; it starts exactly that engine, no fallback.&#10;# Keep this word in sync with the enabled FICHERO_FORCE_* env below:&#10;#   uds -&gt; FICHERO_FORCE_UDS=1 | https -&gt; none | inmemory -&gt; FICHERO_FORCE_INMEMORY=1&#10;export FICHERO_DEV_TRANSPORT=uds&#10;&quot;${SRCROOT}/../fichero-server/scripts/dev-uds-engine.sh&quot;&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"

@@ -150,13 +150,13 @@ final class UITestEngineHarness {
         guard let venvPython = Self.venvPython(for: repo) else {
             throw HarnessError.seedFailed("no venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)")
         }
-        let seeder = repo.appendingPathComponent("fichero-engine/scripts/seed_test_library.py")
+        let seeder = repo.appendingPathComponent("fichero-server/scripts/seed_test_library.py")
 
         let proc = Process()
         proc.executableURL = venvPython
         proc.arguments = [seeder.path, libURL.path]
         var env = ProcessInfo.processInfo.environment
-        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
+        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
         proc.environment = env
         let out = Pipe()
         let err = Pipe()
@@ -201,7 +201,7 @@ final class UITestEngineHarness {
             "--ws", "websockets-sansio"
         ]
         var env = ProcessInfo.processInfo.environment
-        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
+        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
         env["FICHERO_UDS_PATH"] = socketPath
         // Owner-trusted UDS, single-user, dev tier (beta-gated KG routes exposed),
         // auth disabled so the app needs no token over the socket.
@@ -348,7 +348,7 @@ final class UITestEngineHarness {
         // The venv is resolved separately by `venvPython(for:)`, so this no longer
         // demands both in the same dir (which made the harness skip in a worktree).
         FileManager.default.fileExists(
-            atPath: url.appendingPathComponent("fichero-engine/scripts/seed_test_library.py").path)
+            atPath: url.appendingPathComponent("fichero-server/scripts/seed_test_library.py").path)
     }
 
     /// Real login home from the user database, ignoring any `$HOME` override. The

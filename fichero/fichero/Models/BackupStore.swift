@@ -7,7 +7,7 @@ import OSLog
 ///
 /// Surfaces the point-in-time snapshot trail the backend exposes under
 /// `GET/POST/DELETE /api/storage/snapshots` (create / list / restore / delete),
-/// backed by `fichero-engine/storage_snapshots.py`. Mirrors `AuditStore`: one
+/// backed by `fichero-server/storage_snapshots.py`. Mirrors `AuditStore`: one
 /// store per library (registered on `LibraryReference`), the generated OpenAPI
 /// client only — no hand-rolled URLs.
 ///

@@ -104,7 +104,7 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         )
 
         XCTAssertTrue(message.contains("not reachable over HTTPS"))
-        XCTAssertTrue(message.contains("fichero-engine/scripts/start_backend.sh"))
+        XCTAssertTrue(message.contains("fichero-server/scripts/start_backend.sh"))
         XCTAssertTrue(message.contains("TLS and pinning"))
     }
 

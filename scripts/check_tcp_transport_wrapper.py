@@ -2,13 +2,13 @@
 """Every TCP launcher must serve the wrapper, not the bare app (#4222).
 
 The sharing control surface is a normal FastAPI route on
-``fichero.api.main:app`` — so it keeps its OpenAPI schema and generated Swift
-client — and is withheld from remote callers by ``fichero.api.tcp_transport``,
+``fichero_server.api.main:app`` — so it keeps its OpenAPI schema and generated Swift
+client — and is withheld from remote callers by ``fichero_server.api.tcp_transport``,
 which 404s it at the TCP entry point.
 
 That guarantee lives at the ENTRY POINT, which means it holds only while every
 TCP launcher uses the wrapper. A launcher that reaches for the obvious
-``fichero.api.main:app`` silently loses it: no error, no failing test, an open
+``fichero_server.api.main:app`` silently loses it: no error, no failing test, an open
 door to the route that opens ports. This check is what makes that a failing
 gate instead of something everyone has to remember.
 
@@ -32,14 +32,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BARE_APP = "fichero.api.main:app"
-WRAPPER = "fichero.api.tcp_transport:app"
+BARE_APP = "fichero_server.api.main:app"
+WRAPPER = "fichero_server.api.tcp_transport:app"
 RULE_DOC = "#4222"
 
 SEARCH_ROOTS = (
-    ROOT / "fichero-engine" / "src",
-    ROOT / "fichero-engine" / "scripts",
-    ROOT / "fichero-engine" / "tests",
+    ROOT / "fichero-server" / "src",
+    ROOT / "fichero-server" / "scripts",
+    ROOT / "fichero-server" / "tests",
     ROOT / "scripts",
 )
 SEARCHED_SUFFIXES = (".py", ".sh")
@@ -50,28 +50,28 @@ ALLOWLIST_REASONS: dict[str, str] = {
     "scripts/check_tcp_transport_wrapper.py": (
         "this checker — it must name the string it searches for"
     ),
-    "fichero-engine/src/fichero/api/tcp_transport.py": (
+    "fichero-server/src/fichero_server/api/tcp_transport.py": (
         "the wrapper itself — it imports the bare app in order to wrap it"
     ),
-    "fichero-engine/src/fichero/api/main.py": (
+    "fichero-server/src/fichero_server/api/main.py": (
         "module docstring shows the bare uvicorn invocation for dev reference"
     ),
-    "fichero-engine/tests/integration/test_transport_round_trips.py": (
+    "fichero-server/tests/integration/test_transport_round_trips.py": (
         "drives a real HTTPS listener to prove the transport works; wrapping "
         "would test the wrapper instead of the transport (#4176)"
     ),
-    "fichero-engine/tests/integration/test_cli_engine_contract.py": (
+    "fichero-server/tests/integration/test_cli_engine_contract.py": (
         "exercises the CLI against a raw engine; the control surface is not "
         "part of that contract"
     ),
-    "fichero-engine/tests/integration/_cli_live.py": (
+    "fichero-server/tests/integration/_cli_live.py": (
         "shared live-engine helper for the CLI contract tests (see above)"
     ),
-    "fichero-engine/tests/integration/test_cli_generated_multiuser_auth_writes.py": (
+    "fichero-server/tests/integration/test_cli_generated_multiuser_auth_writes.py": (
         "multiuser auth-write coverage against a raw engine; unrelated surface"
     ),
-    "fichero-engine/tests/unit/test_bind_host.py": (
-        "NEGATIVE assertion — `cmd[-1] != \"fichero.api.main:app\"` checks the "
+    "fichero-server/tests/unit/test_bind_host.py": (
+        "NEGATIVE assertion — `cmd[-1] != \"fichero_server.api.main:app\"` checks the "
         "UDS launch does not serve the TCP app, so it must name the string it "
         "excludes. It is not a launcher."
     ),

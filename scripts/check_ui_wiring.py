@@ -28,8 +28,8 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-OPENAPI = ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json"
-CONTRACTS = ROOT / "fichero-engine" / "tests" / "contracts"
+OPENAPI = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
+CONTRACTS = ROOT / "fichero-server" / "tests" / "contracts"
 MATRIX = CONTRACTS / "coverage_matrix.json"
 
 # Each consuming surface: the HAND-WRITTEN layer that should call endpoints, the
@@ -43,7 +43,7 @@ SURFACES = {
         "allowlist": CONTRACTS / "ui_wiring_allowlist_swiftui.json",
     },
     "cli": {
-        "dir": ROOT / "fichero-engine" / "src" / "fichero" / "cli",
+        "dir": ROOT / "fichero-server" / "src" / "fichero" / "cli",
         "glob": "*.py",
         "exclude": ("generated", "__pycache__"),       # generated CLI client
         "allowlist": CONTRACTS / "ui_wiring_allowlist_cli.json",

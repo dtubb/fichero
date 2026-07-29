@@ -129,8 +129,8 @@ extension EmbeddedBackendService {
             // Debug builds skip the "Embed Fichero Engine" phase (it only runs in
             // Release), so in a Debug ⌘R the engine is expected to be running
             // externally on :8765. If it isn't, that's this path.
-            let message = "Debug: start the engine first — fichero-engine/scripts/start_backend.sh. "
-                + "Release: briefcase build macOS --app engine (in fichero-engine/), then rebuild."
+            let message = "Debug: start the engine first — fichero-server/scripts/start_backend.sh. "
+                + "Release: briefcase build macOS --app engine (in fichero-server/), then rebuild."
             logger.error("\(message, privacy: .public)")
             throw BackendError.backendAppNotFound
         }

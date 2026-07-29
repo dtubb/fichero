@@ -70,7 +70,7 @@ enum RequiresEngine {
                 This scheme does not bundle an engine. Run this suite from an \
                 embedded scheme (Dev Embedded / Beta Embedded).
 
-                Starting fichero-engine/scripts/start_backend.sh does NOT help: \
+                Starting fichero-server/scripts/start_backend.sh does NOT help: \
                 that is an external HTTPS engine, and the launch argument \
                 selects the embedded one.
 

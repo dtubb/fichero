@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-OPENAPI_SCHEMA = ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json"
+OPENAPI_SCHEMA = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
 SWIFT_SERVICES = ROOT / "fichero" / "fichero" / "Services"
 
 DYNAMIC_MAP_TERMS = {

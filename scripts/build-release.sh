@@ -9,7 +9,7 @@ set -euo pipefail
 # Usage: scripts/build-release.sh [--skip-backend]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENGINE_ROOT="$ROOT_DIR/fichero-engine"
+ENGINE_ROOT="$ROOT_DIR/fichero-server"
 SWIFTUI_ROOT="$ROOT_DIR/fichero"
 PROJECT="$SWIFTUI_ROOT/fichero.xcodeproj"
 # Tier -> (scheme, config) from FICHERO_RELEASE_TIER (default release).

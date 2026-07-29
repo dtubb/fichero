@@ -8,7 +8,7 @@ import Security
 /// reading the token from `~/Library/Application Support/Fichero/.api-key`.
 ///
 /// The engine writes that file (mode 0600) at startup. See
-/// `fichero-engine/src/fichero/api/auth.py` (#742). Skipping the header on
+/// `fichero-server/src/fichero_server/api/auth.py` (#742). Skipping the header on
 /// `/api/health` lets the Swift app poll readiness *before* it has had a
 /// chance to read the token, which avoids a chicken-and-egg deadlock at
 /// app launch. `/api/pair` is also skipped so the unauthenticated pairing

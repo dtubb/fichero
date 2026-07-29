@@ -329,8 +329,8 @@ run_fast() {
 
   run_check "swiftlint" swiftlint lint --quiet --cache-path .swiftlint-cache fichero/fichero/
 
-  run_check "backend ruff" env PYTHONPATH=fichero-engine/src \
-    "${RUFF_CMD[@]}" check fichero-engine/src/
+  run_check "backend ruff" env PYTHONPATH=fichero-server/src \
+    "${RUFF_CMD[@]}" check fichero-server/src/
 
   echo "-- architecture and tooling guardrails --"
   local guardrail
@@ -344,8 +344,8 @@ run_fast() {
 
   run_check "version-date" scripts/check_version_date.sh
 
-  run_check "OpenAPI model sync" env PYTHONPATH=fichero-engine/src \
-    "${PYTHON_BIN}" fichero-engine/scripts/validate_model_sync.py
+  run_check "OpenAPI model sync" env PYTHONPATH=fichero-server/src \
+    "${PYTHON_BIN}" fichero-server/scripts/validate_model_sync.py
 }
 
 run_standard() {
@@ -354,19 +354,19 @@ run_standard() {
 
   # -rf emits a "FAILED <node_id>" line per failure in the short summary so the
   # JSON report can list failing test node IDs (parsed in record_failure).
-  run_check "backend pytest unit tests" env PYTHONPATH=fichero-engine/src \
-    "${PYTEST_CMD[@]}" -rf fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+  run_check "backend pytest unit tests" env PYTHONPATH=fichero-server/src \
+    "${PYTEST_CMD[@]}" -rf fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
 
   # Contract tests (OpenAPI surface, UI-wiring coverage, docs coverage) — these
   # guard against exactly the kind of drift unit-only gating missed (#3163): a
   # new endpoint added without a SwiftUI caller / docs / allowlist entry.
-  run_check "backend pytest contract tests" env PYTHONPATH=fichero-engine/src \
-    "${PYTEST_CMD[@]}" -rf fichero-engine/tests/contracts/
+  run_check "backend pytest contract tests" env PYTHONPATH=fichero-server/src \
+    "${PYTEST_CMD[@]}" -rf fichero-server/tests/contracts/
 
   # State the exclusion out loud: a gate that silently stops covering a quarter
   # of the suite is how coverage rots (#4174). tests/perf has never been in any
   # gate, so this documents reality rather than changing it.
-  echo "ℹ️  Not covered: fichero-engine/tests/perf (~50 min, 73% of a whole-tree run) — scripts/verify_perf.sh"
+  echo "ℹ️  Not covered: fichero-server/tests/perf (~50 min, 73% of a whole-tree run) — scripts/verify_perf.sh"
 }
 
 run_platform_checks() {

@@ -28,9 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_ROOT = ROOT / "fichero-engine" / "src" / "fichero"
+PY_ROOT = ROOT / "fichero-server" / "src" / "fichero"
 SWIFT_ROOT = ROOT / "fichero" / "fichero"
-PY_TEST_ROOT = ROOT / "fichero-engine" / "tests"
+PY_TEST_ROOT = ROOT / "fichero-server" / "tests"
 CLI_ROOT = ROOT / "fichero" / "fichero-cli"
 BASELINE_FILE = ROOT / "scripts" / ".test_coverage_baseline.json"
 MILESTONE_NUMBER = 82
@@ -71,7 +71,7 @@ def _python_tests(
     cli_root: Path | None = None,
 ) -> list[Path]:
     base_root = root or ROOT
-    tests_root = py_test_root or base_root / "fichero-engine" / "tests"
+    tests_root = py_test_root or base_root / "fichero-server" / "tests"
     cli_tests_root = cli_root or base_root / "fichero" / "fichero-cli"
     tests = sorted(tests_root.rglob("*.py"))
     cli_tests = (
@@ -127,7 +127,7 @@ def _scan_python_symbols(
     paths: list[Path] | None = None,
 ) -> list[SymbolEntry]:
     base_root = root or ROOT
-    source_root = py_root or base_root / "fichero-engine" / "src" / "fichero"
+    source_root = py_root or base_root / "fichero-server" / "src" / "fichero"
     entries: list[SymbolEntry] = []
     for path in paths if paths is not None else sorted(source_root.rglob("*.py")):
         if path.name.startswith("_"):

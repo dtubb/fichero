@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PY_SOURCE = ROOT / "fichero-engine" / "src" / "fichero" / "api" / "change_stream.py"
+PY_SOURCE = ROOT / "fichero-server" / "src" / "fichero" / "api" / "change_stream.py"
 SWIFT_SOURCE = ROOT / "fichero" / "fichero" / "Services" / "LibraryChangeStream.swift"
 RULE_DOC = "#4211"
 
@@ -144,7 +144,7 @@ def main() -> int:
     new_unconsumed = sorted(unconsumed - known)
     stale = sorted(known - unconsumed)
 
-    print("ChangeEvent contract: fichero.api.change_stream <-> LibraryChangeStream.swift")
+    print("ChangeEvent contract: fichero_server.api.change_stream <-> LibraryChangeStream.swift")
     print(f"  {len(swift_wire_keys())} Swift keys; {len(python_fields())} engine fields.")
 
     if stale:

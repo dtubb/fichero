@@ -33,7 +33,7 @@ final class WorkflowStore: ChangeEventConsumer {
     let ficheroClient: FicheroClient
     // Empty: backend ships the canonical default workflows (Transcribe,
     // Catalogue, Catalogue (composable)) via JSON in
-    // fichero-engine/.../resources/default_workflows. The Swift-side
+    // fichero-server/.../resources/default_workflows. The Swift-side
     // `Default · Transcribe Files` / `Default · Transcribe Collection`
     // duplicated backend's Transcribe — removed in #722.
     // Note: there used to be a Swift-defined `defaultWorkflowTemplates`

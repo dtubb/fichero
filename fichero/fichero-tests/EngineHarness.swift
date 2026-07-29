@@ -11,12 +11,12 @@
 //     is selected per-request via the X-Fichero-Library-Path header, so the
 //     running app's own library is never touched — we just point requests at
 //     our temp .fichero. Auth is handled transparently by AuthTokenMiddleware.
-//   - Otherwise spawn `uvicorn fichero.api.main:app` ourselves, with
+//   - Otherwise spawn `uvicorn fichero_server.api.main:app` ourselves, with
 //     FICHERO_DISABLE_AUTH=1 and an isolated FICHERO_BASE_PATH so the spawned
 //     engine can't lock-fight the app's shared DuckDB.
 //
 //  The seeded library is built fresh each run by the Python seeder
-//  (fichero-engine/scripts/seed_test_library.py) — the SAME fixture the Python
+//  (fichero-server/scripts/seed_test_library.py) — the SAME fixture the Python
 //  contract walker uses — so both ends of the contract walk identical data.
 //
 
@@ -161,13 +161,13 @@ enum EngineHarness {
 
     private static func seedLibrary(at libURL: URL, repo: URL) throws -> ([String: Int], [String: String]) {
         let venvPython = repo.appendingPathComponent(".venv/bin/python")
-        let seeder = repo.appendingPathComponent("fichero-engine/scripts/seed_test_library.py")
+        let seeder = repo.appendingPathComponent("fichero-server/scripts/seed_test_library.py")
 
         let proc = Process()
         proc.executableURL = venvPython
         proc.arguments = [seeder.path, libURL.path]
         var env = ProcessInfo.processInfo.environment
-        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
+        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
         proc.environment = env
         let out = Pipe()
         proc.standardOutput = out
@@ -218,13 +218,13 @@ enum EngineHarness {
         let proc = Process()
         proc.executableURL = uvicorn
         proc.arguments = [
-            "fichero.api.main:app",
+            "fichero_server.api.main:app",
             "--port", baseURL.port.map(String.init) ?? "8765",
             "--ssl-certfile", tlsMaterial.certificatePath,
             "--ssl-keyfile", tlsMaterial.keyPath
         ]
         var env = ProcessInfo.processInfo.environment
-        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
+        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
         env["FICHERO_DISABLE_AUTH"] = "1"
         // #4024: run the contract engine at the `dev` tier so beta-gated routes (e.g.
         // /api/workflows) are exposed. The spawned process otherwise inherits the parent's
@@ -240,7 +240,7 @@ enum EngineHarness {
         // unsigned runs keep the repo path.
         env["FICHERO_BASE_PATH"] = Self.isContainerSandboxTemp
             ? Self.sandboxWritableRoot().appendingPathComponent(".itest-base", isDirectory: true).path
-            : repo.appendingPathComponent("fichero-engine").path + "/.itest-base"
+            : repo.appendingPathComponent("fichero-server").path + "/.itest-base"
         // The engine watches this PID and self-terminates if it dies. atexit
         // is unreliable when the test process is SIGKILL'd (or crashes before
         // the C handler runs), which orphans the engine on :8765 and then
@@ -280,12 +280,12 @@ enum EngineHarness {
         process.arguments = [
             "-c",
             """
-            from fichero.remote_access_tls import material_manifest_json, prepare_remote_access_tls
+            from fichero_server.remote_access_tls import material_manifest_json, prepare_remote_access_tls
             print(material_manifest_json(prepare_remote_access_tls("\(baseURL.absoluteString)", allow_loopback=True)))
             """
         ]
         var env = ProcessInfo.processInfo.environment
-        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-engine/src").path
+        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
         process.environment = env
 
         let stdout = Pipe()
@@ -351,7 +351,7 @@ enum EngineHarness {
     }
 
     /// Reads the engine's shared-secret token from its canonical on-disk path.
-    /// Mirrors `_token_file_path()` in `fichero-engine/src/fichero/api/auth.py`:
+    /// Mirrors `_token_file_path()` in `fichero-server/src/fichero_server/api/auth.py`:
     ///   `Path.home() / "Library" / "Application Support" / "Fichero" / ".api-key"`
     /// Uses `homeDirectoryForCurrentUser` because `url(for: .applicationSupportDirectory)`
     /// resolves to the sandbox container path in the XCTest host, not the real `~`.
@@ -367,7 +367,7 @@ enum EngineHarness {
     // MARK: - Repo root
 
     /// FICHERO_REPO_ROOT if set, else walk up looking for a dir that contains both
-    /// `.venv` and `fichero-engine`. Discovery is checkout-directory-name agnostic:
+    /// `.venv` and `fichero-server`. Discovery is checkout-directory-name agnostic:
     /// it probes up from the loaded test bundle AND from this source file's
     /// compile-time path (`#filePath`), which always lives inside the repo, so the
     /// harness works regardless of what the checkout directory is named.
@@ -395,7 +395,7 @@ enum EngineHarness {
     private static func looksLikeRepo(_ url: URL) -> Bool {
         let fileManager = FileManager.default
         return fileManager.fileExists(atPath: url.appendingPathComponent(".venv/bin/python").path)
-            && fileManager.fileExists(atPath: url.appendingPathComponent("fichero-engine/scripts/seed_test_library.py").path)
+            && fileManager.fileExists(atPath: url.appendingPathComponent("fichero-server/scripts/seed_test_library.py").path)
     }
 }
 

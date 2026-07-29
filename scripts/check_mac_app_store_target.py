@@ -130,7 +130,7 @@ def main() -> int:
         input_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
         if input_list not in input_file_lists:
             fail(f"{target['name']} Embed Fichero Engine must use {input_list!r} as an inputFileListPath")
-        if "$(SRCROOT)/../fichero-engine/build/engine/macos/app/Fichero Engine.app" not in input_paths:
+        if "$(SRCROOT)/../fichero-server/build/engine/macos/app/Fichero Engine.app" not in input_paths:
             fail(f"{target['name']} Embed Fichero Engine must list the staged Briefcase app as an inputPath")
         expected_macos_output = (
             "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Engine.app"
@@ -223,11 +223,11 @@ def main() -> int:
             if line.strip() and not line.lstrip().startswith("#")
         }
         required_file_list_entries = {
-            "$(SRCROOT)/../fichero-engine/pyproject.toml",
+            "$(SRCROOT)/../fichero-server/pyproject.toml",
             "$(SRCROOT)/../scripts/clean-embedded-engine.sh",
             "$(SRCROOT)/../scripts/preflight-embedded-engine.sh",
-            "$(SRCROOT)/../fichero-engine/src/fichero/api/main.py",
-            "$(SRCROOT)/../fichero-engine/src/fichero/resources/bin/.gitignore",
+            "$(SRCROOT)/../fichero-server/src/fichero_server/api/main.py",
+            "$(SRCROOT)/../fichero-server/src/fichero_server/resources/bin/.gitignore",
         }
         missing_entries = sorted(required_file_list_entries - entries)
         if missing_entries:
@@ -235,7 +235,7 @@ def main() -> int:
                 f"{ENGINE_EMBED_INPUTS.name} is missing conservative engine inputs: "
                 + ", ".join(missing_entries)
             )
-        if not any(entry.startswith("$(SRCROOT)/../fichero-engine/src/fichero/") for entry in entries):
+        if not any(entry.startswith("$(SRCROOT)/../fichero-server/src/fichero_server/") for entry in entries):
             fail(f"{ENGINE_EMBED_INPUTS.name} must list engine source files, not just scripts")
     else:
         fail(f"{ENGINE_EMBED_INPUTS.name} is missing — Xcode cannot track engine source dependencies (#3991)")

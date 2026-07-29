@@ -115,7 +115,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
     /// mirrors `fichero.api.uds_transport.UDSTransportApp` on a real socket.
     private func udsMarkerInMemoryTransport() -> any ClientTransport {
         let code = #"""
-        from fichero.api.main import app as _real
+        from fichero_server.api.main import app as _real
 
         async def app(scope, receive, send):
             # Re-stamp the UDS marker, exactly as UDSTransportApp does on a real

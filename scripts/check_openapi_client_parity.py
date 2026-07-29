@@ -22,11 +22,11 @@ from typing import Any
 from matrix_guardrail_common import HTTP_METHODS, ROOT, endpoint_key, load_known_gaps
 
 
-CANONICAL_OPENAPI = ROOT / "fichero-engine" / "tests" / "contracts" / "openapi.json"
+CANONICAL_OPENAPI = ROOT / "fichero-server" / "tests" / "contracts" / "openapi.json"
 SWIFT_OPENAPI_INPUTS = (
     ROOT / "fichero" / "fichero-api-client" / "Sources" / "FicheroAPIClient" / "openapi.json",
 )
-CLI_SURFACE = ROOT / "fichero-engine" / "src" / "fichero" / "cli" / "openapi_surface_generated.py"
+CLI_SURFACE = ROOT / "fichero-server" / "src" / "fichero" / "cli" / "openapi_surface_generated.py"
 KNOWN_GAPS = load_known_gaps(Path(__file__).with_name("check_openapi_client_parity_known_gaps.json"))
 
 
