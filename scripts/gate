@@ -1,0 +1,642 @@
+#!/usr/bin/env bash
+# scripts/gate — the ONE serialized harness for every heavy build/test
+# invocation (human, agent, CI). #4244.
+#
+# Three memory-crash incidents shared one root cause: multiple heavy processes
+# (xcodebuild + pytest + hosted suites) running unserialized and unbounded.
+# Everything heavy now goes through this script:
+#
+#   gate build                       build-for-testing (FicheroTests), -jobs capped
+#   gate unit [--area X|--filter P]  Swift unit tests: build phase THEN
+#                                    test-without-building (never stacked)
+#   gate engine [--area X|paths...]  backend pytest (default: unit + contracts)
+#   gate ui <testplan>               hosted UI suite via a test plan
+#   gate embedded                    embedded-launch UX check
+#   gate transport                   transport matrix (UDS/HTTPS/in-memory) #4245
+#   gate coverage                    test-coverage gap ratchet
+#   gate verify-all                  every leg, one summary table (#4251)
+#   gate areas [name]                print the area table / one resolution
+#   gate wrap -- <cmd...>            run an arbitrary heavy command under the gate
+#   gate --self-test                 exercise lock, areas, watchdog w/ fake cmds
+#
+# Serialization: a GLOBAL flock on /tmp/fichero-gate.lock. A second caller
+# waits (with a message naming the holder) or fails fast with --no-wait
+# (exit 75, EX_TEMPFAIL). Nested gate calls (verify-all legs) re-enter via
+# GATE_LOCK_HELD and do NOT deadlock.
+#
+# Watchdog (three independent triggers):
+#   1. memory PRESSURE (kern.memorystatus_vm_pressure_level — RSS is a proven
+#      liar): instant kill at level >= 4 (hard critical), two-strike kill at
+#      level 3 (critical);
+#   2. per-process FOOTPRINT ceiling: `footprint` (phys_footprint) sampled
+#      over the whole gated process tree — any single process crossing
+#      GATE_FOOTPRINT_MB (default 4096) kills the run. This is the guard for
+#      the 15-17GB dirty-MALLOC_SMALL leak the Swift Testing phase produced
+#      while pressure stayed nominal;
+#   3. a per-run wall-clock timeout.
+#
+# `gate unit` runs XCTest and Swift Testing as SEPARATELY-bounded invocations
+# (--phase xctest|swift-testing|all) so one leaking phase cannot ride on the
+# other's budget.
+#
+# Test/dev seams (used by --self-test; harmless otherwise):
+#   GATE_DRYRUN=1              print heavy commands instead of exec'ing them
+#   GATE_LOCK_FILE=path        alternate lock file
+#   GATE_WATCH_INTERVAL=s      watchdog sample interval (default 5)
+#   GATE_FAKE_PRESSURE=f       read pressure level from file f (or literal int)
+#   GATE_FAKE_FOOTPRINT_MB=f   read max tree footprint (MB) from file/literal
+#   GATE_FOOTPRINT_MB=n        footprint ceiling in MB (default 4096)
+#   GATE_TIMEOUT=s             override the per-run timeout
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT" || exit 2
+
+LOCK_FILE="${GATE_LOCK_FILE:-/tmp/fichero-gate.lock}"
+WATCH_INTERVAL="${GATE_WATCH_INTERVAL:-5}"
+DRYRUN="${GATE_DRYRUN:-0}"
+
+XCODE_PROJECT="fichero/fichero.xcodeproj"
+UNIT_SCHEME="FicheroTests"
+UI_SCHEME="Fichero (Dev Local)"
+GATE_DERIVED="${GATE_DERIVED:-build/gate-derived}"
+SWIFT_TESTS_DIR="fichero/fichero-tests"
+
+# ---------------------------------------------------------------------------
+# AREA TABLE (declarative — edit here, nothing else).
+# Columns (|-separated):
+#   area | Swift test-class filename PREFIXES under fichero/fichero-tests
+#        | engine pytest path globs (space separated; may be empty)
+# Swift prefixes resolve at run time by globbing <prefix>*.swift, so the table
+# survives the ongoing fichero-tests reorganisation without maintenance.
+# ---------------------------------------------------------------------------
+area_table() {
+  cat <<'EOF'
+sidebar   | Sidebar,DocumentStore            |
+ingest    | ImportService                    | fichero-engine/tests/unit/test_ingest*.py fichero-engine/tests/unit/test_dataless*.py
+search    | Search                           | fichero-engine/tests/unit/test_search*.py
+inspector | Inspector                        |
+transport | Transport,Connection             | fichero-engine/tests/integration/test_transport_matrix.py fichero-engine/tests/integration/test_transport_round_trips.py
+EOF
+}
+
+die() { echo "gate: $*" >&2; exit 2; }
+
+find_python() {
+  if [[ -n "${PYTHON_BIN:-}" ]]; then echo "$PYTHON_BIN"; return; fi
+  if [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then echo "$REPO_ROOT/.venv/bin/python"; return; fi
+  if [[ -x "$REPO_ROOT/scripts/find_project_python.sh" ]]; then
+    "$REPO_ROOT/scripts/find_project_python.sh" . 2>/dev/null && return
+  fi
+  command -v python3
+}
+
+# --------------------------- locking ---------------------------------------
+# macOS ships no flock(1); acquire the lock in python and re-exec ourselves
+# with the flocked fd inherited (a flock lives on the open file description,
+# so it survives exec and releases automatically when this process exits).
+acquire_lock_and_reexec() {
+  GATE_SELF="$0" GATE_LOCK_TARGET="$LOCK_FILE" exec "$(command -v python3)" - "$@" <<'PY'
+import fcntl, os, sys
+lock_path = os.environ["GATE_LOCK_TARGET"]
+self_path = os.environ["GATE_SELF"]
+no_wait = os.environ.get("GATE_NO_WAIT") == "1"
+fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o666)
+def holder():
+    try:
+        with open(lock_path) as fh:
+            return fh.read().strip() or "<unknown>"
+    except OSError:
+        return "<unknown>"
+try:
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except (BlockingIOError, OSError):
+    if no_wait:
+        print(f"gate: lock busy — held by [{holder()}] ({lock_path}). "
+              "Re-run without --no-wait to queue.", file=sys.stderr)
+        sys.exit(75)  # EX_TEMPFAIL
+    print(f"gate: waiting for lock held by [{holder()}] ({lock_path}) ...",
+          file=sys.stderr, flush=True)
+    fcntl.flock(fd, fcntl.LOCK_EX)  # block until free
+os.set_inheritable(fd, True)
+os.environ["GATE_LOCK_HELD"] = str(fd)
+os.execv(self_path, [self_path] + sys.argv[1:])
+PY
+}
+
+announce_holder() {
+  # Truncate-and-write the holder line; flock is on the inode, content is
+  # advisory info for the "waiting for ..." message.
+  echo "pid $$ · $(whoami) · gate ${*:-} · started $(date '+%H:%M:%S')" >"$LOCK_FILE" 2>/dev/null || true
+}
+
+# --------------------------- watchdog --------------------------------------
+pressure_level() {
+  local fake="${GATE_FAKE_PRESSURE:-}"
+  if [[ -n "$fake" ]]; then
+    if [[ -f "$fake" ]]; then cat "$fake" 2>/dev/null || echo 1; else echo "$fake"; fi
+    return
+  fi
+  sysctl -n kern.memorystatus_vm_pressure_level 2>/dev/null || echo 1
+}
+
+# Every pid in the gated process tree (the child + all descendants).
+proc_tree() {
+  local pid="$1" c
+  echo "$pid"
+  for c in $(pgrep -P "$pid" 2>/dev/null); do proc_tree "$c"; done
+}
+
+# Max phys_footprint (MB) of any single process in the tree rooted at $1.
+# Uses /usr/bin/footprint (real dirty+compressed footprint), NOT ps rss.
+tree_max_footprint_mb() {
+  local root="$1" fake="${GATE_FAKE_FOOTPRINT_MB:-}"
+  if [[ -n "$fake" ]]; then
+    if [[ -f "$fake" ]]; then cat "$fake" 2>/dev/null || echo 0; else echo "$fake"; fi
+    return
+  fi
+  local pids max_bytes
+  pids=($(proc_tree "$root"))
+  max_bytes="$(footprint --noCategories -f bytes "${pids[@]}" 2>/dev/null \
+    | awk '/phys_footprint:/ {if ($2+0 > m) m=$2+0} END {print m+0}')"
+  echo $(( ${max_bytes:-0} / 1048576 ))
+}
+
+kill_tree() {
+  local pid="$1"
+  pkill -P "$pid" 2>/dev/null
+  kill "$pid" 2>/dev/null
+  sleep 1
+  pkill -9 -P "$pid" 2>/dev/null
+  kill -9 "$pid" 2>/dev/null
+  return 0
+}
+
+# run_gated <label> <timeout-seconds> <cmd...>
+# Runs cmd under the memory watchdog + wall-clock timeout. Returns the
+# command's rc, 124 on timeout, 137 on a pressure kill.
+run_gated() {
+  local label="$1" timeout="${GATE_TIMEOUT:-$2}"
+  shift 2
+  if [[ "$DRYRUN" = "1" ]]; then
+    echo "gate DRYRUN [$label] (timeout ${timeout}s): $*"
+    return 0
+  fi
+  echo "gate: [$label] starting (timeout ${timeout}s, watchdog every ${WATCH_INTERVAL}s)"
+  "$@" &
+  local pid=$!
+  trap 'kill_tree '"$pid"'; exit 130' INT TERM
+  local start=$SECONDS strikes=0 reason=""
+  while kill -0 "$pid" 2>/dev/null; do
+    sleep "$WATCH_INTERVAL"
+    kill -0 "$pid" 2>/dev/null || break
+    if (( SECONDS - start > timeout )); then
+      reason="timeout after ${timeout}s"
+      kill_tree "$pid"
+      wait "$pid" 2>/dev/null
+      echo "gate: [$label] KILLED — $reason" >&2
+      trap - INT TERM
+      return 124
+    fi
+    # Footprint ceiling: any single process in the gated tree crossing the
+    # ceiling kills the run — pressure can stay nominal while one test host
+    # accretes 15GB+ of dirty MALLOC_SMALL (2026-07-29 run 4).
+    local ceiling="${GATE_FOOTPRINT_MB:-4096}" fp
+    fp="$(tree_max_footprint_mb "$pid")"
+    case "$fp" in ''|*[!0-9]*) fp=0 ;; esac
+    if (( fp > ceiling )); then
+      reason="process footprint ${fp}MB exceeded ceiling ${ceiling}MB"
+      kill_tree "$pid"
+      wait "$pid" 2>/dev/null
+      echo "gate: [$label] KILLED — $reason" >&2
+      trap - INT TERM
+      return 137
+    fi
+    local level
+    level="$(pressure_level)"
+    case "$level" in
+      ''|*[!0-9]*) level=1 ;;
+    esac
+    if (( level >= 4 )); then
+      reason="memory pressure level $level (hard critical) — instant kill"
+      kill_tree "$pid"
+      wait "$pid" 2>/dev/null
+      echo "gate: [$label] KILLED — $reason" >&2
+      trap - INT TERM
+      return 137
+    elif (( level == 3 )); then
+      strikes=$((strikes + 1))
+      echo "gate: [$label] memory pressure level 3 — strike $strikes/2" >&2
+      if (( strikes >= 2 )); then
+        reason="memory pressure level 3 twice in a row"
+        kill_tree "$pid"
+        wait "$pid" 2>/dev/null
+        echo "gate: [$label] KILLED — $reason" >&2
+        trap - INT TERM
+        return 137
+      fi
+    else
+      strikes=0
+    fi
+  done
+  wait "$pid"
+  local rc=$?
+  trap - INT TERM
+  echo "gate: [$label] finished rc=$rc"
+  return "$rc"
+}
+
+# --------------------------- area resolution --------------------------------
+# resolve_area <name> → sets AREA_ONLY_TESTING (array of -only-testing:...)
+# and AREA_ENGINE_PATHS (array of pytest paths). Errors on unknown area.
+resolve_area() {
+  local name="$1" row prefixes engine_globs
+  row="$(area_table | awk -F'|' -v a="$name" '$1 ~ "^"a"[ ]*$" {print; exit}')"
+  [[ -n "$row" ]] || die "unknown area '$name' — known: $(area_table | awk -F'|' '{printf "%s ", $1}')"
+  prefixes="$(echo "$row" | awk -F'|' '{print $2}' | tr -d ' ')"
+  engine_globs="$(echo "$row" | awk -F'|' '{print $3}' | sed 's/^ *//;s/ *$//')"
+  AREA_ONLY_TESTING=()
+  local prefix file klass
+  IFS=',' read -ra _prefixes <<<"$prefixes"
+  for prefix in "${_prefixes[@]}"; do
+    [[ -n "$prefix" ]] || continue
+    for file in "$SWIFT_TESTS_DIR/$prefix"*.swift; do
+      [[ -e "$file" ]] || continue
+      klass="$(basename "$file" .swift)"
+      AREA_ONLY_TESTING+=("-only-testing:FicheroTests/$klass")
+    done
+  done
+  AREA_ENGINE_PATHS=()
+  local g p
+  for g in $engine_globs; do
+    for p in $g; do  # glob expansion
+      [[ -e "$p" ]] && AREA_ENGINE_PATHS+=("$p")
+    done
+  done
+}
+
+cmd_areas() {
+  if [[ $# -eq 0 ]]; then
+    echo "gate areas:"
+    area_table | awk -F'|' '{printf "  %-10s swift-prefixes:%-35s engine:%s\n", $1, $2, $3}'
+    return 0
+  fi
+  resolve_area "$1"
+  echo "area $1:"
+  local x
+  for x in ${AREA_ONLY_TESTING[@]+"${AREA_ONLY_TESTING[@]}"}; do echo "  $x"; done
+  for x in ${AREA_ENGINE_PATHS[@]+"${AREA_ENGINE_PATHS[@]}"}; do echo "  engine: $x"; done
+  [[ ${#AREA_ONLY_TESTING[@]} -gt 0 || ${#AREA_ENGINE_PATHS[@]} -gt 0 ]] || {
+    echo "  (area resolved to NOTHING — prefixes matched no files)" >&2
+    return 1
+  }
+}
+
+# --------------------------- subcommands ------------------------------------
+xcode_build_for_testing() {
+  run_gated "build-for-testing" "${GATE_TIMEOUT_BUILD:-3600}" \
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
+      -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
+      -jobs 4 -skipPackagePluginValidation build-for-testing
+}
+
+cmd_build() { xcode_build_for_testing; }
+
+# Candidate unit-test FILES for the given --area/--filter (all files when
+# neither is given). Echoes paths, one per line.
+unit_candidate_files() {
+  local area="$1" filter="$2" file prefix
+  if [[ -n "$area" ]]; then
+    resolve_area "$area"
+    local x
+    for x in ${AREA_ONLY_TESTING[@]+"${AREA_ONLY_TESTING[@]}"}; do
+      echo "$SWIFT_TESTS_DIR/${x#-only-testing:FicheroTests/}.swift"
+    done
+  elif [[ -n "$filter" ]]; then
+    for file in "$SWIFT_TESTS_DIR/"$filter*.swift; do
+      [[ -e "$file" ]] && echo "$file"
+    done
+  else
+    for file in "$SWIFT_TESTS_DIR/"*.swift; do
+      [[ -e "$file" ]] && echo "$file"
+    done
+  fi
+}
+
+# One separately-bounded test invocation.
+# $1 = phase label, $2 = SWT_SWIFT_TESTING_ENABLED value (0|1),
+# $3.. = extra xcodebuild args (-only-testing:... filters).
+run_unit_phase() {
+  local phase="$1" swt="$2"; shift 2
+  # TEST_RUNNER_ vars propagate into the test host: hermetic engine (#4246) —
+  # never reuse a dev engine on :8765; always self-provision + tear down.
+  run_gated "unit-$phase" "${GATE_TIMEOUT_TEST:-3600}" \
+    env TEST_RUNNER_FICHERO_HERMETIC_ENGINE=1 \
+        "TEST_RUNNER_SWT_SWIFT_TESTING_ENABLED=$swt" \
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
+      -destination 'platform=macOS' -derivedDataPath "$GATE_DERIVED" \
+      -skipPackagePluginValidation "$@" test-without-building
+}
+
+cmd_unit() {
+  local area="" filter="" phase="all"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --area) area="$2"; shift 2 ;;
+      --filter) filter="$2"; shift 2 ;;
+      --phase) phase="$2"; shift 2 ;;   # xctest | swift-testing | all
+      *) die "unit: unknown arg $1" ;;
+    esac
+  done
+  case "$phase" in xctest|swift-testing|all) ;; *) die "unit: --phase must be xctest|swift-testing|all" ;; esac
+
+  local files
+  files="$(unit_candidate_files "$area" "$filter")"
+  [[ -n "$files" ]] || die "unit: no test files matched (area='$area' filter='$filter')"
+
+  # Split the candidate files by framework so the XCTest and Swift Testing
+  # phases run as SEPARATELY-bounded invocations — one leaking phase cannot
+  # ride on (or hide inside) the other's watchdog budget.
+  local xctest_only=() swt_only=() f stem
+  while IFS= read -r f; do
+    [[ -f "$f" ]] || continue
+    stem="$(basename "$f" .swift)"
+    if grep -q "XCTestCase" "$f"; then
+      xctest_only+=("-only-testing:FicheroTests/$stem")
+    fi
+    if grep -q "^import Testing" "$f"; then
+      swt_only+=("-only-testing:FicheroTests/$stem")
+    fi
+  done <<<"$files"
+
+  # Phase 0: build (jobs capped), then test WITHOUT building. Never stacked —
+  # that stacking is one of the crash shapes this script exists for.
+  xcode_build_for_testing || return $?
+
+  local rc=0
+  if [[ "$phase" == "xctest" || "$phase" == "all" ]]; then
+    if [[ ${#xctest_only[@]} -gt 0 ]]; then
+      # Full-suite runs pass no -only-testing list (hundreds of entries slow
+      # xcodebuild's scheduler); Swift Testing is disabled via its env switch
+      # so this invocation is XCTest-only either way.
+      if [[ -z "$area" && -z "$filter" ]]; then
+        run_unit_phase "xctest" 0 || rc=$?
+      else
+        run_unit_phase "xctest" 0 "${xctest_only[@]}" || rc=$?
+      fi
+    else
+      echo "gate: unit-xctest — no XCTest files in selection, skipped"
+    fi
+  fi
+  if [[ "$phase" == "swift-testing" || "$phase" == "all" ]]; then
+    if [[ ${#swt_only[@]} -gt 0 ]]; then
+      run_unit_phase "swift-testing" 1 "${swt_only[@]}" || rc=$?
+    else
+      echo "gate: unit-swift-testing — no Swift Testing files in selection, skipped"
+    fi
+  fi
+  return "$rc"
+}
+
+cmd_engine() {
+  local paths=() area=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --area) area="$2"; shift 2 ;;
+      *) paths+=("$1"); shift ;;
+    esac
+  done
+  local py; py="$(find_python)"
+  local args=()
+  if [[ -n "$area" ]]; then
+    resolve_area "$area"
+    [[ ${#AREA_ENGINE_PATHS[@]} -gt 0 ]] || die "area '$area' has no engine tests"
+    args=("${AREA_ENGINE_PATHS[@]}")
+  elif [[ ${#paths[@]} -gt 0 ]]; then
+    args=("${paths[@]}")
+  else
+    args=(fichero-engine/tests/unit/ --ignore=fichero-engine/tests/unit/_archived
+          fichero-engine/tests/contracts/)
+  fi
+  run_gated "engine-pytest" "${GATE_TIMEOUT_ENGINE:-2700}" \
+    env PYTHONPATH=fichero-engine/src "$py" -m pytest -rf "${args[@]}"
+}
+
+cmd_ui() {
+  local plan="${1:?gate ui <testplan> (e.g. fichero, fichero-embedded)}"
+  run_gated "ui-$plan" "${GATE_TIMEOUT_UI:-5400}" \
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$UI_SCHEME" \
+      -testPlan "$plan" -destination 'platform=macOS' \
+      -skipPackagePluginValidation \
+      -resultBundlePath "$(mktemp -d)/gate-$plan.xcresult" test
+}
+
+cmd_embedded() {
+  run_gated "embedded-launch" "${GATE_TIMEOUT_EMBEDDED:-3600}" \
+    bash scripts/verify_embedded_launch.sh
+}
+
+cmd_transport() {
+  # Python leg: the full round-trip matrix over UDS / HTTPS / in-memory ASGI
+  # (#4245). Swift leg: the .inMemory PythonKit transport under swift test —
+  # the acceptance test for the transport nobody was sure worked.
+  local py rc=0; py="$(find_python)"
+  run_gated "transport-python" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
+    env PYTHONPATH=fichero-engine/src "$py" -m pytest -rf \
+      fichero-engine/tests/integration/test_transport_matrix.py \
+      fichero-engine/tests/integration/test_transport_round_trips.py || rc=$?
+  run_gated "transport-swift-inmemory" "${GATE_TIMEOUT_TRANSPORT:-1800}" \
+    swift test --package-path fichero/fichero-api-client \
+      --filter 'InMemoryTransportSmokeTests|TransportRoutingMatrixTests|TransportMatrixRoundTripTests' || rc=$?
+  return "$rc"
+}
+
+cmd_coverage() {
+  local py; py="$(find_python)"
+  [[ -f scripts/scan_test_coverage_gaps.py ]] || { echo "gate: no coverage ratchet script"; return 0; }
+  run_gated "coverage" "${GATE_TIMEOUT_COVERAGE:-900}" \
+    "$py" scripts/scan_test_coverage_gaps.py
+}
+
+cmd_wrap() {
+  [[ "${1:-}" == "--" ]] && shift
+  [[ $# -gt 0 ]] || die "wrap: no command given (gate wrap -- <cmd...>)"
+  run_gated "wrap:$1" "${GATE_TIMEOUT_WRAP:-7200}" "$@"
+}
+
+# --------------------------- verify-all (#4251) -----------------------------
+cmd_verify_all() {
+  local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=()
+  run_leg() {
+    local name="$1"; shift
+    local t0=$SECONDS
+    echo
+    echo "================ gate verify-all leg: $name ================"
+    "$@"
+    local rc=$?
+    LEG_NAMES+=("$name"); LEG_RCS+=("$rc"); LEG_SECS+=($((SECONDS - t0)))
+    return 0   # keep going; the table + exit code aggregate at the end
+  }
+
+  # guardrails leg: verify_all.sh --fast (swiftlint + ruff + check_*.py +
+  # version-date + OpenAPI sync). FICHERO_GATE=1 stops it re-wrapping itself.
+  run_leg "guardrails"  run_gated "guardrails" "${GATE_TIMEOUT_GUARDRAILS:-1800}" \
+    env FICHERO_GATE=1 bash scripts/verify_all.sh --fast
+  run_leg "engine"        cmd_engine
+  run_leg "swift-unit"    cmd_unit
+  run_leg "ui-hermetic"   cmd_ui fichero
+  run_leg "transport"     cmd_transport
+  run_leg "coverage"      cmd_coverage
+
+  echo
+  echo "==================== gate verify-all summary ===================="
+  printf "%-14s %-8s %s\n" "LEG" "RESULT" "TIME"
+  local i fail=0
+  for i in "${!LEG_NAMES[@]}"; do
+    local verdict="PASS"
+    [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]})"; fail=1; }
+    printf "%-14s %-8s %ss\n" "${LEG_NAMES[$i]}" "$verdict" "${LEG_SECS[$i]}"
+  done
+  echo "================================================================="
+  if [[ "$fail" -eq 0 ]]; then
+    echo "gate verify-all: ALL PASS — releasable"
+  else
+    echo "gate verify-all: FAILED — not releasable"
+  fi
+  return "$fail"
+}
+
+# --------------------------- self-test --------------------------------------
+cmd_self_test() {
+  echo "gate --self-test"
+  local tmp fails=0
+  tmp="$(mktemp -d)"
+
+  check() { # name condition-rc
+    local name="$1" rc="$2"
+    if [[ "$rc" -eq 0 ]]; then echo "  ok   $name"; else echo "  FAIL $name"; fails=1; fi
+  }
+
+  # 1. Area resolution: sidebar resolves to Swift classes, ingest to both
+  #    kinds, unknown area errors.
+  local out
+  out="$("$0" areas sidebar 2>&1)"; local rc=$?
+  [[ $rc -eq 0 && "$out" == *"-only-testing:FicheroTests/Sidebar"* ]]; check "area sidebar resolves to -only-testing filters" $?
+  out="$("$0" areas ingest 2>&1)"
+  [[ "$out" == *"engine: fichero-engine/tests/unit/test_ingest"* ]]; check "area ingest resolves engine paths" $?
+  "$0" areas no-such-area >/dev/null 2>&1; [[ $? -ne 0 ]]; check "unknown area is a hard error" $?
+
+  # 2. Dry-run command assembly: unit --area sidebar must show the capped
+  #    build phase plus a separately-bounded XCTest test phase.
+  out="$(GATE_DRYRUN=1 "$0" unit --area sidebar 2>&1)"
+  [[ "$out" == *"build-for-testing"* && "$out" == *"test-without-building"* ]]
+  check "unit = build phase then test-without-building (dry-run)" $?
+  [[ "$out" == *"-jobs 4"* ]]; check "build phase caps -jobs" $?
+  [[ "$out" == *"[unit-xctest]"* && "$out" == *"SWT_SWIFT_TESTING_ENABLED=0"* ]]
+  check "unit: XCTest phase is its own bounded invocation (Swift Testing off)" $?
+  [[ "$out" == *"TEST_RUNNER_FICHERO_HERMETIC_ENGINE=1"* ]]
+  check "unit: hermetic-engine env reaches the test host (#4246)" $?
+
+  # 3. Lock contention: hold the lock with a trivial sleep, then a --no-wait
+  #    caller must fail fast with 75, and a waiting caller must queue+succeed.
+  #    (env -u GATE_LOCK_HELD: the self-test itself runs under the real gate
+  #    lock; these sub-calls must contend on their OWN lock file.)
+  local lock="$tmp/gate.lock"
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$lock" "$0" wrap -- sleep 3 &
+  local holder=$!
+  sleep 1
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$lock" "$0" --no-wait wrap -- true >/dev/null 2>&1
+  [[ $? -eq 75 ]]; check "second caller with --no-wait fails fast (exit 75)" $?
+  local t0=$SECONDS
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$lock" "$0" wrap -- true >/dev/null 2>&1
+  rc=$?
+  [[ $rc -eq 0 && $((SECONDS - t0)) -ge 1 ]]; check "waiting caller queues until holder exits, then runs" $?
+  wait "$holder" 2>/dev/null
+
+  # 4. Watchdog: hard-critical pressure (level 4) kills a fake command fast.
+  local pfile="$tmp/pressure"
+  echo 1 >"$pfile"
+  ( sleep 1; echo 4 >"$pfile" ) &
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd1.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 \
+    "$0" wrap -- sleep 30 >/dev/null 2>&1
+  [[ $? -eq 137 ]]; check "watchdog: instant kill at pressure level >= 4 (rc 137)" $?
+
+  # 5. Watchdog: two-strike at level 3 (one strike alone must NOT kill).
+  echo 3 >"$pfile"
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd2.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 \
+    "$0" wrap -- sleep 30 >/dev/null 2>&1
+  [[ $? -eq 137 ]]; check "watchdog: two-strike kill at sustained level 3 (rc 137)" $?
+  echo 1 >"$pfile"
+  ( sleep 0.35; echo 3 >"$pfile"; sleep 0.3; echo 1 >"$pfile" ) &
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd3.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 \
+    "$0" wrap -- sleep 2 >/dev/null 2>&1
+  [[ $? -eq 0 ]]; check "watchdog: a single level-3 strike does not kill" $?
+
+  # 6. Watchdog: footprint ceiling — a process crossing GATE_FOOTPRINT_MB is
+  #    killed even while pressure stays nominal (the run-4 leak shape).
+  local ffile="$tmp/footprint"
+  echo 100 >"$ffile"
+  ( sleep 1; echo 9999 >"$ffile" ) &
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd4.lock" GATE_FAKE_FOOTPRINT_MB="$ffile" \
+    GATE_FOOTPRINT_MB=4096 GATE_WATCH_INTERVAL=0.3 \
+    "$0" wrap -- sleep 30 >/dev/null 2>&1
+  [[ $? -eq 137 ]]; check "watchdog: footprint over ceiling kills (rc 137)" $?
+  echo 100 >"$ffile"
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd5.lock" GATE_FAKE_FOOTPRINT_MB="$ffile" \
+    GATE_FOOTPRINT_MB=4096 GATE_WATCH_INTERVAL=0.3 \
+    "$0" wrap -- sleep 1 >/dev/null 2>&1
+  [[ $? -eq 0 ]]; check "watchdog: footprint under ceiling does not kill" $?
+
+  # 7. Timeout kills a fake command with rc 124.
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/to.lock" GATE_TIMEOUT=1 GATE_WATCH_INTERVAL=0.3 \
+    "$0" wrap -- sleep 30 >/dev/null 2>&1
+  [[ $? -eq 124 ]]; check "per-run timeout kills (rc 124)" $?
+
+  # 8. Reentrancy: a nested gate call under a held lock must not deadlock.
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/re.lock" \
+    "$0" wrap -- "$0" --no-wait wrap -- true >/dev/null 2>&1
+  [[ $? -eq 0 ]]; check "nested gate call re-enters the held lock (no deadlock)" $?
+
+  rm -rf "$tmp"
+  if [[ "$fails" -eq 0 ]]; then echo "gate --self-test: ALL PASS"; else echo "gate --self-test: FAILURES" >&2; fi
+  return "$fails"
+}
+
+# --------------------------- main -------------------------------------------
+usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
+
+# Parse global flags before the subcommand.
+NO_WAIT=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-wait) NO_WAIT=1; shift ;;
+    --self-test) SUBCMD="self-test"; shift; break ;;
+    -h|--help) usage; exit 0 ;;
+    *) SUBCMD="$1"; shift; break ;;
+  esac
+done
+[[ -n "${SUBCMD:-}" ]] || { usage; exit 2; }
+
+# 'areas' is metadata-only: no lock, no watchdog — safe while a run is live.
+if [[ "$SUBCMD" == "areas" ]]; then cmd_areas "$@"; exit $?; fi
+
+if [[ -z "${GATE_LOCK_HELD:-}" ]]; then
+  export GATE_NO_WAIT="$NO_WAIT"
+  acquire_lock_and_reexec "$SUBCMD" "$@"
+  # exec never returns
+fi
+announce_holder "$SUBCMD" "$@"
+
+case "$SUBCMD" in
+  build)      cmd_build "$@" ;;
+  unit)       cmd_unit "$@" ;;
+  engine)     cmd_engine "$@" ;;
+  ui)         cmd_ui "$@" ;;
+  embedded)   cmd_embedded "$@" ;;
+  transport)  cmd_transport "$@" ;;
+  coverage)   cmd_coverage "$@" ;;
+  verify-all) cmd_verify_all "$@" ;;
+  wrap)       cmd_wrap "$@" ;;
+  self-test)  cmd_self_test "$@" ;;
+  *) die "unknown subcommand '$SUBCMD' (see gate --help)" ;;
+esac
