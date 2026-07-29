@@ -24,7 +24,7 @@ import XCTest
 final class EntityServiceTransportRoutingTests: XCTestCase {
 
     private static let servicesDir: String = {
-        URL(fileURLWithPath: #filePath)
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")

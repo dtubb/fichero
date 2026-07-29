@@ -47,7 +47,7 @@ struct PairingTransportTests {
     @Test("the pairing client is constructed with a transport, not just a URL")
     func pairingPassesTransport() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
+            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("fichero/Services/PairingTypes.swift"),
@@ -65,7 +65,7 @@ struct PairingTransportTests {
     @Test("the pinned init stays HTTPS and is not routed through the app's transport")
     func pinnedInitStaysHTTPS() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
+            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("fichero/Services/PairingTypes.swift"),
