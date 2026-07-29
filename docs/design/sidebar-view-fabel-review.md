@@ -18,7 +18,7 @@ cites a file. Priority feature = **contiguous / multi-select** (Phase 2 below).
   (`SidebarSelectionState`, `SidebarDestination`).
 - Node model backing: `docs/contributor/node-model.md`,
   `fichero-engine` `Document.node_kind` (read-only reference — engine not touched).
-- Existing tests: `fichero/fichero-tests/SidebarItemTests.swift` (Swift Testing).
+- Existing tests: `fichero/fichero-tests/Models/SidebarItemTests.swift` (Swift Testing).
 
 ---
 

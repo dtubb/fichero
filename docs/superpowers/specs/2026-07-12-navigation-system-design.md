@@ -95,10 +95,10 @@ see §2.
   `charEnd?`, `bbox: [Double]?` normalized `[x, y, w, h]` top-left, `destination`), and
   `ClaimSourceNavigationState` (an `@Observable` request bus: `requestID` + `currentRequest`).
   This is the **#2105/#3437 source-navigation contract**, locked by
-  `fichero/fichero-tests/SourceNavigationContractTests.swift`.
+  `fichero/fichero-tests/Views/Inspector/SourceNavigationContractTests.swift`.
 - It is explicitly **per-window** (NOT `.shared`): `ContentView` owns one instance
   (`fichero/fichero/Views/Shell/ContentView/ContentView.swift:105`, `@State var claimSourceNavigationState = ClaimSourceNavigationState()`)
-  and injects it via `@Environment`. `fichero/fichero-tests/InspectorNavigationScopingTests.swift`
+  and injects it via `@Environment`. `fichero/fichero-tests/Views/Inspector/InspectorNavigationScopingTests.swift`
   locks this: "a reveal in window A must not navigate window B."
 - Consumption path: `ContentView+State.swift:handleOpenClaimSource()` reads
   `claimSourceNavigationState.currentRequest`, switches `sidebarMode` to `.library`,
