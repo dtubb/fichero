@@ -430,6 +430,10 @@ cmd_engine() {
 
 cmd_ui() {
   local plan="${1:?gate ui <testplan> (e.g. fichero, fichero-embedded)}"
+  # The UI leg legitimately stacks three footprints (in-invocation build,
+  # hosted unit suite, UI runner + app) — first real run brushed 4208MB with
+  # no leak. 6144 default still catches the 13GB+ runaway class.
+  GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_UI_MB:-6144}" \
   run_gated "ui-$plan" "${GATE_TIMEOUT_UI:-5400}" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UI_SCHEME" \
       -testPlan "$plan" -destination 'platform=macOS' \
