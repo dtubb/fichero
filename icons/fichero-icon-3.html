@@ -4,7 +4,7 @@
 const L=['TabA','Card1','TabB','Card2','TabC','Card3','Rule'];
 document.body.innerHTML=[512,256,128,64,32].map(s=>{
  const r=Math.round(s*0.2246);
- const imgs=L.map(n=>`<img src="Fichero.icon/Assets/${n}.svg" style="position:absolute;inset:0;width:100%${n=='Rule'?';opacity:.55':''}">`).join('');
+ const imgs=L.map(n=>`<img src="fichero-icon-3.icon/Assets/${n}.svg" style="position:absolute;inset:0;width:100%${n=='Rule'?';opacity:.55':''}">`).join('');
  const d=s>300?340:s;
  return `<div><div style="position:relative;width:${d}px;height:${d}px;border-radius:${Math.round(d*0.2246)}px;overflow:hidden;background:linear-gradient(#6F6DE4,#4B49BC)">${imgs}</div><div style="text-align:center;margin-top:4px">${s}</div></div>`;
 }).join('');

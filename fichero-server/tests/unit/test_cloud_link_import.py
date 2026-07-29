@@ -4,7 +4,7 @@ import json
 
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_server.importers.cloud_link_import import (
     import_box_links_via_http,
     import_dropbox_links_via_http,

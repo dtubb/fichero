@@ -13,7 +13,7 @@ os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 
-from fichero_server import __main__ as cli  # noqa: E402
+from fichero_cli import __main__ as cli  # noqa: E402
 from tests.integration._cli_live import cli_live_engine as _cli_live_engine_fixture  # noqa: E402,F401
 from tests.unit.test_iiif_import import _write_tiny_iiif  # noqa: E402
 

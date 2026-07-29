@@ -8,7 +8,7 @@ import fitz
 import httpx
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_cli import FicheroClient
 from fichero_server.db import db_manager
 from fichero_server.llm import LLMConfig

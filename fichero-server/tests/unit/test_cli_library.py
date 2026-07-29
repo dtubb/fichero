@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_server.models import (
     KnownLibrary,
     LibraryRegistryResponse,

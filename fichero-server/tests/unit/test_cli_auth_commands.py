@@ -7,7 +7,7 @@ from urllib.parse import quote
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_server.security import accounts
 from fichero_server.db.app import AppDatabase
 from fichero_cli import FicheroError

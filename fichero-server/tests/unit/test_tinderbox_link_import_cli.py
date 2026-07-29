@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_server.importers.tinderbox_link_import import TinderboxLinkImportSummary
 
 

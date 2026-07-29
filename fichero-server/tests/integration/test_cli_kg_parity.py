@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_server.api.routes.document_inspector import DocumentKnowledgeGraphResponse
 from fichero_server.api.routes.workflow_execution.schemas import ExecuteAcceptedResponse
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity

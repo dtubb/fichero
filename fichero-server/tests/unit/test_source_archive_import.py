@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_server.importers.source_archive_import import (
     import_archivo_judicial_medellin_via_http,
     import_chota_colombian_pacific_maps_via_http,

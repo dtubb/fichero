@@ -16,7 +16,7 @@ os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 
-from fichero_server import __main__ as cli  # noqa: E402
+from fichero_cli import __main__ as cli  # noqa: E402
 
 pytest_plugins = ["tests.integration._cli_live"]
 

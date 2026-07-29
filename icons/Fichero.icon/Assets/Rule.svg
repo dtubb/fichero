@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- four rules: a ruled index card. Gone by 128px, as intended. -->
-  <rect x="248" y="480" width="528" height="8" rx="4" ry="4" fill="#8FA3B8"/>
-  <rect x="248" y="545" width="528" height="8" rx="4" ry="4" fill="#8FA3B8"/>
-  <rect x="248" y="610" width="528" height="8" rx="4" ry="4" fill="#8FA3B8"/>
-  <rect x="248" y="675" width="528" height="8" rx="4" ry="4" fill="#8FA3B8"/>
-</svg>

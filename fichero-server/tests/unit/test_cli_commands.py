@@ -11,7 +11,7 @@ import json
 import pytest
 from typer.testing import CliRunner
 
-from fichero_server import __main__ as cli
+from fichero_cli import __main__ as cli
 from fichero_cli import FicheroError
 from fichero_cli import client as client_module
 from fichero_cli.formatters import render
