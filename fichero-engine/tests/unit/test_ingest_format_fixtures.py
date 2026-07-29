@@ -102,28 +102,35 @@ class TestTextExtractionThatWorks:
         assert "\\rtf" not in content and "petitioned the court" in content
 
 
-class TestKnownGaps:
-    """DEMONSTRATED failures. These pass today BECAUSE the support is missing.
+class TestFormerGaps:
+    """Both recorded gaps are now closed, and these are real assertions.
 
-    `strict=True` means each flips to a failure the moment it starts working,
-    which is the prompt to delete the xfail and move the case up into the
-    working tests above. A gap recorded as a passing xfail cannot rot silently.
+    They were `xfail(strict=True)` — passing BECAUSE the support was missing,
+    and designed to fail the moment it landed, which is exactly what happened:
+    HEIC in #4214 (pillow-heif) and legacy .doc in #4215 (textutil fallback).
+    A gap recorded as a passing xfail cannot rot silently, and these two did
+    not. The HEIC case moved down to TestImagesThatWork.
+
+    Still unverified, stated as a claim rather than a fact: `.xls` (legacy
+    BIFF) — no BIFF writer exists in the venv and hand-crafting one was not
+    proportionate (#4206).
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "#4206: kreuzberg rejects a VALID legacy .doc with 'Malformed MiniFAT'. "
-            "The fixture is genuine — macOS textutil, which wrote it, also reads it "
-            "back correctly — so this is an engine limitation, not a bad fixture."
-        ),
-    )
     def test_legacy_doc_text_extraction(self):
-        from kreuzberg import extract_file_sync
+        """Was a strict xfail until #4215 added the textutil fallback.
 
-        content = (extract_file_sync(str(_fixture("sample.doc"))).content or "").strip()
+        kreuzberg still rejects this file ("Malformed MiniFAT"), so the
+        assertion goes through the ENGINE's loader — which is the contract
+        that matters — rather than through kreuzberg directly. See
+        test_legacy_doc_extraction.py for the fallback's own tests.
+        """
+        import asyncio
 
-        assert "Asprilla" in content
+        from fichero.loaders.document_loader import DocumentLoader
+
+        content = asyncio.run(DocumentLoader().load(_fixture("sample.doc")))
+
+        assert "Asprilla" in (content.text or "")
 
 
 class TestImagesThatWork:
