@@ -41,6 +41,43 @@ class ConversationService {
         }
     }
 
+    /// Create an EMPTY conversation — no LLM turn required (#4308).
+    /// POST /api/chat/conversations (the audited `conversation.create` action).
+    ///
+    /// "New Chat" used to be a full `POST /api/chat` LLM round-trip; with no
+    /// provider configured it silently created nothing and the sidebar stayed
+    /// empty. This persists first; the first real message continues the id.
+    func createConversation(
+        title: String? = nil,
+        folderPath: String = "/"
+    ) async throws -> Conversation {
+        let request = Components.Schemas.ConversationCreateRequest(
+            title: title,
+            folderPath: folderPath
+        )
+        let response = try await client.api.createConversationApiChatConversationsPost(.init(
+            body: .json(request)
+        ))
+
+        switch response {
+        case .ok(let okResponse):
+            let history = try okResponse.body.json
+            let conversation = Conversation(
+                id: history.id,
+                title: history.title,
+                messages: [],
+                documentScope: [],
+                folderPath: history.folderPath ?? "/",
+                sortOrder: history.sortOrder ?? 0
+            )
+            // Append the one new item in place — observers rebuild the sidebar.
+            conversations.append(conversation)
+            return conversation
+        default:
+            throw ConversationServiceError.unexpectedResponse
+        }
+    }
+
     /// Get a conversation with full message history.  GET /api/chat/conversations/{conversation_id}
     func getConversation(_ id: String) async throws -> ConversationDetail {
         let response = try await client.api.getConversationApiChatConversationsConversationIdGet(.init(

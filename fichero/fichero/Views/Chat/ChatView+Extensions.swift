@@ -281,12 +281,15 @@ extension ChatView {
                     kgEntitiesUsed: response.kgEntitiesUsed
                 )
 
-                // Create assistant message
+                // Create assistant message. toolCalls carries the audited
+                // tool calls the agent loop made this turn (#1847/#2067) —
+                // MessageCard renders each as a ToolCallCard.
                 let assistantMessage = ChatMessage(
                     role: .assistant,
                     content: response.message,
                     sources: sources,
-                    retrieval: retrieval
+                    retrieval: retrieval,
+                    toolCalls: response.toolCalls.isEmpty ? nil : response.toolCalls
                 )
                 let scopedFolderPath = Self.normalizedConversationFolderPath(conversationFolderPath)
 
