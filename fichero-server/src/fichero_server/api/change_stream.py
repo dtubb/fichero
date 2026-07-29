@@ -499,6 +499,35 @@ def emit_change(
         logger.debug("emit_change failed (best-effort, ignored): %s", exc)
 
 
+def emit_change_all_libraries(
+    *,
+    type: str,
+    actor: str = "system",
+    metadata: dict[str, str] | None = None,
+) -> int:
+    """Broadcast an APP-SCOPED change to every library's subscribers (#4276).
+
+    Providers (and their API keys / model lists) are app-wide, not per-library
+    — but the change stream is keyed by library. A provider mutation therefore
+    fans one event out to EVERY live subscriber key so each window can drop
+    its provider-derived caches (the Run Workflow submenu's provider list).
+    Each library gets its own ChangeEvent copy so per-library event-id /
+    replay bookkeeping stays consistent. Best-effort: never raises. Returns
+    the number of libraries reached.
+    """
+    reached = 0
+    try:
+        with _change_hub._lock:
+            keys = [k for k, subs in _change_hub._subscribers.items() if subs]
+        for key in keys:
+            event = ChangeEvent(type=type, actor=actor, metadata=dict(metadata or {}))
+            _change_hub.emit(key, event)
+            reached += 1
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("emit_change_all_libraries failed (best-effort): %s", exc)
+    return reached
+
+
 def emit_request_change(
     request: Request,
     library_path: str,

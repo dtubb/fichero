@@ -283,6 +283,20 @@ def create_provider_impl(
     return provider, created
 
 
+def _broadcast_provider_change(verb: str) -> None:
+    """Fan a provider mutation out to EVERY library's change stream (#4276).
+
+    Providers are app-wide but the change stream is library-keyed, so a
+    provider/key/model change fans out to all live subscribers. Windows drop
+    their provider-derived caches (Run Workflow submenu's provider list) on
+    ``provider.*`` events — without this, a provider added from another
+    window / device / the CLI never reached this app's menus.
+    """
+    from fichero_server.api.change_stream import emit_change_all_libraries
+
+    emit_change_all_libraries(type=f"provider.{verb}")
+
+
 @router.post("")
 async def create_provider(
     request: ProviderCreate,
@@ -291,6 +305,7 @@ async def create_provider(
 ) -> ProviderResponse:
     """Create a new provider configuration (app-wide)."""
     provider, _created = create_provider_impl(app_db, request)
+    _broadcast_provider_change("created")
 
     return ProviderResponse(
         id=provider.id,
@@ -397,6 +412,7 @@ async def add_provider_ref(
         sort_order=0,
     )
     db.save(ref)
+    _broadcast_provider_change("updated")
 
     return ProviderRefResponse(
         id=ref.id,
@@ -442,6 +458,7 @@ async def update_provider_ref(
 ) -> ProviderRefResponse:
     """Update a provider reference."""
     ref = update_provider_ref_impl(db, ref_id, request)
+    _broadcast_provider_change("updated")
 
     provider = app_db.get_provider(ref.provider_id)
     if not provider:
@@ -480,6 +497,7 @@ async def delete_provider_ref(
 ) -> DeletedResponse:
     """Remove a provider reference from this library."""
     delete_provider_ref_impl(db, ref_id)
+    _broadcast_provider_change("updated")
     return DeletedResponse(status="deleted")
 
 
@@ -546,6 +564,7 @@ async def update_provider(
 ) -> ProviderResponse:
     """Update a provider configuration (app-wide)."""
     provider = update_provider_impl(app_db, provider_id, request)
+    _broadcast_provider_change("updated")
 
     return ProviderResponse(
         id=provider.id,
@@ -582,6 +601,7 @@ async def delete_provider(
 ) -> DeletedResponse:
     """Delete a provider (app-wide). Models are cascade deleted."""
     delete_provider_impl(app_db, provider_id)
+    _broadcast_provider_change("deleted")
     return DeletedResponse(status="deleted")
 
 
@@ -750,6 +770,7 @@ async def add_model_to_provider(
         else None,
     )
     app_db.save_model(model)
+    _broadcast_provider_change("updated")
 
     return UserModelResponse(
         id=model.id,
@@ -791,6 +812,7 @@ async def remove_model_from_provider(
 ) -> DeletedResponse:
     """Remove a model from a provider."""
     remove_model_impl(app_db, provider_id, model_id)
+    _broadcast_provider_change("updated")
     return DeletedResponse(status="deleted")
 
 

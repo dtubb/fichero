@@ -121,6 +121,11 @@ async def set_provider_api_key(
 ) -> APIKeyStoredResponse:
     """Store API key for a provider type in keychain."""
     set_provider_api_key_impl(provider_type, request.api_key)
+    # A key landing flips the provider's `available` flag — tell every
+    # window so provider-derived caches (Run Workflow submenu) drop (#4276).
+    from fichero_server.api.routes.ai.providers import _broadcast_provider_change
+
+    _broadcast_provider_change("updated")
     return APIKeyStoredResponse(status="stored")
 
 
@@ -131,6 +136,9 @@ async def delete_provider_api_key(
 ) -> APIKeyDeletedResponse:
     """Delete API key for a provider type from keychain."""
     delete_provider_api_key_impl(provider_type)
+    from fichero_server.api.routes.ai.providers import _broadcast_provider_change
+
+    _broadcast_provider_change("updated")
     return APIKeyDeletedResponse(status="deleted")
 
 
