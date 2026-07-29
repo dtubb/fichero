@@ -15,6 +15,7 @@ from fichero.models import Artifact, DocType, Document, FileType, Workflow
 from fichero.workflows.default_workflows import _load_preset_files
 
 from tests.unit.workflows.test_default_workflow_e2e_harness import (
+from tests.fixture_paths import sample_file
     _install_deterministic_workflow_stubs,
 )
 
@@ -110,7 +111,7 @@ def _save_catalogue_workflow(db: Database) -> tuple[Workflow, set[str]]:
 
 def _seed_spanish_pdf_pages(db: Database, tmp_path: Path) -> tuple[str, list[str]]:
     fixture_pdf = (
-        Path(__file__).resolve().parents[1] / "fixtures" / "sample_files" / "sample.pdf"
+        sample_file("sample.pdf")
     )
     assert fixture_pdf.exists(), f"missing fixture PDF: {fixture_pdf}"
     pdf_path = tmp_path / "catalogue-spanish-873.pdf"

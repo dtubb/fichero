@@ -28,8 +28,9 @@ from pathlib import Path
 import pytest
 
 from fichero.importers.ingest import _TEXT_EXTRACTABLE, FileType, detect_file_type
+from tests.fixture_paths import SAMPLE_FILES_DIR
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "sample_files"
+FIXTURES = SAMPLE_FILES_DIR
 
 
 def _fixture(name: str) -> Path:

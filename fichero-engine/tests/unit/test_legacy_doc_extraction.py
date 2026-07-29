@@ -25,9 +25,10 @@ from pathlib import Path
 import pytest
 
 from fichero.loaders.document_loader import DocumentLoader
+from tests.fixture_paths import sample_file
 
 FIXTURE = (
-    Path(__file__).resolve().parents[1] / "fixtures" / "sample_files" / "sample.doc"
+    sample_file("sample.doc")
 )
 
 macos_only = pytest.mark.skipif(
