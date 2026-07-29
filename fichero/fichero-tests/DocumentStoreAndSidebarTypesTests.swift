@@ -70,7 +70,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(prefetch.contains("cacheSidebarChildren(of: document)"))
         XCTAssertTrue(prefetch.contains("prefetchChildContainerChildren(of: children)"))
         // Only containers are prefetched — leaf rows have nothing to reveal.
-        XCTAssertTrue(prefetch.contains("where child.docType == .folder"))
+        // (The batching refactor moved the guard from a `for … where` clause
+        // into `containersNeedingChildren`'s filter.)
+        XCTAssertTrue(prefetch.contains("$0.docType == .folder"))
     }
 
     func testSidebarRowOptionClickExpandsWholeSubtree() throws {

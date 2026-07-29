@@ -125,8 +125,10 @@ final class SidebarItemIndexTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(index.count, 10_000, "every row must be indexed")
 
         // Deep, late ids — the worst case for a DFS and the realistic one for a
-        // click on a row near the bottom of a large library.
-        let probes = (0..<200).map { "doc:folder-99-child-\($0)" }
+        // click on a row near the bottom of a large library. 200 probes across
+        // the LAST TWO folders: the fixture has 100 children per folder, so a
+        // single-folder 0..<200 range probes 100 ids that don't exist.
+        let probes = (0..<100).flatMap { ["doc:folder-98-child-\($0)", "doc:folder-99-child-\($0)"] }
         for probe in probes {
             XCTAssertNotNil(index[probe], "fixture id \(probe) must exist")
         }
