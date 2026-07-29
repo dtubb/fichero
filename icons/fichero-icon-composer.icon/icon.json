@@ -19,8 +19,17 @@
     {
       "layers" : [
         {
+          "glass" : true,
           "image-name" : "Image.png",
-          "name" : "Image"
+          "name" : "Image",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 0.83,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
         }
       ],
       "shadow" : {
