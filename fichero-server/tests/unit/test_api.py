@@ -1004,7 +1004,11 @@ def test_engine_version_falls_back_to_briefcase_dist_name(monkeypatch):
 def test_engine_version_prefers_project_dist_name_in_dev(monkeypatch):
     from fichero_server.api import main as api_main
 
-    monkeypatch.setattr(api_main, "package_version", lambda name: "9.9.9-dev" if name == "fichero" else "x")
+    # #4227: the project dist is named fichero-server now; it must still win
+    # over the Briefcase bundle name in a dev/editable install.
+    monkeypatch.setattr(
+        api_main, "package_version", lambda name: "9.9.9-dev" if name == "fichero-server" else "x"
+    )
     assert api_main._resolve_engine_version() == "9.9.9-dev"
 
 
