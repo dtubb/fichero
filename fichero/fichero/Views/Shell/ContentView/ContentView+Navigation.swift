@@ -83,7 +83,12 @@ extension ContentView {
         case .library:
             // Space (3D) has no renderer yet (#3081) — .space normalizes to an
             // available mode upstream, so the library path renders LibraryView.
-            LibraryView(
+            // AnyView is load-bearing (#4331): the fully composed library-case
+            // generic, nested inside the shell's getter chain, produced a mangled
+            // type whose runtime metadata instantiation recursed past the 1MB
+            // iOS main-thread stack (fine on macOS's 8MB) — instant launch crash.
+            // Erasing at the case boundary bounds the type depth on every layout.
+            AnyView(LibraryView(
                 // Transient search (#4106/S2): while a toolbar query is
                 // active the library column shows its resolved hits in
                 // relevance order; every Library view mode presents them.
@@ -130,7 +135,7 @@ extension ContentView {
             // mounted only while a toolbar query is active.
             .safeAreaInset(edge: .top, spacing: 0) {
                 AnyView(transientSearchResultsBar)
-            }
+            })
 
         case .chat(let conversation):
             ChatView(

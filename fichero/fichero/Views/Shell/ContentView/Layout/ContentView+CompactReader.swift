@@ -59,7 +59,11 @@ extension ContentView {
     @ViewBuilder
     var compactLibraryReaderStack: some View {
         NavigationStack {
-            contentWithOptionalModeRail
+            // AnyView is load-bearing (#4331): this iPhone-only stack sits at the
+            // deepest point of the shell's getter chain — erasing here keeps the
+            // compact path's composed type inside the iOS 1MB main-stack budget
+            // during runtime metadata instantiation.
+            AnyView(contentWithOptionalModeRail)
                 .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // Title the list root so it isn't a blank bar and the pushed
