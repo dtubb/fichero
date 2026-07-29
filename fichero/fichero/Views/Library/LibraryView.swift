@@ -134,7 +134,8 @@ struct LibraryView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
-    @State private var spatialSelectedNodeId: String?
+    // Canvas/spatial selection is NOT separate state: it is `selection`,
+    // translated through `canvasSelectedNodeId` (#4192).
     @State private var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
 
     @State var isLoadingEntities = false
@@ -327,7 +328,7 @@ struct LibraryView: View {
             CanvasSpaceView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -338,7 +339,7 @@ struct LibraryView: View {
             SpaceSceneView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -362,7 +363,7 @@ struct LibraryView: View {
             CanvasSceneView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -373,7 +374,7 @@ struct LibraryView: View {
             Spatial2DCanvas(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: $spatialSelectedNodeId,
+                selectedNodeId: canvasSelectedNodeId,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,

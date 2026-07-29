@@ -5,6 +5,51 @@ import SwiftUI
 
 extension LibraryView {
 
+    // MARK: - Canvas / Spatial selection bridge (#4192)
+
+    /// The canvas and spatial view modes speak `SpatialNode` ids (`doc:<id>`)
+    /// and hold ONE selected node; every other view mode speaks raw document
+    /// ids and holds a `Set`. They used to be two separate pieces of state —
+    /// the canvas kept a private `spatialSelectedNodeId` that nothing read back
+    /// — so selecting a row in List and switching to Canvas showed nothing
+    /// selected, and clicking a card in Canvas never reached the inspector,
+    /// the toolbar, or any of the selection-driven commands.
+    ///
+    /// This is the one binding both halves share: the canvas reads and writes
+    /// the SAME `selection` the list, table, icon and column modes use.
+    var canvasSelectedNodeId: Binding<String?> {
+        Binding(
+            get: { Self.canvasNodeId(forSelection: selection) },
+            set: { selection = Self.librarySelection(forCanvasNodeId: $0) }
+        )
+    }
+
+    /// The node the canvas should show as selected for a library selection.
+    ///
+    /// A multi-selection maps to nil: the canvas's model is a single node, and
+    /// silently showing one arbitrary member of a five-row selection would be a
+    /// lie about what is selected. Nothing is lost — switching back to a list
+    /// mode still has the full set.
+    ///
+    /// `nonisolated` is LOAD-BEARING: a static on a `View` inherits the type's
+    /// MainActor isolation under the macOS 26 SDK, and the Swift Testing suite
+    /// that calls this runs on a cooperative thread — the off-main call SIGTRAPs
+    /// the whole test process (#4201).
+    nonisolated static func canvasNodeId(forSelection selection: Set<String>) -> String? {
+        guard selection.count == 1, let documentId = selection.first else { return nil }
+        return SpatialLibraryProjector.nodeId(forDocument: documentId)
+    }
+
+    /// The library selection for a node the user clicked on the canvas. A
+    /// non-document node (an entity orb, a standalone canvas item) selects no
+    /// document — it has no row in any list mode to select.
+    nonisolated static func librarySelection(forCanvasNodeId nodeId: String?) -> Set<String> {
+        guard let nodeId, let documentId = SpatialLibraryProjector.documentId(fromNodeId: nodeId) else {
+            return []
+        }
+        return [documentId]
+    }
+
     // MARK: - Tap Handling
 
     func canNavigateInto(_ doc: Document) -> Bool {
