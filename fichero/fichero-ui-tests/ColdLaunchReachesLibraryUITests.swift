@@ -94,19 +94,31 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         let libraryContent = app.descendants(matching: .any)
             .matching(identifier: "library.content.ready").firstMatch
 
-        // Phase 1 — reach the library, checking on every poll that no recovery UI
-        // has appeared. Polled rather than asserted once at the end: a prompt that
-        // appears and then resolves is still the bug (the user saw a dead end and
-        // clicked it), and an end-state check cannot see that it happened.
+        // Phase 1 — reach the library, sweeping for recovery UI between waits.
+        // Swept rather than asserted once at the end: a prompt that appears and
+        // then resolves is still the bug (the user saw a dead end and clicked
+        // it), and an end-state check cannot see that it happened.
+        //
+        // MEMORY DISCIPLINE (#4238): the wait is `waitForExistence` in 5s
+        // chunks, NOT a tight `.exists` poll. Every `.exists` on a fresh query
+        // makes XCUITest serialise an accessibility snapshot ("Capturing
+        // element debug description"); at 4 checks x 4Hz x 120s that reached
+        // 56 GB when the app never became ready. waitForExistence blocks
+        // inside XCUITest without re-snapshotting per poll, so the worst case
+        // is now ~24 chunk boundaries x 3 sweep queries — bounded by
+        // construction, not by the precondition guard being right.
+        // The trade-off is real but acceptable: a recovery prompt flashing
+        // shorter than one chunk can slip between sweeps (at 0.25s polling the
+        // same held for sub-poll flashes); the settle phase below still
+        // catches anything that persists.
         let deadline = Date().addingTimeInterval(launchDeadline)
         var reachedLibrary = false
         while Date() < deadline {
-            assertNoRecoveryUI(phase: "during startup")
-            if libraryContent.exists {
+            if libraryContent.waitForExistence(timeout: 5) {
                 reachedLibrary = true
                 break
             }
-            Thread.sleep(forTimeInterval: 0.25)
+            assertNoRecoveryUI(phase: "during startup")
         }
 
         XCTAssertTrue(
@@ -118,6 +130,8 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
         // Phase 2 — the launch is not over when the library appears. Keep watching
         // across the heartbeat: a ready session that flips to .authRejected raises
         // the gate OVER the library, which is what the user actually saw.
+        // 2.5s spacing spans the 15s window in 6 sweeps — enough to straddle at
+        // least two 5s heartbeat ticks, without per-frame snapshot cost.
         let settleDeadline = Date().addingTimeInterval(settleWindow)
         while Date() < settleDeadline {
             assertNoRecoveryUI(phase: "after the library appeared")
@@ -125,7 +139,7 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
                 libraryContent.exists,
                 "The library disappeared after loading — the session was torn back down post-ready."
             )
-            Thread.sleep(forTimeInterval: 0.5)
+            Thread.sleep(forTimeInterval: 2.5)
         }
     }
 

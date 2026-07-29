@@ -70,37 +70,35 @@ final class LibraryLoadingIsNotAnOutageUITests: XCTestCase {
         let outage = app.descendants(matching: .any)
             .matching(identifier: "library.outage").firstMatch
 
-        let deadline = Date().addingTimeInterval(launchDeadline)
-        var reachedLibrary = false
-        while Date() < deadline {
-            XCTAssertFalse(
-                outage.exists,
-                "The library claimed the engine was unreachable during a healthy launch. The "
-                + "engine was starting or already serving; a library that has not loaded yet is "
-                + "startup, not an outage (#3937)."
-            )
-            if libraryContent.exists {
-                reachedLibrary = true
-                break
-            }
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-
+        // ONE event-driven wait on a compound query, not a poll loop (#4238).
+        // The old loop checked `.exists` 4x/sec, and every check serialised an
+        // accessibility snapshot — 56 GB when the app never became ready. This
+        // fires the moment EITHER element renders, so a transient outage frame
+        // is caught by XCUITest's own event handling rather than by hoping a
+        // poll lands inside it, and a stalled launch costs nothing but time.
+        let readyOrOutage = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier IN %@", ["library.content.ready", "library.outage"])
+        ).firstMatch
         XCTAssertTrue(
-            reachedLibrary,
+            readyOrOutage.waitForExistence(timeout: launchDeadline),
             "Never reached library.content.ready within \(Int(launchDeadline))s — the launch "
             + "stalled without ever claiming an outage either."
         )
+        XCTAssertFalse(
+            outage.exists,
+            "The library claimed the engine was unreachable during a healthy launch. The "
+            + "engine was starting or already serving; a library that has not loaded yet is "
+            + "startup, not an outage (#3937)."
+        )
+        XCTAssertTrue(libraryContent.exists)
 
         // The first load lands after the library mounts, so keep watching across
         // it: the false outage was a transient frame in exactly this window.
-        let settleDeadline = Date().addingTimeInterval(10)
-        while Date() < settleDeadline {
-            XCTAssertFalse(
-                outage.exists,
-                "The library claimed an outage AFTER mounting, on a healthy engine (#3937)."
-            )
-            Thread.sleep(forTimeInterval: 0.5)
-        }
+        // waitForExistence RETURNING here is the failure — event-driven, so it
+        // catches an outage frame shorter than any poll interval could.
+        XCTAssertFalse(
+            outage.waitForExistence(timeout: 10),
+            "The library claimed an outage AFTER mounting, on a healthy engine (#3937)."
+        )
     }
 }
