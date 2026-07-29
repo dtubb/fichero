@@ -7,9 +7,12 @@ import XCTest
 final class InspectorSectionTests: XCTestCase {
 
     func testFourSectionsInOrder() {
+        // #4278: Source (Content), Notes, Knowledge, Artifacts — the human
+        // reading layer before the machine outputs, Artifacts LAST. allCases
+        // drives the tab bar, so this pin IS the rendered order.
         XCTAssertEqual(
             InspectorSection.allCases,
-            [.source, .artifacts, .knowledge, .notes]
+            [.source, .notes, .knowledge, .artifacts]
         )
     }
 
