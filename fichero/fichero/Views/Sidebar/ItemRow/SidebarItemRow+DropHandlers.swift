@@ -223,6 +223,26 @@ extension SidebarItemRow {
         }
     }
 
+    /// Which parent each dropped URL imports under. An explicit folder target
+    /// takes everything; a root-level drop splits per #4274 — folders at the
+    /// root itself (sidebar-visible there), bare files to Inbox so they don't
+    /// disappear (invisible at root).
+    private func externalDropBatches(
+        fileURLs: [URL], targetFolder: SidebarItem?
+    ) -> [LibraryRootImportBatch] {
+        if let targetFolder,
+           case .document(let doc) = targetFolder.itemType,
+           doc.docType == .folder {
+            return [LibraryRootImportBatch(parentId: doc.id, urls: fileURLs)]
+        }
+        let inboxId = documentStore?.collections.first(where: {
+            $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
+        })?.id
+        return libraryRootImportBatches(
+            urls: fileURLs, inboxId: inboxId, isDirectory: libraryDropURLIsDirectory
+        )
+    }
+
     func handleExternalFileDrop(urls: [URL], targetFolder: SidebarItem?, mode: IngestMode = .link) -> Bool {
         guard let importService else {
             sidebarRowLogger.warning("External drop rejected: no import service for library")
@@ -236,18 +256,7 @@ extension SidebarItemRow {
         }
         let temporaryDirectories = sidebarTemporaryDropDirectories(for: fileURLs)
 
-        var targetFolderId: String?
-        if let targetFolder,
-           case .document(let doc) = targetFolder.itemType,
-           doc.docType == .folder {
-            targetFolderId = doc.id
-        } else {
-            // No explicit folder target — route to Inbox so the file doesn't
-            // disappear (bare files at library root are invisible in the sidebar).
-            targetFolderId = documentStore?.collections.first(where: {
-                $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
-            })?.id
-        }
+        let batches = externalDropBatches(fileURLs: fileURLs, targetFolder: targetFolder)
 
         Task {
             defer {
@@ -260,17 +269,21 @@ extension SidebarItemRow {
             // the move paths that clear at start).
             await MainActor.run { sidebarState.dropErrorMessage = nil }
             do {
-                _ = try await importService.importFiles(
-                    fileURLs,
-                    mode: mode,
-                    parentId: targetFolderId
-                )
-                if let targetFolderId {
-                    sidebarRowLogger.debug("Imported \(fileURLs.count) external file(s) to folder \(targetFolderId)")
-                } else {
-                    sidebarRowLogger.debug(
-                        "Imported \(fileURLs.count) external file(s) to library root (no Inbox found)"
+                for batch in batches {
+                    _ = try await importService.importFiles(
+                        batch.urls,
+                        mode: mode,
+                        parentId: batch.parentId
                     )
+                    if let parentId = batch.parentId {
+                        sidebarRowLogger.debug(
+                            "Imported \(batch.urls.count) external file(s) to folder \(parentId)"
+                        )
+                    } else {
+                        sidebarRowLogger.debug(
+                            "Imported \(batch.urls.count) external file(s) to library root"
+                        )
+                    }
                 }
                 // The engine emits a per-file ``document.created`` change event
                 // as each file is ingested, so the DocumentStore patches the

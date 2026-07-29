@@ -98,21 +98,23 @@ extension ContentView {
                 return
             }
 
-            // Route root-level drops to Inbox — bare files at library root
-            // are invisible in the sidebar since only folders appear there.
-            if targetParentId == nil {
-                targetParentId = library.documentStore.collections.first(where: {
+            let batches = Self.contentDropBatches(
+                urls: droppedURLs.importURLs,
+                browsedFolderId: targetParentId,
+                inboxId: library.documentStore.collections.first(where: {
                     $0.name == "Inbox" && $0.parentId == nil && $0.docType == .folder
                 })?.id
-            }
+            )
 
             do {
-                _ = try await library.importService.importFiles(
-                    droppedURLs.importURLs,
-                    mode: .copy,
-                    parentId: targetParentId
-                ) { current, total in
-                    importProgress = "Importing \(current) of \(total)..."
+                for batch in batches {
+                    _ = try await library.importService.importFiles(
+                        batch.urls,
+                        mode: .copy,
+                        parentId: batch.parentId
+                    ) { current, total in
+                        importProgress = "Importing \(current) of \(total)..."
+                    }
                 }
                 await library.documentStore.refresh()
                 logger.info("Successfully imported \(droppedURLs.importURLs.count) dropped item(s)")
@@ -125,11 +127,26 @@ extension ContentView {
                 logger.error("Dropped import ended with error: \(importError)")
             }
 
-            await MainActor.run {
-                isImporting = false
-                importProgress = nil
-            }
+            // Already on the MainActor (Task { @MainActor } above).
+            isImporting = false
+            importProgress = nil
         }
+    }
+
+    /// Import batches for a content-pane drop. Browsing a folder targets it
+    /// directly; a root-level drop splits per #4274 — FOLDERS import at the
+    /// root itself (sidebar-visible there; the blanket Inbox redirect buried
+    /// dropped folders where the user wasn't looking, reading as "didn't
+    /// import"), bare files still route to Inbox (invisible at root).
+    static func contentDropBatches(
+        urls: [URL], browsedFolderId: String?, inboxId: String?
+    ) -> [LibraryRootImportBatch] {
+        if let browsedFolderId {
+            return [LibraryRootImportBatch(parentId: browsedFolderId, urls: urls)]
+        }
+        return libraryRootImportBatches(
+            urls: urls, inboxId: inboxId, isDirectory: libraryDropURLIsDirectory
+        )
     }
 
     private func classifyDroppedURLs(_ urls: [URL]) -> (libraryURLs: [URL], importURLs: [URL]) {
