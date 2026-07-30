@@ -189,7 +189,15 @@ enum ConnectionPresentation {
             )
 
         case .portConflict(let pid):
-            let who = pid.map { "Another process (PID \($0))" } ?? "Another process"
+            // Under the App Sandbox the holder's PID is unknowable (#3749) —
+            // the copy names it when we know it and never invents one when we
+            // don't.
+            let who: String
+            if let pid {
+                who = "Another process (PID \(pid))"
+            } else {
+                who = "Another process"
+            }
             return Status(
                 title: "Port 8765 Is In Use",
                 detail: "\(who) is already using port 8765.",
@@ -347,7 +355,8 @@ enum ConnectionPresentation {
         } else if accessError?.recovery == .requestAccess {
             return nil
         }
-        return ownership == .appManaged ? .restartEngine : .reconnect
+        if ownership == .appManaged { return .restartEngine }
+        return .reconnect
     }
 }
 
@@ -358,7 +367,7 @@ enum ConnectionPresentation {
 /// "Connecting to the library" and "loading its documents" are DIFFERENT
 /// states, and the pane used to render both strings at once — a "Loading
 /// Documents…" headline over a "Connecting to library data" subtitle — while a
-/// third spinner span forever whenever the engine never answered. One phase,
+/// third spinner spun forever whenever the engine never answered. One phase,
 /// one line.
 enum LibraryLoadPhase: Equatable {
     /// Talking to a server we do not own yet — no documents have been asked for.
