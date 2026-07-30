@@ -16,6 +16,7 @@ from typing import Any, TYPE_CHECKING
 
 from fichero_server.db import Database
 from fichero_server.execution.cancellation import (
+    WorkflowCancelled,
     cancellation_requested,
     clear_cancellation,
 )
@@ -800,6 +801,56 @@ async def _run_workflow_in_background(
         }
     }
 
+    async def _finish_as_cancelled() -> None:
+        """Record the run as cancelled and settle its documents (#4402).
+
+        Shared by BOTH ways a run can stop: the between-events check in
+        the stream loop, and a `WorkflowCancelled` raised from inside a
+        long node's per-item loop. Extracted rather than duplicated so
+        the two paths cannot disagree about what a cancelled run records
+        — in particular the #4315 document settle, which is what stops a
+        stopped run leaving rows stuck at Processing.
+        """
+        state["status"] = "cancelled"
+        await log_execution(
+            f"Workflow '{workflow.name}' cancelled by user "
+            f"(thread_id={thread_id}) — partial results "
+            f"preserved"
+        )
+        event_queue.put(
+            SSEEvent(
+                event="cancelled",
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                data={"reason": "user_requested"},
+            )
+        )
+        activity_tracker.workflow_cancelled(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+            duration_ms=(
+                datetime.now(timezone.utc) - start_time
+            ).total_seconds()
+            * 1000,
+            partial_results_preserved=True,
+        )
+        progress_timeline["events"] = _workflow_event_timeline(event_queue)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="cancelled",
+            execution_log="\n".join(execution_log_lines),
+            progress_timeline=progress_timeline,
+            duration_ms=(
+                datetime.now(timezone.utc) - start_time
+            ).total_seconds()
+            * 1000,
+            completed_at=datetime.now(timezone.utc),
+        )
+        # #4315: cancelled runs must not strand documents at
+        # Status.processing — revert them to pending with provenance.
+        await _finalize_documents("cancelled", reason="user_requested")
+
     async def _finalize_documents(final_status: str, **result_extra: Any) -> None:
         """Settle this run's documents on a non-success terminal path (#4315).
 
@@ -1272,45 +1323,7 @@ async def _run_workflow_in_background(
             # primitive the cancel endpoint, DELETE, and batch cancel all set,
             # reachable even after this run's registry entry was evicted.
             if state.get("cancel_requested") or cancellation_requested(thread_id):
-                state["status"] = "cancelled"
-                await log_execution(
-                    f"Workflow '{workflow.name}' cancelled by user "
-                    f"(thread_id={thread_id}) — partial results "
-                    f"preserved"
-                )
-                event_queue.put(
-                    SSEEvent(
-                        event="cancelled",
-                        thread_id=thread_id,
-                        workflow_id=workflow_id,
-                        data={"reason": "user_requested"},
-                    )
-                )
-                activity_tracker.workflow_cancelled(
-                    workflow_id=workflow_id,
-                    thread_id=thread_id,
-                    workflow_name=workflow.name,
-                    duration_ms=(
-                        datetime.now(timezone.utc) - start_time
-                    ).total_seconds()
-                    * 1000,
-                    partial_results_preserved=True,
-                )
-                progress_timeline["events"] = _workflow_event_timeline(event_queue)
-                await activity_tracker.store.update_workflow_run(
-                    thread_id=thread_id,
-                    status="cancelled",
-                    execution_log="\n".join(execution_log_lines),
-                    progress_timeline=progress_timeline,
-                    duration_ms=(
-                        datetime.now(timezone.utc) - start_time
-                    ).total_seconds()
-                    * 1000,
-                    completed_at=datetime.now(timezone.utc),
-                )
-                # #4315: cancelled runs must not strand documents at
-                # Status.processing — revert them to pending with provenance.
-                await _finalize_documents("cancelled", reason="user_requested")
+                await _finish_as_cancelled()
                 return
 
             event_kind = event.get("event", "")
@@ -1742,6 +1755,20 @@ async def _run_workflow_in_background(
             duration_ms=total_duration_ms,
             completed_at=datetime.now(timezone.utc),
         )
+
+    except WorkflowCancelled:
+        # #4402: Stop landed INSIDE a long-running node rather than between
+        # graph events — a per-item loop saw the flag at its item boundary and
+        # raised. Ordered before the handlers below on purpose: a cancelled
+        # run is not a failed one, and falling through would mark it 'failed'
+        # in Activity and surface the cancellation as an error.
+        logger.info(
+            "Workflow %s cancelled from inside a node (thread_id=%s)",
+            workflow_id,
+            thread_id,
+        )
+        await _finish_as_cancelled()
+        return
 
     except SystemicErrorDetected as e:
         logger.error(f"Systemic error in background workflow {workflow_id}: {e}")

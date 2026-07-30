@@ -730,3 +730,66 @@ def migrate_canvas_layout_table(conn) -> None:
         logger.info("canvas_layout table migration completed")
     except Exception as e:
         logger.warning("canvas_layout migration failed: %s", e)
+
+
+def migrate_catalogue_chunk_artifact_type(conn) -> None:
+    """Collapse ``catalogue.chunk.{n}`` artifact types to ``catalogue.chunk`` (#4426).
+
+    The catalogue tool used to mint a NEW artifact_type per summary chunk —
+    ``catalogue.chunk.1``, ``catalogue.chunk.2``, … — which made the
+    artifact_type vocabulary unbounded. That is what prevented the field being
+    declared as an enum in the OpenAPI schema, and a bare ``str`` there is why
+    #4418 could ship as two green commits and one dead feature: the generated
+    Swift client exposes a String, so a server/client mismatch has nothing to
+    fail against.
+
+    The writer now emits a stable ``catalogue.chunk`` with the index in
+    ``data``. This repoints rows already on disk, so a library catalogued
+    before the change does not keep unbounded types alive — real archival data
+    is never regenerated from scratch, so the rows have to be migrated rather
+    than waited out.
+
+    Idempotent: the LIKE pattern matches only the old dotted form, so a second
+    run updates nothing. The chunk index moves into ``data`` to match what the
+    writer now records.
+    """
+    try:
+        table_exists = (
+            conn.execute(
+                """
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = 'artifacts'
+        """
+            ).fetchone()[0]
+            > 0
+        )
+        if not table_exists:
+            logger.debug("artifacts table absent; skipping chunk-type migration")
+            return
+
+        pending = conn.execute(
+            "SELECT COUNT(*) FROM artifacts WHERE artifact_type LIKE 'catalogue.chunk.%'"
+        ).fetchone()[0]
+        if not pending:
+            return
+
+        conn.execute(
+            """
+            UPDATE artifacts
+               SET data = json_object(
+                       'chunk_index',
+                       TRY_CAST(
+                           split_part(artifact_type, 'catalogue.chunk.', 2) AS INTEGER
+                       )
+                   ),
+                   artifact_type = 'catalogue.chunk'
+             WHERE artifact_type LIKE 'catalogue.chunk.%'
+            """
+        )
+        logger.info(
+            "Migrated %d catalogue.chunk.N artifact(s) to the stable "
+            "'catalogue.chunk' type (#4426)",
+            pending,
+        )
+    except Exception as e:
+        logger.warning("catalogue.chunk artifact_type migration failed: %s", e)

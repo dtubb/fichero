@@ -64,6 +64,7 @@ class DatabaseManager:
         from fichero_server.db import Database
         from fichero_server.db.migrations.schema import (
             migrate_activity_tables,
+            migrate_catalogue_chunk_artifact_type,
             migrate_checkpoint_tables,
             migrate_provider_refs_table,
             migrate_saved_search_table,
@@ -94,6 +95,8 @@ class DatabaseManager:
                     migrate_saved_search_table(db.conn)
                     migrate_provider_refs_table(db.conn)
                     migrate_activity_tables(db.conn)
+                    # #4426: collapse unbounded catalogue.chunk.N types.
+                    migrate_catalogue_chunk_artifact_type(db.conn)
                     migrate_checkpoint_tables(db.conn)
 
                     # Seed default workflow presets (Transcribe, Catalogue) into

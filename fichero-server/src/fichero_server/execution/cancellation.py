@@ -24,6 +24,23 @@ _events: dict[str, threading.Event] = {}
 _EVENTS_LIMIT = 500
 
 
+class WorkflowCancelled(Exception):
+    """Raised at a work boundary when the run has been cancelled (#4402).
+
+    Distinct from every other exception on purpose. A tool that stops because
+    the user pressed Stop has not FAILED, and reducing it to a generic error
+    would report a cancelled run as a failure — the run would be marked
+    'failed' in Activity and its error surfaced as though something broke.
+
+    Carries the run id so the handler can confirm which run stopped rather
+    than inferring it from context.
+    """
+
+    def __init__(self, run_id: str) -> None:
+        super().__init__(f"Workflow run {run_id} cancelled by user")
+        self.run_id = run_id
+
+
 def cancellation_event(run_id: str) -> threading.Event:
     """Get (or create) the cancellation event for ``run_id``."""
     if not run_id:
