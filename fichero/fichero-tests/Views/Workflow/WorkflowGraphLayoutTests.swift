@@ -103,10 +103,15 @@ final class WorkflowGraphLayoutTests: XCTestCase {
     }
 
     func testTidyAssignsEveryNodeAPosition() {
-        let nodes = (0..<7).map { node("n\($0)", x: Double($0 * 13 % 5), y: Double($0 * 7 % 3)) }
+        let nodes = (0..<7).map { (i: Int) -> WorkflowNode in
+            let x = Double((i * 13) % 5)
+            let y = Double((i * 7) % 3)
+            return node("n\(i)", x: x, y: y)
+        }
         let edges = [edge("n0", "n1"), edge("n1", "n2"), edge("n0", "n3"), edge("n3", "n2")]
         let positions = WorkflowTidyLayout.positions(nodes: nodes, edges: edges)
-        XCTAssertEqual(Set(positions.keys), Set(nodes.map(\.id)))
+        let nodeIds: Set<String> = Set(nodes.map { $0.id })
+        XCTAssertEqual(Set(positions.keys), nodeIds)
     }
 
     // MARK: - Add-node placement
