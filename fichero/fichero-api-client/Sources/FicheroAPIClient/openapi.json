@@ -3,7 +3,7 @@
   "info": {
     "title": "Fichero API",
     "description": "Document processing and search API",
-    "version": "2026.7.24"
+    "version": "2026.7.29"
   },
   "paths": {
     "/api/health": {
@@ -3815,6 +3815,30 @@
               "title": "Artifact Type"
             },
             "description": "Filter by artifact type"
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by producing workflow run (thread id, #4313)",
+              "title": "Run Id"
+            },
+            "description": "Filter by producing workflow run (thread id, #4313)"
+          },
+          {
+            "name": "step_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Filter by producing workflow node id (#4313)",
+              "title": "Step Name"
+            },
+            "description": "Filter by producing workflow node id (#4313)"
           },
           {
             "name": "limit",
@@ -19126,7 +19150,7 @@
           "workflow-execution"
         ],
         "summary": "Resume Workflow",
-        "description": "Resume a paused workflow from checkpoint.\n\nContinues execution from the last checkpoint, optionally with new inputs.\n\nArgs:\n    thread_id: Thread ID from original execution\n    request: Optional new inputs\n\nReturns:\n    Execution status after resume\n\nRaises:\n    404: Thread not found\n    500: Resume error",
+        "description": "Resume a paused workflow from checkpoint (non-blocking, #4317).\n\nContinues execution from the last checkpoint, optionally with new inputs\nor an interrupt() answer. The run is dispatched to the SAME dedicated\nworker-thread path as ``/execute`` \u2014 it streams SSE via\n``GET /stream/{thread_id}``, honors pause/cancel, and hits the document\ncompletion boundary \u2014 instead of blocking the FastAPI event loop with a\nsynchronous ``ainvoke`` that emitted no events and force-wrote\n``completed``.\n\nArgs:\n    thread_id: Thread ID from original execution\n    request: Optional new inputs / interrupt answer\n\nReturns:\n    Execution status with status=\"running\" once dispatched\n\nRaises:\n    404: Thread not found\n    500: Resume error",
         "operationId": "resume_workflow_api_workflow_execution_threads__thread_id__resume_post",
         "parameters": [
           {
@@ -19363,7 +19387,7 @@
           "workflow-execution"
         ],
         "summary": "Cancel Workflow",
-        "description": "Signal a running workflow to stop at the next astream_events\ntick (#1127).\n\nThe runner's astream_events loop checks ``state[\"cancel_requested\"]``\non every event; setting it here causes the loop to break,\na ``workflow_cancelled`` SSE event to fire, and an activity-log\nentry to record the cancellation. Partial results (artifacts,\nentities, claims already written) are intentionally preserved so\na comparison loop can inspect what got done before the user\ninterrupted.\n\nIdempotent: cancelling a thread that's already cancelled /\ncompleted / failed returns ``status=\"already_terminal\"`` and a\ndescriptive message instead of raising. Cancelling a thread that\nisn't in the running registry at all returns\n``status=\"not_running\"``.",
+        "description": "Cancel a workflow run in ANY non-terminal state (#1127, #4316, #4317).\n\n- A running (or about-to-run ``accepted``) worker is signalled through\n  BOTH the registry flag and the shared cancellation event\n  (execution.cancellation), which the runner's event loop AND the\n  per-file fan-out check \u2014 so cancel reaches a run even after registry\n  eviction, and stops multi-file nodes at the next file boundary.\n- A ``paused`` run has no live coroutine to signal \u2014 its worker returned\n  at the pause boundary \u2014 so cancel settles it directly: run row \u2192\n  cancelled, processing documents \u2192 pending (#4315).\n\nPartial results (artifacts, entities, claims already written) are\nintentionally preserved. Idempotent: terminal runs return\n``status=\"already_terminal\"``; unknown threads ``status=\"not_running\"``.",
         "operationId": "cancel_workflow_api_workflow_execution_threads__thread_id__cancel_post",
         "parameters": [
           {
@@ -34495,6 +34519,16 @@
             "nullable": true,
             "title": "Step Name"
           },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Sequence"
+          },
           "confidence": {
             "type": "number",
             "nullable": true,
@@ -34687,6 +34721,16 @@
             "type": "string",
             "nullable": true,
             "title": "Step Name"
+          },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id"
+          },
+          "sequence": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Sequence"
           },
           "created_at": {
             "type": "string",
@@ -43438,8 +43482,7 @@
             "title": "Workflow Name"
           },
           "status": {
-            "type": "string",
-            "title": "Status",
+            "$ref": "#/components/schemas/RunStatus",
             "default": "accepted"
           },
           "stream_url": {
@@ -43555,8 +43598,7 @@
             "title": "Workflow Name"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
+            "$ref": "#/components/schemas/RunStatus"
           },
           "checkpoint_id": {
             "type": "string",
@@ -55777,6 +55819,20 @@
         ],
         "title": "RotateOperationRequest"
       },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "accepted",
+          "running",
+          "paused",
+          "completed",
+          "failed",
+          "cancelled",
+          "deleted"
+        ],
+        "title": "RunStatus",
+        "description": "Canonical lifecycle states of a workflow run (#4316)."
+      },
       "SavedSearchCreate": {
         "properties": {
           "query": {
@@ -61489,6 +61545,11 @@
             "nullable": true,
             "title": "Node Name"
           },
+          "sequence": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Sequence"
+          },
           "created_at": {
             "type": "string",
             "nullable": true,
@@ -61623,8 +61684,7 @@
             "title": "Execution Log"
           },
           "status": {
-            "type": "string",
-            "title": "Status"
+            "$ref": "#/components/schemas/RunStatus"
           },
           "started_at": {
             "type": "string",
