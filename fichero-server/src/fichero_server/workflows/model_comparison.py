@@ -18,7 +18,6 @@ from types import SimpleNamespace
 from typing import Any, TYPE_CHECKING
 from datetime import datetime
 
-from enum import Enum
 
 from pydantic import BaseModel, Field
 
@@ -179,149 +178,37 @@ class ComparisonRequest(BaseModel):
 # Cost Estimation
 # =============================================================================
 
-# Pricing per 1M tokens (input/output) - approximate as of 2024
-MODEL_PRICING = {
-    # OpenAI
-    "gpt-4o": (5.0, 15.0),
-    "gpt-4o-mini": (0.15, 0.60),
-    "gpt-5": (1.25, 10.0),
-    "gpt-5-mini": (0.25, 2.0),
-    "gpt-5-nano": (0.05, 0.40),
-    "gpt-4-turbo": (10.0, 30.0),
-    "gpt-4": (30.0, 60.0),
-    "gpt-3.5-turbo": (0.50, 1.50),
-    # Anthropic
-    "claude-3-5-sonnet-20241022": (3.0, 15.0),
-    "claude-3-5-haiku-20241022": (1.0, 5.0),
-    "claude-3-opus-20240229": (15.0, 75.0),
-    "claude-3-sonnet-20240229": (3.0, 15.0),
-    "claude-3-haiku-20240307": (0.25, 1.25),
-    # Google
-    "gemini-1.5-pro": (3.50, 10.50),
-    "gemini-1.5-flash": (0.075, 0.30),
-    "gemini-2.5-flash": (0.30, 2.50),
-    "gemini-2.5-pro": (1.25, 10.0),
-    "gemini-pro": (0.50, 1.50),
-    # Qwen / OpenRouter
-    "qwen2.5-vl": (0.40, 1.20),
-    "qwen-2.5-vl": (0.40, 1.20),
-    # Mistral
-    "mistral-large-latest": (3.0, 9.0),
-    "mistral-medium-latest": (2.7, 8.1),
-    "mistral-small-latest": (1.0, 3.0),
-    # Local (free)
-    "apple": (0.0, 0.0),
-    "local": (0.0, 0.0),
-    "llama3.2": (0.0, 0.0),
-    "llama3.1": (0.0, 0.0),
-    "mistral": (0.0, 0.0),
-    "codellama": (0.0, 0.0),
+# Models that run on-device or against a local server: always free. Everything
+# else prices through the litellm registry (llm/model_types.py, #4325) instead
+# of the retired hand-rolled "as of 2024" table.
+_FREE_LOCAL_MODELS = {
+    "apple",
+    "apple-intelligence",
+    "apple-vision",
+    "apple-speech",
+    "mock",
+    "local",
+    "local-model",
+    "llama3.2",
+    "llama3.1",
+    "mistral",
+    "codellama",
 }
-
-
-class ModelTier(str, Enum):
-    """Model performance/cost tiers."""
-
-    FRONTIER = "frontier"  # Best quality, highest cost
-    MID = "mid"  # Good quality, moderate cost
-    BUDGET = "budget"  # Basic quality, low cost
-    LOCAL = "local"  # Free, runs locally
-
-
-# Model tier assignments
-MODEL_TIERS: dict[str, ModelTier] = {
-    # Frontier (best models)
-    "gpt-4o": ModelTier.FRONTIER,
-    "gpt-4-turbo": ModelTier.FRONTIER,
-    "gpt-4": ModelTier.FRONTIER,
-    "claude-3-5-sonnet-20241022": ModelTier.FRONTIER,
-    "claude-3-opus-20240229": ModelTier.FRONTIER,
-    "gemini-1.5-pro": ModelTier.FRONTIER,
-    # Mid tier
-    "gpt-4o-mini": ModelTier.MID,
-    "claude-3-5-haiku-20241022": ModelTier.MID,
-    "claude-3-sonnet-20240229": ModelTier.MID,
-    "gemini-1.5-flash": ModelTier.MID,
-    "mistral-large-latest": ModelTier.MID,
-    "mistral-medium-latest": ModelTier.MID,
-    # Budget tier
-    "gpt-3.5-turbo": ModelTier.BUDGET,
-    "claude-3-haiku-20240307": ModelTier.BUDGET,
-    "gemini-pro": ModelTier.BUDGET,
-    "mistral-small-latest": ModelTier.BUDGET,
-    # Local (free)
-    "llama3.2": ModelTier.LOCAL,
-    "llama3.1": ModelTier.LOCAL,
-    "mistral": ModelTier.LOCAL,
-    "codellama": ModelTier.LOCAL,
-}
-
-
-def get_model_tier(model: str) -> ModelTier:
-    """Get the tier for a model."""
-    tier = MODEL_TIERS.get(model)
-    if tier:
-        return tier
-    # Check for partial matches
-    for model_name, t in MODEL_TIERS.items():
-        if model_name in model.lower() or model.lower() in model_name:
-            return t
-    return ModelTier.MID  # Default to mid tier
-
-
-def get_models_by_tier() -> dict[str, list[dict]]:
-    """Get all models grouped by tier with pricing info."""
-    result: dict[str, list[dict]] = {
-        "frontier": [],
-        "mid": [],
-        "budget": [],
-        "local": [],
-    }
-
-    for model, pricing in MODEL_PRICING.items():
-        tier = get_model_tier(model)
-        # Determine provider from model name
-        provider = "unknown"
-        if "gpt" in model.lower():
-            provider = "openai"
-        elif "claude" in model.lower():
-            provider = "anthropic"
-        elif "gemini" in model.lower():
-            provider = "google"
-        elif "mistral" in model.lower():
-            provider = "mistral" if "latest" in model else "ollama"
-        elif model in ["llama3.2", "llama3.1", "codellama"]:
-            provider = "ollama"
-
-        result[tier.value].append(
-            {
-                "provider": provider,
-                "model": model,
-                "input_price": pricing[0],
-                "output_price": pricing[1],
-                "tier": tier.value,
-            }
-        )
-
-    return result
 
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float | None:
-    """Estimate cost for a model run."""
-    pricing = MODEL_PRICING.get(model)
-    if not pricing:
-        # Check for partial matches
-        for model_name, prices in MODEL_PRICING.items():
-            if model_name in model.lower() or model.lower() in model_name:
-                pricing = prices
-                break
+    """Estimate cost for a model run via the litellm-backed registry (#4325).
 
-    if not pricing:
-        return None
+    On-device / local-server models are free; unknown models return None
+    (pricing unavailable) rather than a stale guess.
+    """
+    name = (model or "").strip()
+    if name.lower() in _FREE_LOCAL_MODELS:
+        return 0.0
 
-    input_cost = (input_tokens / 1_000_000) * pricing[0]
-    output_cost = (output_tokens / 1_000_000) * pricing[1]
-    return input_cost + output_cost
+    from fichero_server.llm.model_types import estimate_cost as _registry_estimate
+
+    return _registry_estimate(name, input_tokens, output_tokens)
 
 
 # =============================================================================
@@ -467,7 +354,7 @@ class ModelComparisonEngine:
             if output_tokens == 0:
                 output_tokens = len(response.content) // 4
 
-            cost = estimate_cost(spec.model, input_tokens, output_tokens)
+            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
             structured_success = None
             structured_error = None
             raw_response = None
@@ -702,7 +589,7 @@ class ModelComparisonEngine:
                 len(images) * 1000
             )  # ~1000 tokens per image
             output_tokens = len(response) // 4
-            cost = estimate_cost(spec.model, input_tokens, output_tokens)
+            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
 
             return ModelResult(
                 provider=spec.provider,
@@ -949,7 +836,7 @@ class ModelComparisonEngine:
             # Estimate cost
             input_tokens = len(str(inputs)) // 4
             output_tokens = len(response) // 4
-            cost = estimate_cost(spec.model, input_tokens, output_tokens)
+            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
 
             return ModelResult(
                 provider=spec.provider,
@@ -1016,7 +903,7 @@ class ModelComparisonEngine:
                 response=response,
                 final_state=final_state,
             )
-            cost = estimate_cost(spec.model, input_tokens, output_tokens)
+            cost = estimate_cost(spec.model, input_tokens, output_tokens) or 0.0
 
             return ModelResult(
                 provider=spec.provider,
@@ -1288,11 +1175,12 @@ def get_comparison_engine() -> ModelComparisonEngine:
                 },
                 "required": ["provider", "model"],
             },
-            "default": [
-                {"provider": "openai", "model": "gpt-4o"},
-                {"provider": "anthropic", "model": "claude-3-5-sonnet-20241022"},
-            ],
-            "description": "Models to compare",
+            "default": [],
+            "description": (
+                "Models to compare. Empty = the workflow's own default "
+                "provider/model (tier aliases like $medium resolve through "
+                "AI Defaults, #4325)."
+            ),
         },
         "timeout_seconds": {
             "type": "integer",
@@ -1330,13 +1218,15 @@ async def model_comparison(
             "error": "No prompt provided",
         }
 
-    # Build model specs
+    # Build model specs. Entries missing provider/model inherit the workflow's
+    # own default config instead of a hardcoded vintage model (#4325) — tier
+    # aliases ($medium etc.) then resolve through AI Defaults downstream.
     model_specs = []
     for m in models_config:
         model_specs.append(
             ModelSpec(
-                provider=m.get("provider", "openai"),
-                model=m.get("model", "gpt-4o"),
+                provider=m.get("provider") or llm_config.provider,
+                model=m.get("model") or llm_config.model,
                 temperature=m.get("temperature", 0.7),
             )
         )

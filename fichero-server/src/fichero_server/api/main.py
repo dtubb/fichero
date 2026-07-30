@@ -340,40 +340,18 @@ def _ensure_default_ai_defaults(app_db, apple_provider_id: str) -> None:
     placeholders fail immediately with "no default model configured"
     (#932 first-run blocker).
 
-    This sets sensible defaults:
-      - text / small / large → apple-intelligence
-      - medium               → openrouter/openai/gpt-4o-mini
-      - vision               → apple-vision
-      - vision aliases       → apple-vision
-      - audio                → apple-speech
+    The values come from ``FACTORY_AI_DEFAULTS`` in db/app.py — the single
+    tier-default table (#4325). Every tier seeds ON-DEVICE (Apple) so a
+    keyless fresh install can run every default workflow.
 
     Only writes a key when it is currently unset; user configuration is
     never overwritten. (#933 — Reset Defaults must not erase user choices
     on its own; explicit per-pane Reset buttons handle that case.)
     """
-    apple_type = "apple"
-    pairs = [
-        ("default_text_provider", apple_type),
-        ("default_text_model", "apple-intelligence"),
-        ("default_small_provider", apple_type),
-        ("default_small_model", "apple-intelligence"),
-        ("default_medium_provider", "openrouter"),
-        ("default_medium_model", "openai/gpt-4o-mini"),
-        ("default_large_provider", apple_type),
-        ("default_large_model", "apple-intelligence"),
-        ("default_vision_provider", apple_type),
-        ("default_vision_model", "apple-vision"),
-        ("default_vision_small_provider", apple_type),
-        ("default_vision_small_model", "apple-vision"),
-        ("default_vision_medium_provider", apple_type),
-        ("default_vision_medium_model", "apple-vision"),
-        ("default_vision_large_provider", apple_type),
-        ("default_vision_large_model", "apple-vision"),
-        ("default_audio_provider", apple_type),
-        ("default_audio_model", "apple-speech"),
-    ]
+    from fichero_server.db.app import FACTORY_AI_DEFAULTS
+
     written: list[str] = []
-    for key, value in pairs:
+    for key, value in FACTORY_AI_DEFAULTS.items():
         if not app_db.get_setting(key):
             app_db.set_setting(key, value)
             written.append(key)
@@ -396,6 +374,30 @@ def _repair_known_bad_ai_defaults(app_db) -> None:
             "Repaired stale AI default $large from openrouter/openrouter/free "
             "to apple/apple-intelligence."
         )
+
+    # Legacy seeded $medium = openrouter/openai/gpt-4o-mini (#4325): that
+    # pairing was written by OUR seed, not chosen by the user, and on a
+    # keyless install every $medium node fails mid-run. Repair to on-device
+    # ONLY when no OpenRouter credential exists — a user who added a key and
+    # kept the cloud $medium keeps it.
+    if (
+        app_db.get_setting("default_medium_provider") == "openrouter"
+        and app_db.get_setting("default_medium_model") == "openai/gpt-4o-mini"
+    ):
+        try:
+            from fichero_server.llm import get_api_key
+
+            has_openrouter_key = bool(get_api_key("openrouter"))
+        except Exception:
+            has_openrouter_key = False
+        if not has_openrouter_key:
+            app_db.set_setting("default_medium_provider", "apple")
+            app_db.set_setting("default_medium_model", "apple-intelligence")
+            logger.warning(
+                "Repaired stale AI default $medium: seeded "
+                "openrouter/openai/gpt-4o-mini has no credential configured; "
+                "now apple/apple-intelligence (on-device)."
+            )
 
     # Legacy vision tiers pointing at apple-intelligence (the user, live
     # 2026-07-27): app DBs seeded before the vision-tier split hold

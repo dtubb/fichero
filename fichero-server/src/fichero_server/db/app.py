@@ -43,6 +43,40 @@ from fichero_server.llm.model_profiles import (
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# Factory AI tier defaults — THE single source of truth (#4325).
+#
+# Imported by api/main.py (first-launch seeding) and
+# api/routes/system/settings.py (gap repair endpoint); used below by
+# reset_ai_defaults. Previously this table was triplicated across those three
+# call sites and drifted.
+#
+# Every tier is ON-DEVICE (Apple) so a fresh install with ZERO API keys can
+# run every default workflow. $medium historically pointed at
+# openrouter/openai/gpt-4o-mini, which crashed keyless installs mid-run; a
+# user who wants a cloud $medium sets it in Settings ▸ AI Defaults.
+# =============================================================================
+FACTORY_AI_DEFAULTS: dict[str, str] = {
+    "default_text_provider": "apple",
+    "default_text_model": "apple-intelligence",
+    "default_small_provider": "apple",
+    "default_small_model": "apple-intelligence",
+    "default_medium_provider": "apple",
+    "default_medium_model": "apple-intelligence",
+    "default_large_provider": "apple",
+    "default_large_model": "apple-intelligence",
+    "default_vision_provider": "apple",
+    "default_vision_model": "apple-vision",
+    "default_vision_small_provider": "apple",
+    "default_vision_small_model": "apple-vision",
+    "default_vision_medium_provider": "apple",
+    "default_vision_medium_model": "apple-vision",
+    "default_vision_large_provider": "apple",
+    "default_vision_large_model": "apple-vision",
+    "default_audio_provider": "apple",
+    "default_audio_model": "apple-speech",
+}
+
 
 class AppSetting(BaseModel):
     """Typed row wrapper for settings-table write paths."""
@@ -820,25 +854,10 @@ class AppDatabase:
         for key in keys_to_delete:
             self.delete_setting(key)
 
-        # Re-seed with the factory baseline matching
-        # what _ensure_default_ai_defaults() writes on first launch
-        # (see api/main.py). Kept in lockstep with that bootstrap; if
-        # bootstrap's pairs change, update both. $small stays free and
-        # on-device; $medium is a capable low-cost OpenRouter cloud model
-        # for structured fallback before any local $large retry (#1308).
-        apple = "apple"
-        factory_defaults = {
-            "default_text_provider": apple, "default_text_model": "apple-intelligence",
-            "default_small_provider": apple, "default_small_model": "apple-intelligence",
-            "default_medium_provider": "openrouter", "default_medium_model": "openai/gpt-4o-mini",
-            "default_large_provider": apple, "default_large_model": "apple-intelligence",
-            "default_vision_provider": apple, "default_vision_model": "apple-vision",
-            "default_vision_small_provider": apple, "default_vision_small_model": "apple-vision",
-            "default_vision_medium_provider": apple, "default_vision_medium_model": "apple-vision",
-            "default_vision_large_provider": apple, "default_vision_large_model": "apple-vision",
-            "default_audio_provider": apple, "default_audio_model": "apple-speech",
-        }
-        for key, value in factory_defaults.items():
+        # Re-seed with the factory baseline (FACTORY_AI_DEFAULTS — the single
+        # tier-default table, #4325, also used by the first-launch bootstrap
+        # in api/main.py and the repair endpoint in routes/system/settings.py).
+        for key, value in FACTORY_AI_DEFAULTS.items():
             self.set_setting(key, value)
 
     # =========================================================================

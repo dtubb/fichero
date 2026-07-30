@@ -341,22 +341,10 @@ def repair_ai_defaults(
     values the user has already set. Fixes libraries created before the
     factory-defaults seed was added (#1057).
     """
-    from fichero_server.db.app import get_app_db
+    from fichero_server.db.app import FACTORY_AI_DEFAULTS, get_app_db
 
     db = get_app_db()
-    apple = "apple"
-    seeds = {
-        "default_small_provider": apple, "default_small_model": "apple-intelligence",
-        "default_medium_provider": "openrouter", "default_medium_model": "openai/gpt-4o-mini",
-        "default_large_provider": apple, "default_large_model": "apple-intelligence",
-        "default_vision_small_provider": apple, "default_vision_small_model": "apple-vision",
-        "default_vision_medium_provider": apple, "default_vision_medium_model": "apple-vision",
-        "default_vision_large_provider": apple, "default_vision_large_model": "apple-vision",
-        "default_text_provider": apple, "default_text_model": "apple-intelligence",
-        "default_vision_provider": apple, "default_vision_model": "apple-vision",
-        "default_audio_provider": apple, "default_audio_model": "apple-speech",
-    }
-    for key, value in seeds.items():
+    for key, value in FACTORY_AI_DEFAULTS.items():
         if not db.get_setting(key):
             db.set_setting(key, value)
     return StatusOkResponse(status="ok")

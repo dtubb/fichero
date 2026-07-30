@@ -366,16 +366,15 @@ class TestResetAIDefaults:
             for k in non_empty_fields
         ), f"Unexpected non-empty fields after reset: {non_empty_fields}"
         assert data["primary_language"] == ""
-        # Most typed categories use Apple Intelligence defaults.
-        for key in ("text_provider", "small_provider", "large_provider",
-                    "vision_provider", "audio_provider",
+        # Every tier resets on-device (FACTORY_AI_DEFAULTS, #4325) so a
+        # keyless install runs every default workflow after a reset.
+        for key in ("text_provider", "small_provider", "medium_provider",
+                    "large_provider", "vision_provider", "audio_provider",
                     "vision_small_provider", "vision_medium_provider",
                     "vision_large_provider"):
             assert data[key] == "apple", f"{key} should be 'apple' after reset"
-        for key in ("text_model", "small_model", "large_model"):
+        for key in ("text_model", "small_model", "medium_model", "large_model"):
             assert data[key] == "apple-intelligence", f"{key} should be 'apple-intelligence' after reset"
         for key in ("vision_model", "vision_small_model",
                     "vision_medium_model", "vision_large_model"):
             assert data[key] == "apple-vision", f"{key} should be 'apple-vision' after reset"
-        assert data["medium_provider"] == "openrouter"
-        assert data["medium_model"] == "openai/gpt-4o-mini"
