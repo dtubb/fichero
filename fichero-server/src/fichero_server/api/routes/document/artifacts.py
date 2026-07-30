@@ -18,6 +18,7 @@ from fichero_server.db import Database
 # NOTE: fichero_server.llm is imported inside the one handler that translates (#3950).
 # It pulls langchain_core -> transformers. Every other endpoint in this module
 # is plain artifact CRUD and paid that cost for nothing.
+from fichero_server.media.ocr_geometry import OCRGeometryResult
 from fichero_server.models import Artifact, ArtifactTypeListResponse, Document
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,9 @@ class ArtifactResponse(BaseModel):
     artifact_type: str
     content: Optional[str] = None
     data: Optional[dict] = None
+    # Typed OCR/transcription geometry (word/line boxes + text spans, #4309).
+    # None for artifacts whose producing pass had no geometry.
+    ocr_geometry: Optional[OCRGeometryResult] = None
     version: int
     provider: Optional[str] = None
     model: Optional[str] = None
@@ -89,13 +93,19 @@ class ArtifactRestoreActionParams(BaseModel):
     payload: dict[str, Any]
 
 
-def _artifact_response(artifact: Artifact) -> ArtifactResponse:
+def _artifact_response(
+    artifact: Artifact, *, include_geometry: bool = False
+) -> ArtifactResponse:
+    # Geometry rides only on the single-artifact GET (#4309): a page's word
+    # boxes can run to hundreds of records, so list endpoints stay lean and
+    # the preview overlay fetches the one artifact it renders.
     return ArtifactResponse(
         id=artifact.id,
         document_id=artifact.document_id,
         artifact_type=artifact.artifact_type,
         content=artifact.content,
         data=artifact.data,
+        ocr_geometry=artifact.ocr_geometry if include_geometry else None,
         version=artifact.version,
         provider=artifact.provider,
         model=artifact.model,
@@ -374,7 +384,7 @@ async def get_artifact(
             status_code=404, detail=f"Artifact not found: {artifact_id}"
         )
 
-    return _artifact_response(artifact)
+    return _artifact_response(artifact, include_geometry=True)
 
 
 class ArtifactUpdate(BaseModel):

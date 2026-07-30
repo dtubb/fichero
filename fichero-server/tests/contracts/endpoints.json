@@ -1346,7 +1346,7 @@
         "summary": "Bulk export multiple documents as BibTeX",
         "path_params": [],
         "query_params": [],
-        "request_model": "fichero__api__routes__citation__bibliography__ExportRequest",
+        "request_model": "fichero_server__api__routes__citation__bibliography__ExportRequest",
         "response_model": null
       },
       {
@@ -1356,8 +1356,8 @@
         "summary": "Parse BibTeX / RIS / CSL JSON into SourceMetadata dicts (#909)",
         "path_params": [],
         "query_params": [],
-        "request_model": "fichero__api__routes__citation__bibliography__ImportRequest",
-        "response_model": "fichero__api__routes__citation__bibliography__ImportResponse"
+        "request_model": "fichero_server__api__routes__citation__bibliography__ImportRequest",
+        "response_model": "fichero_server__api__routes__citation__bibliography__ImportResponse"
       },
       {
         "method": "POST",
@@ -1401,7 +1401,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -1877,7 +1877,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__api__routes__citation__rendering__CitationResponse"
+        "response_model": "fichero_server__api__routes__citation__rendering__CitationResponse"
       },
       {
         "method": "GET",
@@ -2530,7 +2530,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -2570,7 +2570,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -2644,7 +2644,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "GET",
@@ -2665,7 +2665,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "GET",
@@ -2675,7 +2675,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "DELETE",
@@ -2723,7 +2723,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "GET",
@@ -2753,7 +2753,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__models__DocumentListResponse"
+        "response_model": "fichero_server__models__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -4165,7 +4165,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__api__routes__mcp__integrations__CitationResponse"
+        "response_model": "fichero_server__api__routes__mcp__integrations__CitationResponse"
       },
       {
         "method": "GET",
@@ -4195,7 +4195,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__mcp__integrations__DocumentListResponse"
+        "response_model": "fichero_server__api__routes__mcp__integrations__DocumentListResponse"
       },
       {
         "method": "POST",
@@ -4258,7 +4258,7 @@
           "app_name"
         ],
         "query_params": [],
-        "request_model": "fichero__api__routes__mcp__integrations__ExportRequest",
+        "request_model": "fichero_server__api__routes__mcp__integrations__ExportRequest",
         "response_model": "ExportResponse"
       },
       {
@@ -4270,8 +4270,8 @@
           "app_name"
         ],
         "query_params": [],
-        "request_model": "fichero__api__routes__mcp__integrations__ImportRequest",
-        "response_model": "fichero__api__routes__mcp__integrations__ImportResponse"
+        "request_model": "fichero_server__api__routes__mcp__integrations__ImportRequest",
+        "response_model": "fichero_server__api__routes__mcp__integrations__ImportResponse"
       },
       {
         "method": "GET",
@@ -5110,7 +5110,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__kg__pykeen__DeleteModelResponse"
+        "response_model": "fichero_server__api__routes__kg__pykeen__DeleteModelResponse"
       },
       {
         "method": "GET",
@@ -5859,7 +5859,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__models__DeleteModelResponse"
+        "response_model": "fichero_server__models__DeleteModelResponse"
       }
     ],
     "locations": [
@@ -6314,7 +6314,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__ai__model_comparison__ModelListResponse"
+        "response_model": "fichero_server__api__routes__ai__model_comparison__ModelListResponse"
       },
       {
         "method": "GET",
@@ -6354,7 +6354,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__ai__model_comparison__ToolListResponse"
+        "response_model": "fichero_server__api__routes__ai__model_comparison__ToolListResponse"
       }
     ],
     "models": [
@@ -6585,7 +6585,7 @@
         "summary": "Create Note",
         "path_params": [],
         "query_params": [],
-        "request_model": "fichero__api__routes__document__notes__NoteCreateRequest",
+        "request_model": "fichero_server__api__routes__document__notes__NoteCreateRequest",
         "response_model": "Note"
       },
       {
@@ -6836,7 +6836,7 @@
         "summary": "Create Project",
         "path_params": [],
         "query_params": [],
-        "request_model": "fichero__api__routes__system__projects__ProjectCreateRequest",
+        "request_model": "fichero_server__api__routes__system__projects__ProjectCreateRequest",
         "response_model": "Project"
       },
       {
@@ -7026,7 +7026,7 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero__api__routes__ai__provider_models__ModelListResponse"
+        "response_model": "fichero_server__api__routes__ai__provider_models__ModelListResponse"
       },
       {
         "method": "GET",
@@ -7058,7 +7058,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__ai__providers__DeletedResponse"
+        "response_model": "fichero_server__api__routes__ai__providers__DeletedResponse"
       },
       {
         "method": "PATCH",
@@ -7082,7 +7082,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__ai__providers__DeletedResponse"
+        "response_model": "fichero_server__api__routes__ai__providers__DeletedResponse"
       },
       {
         "method": "GET",
@@ -7143,7 +7143,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__ai__providers__DeletedResponse"
+        "response_model": "fichero_server__api__routes__ai__providers__DeletedResponse"
       },
       {
         "method": "DELETE",
@@ -7261,7 +7261,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__citation__references__DeletedResponse"
+        "response_model": "fichero_server__api__routes__citation__references__DeletedResponse"
       },
       {
         "method": "GET",
@@ -7500,7 +7500,7 @@
         "summary": "Create Note",
         "path_params": [],
         "query_params": [],
-        "request_model": "fichero__api__routes__research__notes__NoteCreateRequest",
+        "request_model": "fichero_server__api__routes__research__notes__NoteCreateRequest",
         "response_model": "ResearchNote"
       },
       {
@@ -7596,7 +7596,7 @@
         "summary": "Create Project",
         "path_params": [],
         "query_params": [],
-        "request_model": "fichero__api__routes__research__crud__ProjectCreateRequest",
+        "request_model": "fichero_server__api__routes__research__crud__ProjectCreateRequest",
         "response_model": "ResearchProject"
       },
       {
@@ -8118,7 +8118,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__search__core__DeletedResponse"
+        "response_model": "fichero_server__api__routes__search__core__DeletedResponse"
       },
       {
         "method": "PUT",
@@ -9199,7 +9199,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": null,
-        "response_model": "fichero__api__routes__workflow__workflows__ToolListResponse"
+        "response_model": "fichero_server__api__routes__workflow__workflows__ToolListResponse"
       },
       {
         "method": "GET",

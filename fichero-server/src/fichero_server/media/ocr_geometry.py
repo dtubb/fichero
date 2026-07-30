@@ -58,10 +58,18 @@ class OCRGeometryBox(BaseModel):
     text: str
     bbox: list[float] = Field(
         ...,
-        description="Normalized [x, y, width, height] values in the range 0..1.",
+        description=(
+            "Normalized [x, y, width, height] values in the range 0..1, "
+            "top-left origin (y grows downward, matching image/W3C space)."
+        ),
     )
     level: OCRGeometryLevel = OCRGeometryLevel.WORD
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Character span of this box's text inside the OWNING artifact's content
+    # string (#4309). Keeping the box↔text link explicit is what lets a later
+    # content edit re-map its segment instead of orphaning the geometry.
+    char_start: int | None = Field(default=None, ge=0)
+    char_end: int | None = Field(default=None, ge=0)
     page_index: int | None = Field(default=None, ge=0)
     provider: str | None = None
     model: str | None = None
@@ -163,6 +171,8 @@ def from_apple_vision_result(
                     level=level,
                     confidence=getattr(item, "confidence", None),
                     page_index=getattr(item, "page_index", None),
+                    char_start=getattr(item, "char_start", None),
+                    char_end=getattr(item, "char_end", None),
                     provider=provider,
                     model=model,
                     source=source,
