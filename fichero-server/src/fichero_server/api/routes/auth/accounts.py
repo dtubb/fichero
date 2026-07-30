@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta
-from fichero_server.core.timeutil import utc_now
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from functools import cache
 import sys
 from typing import Literal
@@ -175,7 +175,7 @@ def _current_session_user(request: Request) -> AccountUser | None:
 
 
 def _prune_login_attempts(now: datetime) -> None:
-    window_start = now - LOGIN_RATE_WINDOW
+    window_start = ensure_utc(now) - LOGIN_RATE_WINDOW
     for attempts_by_scope in (_LOGIN_ATTEMPTS_BY_IP, _LOGIN_ATTEMPTS_BY_ACCOUNT):
         stale_scopes: list[str] = []
         for scope, attempts in attempts_by_scope.items():
@@ -194,7 +194,7 @@ def _prune_attempt_table(
     now: datetime,
     window: timedelta,
 ) -> None:
-    window_start = now - window
+    window_start = ensure_utc(now) - window
     stale_scopes: list[str] = []
     for scope, attempts in attempts_by_scope.items():
         current = [attempt for attempt in attempts if attempt >= window_start]
@@ -307,11 +307,12 @@ def _check_invite_rate_limit(
     if len(attempts) >= INVITE_RATE_LIMIT:
         attempts_by_scope[host] = attempts
         _raise_invite_rate_limit(now, attempts)
-    attempts.append(now)
+    attempts.append(ensure_utc(now))
     attempts_by_scope[host] = attempts
 
 
 def _record_login_failure(request: Request, username: str, now: datetime) -> None:
+    now = ensure_utc(now)
     host = _login_host(request)
     ip_attempts = _LOGIN_ATTEMPTS_BY_IP.get(host, [])
     ip_attempts.append(now)

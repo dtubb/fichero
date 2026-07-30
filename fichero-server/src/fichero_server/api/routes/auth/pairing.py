@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from fichero_server.core.timeutil import utc_now
+from fichero_server.core.timeutil import ensure_utc, utc_now
 import logging
 import os
 import secrets
@@ -67,6 +67,12 @@ class _PairingCode:
     user_id: str
     expires_at: datetime
     used: bool = False
+
+    def __post_init__(self) -> None:
+        # This table is a store, so it gets the same hydration seam as a DB row
+        # (#4347): whatever a caller hands us is normalized to aware UTC once,
+        # here, so every later comparison against ``utc_now()`` is type-consistent.
+        self.expires_at = ensure_utc(self.expires_at)
 
 
 # Pairing codes and rate-limit attempts are intentionally process-local.
@@ -208,6 +214,7 @@ def _new_pairing_code() -> str:
 
 
 def _prune_pairing_codes(now: datetime) -> None:
+    now = ensure_utc(now)
     expired = [
         code
         for code, record in _PAIRING_CODES.items()
@@ -218,7 +225,7 @@ def _prune_pairing_codes(now: datetime) -> None:
 
 
 def _prune_attempt_table(attempts_by_host: dict[str, list[datetime]], now: datetime) -> None:
-    window_start = now - PAIRING_RATE_WINDOW
+    window_start = ensure_utc(now) - PAIRING_RATE_WINDOW
     stale_hosts: list[str] = []
     for host, attempts in attempts_by_host.items():
         current = [attempt for attempt in attempts if attempt >= window_start]
@@ -292,7 +299,7 @@ def _check_rate_limit(
         attempts_by_host[host] = attempts
         raise HTTPException(status_code=429, detail=detail)
     if record_attempt:
-        attempts.append(now)
+        attempts.append(ensure_utc(now))
         attempts_by_host[host] = attempts
 
 
@@ -304,7 +311,7 @@ def _record_rate_limit_attempt(
     _prune_attempt_table(attempts_by_host, now)
     host = _rate_limit_scope_from_request(request)
     attempts = attempts_by_host.get(host, [])
-    attempts.append(now)
+    attempts.append(ensure_utc(now))
     attempts_by_host[host] = attempts
 
 
