@@ -145,33 +145,26 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        // Fit-to-window and center on first layout when bounds are known AND the
-        // image has actually decoded (#3864 — the decode is now async, so an early
-        // updateNSView can run before the image exists; don't reveal an empty frame).
         let hasImage = (context.coordinator.imageView as? NSImageView)?.image != nil
-        if context.coordinator.needsInitialCenter && hasImage
-            && scrollView.bounds.width > 0 && scrollView.bounds.height > 0 {
-            context.coordinator.needsInitialCenter = false
-            // Fit to window on first layout (like Preview.app)
-            if let fitScale = context.coordinator.calculateFitScale() {
-                scrollView.magnification = fitScale
-                Task { @MainActor in
-                    self.scale = fitScale
-                }
-            }
-            centerImage(scrollView: scrollView, imageView: context.coordinator.imageView!)
-            // Reveal after centering (was hidden to prevent flash)
-            if scrollView.alphaValue < 1 {
-                scrollView.alphaValue = 1
-            }
-        }
+        // Scale this pass applied automatically (initial fit or resize re-fit).
+        // #4279: when set, the magnification↔scale sync below must NOT run — the
+        // `scale` binding is still one turn behind, and writing it back would
+        // undo the fit in the very same pass, leaving the image at whatever
+        // stale zoom the binding happened to hold.
+        let autoAppliedScale = applyAutomaticFit(
+            scrollView: scrollView,
+            coordinator: context.coordinator,
+            hasImage: hasImage
+        )
+
         // #596: skip the magnification→scale sync while a pinch is active.
         // NSMagnificationGestureRecognizer mutates scrollView.magnification
         // directly; writing `scale` back on every frame would race with
         // that write and effectively pin the zoom to the pre-pinch value.
         // The binding gets its write-back at gesture `.ended` via
         // `Coordinator.onScaleChanged` instead.
-        if !context.coordinator.isUserMagnifying,
+        if autoAppliedScale == nil,
+           !context.coordinator.isUserMagnifying,
            abs(scrollView.magnification - scale) > 0.01 {
             scrollView.magnification = scale
         }
@@ -211,6 +204,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                     imageView.loupePosition = nil  // Reset loupe on image change
                     context.coordinator.currentURL = url
                     context.coordinator.currentOverrideImage = overrideImage
+                    // A different item is on screen — auto-fit owns the zoom
+                    // again until the user zooms this one manually (#4279).
+                    // Deliberately no `noteAutoFitApplied()` here: this branch
+                    // runs *after* this pass's magnification↔scale sync, so
+                    // leaving the recorded pane size cleared makes the next
+                    // pass re-assert the fit if the (one-turn-late) binding
+                    // write hasn't landed yet.
+                    context.coordinator.resetZoomOwnershipForNewItem()
                     Task { @MainActor in
                         self.imageSize = overrideImage.size
                     }
@@ -270,6 +271,8 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     ) {
         coordinator.currentURL = url
         coordinator.currentOverrideImage = nil
+        // A different item is on screen — auto-fit owns the zoom again (#4279).
+        coordinator.resetZoomOwnershipForNewItem()
         let token = coordinator.beginImageLoad()
         Task { @MainActor in
             guard let cgImage = await decodeSDRCGImage(from: url),
@@ -281,6 +284,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             self.imageSize = image.size
             if let fitScale = coordinator.calculateFitScale() {
                 scrollView.magnification = fitScale
+                coordinator.noteAutoFitApplied()
                 self.scale = fitScale
                 centerImage(scrollView: scrollView, imageView: imageView)
                 if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
@@ -334,4 +338,55 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
 }
+
+// MARK: - Automatic Fit (#4279)
+// In an extension so the representable's own body stays within the
+// type-body-length budget.
+
+extension ImageWithCursorTracking {
+    /// Apply this pass's automatic zoom, if one is due: the first-layout fit
+    /// (and reveal), or a re-fit because the pane resized while the user hadn't
+    /// taken manual control (#4279). Returns the scale applied, or `nil` when
+    /// the zoom was left alone.
+    private func applyAutomaticFit(
+        scrollView: NSScrollView,
+        coordinator: Coordinator,
+        hasImage: Bool
+    ) -> CGFloat? {
+        // Fit-to-window and center on first layout when bounds are known AND the
+        // image has actually decoded (#3864 — the decode is now async, so an early
+        // updateNSView can run before the image exists; don't reveal an empty frame).
+        if coordinator.needsInitialCenter && hasImage
+            && scrollView.bounds.width > 0 && scrollView.bounds.height > 0 {
+            coordinator.needsInitialCenter = false
+            // Fit to window on first layout (like Preview.app)
+            var applied: CGFloat?
+            if let fitScale = coordinator.calculateFitScale() {
+                scrollView.magnification = fitScale
+                coordinator.noteAutoFitApplied()
+                applied = fitScale
+                Task { @MainActor in
+                    self.scale = fitScale
+                }
+            }
+            centerImage(scrollView: scrollView, imageView: coordinator.imageView!)
+            // Reveal after centering (was hidden to prevent flash)
+            if scrollView.alphaValue < 1 {
+                scrollView.alphaValue = 1
+            }
+            return applied
+        }
+
+        // Keep the fit current as the pane resizes, for as long as the user
+        // hasn't zoomed manually. A manual zoom freezes the scale until a
+        // different image is displayed.
+        guard hasImage, let refit = coordinator.autoRefitScale() else { return nil }
+        scrollView.magnification = refit
+        Task { @MainActor in
+            self.scale = refit
+        }
+        return refit
+    }
+}
+
 #endif

@@ -777,7 +777,17 @@ def _research_spec(
     *,
     before: dict[str, Any] | None = None,
     after: dict[str, Any] | None = None,
+    mirrors_document: bool = True,
 ) -> ChangeSpec:
+    """Change spec for a research row mutation.
+
+    ``mirrors_document``: projects, plans and tasks are mirrored into the
+    document tree by the DB layer (``_save_research_workspace_document`` and
+    siblings) sharing the row's id — so their mutations ALSO emit a
+    ``document.<verb>`` event. Without it the sidebar (which listens on the
+    ``document`` domain) never learned an agent-created workspace existed
+    (#4335). Steps have no document mirror and pass ``False``.
+    """
     def _emit(ctx: ActionContext, spec: ChangeSpec) -> None:
         if not ctx.library_path or not spec.emit_type:
             return
@@ -789,6 +799,15 @@ def _research_spec(
             origin_window=ctx.origin_window,
             origin_user=ctx.actor,
         )
+        if mirrors_document:
+            emit_change(
+                ctx.library_path,
+                type=f"document.{verb}",
+                entity_ids=spec.entity_ids,
+                actor=ctx.actor,
+                origin_window=ctx.origin_window,
+                origin_user=ctx.actor,
+            )
 
     return ChangeSpec(
         domains=["research"],
@@ -961,7 +980,7 @@ def _invert_create_step(before, after, ctx):
 @action("research.step.create", StepCreateRequest, domains=["research"], undoable=True, invert=_invert_create_step)
 def _action_create_step(db, params: StepCreateRequest, ctx: ActionContext):
     step = create_step_impl(db, params)
-    return step, _research_spec("created", step.id, after=step.model_dump(mode="json"))
+    return step, _research_spec("created", step.id, after=step.model_dump(mode="json"), mirrors_document=False)
 
 
 @action("research.step.update", ResearchStepUpdateParams, domains=["research"], undoable=True, invert=lambda before, after, ctx: None if not before else ("research.step.restore", {"snapshot": before}))
@@ -974,16 +993,16 @@ def _action_update_step(db, params: ResearchStepUpdateParams, ctx: ActionContext
         params.step_id,
         StepUpdateRequest.model_validate(params.model_dump(exclude={"step_id"})),
     )
-    return updated, _research_spec("updated", updated.id, before=before.model_dump(mode="json"), after=updated.model_dump(mode="json"))
+    return updated, _research_spec("updated", updated.id, before=before.model_dump(mode="json"), after=updated.model_dump(mode="json"), mirrors_document=False)
 
 
 @action("research.step.delete", ResearchStepDeleteParams, domains=["research"], undoable=True, invert=lambda before, after, ctx: None if not before else ("research.step.restore", {"snapshot": before}))
 def _action_delete_step(db, params: ResearchStepDeleteParams, ctx: ActionContext):
     before = delete_step_impl(db, params.step_id)
-    return {"status": "deleted", "id": params.step_id}, _research_spec("deleted", params.step_id, before=before, after={"id": params.step_id})
+    return {"status": "deleted", "id": params.step_id}, _research_spec("deleted", params.step_id, before=before, after={"id": params.step_id}, mirrors_document=False)
 
 
 @action("research.step.restore", ResearchStepRestoreParams, domains=["research"], undoable=False)
 def _action_restore_step(db, params: ResearchStepRestoreParams, ctx: ActionContext):
     step = restore_step_impl(db, params.snapshot)
-    return step, _research_spec("updated", step.id, after=step.model_dump(mode="json"))
+    return step, _research_spec("updated", step.id, after=step.model_dump(mode="json"), mirrors_document=False)

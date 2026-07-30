@@ -23,23 +23,16 @@ extension ZoomableImagePreview {
     }
 
     func handleViewAppeared() {
-        if let key = scaleKey {
-            if let saved = loadSavedScale(for: key) {
-                scale = saved
-            }
-        }
+        // #4279: no persisted per-document zoom is restored here any more. A
+        // preview always opens at fit-to-view (`PreviewInitialZoomPolicy`), the
+        // way Preview.app does; restoring a scale saved from an earlier, smaller
+        // pane is exactly what made previews open at half the pane.
         loadAnnotations()
     }
 
     func handleDocumentIDChanged() {
         isDrawingRegion = false
         loadAnnotations()
-    }
-
-    func handleURLChanged() {
-        if let key = scaleKey, let saved = loadSavedScale(for: key) {
-            scale = saved
-        }
     }
 
     func handleRenderedImageChanged(_ newImg: NSImage?) {
@@ -50,9 +43,6 @@ extension ZoomableImagePreview {
     }
 
     func handleScaleChanged(_ newScale: CGFloat) {
-        if let key = scaleKey {
-            saveScale(newScale, for: key)
-        }
         // Fetch full-res source on first zoom past 1.5× (#2427). The display
         // image is JPEG-compressed for fast loading; once zoomed the source file
         // provides the real pixel detail. Only fires once per document.

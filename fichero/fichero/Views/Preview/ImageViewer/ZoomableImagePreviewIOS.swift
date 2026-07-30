@@ -268,20 +268,26 @@ struct ZoomableImagePreview: View {
     // MARK: - Zoom Actions
 
     func zoomIn() {
+        imageCoordinator?.markManualZoom()
         withAnimation(.easeInOut(duration: 0.2)) {
             scale = min(scale * 1.25, maxScale)
         }
     }
 
     func zoomOut() {
+        imageCoordinator?.markManualZoom()
         withAnimation(.easeInOut(duration: 0.2)) {
             scale = max(scale / 1.25, minScale)
         }
     }
 
     func fitToWindow() {
+        // Fit hands the zoom back to the automatic policy, so a later pane
+        // resize keeps the image fitted (#4279).
+        imageCoordinator?.resetZoomOwnershipForNewItem()
         if let fitScale = imageCoordinator?.calculateFitScale() {
             scale = fitScale
+            imageCoordinator?.noteAutoFitApplied()
             DispatchQueue.main.async {
                 imageCoordinator?.centerContent()
             }
@@ -289,6 +295,7 @@ struct ZoomableImagePreview: View {
     }
 
     func actualSize() {
+        imageCoordinator?.markManualZoom()
         scale = 1.0
         DispatchQueue.main.async {
             imageCoordinator?.centerContent()

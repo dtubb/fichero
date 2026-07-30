@@ -149,6 +149,12 @@ class LibraryManager {
         /// observe store state instead of instantiating transports directly.
         @ObservationIgnored lazy var chainStore: ChainStore = ChainStore(chainService: chainService)
 
+        /// Model-comparison store (#4335). The endpoint is app-wide (dev tier,
+        /// no library scope), but the sidebar renders per-library, so each
+        /// reference holds its own store instance — same pattern as the other
+        /// lazy domain stores; the transport carries only the engine token.
+        @ObservationIgnored lazy var modelComparisonStore: ModelComparisonStore = ModelComparisonStore()
+
         /// Per-library live workflow-execution store (#2546). Keyed by `threadId`,
         /// it is the shared home for live execution state feeding the Activity
         /// monitor: it subscribes-on-select to a running thread's SSE stream

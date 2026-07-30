@@ -44,6 +44,9 @@ final class ModelComparisonStore {
 
     func loadModels() async { await service.loadModels() }
     func loadPresets() async { await service.loadPresets() }
+    /// Recent comparison history — the sidebar's comparisons bucket (#4335)
+    /// loads through the store like every other sidebar data source.
+    func loadHistory(limit: Int = 10) async { await service.loadHistory(limit: limit) }
 
     // MARK: - Named actions
 

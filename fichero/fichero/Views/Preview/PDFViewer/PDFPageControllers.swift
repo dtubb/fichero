@@ -14,17 +14,38 @@ import PDFKit
 final class PDFZoomController {
     var scale: CGFloat = 1.0
     weak var pdfView: PDFView?
+    /// Fired when a toolbar command hands zoom control to the user (`true`) or
+    /// gives it back to the automatic fit (`false`). `PDFPageView`'s coordinator
+    /// uses it to decide whether PDFKit may keep re-fitting on pane resize
+    /// (#4279); without it, #588's "first scale change disables autoScales"
+    /// rule can't tell a programmatic fit from a deliberate zoom.
+    var onManualZoomChanged: (@MainActor (Bool) -> Void)?
 
-    func zoomIn() { pdfView?.zoomIn(nil) }
-    func zoomOut() { pdfView?.zoomOut(nil) }
+    func zoomIn() {
+        onManualZoomChanged?(true)
+        pdfView?.zoomIn(nil)
+    }
+
+    func zoomOut() {
+        onManualZoomChanged?(true)
+        pdfView?.zoomOut(nil)
+    }
+
     func fitToWindow() {
         guard let view = pdfView else { return }
-        // Avoid re-enabling autoScales (#588) — compute fit scale directly.
-        view.autoScales = false
-        view.scaleFactor = view.scaleFactorForSizeToFit
+        onManualZoomChanged?(false)
+        // Vector content fits without a 100% cap (PreviewInitialZoomPolicy), and
+        // `scaleFactorForSizeToFit` is PDFKit's own measure of that fit. Setting
+        // scaleFactor first then re-arming autoScales keeps the page fitted
+        // through later layout passes — safe now that a manual zoom is tracked
+        // separately rather than inferred from any scale change (#588/#4279).
+        view.scaleFactor = PreviewInitialZoomPolicy.clamped(view.scaleFactorForSizeToFit, kind: .vector)
+        view.autoScales = true
     }
+
     func actualSize() {
         guard let view = pdfView else { return }
+        onManualZoomChanged?(true)
         view.autoScales = false
         view.scaleFactor = 1.0
     }

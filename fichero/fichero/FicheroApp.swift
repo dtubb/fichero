@@ -36,8 +36,47 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         Task { await controller.start() }
     }
 
+    /// True once a quit has been accepted, so a second ⌘Q (or a Dock quit while
+    /// the teardown is in flight) doesn't start a second teardown or double
+    /// `reply(toApplicationShouldTerminate:)`.
+    private var isTerminatingWithDeferredTeardown = false
+
+    /// #4291: quit must be instant from the user's side. The old path did the
+    /// whole teardown inside `applicationWillTerminate` — which included
+    /// SIGTERM-then-`Thread.sleep`-poll for up to 5s on the MAIN thread — so ⌘Q
+    /// beachballed for as long as the engine took to exit.
+    ///
+    /// The Mac-correct shape: accept the quit with `.terminateLater`, run the
+    /// teardown off-main under a hard deadline (`TerminationDeadlinePolicy`),
+    /// escalate SIGTERM → SIGKILL past it, and reply either way. Nothing is lost
+    /// by not waiting longer: the engine's own `FICHERO_PARENT_PID` watchdog
+    /// self-terminates any child that outlives us.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // The unit-test host never spawned an engine (see
+        // `applicationDidFinishLaunching`), so there is nothing to tear down and
+        // an unanswered `.terminateLater` would hang the harness.
+        guard !isRunningXCTests() else { return .terminateNow }
+        guard !isTerminatingWithDeferredTeardown else { return .terminateLater }
+        isTerminatingWithDeferredTeardown = true
+
+        logger.info("Quit requested — deferring termination for bounded engine teardown (#4291)")
+        Task {
+            // `stopAndAwaitExit` signals on the main actor and then polls off it
+            // with `Task.sleep`, so the run loop keeps drawing/servicing events
+            // while the child exits.
+            await controller.stopAndAwaitExit()
+            logger.info("Engine teardown finished (or deadline spent) — replying terminate (#4291)")
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         logger.info("App will terminate - stopping backend...")
+        // Backstop only: `applicationShouldTerminate` has normally already reaped
+        // the child, which clears the tracked pid and makes this a no-op. It still
+        // matters for termination paths that skip `shouldTerminate` (e.g. a
+        // programmatic `NSApp.terminate` short-circuit or the test host).
         controller.stop()
     }
 

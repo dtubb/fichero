@@ -160,9 +160,20 @@ final class EngineLifecycleController {
         return crashBudgetExhausted || attemptsUsed >= maxAttempts
     }
 
-    /// Stop the engine. Called from `applicationWillTerminate`.
+    /// Stop the engine synchronously. The backstop for `applicationWillTerminate`
+    /// — by then `applicationShouldTerminate`'s bounded async teardown has
+    /// normally already reaped the child, so this is a no-op (`beginStop` returns
+    /// nil once the pid is cleared). Prefer `stopAndAwaitExit()` (#4291).
     func stop() {
         backendService.stop()
+    }
+
+    /// Stop the engine without blocking the main thread, bounded by
+    /// `TerminationDeadlineTests`-pinned `TerminationDeadlinePolicy` (#4291).
+    /// This is what the quit path awaits before replying to
+    /// `applicationShouldTerminate`.
+    func stopAndAwaitExit() async {
+        await backendService.stopAndAwaitExit()
     }
 
     /// The single connect sequence shared by launch and Retry (#3108). Moved
@@ -222,9 +233,10 @@ final class EngineLifecycleController {
     /// pre-flight / orphan sweep lives in `start()`.
     private func spawnEmbeddedEngine(restart: Bool, backendStart: Date) async throws {
         // Respawn a stuck engine on an explicit retry; a fresh launch just
-        // starts.
+        // starts. Awaited, not blocking: the respawn still needs the port
+        // released first, but Retry must not beachball the window (#4291).
         if restart {
-            backendService.stop()
+            await backendService.stopAndAwaitExit()
         }
         LaunchProfile.milestone("engine spawn requested")
         try await backendService.start()

@@ -31,6 +31,16 @@ enum SidebarItemBuilder {
         let chatItems = buildChatHierarchy(from: conversations, libraryId: library.id)
         allItems.append(contentsOf: chatItems)
 
+        // Add comparisons (#4335). Everything creatable in a library is a node
+        // in its tree — the comparisons bucket existed (buildComparisonItems /
+        // fromComparison) but was never loaded into the sidebar. History comes
+        // through the library reference's ModelComparisonStore, the same
+        // store-owned seam as searches/chats above.
+        if FeatureManager.shared.isVisible(.modelComparison) {
+            let comparisons = library.modelComparisonStore.history.map(ComparisonSummary.init)
+            allItems.append(contentsOf: buildComparisonItems(from: comparisons, libraryId: library.id))
+        }
+
         // Workflows are deliberately NOT appended here (#4186). The engine
         // mirrors every workflow into the document tree (`_save_workflow_
         // document`: presets under the locked "Default Workflows" container,

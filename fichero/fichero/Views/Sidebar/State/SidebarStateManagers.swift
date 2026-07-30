@@ -20,6 +20,11 @@ enum SidebarDestination: Hashable {
     case trigger(String)
     case batch(String)
     case run(String)
+    /// A model-comparison history row ("comparison:<id>", #4335). Routes to the
+    /// comparison detail surface like `browser(.comparison)` does for the empty
+    /// state — without this case the row id fell through to the `.document`
+    /// fallback ("doc:comparison:…") and clicking it routed to nothing.
+    case comparisonItem(String)
     case structure(documentId: String, nodeId: String)
     /// A virtual section folder (saved-search / chat / workflow). The payload is
     /// the folder item's id minus the "folder:" prefix, i.e. "<path>:<Category>",
@@ -29,52 +34,55 @@ enum SidebarDestination: Hashable {
     case browser(SidebarBrowserDestination)
     case library(UUID)
 
+    /// One prefix → constructor per case. Table-driven so adding a node kind
+    /// (e.g. "comparison:", #4335) is one row, not another branch in an
+    /// if-chain the complexity gate rejects. NOTE the "folder:" row: virtual
+    /// folder rows use id "folder:<path>:<Category>"; without it the id fell
+    /// through to the `.document(id)` fallback in `SidebarItem.destination`,
+    /// so `serializedID` re-prefixed it to "doc:folder:…" and `findItemById`
+    /// never matched — clicking a workflow (or search/chat) folder routed to
+    /// nothing (#11).
+    private static let prefixedCases: [(String, (String) -> SidebarDestination?)] = [
+        ("doc:", { .document($0) }),
+        ("search:", { .search($0) }),
+        ("chat:", { .chat($0) }),
+        ("workflow:", { .workflow($0) }),
+        ("chain:", { .chain($0) }),
+        ("schedule:", { .schedule($0) }),
+        ("trigger:", { .trigger($0) }),
+        ("batch:", { .batch($0) }),
+        ("run:", { .run($0) }),
+        ("comparison:", { .comparisonItem($0) }),
+        ("structure:", { payload in
+            let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { return nil }
+            return .structure(documentId: parts[0], nodeId: parts[1])
+        }),
+        ("folder:", { .folder($0) }),
+        ("library:", { id in UUID(uuidString: id).map { .library($0) } })
+    ]
+
+    private static let browserCases: [String: SidebarBrowserDestination] = [
+        "activity-browser": .activity,
+        "workflows-browser": .workflows,
+        "batches-browser": .batches,
+        "entities-browser": .entities,
+        "comparison-browser": .comparison,
+        "research-browser": .research
+    ]
+
     init?(serializedID: String) {
-        switch serializedID {
-        case "activity-browser": self = .browser(.activity)
-        case "workflows-browser": self = .browser(.workflows)
-        case "batches-browser": self = .browser(.batches)
-        case "entities-browser": self = .browser(.entities)
-        case "comparison-browser": self = .browser(.comparison)
-        case "research-browser": self = .browser(.research)
-        default:
-            if let id = serializedID.stripPrefix("doc:") {
-                self = .document(id)
-            } else if let id = serializedID.stripPrefix("search:") {
-                self = .search(id)
-            } else if let id = serializedID.stripPrefix("chat:") {
-                self = .chat(id)
-            } else if let id = serializedID.stripPrefix("workflow:") {
-                self = .workflow(id)
-            } else if let id = serializedID.stripPrefix("chain:") {
-                self = .chain(id)
-            } else if let id = serializedID.stripPrefix("schedule:") {
-                self = .schedule(id)
-            } else if let id = serializedID.stripPrefix("trigger:") {
-                self = .trigger(id)
-            } else if let id = serializedID.stripPrefix("batch:") {
-                self = .batch(id)
-            } else if let id = serializedID.stripPrefix("run:") {
-                self = .run(id)
-            } else if let payload = serializedID.stripPrefix("structure:") {
-                let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
-                guard parts.count == 2 else { return nil }
-                self = .structure(documentId: parts[0], nodeId: parts[1])
-            } else if let id = serializedID.stripPrefix("folder:") {
-                // Virtual folder rows (saved-search / chat / workflow section
-                // folders) use id "folder:<path>:<Category>". Without this branch
-                // the id fell through to the `.document(id)` fallback in
-                // `SidebarItem.destination`, so `serializedID` re-prefixed it to
-                // "doc:folder:…" and `findItemById` never matched — clicking a
-                // workflow (or search/chat) folder routed to nothing (#11).
-                self = .folder(id)
-            } else if let id = serializedID.stripPrefix("library:"),
-                      let uuid = UUID(uuidString: id) {
-                self = .library(uuid)
-            } else {
-                return nil
-            }
+        if let browser = Self.browserCases[serializedID] {
+            self = .browser(browser)
+            return
         }
+        for (prefix, make) in Self.prefixedCases {
+            guard let payload = serializedID.stripPrefix(prefix) else { continue }
+            guard let destination = make(payload) else { return nil }
+            self = destination
+            return
+        }
+        return nil
     }
 
     var serializedID: String {
@@ -88,6 +96,7 @@ enum SidebarDestination: Hashable {
         case .trigger(let id): return "trigger:\(id)"
         case .batch(let id): return "batch:\(id)"
         case .run(let id): return "run:\(id)"
+        case .comparisonItem(let id): return "comparison:\(id)"
         case .structure(let documentId, let nodeId): return "structure:\(documentId):\(nodeId)"
         case .folder(let id): return "folder:\(id)"
         case .browser(.activity): return "activity-browser"

@@ -26,3 +26,18 @@ struct ComparisonSummary: Codable, Identifiable, Equatable, Hashable {
 struct ComparisonHistoryResponse: Codable {
     let history: [ComparisonSummary]
 }
+
+extension ComparisonSummary {
+    /// Sidebar-row projection of a full comparison result (#4335). The
+    /// history endpoint returns full `ComparisonResultResponse` rows; the
+    /// sidebar bucket needs only the summary fields.
+    init(_ result: ComparisonResult) {
+        self.init(
+            prompt: result.prompt,
+            modelsCompared: result.modelsCompared,
+            totalCostUsd: result.totalCostUsd,
+            comparisonId: result.comparisonId,
+            timestamp: result.timestamp
+        )
+    }
+}

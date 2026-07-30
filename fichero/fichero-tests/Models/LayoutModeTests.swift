@@ -184,6 +184,80 @@ final class LayoutModeTests: XCTestCase {
         )
     }
 
+    // MARK: - #4299 — selection→detail promotion must hold in EVERY view mode
+
+    /// An image selection promotes to the detail/preview surface regardless of
+    /// the active layout mode. The pane being empty is only legitimate when
+    /// nothing is selected.
+    func testImageSelectionPromotesToDetailInEveryLayoutMode() {
+        for mode in LayoutMode.allCases {
+            XCTAssertTrue(
+                BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
+                    layoutMode: mode,
+                    selectedDocumentId: "image-1",
+                    currentDetailDocumentId: nil
+                ),
+                "image selection must reach the detail surface in \(mode)"
+            )
+        }
+    }
+
+    // MARK: - #4299 — clicking the "/library" row must not blank the preview
+
+    /// A `doc:` folder row IS a browse-context change: the stale grid selection
+    /// must clear so the folder inspector shows (#712 semantics preserved).
+    func testDocRowSelectionClearsBrowseContext() {
+        XCTAssertTrue(
+            BrowserSelectionPreviewPolicy.shouldClearBrowseContext(
+                onSidebarItemChangeTo: "doc:folder-1"
+            )
+        )
+    }
+
+    /// The library-root row ("/library", serialized "library:<UUID>") only
+    /// re-roots the listing. Clearing selection there cascaded
+    /// `detailDocument = nil` and blanked the pane while an image was still
+    /// selected — the #4299 regression.
+    func testLibraryRootRowPreservesBrowseContext() {
+        XCTAssertFalse(
+            BrowserSelectionPreviewPolicy.shouldClearBrowseContext(
+                onSidebarItemChangeTo: "library:6F2A0A6E-2C2B-4B49-9E9B-000000000000"
+            )
+        )
+    }
+
+    /// Every other sidebar destination keeps today's clearing behavior.
+    func testNonLibraryRowsClearBrowseContext() {
+        for itemId in ["entities-browser", "activity-browser", "workflows-browser", "folder:Chats:Chat", nil] {
+            XCTAssertTrue(
+                BrowserSelectionPreviewPolicy.shouldClearBrowseContext(onSidebarItemChangeTo: itemId),
+                "\(itemId ?? "nil") must keep the #712 clearing behavior"
+            )
+        }
+    }
+
+    /// The composed #4299 scenario: after the library-row click preserves the
+    /// selection, the canvas policy still resolves the selected image even
+    /// while the re-rooted listing is loading (image not yet in documents) —
+    /// the preserved detailDocument carries the preview.
+    func testPreservedImageDetailSurvivesLibraryRootReload() {
+        let image = Document(
+            id: "image-1",
+            docType: .file,
+            fileType: .image,
+            name: "scan.jpg"
+        )
+
+        let resolved = CanvasDocumentPolicy.documentForCanvas(
+            selectedDocumentIds: ["image-1"],
+            documents: [],
+            detailDocument: image,
+            inspectorDocument: nil
+        )
+
+        XCTAssertEqual(resolved?.id, "image-1")
+    }
+
     func testCanvasDocumentUsesSelectedPreviewableChildOverFolderInspector() {
         let folder = Document(id: "folder-1", docType: .folder, name: "Diary")
         let page = Document(

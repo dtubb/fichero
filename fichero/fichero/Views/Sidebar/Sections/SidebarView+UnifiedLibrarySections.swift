@@ -7,6 +7,7 @@ extension SidebarView {
         let documentItems: [SidebarItem]
         let searchItems: [SidebarItem]
         let workflowItems: [SidebarItem]
+        let comparisonItems: [SidebarItem]
         let chainItems: [SidebarItem]
         let scheduleItems: [SidebarItem]
         let triggerItems: [SidebarItem]
@@ -22,6 +23,7 @@ extension SidebarView {
         let documentItems: [SidebarItem]
         let searchItems: [SidebarItem]
         let workflowItems: [SidebarItem]
+        let comparisonItems: [SidebarItem]
     }
 
     /// Filter a library header's children into the document / search / workflow
@@ -43,10 +45,18 @@ extension SidebarView {
             if case .folder = item.itemType, item.category == .workflow { return true }
             return false
         }
+        // #4335: comparison history rows are nodes in the tree too. Without a
+        // bucket of their own the filter above silently dropped them — the
+        // "loaded but never rendered" half of the missing-bucket defect.
+        let comparisonItems = allChildren.filter { item in
+            if case .comparison = item.itemType { return true }
+            return false
+        }
         return CachedLibraryItemBuckets(
             documentItems: documentItems,
             searchItems: searchItems,
-            workflowItems: workflowItems
+            workflowItems: workflowItems,
+            comparisonItems: comparisonItems
         )
     }
 
@@ -104,6 +114,7 @@ extension SidebarView {
         let documentItems = itemBuckets.documentItems
         let searchItems = itemBuckets.searchItems
         let workflowItems = itemBuckets.workflowItems
+        let comparisonItems = itemBuckets.comparisonItems
         let isGlobalLibrary = libraryId == LibraryManager.globalLibraryId
         let chainItems = (isGlobalLibrary && FeatureManager.shared.isWorkflowChainsEnabled)
             ? chains.map { SidebarItem.fromChain($0, libraryId: libraryId) }
@@ -120,6 +131,7 @@ extension SidebarView {
             documentItems: documentItems,
             searchItems: searchItems,
             workflowItems: workflowItems,
+            comparisonItems: comparisonItems,
             chainItems: chainItems,
             scheduleItems: scheduleItems,
             triggerItems: triggerItems,
@@ -163,6 +175,12 @@ extension SidebarView {
 
         if FeatureManager.shared.isSearchEnabled {
             items.append(contentsOf: buckets.searchItems)
+        }
+
+        // #4335: comparison history rows follow the same one-list rule —
+        // every node type in one continuous list, kind conveyed by icon.
+        if FeatureManager.shared.isVisible(.modelComparison) {
+            items.append(contentsOf: buckets.comparisonItems)
         }
 
         // Default Workflows is a global-only destination, same as chains/

@@ -81,8 +81,14 @@ extension CanvasSceneState {
     ///
     /// Position rule (unifying 2D `resolvedPositions` and 3D `effectivePosition`):
     ///   1. a saved `CanvasItemLayout` row wins → `(row.x, row.y, row.z)`;
-    ///   2. a node without a row → its backend default `(positionX/Y/Z)`;
-    ///   3. a non-`link` item without a row → the deterministic 3-column cascade.
+    ///   2. no row, `.backendPosition` (3D) → a node's backend `(positionX/Y/Z)`,
+    ///      a non-`link` item's deterministic 3-column cascade;
+    ///   3. no row, `.grid` (2D, #4290) → the placeable's slot in a spaced grid.
+    ///
+    /// `defaultPlacement` defaults to `.backendPosition` so the 3D 'Space'
+    /// renderer and every existing caller are unchanged. The 2D canvas passes
+    /// `.grid` because the backend defaults live on the XZ plane, which the 2D
+    /// projection flattens onto one line — see `CanvasDefaultPlacement`.
     ///
     /// Legacy note: pre-#3103 the 2D canvas persisted SCREEN-space pixels into
     /// these rows. Per the #3070 call we accept a one-time re-layout of old
@@ -92,18 +98,28 @@ extension CanvasSceneState {
         connections: [SpatialConnection],
         links: [SpatialLink],
         layoutRows: [CanvasItemLayout],
-        items: [CanvasItemDisplay]
+        items: [CanvasItemDisplay],
+        defaultPlacement: CanvasDefaultPlacement = .backendPosition
     ) -> CanvasSceneState {
         let rowsById = Dictionary(layoutRows.map { ($0.itemId, $0) }, uniquingKeysWith: { _, latest in latest })
 
         var placeables: [CanvasPlaceable] = []
         placeables.reserveCapacity(nodes.count + items.count)
 
-        // Nodes: saved row wins, else backend default.
+        // Grid slots are indexed over the WHOLE ordered board — nodes, then
+        // non-link items — and a placeable keeps its slot whether or not it has
+        // a row. Dragging one card therefore never reshuffles the others, which
+        // is what makes the default layout feel like a place rather than a
+        // reflow (#4290).
+        var slot = 0
+
+        // Nodes: saved row wins, else the chosen default.
         for node in nodes {
             let row = rowsById[node.id]
+            let gridSlot = slot
+            slot += 1
             let position = row.map { SIMD3<Double>($0.x, $0.y, $0.z) }
-                ?? SIMD3<Double>(node.positionX, node.positionY, node.positionZ)
+                ?? nodeDefaultPosition(node, slot: gridSlot, placement: defaultPlacement)
             placeables.append(
                 CanvasPlaceable(
                     id: node.id,
@@ -115,15 +131,22 @@ extension CanvasSceneState {
             )
         }
 
-        // Non-link items: saved row wins, else the deterministic cascade.
+        // Non-link items: saved row wins, else the chosen default.
         var cascadeIndex = 0
         for item in items where item.kind != .link {
+            let gridSlot = slot
+            slot += 1
             let position: SIMD3<Double>
             if let row = rowsById[item.id] {
                 position = SIMD3<Double>(row.x, row.y, row.z)
             } else {
-                position = cascadePosition(cascadeIndex)
-                cascadeIndex += 1
+                switch defaultPlacement {
+                case .backendPosition:
+                    position = cascadePosition(cascadeIndex)
+                    cascadeIndex += 1
+                case .grid(let columns):
+                    position = CanvasGridPlacement.position(index: gridSlot, columns: columns)
+                }
             }
             placeables.append(
                 CanvasPlaceable(
@@ -168,6 +191,21 @@ extension CanvasSceneState {
             edges.append(CanvasEdge(id: item.id, sourceId: source, targetId: target, style: .userLink))
         }
         return edges
+    }
+
+    /// A row-less node's default position under `placement`. `.backendPosition`
+    /// is the projector's own `(x, y, z)`; `.grid` ignores it, because those
+    /// values are laid out on the XZ plane and the 2D projection drops z — which
+    /// is precisely how a whole folder ended up on one line (#4290).
+    private static func nodeDefaultPosition(
+        _ node: SpatialNode, slot: Int, placement: CanvasDefaultPlacement
+    ) -> SIMD3<Double> {
+        switch placement {
+        case .backendPosition:
+            return SIMD3<Double>(node.positionX, node.positionY, node.positionZ)
+        case .grid(let columns):
+            return CanvasGridPlacement.position(index: slot, columns: columns)
+        }
     }
 
     /// The cascade slot for the `index`-th row-less standalone item: a 3-column

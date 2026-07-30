@@ -13,6 +13,26 @@ import UIKit
 
 #if canImport(AppKit)
 
+/// PDFView that switches autoScales off the moment a pinch BEGINS (#4125):
+/// with autoScales still on at gesture start, PDFKit re-fit the document
+/// mid-first-pinch — the visible snap-back-to-fit — before the scale-change
+/// observer could flip it off. Disabling at the gesture boundary preserves
+/// #588's initial-fit-through-layout-passes while making the first pinch
+/// behave like every later one.
+final class PinchOwningPDFView: PDFView {
+    /// Set by `PDFPageView` so a pinch is recorded as the user taking over the
+    /// zoom, which stops the automatic re-fit on pane resize (#4279).
+    var onUserMagnify: (@MainActor () -> Void)?
+
+    override func magnify(with event: NSEvent) {
+        onUserMagnify?()
+        if autoScales {
+            autoScales = false
+        }
+        super.magnify(with: event)
+    }
+}
+
 /// Interactive PDF preview using PDFKit's `PDFView`.
 ///
 /// Where `PDFThumbnailView` renders a flat `NSImage` (cheap, cacheable, fine
@@ -58,20 +78,8 @@ struct PDFPageView: NSViewRepresentable {
     @State private var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)
     @Environment(StorageService.self) private var storageService
 
-    /// PDFView that switches autoScales off the moment a pinch BEGINS
-    /// (#4125): with autoScales still on at gesture start, PDFKit re-fit the
-    /// document mid-first-pinch — the visible snap-back-to-fit — before the
-    /// scale-change observer could flip it off. Disabling at the gesture
-    /// boundary preserves #588's initial-fit-through-layout-passes while
-    /// making the first pinch behave like every later one.
-    final class PinchOwningPDFView: PDFView {
-        override func magnify(with event: NSEvent) {
-            if autoScales {
-                autoScales = false
-            }
-            super.magnify(with: event)
-        }
-    }
+    // PinchOwningPDFView lives at file scope (above) so this struct stays
+    // within the type-body-length budget.
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -87,10 +95,12 @@ struct PDFPageView: NSViewRepresentable {
         view.setAccessibilityIdentifier("pdfPreview")  // XCUITest hook (#1230)
         view.displayMode = displayMode
         view.displaysPageBreaks = false
-        // #588: autoScales re-fits the document to the pane on every layout
-        // pass, which silently undoes user pinch-zoom. We keep autoScales=true
-        // only long enough for PDFKit to compute the initial fit; the scale
-        // observer below flips it off the first time scaleFactor changes.
+        // autoScales re-fits the document to the pane on every layout pass.
+        // That is exactly what we want until the user zooms — it is how a PDF
+        // opens fitted and stays fitted as the pane resizes (#4279, the vector
+        // branch of PreviewInitialZoomPolicy). #588's concern — autoScales
+        // silently undoing a pinch — is handled by the scale observer below,
+        // which flips it off once `userHasZoomedManually` is set.
         view.autoScales = true
         view.backgroundColor = NSColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
         view.delegate = context.coordinator
@@ -99,6 +109,7 @@ struct PDFPageView: NSViewRepresentable {
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
         pageController?.pdfView = view
+        wireZoomOwnership(context.coordinator, on: view)
         registerObservers(context.coordinator, on: view)
         // Horizontal pan at fit-scale = page turn (#595).
         let pan = NSPanGestureRecognizer(
@@ -123,6 +134,18 @@ struct PDFPageView: NSViewRepresentable {
             storageService: storageService
         )
         return view
+    }
+
+    /// Route manual-zoom signals — a trackpad pinch and the toolbar's zoom
+    /// commands — into the coordinator, so the automatic fit knows when to stop
+    /// re-fitting the page to the pane (#4279).
+    private func wireZoomOwnership(_ coordinator: Coordinator, on view: PDFView) {
+        (view as? PinchOwningPDFView)?.onUserMagnify = { [weak coordinator] in
+            coordinator?.userHasZoomedManually = true
+        }
+        zoomController?.onManualZoomChanged = { [weak coordinator] isManual in
+            coordinator?.userHasZoomedManually = isManual
+        }
     }
 
     /// PDFKit page/scale + claim-source navigation observers. Extracted from
@@ -160,6 +183,7 @@ struct PDFPageView: NSViewRepresentable {
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
         pageController?.pdfView = view
+        wireZoomOwnership(context.coordinator, on: view)
         context.coordinator.loadAndNavigate(
             view,
             documentId: documentId,
@@ -182,6 +206,11 @@ struct PDFPageView: NSViewRepresentable {
         weak var pdfView: PDFView?
         var zoomController: PDFZoomController?
         var pageController: PDFPageController?
+        /// True once the user has taken manual control of the zoom — a pinch or
+        /// a toolbar zoom command. While it is false PDFKit's `autoScales` stays
+        /// on, so the page keeps fitting the pane as the pane resizes; a manual
+        /// zoom freezes the scale until a different document loads (#4279).
+        var userHasZoomedManually = false
         private var loadedDocumentId: String?
         private var requestedDocumentId: String?
         private var loadTask: Task<Void, Never>?
@@ -230,6 +259,8 @@ struct PDFPageView: NSViewRepresentable {
             loadTask?.cancel()
             view.document = nil
             view.autoScales = true
+            // A different document — the automatic fit owns the zoom again (#4279).
+            userHasZoomedManually = false
 
             loadTask = Task { [weak self, weak view] in
                 guard let self else { return }
@@ -354,13 +385,20 @@ struct PDFPageView: NSViewRepresentable {
         }
 
         /// #588: PDFKit's `autoScales` keeps re-fitting the document to the
-        /// pane on every layout pass, which undoes user pinch-zoom. The first
-        /// scale change disables autoScales so the current `scaleFactor`
-        /// sticks through subsequent resizes and layout passes.
+        /// pane on every layout pass, which undoes user pinch-zoom. A scale
+        /// change made *by the user* disables autoScales so the current
+        /// `scaleFactor` sticks through subsequent resizes and layout passes.
         @objc
         func scaleDidChange(_ notification: Notification) {
             guard let view = notification.object as? PDFView else { return }
-            view.autoScales = false
+            // #4279: only a *user* zoom takes the document off autoScales.
+            // Disabling it on any scale change — including PDFKit's own initial
+            // fit — froze the page at whatever scale the pane happened to have
+            // when the document loaded, which is why previews opened too small
+            // and never re-fitted when the pane grew.
+            if userHasZoomedManually {
+                view.autoScales = false
+            }
             // PDFViewScaleChanged can fire synchronously inside PDFView's
             // setDocument: → during a SwiftUI view-update pass. Publishing
             // to the @State zoomController in that window trips
@@ -637,6 +675,18 @@ struct PDFPageView: UIViewRepresentable {
         pan.maximumNumberOfTouches = 1
         view.addGestureRecognizer(pan)
 
+        // Observe-only pinch: records that the user took over the zoom so the
+        // automatic fit stops re-fitting on rotation (#4279). PDFKit's own
+        // pinch still does the zooming.
+        let pinch = UIPinchGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePinch(_:))
+        )
+        pinch.delegate = context.coordinator
+        view.addGestureRecognizer(pinch)
+
+        wireZoomOwnership(context.coordinator)
+
         context.coordinator.loadAndNavigate(
             view,
             documentId: documentId,
@@ -654,11 +704,20 @@ struct PDFPageView: UIViewRepresentable {
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
         pageController?.pdfView = view
+        wireZoomOwnership(context.coordinator)
         context.coordinator.loadAndNavigate(
             view,
             documentId: documentId,
             storageService: storageService
         )
+    }
+
+    /// Route the toolbar's zoom commands into the coordinator so the automatic
+    /// fit knows when to stop re-fitting the page to the pane (#4279).
+    private func wireZoomOwnership(_ coordinator: Coordinator) {
+        zoomController?.onManualZoomChanged = { [weak coordinator] isManual in
+            coordinator?.userHasZoomedManually = isManual
+        }
     }
 
     static func dismantleUIView(_ view: PDFView, coordinator: Coordinator) {
@@ -671,6 +730,11 @@ struct PDFPageView: UIViewRepresentable {
         weak var pdfView: PDFView?
         var zoomController: PDFZoomController?
         var pageController: PDFPageController?
+        /// True once the user has taken manual control of the zoom — a pinch or
+        /// a toolbar zoom command. While it is false PDFKit's `autoScales` stays
+        /// on, so the page keeps fitting the pane as the pane resizes; a manual
+        /// zoom freezes the scale until a different document loads (#4279).
+        var userHasZoomedManually = false
         private var loadedDocumentId: String?
         private var requestedDocumentId: String?
         private var loadTask: Task<Void, Never>?
@@ -702,6 +766,8 @@ struct PDFPageView: UIViewRepresentable {
             loadTask?.cancel()
             view.document = nil
             view.autoScales = true
+            // A different document — the automatic fit owns the zoom again (#4279).
+            userHasZoomedManually = false
 
             loadTask = Task { [weak self, weak view] in
                 guard let self else { return }
@@ -759,10 +825,24 @@ struct PDFPageView: UIViewRepresentable {
         @objc
         func scaleDidChange(_ notification: Notification) {
             guard let view = notification.object as? PDFView else { return }
-            view.autoScales = false
+            // #4279: only a *user* zoom takes the document off autoScales, so a
+            // programmatic fit (initial load, rotation) keeps re-fitting.
+            if userHasZoomedManually {
+                view.autoScales = false
+            }
             let newScale = view.scaleFactor
             Task { @MainActor [weak self] in
                 self?.zoomController?.scale = newScale
+            }
+        }
+
+        /// Observes PDFKit's own pinch so a user zoom is recorded without
+        /// interfering with it (#4279). Recognition is simultaneous — see
+        /// `gestureRecognizer(_:shouldRecognizeSimultaneouslyWith:)`.
+        @objc
+        func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
+            if recognizer.state == .began {
+                userHasZoomedManually = true
             }
         }
 

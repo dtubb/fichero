@@ -11,8 +11,11 @@ enum ContentToolbarID {
     static let activityStatus = "fichero.activityStatus"
     static let viewMenu = "fichero.viewMenu"
     static let viewDisplayMode = "fichero.viewDisplayMode"
+    static let libraryPaneToggle = "fichero.libraryPane.toggle"
     static let previewPaneToggle = "fichero.previewPane.toggle"
     static let readingPaneToggle = "fichero.readingPane.toggle"
+    static let librarySortMenu = "fichero.library.sortMenu"
+    static let libraryFilterToggle = "fichero.library.filterToggle"
     static let breadcrumb = "fichero.breadcrumb"
     static let statusIsland = "fichero.statusIsland"
 }
@@ -110,6 +113,13 @@ extension ContentView {
                 }
             }
 
+            // Library list pane toggle (#4288) — the standard Mac "hide the
+            // list, focus on reading" control, first in the pane group because
+            // the list is the leading column.
+            ToolbarItem(id: ContentToolbarID.libraryPaneToggle, placement: .automatic) {
+                libraryPaneToggleButton
+            }
+
             ToolbarItem(id: ContentToolbarID.previewPaneToggle, placement: .automatic) {
                 Button {
                     setCanvasPaneVisible(!showDocumentCanvas)
@@ -127,6 +137,106 @@ extension ContentView {
                 }
                 .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
             }
+        }
+
+        // Finder-style sort + filter for the CURRENT library view (#4289).
+        // Available in the compact flow too — sorting and filtering a list is
+        // not a split-pane concept — so this sits outside the block above.
+        if supportsReadingWorkspace {
+            ToolbarItem(id: ContentToolbarID.librarySortMenu, placement: .automatic) {
+                librarySortMenu
+            }
+
+            // Declared unconditionally within this zone (#3163): the feature
+            // flag varies the item's CONTENT, it must not make the toolbar item
+            // itself appear/disappear — that is the duplicate-identifier crash
+            // class.
+            ToolbarItem(id: ContentToolbarID.libraryFilterToggle, placement: .automatic) {
+                libraryFilterToggleButton
+            }
+        }
+    }
+
+    // MARK: Library pane toggle (#4288)
+
+    private var libraryPaneToggleButton: some View {
+        let model = LibraryPaneToggleModel(paneVisibility: paneVisibility)
+        return Button {
+            withAnimation(FrameAnimation.snappy) {
+                setLibraryPaneVisible(model.nextVisibility)
+            }
+        } label: {
+            Label(model.title, systemImage: model.systemImage)
+        }
+        .disabled(!model.isEnabled)
+        .help(model.help)
+        .accessibilityLabel(model.title)
+    }
+
+    // MARK: Library sort + filter (#4289)
+
+    /// Drives `libraryToolbarState` — the SAME sort model the View menu, the
+    /// table column headers, and the per-folder `@SceneStorage` persistence in
+    /// `LibraryView` already share. There is deliberately no second sort path
+    /// here (#4282).
+    private var librarySortMenu: some View {
+        let model = libraryToolbarState.sortMenuModel
+        return Menu {
+            Section("Sort By") {
+                ForEach(model.fields) { field in
+                    Button {
+                        libraryToolbarState.apply(model.selecting(field))
+                    } label: {
+                        Label(field.rawValue, systemImage: field.icon)
+                        if model.isSelected(field) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                    .accessibilityLabel("Sort by \(field.rawValue)")
+                }
+            }
+
+            Section {
+                Button {
+                    libraryToolbarState.apply(model.settingAscending(true))
+                } label: {
+                    Label("Ascending", systemImage: "arrow.up")
+                    if model.ascending {
+                        Image(systemName: "checkmark")
+                    }
+                }
+
+                Button {
+                    libraryToolbarState.apply(model.settingAscending(false))
+                } label: {
+                    Label("Descending", systemImage: "arrow.down")
+                    if !model.ascending {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+        } label: {
+            Label(model.label, systemImage: model.systemImage)
+        }
+        .help(model.help)
+    }
+
+    /// Reveals the inline per-view filter bar (the ⌘F row pinned to the bottom
+    /// of the library list) — NOT the global `.searchable` field.
+    @ViewBuilder
+    private var libraryFilterToggleButton: some View {
+        let model = LibraryFilterToggleModel(
+            isAvailable: FeatureManager.shared.isLibraryFilterToolbarEnabled,
+            isActive: libraryToolbarState.showFilterBar
+        )
+        if model.isAvailable {
+            Button {
+                libraryToolbarState.setFilterBar(model.nextActive)
+            } label: {
+                Label(model.title, systemImage: model.systemImage)
+            }
+            .help(model.help)
+            .accessibilityLabel(model.title)
         }
     }
 
