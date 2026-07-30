@@ -149,14 +149,16 @@ final class WebPaneFindSync {
         into webView: WKWebView,
         query: String,
         selectionIndex: Int,
-        onMatchCount: ((Int) -> Void)?
+        onMatchCount: (@MainActor @Sendable (Int) -> Void)?
     ) {
         if lastQuery != query {
             lastQuery = query
             lastIndex = -1
             webView.evaluateJavaScript(DocumentKGPaneRoute.findScript(query: query)) { result, _ in
                 let count = (result as? NSNumber)?.intValue ?? 0
-                onMatchCount?(count)
+                // WebKit calls this completion on the main thread; hop
+                // explicitly so the isolation is checked, not assumed.
+                Task { @MainActor in onMatchCount?(count) }
             }
         }
         if !query.isEmpty, selectionIndex >= 0, lastIndex != selectionIndex {
