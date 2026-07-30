@@ -490,11 +490,6 @@ struct LibraryView: View {
                     PaneFilterBar(placement: .top) { libraryMiniToolbar }
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if Self.miniToolbarPlacement == .bottom {
-                    PaneFilterBar(placement: .bottom) { libraryMiniToolbar }
-                }
-            }
             // Closes the sidebar-click interval opened in `handleSelectionChange`
             // (#4228). See `InteractionProfile.Phase.selectionToContent` for what
             // this end point does and does not measure.
@@ -744,9 +739,26 @@ extension LibraryView {
         )
     }
 
-    /// Filter bar + bottom action bar stacked at the bottom of every library view mode.
+    /// Everything stacked below the library's rows, in ONE inset with an
+    /// explicit order (#4424).
+    ///
+    /// It used to be two separate `.safeAreaInset(edge: .bottom)` modifiers —
+    /// the mini toolbar added by #4407, then this one. SwiftUI applies insets
+    /// outward in modifier order, so the later one lands FURTHEST from the
+    /// content: the window-scoped status row ended up beneath the pane-scoped
+    /// mini toolbar, which says the opposite of what is true about their
+    /// scopes. Two bottom insets is two orderings competing; one inset with a
+    /// stated order cannot drift.
+    ///
+    /// Order, content outward:
+    ///   1. the library's mini toolbar — pane-scoped, so nearest its rows
+    ///   2. the quick-filter row it reveals
+    ///   3. the bottom action/status bar — the outermost thing, beneath all of it
     private var bottomInsetContent: some View {
         VStack(spacing: 0) {
+            if Self.miniToolbarPlacement == .bottom {
+                PaneFilterBar(placement: .bottom) { libraryMiniToolbar }
+            }
             if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
                 filterBarView
             }

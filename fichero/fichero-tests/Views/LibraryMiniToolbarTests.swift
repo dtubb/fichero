@@ -111,6 +111,56 @@ struct LibraryMiniToolbarTests {
         #expect(navigation.contains("searchFieldMode: Binding("))
     }
 
+    // MARK: - Scope order at the bottom edge (#4424)
+
+    /// ONE bottom inset, not two. SwiftUI applies insets outward in modifier
+    /// order, so a second `.safeAreaInset(edge: .bottom)` added later lands
+    /// FURTHEST from the content — which is how the window-scoped status row
+    /// ended up beneath the pane-scoped mini toolbar. Two bottom insets is two
+    /// orderings competing; one with a stated order cannot drift.
+    @Test("the library has exactly one bottom safe-area inset")
+    func oneBottomInset() throws {
+        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let code = source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        #expect(code.components(separatedBy: ".safeAreaInset(edge: .bottom").count - 1 == 1)
+    }
+
+    /// Content outward: the pane's own control, then the row it reveals, then
+    /// the status bar beneath everything. A control lives with the surface it
+    /// acts on; the status row belongs to the window and must be outermost.
+    @Test("the bottom stack runs pane-scoped first, window-scoped last")
+    func bottomStackOrderFollowsScope() throws {
+        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let body = source
+            .components(separatedBy: "private var bottomInsetContent: some View {")[1]
+            .components(separatedBy: "\n    }")[0]
+        let mini = body.range(of: "libraryMiniToolbar")
+        let filter = body.range(of: "filterBarView")
+        let status = body.range(of: "libraryBottomActionBar")
+        #expect(mini != nil)
+        #expect(filter != nil)
+        #expect(status != nil)
+        if let mini, let filter, let status {
+            #expect(mini.lowerBound < filter.lowerBound, "the pane's control sits nearest its rows")
+            #expect(filter.lowerBound < status.lowerBound, "the status row is outermost")
+        }
+    }
+
+    /// The top/bottom question for Mac mini toolbars is Daniel's to decide and
+    /// is explicitly deferred (#4424) — this change must not have quietly
+    /// answered it. The placement still comes from the one shared decision.
+    @Test("the placement decision is untouched and still shared with the reader")
+    func placementDecisionIsUntouched() throws {
+        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
+        #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
+        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        #expect(library.contains("if Self.miniToolbarPlacement == .top"))
+        #expect(library.contains("if Self.miniToolbarPlacement == .bottom"))
+    }
+
     // MARK: - Left alone on purpose
 
     /// Moving the control does not decide whether to enable the feature. The
