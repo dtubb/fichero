@@ -388,7 +388,7 @@ class TestKnowledgeGraphRoutes:
 
     def test_entity_documents_and_co_occurrence(self, search_library) -> None:
         from fichero_server.models.knowledge import KnowledgeEntity, KnowledgeClaim
-        from fichero_server.api.routes.entities import (
+        from fichero_server.api.routes.entity.entities import (
             get_entity_documents,
             get_entity_co_occurrence,
         )
@@ -446,7 +446,7 @@ class TestKnowledgeGraphRoutes:
         one shot — frontend can render an entity inspector from one
         fetch."""
         from fichero_server.models.knowledge import KnowledgeEntity, KnowledgeClaim
-        from fichero_server.api.routes.entities import entity_drill_down
+        from fichero_server.api.routes.entity.entities import entity_drill_down
         import asyncio
 
         leidy = KnowledgeEntity(id="dd-leidy", canonical_name="Leidy")
@@ -471,7 +471,7 @@ class TestKnowledgeGraphRoutes:
     def test_top_entities_ranks_by_claim_count(self, search_library) -> None:
         """`/api/entities/top` returns entities ranked by total claim count."""
         from fichero_server.models.knowledge import KnowledgeEntity, KnowledgeClaim
-        from fichero_server.api.routes.entities import top_entities
+        from fichero_server.api.routes.entity.entities import top_entities
         import asyncio
 
         # Seed: 'frequent' has 3 claims, 'rare' has 1.

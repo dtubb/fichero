@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fichero_server.api.routes import entity_inspector as inspector
+from fichero_server.api.routes.entity import inspector
 from fichero_server.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import Document
 

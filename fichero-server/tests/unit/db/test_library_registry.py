@@ -219,7 +219,7 @@ class TestGlobalRegistryHeaderless:
         from fastapi.testclient import TestClient
 
         from fichero_server.api.main import app
-        from fichero_server.api.routes.library_registry import get_global_database
+        from fichero_server.api.routes.library.registry import get_global_database
 
         global_db = Database(path=tmp_path / "global.fichero" / "fichero.duckdb")
         app.dependency_overrides[get_global_database] = lambda: global_db
@@ -337,7 +337,7 @@ class TestGlobalRegistryHeaderless:
         global_client.post("/api/registry/add", params={"path": str(nfc_path)})
         global_db = global_client.app.dependency_overrides[
             __import__(
-                "fichero_server.api.routes.library_registry",
+                "fichero_server.api.routes.library.registry",
                 fromlist=["get_global_database"],
             ).get_global_database
         ]()
@@ -357,7 +357,7 @@ class TestGlobalRegistryHeaderless:
         assert collision["nfc_name"] == unicodedata.normalize("NFC", nfc_path.name)
 
     def test_unicode_collision_report_case_b_distinct_packages(self, monkeypatch, tmp_path):
-        from fichero_server.api.routes import library_registry as registry_routes
+        from fichero_server.api.routes.library import registry as registry_routes
 
         first = tmp_path / "one" / "Alpha.fichero"
         second = tmp_path / "two" / "Beta.fichero"
@@ -407,7 +407,7 @@ class TestGlobalRegistryHeaderless:
         assert collisions[0].collision_case == "case_b_distinct_packages"
 
     def test_unicode_collision_report_ignores_plain_ascii_vs_accent(self, monkeypatch):
-        from fichero_server.api.routes import library_registry as registry_routes
+        from fichero_server.api.routes.library import registry as registry_routes
 
         monkeypatch.setattr(
             registry_routes,
@@ -426,7 +426,7 @@ class TestGlobalRegistryHeaderless:
         global_client.post("/api/registry/add", params={"path": str(nfc_path)})
         global_db = global_client.app.dependency_overrides[
             __import__(
-                "fichero_server.api.routes.library_registry",
+                "fichero_server.api.routes.library.registry",
                 fromlist=["get_global_database"],
             ).get_global_database
         ]()
@@ -456,7 +456,7 @@ class TestGlobalRegistryHeaderless:
 
         global_db = global_client.app.dependency_overrides[
             __import__(
-                "fichero_server.api.routes.library_registry",
+                "fichero_server.api.routes.library.registry",
                 fromlist=["get_global_database"],
             ).get_global_database
         ]()
@@ -495,13 +495,13 @@ class TestGlobalRegistryHeaderless:
     def test_unicode_collision_report_surfaces_document_count_error(
         self, global_client, tmp_path, monkeypatch, caplog
     ):
-        from fichero_server.api.routes import library_registry as registry_routes
+        from fichero_server.api.routes.library import registry as registry_routes
 
         lib_path = tmp_path / unicodedata.normalize("NFC", "Chocó.fichero")
         _create_library_fixture(lib_path, "doc-1")
         global_db = global_client.app.dependency_overrides[
             __import__(
-                "fichero_server.api.routes.library_registry",
+                "fichero_server.api.routes.library.registry",
                 fromlist=["get_global_database"],
             ).get_global_database
         ]()

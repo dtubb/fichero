@@ -24,15 +24,15 @@ from fichero_server.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
-from fichero_server.api.routes.library_entity_types import (
+from fichero_server.api.routes.library.entity_types import (
     _get_db_manager,
     _get_library_db,
     add_library_entity_type,
     list_library_entity_types,
 )
 from fichero_server.api.routes.changes import stream_library_changes
-from fichero_server.api.routes.entities import _digest_library_database
-from fichero_server.api.routes.library_registry import add_known_library
+from fichero_server.api.routes.entity.entities import _digest_library_database
+from fichero_server.api.routes.library.registry import add_known_library
 from fichero_server.api.routes.schedules import get_library_database as get_schedule_database
 from fichero_server.api.routes.triggers import get_library_database as get_trigger_database
 from fichero_server.db import Database

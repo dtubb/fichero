@@ -133,7 +133,7 @@ async def generate_entity_bio(
     if entity is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
 
-    from fichero_server.api.routes.entities import _claims_referencing_entity_ids
+    from fichero_server.api.routes.entity.entities import _claims_referencing_entity_ids
 
     entity_claims = _claims_referencing_entity_ids(db, [entity_id])
     entity_claims.sort(key=lambda c: c.created_at)

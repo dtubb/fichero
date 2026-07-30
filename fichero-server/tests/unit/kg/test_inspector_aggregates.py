@@ -468,7 +468,7 @@ class TestDocumentOutline:
 class TestEntityInspector:
     def test_unknown_entity_404s(self, db):
         from fastapi import HTTPException
-        from fichero_server.api.routes import entity_inspector
+        from fichero_server.api.routes.entity import inspector as entity_inspector
 
         try:
             asyncio.run(entity_inspector.inspector("no-such-id", db=db))
@@ -477,7 +477,7 @@ class TestEntityInspector:
             assert exc.status_code == 404
 
     def test_entity_aggregates_claims_and_documents(self, db):
-        from fichero_server.api.routes import entity_inspector
+        from fichero_server.api.routes.entity import inspector as entity_inspector
 
         entity = KnowledgeEntity(canonical_name="Davidson", entity_type=EntityType.person)
         db.save(entity)
@@ -514,7 +514,7 @@ class TestEntityInspector:
 
     def test_summary_is_not_a_claim_duplicate(self, db):
         """The header summary must never echo claim #1 (#1050)."""
-        from fichero_server.api.routes import entity_inspector
+        from fichero_server.api.routes.entity import inspector as entity_inspector
 
         # Extractor overloads description with one claim's predicate —
         # the exact bug #1050 describes.
@@ -539,7 +539,7 @@ class TestEntityInspector:
 
     def test_summary_handles_no_claims_and_aliases(self, db):
         """Zero-claim entity and alias rendering (#1050)."""
-        from fichero_server.api.routes import entity_inspector
+        from fichero_server.api.routes.entity import inspector as entity_inspector
 
         bare = KnowledgeEntity(canonical_name="Deloro", entity_type=EntityType.location)
         db.save(bare)

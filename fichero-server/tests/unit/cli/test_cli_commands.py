@@ -18,7 +18,7 @@ from fichero_cli.formatters import render
 from fichero_server.api.routes.activity import ActivityResponse
 from fichero_server.api.routes.artifacts import ArtifactResponse
 from fichero_server.api.routes.document_inspector import DocumentInspectorResponse
-from fichero_server.api.routes.entities import (
+from fichero_server.api.routes.entity.entities import (
     EntityAuditResponse,
     EntityCoOccurrence,
     EntityDocumentLink,
@@ -1547,7 +1547,7 @@ def test_render_nested_dict():
 
 def test_render_top_entity():
     from fichero_cli.formatters import render_top_entity
-    from fichero_server.api.routes.entities import TopEntityRow
+    from fichero_server.api.routes.entity.entities import TopEntityRow
 
     # Test with all fields
     entity = TopEntityRow(

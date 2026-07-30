@@ -4,7 +4,7 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-from fichero_server.api.routes import library_registry as registry_routes
+from fichero_server.api.routes.library import registry as registry_routes
 from fichero_server.models import KnownLibrary, UnicodeLibraryCollisionIdentity
 
 

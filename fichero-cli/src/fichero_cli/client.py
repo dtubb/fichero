@@ -36,7 +36,7 @@ from fichero_server.api.routes.document_inspector import (
     DocumentInspectorResponse,
     DocumentKnowledgeGraphResponse,
 )
-from fichero_server.api.routes.entities import (
+from fichero_server.api.routes.entity.entities import (
     EntityAuditResponse,
     EntityCoOccurrence,
     EntityDocumentLink,
@@ -44,7 +44,7 @@ from fichero_server.api.routes.entities import (
     EntityResolutionResponse,
     TopEntityRow,
 )
-from fichero_server.api.routes.entity_inspector import EntityInspectorResponse
+from fichero_server.api.routes.entity.inspector import EntityInspectorResponse
 from fichero_server.api.routes.kg_graph import NeighborhoodResponse
 from fichero_server.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero_server.api.routes.kg_search import KGSearchResponse

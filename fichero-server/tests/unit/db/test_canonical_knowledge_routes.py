@@ -12,7 +12,7 @@ Tests cover:
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.api.routes.entities import (
+from fichero_server.api.routes.entity.entities import (
     EntityUpsertRequest,
     EntityAliasRequest,
     upsert_entity,

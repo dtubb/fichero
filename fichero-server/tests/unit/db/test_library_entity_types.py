@@ -38,7 +38,7 @@ def et_client(et_package):
     Overrides _get_db_manager so the library-path routes resolve to the
     test db_manager (same global singleton, fresh package each test).
     """
-    from fichero_server.api.routes.library_entity_types import _get_db_manager
+    from fichero_server.api.routes.library.entity_types import _get_db_manager
     from fichero_server.db.app import AppDatabase
     import fichero_server.db.app as _app_db_module
 

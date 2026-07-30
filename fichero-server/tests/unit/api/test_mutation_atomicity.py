@@ -16,7 +16,7 @@ from collections.abc import Callable
 import pytest
 
 import fichero_server.api.routes.documents  # noqa: F401
-import fichero_server.api.routes.entities  # noqa: F401
+import fichero_server.api.routes.entity.entities  # noqa: F401
 import fichero_server.api.routes.notes  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.db import Database
@@ -39,7 +39,7 @@ def _emit_spy(monkeypatch) -> list[tuple[tuple, dict]]:
 
     monkeypatch.setattr("fichero_server.api.routes.notes.emit_change", _record)
     monkeypatch.setattr("fichero_server.api.routes.documents.emit_change", _record)
-    monkeypatch.setattr("fichero_server.api.routes.entities.emit_change", _record)
+    monkeypatch.setattr("fichero_server.api.routes.entity.entities.emit_change", _record)
     monkeypatch.setattr("fichero_server.api.change_stream.emit_change", _record)
     return calls
 
@@ -247,7 +247,7 @@ def _emit_entity_create_case(
     def _assert_committed():
         _assert_entity_create_committed(db, before_count, before_audits)
 
-    return _call, _assert_committed, "fichero_server.api.routes.entities.emit_change"
+    return _call, _assert_committed, "fichero_server.api.routes.entity.entities.emit_change"
 
 
 def _emit_document_move_case(

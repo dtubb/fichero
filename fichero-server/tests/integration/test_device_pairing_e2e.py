@@ -38,7 +38,7 @@ def pairing_harness(test_package, app_db, monkeypatch):
 
     api_main = importlib.reload(api_main)
     from fichero_server.api.main import get_library_database, get_library_database_for_write
-    from fichero_server.api.routes.entities import _digest_library_database
+    from fichero_server.api.routes.entity.entities import _digest_library_database
     from fichero_server.api.routes.providers import get_app_database
     from fichero_server.db import db_manager
 

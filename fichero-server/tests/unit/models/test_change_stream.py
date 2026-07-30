@@ -481,7 +481,7 @@ class TestEntityMutationsEmitChange:
     def test_create_entity_calls_emit_change(self, client, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.entities.emit_change",
+            "fichero_server.api.routes.entity.entities.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -504,7 +504,7 @@ class TestEntityMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.entities.emit_change",
+            "fichero_server.api.routes.entity.entities.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),

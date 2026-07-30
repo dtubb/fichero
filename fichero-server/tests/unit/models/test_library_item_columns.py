@@ -2,7 +2,7 @@
 
 import pytest
 
-from fichero_server.api.routes import library_items
+from fichero_server.api.routes.library import items as library_items
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     Annotation,

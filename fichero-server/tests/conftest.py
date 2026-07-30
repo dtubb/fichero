@@ -365,7 +365,7 @@ def client(test_package, app_db):
     and the library database dependency to use the test package db.
     """
     from fichero_server.api.main import get_library_database, get_library_database_for_write
-    from fichero_server.api.routes.entities import _digest_library_database
+    from fichero_server.api.routes.entity.entities import _digest_library_database
     from fichero_server.api.routes.providers import get_app_database
 
     # Override dependencies to use test dbs

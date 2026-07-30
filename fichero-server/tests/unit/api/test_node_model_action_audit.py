@@ -9,7 +9,7 @@ from __future__ import annotations
 import fichero_server.api.routes.bookmarks  # noqa: F401
 import fichero_server.api.routes.claim.claims  # noqa: F401
 import fichero_server.api.routes.documents  # noqa: F401
-import fichero_server.api.routes.entities  # noqa: F401
+import fichero_server.api.routes.entity.entities  # noqa: F401
 import fichero_server.api.routes.notes  # noqa: F401
 import fichero_server.api.routes.search  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
