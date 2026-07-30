@@ -46,8 +46,21 @@ final class DocumentStore {
     }
 
     /// Cheap O(1) change token for views that only need to know the visible
-    /// document set changed, not diff the whole array.
-    private(set) var revision: Int = 0
+    /// document set changed, not diff the whole array. Also bumped by the
+    /// change-stream splice when a batch lands ONLY in `childrenCache` /
+    /// `collections` (#4318): those containers are `@ObservationIgnored`, so
+    /// without the bump a workflow's mid-run page_content write would never
+    /// re-render the content pane. Internal(set) so the splice extension
+    /// (`DocumentStore+ChangeStream`) can bump it.
+    var revision: Int = 0
+
+    /// Document ids touched by the most recent in-place splice / removal,
+    /// paired with `revision`. Views that care about ONE document (the
+    /// inspector's page-content panel) read this inside their
+    /// `.onChange(of: revision)` handler so a library-wide event storm does
+    /// not trigger per-page refetches for unrelated rows (#4318).
+    @ObservationIgnored
+    var lastChangedDocumentIds: Set<String> = []
 
     /// Currently selected document for detail view
     var selectedDocument: Document?

@@ -25,9 +25,15 @@ struct PageContentPane: View {
 
     static let claimSourceHighlightId = "claim-source-highlight"
 
+    /// Read-through resolution (#4318): `document` is a snapshot handed down by
+    /// the shell; a workflow's mid-run page_content write lands via the change
+    /// stream in the STORE (typically `childrenCache` — page children are never
+    /// in `currentDocuments`). Resolving through `liveDocument(id:)` shows the
+    /// fresh text without reselecting the page, and its `revision` read makes
+    /// the splice re-render this pane.
     var pageDoc: Document? {
         guard let doc = document, doc.docType == .page else { return nil }
-        return doc
+        return documentStore.liveDocument(id: doc.id) ?? doc
     }
 
     /// Decoded, display-ready page text. RTF source is resolved to plain text so

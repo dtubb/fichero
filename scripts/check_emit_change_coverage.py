@@ -130,6 +130,13 @@ REQUIRED_TERMINAL_EMITS: tuple[tuple[str, frozenset[str]], ...] = (
         "fichero-server/src/fichero_server/workflows/tools/kg_persist_finalize.py",
         frozenset({"emit_workflow_kg_changes"}),
     ),
+    # _save_artifact_sync promotes page_content MID-RUN and must broadcast
+    # document.updated so an open window shows fresh transcription text without
+    # reselecting the page (#4318) — the run-boundary emit above is too late.
+    (
+        "fichero-server/src/fichero_server/workflows/tools/llm_base.py",
+        frozenset({"emit_workflow_document_changes_for_db"}),
+    ),
 )
 
 

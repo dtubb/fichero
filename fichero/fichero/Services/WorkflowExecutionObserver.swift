@@ -130,9 +130,10 @@ class WorkflowExecutionObserver {
             cancelHandlers.removeValue(forKey: threadId)
         }
 
-        // Update status
+        // Update status. Cancelled is its own terminal state (#4321) — a
+        // deliberate Stop must not render as Failed.
         if var execution = activeExecutions[threadId] {
-            execution.status = .failed
+            execution.status = .cancelled
             execution.isRunning = false
             execution.workflowError = "Cancelled by user"
             activeExecutions[threadId] = execution
@@ -162,7 +163,10 @@ class WorkflowExecutionObserver {
             // parallel fan-out's inner-node name doesn't match the outer
             // label the reducer tracks (#699). Force them to a terminal
             // state so the UI doesn't leave a spinner on a completed run.
-            let finalStatus: NodeExecutionStatus = (status == .failed) ? .failed : .completed
+            // Cancelled counts as not-completed too: a stopped run's mid-flight
+            // nodes never finished, so a green check would lie (#4321).
+            let finalStatus: NodeExecutionStatus =
+                (status == .failed || status == .cancelled) ? .failed : .completed
             for (nodeId, nodeState) in execution.nodeStates {
                 if nodeState.status != .completed && nodeState.status != .failed {
                     var fixed = nodeState

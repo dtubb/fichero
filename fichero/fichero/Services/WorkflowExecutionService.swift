@@ -47,13 +47,33 @@ class WorkflowExecutionService {
             threadId: response.threadId,
             workflowId: response.workflowId,
             workflowName: response.workflowName,
-            // Bridge at the seam: the generated RunStatus enum (#4316) feeds the
-            // legacy string mapper until the app-wide adoption pass replaces
-            // the hand-rolled status enums.
-            status: mapStatus(response.status.rawValue),
+            // Typed end-to-end (#4316/#4321): the generated RunStatus enum maps
+            // case-for-case — no string round-trip, so a new backend state is a
+            // compile error here instead of a silent `.running` fallback.
+            status: Self.mapStatus(response.status),
             checkpointId: response.checkpointId,
             error: response.error
         )
+    }
+
+    /// Map the generated `RunStatus` enum (#4316) onto the app status enum.
+    /// Exhaustive by construction — regenerating the client with a new
+    /// lifecycle state fails compilation here rather than misrendering.
+    static func mapStatus(_ status: Components.Schemas.RunStatus) -> ExecutionStatus {
+        switch status {
+        case .accepted, .running:
+            return .running
+        case .paused:
+            return .paused
+        case .completed:
+            return .completed
+        case .failed:
+            return .failed
+        case .cancelled:
+            return .cancelled
+        case .deleted:
+            return .deleted
+        }
     }
 
     /// Map the backend status string onto the app status enum. Unknown values

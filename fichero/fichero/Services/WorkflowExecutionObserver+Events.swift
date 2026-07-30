@@ -117,7 +117,9 @@ extension WorkflowExecution {
 
     private mutating func applyCancelled() {
         workflowExecutionLogger.info("Workflow cancelled")
-        status = .failed
+        // A user-initiated stop is its own terminal state (#4321) — rendering
+        // it as Failed made every deliberate Stop look like an error.
+        status = .cancelled
         workflowError = "Cancelled by user"
         isRunning = false
     }

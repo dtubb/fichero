@@ -52,6 +52,11 @@ final class WorkflowExecutionStore {
     private let activityService: ActivityService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionStore")
 
+    /// Typed control-endpoint client for the transactional run actions below
+    /// (#4321). Same generated transport as the per-thread stream services.
+    @ObservationIgnored
+    private lazy var executionService = WorkflowExecutionService(ficheroClient: ficheroClient)
+
     init(ficheroClient: FicheroClient, activityService: ActivityService) {
         self.ficheroClient = ficheroClient
         self.activityService = activityService
@@ -133,6 +138,96 @@ final class WorkflowExecutionStore {
         }
     }
 
+    // MARK: - Run controls (#4321)
+
+    /// Execute one user-initiated run action TRANSACTIONALLY: await the POST,
+    /// apply the returned state to the threadId-keyed entry in place, and
+    /// (re)subscribe the SSE stream for any non-terminal outcome. The old path
+    /// (`ActivityViewHelpers.performRunAction`) fired the endpoint and flipped
+    /// no local state, so Pause/Resume/Stop never visibly did anything — and a
+    /// paused run was never subscribed, so Resume COULD not visibly work.
+    func perform(_ action: WorkflowRunAction, threadId: String) async throws {
+        switch action {
+        case .pause:
+            try await executionService.pauseWorkflow(threadId: threadId)
+            // Pause/cancel return no body — fetch the authoritative state once.
+            // The (re)subscribed stream then carries the async transition.
+            try await applyRefreshedThreadStatus(threadId: threadId)
+        case .resume:
+            let thread = try await executionService.resumeWorkflow(threadId: threadId)
+            apply(thread: thread)
+        case .stop:
+            try await executionService.cancelWorkflow(threadId: threadId)
+            try await applyRefreshedThreadStatus(threadId: threadId)
+        case .delete:
+            try await executionService.deleteThread(threadId: threadId)
+            unsubscribe(threadId: threadId)
+            executions.removeValue(forKey: threadId)
+        }
+    }
+
+    /// Fetch the persisted thread status and apply it (pause/cancel POSTs
+    /// acknowledge without a body).
+    private func applyRefreshedThreadStatus(threadId: String) async throws {
+        let thread = try await executionService.getThreadStatus(threadId: threadId)
+        apply(thread: thread)
+    }
+
+    /// Reduce a control-endpoint response into the store: update the entry in
+    /// place, then keep the SSE subscription in sync with liveness — subscribe
+    /// any non-terminal run (running OR paused, so a later Resume streams),
+    /// drop the stream on a terminal one.
+    func apply(thread: ExecutionThread) {
+        let execution = Self.reduced(executions[thread.threadId], thread: thread)
+        executions[thread.threadId] = execution
+
+        if Self.shouldSubscribe(status: execution.status) {
+            subscribe(
+                threadId: thread.threadId,
+                workflowId: thread.workflowId,
+                name: thread.workflowName
+            )
+        } else {
+            unsubscribe(threadId: thread.threadId)
+        }
+    }
+
+    /// Pure reducer for a control-endpoint `ExecutionThread` response: patch
+    /// the existing execution in place (never lose reduced node/file state), or
+    /// seed a minimal entry when the run wasn't tracked yet (CLI-launched).
+    nonisolated static func reduced(
+        _ existing: WorkflowExecution?,
+        thread: ExecutionThread
+    ) -> WorkflowExecution {
+        let status = WorkflowExecution.workflowStatus(from: thread.status)
+        var execution = existing ?? WorkflowExecution(
+            id: thread.workflowId,
+            name: thread.workflowName,
+            threadId: thread.threadId,
+            startTime: Date(),
+            status: status,
+            nodeStates: [:],
+            documentProgress: [:],
+            currentFilePath: nil,
+            currentNodeId: nil,
+            currentNodeName: nil,
+            isRunning: status == .running,
+            workflowError: thread.error
+        )
+        execution.status = status
+        execution.isRunning = status == .running
+        execution.workflowError = thread.error
+        return execution
+    }
+
+    /// A run stays subscribed while it can still change: running streams
+    /// progress, paused streams the eventual resume/cancel. Terminal states
+    /// drop the stream (#4321 — paused runs were never subscribed, so Resume
+    /// could never visibly work).
+    nonisolated static func shouldSubscribe(status: WorkflowStatus) -> Bool {
+        status == .running || status == .paused
+    }
+
     // MARK: - Event reduction
 
     private func apply(_ event: WorkflowStreamEvent, threadId: String) {
@@ -152,6 +247,37 @@ final class WorkflowExecutionStore {
             unsubscribe(threadId: threadId)
         default:
             break
+        }
+    }
+}
+
+// MARK: - Run actions (#4321)
+
+/// The user-facing controls on a workflow run. One vocabulary for every
+/// surface (Monitor toolbar, Detail stats bar) — see `RunControls`.
+enum WorkflowRunAction: String, CaseIterable, Identifiable {
+    case pause
+    case resume
+    case stop
+    case delete
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .pause: return "Pause"
+        case .resume: return "Resume"
+        case .stop: return "Stop"
+        case .delete: return "Delete"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .pause: return "pause"
+        case .resume: return "play.fill"
+        case .stop: return "stop"
+        case .delete: return "trash"
         }
     }
 }
@@ -253,7 +379,9 @@ extension WorkflowExecution {
     }
 
     /// Map the backend's run-status string onto the app `WorkflowStatus`.
-    /// Cancelled maps to `.failed`, matching `WorkflowExecutionObserver`.
+    /// Cancelled (and its stop/delete variants) is its own terminal state
+    /// (#4321) — it used to collapse onto `.failed`, so a deliberate Stop
+    /// rendered as Failed.
     static func workflowStatus(fromRaw raw: String) -> WorkflowStatus {
         switch raw.lowercased() {
         case "running", "in_progress", "started":
@@ -265,9 +393,28 @@ extension WorkflowExecution {
         case "paused":
             return .paused
         case "cancelled", "canceled", "stopped", "stop_requested", "deleted":
-            return .failed
+            return .cancelled
         default:
             return .idle
+        }
+    }
+
+    /// Map the typed control-endpoint status (`ExecutionStatus`, itself mapped
+    /// case-for-case from the generated `RunStatus` enum, #4316) onto the app
+    /// `WorkflowStatus`. Exhaustive — a new lifecycle state fails compilation
+    /// instead of silently misrendering (#4321).
+    static func workflowStatus(from status: ExecutionStatus) -> WorkflowStatus {
+        switch status {
+        case .running:
+            return .running
+        case .paused:
+            return .paused
+        case .completed:
+            return .completed
+        case .failed, .error:
+            return .failed
+        case .cancelled, .stopped, .deleted:
+            return .cancelled
         }
     }
 

@@ -27,12 +27,17 @@ struct DocumentInspectorContentV2: View {
     @Environment(ArtifactStore.self) private var artifactStore
     @Environment(DocumentService.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
-    @Environment(WorkflowExecutionObserver.self) private var executionObserver
 
     @State private var actionError: String?
 
+    /// Read-through resolution (#4318): the change-stream splice lands a page
+    /// child's fresh page_content in `childrenCache` (or the `collections`
+    /// fallback), never in `currentDocuments` — resolving only through
+    /// `currentDocuments` kept this panel on the stale snapshot until the page
+    /// was reselected (#3387). `liveDocument(id:)` reads all containers and
+    /// establishes the `revision` dependency so the splice re-renders us.
     private var liveDocument: Document {
-        Self.refreshedDocument(document, in: documentStore.currentDocuments)
+        documentStore.liveDocument(id: document.id) ?? document
     }
 
     private var artifacts: [Artifact] {
@@ -74,12 +79,16 @@ struct DocumentInspectorContentV2: View {
         .task(id: document.id) {
             await syncArtifactScope(force: true)
         }
-        .onChange(of: executionObserver.fileCompletedCount) { _, _ in
-            Task { await refreshVisibleDocument() }
-            Task { await syncArtifactScope(force: true) }
-        }
-        .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
-            Task { await refreshVisibleDocument() }
+        // Change-stream refresh gate (#4318). The old gate observed THIS
+        // process's SSE counters (executionObserver.fileCompletedCount /
+        // workflowCompletedCount), so a CLI / MCP / other-window run never
+        // fired it. The library change stream carries `document.updated` for
+        // every writer — including the mid-run page_content emit — and the
+        // store splices the fresh row before bumping `revision`, so this only
+        // needs to re-sync the artifact scope for OUR document. The page text
+        // itself flows through `liveDocument` with no fetch here.
+        .onChange(of: documentStore.revision) { _, _ in
+            guard documentStore.lastChangedDocumentIds.contains(document.id) else { return }
             Task { await syncArtifactScope(force: true) }
         }
     }
@@ -327,15 +336,6 @@ struct DocumentInspectorContentV2: View {
         ).map { "Couldn't save: \($0)" }
         actionError = message
         return message
-    }
-
-    private func refreshVisibleDocument() async {
-        guard mode == .pageContentOnly else { return }
-        await documentStore.refreshDocumentsByIds([document.id])
-    }
-
-    static func refreshedDocument(_ document: Document, in currentDocuments: [Document]) -> Document {
-        currentDocuments.first(where: { $0.id == document.id }) ?? document
     }
 
     static func shouldIncludeDescendantArtifacts(for document: Document, mode: Mode) -> Bool {

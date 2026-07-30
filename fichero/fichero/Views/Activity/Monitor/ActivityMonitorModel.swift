@@ -194,6 +194,7 @@ extension ActivityMonitorRow {
         case .paused:    return StatusGlyph(symbol: "pause.circle.fill", color: .orange, spinning: false)
         case .completed: return StatusGlyph(symbol: "checkmark.circle.fill", color: .green, spinning: false)
         case .failed:    return StatusGlyph(symbol: "xmark.circle.fill", color: .red, spinning: false)
+        case .cancelled: return StatusGlyph(symbol: "stop.circle.fill", color: .orange, spinning: false)
         case .idle:      return StatusGlyph(symbol: "circle", color: .secondary, spinning: false)
         }
     }

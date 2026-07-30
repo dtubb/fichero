@@ -53,6 +53,7 @@ extension DocumentStore: ObservableDomainStore {
     /// Remove the given document ids in place from every list/cache that holds
     /// them. Purely local — no network — so it runs synchronously inside `apply`.
     private func removeDocuments(ids: Set<String>) {
+        lastChangedDocumentIds = ids
         collections.removeAll { ids.contains($0.id) }
         currentDocuments.removeAll { ids.contains($0.id) }
         workspaces.removeAll { ids.contains($0.id) }
@@ -143,6 +144,62 @@ extension DocumentStore: ObservableDomainStore {
         if changed.collections { collections = nextCollections }
         if changed.currentDocuments { currentDocuments = nextCurrent }
         if changed.childrenCache { childrenCache = nextChildren }
+
+        // Publish which rows this batch touched, and make sure `revision`
+        // moved (#4318): `childrenCache` and `collections` are
+        // `@ObservationIgnored` for splice performance, so a batch that lands
+        // ONLY there (a workflow writing page_content to a page child) would
+        // otherwise never re-render `liveDocument(id:)` callers. The
+        // `currentDocuments` didSet already bumps `revision`, so bump here only
+        // when that assignment didn't happen — one tick per flushed batch.
+        if changed.collections || changed.currentDocuments || changed.childrenCache {
+            lastChangedDocumentIds = Set(docs.map(\.id))
+            if !changed.currentDocuments {
+                revision += 1
+            }
+        }
+    }
+
+    // MARK: - Live document resolution (#4318)
+
+    /// The freshest copy of a document ANYWHERE the store holds one.
+    ///
+    /// The change-stream splice patches a row in place in every container that
+    /// already holds it — but a page child typically lives ONLY in
+    /// `childrenCache` (or the transient `collections` fallback), never in
+    /// `currentDocuments`. Content-pane accessors that resolved through
+    /// `currentDocuments` alone therefore kept showing a stale snapshot after a
+    /// workflow wrote page_content (#4318 / #3387). Resolve through all of
+    /// them, and read `revision` first so `@Observable` tracking re-renders the
+    /// caller when a splice lands in an `@ObservationIgnored` container.
+    func liveDocument(id: String) -> Document? {
+        _ = revision
+        return Self.resolveLiveDocument(
+            id: id,
+            currentDocuments: currentDocuments,
+            childrenCache: childrenCache,
+            collections: collections,
+            workspaces: workspaces
+        )
+    }
+
+    /// Pure resolver behind `liveDocument(id:)` — separated so tests can pin
+    /// the container precedence without a store. All containers are patched by
+    /// the same splice, so any hit is equally fresh; the order just prefers the
+    /// cheaper/most-visible surfaces first.
+    nonisolated static func resolveLiveDocument(
+        id: String,
+        currentDocuments: [Document],
+        childrenCache: [String: [Document]],
+        collections: [Document],
+        workspaces: [Document]
+    ) -> Document? {
+        if let doc = currentDocuments.first(where: { $0.id == id }) { return doc }
+        for kids in childrenCache.values {
+            if let doc = kids.first(where: { $0.id == id }) { return doc }
+        }
+        if let doc = collections.first(where: { $0.id == id }) { return doc }
+        return workspaces.first(where: { $0.id == id })
     }
 
     /// Which published containers a batch actually mutated.
