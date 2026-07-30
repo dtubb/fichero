@@ -625,14 +625,21 @@ class TestZombieRowIndexCrash:
         # --- Phase 2: open ActivityStore — must NOT raise ---
         # The production crash ("Failed to delete all rows from index") occurs
         # during WAL replay + index maintenance, not reproducible in a clean
-        # unit-test DB.  What we assert here: the guard UPDATE runs cleanly,
-        # the index statements complete, and __init__ returns without raising.
+        # unit-test DB.  What we assert here: _init_database (column ALTERs +
+        # index pass) completes without raising. #4316 moved the zombie flip
+        # OFF construction (reopening a library mid-run must not fail live
+        # runs, F5) — recovery is the explicit sweep below.
         try:
-            ActivityStore(db_path)
+            store = ActivityStore(db_path)
         except Exception as exc:
             pytest.fail(
                 f"#1362: ActivityStore.__init__ raised on DB with zombie rows: {exc}"
             )
+
+        import asyncio
+
+        recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
+        assert recovered == 4
 
         # --- Phase 3: all 4 zombie rows must now be status='failed' ---
         verify_conn = duckdb.connect(db_path)
@@ -647,7 +654,7 @@ class TestZombieRowIndexCrash:
         for thread_id, status, error in rows:
             assert status == "failed", (
                 f"#1362: row {thread_id!r} still has status={status!r}, "
-                f"expected 'failed' after _init_database zombie guard"
+                f"expected 'failed' after the recovery sweep"
             )
             assert error is not None and len(error) > 0, (
                 f"#1362: row {thread_id!r} must have a non-empty error message"
