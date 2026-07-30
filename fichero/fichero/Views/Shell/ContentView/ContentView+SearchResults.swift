@@ -296,48 +296,11 @@ extension ContentView {
     @ViewBuilder
     private func searchResultsHeaderRow(query: String, store: SearchStore) -> some View {
         HStack(spacing: 12) {
-            if let failure = store.searchFailure {
-                // Typed failure: stable message inline, raw detail only on
-                // demand (error-presentation convention — never dump error
-                // text in chrome).
-                Label(failure.message, systemImage: "exclamationmark.triangle")
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .help(failure.detail)
-            } else if store.isSearching {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Searching for “\(query)”…")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                let total = store.searchStats?.totalResults ?? store.results.count
-                Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+            searchStatusLabel(query: query, store: store)
 
             Spacer()
 
-            // Scope control (#4107/S3): whole library vs the folder
-            // that was being browsed when the search ran. No "All
-            // libraries" until cross-library fan-out lands (#4110).
-            if let folder = transientSearchContextFolder {
-                Picker("Search scope", selection: $transientSearchScopeIsFolder) {
-                    Text("Library").tag(false)
-                    Text("“\(folder.name)”").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
-                .labelsHidden()
-                .controlSize(.small)
-                .onChange(of: transientSearchScopeIsFolder) { _, _ in
-                    transientSearchLimit = Self.transientSearchPageSize
-                    Task { @MainActor in
-                        await runTransientSearch(query)
-                    }
-                }
-            }
+            searchScopePicker(query: query)
 
             searchOptionsMenu
 
@@ -348,25 +311,7 @@ extension ContentView {
                 .controlSize(.small)
             }
 
-            if !store.results.isEmpty && store.searchFailure == nil {
-                // Chat the search (#4117): the result set becomes the
-                // conversation's document scope.
-                Button {
-                    openChatWithSearchResults()
-                } label: {
-                    Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
-                }
-                .controlSize(.small)
-                .help("Chat about these results — the search scope becomes the conversation's context")
-
-                Button {
-                    Task { await saveTransientSearch() }
-                } label: {
-                    Label("Save Search", systemImage: "square.and.arrow.down")
-                }
-                .controlSize(.small)
-                .help("Save this search to the sidebar")
-            }
+            searchResultActions(store: store)
 
             Button {
                 toolbarSearchText = ""
@@ -382,6 +327,80 @@ extension ContentView {
         .padding(.vertical, 6)
         .background(.bar)
         .accessibilityIdentifier("library.search.resultsBar")
+    }
+
+    /// The leading half of the bar: what the search is doing, or what it
+    /// found. Exactly one of failure / in-flight / count is ever shown.
+    @ViewBuilder
+    private func searchStatusLabel(query: String, store: SearchStore) -> some View {
+        if let failure = store.searchFailure {
+            // Typed failure: stable message inline, raw detail only on
+            // demand (error-presentation convention — never dump error
+            // text in chrome).
+            Label(failure.message, systemImage: "exclamationmark.triangle")
+                .font(.callout)
+                .foregroundStyle(.red)
+                .help(failure.detail)
+        } else if store.isSearching {
+            ProgressView()
+                .controlSize(.small)
+            Text("Searching for “\(query)”…")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
+            let total = store.searchStats?.totalResults ?? store.results.count
+            Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Scope control (#4107/S3): whole library vs the folder that was being
+    /// browsed when the search ran. Absent when there was no browsing folder.
+    /// No "All libraries" until cross-library fan-out lands (#4110).
+    @ViewBuilder
+    private func searchScopePicker(query: String) -> some View {
+        if let folder = transientSearchContextFolder {
+            Picker("Search scope", selection: $transientSearchScopeIsFolder) {
+                Text("Library").tag(false)
+                Text("“\(folder.name)”").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
+            .labelsHidden()
+            .controlSize(.small)
+            .onChange(of: transientSearchScopeIsFolder) { _, _ in
+                transientSearchLimit = Self.transientSearchPageSize
+                Task { @MainActor in
+                    await runTransientSearch(query)
+                }
+            }
+        }
+    }
+
+    /// What you can do with a result set: chat it, or save it. Both require
+    /// results that actually loaded, so a failed search offers neither.
+    @ViewBuilder
+    private func searchResultActions(store: SearchStore) -> some View {
+        if !store.results.isEmpty && store.searchFailure == nil {
+            // Chat the search (#4117): the result set becomes the
+            // conversation's document scope.
+            Button {
+                openChatWithSearchResults()
+            } label: {
+                Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
+            }
+            .controlSize(.small)
+            .help("Chat about these results — the search scope becomes the conversation's context")
+
+            Button {
+                Task { await saveTransientSearch() }
+            } label: {
+                Label("Save Search", systemImage: "square.and.arrow.down")
+            }
+            .controlSize(.small)
+            .help("Save this search to the sidebar")
+        }
     }
 
     @ViewBuilder
