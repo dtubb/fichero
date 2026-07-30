@@ -77,7 +77,8 @@ struct CitationDetailView: View {
                 LabeledContent("Detector", value: detector)
             }
             if let confidence = citation.confidence {
-                LabeledContent("Confidence", value: String(format: "%.2f", confidence))
+                // Labelled already, but the value still implied precision (#4394).
+                LabeledContent("Confidence", value: ConfidenceBand.band(for: confidence).label)
             }
             if let target = citation.targetDocumentId, !target.isEmpty {
                 LabeledContent("Target", value: target)

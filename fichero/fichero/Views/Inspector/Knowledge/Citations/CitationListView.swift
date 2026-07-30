@@ -112,9 +112,13 @@ private struct CitationRow: View {
             }
             Spacer(minLength: 4)
             if let confidence = citation.confidence {
-                Text(String(format: "%.2f", confidence))
-                    .font(.caption2.monospacedDigit())
+                // Same self-reported signal as the claim badge (#4394).
+                let band = ConfidenceBand.band(for: confidence)
+                Text(band.badgeText)
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
+                    .help(band.help)
+                    .accessibilityLabel(band.help)
             }
         }
         .padding(.vertical, 2)

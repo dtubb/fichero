@@ -159,14 +159,19 @@ extension EntityKindRow {
         }
 
         if showConfidence, let confidence {
-            Text(String(format: "%.2f", confidence))
-                .font(.caption2.monospacedDigit())
+            // #4394: was `String(format: "%.2f")`, which rendered an
+            // uncalibrated model self-report as a two-decimal measurement,
+            // unlabelled, in the densest part of the inspector.
+            let band = ConfidenceBand.band(for: confidence)
+            Text(band.badgeText)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Color.secondary.opacity(0.12))
                 .clipShape(Capsule())
-                .help("Claim confidence")
+                .help(band.help)
+                .accessibilityLabel(band.help)
         }
         if isPrimary, item.includesChildren {
             Text("Includes children")
