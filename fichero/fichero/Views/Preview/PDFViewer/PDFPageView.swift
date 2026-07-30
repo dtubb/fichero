@@ -555,7 +555,6 @@ private extension PDFPageView {
     }
 }
 
-@MainActor
 #elseif canImport(UIKit)
 
 /// Interactive PDF preview using PDFKit's `PDFView` on iOS.
@@ -869,7 +868,6 @@ struct PDFPageView: UIViewRepresentable {
     }
 }
 
-@MainActor
 
 #endif
 
