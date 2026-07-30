@@ -175,7 +175,7 @@ struct DocumentKGSurface: View {
     /// every existing call site working with find inactive.
     var searchQuery: String = ""
     var searchSelectionIndex: Int = -1
-    var onSearchMatchCount: ((Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
+    var onSearchMatchCount: (@MainActor @Sendable (Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
 
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
