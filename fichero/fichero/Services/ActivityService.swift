@@ -331,7 +331,22 @@ extension ActivityService {
             workflowSnapshot: workflowSnapshot,
             nodeNameMap: nodeNameMap,
             progressTimeline: progressTimeline,
-            diagramMermaid: response.diagramMermaid
+            diagramMermaid: response.diagramMermaid,
+            runArtifacts: (response.runArtifacts ?? []).map { artifact in
+                WorkflowRunArtifact(
+                    artifactId: artifact.artifactId,
+                    artifactType: artifact.artifactType,
+                    documentId: artifact.documentId,
+                    documentName: artifact.documentName,
+                    sourceDocumentId: artifact.sourceDocumentId,
+                    sourceDocumentName: artifact.sourceDocumentName,
+                    runId: artifact.runId,
+                    stepName: artifact.stepName,
+                    nodeName: artifact.nodeName,
+                    sequence: artifact.sequence,
+                    createdAt: artifact.createdAt
+                )
+            }
         )
     }
 }

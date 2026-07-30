@@ -33,12 +33,14 @@ enum AppViewMode: Equatable {
 enum ActivityChildType: String, Equatable, CaseIterable {
     case console
     case progress
+    case trace    // Run trace graph — what actually happened (#4320)
     case log      // Execution log
 
     var label: String {
         switch self {
         case .console: return "Console"
         case .progress: return "Progress"
+        case .trace: return "Trace"
         case .log: return "Log"
         }
     }
@@ -47,6 +49,7 @@ enum ActivityChildType: String, Equatable, CaseIterable {
         switch self {
         case .console: return "text.alignleft"
         case .progress: return "chart.bar.fill"
+        case .trace: return "point.3.connected.trianglepath.dotted"
         case .log: return "doc.text"
         }
     }

@@ -266,6 +266,18 @@ extension ActivityDetailView {
                 selectedRun: selectedRun,
                 liveExecution: liveExecution
             )
+        case .trace:
+            // Read-only run-trace graph (#4320) — snapshot topology colored by
+            // executed status; fetches its own run record by thread id.
+            if let threadId = selectedRun.threadId {
+                RunTraceView(threadId: threadId)
+            } else {
+                ContentUnavailableView(
+                    "No Trace Available",
+                    systemImage: "point.3.connected.trianglepath.dotted",
+                    description: Text("This entry has no run thread to trace.")
+                )
+            }
         case .log:
             ActivityLogView(
                 selectedRun: selectedRun

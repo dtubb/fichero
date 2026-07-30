@@ -195,6 +195,7 @@ struct ActivityChildTypeMappingTests {
     func labels() {
         #expect(ActivityChildType.console.label == "Console")
         #expect(ActivityChildType.progress.label == "Progress")
+        #expect(ActivityChildType.trace.label == "Trace")
         #expect(ActivityChildType.log.label == "Log")
     }
 
@@ -202,6 +203,7 @@ struct ActivityChildTypeMappingTests {
     func icons() {
         #expect(ActivityChildType.console.icon == "text.alignleft")
         #expect(ActivityChildType.progress.icon == "chart.bar.fill")
+        #expect(ActivityChildType.trace.icon == "point.3.connected.trianglepath.dotted")
         #expect(ActivityChildType.log.icon == "doc.text")
         for child in ActivityChildType.allCases {
             #expect(!child.icon.isEmpty)

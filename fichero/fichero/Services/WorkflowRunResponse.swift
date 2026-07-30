@@ -18,6 +18,9 @@ struct WorkflowRunResponse: Codable {
     let nodeNameMap: [String: String]?
     let progressTimeline: [String: Any]?
     let diagramMermaid: String?
+    /// Artifacts produced by this run, in pipeline order (#4313). Empty for
+    /// legacy runs recorded before artifact provenance existed.
+    let runArtifacts: [WorkflowRunArtifact]
 
     enum CodingKeys: String, CodingKey {
         case threadId = "thread_id"
@@ -34,6 +37,7 @@ struct WorkflowRunResponse: Codable {
         case nodeNameMap = "node_name_map"
         case progressTimeline = "progress_timeline"
         case diagramMermaid = "diagram_mermaid"
+        case runArtifacts = "run_artifacts"
     }
 
     init(from decoder: Decoder) throws {
@@ -65,6 +69,9 @@ struct WorkflowRunResponse: Codable {
         }
 
         diagramMermaid = try container.decodeIfPresent(String.self, forKey: .diagramMermaid)
+        runArtifacts = try container.decodeIfPresent(
+            [WorkflowRunArtifact].self, forKey: .runArtifacts
+        ) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -88,6 +95,7 @@ struct WorkflowRunResponse: Codable {
             try container.encode(CheckpointValue(progressTimeline), forKey: .progressTimeline)
         }
         try container.encodeIfPresent(diagramMermaid, forKey: .diagramMermaid)
+        try container.encode(runArtifacts, forKey: .runArtifacts)
     }
 
     init(
@@ -104,7 +112,8 @@ struct WorkflowRunResponse: Codable {
         workflowSnapshot: [String: Any]? = nil,
         nodeNameMap: [String: String]? = nil,
         progressTimeline: [String: Any]? = nil,
-        diagramMermaid: String? = nil
+        diagramMermaid: String? = nil,
+        runArtifacts: [WorkflowRunArtifact] = []
     ) {
         self.threadId = threadId
         self.workflowId = workflowId
@@ -120,5 +129,40 @@ struct WorkflowRunResponse: Codable {
         self.nodeNameMap = nodeNameMap
         self.progressTimeline = progressTimeline
         self.diagramMermaid = diagramMermaid
+        self.runArtifacts = runArtifacts
+    }
+}
+
+// MARK: - Run Artifact Provenance (#4313)
+
+/// One artifact produced by a workflow run, with navigation targets.
+/// Mirrors the server's `WorkflowRunArtifactResponse`.
+struct WorkflowRunArtifact: Codable, Identifiable, Equatable {
+    let artifactId: String
+    let artifactType: String
+    let documentId: String
+    let documentName: String?
+    let sourceDocumentId: String?
+    let sourceDocumentName: String?
+    let runId: String?
+    let stepName: String?
+    let nodeName: String?
+    let sequence: Int?
+    let createdAt: String?
+
+    var id: String { artifactId }
+
+    enum CodingKeys: String, CodingKey {
+        case artifactId = "artifact_id"
+        case artifactType = "artifact_type"
+        case documentId = "document_id"
+        case documentName = "document_name"
+        case sourceDocumentId = "source_document_id"
+        case sourceDocumentName = "source_document_name"
+        case runId = "run_id"
+        case stepName = "step_name"
+        case nodeName = "node_name"
+        case sequence
+        case createdAt = "created_at"
     }
 }
