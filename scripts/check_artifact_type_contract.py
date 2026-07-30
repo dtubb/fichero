@@ -48,7 +48,8 @@ every run, including passing ones, so the limit is never invisible.
 
 If ``artifact_type`` ever becomes a schema enum, replace ``_producers`` with a
 read of the enum cases: that is strictly more reliable and removes the dynamic
-blind spot. As of 2026-07-30 no such enum exists on any ref — checked.
+blind spot. A Swift `enum ArtifactType: String` DOES exist (Models/Artifact.swift) and is
+checked below; there is no Python-side enum as of 2026-07-30.
 
 Exit 0 = no consumer asks for a type nothing produces.
 Exit 1 = at least one does, or the corpus came up empty (never pass vacuously).
