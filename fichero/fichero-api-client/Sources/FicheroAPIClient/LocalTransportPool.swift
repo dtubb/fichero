@@ -87,6 +87,58 @@ public enum LocalTransportPool {
     /// keeping them a minute avoids reconnect churn during a library switch.
     static let idleTimeout: TimeAmount = .seconds(60)
 
+    // MARK: - Request deadlines (#4379)
+
+    /// Whole-request deadline for short request/response calls.
+    ///
+    /// 60 seconds — deliberately the SAME number
+    /// `AsyncHTTPClientTransport.Configuration` defaults to, because there is
+    /// no evidence a local request legitimately needs longer, and inventing a
+    /// bigger number would only convert a loud failure into a long hang. What
+    /// changes is that it is now *chosen and named* rather than inherited, so
+    /// the stream deadline below can differ from it deliberately.
+    static let requestDeadline: TimeAmount = .seconds(60)
+
+    /// Whole-"request" deadline for long-lived SSE subscriptions.
+    ///
+    /// ## What was actually broken (#4379)
+    ///
+    /// `AsyncHTTPClientTransport.Configuration.init(client:timeout:)` defaults
+    /// `timeout` to one minute, and the transport passes it to
+    /// `HTTPClient.execute(_:timeout:)` — which deadlines the WHOLE request,
+    /// *including reading the complete response body*. An SSE body is never
+    /// "complete" until the subscription ends, so every stream over `.uds` was
+    /// killed at exactly 60 seconds with `HTTPClientError.deadlineExceeded`,
+    /// surfacing as "Lost connection to the Fichero server…". Watching a
+    /// workflow run longer than a minute — a named-entity extraction over real
+    /// documents — could not survive its own duration.
+    ///
+    /// The call site passed no `timeout:`, so the deadline was invisible at
+    /// the seam: ``configuration(softLimit:)`` correctly sets no read timeout
+    /// on the `HTTPClient`, and that intent was silently defeated one layer up
+    /// by the transport's default.
+    ///
+    /// ## Why this value
+    ///
+    /// A deadline is the wrong instrument for a stream: an idle SSE
+    /// subscription is healthy, not stalled, and the only honest bound on one
+    /// is "as long as the library is open". The transport API takes a
+    /// `TimeAmount` and offers no "no deadline", so this is the largest value
+    /// that still expresses a bound — a full day, far longer than any session,
+    /// and long enough that reaching it means something is genuinely wrong
+    /// rather than merely quiet. Stream loss is already reconciled (#4346), so
+    /// a re-dial at that point is a recovery, not a failure.
+    static let streamDeadline: TimeAmount = .hours(24)
+
+    /// The whole-request deadline for a given traffic population. Pure, so the
+    /// two populations' deadlines are assertable without opening a socket.
+    static func deadline(for usage: FicheroClient.TransportUsage) -> TimeAmount {
+        switch usage {
+        case .request: return requestDeadline
+        case .stream: return streamDeadline
+        }
+    }
+
     /// The in-use count at or above which ``ConnectionPoolPressure`` warns.
     /// Pure arithmetic, kept separate so it is unit-testable without a socket.
     ///
@@ -130,6 +182,12 @@ public enum LocalTransportPool {
         // No read timeout: an idle SSE subscription is healthy, not stalled, and
         // a read deadline would kill every quiet stream. Connect timeouts stay at
         // AsyncHTTPClient's default.
+        //
+        // NOTE (#4379): this alone does NOT make streams deadline-free. The
+        // `AsyncHTTPClientTransport` wrapping this client applies its own
+        // whole-request deadline on top, and its default of one minute was
+        // silently defeating the intent above. See ``streamDeadline`` — the
+        // deadline must be set at the transport, not only omitted here.
         return configuration
     }
 

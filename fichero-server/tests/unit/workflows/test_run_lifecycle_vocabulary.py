@@ -53,7 +53,7 @@ class TestRecoverySweep:
         asyncio.run(_save_run(store, "t-done", "completed"))
 
         recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
-        assert recovered == 3
+        assert len(recovered) == 3
 
         for tid in ("t-running", "t-accepted", "t-paused"):
             run = asyncio.run(store.get_workflow_run(tid))
@@ -71,7 +71,7 @@ class TestRecoverySweep:
                 max_age_hours=0, exclude_thread_ids=("t-live",)
             )
         )
-        assert recovered == 1
+        assert len(recovered) == 1
         assert asyncio.run(store.get_workflow_run("t-live")).status == "running"
         assert asyncio.run(store.get_workflow_run("t-zombie")).status == "failed"
 

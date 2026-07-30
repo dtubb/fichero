@@ -483,6 +483,33 @@ def _detect_empty_text_output(final_state: dict) -> tuple[bool, str]:
                 if isinstance(entry, dict)
             ):
                 return False, ""
+        # #4379: entity-shaped output. The extraction tools produce no text, no
+        # artifacts and no results rows — their observable product is rows in
+        # the knowledge graph, reported in `summary`. Without this the guard
+        # would flag every SUCCESSFUL named-entity run the moment it became
+        # reachable, turning #4283's signal into noise.
+        #
+        # Deliberately counting entity/claim work and NOT `documents_processed`:
+        # a run that read every document and produced zero entities is exactly
+        # the "ran but nothing observable happened" shape this guard exists to
+        # catch, so it must stay catchable.
+        summary = node_output.get("summary")
+        if isinstance(summary, dict):
+            produced = 0
+            for key in (
+                "entity_mentions_processed",
+                "entities_created",
+                "entities_reused",
+                "claims_extracted",
+                "claims_created",
+                "claims_reused",
+            ):
+                try:
+                    produced += int(summary.get(key) or 0)
+                except (TypeError, ValueError):
+                    continue
+            if produced > 0:
+                return False, ""
         if node_output.get("error"):
             node_errors.append(str(node_output["error"]))
     reason = f"Workflow processed {len(files)} file(s) but produced no text output"

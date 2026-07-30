@@ -35,6 +35,7 @@ from fichero_server.llm import (
     resolve_model_alias,
 )
 from fichero_server.models import Artifact, Document, DocType, FileType
+from fichero_server.workflows.node_context import artifact_provenance
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.catalogue import _resolve_write_target
 from fichero_server.workflows.tools.extractors import (
@@ -1834,6 +1835,28 @@ async def extract_all(
     if container and library_path:
         try:
             db = _registry_db if _registry_db is not None else db_manager.get_database(library_path)
+
+            # #4379: these artifacts are built inline rather than through
+            # `save_artifact`, so they used to carry ONLY `run_id` — every
+            # people/places/dates artifact a NER run wrote had step_name,
+            # workflow_id and sequence all NULL. That makes entity output
+            # impossible to attribute to the node that produced it or to order
+            # within its run, which is exactly the forensics needed when a run
+            # dies mid-way and you have to reconstruct how far it got. Stamp
+            # the same #4313 trio every other artifact writer stamps.
+            _run_id = state.get("task_id")
+
+            def _seed_sequence_from_db() -> int:
+                return max(
+                    (a.sequence or 0 for a in db.query(Artifact, run_id=_run_id)),
+                    default=0,
+                )
+
+            def _provenance() -> dict[str, Any]:
+                fields = artifact_provenance(_run_id, seed_fn=_seed_sequence_from_db)
+                fields["step_name"] = fields["step_name"] or "extract_all"
+                return fields
+
             # All writes go direct through the package's one shared connection;
             # the single per-package lock (#2508) serializes them, so the #1000
             # Phase-2 DBWriter queue is redundant and was removed (#2514).
@@ -1937,7 +1960,8 @@ async def extract_all(
                             data={"items": items},
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
-                            run_id=state.get("task_id"),
+                            run_id=_run_id,
+                            **_provenance(),
                         )
                         db.save(artifact)
                         created_artifact_ids.append(artifact.id)
@@ -1954,7 +1978,8 @@ async def extract_all(
                             data={"items": flat},
                             provider=getattr(llm_config, "provider", None),
                             model=getattr(llm_config, "model", None),
-                            run_id=state.get("task_id"),
+                            run_id=_run_id,
+                            **_provenance(),
                         )
                         db.save(artifact)
                         created_artifact_ids.append(artifact.id)
@@ -1990,7 +2015,8 @@ async def extract_all(
                         },
                         provider=getattr(llm_config, "provider", None),
                         model=getattr(llm_config, "model", None),
-                        run_id=state.get("task_id"),
+                        run_id=_run_id,
+                        **_provenance(),
                     )
                     db.save(artifact)
                     created_artifact_ids.append(artifact.id)

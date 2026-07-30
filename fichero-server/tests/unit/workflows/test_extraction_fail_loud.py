@@ -345,9 +345,9 @@ class TestZombieRunRecovery:
             f"but status={completed.status!r}"
         )
 
-        # recovered count must equal 1 (just the zombie)
-        assert recovered == 1, (
-            f"recover_stale_runs() returned {recovered}, expected 1"
+        # exactly one run recovered — the zombie, named (#4379)
+        assert recovered == ["zombie-thread-1"], (
+            f"recover_stale_runs() returned {recovered}, expected ['zombie-thread-1']"
         )
 
     @pytest.mark.asyncio
@@ -361,7 +361,7 @@ class TestZombieRunRecovery:
         store = ActivityStore(db_path)
 
         recovered = await store.recover_stale_runs(max_age_hours=1)
-        assert recovered == 0
+        assert len(recovered) == 0
 
     @pytest.mark.asyncio
     async def test_get_activity_tracker_schedules_recover_on_new_library(
@@ -639,7 +639,7 @@ class TestZombieRowIndexCrash:
         import asyncio
 
         recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
-        assert recovered == 4
+        assert len(recovered) == 4
 
         # --- Phase 3: all 4 zombie rows must now be status='failed' ---
         verify_conn = duckdb.connect(db_path)
