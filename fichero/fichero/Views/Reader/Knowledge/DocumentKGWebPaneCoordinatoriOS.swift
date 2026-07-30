@@ -12,6 +12,10 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     var lastReaderTextWrap: String = ""
     /// Per-window source-navigation bus, captured each `updateUIView` (#3437).
     var claimSourceNavigationState: ClaimSourceNavigationState?
+    /// Per-window reader page-activation bus (#4373), captured the same way and
+    /// for the same reason: a click on a page arrives on an async bridge
+    /// callback, outside view evaluation, where reading `@Environment` is unsafe.
+    var readerPageActivationState: ReaderPageActivationState?
     weak var webView: GuardedWKWebView?
 
     var lastLoadedDocumentId: String?
@@ -260,6 +264,12 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
             }
             guard parent?.scrollSync.beginDriving(.web) ?? false else { return }
             parent?.onPageSelected(max(0, pageNumber - 1))
+        case "pageActivated":
+            // A CLICK, not a scroll (#4373). It is allowed to move the library
+            // selection and the preview, which `pageSelected` deliberately is
+            // not (#1463) — hence the separate kind and the separate bus. No
+            // scroll-sync driving claim: the user is not scrolling.
+            handlePageActivated(body)
         default:
             break
         }
@@ -270,6 +280,30 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
 // Bridge-message routing, in an extension so the coordinator's own body stays
 // under the SwiftLint type-body threshold.
 extension DocumentKGWebPaneCoordinatoriOS {
+    /// A reader page click (#4373). Validates the bridge payload and publishes
+    /// it on the per-window activation bus, where ContentView routes it through
+    /// the SAME selection path a sidebar click uses — so the sidebar highlight,
+    /// the preview and the inspector all follow as observers rather than
+    /// through a parallel navigation of their own.
+    ///
+    /// A malformed or out-of-range page is REPORTED, never clamped: silently
+    /// selecting page 1 because the payload said 0 is precisely the kind of
+    /// quiet wrong answer that makes a navigation bug unfindable.
+    func handlePageActivated(_ body: [String: Any]) {
+        guard let pageNumber = pageNumber(from: body) else {
+            readerPageActivationLogger.error("Reader page click carried no usable page number")
+            return
+        }
+        Task { @MainActor in
+            guard let state = readerPageActivationState else { return }
+            if !state.activate(pageNumber: pageNumber) {
+                readerPageActivationLogger.error(
+                    "Reader page click carried an out-of-range page number \(pageNumber, privacy: .public)"
+                )
+            }
+        }
+    }
+
     func focusKGSource(
         documentId: String?,
         entityId: String?,

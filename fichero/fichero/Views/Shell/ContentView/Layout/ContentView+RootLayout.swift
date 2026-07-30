@@ -270,9 +270,16 @@ extension ContentView {
             .onChange(of: claimSourceNavigationState.requestID) { _, _ in
                 handleOpenClaimSource()
             }
+            // #4373: a reader page click routes through the SAME selection path
+            // a sidebar click uses, so the sidebar, preview and inspector all
+            // update as observers rather than through a parallel navigation.
+            .onChange(of: readerPageActivationState.requestID) { _, _ in
+                handleReaderPageActivated()
+            }
             // Scope both request buses to this window's subtree (#3437).
             .environment(entitySearchState)
             .environment(claimSourceNavigationState)
+            .environment(readerPageActivationState)
             .environment(activeSurfaceState)
             .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { note in
                 handleAppleScriptSelectDocument(note)

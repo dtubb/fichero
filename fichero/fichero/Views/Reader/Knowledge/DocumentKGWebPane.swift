@@ -67,6 +67,9 @@ struct DocumentKGWebPane: NSViewRepresentable {
     /// in `updateNSView` — a WKScriptMessageHandler callback fires async, outside
     /// view evaluation, where reading `@Environment` directly is unsafe.
     @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
+    /// Per-window reader page-activation bus (#4373). Same capture-into-the-
+    /// coordinator discipline as the line above, for the same reason.
+    @Environment(ReaderPageActivationState.self) var readerPageActivationState: ReaderPageActivationState?
 
     typealias Coordinator = DocumentKGWebPaneCoordinatorMacOS
 
@@ -126,6 +129,7 @@ struct DocumentKGWebPane: NSViewRepresentable {
     func updateNSView(_ webView: GuardedWKWebView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.claimSourceNavigationState = claimSourceNavigationState
+        context.coordinator.readerPageActivationState = readerPageActivationState
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
@@ -190,6 +194,9 @@ struct DocumentKGWebPane: UIViewRepresentable {
     /// Per-window source-navigation bus (#3437); captured into the coordinator
     /// in `updateUIView` for the async bridge callback.
     @Environment(ClaimSourceNavigationState.self) var claimSourceNavigationState: ClaimSourceNavigationState?
+    /// Per-window reader page-activation bus (#4373). Same capture-into-the-
+    /// coordinator discipline as the line above, for the same reason.
+    @Environment(ReaderPageActivationState.self) var readerPageActivationState: ReaderPageActivationState?
 
     typealias Coordinator = DocumentKGWebPaneCoordinatoriOS
 
@@ -249,6 +256,7 @@ struct DocumentKGWebPane: UIViewRepresentable {
     func updateUIView(_ webView: GuardedWKWebView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.claimSourceNavigationState = claimSourceNavigationState
+        context.coordinator.readerPageActivationState = readerPageActivationState
         context.coordinator.injectContext(into: webView)
         context.coordinator.loadIfNeeded(webView)
         context.coordinator.syncSelection(into: webView)
