@@ -424,4 +424,3 @@ class TrackingImageView: UIImageView {
 }
 
 #endif
-

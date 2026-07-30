@@ -113,7 +113,6 @@ extension ContentView {
         }
     }
 
-    // swiftlint:disable cyclomatic_complexity
     /// Pure `AppViewMode` → persisted `(type, id)` mapping. Static so the save
     /// contract (what iOS scene-background / macOS terminate flush) is unit-
     /// testable without a live ContentView (#3016).
@@ -141,7 +140,6 @@ extension ContentView {
             return ("activity", run?.id)
         }
     }
-    // swiftlint:enable cyclomatic_complexity
 
     func restorePersistedState() {
         columnVisibility = Self.restoredColumnVisibility(from: columnVisibilityRaw)

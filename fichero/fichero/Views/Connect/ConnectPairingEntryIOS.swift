@@ -2,15 +2,15 @@
 import SwiftUI
 import UIKit
 
+// Promoted private → internal: presented by `RemoteConnectionSetupView`
+// (IOSPairingViews.swift) after this type was split out of FicheroApp_iOS.swift
+// for file_length.
+
 /// Manual fallback/debug pairing entry (#2350): accepts an invite link
 /// (`fichero://pair?…`) or raw QR payload text. Reuses the same
 /// `RemoteClientPairing.pairingFields(fromInviteOrPayload:)` path the scanner
 /// funnels into, so validation (HTTPS/SPKI) is identical — this is entry only,
 /// never a bypass. Primary route on visionOS (no camera scanner).
-//
-// Promoted private → internal: presented by `RemoteConnectionSetupView`
-// (IOSPairingViews.swift) after this type was split out of FicheroApp_iOS.swift
-// for file_length.
 struct ManualPairingEntrySheet: View {
     let isPairing: Bool
     let onCancel: () -> Void

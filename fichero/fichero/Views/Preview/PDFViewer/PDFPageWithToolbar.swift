@@ -219,8 +219,11 @@ struct PDFPageWithToolbar: View {
         .onAppear { activeSurfaceState?.registerUnpinned(surfaceId) }
         .onDisappear { activeSurfaceState?.unregister(surfaceId) }
         .onChange(of: isPinned) { _, pinned in
-            if pinned { activeSurfaceState?.unregister(surfaceId) }
-            else { activeSurfaceState?.registerUnpinned(surfaceId) }
+            if pinned {
+                activeSurfaceState?.unregister(surfaceId)
+            } else {
+                activeSurfaceState?.registerUnpinned(surfaceId)
+            }
         }
     }
 
