@@ -13,6 +13,14 @@ struct WorkflowProvenancePanel: View {
     @State private var runs: [Components.Schemas.WorkflowRunProvenanceResponse] = []
     @State private var isLoading = false
     @State private var loadError: String?
+    /// The run whose trace this panel is showing (#4358).
+    @State private var traceRun: TraceRunSelection?
+
+    /// Identifiable wrapper so `.sheet(item:)` can present a run trace.
+    private struct TraceRunSelection: Identifiable {
+        let threadId: String
+        var id: String { threadId }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -44,6 +52,11 @@ struct WorkflowProvenancePanel: View {
             }
         }
         .task(id: documentId) { await load() }
+        // A history row opens the run it describes (#4358) — the same read-only
+        // trace the artifact browser's "Produced by" link shows.
+        .sheet(item: $traceRun) { selection in
+            RunTraceSheet(threadId: selection.threadId)
+        }
     }
 
     @ViewBuilder
@@ -72,8 +85,31 @@ struct WorkflowProvenancePanel: View {
                     }
                 }
             }
+            Spacer(minLength: 4)
+            viewRunButton(for: run)
         }
         .padding(.vertical, 2)
+    }
+
+    /// "View Run" for one history row. Enabled only when the row records a
+    /// thread id — runs from before run provenance landed (#4313) carry none, and
+    /// those show the control DISABLED with the reason on hover rather than an
+    /// enabled control that does nothing (#4358).
+    @ViewBuilder
+    private func viewRunButton(for run: Components.Schemas.WorkflowRunProvenanceResponse) -> some View {
+        let unavailable = RunTraceLink.unavailableReason(run.threadId)
+        Button {
+            guard let threadId = RunTraceLink.threadId(run.threadId) else { return }
+            traceRun = TraceRunSelection(threadId: threadId)
+        } label: {
+            Label("View Run", systemImage: "point.3.connected.trianglepath.dotted")
+                .labelStyle(.iconOnly)
+                .font(.caption)
+        }
+        .buttonStyle(.borderless)
+        .disabled(unavailable != nil)
+        .help(unavailable ?? "View this run's trace")
+        .accessibilityLabel(unavailable ?? "View this run's trace")
     }
 
     private func relativeDate(_ iso: String) -> String {

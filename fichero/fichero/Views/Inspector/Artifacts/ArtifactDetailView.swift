@@ -41,9 +41,15 @@ struct ArtifactDetailView: View {
                         ArtifactProvenanceSection(
                             provenance: provenance,
                             onOpenSource: onOpenSource,
-                            // "Produced by" links to the run only when this
-                            // artifact records one (#4319).
-                            onOpenRun: artifact.runId == nil ? nil : onOpenRun
+                            // "Produced by" is shown whenever the host can open
+                            // runs; whether THIS artifact's run can be shown is
+                            // the row's own enabled/disabled state, with the
+                            // reason on hover (#4358). Hiding it for an
+                            // unrecorded run left the user with no explanation,
+                            // and gating only on `runId != nil` let an empty id
+                            // render an enabled control that did nothing.
+                            onOpenRun: onOpenRun,
+                            runId: artifact.runId
                         )
                         Divider()
                     }
@@ -99,6 +105,10 @@ private struct ArtifactProvenanceSection: View {
     let provenance: ArtifactProvenanceDisplay
     var onOpenSource: (() -> Void)?
     var onOpenRun: (() -> Void)?
+    var runId: String?
+    /// The producing run id, as recorded on the artifact. Resolved through
+    /// `RunTraceLink` so the control's enablement matches what the action can do.
+    var runId: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -137,6 +147,7 @@ private struct ArtifactProvenanceSection: View {
 
             if let onOpenRun {
                 LabeledContent("Produced by") {
+                    let unavailable = RunTraceLink.unavailableReason(runId)
                     Button(action: onOpenRun) {
                         Label("View Run", systemImage: "point.3.connected.trianglepath.dotted")
                     }
@@ -145,7 +156,13 @@ private struct ArtifactProvenanceSection: View {
                     #else
                     .buttonStyle(.borderless)
                     #endif
-                    .accessibilityLabel("Open the workflow run that produced this artifact")
+                    // A control that cannot act is DISABLED with the reason on
+                    // hover — never enabled and silent (#4358).
+                    .disabled(unavailable != nil)
+                    .help(unavailable ?? "Open the workflow run that produced this artifact")
+                    .accessibilityLabel(
+                        unavailable ?? "Open the workflow run that produced this artifact"
+                    )
                 }
             }
         }
