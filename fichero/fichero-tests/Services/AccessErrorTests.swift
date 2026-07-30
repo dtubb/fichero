@@ -184,8 +184,8 @@ struct AccessErrorTests {
             authBroken: false,
             usesExternalBackendConnection: false
         )
-        #expect(title == "Can't Connect to Engine")
-        #expect(title != "Engine Not Running")
+        #expect(title == "Can't Connect to Server")
+        #expect(title != "Server Not Running")
     }
 
     @Test func unclassifiedEmbeddedFailureStillNeverSaysNotRunning() {
@@ -194,7 +194,7 @@ struct AccessErrorTests {
             authBroken: false,
             usesExternalBackendConnection: false
         )
-        #expect(title == "Can't Connect to Engine")
+        #expect(title == "Can't Connect to Server")
     }
 
     @Test func authBrokenRoutesToTheActionableAuthTitle() {
@@ -205,7 +205,7 @@ struct AccessErrorTests {
             authBroken: true,
             usesExternalBackendConnection: false
         )
-        #expect(title == "Can't Authenticate to Engine")
+        #expect(title == "Can't Authenticate to Server")
     }
 
     @Test func embeddedAuthBrokenUsesAppOwnedCopy() {
@@ -215,7 +215,7 @@ struct AccessErrorTests {
             usesExternalBackendConnection: false,
             usesAppManagedEmbeddedEngine: true
         )
-        #expect(title == "Fichero Couldn't Authenticate to Its Engine")
+        #expect(title == "Fichero Couldn't Authenticate to Its Server")
         #expect(!title.contains("Sign-In"))
     }
 

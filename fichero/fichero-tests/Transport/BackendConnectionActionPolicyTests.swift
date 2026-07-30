@@ -55,7 +55,7 @@ struct BackendConnectionActionPolicyTests {
         #expect(BackendConnectionView.retryButtonTitle(
             accessError: .engineUnreachable,
             usesExternalBackendConnection: false
-        ) == "Start External Engine")
+        ) == "Start External Server")
         #expect(BackendConnectionView.retryButtonTitle(
             accessError: .engineUnreachable,
             usesExternalBackendConnection: true
@@ -63,6 +63,6 @@ struct BackendConnectionActionPolicyTests {
         #expect(BackendConnectionView.retryButtonTitle(
             accessError: .staleBootstrapToken,
             usesExternalBackendConnection: true
-        ) == "Retry After Restarting Engine")
+        ) == "Retry After Restarting Server")
     }
 }
