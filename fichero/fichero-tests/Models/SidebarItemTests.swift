@@ -426,14 +426,14 @@ struct SidebarItemBuilderTests {
         #expect(result.isEmpty)
     }
 
-    @Test("buildLibraryHierarchy excludes non-sidebar file leaves like text")
-    func excludesTextFiles() {
+    @Test("buildLibraryHierarchy includes text file leaves (#4300 — show ALL items)")
+    func includesTextFiles() {
         let generic = makeDocument(id: "f1", name: "notes.txt", docType: .file, fileType: .text)
         let result = SidebarItemBuilder.buildLibraryHierarchy(
             from: [generic],
             libraryId: testLibraryId
         )
-        #expect(result.isEmpty, "text files must not appear in the sidebar")
+        #expect(result.count == 1, "generic files are sidebar-visible since #4300 (Finder rule)")
     }
 
     @Test("buildLibraryHierarchy includes images as leaf rows")
