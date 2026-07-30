@@ -47,7 +47,10 @@ class WorkflowExecutionService {
             threadId: response.threadId,
             workflowId: response.workflowId,
             workflowName: response.workflowName,
-            status: mapStatus(response.status),
+            // Bridge at the seam: the generated RunStatus enum (#4316) feeds the
+            // legacy string mapper until the app-wide adoption pass replaces
+            // the hand-rolled status enums.
+            status: mapStatus(response.status.rawValue),
             checkpointId: response.checkpointId,
             error: response.error
         )
@@ -129,7 +132,7 @@ class WorkflowExecutionService {
                 threadId: payload.threadId,
                 workflowId: payload.workflowId,
                 workflowName: payload.workflowName,
-                status: payload.status ?? "accepted",
+                status: (payload.status ?? .accepted).rawValue,
                 streamUrl: payload.streamUrl
             )
         case .unprocessableContent:
