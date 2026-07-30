@@ -159,12 +159,15 @@ extension LibraryView {
         }
     }
 
-    /// Delete via the existing confirm dialog: the clicked item, or the whole
-    /// selection when the clicked item is part of it (Finder semantics).
+    /// The ONE row-level delete entry point (Finder semantics via
+    /// `deleteTargets`): context menu AND iOS swipe (#2501) land here, then
+    /// the shared confirm dialog runs the audited `document.delete` action.
     func promptDelete(for document: Document) {
-        let targets = selection.contains(document.id)
-            ? filteredDocuments.filter { selection.contains($0.id) }
-            : [document]
+        let targets = Self.deleteTargets(
+            for: document,
+            selection: selection,
+            visibleDocuments: filteredDocuments
+        )
         guard !targets.isEmpty else { return }
         documentsToDelete = targets
         showDeleteConfirmation = true

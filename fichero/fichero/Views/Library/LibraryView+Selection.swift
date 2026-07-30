@@ -108,12 +108,32 @@ extension LibraryView {
         selectionAnchor = doc.id
     }
 
+    /// Whether a PLAIN tap opens a navigable container in place (#2666).
+    /// Regular width drills in only when the sidebar is hidden — the sidebar is
+    /// the primary folder navigator there, so a single click is selection.
+    /// Compact width (iPhone) has NO persistent sidebar even though the shell's
+    /// `showSidebar` state stays true, so the row tap is the only way into a
+    /// folder — without the compact clause, folders on iPhone highlighted but
+    /// never opened, cutting off every document nested below the root.
+    /// nonisolated: pure, testable off-main (#4201).
+    nonisolated static func plainTapNavigatesInto(
+        isNavigableContainer: Bool,
+        sidebarHidden: Bool,
+        isCompactWidth: Bool
+    ) -> Bool {
+        isNavigableContainer && (sidebarHidden || isCompactWidth)
+    }
+
     private func handlePlainClick(_ doc: Document) {
         // Plain click: replace selection.
         selection = [doc.id]
         selectionAnchor = doc.id
         detailDocument = doc
-        if sidebarHidden, canNavigateInto(doc) {
+        if Self.plainTapNavigatesInto(
+            isNavigableContainer: canNavigateInto(doc),
+            sidebarHidden: sidebarHidden,
+            isCompactWidth: horizontalSizeClass == .compact
+        ) {
             onNavigateInto(doc)
         }
     }
