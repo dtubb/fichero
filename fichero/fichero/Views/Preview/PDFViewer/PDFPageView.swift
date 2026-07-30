@@ -136,44 +136,6 @@ struct PDFPageView: NSViewRepresentable {
         return view
     }
 
-    /// Route manual-zoom signals — a trackpad pinch and the toolbar's zoom
-    /// commands — into the coordinator, so the automatic fit knows when to stop
-    /// re-fitting the page to the pane (#4279).
-    private func wireZoomOwnership(_ coordinator: Coordinator, on view: PDFView) {
-        (view as? PinchOwningPDFView)?.onUserMagnify = { [weak coordinator] in
-            coordinator?.userHasZoomedManually = true
-        }
-        zoomController?.onManualZoomChanged = { [weak coordinator] isManual in
-            coordinator?.userHasZoomedManually = isManual
-        }
-    }
-
-    /// PDFKit page/scale + claim-source navigation observers. Extracted from
-    /// makeNSView to keep that builder within the function-length budget.
-    private func registerObservers(_ coordinator: Coordinator, on view: PDFView) {
-        NotificationCenter.default.addObserver(
-            coordinator,
-            selector: #selector(Coordinator.pageDidChange(_:)),
-            name: .PDFViewPageChanged,
-            object: view
-        )
-        NotificationCenter.default.addObserver(
-            coordinator,
-            selector: #selector(Coordinator.scaleDidChange(_:)),
-            name: .PDFViewScaleChanged,
-            object: view
-        )
-        // Claim-card source navigations forwarded by ContentView. Not filtered
-        // by `object:` — the userInfo carries the documentId the coordinator
-        // double-checks before scrolling (#978/#979/#982).
-        NotificationCenter.default.addObserver(
-            coordinator,
-            selector: #selector(Coordinator.handleNavigateToPage(_:)),
-            name: .ficheroNavigateToPage,
-            object: nil
-        )
-    }
-
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
         // Apply the page-layout mode (#2090); idempotent-guarded so switching
@@ -534,6 +496,60 @@ struct PDFPageView: NSViewRepresentable {
         ) -> Bool {
             true
         }
+    }
+}
+
+// MARK: - View wiring
+
+/// Zoom ownership and KVO/notification registration, lifted out of the
+/// `PDFPageView` body (#4353).
+///
+/// The struct sat at 345 of the 350-line type-body ERROR — five lines. That
+/// violation was INVISIBLE while the file was at 986/1000: the file-length
+/// warning was the reported problem, and this one only surfaced once the
+/// `applyHighlightSpan` collapse cleared it. Risk that moves as other risk is
+/// removed is the argument for measuring headroom continuously.
+///
+/// A same-file `extension` costs no access change, no import and no new file —
+/// these are `private` and stay `private`, reachable because the extension is
+/// in the same file.
+private extension PDFPageView {
+    /// Route manual-zoom signals — a trackpad pinch and the toolbar's zoom
+    /// commands — into the coordinator, so the automatic fit knows when to stop
+    /// re-fitting the page to the pane (#4279).
+    func wireZoomOwnership(_ coordinator: Coordinator, on view: PDFView) {
+        (view as? PinchOwningPDFView)?.onUserMagnify = { [weak coordinator] in
+            coordinator?.userHasZoomedManually = true
+        }
+        zoomController?.onManualZoomChanged = { [weak coordinator] isManual in
+            coordinator?.userHasZoomedManually = isManual
+        }
+    }
+
+    /// PDFKit page/scale + claim-source navigation observers. Extracted from
+    /// makeNSView to keep that builder within the function-length budget.
+    func registerObservers(_ coordinator: Coordinator, on view: PDFView) {
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.pageDidChange(_:)),
+            name: .PDFViewPageChanged,
+            object: view
+        )
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.scaleDidChange(_:)),
+            name: .PDFViewScaleChanged,
+            object: view
+        )
+        // Claim-card source navigations forwarded by ContentView. Not filtered
+        // by `object:` — the userInfo carries the documentId the coordinator
+        // double-checks before scrolling (#978/#979/#982).
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.handleNavigateToPage(_:)),
+            name: .ficheroNavigateToPage,
+            object: nil
+        )
     }
 }
 
