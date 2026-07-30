@@ -48,12 +48,18 @@ final class InterpretationStore: ObservableDomainStore {
 
     // MARK: - Scope + load
 
+    /// The document `items` were actually fetched for, set only on a SUCCESSFUL
+    /// load (#4348) — see `ArtifactStore.loadedScope` for why this cannot be
+    /// `currentDocumentId`, which is assigned before the await.
+    private var loadedScope: String?
+
     /// Point the store at `documentId` and load its interpretations. Idempotent
-    /// against an already-populated identical scope unless `force` is set.
+    /// against an already-loaded identical scope unless `force` is set.
     func setScope(documentId: String, force: Bool = false) async {
-        if !force, currentDocumentId == documentId, !items.isEmpty {
-            return
-        }
+        // Guards on the scope actually LOADED rather than `!items.isEmpty`: a
+        // failed fetch may now legitimately leave rows in place, and a
+        // non-empty list would otherwise be mistaken for a successful one.
+        if !force, loadedScope == documentId { return }
         currentDocumentId = documentId
         await reload()
     }
@@ -66,13 +72,24 @@ final class InterpretationStore: ObservableDomainStore {
         defer { isLoading = false }
         do {
             items = try await entityService.listDocumentInterpretations(documentId: documentId)
+            loadedScope = documentId
         } catch {
-            if error.isCancellationError {
+            switch StaleDataPolicy.onFailure(
+                isCancellation: error.isCancellationError,
+                loadedScope: loadedScope,
+                requestedScope: documentId
+            ) {
+            case .ignore:
                 // Superseded by a newer document selection — keep current state.
                 return
+            case .keepStale:
+                // These interpretations are this document's, merely unrefreshed.
+                break
+            case .clear:
+                items = []
+                loadedScope = nil
             }
             loadError = error.localizedDescription
-            items = []
             log.error(
                 "Interpretations fetch failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )

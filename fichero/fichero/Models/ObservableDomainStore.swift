@@ -106,6 +106,53 @@ final class ReloadDebouncer {
     }
 }
 
+// MARK: - Failed-fetch policy
+
+/// What a scope-backed store must do with the rows already on screen when a
+/// re-fetch fails (#4348).
+///
+/// The defect this exists to prevent: a store emptied its collection in every
+/// non-cancellation `catch`, so an engine that died mid-fetch turned a correct
+/// list into "nothing here" under an error banner. The list was never wrong —
+/// the app simply stopped being able to ask. Reporting absence when the truth
+/// is ignorance is the same lie #4283 fixed for the library.
+///
+/// But keeping the rows is only honest while they still describe the scope
+/// being *looked at*. Every store here assigns its new scope BEFORE awaiting
+/// the fetch, so a failure right after a document switch would leave document
+/// A's rows sitting under document B's heading. That is a worse failure than
+/// emptiness, because it looks correct. Hence the decision needs the loaded
+/// scope, not just the error:
+///
+///   - superseded by a newer request      → touch nothing
+///   - failed, rows describe THIS scope   → keep them, show the error
+///   - failed, rows describe another      → clear them, show the error
+///
+/// Pure and `nonisolated` so the rule is testable without a store, an actor or
+/// a live transport — the same shape as `ReloadDebouncer.wait`.
+enum StaleDataPolicy: Equatable {
+    /// A newer request already owns this store; leave all state alone.
+    case ignore
+    /// Keep the rows on screen: they are true, merely old. Surface the error.
+    case keepStale
+    /// Clear the rows: they belong to a scope nobody is looking at any more.
+    case clear
+
+    /// - Parameters:
+    ///   - isCancellation: the fetch was superseded, not failed.
+    ///   - loadedScope: the scope the current rows were fetched for, or `nil`
+    ///     when nothing has ever loaded successfully.
+    ///   - requestedScope: the scope whose fetch just failed.
+    nonisolated static func onFailure(
+        isCancellation: Bool,
+        loadedScope: String?,
+        requestedScope: String
+    ) -> StaleDataPolicy {
+        if isCancellation { return .ignore }
+        return loadedScope == requestedScope ? .keepStale : .clear
+    }
+}
+
 // MARK: - ObservableDomainStore
 
 /// Generic substrate for change-stream-backed observable domain stores (#1995).

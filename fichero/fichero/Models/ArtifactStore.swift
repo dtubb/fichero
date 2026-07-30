@@ -49,14 +49,27 @@ final class ArtifactStore: ObservableDomainStore {
 
     // MARK: - Scope + load (the store, not the view, owns fetching)
 
+    /// The scope `items` were actually fetched for, set only on a SUCCESSFUL
+    /// load (#4348). Distinct from `currentDocumentId`, which is the scope being
+    /// *asked* for and is assigned before the await — the gap between the two is
+    /// exactly where stale rows would be mislabelled as the new document's.
+    private var loadedScope: String?
+
+    /// Identity of a scope for staleness purposes. `includeDescendants` is part
+    /// of it because the same document yields a different row set either way.
+    private static func scopeKey(documentId: String, includeDescendants: Bool) -> String {
+        "\(documentId)|\(includeDescendants)"
+    }
+
     /// Point the store at `documentId` and load its artifacts. Idempotent: a
-    /// repeated set of the same already-populated scope is a no-op unless
-    /// `force` is set (reload button / post-mutation refresh).
+    /// repeated set of the same already-loaded scope is a no-op unless `force`
+    /// is set (reload button / post-mutation refresh).
     func setScope(documentId: String, includeDescendants: Bool = false, force: Bool = false) async {
-        if !force,
-           currentDocumentId == documentId,
-           currentIncludeDescendants == includeDescendants,
-           !items.isEmpty { return }
+        let scope = Self.scopeKey(documentId: documentId, includeDescendants: includeDescendants)
+        // Guards on the scope actually LOADED, not on `!items.isEmpty`. Now that
+        // a failed fetch can leave rows in place, "non-empty" no longer means
+        // "loaded" — a scope whose fetch failed would never be retried (#4348).
+        if !force, loadedScope == scope { return }
         currentDocumentId = documentId
         currentIncludeDescendants = includeDescendants
         await reload()
@@ -65,6 +78,9 @@ final class ArtifactStore: ObservableDomainStore {
     /// Re-fetch the current document scope (reconnect resync / post-event).
     func reload() async {
         guard let documentId = currentDocumentId else { return }
+        let scope = Self.scopeKey(
+            documentId: documentId, includeDescendants: currentIncludeDescendants
+        )
         isLoading = true
         loadError = nil
         defer { isLoading = false }
@@ -74,16 +90,28 @@ final class ArtifactStore: ObservableDomainStore {
                 forceRefresh: true,
                 includeDescendants: currentIncludeDescendants
             )
+            loadedScope = scope
             log.debug(
                 "Loaded \(self.items.count, privacy: .public) artifacts for \(documentId, privacy: .public)"
             )
         } catch {
-            if error.isCancellationError {
+            switch StaleDataPolicy.onFailure(
+                isCancellation: error.isCancellationError,
+                loadedScope: loadedScope,
+                requestedScope: scope
+            ) {
+            case .ignore:
                 // Superseded by a newer document selection — keep current state.
                 return
+            case .keepStale:
+                // The rows on screen are this document's, just not refreshed.
+                // Showing them under the error banner is the honest report.
+                break
+            case .clear:
+                items = []
+                loadedScope = nil
             }
             loadError = "Couldn't load artifacts: \(error.localizedDescription)"
-            items = []
             log.error(
                 "Failed to load artifacts for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
