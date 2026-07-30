@@ -69,14 +69,21 @@ struct LaunchPathNoModalTests {
         )
     }
 
-    /// The auth gate must wait for the backend to answer. Pre-ready the session
-    /// phase is `.checking` (undetermined, so `allowsLibraryAccess` is false),
-    /// and gating on it flashes the login wall on every launch — which loopback
-    /// bootstrap, always the owner, must never see (#3941).
-    @Test("the auth gate waits for the backend to answer")
+    /// Auth is chrome, never a wall (#4359): the main content mounts
+    /// unconditionally and sign-in — when a resolved gate genuinely requires
+    /// it — is presented as a sheet gated on BOTH the backend having answered
+    /// AND the session phase having resolved (`requiresAuthUI` excludes
+    /// `.checking`, so an undetermined or failed probe presents nothing —
+    /// loopback bootstrap, always the owner, never sees sign-in, #3941).
+    @Test("auth presents as chrome, gated on a resolved session phase")
     func authGateWaitsForBackend() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView.swift")
-        #expect(source.contains("if appState.isBackendRunning,"))
+        #expect(source.contains("appState.isBackendRunning"))
+        #expect(source.contains("requiresAuthUI"))
+        #expect(
+            !source.contains("AuthGateView"),
+            "the full-window login takeover was deleted in #4359 and must not come back"
+        )
     }
 
     /// Restoring saved libraries is local work (UserDefaults paths + security

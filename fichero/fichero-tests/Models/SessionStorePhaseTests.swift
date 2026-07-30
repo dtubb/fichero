@@ -157,6 +157,44 @@ struct SessionStorePhaseTests {
         ) == .needsLogin)
     }
 
+    // MARK: - Failed probes are "unknown", never "signed out" (#4348 class, #4359)
+
+    @Test("a total probe failure keeps the prior phase — failure is not sign-out")
+    func totalProbeFailureKeepsPriorPhase() {
+        // `refresh()` routes here when the me-probe threw (no HTTP answer) AND
+        // the identity probe resolved nothing: the server never SAID anything,
+        // so nothing may resolve. Before #4359 this fell into `.needsLogin`
+        // and put a full-window sign-in wall in front of the loopback owner
+        // whenever a transient transport failure hit mid-refresh.
+        for prior in [SessionStore.Phase.disabled, .authenticated, .checking, .needsLogin, .needsOwnerSetup] {
+            #expect(SessionStore.phaseAfterUnresolvedProbes(prior: prior) == prior)
+        }
+    }
+
+    @Test("a failed probe never yields needsLogin from an ungated prior state")
+    func failedProbeNeverGatesAnUngatedSession() {
+        // The two states that grant library access must survive a probe outage
+        // untouched — the #4348 defect class is exactly a failure resolving to
+        // "signed out".
+        #expect(SessionStore.phaseAfterUnresolvedProbes(prior: .disabled) != .needsLogin)
+        #expect(SessionStore.phaseAfterUnresolvedProbes(prior: .authenticated) != .needsLogin)
+    }
+
+    @Test("requiresAuthUI is false for checking — an undetermined gate shows no auth chrome")
+    func checkingPhaseRequiresNoAuthUI() throws {
+        // Structural companion to the sheet gating in ContentView: `.checking`
+        // (which includes failed probes after phaseAfterUnresolvedProbes) must
+        // never present sign-in chrome. Verified at the source level because
+        // SessionStore.phase has a private setter.
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Models/SessionStore.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        #expect(source.contains("var requiresAuthUI: Bool {"))
+        #expect(source.contains("phase == .needsLogin || phase == .needsOwnerSetup"))
+    }
+
     @Test("auth error messages never echo secrets and stay category-specific")
     func authErrorMessagesAreSafe() {
         let messages = [

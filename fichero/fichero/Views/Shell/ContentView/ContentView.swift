@@ -239,6 +239,24 @@ struct ContentView: View {
     @State var importProgress: String?
     @State var importError: String?
 
+    // MARK: - Auth chrome (#4359)
+
+    /// Presents the auth sheet only for a RESOLVED gate: the backend answered
+    /// and said sign-in (or first-run owner setup / invite redemption) is
+    /// genuinely required. `.checking` — including probes that FAILED — never
+    /// presents: unknown is not signed-out (#4348 class). Setter ignores
+    /// dismissal; the sheet leaves when the session state resolves it.
+    var authSheetPresented: Binding<Bool> {
+        Binding(
+            get: {
+                appState.isBackendRunning
+                    && (appState.sessionStore.requiresAuthUI
+                        || appState.sessionStore.pendingInviteToken != nil)
+            },
+            set: { _ in }
+        )
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -253,33 +271,44 @@ struct ContentView: View {
             // Engine phase — starting, connecting, every failure — is toolbar
             // chrome (`EngineStatusToolbarItem`), so real content mounts on
             // the first frame and data streams in when the engine answers.
-            // Auth-gate ONLY once the backend has answered: pre-ready the
-            // session phase is `.checking` (undetermined), and showing the
-            // login wall then flashes it on every launch — loopback+bootstrap
-            // is owner and must never see a login wall (#3941). A genuine
-            // multiuser needs-login resolves right after the session refresh
-            // and gates then.
-            if appState.isBackendRunning,
-                !appState.sessionStore.allowsLibraryAccess
-                || appState.sessionStore.pendingInviteToken != nil {
-                // Multi-user is on and there's no valid session yet — present the
-                // login / first-run owner-setup screen instead of the library
-                // (which would otherwise 401/403 against its own backend). (#2021)
-                // A pending invite link (#3157) also routes here even when
-                // already signed in, so the invitee can claim the new account.
-                AuthGateView(session: appState.sessionStore)
-            } else {
-                mainContentView
-                    .onAppear {
-                        // The end of the launch timeline: real content on screen.
-                        // `endLaunch` is idempotent — onAppear fires again on
-                        // later re-appearances, which must not reopen or redraw
-                        // the launch interval.
-                        LaunchProfile.milestone("ContentView first-frame — main content visible")
-                        LaunchProfile.endLaunch()
-                    }
-            }
+            //
+            // #4359: auth NEVER replaces the window either. The old code swapped
+            // `mainContentView` for a full-window auth takeover — and any path
+            // that flipped `isBackendRunning` true before the session phase
+            // resolved (heartbeat recovery, endpoint failover) rendered a
+            // "Sign In" wall to the loopback owner with multi-user OFF. The
+            // window keeps its shell, sidebar and content unconditionally; auth
+            // is chrome (a sheet, below), never a wall.
+            mainContentView
+                .onAppear {
+                    // The end of the launch timeline: real content on screen.
+                    // `endLaunch` is idempotent — onAppear fires again on
+                    // later re-appearances, which must not reopen or redraw
+                    // the launch interval.
+                    LaunchProfile.milestone("ContentView first-frame — main content visible")
+                    LaunchProfile.endLaunch()
+                }
         }
+        // Multi-user sign-in / first-run owner-setup / invite redemption
+        // (#2021/#3157), presented ONLY once the backend has answered AND the
+        // session phase has RESOLVED to needs-login / needs-owner-setup. The
+        // `.checking` phase (undetermined, including a failed probe — #4348
+        // class: failure is "unknown", never "signed out") presents nothing.
+        //
+        // Platform decision, explicit (#4359): macOS uses a modal sheet — the
+        // window shell stays visible behind it and auth can never take the
+        // window hostage. iOS keeps the idiomatic full-screen sign-in cover.
+        #if os(macOS)
+        .sheet(isPresented: authSheetPresented) {
+            AuthSheetView(session: appState.sessionStore)
+                .interactiveDismissDisabled()
+        }
+        #else
+        .fullScreenCover(isPresented: authSheetPresented) {
+            AuthSheetView(session: appState.sessionStore)
+                .interactiveDismissDisabled()
+        }
+        #endif
         .onKeyPress(.tab, phases: .down) { keyPress in
             cyclePaneFocus(reverse: keyPress.modifiers.contains(.shift))
             return .handled
