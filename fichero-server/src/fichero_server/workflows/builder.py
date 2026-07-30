@@ -445,15 +445,35 @@ def build_graph(
     # Identify route_map edges whose targets are PARALLEL_TOOLS (#2236).
     # Example: classify → route_map → {typescript: transcribe-ts, ...}
     # These need the same per-file Send fan-out as direct SOURCE→PARALLEL edges.
-    # Maps routed_target_id → files_source_id (the SOURCE_TOOL one hop upstream).
+    # Maps routed_target_id → files_source_id. The files source comes from the
+    # edge's explicit ``route_files_source`` declaration when present (#4324);
+    # otherwise the legacy inference walks one hop upstream of the routing node
+    # looking for a SOURCE_TOOL (kept for user-authored workflows that predate
+    # the explicit field).
     route_map_parallel: dict[str, str] = {}
     if enable_parallel:
         for edge in workflow.edges:
             if not edge.route_map:
                 continue
+            declared_source = getattr(edge, "route_files_source", None)
+            if declared_source:
+                declared_node = workflow.get_node(declared_source)
+                if not (declared_node and declared_node.tool in SOURCE_TOOLS):
+                    raise ValueError(
+                        f"Route-map edge {edge.id!r} declares "
+                        f"route_files_source={declared_source!r}, which is not "
+                        f"a source node (files/collection/folder/search)"
+                    )
             for target_id in edge.route_map.values():
                 target_node = workflow.get_node(target_id)
                 if not (target_node and target_node.tool in PARALLEL_TOOLS):
+                    continue
+                if declared_source:
+                    route_map_parallel[target_id] = declared_source
+                    logger.info(
+                        "Route-map fan-out declared: %s → %s (files from %s)",
+                        edge.source, target_id, declared_source,
+                    )
                     continue
                 # Walk one hop upstream to find the SOURCE_TOOL providing files
                 for upstream in workflow.edges:

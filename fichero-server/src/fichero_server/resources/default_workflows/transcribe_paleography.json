@@ -14,7 +14,9 @@
     "two-pass"
   ],
   "config": {
-    "preset_version": 5
+    "preset_version": 6,
+    "variant_group": "transcribe-two-pass",
+    "variant": "paleography"
   },
   "nodes": [
     {

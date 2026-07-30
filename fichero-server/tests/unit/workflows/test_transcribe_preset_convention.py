@@ -89,9 +89,11 @@ def _reachable_from_sources(preset: dict) -> tuple[set[str], set[str]]:
 
 
 def _is_component(preset: dict) -> bool:
-    """A sub-workflow component declares config.input_contract — its files come
-    from the invoking parent, so per-page fan-out is the caller's contract."""
-    return bool((preset.get("config") or {}).get("input_contract"))
+    """A sub-workflow component declares config.internal / input_contract —
+    its files come from the invoking parent, so per-page fan-out is the
+    caller's contract (#4324)."""
+    config = preset.get("config") or {}
+    return bool(config.get("internal") or config.get("input_contract"))
 
 
 @pytest.mark.parametrize("name,preset", _PRESETS, ids=[p[0] for p in _PRESETS])
@@ -114,6 +116,76 @@ def test_transcribe_nodes_qualify_for_per_page_fanout(name, preset):
         "tool (files/collection/folder/search) — they would NOT fan out per "
         "page. Wire them from the source (directly or via classify route_map)."
     )
+
+
+def _all_presets() -> list[tuple[str, dict]]:
+    out: list[tuple[str, dict]] = []
+    for path in sorted(_PRESETS_DIR.glob("*.json")):
+        out.append((path.name, json.loads(path.read_text(encoding="utf-8"))))
+    return out
+
+
+def _topology(preset: dict) -> tuple:
+    """Structural fingerprint: node ids+tools and edge wiring (no configs)."""
+    nodes = tuple(sorted((n["id"], n.get("tool")) for n in preset.get("nodes", [])))
+    edges = tuple(
+        sorted(
+            (
+                e.get("source"),
+                e.get("target"),
+                e.get("source_port"),
+                e.get("target_port"),
+            )
+            for e in preset.get("edges", [])
+        )
+    )
+    return (nodes, edges)
+
+
+def test_variant_group_presets_share_topology_and_differ_in_config():
+    """#4324(a): Transcribe HTR and Transcribe Paleography are DELIBERATE
+    variants of one two-pass pipeline — same graph shape, different prompts /
+    vision and thinking modes. They stay separate presets because (1) only HTR
+    has earned execution-gate validation (config.tested), and (2) presets have
+    no parameter mechanism to swap per-node prompts at run time. This test
+    turns that from accidental duplication into a locked convention: presets
+    declaring the same config.variant_group MUST keep identical topology while
+    declaring distinct variants and differing in at least one node config.
+    """
+    groups: dict[str, list[tuple[str, dict]]] = {}
+    for name, preset in _all_presets():
+        group = (preset.get("config") or {}).get("variant_group")
+        if group:
+            groups.setdefault(group, []).append((name, preset))
+
+    assert "transcribe-two-pass" in groups, (
+        "expected the HTR/Paleography pair to declare "
+        "config.variant_group='transcribe-two-pass'"
+    )
+
+    for group, members in groups.items():
+        assert len(members) >= 2, f"variant_group {group!r} has a single member"
+        variants = [(p.get("config") or {}).get("variant") for _, p in members]
+        assert all(variants), f"{group}: every member must declare config.variant"
+        assert len(set(variants)) == len(variants), (
+            f"{group}: duplicate config.variant values {variants}"
+        )
+        topologies = {_topology(p) for _, p in members}
+        assert len(topologies) == 1, (
+            f"{group}: members drifted apart topologically — either restore "
+            "the shared shape or split the variant_group deliberately"
+        )
+        node_configs = {
+            json.dumps(
+                {n["id"]: n.get("config") or {} for n in p.get("nodes", [])},
+                sort_keys=True,
+            )
+            for _, p in members
+        }
+        assert len(node_configs) == len(members), (
+            f"{group}: two members have identical node configs — they are the "
+            "same preset twice; merge them"
+        )
 
 
 if __name__ == "__main__":

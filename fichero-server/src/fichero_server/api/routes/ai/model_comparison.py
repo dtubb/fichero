@@ -648,9 +648,11 @@ async def estimate_comparison_cost(
 
     for spec in _model_specs(request.models, app_db):
         model_name = spec.model
+        # None = pricing unavailable in the litellm registry; report 0.0
+        # rather than fabricating a stale per-model price (#4325).
         cost = estimate_cost(
             model_name, estimated_input_tokens, estimated_output_tokens
-        )
+        ) or 0.0
         estimates.append(CostEstimateItem(
             provider=spec.provider,
             model=model_name,

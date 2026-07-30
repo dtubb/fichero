@@ -237,6 +237,13 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
     final_state = asyncio.run(
         build_graph(
             workflow,
+            # Auto-Detect's route_map fan-out now declares its files source
+            # explicitly (edge.route_files_source, #4324), but the smoke stubs
+            # still can't run it in parallel mode: fan-out rewrites the routed
+            # target into _process/_aggregate nodes whose aggregated output
+            # shape differs from the flat per-node outputs this harness
+            # asserts on. Parallel coverage for the declared fan-out lives in
+            # test_builder_route_files_source.py.
             enable_parallel=preset_name != "Transcribe (Auto-Detect)",
             skip_cache=True,
         ).ainvoke(state)

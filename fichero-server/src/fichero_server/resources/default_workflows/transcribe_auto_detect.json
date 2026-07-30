@@ -13,7 +13,7 @@
     "routing"
   ],
   "config": {
-    "preset_version": 3
+    "preset_version": 4
   },
   "nodes": [
     {
@@ -182,6 +182,7 @@
       "id": "edge-route",
       "source": "classify",
       "target": "",
+      "route_files_source": "files-source",
       "route_key": "$.nodes.classify.script_type",
       "route_map": {
         "typescript": "transcribe-ts",

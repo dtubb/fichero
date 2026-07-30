@@ -156,7 +156,6 @@ These are also gated behind `FICHERO_FEATURE_TIER=dev`. They are complete but no
 | `workflows/resolver.py` | Parameter reference resolution at runtime |
 | `workflows/state.py` | Workflow state management |
 | `workflows/file_watcher.py` | File system watch triggers |
-| `workflows/action_library.py` | Pre-built action definitions |
 | `workflows/model_comparison.py` | Multi-model response comparison |
 
 ## Loaders

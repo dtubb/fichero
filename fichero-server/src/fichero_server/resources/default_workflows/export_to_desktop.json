@@ -13,9 +13,18 @@
     "xlsx"
   ],
   "config": {
-    "preset_version": 1
+    "preset_version": 2
   },
   "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 200,
+      "inputs": {},
+      "config": {}
+    },
     {
       "id": "export-documents",
       "tool": "export_documents",
@@ -33,5 +42,13 @@
       }
     }
   ],
-  "edges": []
+  "edges": [
+    {
+      "id": "edge-files-export",
+      "source": "files-source",
+      "target": "export-documents",
+      "source_port": "documents",
+      "target_port": "documents"
+    }
+  ]
 }

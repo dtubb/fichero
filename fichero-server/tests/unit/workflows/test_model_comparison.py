@@ -86,11 +86,10 @@ class TestEstimateCost:
     """Tests for cost estimation."""
 
     def test_estimate_cost_gpt4o(self):
-        """Test cost estimation for GPT-4o."""
+        """Cost comes from the litellm registry, not a hand-rolled table (#4325)."""
         cost = estimate_cost("gpt-4o", 1000, 500)
-        assert cost > 0
-        # Expected: (1000/1M)*5 + (500/1M)*15 = 0.005 + 0.0075 = 0.0125
-        assert 0.01 < cost < 0.02  # Expected around $0.0125
+        assert cost is not None
+        assert 0 < cost < 1.0  # a positive litellm-registry price, not a guess
 
     def test_estimate_cost_unknown_model(self):
         """Test cost estimation for unknown model returns unavailable."""

@@ -100,7 +100,6 @@
 | `resolver.py` | Parameter reference resolution at runtime |
 | `state.py` | Workflow state management |
 | `file_watcher.py` | File system change triggers |
-| `action_library.py` | Pre-built action definitions |
 | `action_store.py` | Action persistence |
 | `model_comparison.py` | Multi-model response comparison |
 

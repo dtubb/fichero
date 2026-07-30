@@ -227,6 +227,30 @@ def _node_model_profile_ref(node: NodeDef) -> str:
     return extract_model_profile_reference(provider) or ""
 
 
+def _require_provider_credentials(provider: str) -> None:
+    """Raise when a RESOLVED cloud provider has no API key configured (#4325).
+
+    Missing credentials used to surface as a construction exception inside the
+    node, mid-run. Checking presence here turns that into a pre-run preflight
+    message that names the provider. Local/built-in providers (apple, mock,
+    ollama, lmstudio, omlx) and unknown/custom provider names are never
+    gated — only catalog cloud providers that declare an api_key_env.
+    """
+    from fichero_server.llm import get_api_key
+    from fichero_server.llm.providers import get_provider_info
+
+    info = get_provider_info((provider or "").strip().lower())
+    if info is None or info.is_local or info.is_builtin or not info.api_key_env:
+        return
+    if get_api_key(info.type.value):
+        return
+    raise ValueError(
+        f"Provider '{info.name}' requires an API key and none is configured. "
+        f"Add a {info.name} key in Settings (or set {info.api_key_env}), "
+        "or pick an on-device model for this node."
+    )
+
+
 def validate_workflow_llm_preflight(
     workflow: WorkflowDef,
     workflow_llm_config: LLMConfig | None = None,
@@ -265,6 +289,7 @@ def validate_workflow_llm_preflight(
                     profile_config.model,
                     kind=kind,
                 )
+                _require_provider_credentials(profile_config.provider)
                 continue
 
             if node_provider or node_model:
@@ -281,6 +306,7 @@ def validate_workflow_llm_preflight(
                     required_capability=capability,
                 )
                 enforce_local_only_provider(provider, model, kind=kind)
+                _require_provider_credentials(provider)
                 continue
 
             provider = llm_config.provider
@@ -304,6 +330,7 @@ def validate_workflow_llm_preflight(
                     profile_config.model,
                     kind=kind,
                 )
+                _require_provider_credentials(profile_config.provider)
                 continue
 
             if not (provider and model):
@@ -336,6 +363,7 @@ def validate_workflow_llm_preflight(
                     required_capability=capability,
                 )
                 enforce_local_only_provider(provider, model, kind=kind)
+                _require_provider_credentials(provider)
         except Exception as exc:
             node_label = node.label or node.id or node.tool
             errors.append(f"Node '{node_label}' ({node.tool}): {exc}")

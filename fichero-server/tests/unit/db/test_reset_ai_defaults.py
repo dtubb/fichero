@@ -45,8 +45,8 @@ class TestResetAIDefaults:
         assert defaults["default_text_model"] == "apple-intelligence"
         assert defaults["default_small_provider"] == "apple"
         assert defaults["default_small_model"] == "apple-intelligence"
-        assert defaults["default_medium_provider"] == "openrouter"
-        assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
+        assert defaults["default_medium_provider"] == "apple"
+        assert defaults["default_medium_model"] == "apple-intelligence"
         assert defaults["default_vision_provider"] == "apple"
         assert defaults["default_vision_model"] == "apple-vision"
         for tier in ("small", "medium", "large"):
@@ -58,17 +58,16 @@ class TestResetAIDefaults:
     def test_reset_populates_all_tiers_text_small_large(self, app_db):
         """The LLM tiers the resolver actually consumes today (text,
         small, medium, large) need defaults so workflow placeholders
-        resolve. $medium is OpenRouter cloud; the rest stay Apple.
+        resolve. Every tier seeds ON-DEVICE so a keyless fresh install
+        runs every default workflow (#4325).
         """
         app_db.reset_ai_defaults()
         defaults = app_db.get_ai_defaults()
-        for tier in ("text", "small", "large"):
+        for tier in ("text", "small", "medium", "large"):
             assert defaults.get(f"default_{tier}_provider") == "apple", (
                 f"Tier {tier} should be Apple Intelligence after reset"
             )
             assert defaults.get(f"default_{tier}_model") == "apple-intelligence"
-        assert defaults["default_medium_provider"] == "openrouter"
-        assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
 
     def test_reset_populates_all_vision_tiers(self, app_db):
         """Vision aliases need settings defaults so #2200 preflight can resolve them."""
@@ -101,6 +100,75 @@ class TestResetAIDefaults:
         defaults = app_db.get_ai_defaults()
         assert defaults["default_large_provider"] == "apple"
         assert defaults["default_large_model"] == "apple-intelligence"
+
+    def test_repair_rewrites_keyless_openrouter_medium_seed(self, app_db, monkeypatch):
+        """#4325: the legacy seeded $medium (openrouter/openai/gpt-4o-mini)
+        fails mid-run on a keyless install — repaired to on-device when no
+        OpenRouter credential exists."""
+        app_db.set_setting("default_medium_provider", "openrouter")
+        app_db.set_setting("default_medium_model", "openai/gpt-4o-mini")
+        monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: None)
+
+        _repair_known_bad_ai_defaults(app_db)
+
+        defaults = app_db.get_ai_defaults()
+        assert defaults["default_medium_provider"] == "apple"
+        assert defaults["default_medium_model"] == "apple-intelligence"
+
+    def test_repair_keeps_openrouter_medium_when_key_present(self, app_db, monkeypatch):
+        app_db.set_setting("default_medium_provider", "openrouter")
+        app_db.set_setting("default_medium_model", "openai/gpt-4o-mini")
+        monkeypatch.setattr(
+            "fichero_server.llm.get_api_key", lambda provider: "sk-or-test"
+        )
+
+        _repair_known_bad_ai_defaults(app_db)
+
+        defaults = app_db.get_ai_defaults()
+        assert defaults["default_medium_provider"] == "openrouter"
+        assert defaults["default_medium_model"] == "openai/gpt-4o-mini"
+
+    def test_repair_never_touches_a_user_chosen_medium(self, app_db, monkeypatch):
+        """Only the exact legacy seeded pairing is repaired."""
+        app_db.set_setting("default_medium_provider", "openrouter")
+        app_db.set_setting("default_medium_model", "anthropic/claude-sonnet-4")
+        monkeypatch.setattr("fichero_server.llm.get_api_key", lambda provider: None)
+
+        _repair_known_bad_ai_defaults(app_db)
+
+        defaults = app_db.get_ai_defaults()
+        assert defaults["default_medium_model"] == "anthropic/claude-sonnet-4"
+
+    def test_factory_table_is_fully_on_device(self):
+        """#4325 acceptance: the single tier-default table must contain no
+        provider that needs an API key, so a keyless fresh install passes
+        preflight for every tier alias."""
+        from fichero_server.db.app import FACTORY_AI_DEFAULTS
+        from fichero_server.llm.providers import get_provider_info
+
+        providers = {
+            value
+            for key, value in FACTORY_AI_DEFAULTS.items()
+            if key.endswith("_provider")
+        }
+        for provider in providers:
+            info = get_provider_info(provider)
+            assert info is not None and (info.is_local or info.is_builtin), (
+                f"factory default provider {provider!r} requires configuration"
+            )
+
+    def test_bootstrap_and_reset_share_the_factory_table(self, app_db):
+        """The bootstrap seed and reset must write identical values (the
+        triplicated-table drift this test now prevents, #4325)."""
+        from fichero_server.db.app import FACTORY_AI_DEFAULTS
+
+        _ensure_default_ai_defaults(app_db, "ignored-provider-id")
+        seeded = {k: app_db.get_setting(k) for k in FACTORY_AI_DEFAULTS}
+
+        app_db.reset_ai_defaults()
+        reset = {k: app_db.get_setting(k) for k in FACTORY_AI_DEFAULTS}
+
+        assert seeded == reset == FACTORY_AI_DEFAULTS
 
     def test_repair_rewrites_text_only_vision_tiers(self, app_db):
         # Legacy seeds (pre vision-tier split) pointed vision tiers at
