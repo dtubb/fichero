@@ -128,7 +128,11 @@ extension ContentView {
             // control keeps ONE position-encoded glyph. The old glyph-swap
             // grammar decayed both the library and preview toggles to the same
             // bare `rectangle` when hidden — two meanings on one symbol.
-            ToolbarItemGroup(id: ContentToolbarID.paneToggleGroup, placement: .automatic) {
+            // No `id:` — `ToolbarItemGroup` has no identified initialiser, only
+            // `(placement:content:)`. The group is positional; customisation
+            // identity belongs to the items a user can reorder, and these three
+            // move as one by construction.
+            ToolbarItemGroup(placement: .automatic) {
                 libraryPaneToggleButton
 
                 Toggle(isOn: Binding(

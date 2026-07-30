@@ -87,28 +87,52 @@ func classifySidebarDropPayload(
     return .unsupported
 }
 
+/// Could this drop carry one of OUR ids? A cheap pre-check that decides
+/// whether to attempt a string read — never the route (#4401).
+///
+/// Deliberately separate from `classifySidebarDropProviders` rather than
+/// folded into it: that function answers "does this look external by
+/// capability", which is a fine question and still correctly answered. What it
+/// cannot do is decide the route, because since #4123 an internal document
+/// drag and a Finder file drag advertise the same capabilities. Conflating the
+/// two questions is what let the routing regress silently.
+///
+/// An internal drag always vends its id as a string. A Finder file drag does
+/// not, so this is cheap and safe to over-answer: a false positive costs one
+/// failed read, and then `classifySidebarDropPayload` sorts it out.
+func sidebarDropMightCarryInternalID(_ providers: [SidebarDropProviderCapabilities]) -> Bool {
+    providers.contains(\.canLoadString)
+}
+
+/// Capability-shaped route. Still correct for what it answers, and still the
+/// external-vs-unsupported decision — but NOT the internal-vs-external one.
+/// See `classifySidebarDropPayload`, which routes on the id actually read.
 func classifySidebarDropProviders(_ providers: [SidebarDropProviderCapabilities]) -> SidebarDropProviderRoute {
     guard !providers.isEmpty else { return .unsupported }
 
-    // Kept for the PRE-LOAD decision only: whether it is worth trying to read
-    // an internal id at all. The authoritative routing now happens after the
-    // load, in `classifySidebarDropPayload` — a provider set alone cannot tell
-    // an internal document drag from a Finder file drag, because #4123 made
-    // both of them advertise a file (#4401).
-    let couldBeInternal = providers.contains { provider in
-        provider.canLoadString
+    let hasExternalProvider = providers.contains { provider in
+        provider.canLoadURL
             || provider.registeredTypeIdentifiers.contains {
-                $0 == UTType.text.identifier
-                    || $0 == UTType.plainText.identifier
-                    || $0 == UTType.utf8PlainText.identifier
+                // utf8PlainText is REQUIRED here (#4124): `.draggable`'s
+                // String proxy registers public.utf8-plain-text — without it
+                // every internal sidebar drag classified as external files,
+                // the URL loads all failed, and row-onto-row moves never ran.
+                $0 != UTType.text.identifier
+                    && $0 != UTType.plainText.identifier
+                    && $0 != UTType.utf8PlainText.identifier
             }
     }
-    if couldBeInternal {
-        return .internalTextOnly
-    }
-    if providers.contains(where: { $0.canLoadURL }) {
+    if hasExternalProvider {
         return .externalFiles
     }
+
+    let hasInternalTextProvider = providers.contains { provider in
+        provider.canLoadString
+    }
+    if hasInternalTextProvider {
+        return .internalTextOnly
+    }
+
     return .unsupported
 }
 
@@ -145,8 +169,9 @@ extension SidebarItemRow {
         // Worth trying to read an id? Capabilities alone can no longer decide
         // the ROUTE (#4401) — since #4123 an internal document drag also vends
         // a file — so they only decide whether to attempt the read.
-        let mightBeInternal = classifySidebarDropProviders(capabilities) == .internalTextOnly
-        guard mightBeInternal || hasFileURL else { return false }
+        let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
+        let capabilityRoute = classifySidebarDropProviders(capabilities)
+        guard mightBeInternal || capabilityRoute == .externalFiles else { return false }
 
         // Read FIRST, route second. Every provider is asked for a string,
         // including ones that can also vend a URL — that inclusion is the fix,
