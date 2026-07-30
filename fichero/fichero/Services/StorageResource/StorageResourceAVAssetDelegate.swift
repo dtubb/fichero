@@ -1,8 +1,8 @@
 import AVFoundation
 import FicheroAPIClient
 import Foundation
-import OSLog
 import os
+import OSLog
 import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "StorageResourceAVAssetDelegate")

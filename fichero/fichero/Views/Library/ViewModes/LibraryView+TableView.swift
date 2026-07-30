@@ -63,9 +63,9 @@ extension LibraryView {
         if let cursor = selectionCursor, items.contains(cursor) { return cursor }
         let order = filteredDocuments.map(\.id)
         return items.min { lhs, rhs in
-            let li = order.firstIndex(of: documentId(forNodeId: lhs)) ?? Int.max
-            let ri = order.firstIndex(of: documentId(forNodeId: rhs)) ?? Int.max
-            if li != ri { return li < ri }
+            let lhsIndex = order.firstIndex(of: documentId(forNodeId: lhs)) ?? Int.max
+            let rhsIndex = order.firstIndex(of: documentId(forNodeId: rhs)) ?? Int.max
+            if lhsIndex != rhsIndex { return lhsIndex < rhsIndex }
             return lhs < rhs
         }
     }

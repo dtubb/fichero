@@ -17,21 +17,21 @@ import SwiftUI
 struct ArtifactDetailView: View {
     /// The artifact to render. `nil` shows the empty state (nothing selected).
     let artifact: Artifact?
-    var provenance: ArtifactProvenanceDisplay? = nil
-    var onOpenSource: (() -> Void)? = nil
+    var provenance: ArtifactProvenanceDisplay?
+    var onOpenSource: (() -> Void)?
 
     /// Open the producing workflow run (its trace, #4319/#4320). Shown only
     /// when the artifact carries a `runId`; `nil` hides the affordance.
-    var onOpenRun: (() -> Void)? = nil
+    var onOpenRun: (() -> Void)?
 
     /// Persist edited content. `nil` → read-only (the `AttributedTextEditor`
     /// becomes non-editable, matching `ArtifactPanel`'s `onSave == nil` path).
     /// Returns nil on success or a user-facing error message on failure so
     /// the embedded panel keeps its draft dirty and retries (#4285).
-    var onSave: ((Artifact, String) async -> String?)? = nil
+    var onSave: ((Artifact, String) async -> String?)?
 
     /// Delete this artifact. `nil` hides the trash affordance.
-    var onDelete: ((Artifact) -> Void)? = nil
+    var onDelete: ((Artifact) -> Void)?
 
     var body: some View {
         Group {

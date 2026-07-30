@@ -77,9 +77,9 @@ struct RunTraceView: View {
                 Path { path in
                     for edge in graph.edges {
                         guard let from = layout.positions[edge.source],
-                              let to = layout.positions[edge.target] else { continue }
+                              let target = layout.positions[edge.target] else { continue }
                         let start = CGPoint(x: from.x + Self.nodeSize.width / 2, y: from.y)
-                        let end = CGPoint(x: to.x - Self.nodeSize.width / 2, y: to.y)
+                        let end = CGPoint(x: target.x - Self.nodeSize.width / 2, y: target.y)
                         path.move(to: start)
                         let controlOffset = max(24, (end.x - start.x) / 2)
                         path.addCurve(
@@ -325,9 +325,9 @@ struct RunTraceNodeDetail: View {
 
 enum RunTraceFormat {
     /// "850ms", "3.2s", "2m 05s" — compact durations for node cards.
-    static func duration(ms: Double) -> String {
-        if ms < 1000 { return String(format: "%.0fms", ms) }
-        let seconds = ms / 1000
+    static func duration(ms milliseconds: Double) -> String {
+        if milliseconds < 1000 { return String(format: "%.0fms", milliseconds) }
+        let seconds = milliseconds / 1000
         if seconds < 60 { return String(format: "%.1fs", seconds) }
         let minutes = Int(seconds) / 60
         let rest = Int(seconds) % 60

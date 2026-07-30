@@ -48,7 +48,9 @@ struct ToolCall: Identifiable, Codable, Hashable {
     enum Status: String, Codable, Hashable {
         case pending
         case running
-        case ok
+        /// Raw value pinned to "ok": it is the engine's wire spelling and
+        /// must not follow the Swift name.
+        case succeeded = "ok"
         case error
     }
 
@@ -75,7 +77,7 @@ struct ToolCall: Identifiable, Codable, Hashable {
         actor: String,
         auditId: String? = nil,
         isMutation: Bool? = nil,
-        status: Status = .ok
+        status: Status = .succeeded
     ) {
         self.id = id
         self.workspaceId = workspaceId
@@ -106,7 +108,7 @@ extension ToolCall {
         switch status {
         case .pending: return "clock"
         case .running: return "arrow.triangle.2.circlepath"
-        case .ok: return "checkmark.circle.fill"
+        case .succeeded: return "checkmark.circle.fill"
         case .error: return "exclamationmark.triangle.fill"
         }
     }

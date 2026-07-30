@@ -1,5 +1,5 @@
-import Observation
 import Foundation
+import Observation
 import OSLog
 
 let workflowExecutionLogger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowExecutionObserver")

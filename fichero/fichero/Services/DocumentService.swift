@@ -1,8 +1,8 @@
-import Observation
-import Foundation
-import OSLog
 import FicheroAPIClient
+import Foundation
+import Observation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentService")
 
@@ -122,8 +122,8 @@ class DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            let doc = try ok.body.json
+        case .ok(let okResponse):
+            let doc = try okResponse.body.json
             return try convertToDocument(doc)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
@@ -144,8 +144,8 @@ class DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            return try convertToDocument(try ok.body.json)
+        case .ok(let okResponse):
+            return try convertToDocument(try okResponse.body.json)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -168,8 +168,8 @@ class DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.points
+        case .ok(let okResponse):
+            return try okResponse.body.json.points
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -190,8 +190,8 @@ class DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.rows
+        case .ok(let okResponse):
+            return try okResponse.body.json.rows
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -225,8 +225,8 @@ class DocumentService {
         )
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -246,8 +246,8 @@ class DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            let docs = try ok.body.json
+        case .ok(let okResponse):
+            let docs = try okResponse.body.json
             logger.info("Found \(docs.count) children")
             return try docs.items.map { try convertToDocument($0) }
         case .unprocessableContent(let error):
@@ -269,8 +269,8 @@ class DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            let docs = try ok.body.json
+        case .ok(let okResponse):
+            let docs = try okResponse.body.json
             logger.info("Found \(docs.count) ancestors")
             return try docs.items.map { try convertToDocument($0) }
         case .unprocessableContent(let error):
@@ -289,8 +289,8 @@ class DocumentService {
         let response = try await client.api.listRootsApiDocumentsRootsGet(.init())
 
         switch response {
-        case .ok(let ok):
-            let docs = try ok.body.json
+        case .ok(let okResponse):
+            let docs = try okResponse.body.json
             logger.info("Found \(docs.count) root documents")
             return try docs.items.map { try convertToDocument($0) }
         default:
@@ -311,8 +311,8 @@ class DocumentService {
         )
 
         switch response {
-        case .ok(let ok):
-            let docs = try ok.body.json
+        case .ok(let okResponse):
+            let docs = try okResponse.body.json
             logger.info("Found \(docs.items.count) documents")
             return try docs.items.map { try convertToDocument($0) }
         default:
@@ -328,8 +328,8 @@ class DocumentService {
         let response = try await client.api.listCollectionsApiDocumentsCollectionsGet(.init())
 
         switch response {
-        case .ok(let ok):
-            let docs = try ok.body.json
+        case .ok(let okResponse):
+            let docs = try okResponse.body.json
             logger.info("Found \(docs.count) collections")
             return try docs.items.map { try convertToDocument($0) }
         default:
@@ -345,8 +345,8 @@ class DocumentService {
         let response = try await client.api.listWorkspacesApiDocumentsWorkspacesGet()
 
         switch response {
-        case .ok(let ok):
-            let docs = try ok.body.json
+        case .ok(let okResponse):
+            let docs = try okResponse.body.json
             logger.info("Found \(docs.items.count) workspaces")
             return try docs.items.map { generated in
                 var document = try convertToDocument(generated)
@@ -394,8 +394,8 @@ class DocumentService {
         )
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -450,8 +450,8 @@ class DocumentService {
         let response = try await client.api.ingestFolderApiIngestFolderPost(.init(body: .json(request)))
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -471,8 +471,8 @@ class DocumentService {
         )
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json
+        case .ok(let okResponse):
+            return try okResponse.body.json
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -542,8 +542,8 @@ extension DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            let doc = try ok.body.json
+        case .ok(let okResponse):
+            let doc = try okResponse.body.json
             logger.info("Updated document: \(doc.id ?? id)")
             return try convertToDocument(doc)
         case .unprocessableContent(let error):
@@ -612,8 +612,8 @@ extension DocumentService {
         )
 
         switch response {
-        case .ok(let ok):
-            let doc = try ok.body.json
+        case .ok(let okResponse):
+            let doc = try okResponse.body.json
             logger.info("Moved document: \(doc.id ?? id)")
             return try convertToDocument(doc)
         case .unprocessableContent(let error):
@@ -671,8 +671,8 @@ extension DocumentService {
         )
 
         switch response {
-        case .ok(let ok):
-            let result = try ok.body.json
+        case .ok(let okResponse):
+            let result = try okResponse.body.json
             var documents: [Document] = []
             for id in result.documentIds {
                 documents.append(try await getDocument(id))
@@ -911,8 +911,8 @@ extension DocumentService {
         )
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.items
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
@@ -935,8 +935,8 @@ extension DocumentService {
         ))
 
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.items
+        case .ok(let okResponse):
+            return try okResponse.body.json.items
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")

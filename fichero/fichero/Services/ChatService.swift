@@ -1,9 +1,9 @@
-import Observation
-import Foundation
 import Combine
-import OSLog
 import FicheroAPIClient
+import Foundation
+import Observation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ChatService")
 
@@ -134,7 +134,7 @@ class ChatService {
             actor: call.actor,
             auditId: call.auditId,
             isMutation: call.isMutation,
-            status: ToolCall.Status(rawValue: call.status ?? "ok") ?? .ok
+            status: ToolCall.Status(rawValue: call.status ?? "ok") ?? .succeeded
         )
     }
 

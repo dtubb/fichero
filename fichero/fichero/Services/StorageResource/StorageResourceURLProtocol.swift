@@ -42,11 +42,11 @@ final class StorageResourceURLProtocol: URLProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var loadTask: Task<Void, Never>?
 
-    override class func canInit(with request: URLRequest) -> Bool {
+    override static func canInit(with request: URLRequest) -> Bool {
         request.url?.scheme == StorageResourceURL.scheme
     }
 
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest {
         request
     }
 

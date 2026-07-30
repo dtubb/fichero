@@ -1,7 +1,7 @@
 import Combine
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OpenAPIRuntime
 import OSLog
 
@@ -136,9 +136,9 @@ class WorkflowService {
             body: .json(request)
         ))
         switch response {
-        case .ok(let ok):
+        case .ok(let okResponse):
             logger.info("createWorkflow: success")
-            return try convertToWorkflowResponse(ok.body.json)
+            return try convertToWorkflowResponse(okResponse.body.json)
         case .unprocessableContent(let error):
             logger.error("createWorkflow: unprocessableContent - \(String(describing: error))")
             throw WorkflowServiceError.validationError("Invalid workflow data")
@@ -337,8 +337,8 @@ class WorkflowService {
         ))
 
         switch response {
-        case .ok(let ok):
-            return convertToWorkflowResponse(try ok.body.json)
+        case .ok(let okResponse):
+            return convertToWorkflowResponse(try okResponse.body.json)
         case .unprocessableContent:
             throw WorkflowServiceError.validationError("Invalid workflow data")
         default:
@@ -497,8 +497,8 @@ extension WorkflowService {
                 "source": AnyCodable(edge.source),
                 "target": AnyCodable(edge.target ?? "")
             ]
-            if let sp = edge.sourcePort { dict["source_port"] = AnyCodable(sp) }
-            if let tp = edge.targetPort { dict["target_port"] = AnyCodable(tp) }
+            if let sourcePort = edge.sourcePort { dict["source_port"] = AnyCodable(sourcePort) }
+            if let targetPort = edge.targetPort { dict["target_port"] = AnyCodable(targetPort) }
             if let cond = edge.condition { dict["condition"] = AnyCodable(cond) }
             if let anim = edge.animated { dict["animated"] = AnyCodable(anim) }
             return dict

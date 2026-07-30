@@ -116,8 +116,8 @@ final class UsersStore {
     func loadInvites() async {
         do {
             let response = try await client.api.listInvitesApiAuthInvitesGet()
-            if case .ok(let ok) = response {
-                invites = try ok.body.json.items
+            if case .ok(let okResponse) = response {
+                invites = try okResponse.body.json.items
             } else {
                 invites = []
             }
@@ -136,10 +136,10 @@ final class UsersStore {
         let response = try await client.api.createInviteApiAuthInvitesPost(
             body: .json(.init(username: username, displayName: displayName))
         )
-        guard case .ok(let ok) = response else {
+        guard case .ok(let okResponse) = response else {
             throw Self.error(from: response)
         }
-        let mint = try ok.body.json
+        let mint = try okResponse.body.json
         await loadInvites()
         return mint
     }

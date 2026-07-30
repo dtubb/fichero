@@ -1,16 +1,17 @@
-import Observation
-import Foundation
-import OSLog
 import FicheroAPIClient
+import Foundation
+import Observation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ProviderAPIService")
+
+// TODO: Refactor ProviderAPIService - extract catalog vs refs into separate services
+// Type body is 369 lines, target <350
 
 /// Service for managing AI providers using generated OpenAPI client
 /// Note: Most provider endpoints are global (not library-scoped).
 /// Only provider refs endpoints are library-scoped.
-// TODO: Refactor ProviderAPIService - extract catalog vs refs into separate services
-// Type body is 369 lines, target <350
 @MainActor
 @Observable
 class ProviderAPIService {

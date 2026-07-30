@@ -65,7 +65,7 @@ struct ToolCallCard: View {
         switch toolCall.status {
         case .pending: return .secondary
         case .running: return .accentColor
-        case .ok: return .green
+        case .succeeded: return .green
         case .error: return .red
         }
     }
@@ -101,7 +101,7 @@ struct ToolCallCard: View {
             params: ["node_id": AnyCodable(42), "target": AnyCodable("/Inbox")],
             actor: "Claude (model-user)",
             auditId: "audit-123",
-            status: .ok
+            status: .succeeded
         ))
         ToolCallCard(toolCall: ToolCall(
             actionName: "web.download",

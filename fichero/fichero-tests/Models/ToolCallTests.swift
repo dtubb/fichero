@@ -41,7 +41,8 @@ final class ToolCallTests: XCTestCase {
         XCTAssertEqual(call.actionName, "document.move")
         XCTAssertEqual(call.actor, "chat")
         XCTAssertEqual(call.auditId, "a-99")
-        XCTAssertEqual(call.status, .ok)
+        XCTAssertEqual(call.status, .succeeded)
+        XCTAssertEqual(call.status.rawValue, "ok", "wire spelling must survive the Swift rename")
     }
 
     // MARK: - Display helpers

@@ -52,7 +52,7 @@ final class ChatAPIResponseToolCallsTests: XCTestCase {
         XCTAssertEqual(call.actor, "chat")
         XCTAssertEqual(call.auditId, "audit-9")
         XCTAssertEqual(call.isMutation, false)
-        XCTAssertEqual(call.status, .ok)
+        XCTAssertEqual(call.status, .succeeded)
         XCTAssertEqual(call.params?["query"]?.value as? String, "ada lovelace")
     }
 

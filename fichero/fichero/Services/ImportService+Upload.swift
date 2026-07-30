@@ -49,7 +49,7 @@ extension ImportService {
                 NSLocalizedDescriptionKey: "All \(errors.count) import(s) failed",
                 NSLocalizedRecoverySuggestionErrorKey: details,
                 NSUnderlyingErrorKey: errors.first?.error
-                    ?? NSError(domain: "ImportService", code: -1),
+                    ?? NSError(domain: "ImportService", code: -1)
             ]
         )
     }

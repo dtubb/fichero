@@ -192,8 +192,8 @@ final class SessionStore {
         )
         let response = try await client.api.loginApiAuthLoginPost(body: .json(request))
         switch response {
-        case .ok(let ok):
-            let payload = try ok.body.json
+        case .ok(let okResponse):
+            let payload = try okResponse.body.json
             try AuthTokenMiddleware.persistSessionToken(payload.sessionToken, hostString: hostString)
             currentUser = payload.user
             phase = .authenticated
@@ -273,8 +273,8 @@ final class SessionStore {
         )
         let response = try await client.api.redeemInviteApiAuthInvitesRedeemPost(body: .json(request))
         switch response {
-        case .ok(let ok):
-            let payload = try ok.body.json
+        case .ok(let okResponse):
+            let payload = try okResponse.body.json
             try AuthTokenMiddleware.persistSessionToken(payload.sessionToken, hostString: hostString)
             currentUser = payload.user
             pendingInviteToken = nil
@@ -301,8 +301,8 @@ final class SessionStore {
         do {
             let response = try await client.api.meApiAuthMeGet()
             switch response {
-            case .ok(let ok):
-                currentUser = try? ok.body.json
+            case .ok(let okResponse):
+                currentUser = try? okResponse.body.json
                 return 200
             case .undocumented(let statusCode, _):
                 return statusCode
@@ -319,8 +319,8 @@ final class SessionStore {
         do {
             let response = try await client.api.listUsersApiUsersGet()
             switch response {
-            case .ok(let ok):
-                return try !ok.body.json.items.isEmpty
+            case .ok(let okResponse):
+                return try !okResponse.body.json.items.isEmpty
             case .undocumented:
                 return nil
             }
@@ -337,8 +337,8 @@ final class SessionStore {
         do {
             let response = try await client.api.identityApiAuthIdentityGet()
             switch response {
-            case .ok(let ok):
-                return try ok.body.json
+            case .ok(let okResponse):
+                return try okResponse.body.json
             case .undocumented:
                 return nil
             }

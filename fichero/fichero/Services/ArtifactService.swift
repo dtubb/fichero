@@ -6,7 +6,6 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ArtifactService")
 
-
 /// ArtifactService using the generated OpenAPI client.
 /// Manages document artifacts (transcripts, descriptions, etc.)
 @MainActor
