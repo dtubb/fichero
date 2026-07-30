@@ -42,7 +42,7 @@ enum SidebarDestination: Hashable {
     /// so `serializedID` re-prefixed it to "doc:folder:…" and `findItemById`
     /// never matched — clicking a workflow (or search/chat) folder routed to
     /// nothing (#11).
-    private static let prefixedCases: [(String, (String) -> SidebarDestination?)] = [
+    private static let prefixedCases: [(String, @Sendable (String) -> SidebarDestination?)] = [
         ("doc:", { .document($0) }),
         ("search:", { .search($0) }),
         ("chat:", { .chat($0) }),
