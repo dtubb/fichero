@@ -749,10 +749,15 @@ private extension LibraryView {
         documents.contains { $0.status == .processing || $0.status == .pending }
     }
 
+}
+
+// Moved OUT of the `private extension` above, not merely un-marked: a member's
+// own access modifier cannot exceed its enclosing extension's, so dropping
+// `private` from the property left it fileprivate and still unreachable from
+// `LibraryView+CanvasModes.swift` after the #4353 split.
+extension LibraryView {
     /// Spatial node ids of container documents (folder / workspace) — drag-onto
     /// move-into targets (#3086). Dropping onto one moves the dragged doc inside.
-    /// Promoted `private` → internal: read from `LibraryView+CanvasModes.swift`
-    /// after the #4353 file split, and `private` is file-scoped.
     var canvasContainerIds: Set<String> {
         Set(
             documentStore.collections

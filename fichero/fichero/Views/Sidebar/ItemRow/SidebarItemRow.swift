@@ -349,23 +349,38 @@ struct SidebarItemRow: View {
     /// Reads `Document.status` from the live `DocumentStore` rather than the
     /// captured `SidebarItem.itemType` snapshot — the store is what the
     /// workflow stream mutates via `updateProcessingStatus(forPath:status:)`.
-    var documentIsProcessing: Bool {
+    /// What this row should indicate, separating work ON this document from
+    /// work on its CONTENTS (#4417).
+    ///
+    /// The aggregation is unchanged from #4295 — the same sources, the same
+    /// tolerance for stale container copies. What changed is that a busy child
+    /// no longer collapses into the parent's own spinner.
+    var containerActivity: ContainerActivity {
         guard case .document(let doc) = item.itemType, let store = documentStore else {
-            return false
+            return .idle
         }
         // #4295: busy is derived from the RUNNING EXECUTION'S TARGETS
         // (status overrides + every live container, including the sidebar's
         // childrenCache), never from selection-scoped state — the old lookup
         // stopped at currentDocuments/collections, so a page row's spinner
         // only rendered while its parent was the selected collection.
-        if store.isDocumentBusy(doc.id) { return true }
-        if doc.status == .processing { return true }
-        // Folder rows aggregate their direct children so processing activity
-        // is visible even when the folder isn't open anywhere.
-        if doc.docType == .folder, store.folderHasBusyChild(doc.id) {
-            return true
-        }
-        return false
+        let isSelfProcessing = store.isDocumentBusy(doc.id) || doc.status == .processing
+
+        // Any container aggregates, not only folders: the reported case was a
+        // PDF spinning alongside its four page children.
+        let counts = store.childActivityCounts(of: doc.id)
+
+        return ContainerActivity.resolve(
+            isSelfProcessing: isSelfProcessing,
+            busyChildren: counts.busy,
+            totalChildren: counts.total
+        )
+    }
+
+    /// The per-item spinner, now only for a document that is itself the
+    /// subject of work. A container with busy children shows the aggregate.
+    var documentIsProcessing: Bool {
+        containerActivity.showsLeafSpinner
     }
 
     var workflowProgress: Double? {
