@@ -1849,7 +1849,15 @@ class TestTextExtraction:
         assert parent.file_type == FileType.pdf
         assert parent.doc_type == DocType.file
 
-        page_children = [d for d in saved_docs if d.doc_type == DocType.page and d.parent_id == parent.id]
+        # `saved_docs` collects EVERY db.save, and ingest now also writes a
+        # text-layer geometry Artifact per page (#4418) — filter by type
+        # rather than assuming every save is a Document.
+        page_children = [
+            d
+            for d in saved_docs
+            if getattr(d, "doc_type", None) == DocType.page
+            and d.parent_id == parent.id
+        ]
         assert len(page_children) == 6
 
         sequences = sorted(p.sequence for p in page_children if p.sequence is not None)
@@ -1903,7 +1911,10 @@ class TestTextExtraction:
             mock_bookmark.return_value = None
             ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=FakeDB())
 
-        page_children = [d for d in saved_docs if d.doc_type == DocType.page]
+        # See above (#4418): geometry artifacts share this save list.
+        page_children = [
+            d for d in saved_docs if getattr(d, "doc_type", None) == DocType.page
+        ]
         assert len(page_children) == 2
         assert all(page.page_label is None for page in page_children)
 

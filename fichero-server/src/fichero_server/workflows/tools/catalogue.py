@@ -117,8 +117,9 @@ CATALOGUE_INPUT_PORTS = merge_ports(
             data_type=DataType.ANY,
             required=True,
             description=(
-                "Dependency-only input from merge_extracts. Its value is ignored; "
-                "it makes catalogue wait for canonical entity cleanup."
+                "Dependency-only input. Its value is ignored; it exists to "
+                "sequence catalogue after its upstream — canonical entity "
+                "cleanup in the full preset, the source node in '6 · Catalogue'."
             ),
         ),
     ],
@@ -596,11 +597,34 @@ async def catalogue(
     # --- Path 2: fallback — no claims yet, generate from raw transcripts ----
     if data is None:
         if not text:
-            logger.warning("Catalogue: no text input; nothing to catalogue")
+            # Name what is missing AND which stage produces it (#4423).
+            #
+            # Reaching here means BOTH sources of material came back empty:
+            # no KG claims exist for this target (Path 1 found nothing) and no
+            # transcript text arrived (Path 2 has nothing to read). The old
+            # message named only the second — "No aggregated text provided" —
+            # which is actively misleading when run as the standalone stage,
+            # because the stage does not take text: it is meant to read the
+            # claims that stages 2-4 wrote. A user told their text input is
+            # missing will go looking for a wiring problem that does not
+            # exist, when the real answer is "the earlier stages have not run
+            # on this material yet".
+            logger.warning(
+                "Catalogue: no claims and no text for %s; nothing to catalogue",
+                container.id,
+            )
             return {
                 "text": "",
                 "value": None,
-                "error": "No aggregated text provided to catalogue tool",
+                "error": (
+                    f"Catalogue: nothing to describe for '{container.name}'. "
+                    "No knowledge-graph claims exist for it, and no transcript "
+                    "text was supplied. Run '2 · Extract Entities' (and "
+                    "optionally '3 · Extract SVO' and '4 · Merge / Dedup') on "
+                    "this material first, then run the catalogue again — or "
+                    "use the full 'Catalogue' preset, which performs those "
+                    "stages itself."
+                ),
             }
 
         logger.info(f"Catalogue: Path 2 (no claims) running on {len(text)} chars in {output_language}")

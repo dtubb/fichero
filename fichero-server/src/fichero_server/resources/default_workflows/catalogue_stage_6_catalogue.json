@@ -1,0 +1,51 @@
+{
+  "name": "6 · Catalogue",
+  "description": "Step 6 of the discrete import-artifacts pipeline, and the one the full 'Catalogue' preset performs as its final act. Writes the folder-level archival description from the entities, claims and curation stages 1-5 already produced — it does NOT re-transcribe or re-extract, so corrections made after those stages are preserved. Run this when the work below is already done and only the description needs (re)generating. Fails loudly and names the missing stage when no claims exist for the target yet. Output attaches to the container — a selected folder stays on that folder; a single file stays on itself.",
+  "format": "nodes",
+  "is_template": true,
+  "is_system": true,
+  "folder_path": "/Catalogue",
+  "tags": [
+    "preset",
+    "catalogue",
+    "stage",
+    "narrative",
+    "reviewable"
+  ],
+  "config": {
+    "preset_version": 1,
+    "stage": "catalogue"
+  },
+  "nodes": [
+    {
+      "id": "files-source",
+      "tool": "files",
+      "label": "Files",
+      "position_x": 80,
+      "position_y": 220,
+      "inputs": {},
+      "config": {}
+    },
+    {
+      "id": "catalogue",
+      "tool": "catalogue",
+      "label": "Catalogue",
+      "position_x": 320,
+      "position_y": 220,
+      "inputs": {},
+      "config": {
+        "output_language": "auto",
+        "provider_name": "$small"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-files-catalogue-data",
+      "source": "files-source",
+      "target": "catalogue",
+      "source_port": "documents",
+      "target_port": "data"
+    }
+  ]
+}

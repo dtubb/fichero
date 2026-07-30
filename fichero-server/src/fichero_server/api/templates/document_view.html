@@ -41,6 +41,31 @@
 
         * { box-sizing: border-box; }
 
+        /* The page can never be wider than the pane (#4385).
+           `pre-wrap` on the transcript body wraps at whitespace but cannot
+           break an unbroken token, so a single long OCR/HTR run — a numeric
+           string, an unspaced sequence where the model inferred no word
+           boundaries, a whole paragraph returned as one line — set a
+           min-content width for the whole page and the pane scrolled
+           sideways to reveal it. On a handwriting-transcription corpus that
+           is the normal case, not an edge case.
+           This is the backstop: even if a future rule reintroduces an
+           over-wide descendant, the document root refuses to scroll
+           horizontally rather than silently going back to a wide page.
+           Anything genuinely unwrappable gets `.overflow-scroll-x` below and
+           scrolls inside its own box instead of widening the page. */
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        /* The one sanctioned escape hatch: content that truly cannot wrap
+           (a wide table, a preformatted block) scrolls WITHIN itself. */
+        .overflow-scroll-x {
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
         body {
             margin: 0;
             font-family: var(--font-system);
@@ -94,7 +119,11 @@
         }
 
         .content {
-            overflow: auto;
+            /* Vertical only (#4385). This is the pane's scroll container, so
+               leaving it `auto` on both axes is what turned an over-wide page
+               into a horizontal scrollbar instead of a wrap. */
+            overflow-y: auto;
+            overflow-x: hidden;
             padding: 12px;
             min-height: 0;
         }
@@ -126,6 +155,9 @@
         }
 
         .transcript-page {
+            /* Definite max width tied to the pane (#4385) so layout can never
+               resolve the page to its content width. */
+            max-width: 100%;
             scroll-margin-block-start: 0.75em;
             background: var(--panel);
             border: 1px solid var(--line);
@@ -144,6 +176,13 @@
 
         .transcript-page-body {
             white-space: pre-wrap;
+            /* `anywhere`, NOT `break-word` (#4385): both break an otherwise
+               unbreakable token, but only `anywhere` also shrinks the
+               element's min-content width. With `break-word` the body still
+               reports a minimum as wide as its longest token, so the page
+               resolves to content width and the pane scrolls — the exact
+               failure being fixed. */
+            overflow-wrap: anywhere;
         }
 
         /* An untranscribed page is a PAGE, not a gap (#4356): it keeps its
@@ -272,6 +311,10 @@
             color: var(--text);
             font: 400 12px/1.55 var(--font-system);
             white-space: pre-wrap;
+            /* Same half-configured wrap as the transcript body (#4385): a
+               claim's source excerpt is a verbatim slice of the same OCR
+               text, so it carries the same unbreakable runs. */
+            overflow-wrap: anywhere;
         }
 
         .claim-row.source-open .claim-source { display: block; }

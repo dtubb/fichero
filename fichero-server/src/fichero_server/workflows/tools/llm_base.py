@@ -1164,8 +1164,40 @@ async def process_text(
 
         # Save to database
         artifact_ids = []
-        if save_to_db and library_path and documents:
-            for doc in documents[:1]:  # Save to first document
+        if save_to_db and library_path:
+            # An empty write target is an ERROR, not a skip (#4404).
+            #
+            # This used to read `if save_to_db and library_path and documents:`
+            # — so a tool that was told to persist, and had already spent the
+            # provider call producing `response`, silently dropped it when
+            # nothing resolved to attach it to. `summarize_folder` hit this on
+            # every run: it declares a `folder_id` input port that no source
+            # tool could fill (#4404), so `documents` was always empty and the
+            # folder summary was generated, paid for, and discarded with no
+            # error and no artifact — a run reporting success having produced
+            # nothing, which is the #4283 shape.
+            #
+            # The same silence covered a second case: a `documents` list whose
+            # entries carry no usable id. Both are checked here, because both
+            # mean "the work is done and there is nowhere to put it".
+            target = next(
+                (
+                    doc
+                    for doc in documents or []
+                    if isinstance(doc, dict) and doc.get("id")
+                ),
+                None,
+            )
+            if target is None:
+                raise ValueError(
+                    "process_text: nothing to attach the result to — "
+                    f"save_to_db is on but no document with an id was "
+                    f"resolved (got {len(documents or [])} candidate(s)). "
+                    "The output was produced and would have been discarded. "
+                    "Wire a document/container source into this node, or set "
+                    "save_to_db=false if this node is not meant to persist."
+                )
+            for doc in [target]:
                 if isinstance(doc, dict) and doc.get("id"):
                     artifact_id = await save_artifact(
                         document_id=doc["id"],
