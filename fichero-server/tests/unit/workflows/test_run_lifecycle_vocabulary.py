@@ -117,6 +117,22 @@ class _FakeCheckpointTuple:
         }
 
 
+def _isolated_tracker(monkeypatch, temp_db):
+    """A tracker whose store is a plain ActivityStore, wired into the threads
+    module so no test goes through get_activity_tracker — that would schedule
+    the zero-cutoff recovery sweep on the test loop and race these seeds."""
+    from fichero_server.api.routes.workflow_execution import threads
+
+    store = ActivityStore(str(temp_db.path))
+    tracker = SimpleNamespace(
+        store=store,
+        workflow_deleted=lambda **_kwargs: None,
+        workflow_cancelled=lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(threads, "get_activity_tracker", lambda _p: tracker)
+    return store
+
+
 class TestCancelPausedRun:
     @pytest.mark.asyncio
     async def test_pause_then_cancel_settles_run_and_documents(
@@ -128,9 +144,7 @@ class TestCancelPausedRun:
         doc = Document(name="p.png", path="/tmp/p.png", status=Status.processing)
         temp_db.save(doc)
 
-        from fichero_server.workflows.activity import get_activity_tracker
-
-        store = get_activity_tracker(str(temp_db.path)).store
+        store = _isolated_tracker(monkeypatch, temp_db)
         await _save_run(store, "t-paused-cancel", "paused")
         runner._set_workflow_state(
             "t-paused-cancel",
@@ -163,9 +177,8 @@ class TestCancelPausedRun:
         """A paused run from a previous process (no registry entry, no
         checkpoint yet) is still cancellable — the pre-checkpoint dead end."""
         from fichero_server.api.routes.workflow_execution import threads
-        from fichero_server.workflows.activity import get_activity_tracker
 
-        store = get_activity_tracker(str(temp_db.path)).store
+        store = _isolated_tracker(monkeypatch, temp_db)
         await _save_run(store, "t-paused-orphan", "paused")
 
         class _FakeCkpt:
@@ -190,9 +203,8 @@ class TestDeletePausedRun:
         """Previously DELETE 409'd on paused — a run paused before its first
         checkpoint was stuck forever."""
         from fichero_server.api.routes.workflow_execution import threads
-        from fichero_server.workflows.activity import get_activity_tracker
 
-        store = get_activity_tracker(str(temp_db.path)).store
+        store = _isolated_tracker(monkeypatch, temp_db)
         await _save_run(store, "t-paused-delete", "paused")
 
         class _FakeCkpt:
@@ -218,9 +230,8 @@ class TestDeletePausedRun:
         from fastapi import HTTPException
 
         from fichero_server.api.routes.workflow_execution import threads
-        from fichero_server.workflows.activity import get_activity_tracker
 
-        store = get_activity_tracker(str(temp_db.path)).store
+        store = _isolated_tracker(monkeypatch, temp_db)
         await _save_run(store, "t-running-delete", "running")
 
         class _FakeCkpt:
