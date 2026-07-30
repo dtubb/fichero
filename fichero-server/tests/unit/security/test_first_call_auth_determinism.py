@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
 from fichero_server.security import authz
-from fichero_server.api.routes import pairing
+from fichero_server.api.routes.auth import pairing
 
 
 def _bearer(token: str) -> dict[str, str]:

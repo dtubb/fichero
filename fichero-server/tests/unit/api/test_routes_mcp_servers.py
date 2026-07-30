@@ -19,7 +19,7 @@ from fichero_server.models import MCPServer
 def use_test_app_db(app_db, monkeypatch):
     """Redirect get_app_db() calls in mcp_servers to the test app_db."""
     monkeypatch.setattr(
-        "fichero_server.api.routes.mcp_servers.get_app_db",
+        "fichero_server.api.routes.mcp.servers.get_app_db",
         lambda: app_db,
     )
 

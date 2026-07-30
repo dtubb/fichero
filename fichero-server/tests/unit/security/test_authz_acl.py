@@ -20,7 +20,7 @@ from fichero_server.actions.registry import (
 )
 from fichero_server.api.change_stream import _change_hub
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.api.routes.auth_accounts import (
+from fichero_server.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )

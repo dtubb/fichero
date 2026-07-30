@@ -15,7 +15,7 @@ import pytest
 
 from fichero_server.security import accounts
 from fichero_server.security import authz
-from fichero_server.api.routes.authz import get_library_authz_snapshot
+from fichero_server.api.routes.auth.authz import get_library_authz_snapshot
 
 
 @pytest.fixture

@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
 from fichero_server.api.auth import initialize_token
-from fichero_server.api.routes import auth_accounts, pairing
+from fichero_server.api.routes.auth import accounts as auth_accounts
+from fichero_server.api.routes.auth import pairing
 
 
 def _bearer(token: str) -> dict[str, str]:

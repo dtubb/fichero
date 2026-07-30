@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from fichero_server.security import accounts
-from fichero_server.api.routes.auth_accounts import _dummy_password_hash
+from fichero_server.api.routes.auth.accounts import _dummy_password_hash
 
 
 def test_hash_is_self_describing_and_salted():

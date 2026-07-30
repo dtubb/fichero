@@ -16,7 +16,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from fichero_server.api.routes.mcp_tools import (
+from fichero_server.api.routes.mcp.tools import (
     KnowledgeEntityUpsertRequest,
     KnowledgeClaimCreateRequest,
     _validate_entity_type,

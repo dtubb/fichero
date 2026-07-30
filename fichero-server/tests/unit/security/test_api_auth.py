@@ -13,7 +13,7 @@ from fichero_server.api.auth import (
     initialize_token,
     library_access_denial_payload,
 )
-from fichero_server.api.routes import pairing
+from fichero_server.api.routes.auth import pairing
 
 
 def _app_with_auth() -> FastAPI:

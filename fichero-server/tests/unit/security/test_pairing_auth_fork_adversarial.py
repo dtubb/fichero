@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
 from fichero_server.api.auth import attach_auth_middleware
-from fichero_server.api.routes import pairing
+from fichero_server.api.routes.auth import pairing
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -33,7 +33,7 @@ def pairing_client(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
     import fichero_server.api.main as api_main
-    from fichero_server.api.routes import auth_accounts
+    from fichero_server.api.routes.auth import accounts as auth_accounts
     from fichero_server.api.routes.providers import get_app_database as providers_app_db
 
     api_main = importlib.reload(api_main)

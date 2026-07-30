@@ -12,7 +12,8 @@ import httpx
 import pytest
 
 from fichero_server.api.auth import initialize_token
-from fichero_server.api.routes import auth_accounts, pairing
+from fichero_server.api.routes.auth import accounts as auth_accounts
+from fichero_server.api.routes.auth import pairing
 from fichero_server.db.manager import db_manager
 from fichero_server.models import ActionAudit, DocType, Document, FileType, Status
 

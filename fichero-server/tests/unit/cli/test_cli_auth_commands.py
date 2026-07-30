@@ -64,7 +64,7 @@ def _install_cli_app_client(monkeypatch, app_db: AppDatabase, tmp_path):
     monkeypatch.setattr(client_module, "_TOKEN_PATH", tmp_path / ".api-key")
 
     import fichero_server.api.main as api_main
-    from fichero_server.api.routes.auth_accounts import get_app_database
+    from fichero_server.api.routes.auth.accounts import get_app_database
 
     api_main = importlib.reload(api_main)
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db

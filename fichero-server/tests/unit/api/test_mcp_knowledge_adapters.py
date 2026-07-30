@@ -24,7 +24,7 @@ class TestMCPEntityAdapter:
 
     def test_entity_creation_via_adapter(self):
         """Test creating an entity through MCP adapter."""
-        from fichero_server.api.routes.mcp_tools import (
+        from fichero_server.api.routes.mcp.tools import (
             KnowledgeEntityUpsertRequest,
             _validate_entity_type,
         )
@@ -47,7 +47,7 @@ class TestMCPEntityAdapter:
 
     def test_entity_update_via_adapter(self):
         """Test entity update preserves ID."""
-        from fichero_server.api.routes.mcp_tools import KnowledgeEntityUpsertRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeEntityUpsertRequest
 
         request = KnowledgeEntityUpsertRequest(
             id="existing-uuid",
@@ -60,7 +60,7 @@ class TestMCPEntityAdapter:
 
     def test_entity_type_validation_error(self):
         """Test invalid entity type raises error."""
-        from fichero_server.api.routes.mcp_tools import _validate_entity_type
+        from fichero_server.api.routes.mcp.tools import _validate_entity_type
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc:
@@ -74,7 +74,7 @@ class TestMCPClaimAdapter:
 
     def test_claim_creation_via_adapter(self):
         """Test creating a claim through MCP adapter."""
-        from fichero_server.api.routes.mcp_tools import (
+        from fichero_server.api.routes.mcp.tools import (
             KnowledgeClaimCreateRequest,
             _validate_claim_type,
             _validate_source_type,
@@ -104,7 +104,7 @@ class TestMCPClaimAdapter:
 
     def test_claim_with_multiple_sources(self):
         """Test claim adapter supports multiple sources."""
-        from fichero_server.api.routes.mcp_tools import KnowledgeClaimCreateRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeClaimCreateRequest
 
         request = KnowledgeClaimCreateRequest(
             text="Synthesized claim",
@@ -119,7 +119,7 @@ class TestMCPClaimAdapter:
 
     def test_claim_validation_errors(self):
         """Test claim validation handles errors."""
-        from fichero_server.api.routes.mcp_tools import _validate_claim_type
+        from fichero_server.api.routes.mcp.tools import _validate_claim_type
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc:
@@ -132,7 +132,7 @@ class TestMCPCanonicalMapping:
 
     def test_entity_adapter_matches_knowledge_model(self):
         """Verify MCP entity fields match KnowledgeEntity model."""
-        from fichero_server.api.routes.mcp_tools import KnowledgeEntityUpsertRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeEntityUpsertRequest
 
         request = KnowledgeEntityUpsertRequest(
             canonical_name="Canonical Name",
@@ -158,7 +158,7 @@ class TestMCPCanonicalMapping:
 
     def test_claim_adapter_matches_knowledge_model(self):
         """Verify MCP claim fields match KnowledgeClaim model."""
-        from fichero_server.api.routes.mcp_tools import KnowledgeClaimCreateRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeClaimCreateRequest
 
         request = KnowledgeClaimCreateRequest(
             text="Claim text",
@@ -188,7 +188,7 @@ class TestMCPAdapterErrorHandling:
     def test_empty_entity_name_rejected_by_model(self):
         """Test entity model rejects empty names."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.mcp_tools import KnowledgeEntityUpsertRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeEntityUpsertRequest
 
         with pytest.raises(ValidationError):
             KnowledgeEntityUpsertRequest(
@@ -199,7 +199,7 @@ class TestMCPAdapterErrorHandling:
     def test_empty_claim_text_rejected_by_pydantic(self):
         """Test claim with empty text is rejected by Pydantic validation."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.mcp_tools import KnowledgeClaimCreateRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeClaimCreateRequest
 
         # Pydantic validation should catch empty text
         with pytest.raises(ValidationError):
@@ -211,7 +211,7 @@ class TestMCPAdapterErrorHandling:
     def test_invalid_confidence_range(self):
         """Test confidence outside 0-1 range."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.mcp_tools import KnowledgeClaimCreateRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeClaimCreateRequest
 
         with pytest.raises(ValidationError):
             KnowledgeClaimCreateRequest(
@@ -222,7 +222,7 @@ class TestMCPAdapterErrorHandling:
 
     def test_entity_extra_field_rejected(self):
         from pydantic import ValidationError
-        from fichero_server.api.routes.mcp_tools import KnowledgeEntityUpsertRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeEntityUpsertRequest
 
         with pytest.raises(ValidationError):
             KnowledgeEntityUpsertRequest(
@@ -232,7 +232,7 @@ class TestMCPAdapterErrorHandling:
 
     def test_claim_extra_field_rejected(self):
         from pydantic import ValidationError
-        from fichero_server.api.routes.mcp_tools import KnowledgeClaimCreateRequest
+        from fichero_server.api.routes.mcp.tools import KnowledgeClaimCreateRequest
 
         with pytest.raises(ValidationError):
             KnowledgeClaimCreateRequest(
@@ -247,7 +247,7 @@ class TestMCPEndpointCoverage:
 
     def test_entity_endpoints(self):
         """Verify all entity CRUD endpoints exist."""
-        from fichero_server.api.routes.mcp_tools import router
+        from fichero_server.api.routes.mcp.tools import router
 
         paths = [r.path for r in router.routes]
 
@@ -260,7 +260,7 @@ class TestMCPEndpointCoverage:
 
     def test_claim_endpoints(self):
         """Verify all claim endpoints exist."""
-        from fichero_server.api.routes.mcp_tools import router
+        from fichero_server.api.routes.mcp.tools import router
 
         paths = [r.path for r in router.routes]
 
@@ -274,7 +274,7 @@ class TestMCPEndpointCoverage:
     def test_soft_delete_supported(self):
         """Verify soft delete is available."""
         from fastapi.routing import APIRoute
-        from fichero_server.api.routes.mcp_tools import router
+        from fichero_server.api.routes.mcp.tools import router
 
         delete_routes = [
             r
