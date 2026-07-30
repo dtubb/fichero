@@ -89,25 +89,13 @@ class ImportService {
                 let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
 
                 if exists && isDirectory.boolValue {
-                    // After-start attach (#3773): grant the sandboxed engine access
-                    // to the folder and AWAIT it before the ingest request reads it.
-                    logger.info("Detected folder: \(url.lastPathComponent), using async folder import")
-                    let documentIds = try await FolderAccessManager.grantThenEngineWork(
-                        grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
-                        engineWork: {
-                            try await importFolderAndWait(
-                                url,
-                                mode: mode,
-                                parentId: parentId,
-                                recursive: true,
-                                extractText: extractText,
-                                autoEmbed: autoEmbed
-                            )
-                        }
+                    try await importFolderGrantingAccess(
+                        url,
+                        mode: mode,
+                        parentId: parentId,
+                        extractText: extractText,
+                        autoEmbed: autoEmbed
                     )
-                    logger.info("Successfully imported folder with \(documentIds.count) documents: \(url.lastPathComponent)")
-                    // Note: We only have document IDs, not full documents
-                    // The caller can fetch full documents if needed
                 } else {
                     // Import single file (synchronous)
                     let doc = try await importFile(
@@ -134,23 +122,59 @@ class ImportService {
         importProgress = nil
         currentTask = nil
 
-        if !errors.isEmpty {
-            lastError = errors.first
-            logger.warning("Import completed with \(errors.count) errors")
-            if imported.isEmpty {
-                // Surface EVERY per-file failure, not one opaque "All imports
-                // failed" — the previous blanket NSError discarded the
-                // collected `errors` and left the user with no idea which files
-                // failed or why (#4068, prefer-raise-over-silent-fallback).
-                throw ImportError(
-                    url: urls.first ?? URL(fileURLWithPath: ""),
-                    error: Self.makeAllImportsFailedError(errors: errors)
-                )
-            }
-        }
+        try recordImportErrors(errors, imported: imported, urls: urls)
 
         logger.info("Import completed: \(imported.count) successful, \(errors.count) failed")
         return imported
+    }
+
+    /// A folder import needs the sandboxed engine granted access BEFORE the
+    /// ingest request reads it, and the grant must be awaited (#3773). Only
+    /// document ids come back, not documents, so nothing is returned — the
+    /// caller fetches what it needs.
+    private func importFolderGrantingAccess(
+        _ url: URL,
+        mode: IngestMode,
+        parentId: String?,
+        extractText: Bool,
+        autoEmbed: Bool
+    ) async throws {
+        logger.info("Detected folder: \(url.lastPathComponent), using async folder import")
+        let documentIds = try await FolderAccessManager.grantThenEngineWork(
+            grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+            engineWork: {
+                try await importFolderAndWait(
+                    url,
+                    mode: mode,
+                    parentId: parentId,
+                    recursive: true,
+                    extractText: extractText,
+                    autoEmbed: autoEmbed
+                )
+            }
+        )
+        logger.info("Successfully imported folder with \(documentIds.count) documents: \(url.lastPathComponent)")
+    }
+
+    /// Record what failed, and throw only when NOTHING imported. A partial
+    /// batch still returns its successes.
+    private func recordImportErrors(
+        _ errors: [ImportError],
+        imported: [Document],
+        urls: [URL]
+    ) throws {
+        guard !errors.isEmpty else { return }
+        lastError = errors.first
+        logger.warning("Import completed with \(errors.count) errors")
+        guard imported.isEmpty else { return }
+        // Surface EVERY per-file failure, not one opaque "All imports
+        // failed" — the previous blanket NSError discarded the
+        // collected `errors` and left the user with no idea which files
+        // failed or why (#4068, prefer-raise-over-silent-fallback).
+        throw ImportError(
+            url: urls.first ?? URL(fileURLWithPath: ""),
+            error: Self.makeAllImportsFailedError(errors: errors)
+        )
     }
 
     /// Import a single file (synchronous - returns document immediately).
