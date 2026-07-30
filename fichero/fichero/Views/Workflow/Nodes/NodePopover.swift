@@ -130,6 +130,15 @@ struct NodePopover: View {
             SummarizeCollectionNodeConfig(node: $node)
         case "extract_entities":
             ExtractEntitiesNodeConfig(node: $node)
+        case "zoom":
+            // Live tile-grid preview above the schema-driven fields so
+            // rows/overlap/scale edits are immediately visible (#4323).
+            VStack(alignment: .leading, spacing: 12) {
+                ZoomTileGridPreview(node: node)
+                if let info = toolInfo, !info.configSchema.isEmpty {
+                    DynamicConfigView(toolInfo: info, config: $node.config)
+                }
+            }
         default:
             // Use dynamic config view for everything else
             if let info = toolInfo, !info.configSchema.isEmpty {

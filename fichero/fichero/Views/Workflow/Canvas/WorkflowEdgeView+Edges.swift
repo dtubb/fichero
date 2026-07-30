@@ -6,6 +6,9 @@ struct EdgesView: View {
     let nodes: [WorkflowNode]
     let selectedEdgeId: String?
     let portPositions: [String: CGPoint]  // key: "nodeId:portId"
+    /// Registry metadata (lowercased tool name → info) for fan-badge
+    /// derivation; empty means no badges (#4322).
+    var toolRegistry: [String: ToolInfo] = [:]
 
     var body: some View {
         ForEach(edges) { edge in
@@ -15,8 +18,8 @@ struct EdgesView: View {
             let targetPoint = getPortPosition(
                 nodeId: edge.targetNodeId, portId: edge.targetPortId, isOutput: false
             ) {
-                let sourceTool = nodes.first { $0.id == edge.sourceNodeId }?.tool
-                let targetTool = nodes.first { $0.id == edge.targetNodeId }?.tool
+                let sourceNode = nodes.first { $0.id == edge.sourceNodeId }
+                let targetNode = nodes.first { $0.id == edge.targetNodeId }
                 WorkflowEdgeView(
                     edge: edge,
                     sourcePoint: sourcePoint,
@@ -24,8 +27,10 @@ struct EdgesView: View {
                     isSelected: edge.id == selectedEdgeId,
                     isConditional: edge.condition != nil,
                     fanRole: EdgeFanRoleResolver.role(
-                        sourceTool: sourceTool,
-                        targetTool: targetTool
+                        edge: edge,
+                        sourceNode: sourceNode,
+                        targetNode: targetNode,
+                        toolRegistry: toolRegistry
                     )
                 )
             }

@@ -234,6 +234,30 @@ def list_tools() -> list[ToolDef]:
     return sorted(tools, key=lambda t: (t.sort_order, t.name))
 
 
+def is_tool_executable(name: str) -> bool:
+    """True when the tool (or its alias target) has a loaded implementation.
+
+    Some built-in defs are palette placeholders with no implementation; a
+    workflow containing one dies at graph build ("Unknown tool"). The palette
+    endpoints filter on this so the editor only offers what can run (#4322).
+    """
+    _ensure_tools_loaded()
+    if name in _TOOLS:
+        return True
+    alias = TOOL_ALIASES.get(name)
+    return alias is not None and alias in _TOOLS
+
+
+def list_executable_tools() -> list[ToolDef]:
+    """Palette source: only tools that can actually execute (#4322)."""
+    return [t for t in list_tools() if is_tool_executable(t.name)]
+
+
+def list_executable_tools_by_category(category: str) -> list[ToolDef]:
+    """Category palette source: only tools that can actually execute (#4322)."""
+    return [t for t in list_tools_by_category(category) if is_tool_executable(t.name)]
+
+
 def list_tools_by_category(category: str) -> list[ToolDef]:
     """List tools in a specific category, sorted by sort_order."""
     _ensure_tools_loaded()

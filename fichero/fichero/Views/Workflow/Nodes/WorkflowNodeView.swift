@@ -13,7 +13,9 @@ struct WorkflowNodeView: View {
     let onPortDropReceived: (PortInfo, String) -> Void
     var onInputPortDetach: ((PortInfo, String) -> Void)?  // Detach from connected input
     var executionState: NodeExecutionState?  // Optional execution state for progress display
-    @Environment(FeatureManager.self) private var featureManager
+    /// 1-based execution-order badge from the canvas topo sort (#4322).
+    /// Optional so composing surfaces (run trace, previews) opt in.
+    var stepNumber: Int?
     @Environment(WorkflowStore.self) private var workflowStore
 
     private let width: CGFloat = 140
@@ -28,7 +30,8 @@ struct WorkflowNodeView: View {
                         ports: node.inputPorts,
                         nodeId: node.id,
                         nodeColor: nodeColor,
-                        showPortDetails: featureManager.isWorkflowEditorAdvancedViewsEnabled,
+                        // Per-port geometry + data-type icons ship un-gated (#4322).
+                        showPortDetails: true,
                         connectedPortIds: connectedInputPorts,
                         canAcceptDrop: canAcceptDrop,
                         onDropReceived: onPortDropReceived,
@@ -46,7 +49,8 @@ struct WorkflowNodeView: View {
                         ports: node.outputPorts,
                         nodeId: node.id,
                         nodeColor: nodeColor,
-                        showPortDetails: featureManager.isWorkflowEditorAdvancedViewsEnabled,
+                        // Per-port geometry + data-type icons ship un-gated (#4322).
+                        showPortDetails: true,
                         connectedPortIds: connectedOutputPorts,
                         onDragStarted: onPortDragStarted,
                         onDragChanged: onPortDragChanged,
@@ -60,6 +64,25 @@ struct WorkflowNodeView: View {
             if let state = executionState {
                 NodeProgressBadge(state: state)
                     .offset(x: -8, y: -8)
+            }
+        }
+        // Execution-order badge (top-leading) so the run order reads at a
+        // glance on the canvas (#4322). Matches the list view's numbering.
+        .overlay(alignment: .topLeading) {
+            if let step = stepNumber {
+                Text("\(step)")
+                    .font(.caption2.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(Color.secondary)
+                            .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 1)
+                    )
+                    .offset(x: 8, y: -8)
+                    .accessibilityLabel("Step \(step)")
             }
         }
     }

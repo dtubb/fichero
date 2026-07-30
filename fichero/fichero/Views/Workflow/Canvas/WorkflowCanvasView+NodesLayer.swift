@@ -5,13 +5,15 @@ import SwiftUI
 extension WorkflowCanvasView {
     @ViewBuilder
     var nodesLayer: some View {
+        // Execution-order badges from the shared topo sort (#4322).
+        let stepNumbers = WorkflowTopology.stepNumbers(nodes: workflow.nodes, edges: workflow.edges)
         ForEach(Array(workflow.nodes.enumerated()), id: \.element.id) { index, node in
-            nodeView(for: node, at: index)
+            nodeView(for: node, at: index, stepNumber: stepNumbers[node.id])
         }
     }
 
     @ViewBuilder
-    private func nodeView(for node: WorkflowNode, at index: Int) -> some View {
+    private func nodeView(for node: WorkflowNode, at index: Int, stepNumber: Int?) -> some View {
         // Container with explicit frame for proper popover anchoring
         WorkflowNodeView(
             node: node,
@@ -34,7 +36,8 @@ extension WorkflowCanvasView {
             onInputPortDetach: { port, nodeId in
                 detachAndRedrag(fromNode: nodeId, port: port)
             },
-            executionState: nodeStates[node.id]
+            executionState: nodeStates[node.id],
+            stepNumber: stepNumber
         )
         .frame(width: nodeWidth, height: nodeHeight)
         .popover(

@@ -22,6 +22,8 @@ struct WorkflowInspector: View {
     @Environment(WorkflowService.self) var workflowService
     @Environment(MCPService.self) var mcpService
     @Environment(AppState.self) var appState
+    // Canvas selection mirror — add-node placement anchors on it (#4323).
+    @Environment(WorkflowStore.self) var workflowStore
     let featureManager = FeatureManager.shared
 
     /// Workflow tool-palette tabs. Renamed from the old private `InspectorTab`

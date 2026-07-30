@@ -34,6 +34,17 @@ extension WorkflowCanvasView {
     }
 
     func handleDrop(providers: [NSItemProvider], at location: CGPoint) -> Bool {
+        // The drop location arrives in the canvas frame's untransformed space
+        // while node positions live in canvas coordinates — inverse-transform
+        // through the current zoom/pan so the node lands under the cursor
+        // (#4323). Capture the mapped point NOW: scale/offset may change
+        // before the async provider load completes.
+        let canvasPoint = WorkflowCanvasTransform.canvasPoint(
+            fromDropLocation: location,
+            canvasSize: canvasSize,
+            scale: scale,
+            offset: offset
+        )
         for provider in providers {
             provider.loadObject(ofClass: NSString.self) { item, _ in
                 if let jsonString = item as? String {
@@ -41,7 +52,7 @@ extension WorkflowCanvasView {
                         // Drag payload is ToolInfo JSON from the workflow inspector.
                         if let data = jsonString.data(using: .utf8),
                            let toolInfo = try? JSONDecoder().decode(ToolInfo.self, from: data) {
-                            addNodeFromToolInfo(toolInfo, at: location)
+                            addNodeFromToolInfo(toolInfo, at: canvasPoint)
                         }
                     }
                 }

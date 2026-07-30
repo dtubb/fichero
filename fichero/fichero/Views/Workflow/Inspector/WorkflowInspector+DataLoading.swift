@@ -116,16 +116,15 @@ extension WorkflowInspector {
         }
     }
 
-    /// Calculate a smart position for the next node
+    /// Position for the next added node: after the node selected on the
+    /// canvas when there is one, otherwise after the last node in execution
+    /// order — never at the rightmost X of an arbitrary branch (#4323).
     var nextNodePosition: CGPoint {
-        if workflow.nodes.isEmpty {
-            // First node goes near center-left
-            return CGPoint(x: 150, y: 200)
-        } else {
-            // Find rightmost node and place new node to its right
-            let rightmost = workflow.nodes.max(by: { $0.positionX < $1.positionX })!
-            return CGPoint(x: rightmost.positionX + 160, y: rightmost.positionY)
-        }
+        WorkflowNodePlacement.nextNodePosition(
+            nodes: workflow.nodes,
+            edges: workflow.edges,
+            selectedNodeIds: workflowStore.canvasSelectedNodeIds
+        )
     }
 
 }
