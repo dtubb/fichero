@@ -9,7 +9,7 @@ from fichero_server.api.routes.interpretation.canvas import (
 from fichero_server.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 from fichero_server.db import Database
 from fichero_server.db.migrations.schema import migrate_canvas_layout_table
-from fichero_server.knowledge.knowledge_models import KnowledgeEntity
+from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.models import DocType, Document
 
 

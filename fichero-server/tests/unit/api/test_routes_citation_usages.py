@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 from fichero_server.api.routes.citation.usages import list_citation_usages
-from fichero_server.knowledge.knowledge_models import DocumentCitation, KnowledgeClaim
+from fichero_server.models.knowledge import DocumentCitation, KnowledgeClaim
 
 
 def _citation(source: str, *, metadata=None, created_at=None) -> DocumentCitation:

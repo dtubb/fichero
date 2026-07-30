@@ -12,7 +12,7 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import CanvasDeletedResponse, CanvasListResponse, Document
-from fichero_server.knowledge.knowledge_models import KnowledgeClaim, KnowledgeEntity
+from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.spatial_arrange import DEFAULT_SPACING, ArrangeStrategy, compute_arrangement
 from fichero_server.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 
