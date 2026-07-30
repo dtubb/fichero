@@ -2219,6 +2219,71 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
+    def artifacts_page(
+        self,
+        *,
+        artifact_type: str | None = None,
+        run_id: str | None = None,
+        step_name: str | None = None,
+        limit: int,
+        offset: int = 0,
+    ) -> tuple[list["Artifact"], int]:
+        """One DB-side page of artifacts plus the total match count (#4319).
+
+        Replaces the listing route's full-scan + Python-sort + slice: the
+        WHERE, ORDER BY, LIMIT and OFFSET all run in DuckDB, so a large
+        library never hydrates every artifact row per request.
+
+        Ordering: newest first (``created_at DESC``) for the library-wide
+        browse; a run-scoped listing (``run_id`` set) instead orders by
+        pipeline ``sequence`` ascending with NULLs last (legacy artifacts
+        persisted before #4313), then ``created_at``, so a run's passes read
+        in execution order.
+        """
+        from fichero_server.models import Artifact
+
+        if limit < 1 or offset < 0:
+            raise ValueError("limit must be positive and offset must not be negative")
+
+        self._ensure_table(Artifact)
+        sql_table = self._sql_table_name(Artifact)
+
+        clauses: list[str] = []
+        params: dict[str, Any] = {}
+        for column, value in (
+            ("artifact_type", artifact_type),
+            ("run_id", run_id),
+            ("step_name", step_name),
+        ):
+            if value is not None:
+                clauses.append(f"{column} = ${column}")
+                params[column] = value
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+
+        total_row = self._execute(
+            f"SELECT COUNT(*) FROM {sql_table}{where}",
+            dict(params) if params else None,
+            fetch="one",
+        )
+        total = int(total_row[0]) if total_row else 0
+
+        order = (
+            "sequence ASC NULLS LAST, created_at ASC, id ASC"
+            if run_id is not None
+            else "created_at DESC, id DESC"
+        )
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table}{where} "
+            f"ORDER BY {order} LIMIT $page_limit OFFSET $page_offset",
+            {**params, "page_limit": limit, "page_offset": offset},
+        )
+        items = [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(Artifact, columns, row)) is not None
+        ]
+        return items, total
+
     def commit(self) -> None:
         """Commit pending DuckDB work through the typed DB wrapper."""
         self.conn.commit()

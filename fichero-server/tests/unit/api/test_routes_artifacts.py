@@ -399,6 +399,101 @@ class TestListAllArtifacts:
         assert data["count"] == 10
         assert len(data["items"]) == 3
 
+    def test_default_order_is_newest_first_across_pages(self, client, db):
+        """DB-side ORDER BY created_at DESC must hold across page boundaries (#4319)."""
+        from datetime import timedelta
+
+        doc = _make_doc(db)
+        base = datetime(2026, 7, 1, 12, 0, 0)
+        ids_oldest_first = []
+        for i in range(6):
+            a = Artifact(
+                document_id=doc.id,
+                artifact_type="transcription",
+                content=f"c{i}",
+                created_at=base + timedelta(minutes=i),
+            )
+            db.save(a)
+            ids_oldest_first.append(a.id)
+
+        page1 = client.get("/api/artifacts/?limit=4&offset=0").json()
+        page2 = client.get("/api/artifacts/?limit=4&offset=4").json()
+        got = [item["id"] for item in page1["items"] + page2["items"]]
+        assert got == list(reversed(ids_oldest_first))
+        assert page1["count"] == 6
+        assert page2["count"] == 6
+
+    def test_offset_past_total_returns_empty_page_with_total(self, client, db):
+        doc = _make_doc(db)
+        _make_artifact(db, doc.id)
+        r = client.get("/api/artifacts/?limit=5&offset=50")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["items"] == []
+        assert data["count"] == 1
+
+    def test_run_scoped_listing_orders_by_sequence(self, client, db):
+        """A run's artifacts come back in pipeline order, not save order (#4319)."""
+        from datetime import timedelta
+
+        doc = _make_doc(db)
+        base = datetime(2026, 7, 1, 12, 0, 0)
+        # Saved out of pipeline order on purpose; a legacy row has no sequence.
+        specs = [(3, "pass-c"), (1, "pass-a"), (None, "legacy"), (2, "pass-b")]
+        ids_by_content = {}
+        for i, (sequence, content) in enumerate(specs):
+            a = Artifact(
+                document_id=doc.id,
+                artifact_type="transcription",
+                content=content,
+                run_id="run-1",
+                sequence=sequence,
+                created_at=base + timedelta(minutes=i),
+            )
+            db.save(a)
+            ids_by_content[content] = a.id
+        # Another run's artifact must not leak into the filter.
+        _other = Artifact(
+            document_id=doc.id,
+            artifact_type="transcription",
+            content="other-run",
+            run_id="run-2",
+            sequence=1,
+        )
+        db.save(_other)
+
+        r = client.get("/api/artifacts/?run_id=run-1")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 4
+        got = [item["content"] for item in data["items"]]
+        # sequence ascending, NULLs (legacy) last
+        assert got == ["pass-a", "pass-b", "pass-c", "legacy"]
+
+    def test_step_name_filter(self, client, db):
+        doc = _make_doc(db)
+        for step in ("node-1", "node-1", "node-2"):
+            a = Artifact(
+                document_id=doc.id,
+                artifact_type="transcription",
+                run_id="run-1",
+                step_name=step,
+            )
+            db.save(a)
+        r = client.get("/api/artifacts/?run_id=run-1&step_name=node-2")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["count"] == 1
+        assert data["items"][0]["step_name"] == "node-2"
+
+    def test_artifacts_page_rejects_bad_bounds(self, db):
+        import pytest
+
+        with pytest.raises(ValueError):
+            db.artifacts_page(limit=0)
+        with pytest.raises(ValueError):
+            db.artifacts_page(limit=1, offset=-1)
+
 
 # ---------------------------------------------------------------------------
 # GET /api/artifacts/types
