@@ -71,8 +71,14 @@ extension WorkflowEditor {
             // Single source of truth: all events go through executionObserver
             let workflowId = editingWorkflow.id  // Capture ID before closure
 
-            let selectedIds = resolveSelectedDocumentIds()
+            let scope = resolveRunScope()
+            let selectedIds = scope.docIds
             warnIfNoInputResolved(selectedIds)
+            // State the scope in the run record so a widened run is
+            // recognisable afterwards, not only by its effects (#4396).
+            actionsLogger.info(
+                "Workflow run scope: \(scope.describedScope, privacy: .public)"
+            )
 
             let completion = WorkflowRunCompletion()
 
@@ -153,23 +159,22 @@ extension WorkflowEditor {
     /// - collection: run on selected collection/folder
     /// - current_selection: run on current multi-selection
     /// The Files node reads this from state["selected_doc_ids"].
-    private func resolveSelectedDocumentIds() -> [String] {
-        switch editingWorkflow.inputSource {
-        case .collection:
-            if let collectionId = documentStore.selectedCollection?.id {
-                return [collectionId]
-            } else if let docId = documentStore.selectedDocument?.id {
-                return [docId]
-            }
-            return []
-        case .currentSelection:
-            if !selectedDocumentIds.isEmpty {
-                return selectedDocumentIds
-            } else if let docId = documentStore.selectedDocument?.id {
-                return [docId]
-            }
-            return []
-        }
+    /// #4396: the run's scope, decided by `WorkflowRunScope` — one place, and
+    /// a SELECTION ALWAYS WINS.
+    ///
+    /// This used to switch on `editingWorkflow.inputSource` and, for
+    /// `.collection`, return the folder id without ever consulting the
+    /// selection. Since `.collection` is the default everywhere (model init,
+    /// definition init, and the decoder's `?? .collection`), running a
+    /// collection-authored workflow — Catalogue — with one PDF selected sent
+    /// the folder and the engine expanded it.
+    private func resolveRunScope() -> WorkflowRunScope.Resolution {
+        WorkflowRunScope.resolve(
+            inputSource: editingWorkflow.inputSource,
+            selection: selectedDocumentIds,
+            collectionId: documentStore.selectedCollection?.id,
+            fallbackDocumentId: documentStore.selectedDocument?.id
+        )
     }
 
     private func warnIfNoInputResolved(_ selectedIds: [String]) {

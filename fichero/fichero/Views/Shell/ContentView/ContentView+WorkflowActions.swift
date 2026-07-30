@@ -236,28 +236,13 @@ extension ContentView {
         )
     }
 
-    @MainActor
-    func runWorkflowOnCollection(
-        workflowId: String,
-        providerOverride: String? = nil,
-        modelOverride: String? = nil
-    ) {
-        let collectionIds = documentStore.currentDocuments
-            .filter { $0.docType == .file }
-            .map { $0.id }
-        guard !collectionIds.isEmpty else { return }
-
-        let workflowName = workflowStore.workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
-        importProgress = "Starting workflow on \(collectionIds.count) documents in collection…"
-
-        executeWorkflowViaSSE(
-            workflowId: workflowId,
-            workflowName: workflowName,
-            docIds: collectionIds,
-            providerOverride: providerOverride,
-            modelOverride: modelOverride
-        )
-    }
+    // `runWorkflowOnCollection` is DELETED (#4396). It took every `.file` in
+    // `documentStore.currentDocuments` and never consulted the selection, and
+    // it had no callers — a scope-widening path with no trigger is a loaded
+    // gun, not dead weight, and the next person to need "run on this folder"
+    // would have reached for it. When that command is genuinely wanted it must
+    // be a deliberately named one ("Run on all documents in this folder") that
+    // states its scope and asks first, per `WorkflowRunScope`.
 
     /// Shared SSE execution path used by both selection and collection runs.
     /// Registers with executionObserver so Activity view shows live progress.
