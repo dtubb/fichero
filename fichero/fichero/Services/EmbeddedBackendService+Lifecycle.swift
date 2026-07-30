@@ -385,8 +385,7 @@ extension EmbeddedBackendService {
             logger.info("Backend \(hasEscalated ? "force-killed" : "stopped gracefully") (PID: \(pid))")
         } else {
             logger.error(
-                "Backend (PID: \(pid)) still alive past the termination deadline — "
-                    + "leaving it to the engine's FICHERO_PARENT_PID watchdog"
+                "Backend (PID: \(pid)) still alive past the termination deadline — leaving it to the engine's FICHERO_PARENT_PID watchdog"
             )
         }
     }
