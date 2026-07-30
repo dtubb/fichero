@@ -27,6 +27,10 @@
   "preset_version": 1,
   "sha256": "51df73d76a959c7cec8f4b3e78fc6387fa330f5d38eec971a31f2e23a69372f3"
  },
+ "catalogue_stage_6_catalogue.json": {
+  "preset_version": 1,
+  "sha256": "8d4c8b10e176d56a6ae900955ef9f9a2df250dc950b12f5a0ceaefb68249ba13"
+ },
  "clean_up_text.json": {
   "preset_version": 1,
   "sha256": "b8f2e6d5a95764cfc25d278d5d18d5ebaa1378fc0501219936754bb2354fb6c0"
