@@ -50,6 +50,22 @@ func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem])
     return deletable.isEmpty ? [clicked] : deletable
 }
 
+/// #4292 — the workflow-editor destination for a workflow MIRROR doc row.
+///
+/// The engine mirrors every workflow into the document tree as a `.file` doc
+/// with `prototype_key == "workflow"` sharing the workflow's id. Selecting
+/// that row must open the workflow EDITOR, never the document preview (whose
+/// container fallback is "No Preview available"). Resolve the live store item
+/// by id; when the store hasn't loaded yet (fresh install, first click before
+/// `loadWorkflows()` lands) fall back to an id/name placeholder — the editor
+/// loads the full definition by id, so routing must not wait on the store.
+func sidebarWorkflowDestination(
+    for doc: Document,
+    workflows: [WorkflowSidebarItem]
+) -> WorkflowSidebarItem {
+    workflows.first { $0.id == doc.id } ?? WorkflowSidebarItem(id: doc.id, name: doc.name)
+}
+
 /// Whether a right-arrow keypress should hand keyboard focus to the content
 /// pane instead of being left to the List: only when a NON-expandable leaf is
 /// selected. Folder rows keep right-arrow = native expand; no selection keeps

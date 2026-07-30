@@ -162,6 +162,8 @@ extension SidebarView {
             // cache miss is NOT proof of a dangling alias); a genuinely
             // missing target surfaces a loud alert, never a stand-in.
             resolveAliasSelection(doc, libraryId: item.libraryId)
+        case .document(let doc) where doc.isWorkflowNode:
+            routeWorkflowMirrorSelection(doc, libraryId: item.libraryId)
         case .document(let doc):
             sidebarViewLogger.info("Switching to library view with document: \(doc.name)")
             sidebarMode = .library
@@ -207,6 +209,19 @@ extension SidebarView {
             // Library headers just toggle expansion
             sidebarViewLogger.info("Library header clicked - just toggling expansion")
         }
+    }
+
+    /// #4292: a workflow mirror node is an editor surface, never a preview.
+    /// Routing it like a plain document sent it to the library/preview path,
+    /// whose container fallback is "No Preview available".
+    private func routeWorkflowMirrorSelection(_ doc: Document, libraryId: UUID?) {
+        let workflows = (
+            libraryId.flatMap { libraryManager.getLibrary(id: $0) }
+                ?? libraryManager.globalLibrary
+        )?.workflowStore.workflows ?? []
+        sidebarViewLogger.info("Routing workflow mirror node \(doc.id) to the workflow editor")
+        sidebarMode = .workflows
+        viewMode = .workflow(sidebarWorkflowDestination(for: doc, workflows: workflows))
     }
 
     private func handleFolderSelection(_ item: SidebarItem) {
