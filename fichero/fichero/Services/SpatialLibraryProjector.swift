@@ -86,64 +86,75 @@ enum SpatialLibraryProjector {
     /// order is `documents` first, then `entities`, so adding documents at the
     /// end doesn't reshuffle existing positions.
     static func project(_ input: SpatialLibraryInput) -> SpatialLibraryProjection {
-        var nodes: [SpatialNode] = []
-        nodes.reserveCapacity(input.documents.count + input.entities.count)
+        var nodes = documentNodes(input.documents)
+        nodes.append(contentsOf: entityNodes(input.entities))
 
-        let docCount = input.documents.count
-        let entityCount = input.entities.count
-        let goldenAngle = .pi * (3.0 - sqrt(5.0))           // ~2.39996 rad
+        return SpatialLibraryProjection(
+            nodes: nodes,
+            links: Array(links(in: input)).sorted { $0.id < $1.id }
+        )
+    }
 
-        // Document cards on the base plane.
-        let docRadiusStep = max(0.6, 0.18 + 0.02 * Double(docCount).squareRoot())
-        for (index, doc) in input.documents.enumerated() {
+    /// ~2.39996 rad. Spelled `Double.pi` rather than `.pi` because at type
+    /// scope there is no contextual type to infer from.
+    private static let goldenAngle = Double.pi * (3.0 - sqrt(5.0))
+
+    /// Document cards on the base plane.
+    private static func documentNodes(
+        _ documents: [SpatialLibraryInput.Document]
+    ) -> [SpatialNode] {
+        let radiusStep = max(0.6, 0.18 + 0.02 * Double(documents.count).squareRoot())
+        return documents.enumerated().map { index, doc in
             let theta = Double(index) * goldenAngle
-            let radius = docRadiusStep * Double(index).squareRoot()
+            let radius = radiusStep * Double(index).squareRoot()
             let position = SIMD3<Double>(
                 radius * cos(theta),
                 0,
                 radius * sin(theta)
             )
-            nodes.append(
-                SpatialNode(
-                    id: nodeId(forDocument: doc.id),
-                    roomId: wholeLibraryRoomId,
-                    nodeType: .source,
-                    sourceId: doc.id,
-                    label: doc.name,
-                    positionX: position.x,
-                    positionY: position.y,
-                    positionZ: position.z
-                )
+            return SpatialNode(
+                id: nodeId(forDocument: doc.id),
+                roomId: wholeLibraryRoomId,
+                nodeType: .source,
+                sourceId: doc.id,
+                label: doc.name,
+                positionX: position.x,
+                positionY: position.y,
+                positionZ: position.z
             )
         }
+    }
 
-        // Entity orbs raised above the docs so the layers read as distinct.
-        let entityRadiusStep = max(0.6, 0.20 + 0.02 * Double(entityCount).squareRoot())
-        let entityRiseStep = 0.04
-        for (index, entity) in input.entities.enumerated() {
+    /// Entity orbs raised above the docs so the layers read as distinct.
+    private static func entityNodes(
+        _ entities: [SpatialLibraryInput.Entity]
+    ) -> [SpatialNode] {
+        let radiusStep = max(0.6, 0.20 + 0.02 * Double(entities.count).squareRoot())
+        let riseStep = 0.04
+        return entities.enumerated().map { index, entity in
             let theta = Double(index) * goldenAngle
-            let radius = entityRadiusStep * Double(index).squareRoot()
+            let radius = radiusStep * Double(index).squareRoot()
             let position = SIMD3<Double>(
                 radius * cos(theta),
-                1.2 + entityRiseStep * Double(index % 6),
+                1.2 + riseStep * Double(index % 6),
                 radius * sin(theta)
             )
-            nodes.append(
-                SpatialNode(
-                    id: nodeId(forEntity: entity.id),
-                    roomId: wholeLibraryRoomId,
-                    nodeType: .entity,
-                    sourceId: entity.id,
-                    label: entity.canonicalName,
-                    positionX: position.x,
-                    positionY: position.y,
-                    positionZ: position.z
-                )
+            return SpatialNode(
+                id: nodeId(forEntity: entity.id),
+                roomId: wholeLibraryRoomId,
+                nodeType: .entity,
+                sourceId: entity.id,
+                label: entity.canonicalName,
+                positionX: position.x,
+                positionY: position.y,
+                positionZ: position.z
             )
         }
+    }
 
-        // Links: parent→child between docs, claim→entity mentions, claim
-        // co-occurrences (entity ↔ entity through a shared claim).
+    /// Parent→child between docs, claim→entity mentions, and claim
+    /// co-occurrences (entity ↔ entity through a shared claim).
+    private static func links(in input: SpatialLibraryInput) -> Set<SpatialLink> {
         let docIds = Set(input.documents.map(\.id))
         let entityIds = Set(input.entities.map(\.id))
         var links: Set<SpatialLink> = []
@@ -196,11 +207,7 @@ enum SpatialLibraryProjector {
                 }
             }
         }
-
-        return SpatialLibraryProjection(
-            nodes: nodes,
-            links: Array(links).sorted { $0.id < $1.id }
-        )
+        return links
     }
 
     // MARK: - Schema adapters
