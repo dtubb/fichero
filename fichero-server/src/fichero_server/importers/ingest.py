@@ -48,7 +48,7 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 from uuid import uuid4
 
 from fichero_server.importers.dataless import require_local_bytes
-from fichero_server.models import Document, DocType, FileType, Status
+from fichero_server.models import Artifact, Document, DocType, FileType, Status
 
 if TYPE_CHECKING:
     from fichero_server.db import Database
@@ -637,6 +637,11 @@ def _create_pdf_page_children(
             # descriptions) as artifacts on the page Document. (#885)
             _save_pdf_page_artifacts(page_doc, page_dict, db)
 
+            # Capture the page's existing text-layer geometry (#4418). Free:
+            # the rectangles are already in the file and we are already
+            # holding the page open.
+            _save_pdf_text_layer_geometry(page_doc, pdf_doc, page_index, db)
+
             if auto_embed and page_doc.page_content:
                 try:
                     db.embed(page_doc)
@@ -652,6 +657,61 @@ def _create_pdf_page_children(
 
     logger.info("Created %d page children for PDF %s", len(pages), path.name)
     return pages
+
+
+#: Artifact type carrying a page's text-region geometry (#4418).
+PDF_TEXT_GEOMETRY_ARTIFACT = "text_geometry"
+
+
+def _save_pdf_text_layer_geometry(
+    page_doc: Document,
+    pdf_doc: Any,
+    page_index: int,
+    db: Database,
+) -> None:
+    """Persist the page's text-layer regions as a geometry artifact (#4418).
+
+    A PDF with a text layer already carries every word and its rectangle; the
+    loader flattened that to a string and dropped the coordinates. Reading it
+    here costs nothing — the document is already open — and gives the preview
+    overlay a real data source for born-digital PDFs without any model,
+    workflow or new pipeline.
+
+    An artifact is written even when the page has NO text layer, carrying zero
+    boxes and ``pdf_text_layer_present = False``. That is deliberate: absence
+    of the artifact then means "never processed", while its presence with the
+    flag false means "no geometry available for this page" — a scan. Writing
+    nothing in both cases would make a scanned page indistinguishable from an
+    unprocessed one, and the overlay could only show an empty box list, which
+    reads as "nothing was recognised" (#4418).
+
+    Best-effort: geometry is a bonus on the import path and must never fail an
+    import that otherwise succeeded.
+    """
+    if pdf_doc is None:
+        return
+    try:
+        from fichero_server.media.ocr_geometry import from_pymupdf_page
+
+        geometry = from_pymupdf_page(pdf_doc[page_index], page_index=page_index)
+        db.save(
+            Artifact(
+                document_id=page_doc.id,
+                artifact_type=PDF_TEXT_GEOMETRY_ARTIFACT,
+                content=geometry.text,
+                data={"box_count": len(geometry.boxes)},
+                ocr_geometry=geometry,
+                provider="pymupdf",
+            )
+        )
+    except Exception as exc:
+        logger.warning(
+            "text-layer geometry capture failed for %s page %d (import "
+            "continues; the page simply has no geometry artifact): %s",
+            page_doc.id,
+            page_index + 1,
+            exc,
+        )
 
 
 def _page_label_for(pdf_doc: Any, page_index: int) -> str | None:

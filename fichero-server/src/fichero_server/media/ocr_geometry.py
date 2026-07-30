@@ -187,6 +187,125 @@ def from_apple_vision_result(
     )
 
 
+#: Marker recorded in ``OCRGeometryResult.metadata`` so "this page has no text
+#: layer" is distinguishable from "this page was never processed" and from
+#: "recognition ran and found nothing" (#4418). All three would otherwise look
+#: identical — an empty box list — and only one of them means the overlay
+#: should say geometry is unavailable rather than showing an empty page.
+PDF_TEXT_LAYER_FLAG = "pdf_text_layer_present"
+
+
+def from_pymupdf_page(
+    page: Any,
+    *,
+    page_index: int | None = None,
+    model: str | None = None,
+    source: str | None = "pdf_text_layer",
+) -> OCRGeometryResult:
+    """Read a PDF page's existing text layer as geometry — no model involved.
+
+    A PDF with a text layer already carries the answer: every word and its
+    rectangle, in page space, produced when the file was made. ``get_text()``
+    with no argument flattens that to a string and the rectangles are dropped
+    at the moment of extraction (#4418). ``get_text("words")`` returns the
+    identical text WITH its geometry, at no extra cost.
+
+    So for born-digital PDFs — and every scan someone has already OCR'd
+    elsewhere — regions need no model, no workflow and no new pipeline.
+
+    Coordinates are normalised to the 0..1, top-left-origin space every other
+    producer in this module targets. That is deliberate and load-bearing: the
+    image-preparation workflows produce SEVERAL renditions of one page
+    (original, enhanced, deskewed, split), so geometry tied to any one
+    rendition's pixels is wrong against all the others. Page-relative
+    fractions survive every rendition and every zoom level.
+
+    ``text`` is the word stream joined in reading order, and each box's
+    ``char_start``/``char_end`` index into exactly that string — the model
+    documents spans as offsets into "the OWNING artifact's content", so
+    building both here keeps them consistent by construction rather than by
+    hoping a separately-extracted string happens to match.
+
+    A page with no text layer returns a result with NO boxes and
+    ``metadata[PDF_TEXT_LAYER_FLAG] = False``. That is the honest answer for a
+    scan: geometry is unavailable, which is not the same as recognising
+    nothing.
+    """
+    rect = getattr(page, "rect", None)
+    page_width = float(getattr(rect, "width", 0.0) or 0.0)
+    page_height = float(getattr(rect, "height", 0.0) or 0.0)
+    if page_width <= 0 or page_height <= 0:
+        raise ValueError(
+            "from_pymupdf_page: page has no usable dimensions "
+            f"({page_width}x{page_height}) — cannot normalise geometry"
+        )
+
+    words = list(page.get_text("words") or [])
+
+    boxes: list[OCRGeometryBox] = []
+    parts: list[str] = []
+    cursor = 0
+    for word in words:
+        # PyMuPDF word tuples: (x0, y0, x1, y1, text, block, line, word_no).
+        # Already top-left origin, already page space.
+        if len(word) < 5:
+            continue
+        x0, y0, x1, y1 = (float(word[0]), float(word[1]), float(word[2]), float(word[3]))
+        text = str(word[4] or "")
+        if not text:
+            continue
+
+        if parts:
+            parts.append(" ")
+            cursor += 1
+        char_start = cursor
+        parts.append(text)
+        cursor += len(text)
+
+        # Clamp before normalising: a rect may sit a hair outside the page box
+        # (rotation, negative-origin MediaBox), and the model rejects anything
+        # outside 0..1 — correctly, but a fraction of a point should not lose
+        # the whole word's geometry.
+        left = min(max(x0, 0.0), page_width)
+        top = min(max(y0, 0.0), page_height)
+        right = min(max(x1, 0.0), page_width)
+        bottom = min(max(y1, 0.0), page_height)
+        boxes.append(
+            OCRGeometryBox(
+                text=text,
+                bbox=[
+                    left / page_width,
+                    top / page_height,
+                    max(right - left, 0.0) / page_width,
+                    max(bottom - top, 0.0) / page_height,
+                ],
+                level=OCRGeometryLevel.WORD,
+                # No confidence: the text layer is not a recognition result.
+                # Inventing 1.0 would claim a certainty this is not measuring.
+                confidence=None,
+                char_start=char_start,
+                char_end=cursor,
+                page_index=page_index,
+                provider="pymupdf",
+                model=model,
+                source=source,
+            )
+        )
+
+    return OCRGeometryResult(
+        text="".join(parts),
+        provider="pymupdf",
+        model=model,
+        boxes=boxes,
+        source=source,
+        metadata={
+            PDF_TEXT_LAYER_FLAG: bool(boxes),
+            "page_width": page_width,
+            "page_height": page_height,
+        },
+    )
+
+
 def parse_vlm_geometry(
     payload: str | dict[str, Any],
     *,
