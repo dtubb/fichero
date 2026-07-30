@@ -113,18 +113,36 @@ class WorkflowStreamService {
     /// `threadId`. The byte stream is built from the SAME `FicheroClient` and the
     /// SAME live endpoint (`/api/workflow-execution/stream/{threadId}`) that
     /// `execute(...)` connects to — there is one streaming code path, not two.
-    func subscribe(threadId: String, onEvent: @escaping (WorkflowStreamEvent) -> Void) {
+    func subscribe(
+        threadId: String,
+        onEvent: @escaping (WorkflowStreamEvent) -> Void,
+        onStreamEnd: (@MainActor () -> Void)? = nil
+    ) {
         error = nil
         liveUpdatesUnavailable = false  // fresh stream — clear any prior paused state (F7)
         isStreaming = true
         currentThreadId = threadId
 
-        startStream(threadId: threadId, onEvent: onEvent)
+        startStream(threadId: threadId, onEvent: onEvent, onStreamEnd: onStreamEnd)
+    }
+
+    /// Whether a live SSE task is currently open for this thread. Used by the
+    /// terminal-reconciliation paths (#4346/#4349) to detect a dead stream.
+    func isStreamingThread(_ threadId: String) -> Bool {
+        streamTasks[threadId] != nil
+    }
+
+    /// Fetch the authoritative persisted status for a thread. Reconciliation
+    /// seam (#4346/#4349): when the SSE stream dies without a terminal frame,
+    /// the persisted run record is the only truth left about the run's state.
+    func fetchThreadStatus(threadId: String) async throws -> ExecutionThread {
+        try await executionService.getThreadStatus(threadId: threadId)
     }
 
     private func startStream(
         threadId: String,
-        onEvent: ((WorkflowStreamEvent) -> Void)?
+        onEvent: ((WorkflowStreamEvent) -> Void)?,
+        onStreamEnd: (@MainActor () -> Void)? = nil
     ) {
         streamTasks[threadId]?.cancel()
         streamTasks[threadId] = Task { [weak self] in
@@ -132,6 +150,10 @@ class WorkflowStreamService {
             guard !Task.isCancelled else { return }
             self?.streamTasks[threadId] = nil
             self?.isStreaming = self?.streamTasks.isEmpty == false
+            // The stream ended on its own (terminal frame, server close, or
+            // transport death) — NOT via cancelStream. Let the owner reconcile
+            // run state against the persisted record (#4346/#4349).
+            onStreamEnd?()
         }
     }
 

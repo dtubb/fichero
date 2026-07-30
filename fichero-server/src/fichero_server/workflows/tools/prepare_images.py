@@ -9,6 +9,7 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
+from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
 from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -146,8 +147,14 @@ def prepare_image_file(
     grayscale: bool = False,
     autocontrast: bool = False,
     pdf_dpi: int = 200,
+    page_index: int | None = None,
 ) -> dict[str, Any]:
-    """Prepare one image/PDF into derived OCR-friendly image files."""
+    """Prepare one image/PDF into derived OCR-friendly image files.
+
+    ``page_index`` (0-based) confines a PDF to that single page — a
+    page-scoped run must never render, prepare, and feed EVERY page of the
+    parent PDF downstream (#4298).
+    """
     source = Path(file_path)
     output_root = Path(output_dir)
     ext = _extension_for_format(output_format)
@@ -155,11 +162,17 @@ def prepare_image_file(
 
     try:
         pages, metadata = _load_pages(source, pdf_dpi=pdf_dpi)
+        first_page_number = 1
+        if page_index is not None and source.suffix.lower() == ".pdf":
+            if not 0 <= page_index < len(pages):
+                raise ValueError(f"PDF page {page_index + 1} not found in: {source}")
+            pages = [pages[page_index]]
+            first_page_number = page_index + 1
         outputs: list[str] = []
         page_details: list[dict[str, Any]] = []
         is_multipage = len(pages) > 1 or source.suffix.lower() == ".pdf"
 
-        for idx, page in enumerate(pages, start=1):
+        for idx, page in enumerate(pages, start=first_page_number):
             original_size = list(page.size)
             page, rotation = _apply_exif_rotation(page)
             page = _prepare_image(page, grayscale=grayscale, autocontrast=autocontrast)
@@ -244,6 +257,13 @@ def prepare_image_file(
             data_type=DataType.FILES,
             description="Prepared image files.",
         ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="output",
+            data_type=DataType.JSON,
+            description="Documents index-aligned with the prepared files (#4298).",
+        ),
     ],
     config_schema=PREPARE_IMAGES_CONFIG,
     sort_order=25,
@@ -261,24 +281,45 @@ async def prepare_images(
     output_dir = inputs.get("output_dir") or str(
         Path(tempfile.gettempdir()) / "fichero-prepared-images"
     )
-    results = [
-        prepare_image_file(
-            file_path,
-            output_dir,
-            output_format=inputs.get("output_format", "jpg"),
-            compression_quality=inputs.get("compression_quality", 85),
-            grayscale=bool(inputs.get("grayscale", False)),
-            autocontrast=bool(inputs.get("autocontrast", False)),
-            pdf_dpi=int(inputs.get("pdf_dpi", 200)),
+    # Page scoping (#4298): a page-scoped run pairs each file path with the
+    # page document whose `sequence` confines the work to that ONE page. The
+    # old code dropped the pairing entirely, so selecting one page of a PDF
+    # rendered and prepared EVERY page for downstream OCR. Honor the wired
+    # `documents` input; recover the pairing from the upstream node's recorded
+    # outputs when the port isn't wired (older stored graphs).
+    documents = list(inputs.get("documents") or []) or documents_from_state_outputs(state, files)
+    results = []
+    for index, file_path in enumerate(files):
+        document = documents[index] if index < len(documents) else None
+        raw_page = document.get("sequence") if isinstance(document, dict) else None
+        page_index = int(raw_page) - 1 if raw_page is not None else None
+        results.append(
+            prepare_image_file(
+                file_path,
+                output_dir,
+                output_format=inputs.get("output_format", "jpg"),
+                compression_quality=inputs.get("compression_quality", 85),
+                grayscale=bool(inputs.get("grayscale", False)),
+                autocontrast=bool(inputs.get("autocontrast", False)),
+                pdf_dpi=int(inputs.get("pdf_dpi", 200)),
+                page_index=page_index,
+            )
         )
-        for file_path in files
-    ]
 
     output_files = [path for result in results for path in result.get("outputs", [])]
+    # Keep the (file, document) pairing alive downstream: one document per
+    # emitted output, index-aligned like zoom does (#4146/#4298).
+    output_documents = [
+        documents[index]
+        for index, result in enumerate(results)
+        for _ in result.get("outputs", [])
+        if index < len(documents)
+    ]
     errors = [result["error"] for result in results if result.get("error")]
     return {
         "output_files": output_files,
         "files": output_files,
+        "documents": output_documents,
         "count": len(output_files),
         "results": results,
         "error": errors[0] if len(errors) == 1 else (f"{len(errors)} files failed" if errors else None),

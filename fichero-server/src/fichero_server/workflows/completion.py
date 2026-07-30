@@ -154,10 +154,12 @@ def finalize_run_documents(
             return
 
         changed = False
+        status_settled = False
         current_status = getattr(doc, "status", None)
         if current_status == Status.processing:
             doc.status = Status.completed if success else Status.pending
             changed = True
+            status_settled = True
         elif success and explicit and current_status == Status.pending:
             # A parent file doc targeted via per-page fan-out is never touched
             # by save_artifact (which only sees page child IDs), so its status
@@ -165,7 +167,13 @@ def finalize_run_documents(
             doc.status = Status.completed
             changed = True
 
-        if workflow_run_entry is not None:
+        # Provenance goes ONLY on documents this run actually touched: the
+        # explicit run set, plus children the child-sweep settled from
+        # `processing`. Stamping every sibling child (#4298 reopen / #4346
+        # triage) made a ONE-page run record and broadcast `document.updated`
+        # for the WHOLE PDF — provenance then claimed a scope the run never
+        # had, and the change-event burst refreshed every sibling row.
+        if workflow_run_entry is not None and (explicit or status_settled):
             existing_runs = list(getattr(doc, "workflow_runs", []) or [])
             if workflow_run_entry not in existing_runs:
                 existing_runs.append(workflow_run_entry)

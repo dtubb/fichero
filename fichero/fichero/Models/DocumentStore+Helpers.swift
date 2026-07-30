@@ -191,6 +191,14 @@ extension DocumentStore {
     /// This is used during workflow execution to show visual feedback.
     /// The status is in-memory only and reverts on app restart.
     func updateProcessingStatus(for identity: FileProgressIdentity, status: Status) {
+        // Track live processing identities so a terminal boundary can clear
+        // residual spinners for documents whose completion event never
+        // arrived (stopped run / dead SSE stream, #4346).
+        if status == .processing {
+            activeProcessingIdentities[identity.stableId] = identity
+        } else {
+            activeProcessingIdentities.removeValue(forKey: identity.stableId)
+        }
         let filePath = identity.filePath
         let documentId = identity.leafDocumentId
         var matchCount = 0
@@ -306,6 +314,23 @@ extension DocumentStore {
         let completions = pendingFanoutCompletions.values
         pendingFanoutCompletions.removeAll()
         for identity in completions {
+            updateProcessingStatus(for: identity, status: status)
+        }
+    }
+
+    /// Clear every document still marked `.processing` by a live stream.
+    ///
+    /// Run-terminal boundaries call this AFTER `flushPendingFanoutCompletions`
+    /// so documents whose `fileComplete`/`fileError` never arrived — a
+    /// stopped run, or an SSE stream that died without a terminal frame
+    /// (#4346/#4349) — revert to `.pending` instead of spinning forever.
+    /// Callers must skip this while ANOTHER run is still active (the
+    /// identities are not partitioned per thread); a concurrent run's next
+    /// `fileStart` re-marks its documents anyway.
+    func clearResidualProcessing(status: Status = .pending) {
+        let residuals = activeProcessingIdentities.values
+        activeProcessingIdentities.removeAll()
+        for identity in residuals {
             updateProcessingStatus(for: identity, status: status)
         }
     }

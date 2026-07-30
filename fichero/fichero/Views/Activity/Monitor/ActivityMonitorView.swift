@@ -230,7 +230,9 @@ struct ActivityMonitorView: View {
     private func populate() async {
         guard let store else { return }
 
-        for execution in observer.activeExecutions.values {
+        // Only still-running executions get a live subscription — seeding a
+        // finished one would resurrect it in the store as `.running` (#4346).
+        for execution in observer.activeExecutions.values where execution.isRunning {
             store.subscribe(
                 threadId: execution.threadId,
                 workflowId: execution.id,

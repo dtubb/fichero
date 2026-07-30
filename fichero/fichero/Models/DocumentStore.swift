@@ -97,6 +97,14 @@ final class DocumentStore {
     @ObservationIgnored
     var pendingFanoutCompletions: [String: FileProgressIdentity] = [:]
 
+    /// Identities currently marked `.processing` by a live workflow stream,
+    /// keyed by stable identity. Terminal paths use this to clear residual
+    /// spinners for documents whose `fileComplete`/`fileError` never arrived —
+    /// a stopped run, or an SSE stream that died mid-flight (#4346/#4349) —
+    /// so no document keeps a permanent spinner. In-memory only.
+    @ObservationIgnored
+    var activeProcessingIdentities: [String: FileProgressIdentity] = [:]
+
     /// Publisher for document changes.
     var documentChangePublisher: AnyPublisher<DocumentChange, Error> {
         documentChanges.eraseToAnyPublisher()
