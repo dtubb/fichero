@@ -125,18 +125,23 @@ extension ContentView {
                 onAddToChat: {
                     openChatWithCurrentScope()
                 },
-                // #4403: the grid renders only the document leg, so it must be
-                // told what the search actually found — otherwise its empty
-                // state contradicts the header counting every kind.
-                activeSearchQuery: activeSearchQuery,
-                searchHitCounts: transientSearchHitCounts,
+                // Argument order follows LibraryView's DECLARATION order —
+                // Swift requires it for labelled parameters, and these two
+                // pairs were added by different changes (#4407 then #4403), so
+                // the call site had drifted out of order.
+                //
                 // #4407: the search field lives in the library's mini toolbar
                 // now, so its text and mode are handed to the pane that owns it.
                 searchFieldText: $toolbarSearchText,
                 searchFieldMode: Binding(
                     get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
                     set: { searchFieldModeRaw = $0.rawValue }
-                )
+                ),
+                // #4403: the grid renders only the document leg, so it must be
+                // told what the search actually found — otherwise its empty
+                // state contradicts the header counting every kind.
+                activeSearchQuery: activeSearchQuery,
+                searchHitCounts: transientSearchHitCounts
             )
             // Keep the library surface inside the content column across every
             // preview/sidebar layout variant; without this, list/table rows can
