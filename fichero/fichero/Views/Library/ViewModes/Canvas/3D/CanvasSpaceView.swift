@@ -20,11 +20,17 @@ struct CanvasSpaceView: View {
     var links: [SpatialLink] = []
     @Binding var selectedNodeIds: Set<String>
 
-    /// The one selected node, or nil when the selection is not exactly one.
-    /// COMPUTED from the set and never assigned to (#4409): single-item
-    /// operations need a sole subject, and `.first` of a multi-selection
-    /// would reintroduce the arbitrary-member lie one layer down.
-    private var soleSelectedNodeId: String? {
+    /// Operand for commands that act on exactly ONE node — nil otherwise.
+    ///
+    /// Named for the command, not for selection (#4409). Three call sites used
+    /// to read `selectedNodeId` and looked like a second selection concept;
+    /// they are not. They are z-push, z-pull and delete, each of which needs a
+    /// single subject and must be unavailable when several things are chosen.
+    ///
+    /// COMPUTED from the set and never assigned to. `.first` of a
+    /// multi-selection would reintroduce the arbitrary-member lie one layer
+    /// down — the same defect the bridge had.
+    private var singleItemCommandTarget: String? {
         selectedNodeIds.count == 1 ? selectedNodeIds.first : nil
     }
     var layoutStore: CanvasLayoutStore?
@@ -124,8 +130,8 @@ struct CanvasSpaceView: View {
 
     // MARK: - CRUD + z toolbar (#3090)
 
-    private var selectedIsItem: Bool {
-        guard let id = soleSelectedNodeId else { return false }
+    private var commandTargetIsCanvasItem: Bool {
+        guard let id = singleItemCommandTarget else { return false }
         return (itemStore?.items(for: scopeKey) ?? []).contains { $0.id == id }
     }
 
@@ -145,7 +151,7 @@ struct CanvasSpaceView: View {
             .accessibilityLabel("Add canvas item")
             .help("Add a canvas item at the camera focus")
 
-            if let id = soleSelectedNodeId {
+            if let id = singleItemCommandTarget {
                 Button { adjustZ(of: id, by: 0.25) } label: { Image(systemName: "arrow.up.forward") }
                     .accessibilityLabel("Push canvas item away")
                     .help("Push away (−z toward the camera axis)")
@@ -153,7 +159,7 @@ struct CanvasSpaceView: View {
                     .accessibilityLabel("Pull canvas item forward")
                     .help("Pull forward along z")
             }
-            if selectedIsItem, let id = soleSelectedNodeId {
+            if commandTargetIsCanvasItem, let id = singleItemCommandTarget {
                 Button(role: .destructive) { controller?.dispatch(.deleteItem(id: id)) } label: {
                     Image(systemName: "trash")
                 }

@@ -19,11 +19,17 @@ struct CanvasSceneView: View {
     var links: [SpatialLink] = []
     @Binding var selectedNodeIds: Set<String>
 
-    /// The one selected node, or nil when the selection is not exactly one.
-    /// COMPUTED from the set and never assigned to (#4409): single-item
-    /// operations need a sole subject, and `.first` of a multi-selection
-    /// would reintroduce the arbitrary-member lie one layer down.
-    private var soleSelectedNodeId: String? {
+    /// Operand for commands that act on exactly ONE node — nil otherwise.
+    ///
+    /// Named for the command, not for selection (#4409). Three call sites used
+    /// to read `selectedNodeId` and looked like a second selection concept;
+    /// they are not. They are z-push, z-pull and delete, each of which needs a
+    /// single subject and must be unavailable when several things are chosen.
+    ///
+    /// COMPUTED from the set and never assigned to. `.first` of a
+    /// multi-selection would reintroduce the arbitrary-member lie one layer
+    /// down — the same defect the bridge had.
+    private var singleItemCommandTarget: String? {
         selectedNodeIds.count == 1 ? selectedNodeIds.first : nil
     }
     var layoutStore: CanvasLayoutStore?

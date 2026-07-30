@@ -89,4 +89,47 @@ struct CanvasSelectionBridgeTests {
         #expect(selection == Set<String>())
         #expect(LibraryView.canvasNodeIds(forSelection: selection).isEmpty)
     }
+
+    // MARK: - The user-visible bug (#4409)
+
+    /// Select several rows in a list mode, switch to canvas, switch back: the
+    /// selection must be exactly what it was.
+    ///
+    /// This is the round trip the old bridge broke. `canvasNodeId` mapped any
+    /// multi-selection to nil, so the canvas showed nothing selected — and
+    /// anything the canvas then wrote back replaced the set with one id or
+    /// none. A five-row selection did not survive looking at it.
+    @Test("a multi-selection survives a switch to canvas and back")
+    func multiSelectionSurvivesTheRoundTrip() {
+        for selection in [
+            Set(["doc-1"]),
+            Set(["doc-1", "doc-2"]),
+            Set(["a", "b", "c", "d", "e"])
+        ] {
+            let onCanvas = LibraryView.canvasNodeIds(forSelection: selection)
+            let backInList = LibraryView.librarySelection(forCanvasNodeIds: onCanvas)
+
+            #expect(onCanvas.count == selection.count, Comment(rawValue: "\(selection)"))
+            #expect(backInList == selection, Comment(rawValue: "\(selection) -> \(backInList)"))
+        }
+    }
+
+    /// The round trip must not invent a selection either — an empty one stays
+    /// empty rather than becoming "everything" or a stray node.
+    @Test("an empty selection round-trips to empty")
+    func emptySelectionSurvivesTheRoundTrip() {
+        let onCanvas = LibraryView.canvasNodeIds(forSelection: [])
+        #expect(onCanvas.isEmpty)
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: onCanvas).isEmpty)
+    }
+
+    /// Non-document nodes still select no document — that half of the mapping
+    /// was correct and stays. A canvas holding an entity orb beside two
+    /// documents round-trips to the two documents, not three ids.
+    @Test("non-document nodes drop out without disturbing the rest")
+    func nonDocumentNodesDropOut() {
+        let mixed: Set<String> = ["doc:doc-1", "doc:doc-2", "entity:e-1", "item-42"]
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: mixed) == ["doc-1", "doc-2"])
+    }
+
 }
