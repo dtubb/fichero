@@ -97,6 +97,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift": "#2713 — iOS WKWebView coordinator #if canImport (split); #2101",
     "Views/Preview/ImageViewer/MagnifierPanel.swift": "#2713 — loupe bridge uses AppKit/UIKit-specific magnifier surfaces; #2101",
     "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#2713 — zoom gesture bridge uses AppKit/UIKit event adapters; #2101",
+    "Views/Library/ViewModes/Canvas/CanvasScrollPan.swift": "#4408 — scroll-wheel PAN bridge; SwiftUI has no scroll gesture for a non-scroll view, so this mirrors ScrollWheelZoom two-axis; #2101",
     "Views/Reader/Page/Immersive/KeyboardExitCatcher.swift": "#2520 — immersive reader catches Esc via AppKit keyboard bridge (moved here when ImmersiveReaderView was split by file_length); #2101",
     "Views/Preview/PDFViewer/PDFPageView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Preview/PDFViewer/PDFThumbnailView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",

@@ -117,6 +117,19 @@ struct CanvasSceneView: View {
             .gesture(panOrMarquee(in: geo.size))
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
+            // Two-finger scroll pans (#4408). A SECOND input to the same
+            // `panCamera` — Space-drag keeps working unchanged, because some
+            // people already have it in their hands and a mouse has no
+            // two-finger scroll. The overlay is hit-test transparent, so
+            // selection and node drag are untouched.
+            #if os(macOS)
+            .overlay {
+                CanvasScrollPanView { delta in
+                    scrollPanCamera(by: delta, in: geo.size)
+                }
+                .allowsHitTesting(false)
+            }
+            #endif
             .onTapGesture { controller?.dispatch(.tap(id: nil)) }   // background → clear
             .overlay { marqueeOverlay }
             .focusable()
@@ -271,6 +284,22 @@ struct CanvasSceneView: View {
                 marqueeRect = nil
                 panBaseline = .zero
             }
+    }
+
+    /// Pan from a scroll delta (#4408).
+    ///
+    /// Scroll deltas are already per-event, so unlike a drag translation there
+    /// is no baseline to subtract — but the conversion to world units is the
+    /// SAME `cameraPanDelta` the drag uses, so both inputs stay calibrated
+    /// together and tuning one tunes both.
+    private func scrollPanCamera(by delta: CGSize, in size: CGSize) {
+        renderer.panCamera(
+            worldDelta: Canvas2DProjection.cameraPanDelta(
+                screenTranslation: delta,
+                orthoScale: renderer.orthoScale,
+                viewHeight: size.height
+            )
+        )
     }
 
     /// Advance the camera by the delta since the last pan event — `translation`
