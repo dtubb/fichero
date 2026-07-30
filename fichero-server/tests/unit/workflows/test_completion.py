@@ -250,3 +250,74 @@ class TestCompleteRunDocuments:
                 "completed_at": "2026-05-31T10:02:30Z",
             }
         ]
+
+
+class TestProvenanceScopedToRunDocuments:
+    """#4298 (reopened) / #4346: a page-scoped run must not stamp provenance
+    on — or broadcast updates for — untouched sibling pages of the parent.
+
+    The child-sweep exists to settle children left in ``processing``; before
+    this fix it ALSO appended the workflow-run provenance entry to every
+    child regardless of status, so a ONE-page run recorded the whole PDF as
+    its document set and emitted `document.updated` for every sibling.
+    """
+
+    RUN = {
+        "thread_id": "thread-page-scoped",
+        "workflow_id": "wf-1",
+        "workflow_name": "Transcribe",
+        "result": {"status": "completed"},
+    }
+
+    def _seed(self, temp_db):
+        parent = Document(name="scan.pdf", path="/scan.pdf", status=Status.pending)
+        temp_db.save(parent)
+        target = Document(
+            name="scan.pdf - Page 2", doc_type=DocType.page,
+            parent_id=parent.id, sequence=2, status=Status.processing,
+        )
+        siblings = [
+            Document(
+                name=f"scan.pdf - Page {i}", doc_type=DocType.page,
+                parent_id=parent.id, sequence=i, status=Status.pending,
+            )
+            for i in (1, 3)
+        ]
+        for doc in [target, *siblings]:
+            temp_db.save(doc)
+        return parent, target, siblings
+
+    def test_untouched_siblings_get_no_provenance(self, temp_db):
+        parent, target, siblings = self._seed(temp_db)
+
+        updated = complete_run_documents(
+            temp_db, {target.id, parent.id}, workflow_run=self.RUN
+        )
+
+        # Exactly the run's own documents settle: target page + explicit parent.
+        assert updated == 2
+        assert temp_db.get(Document, target.id).status == Status.completed
+        assert temp_db.get(Document, target.id).workflow_runs
+        assert temp_db.get(Document, parent.id).workflow_runs
+        for sibling in siblings:
+            loaded = temp_db.get(Document, sibling.id)
+            assert loaded.status == Status.pending
+            assert not loaded.workflow_runs, (
+                "untouched sibling pages must not carry the run's provenance"
+            )
+
+    def test_settled_children_still_get_provenance(self, temp_db):
+        # A child the run actually left in processing (found via the sweep,
+        # not explicitly in the id set) keeps both the settle AND the stamp.
+        parent, target, _ = self._seed(temp_db)
+        extra = Document(
+            name="scan.pdf - Page 4", doc_type=DocType.page,
+            parent_id=parent.id, sequence=4, status=Status.processing,
+        )
+        temp_db.save(extra)
+
+        complete_run_documents(temp_db, {parent.id}, workflow_run=self.RUN)
+
+        loaded = temp_db.get(Document, extra.id)
+        assert loaded.status == Status.completed
+        assert loaded.workflow_runs
