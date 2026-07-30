@@ -59,6 +59,82 @@ struct ResearchProject: Codable, Identifiable, Hashable {
     }
 }
 
+/// The structured plan the backend's research agent returns when a plan is
+/// created with a `term` (#1729). Stored under `plan.metadata["research_plan"]`.
+struct ResearchPlanBrief: Codable, Hashable {
+    var archives: [String] = []
+    var locations: [String] = []
+    var multilingualTerms: [String: [String]] = [:]
+    var summary: String = ""
+
+    enum CodingKeys: String, CodingKey {
+        case archives, locations, summary
+        case multilingualTerms = "multilingual_terms"
+    }
+
+    init(
+        archives: [String] = [],
+        locations: [String] = [],
+        multilingualTerms: [String: [String]] = [:],
+        summary: String = ""
+    ) {
+        self.archives = archives
+        self.locations = locations
+        self.multilingualTerms = multilingualTerms
+        self.summary = summary
+    }
+
+    /// Advisory display data produced by an LLM: a field the agent shaped
+    /// differently degrades to "absent" rather than failing the whole plan
+    /// decode and hiding the plan from the list.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        archives = ((try? container.decodeIfPresent([String].self, forKey: .archives)) ?? nil) ?? []
+        locations = ((try? container.decodeIfPresent([String].self, forKey: .locations)) ?? nil) ?? []
+        multilingualTerms = ((
+            try? container.decodeIfPresent([String: [String]].self, forKey: .multilingualTerms)
+        ) ?? nil) ?? [:]
+        summary = ((try? container.decodeIfPresent(String.self, forKey: .summary)) ?? nil) ?? ""
+    }
+
+    /// Nothing to render — treat as "this plan was created by hand".
+    var isEmpty: Bool {
+        archives.isEmpty && locations.isEmpty && multilingualTerms.isEmpty && summary.isEmpty
+    }
+
+    /// `[(lang, terms)]` in a stable order so the rendered list doesn't shuffle
+    /// between redraws (dictionaries have no order).
+    var sortedMultilingualTerms: [(language: String, terms: [String])] {
+        multilingualTerms.keys.sorted().map { ($0, multilingualTerms[$0] ?? []) }
+    }
+}
+
+/// The subset of `plan.metadata` the app reads. Unknown keys decode away.
+struct ResearchPlanMetadata: Codable, Hashable {
+    var researchTerm: String?
+    var researchPlan: ResearchPlanBrief?
+
+    enum CodingKeys: String, CodingKey {
+        case researchTerm = "research_term"
+        case researchPlan = "research_plan"
+    }
+
+    init(researchTerm: String? = nil, researchPlan: ResearchPlanBrief? = nil) {
+        self.researchTerm = researchTerm
+        self.researchPlan = researchPlan
+    }
+
+    /// `metadata` is a free-form backend dict; a shape the app doesn't
+    /// recognise degrades to "no AI plan", never a failed plan decode.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        researchTerm = ((try? container.decodeIfPresent(String.self, forKey: .researchTerm)) ?? nil)
+        researchPlan = ((
+            try? container.decodeIfPresent(ResearchPlanBrief.self, forKey: .researchPlan)
+        ) ?? nil)
+    }
+}
+
 struct ResearchPlan: Codable, Identifiable, Hashable {
     let id: String
     var projectId: String
@@ -68,9 +144,17 @@ struct ResearchPlan: Codable, Identifiable, Hashable {
     var orderIndex: Int
     var createdAt: Date
     var updatedAt: Date
+    /// AI-plan payload when this plan was created with a research term (#1729).
+    var metadata: ResearchPlanMetadata?
+
+    /// The agent's plan, when there is one worth showing.
+    var brief: ResearchPlanBrief? {
+        guard let brief = metadata?.researchPlan, !brief.isEmpty else { return nil }
+        return brief
+    }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, description, status
+        case id, name, description, status, metadata
         case projectId = "project_id"
         case orderIndex = "order_index"
         case createdAt = "created_at"

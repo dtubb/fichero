@@ -13,6 +13,9 @@ extension ResearchTasksPane {
     var tasksTab: some View {
         VStack(spacing: 0) {
             planPicker
+            if let brief = selectedPlanBrief {
+                planBriefSection(brief)
+            }
             Divider()
             if researchStore.tasks.isEmpty {
                 ContentUnavailableView(
@@ -36,6 +39,106 @@ extension ResearchTasksPane {
         }
     }
 
+    /// The selected plan's agent-generated brief, when it has one (#1729).
+    var selectedPlanBrief: ResearchPlanBrief? {
+        guard let id = selectedPlanId else { return nil }
+        return researchStore.plans.first(where: { $0.id == id })?.brief
+    }
+
+    /// "Start research with AI" — name + term. The term is what makes the
+    /// backend run its plan agent; without it this is a blank todo list (#1729).
+    @ViewBuilder
+    var planComposerSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Start Research with AI")
+                .font(.headline)
+            Text("Fichero researches the term and suggests archives, locations, and search terms in other languages.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextField("Plan name", text: $newPlanName)
+                .textFieldStyle(.roundedBorder)
+            TextField("Research term (e.g. Marshall diaries)", text: $newPlanTerm)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { Task { await generatePlanWithAI() } }
+
+            if let failure = researchStore.planFailure {
+                // Icon + detail on demand — never a raw error dumped inline.
+                Label("Couldn't generate the plan", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help(failure)
+            }
+
+            HStack {
+                if researchStore.isGeneratingPlan {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Researching…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Cancel") { isPlanComposerPresented = false }
+                Button("Generate Plan") { Task { await generatePlanWithAI() } }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(
+                        researchStore.isGeneratingPlan
+                            || newPlanTerm.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+            }
+        }
+        .padding(16)
+        .frame(width: 380)
+    }
+
+    /// Archives / locations / multilingual terms / summary from the agent.
+    @ViewBuilder
+    func planBriefSection(_ brief: ResearchPlanBrief) -> some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                if !brief.summary.isEmpty {
+                    Text(brief.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                briefList("Archives", systemImage: "building.columns", values: brief.archives)
+                briefList("Locations", systemImage: "mappin.and.ellipse", values: brief.locations)
+                ForEach(brief.sortedMultilingualTerms, id: \.language) { entry in
+                    briefList(
+                        entry.language.uppercased(),
+                        systemImage: "character.bubble",
+                        values: entry.terms
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
+        } label: {
+            Label("Research Plan", systemImage: "sparkles")
+                .font(.subheadline)
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 6)
+    }
+
+    @ViewBuilder
+    func briefList(_ title: String, systemImage: String, values: [String]) -> some View {
+        if !values.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                Label(title, systemImage: systemImage)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text(values.joined(separator: " · "))
+                    .font(.caption)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
     var planPicker: some View {
         HStack(spacing: 8) {
             Image(systemName: "list.bullet.rectangle")
@@ -54,6 +157,7 @@ extension ResearchTasksPane {
                 }
                 Divider()
                 Button("New Plan") { Task { await createPlan() } }
+                Button("Start Research with AI…") { presentPlanComposer() }
             } label: {
                 Text(currentPlanName)
                     .font(.subheadline)
