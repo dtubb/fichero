@@ -20,6 +20,27 @@ enum LibraryEmptyPlaceholder: Equatable {
 
 extension LibraryView {
 
+    // MARK: - Filter Bar Visibility
+
+    /// React to the inline filter bar being revealed or dismissed.
+    ///
+    /// The bar can now be toggled from the shell toolbar (#4289) as well as from
+    /// ⌘F, Escape, and "Clear Filter". Centralising the two rules here means
+    /// every route obeys them:
+    ///
+    /// - Revealing puts the caret in the field, so the bar is immediately usable
+    ///   (what ⌘F always did).
+    /// - Dismissing clears the query, so rows are never left silently filtered
+    ///   out with no visible field to explain why — the stuck-filter trap the
+    ///   Escape and Clear Filter buttons already guard against.
+    func filterBarVisibilityChanged(_ isShown: Bool) {
+        if isShown {
+            filterFieldFocused = true
+        } else if !searchText.isEmpty {
+            searchText = ""
+        }
+    }
+
     // MARK: - Filtered Documents
 
     // ponytail: recompute inputs — documents, entities, searchText, sortOrder, sortFieldRaw, sortAscending, folderId

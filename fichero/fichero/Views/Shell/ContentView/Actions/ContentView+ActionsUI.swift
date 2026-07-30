@@ -91,6 +91,14 @@ extension ContentView {
         setPaneVisible(.reading, isVisible)
     }
 
+    /// Show/hide the library list pane beside the reader (#4288). Unlike the
+    /// preview/reading toggles this does NOT force widescreen: collapsing the
+    /// list is a "focus on reading" gesture, so the current layout mode stays as
+    /// the user left it and the ≥1-visible-pane invariant does the rest.
+    func setLibraryPaneVisible(_ isVisible: Bool) {
+        setPaneVisible(.grid, isVisible)
+    }
+
     func openChatWithCurrentScope() {
         // Follow-up (#1723): keep this discoverable sidebar entry, but promote the
         // scoped-docs chat into a first-class inspector pane/tab once the

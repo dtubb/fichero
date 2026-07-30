@@ -551,6 +551,7 @@ struct LibraryView: View {
                 handleSortOrderChange(newOrder)
                 recomputeFiltered()
             }
+            .onChange(of: showFilterBar) { _, shown in filterBarVisibilityChanged(shown) }
             .onReceive(processingPollTimer) { _ in
                 guard shouldUseProcessingPollFallback else { return }
                 refreshPendingStatusesFromLiveUpdate()
