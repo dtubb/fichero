@@ -291,7 +291,7 @@ struct CanvasResolveDefaultPlacementTests {
 
 /// Reference cell for the selection binding — mirrors the `Box` in
 /// `CanvasInteractionControllerTests`.
-@MainActor private final class SelectionBox { var value: String? }
+@MainActor private final class SelectionBox { var value: Set<String> = [] }
 
 @MainActor
 private final class GridSpyLayoutStore: CanvasLayoutPersisting {

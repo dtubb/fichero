@@ -80,7 +80,7 @@ private final class SpyItemStore: CanvasItemMutating {
 private func makeController(
     layout: SpyLayoutStore,
     items: SpyItemStore,
-    selection box: Box<String?>
+    selection box: Box<Set<String>>
 ) -> CanvasInteractionController {
     CanvasInteractionController(
         layoutStore: layout,
@@ -100,24 +100,28 @@ struct CanvasInteractionControllerTests {
 
     @Test("tap selects; tap(nil) clears; marquee sets the whole set")
     func selection() {
-        let layout = SpyLayoutStore(), items = SpyItemStore(), box = Box<String?>(nil)
+        let layout = SpyLayoutStore(), items = SpyItemStore(), box = Box<Set<String>>([])
         let controller = makeController(layout: layout, items: items, selection: box)
 
         controller.select("a")
         #expect(controller.selectionSet == ["a"])
-        #expect(box.value == "a")
+        #expect(box.value == ["a"])
 
         controller.selectMany(["a", "b"])
         #expect(controller.selectionSet == ["a", "b"])
+        // The binding gets BOTH. This published `ids.first` before #4409 — a
+        // marquee over five cards selected one, chosen by Set ordering — and
+        // the binding was a `String?`, so nothing here could have caught it.
+        #expect(box.value == ["a", "b"])
 
         controller.select(nil)
         #expect(controller.selectionSet.isEmpty)
-        #expect(box.value == nil)
+        #expect(box.value.isEmpty)
     }
 
     @Test("mid-drag echo suppression: only the dragged id reports isDragging")
     func echoSuppression() {
-        let controller = makeController(layout: SpyLayoutStore(), items: SpyItemStore(), selection: Box(nil))
+        let controller = makeController(layout: SpyLayoutStore(), items: SpyItemStore(), selection: Box([]))
         controller.beginDrag("a")
         #expect(controller.isDragging("a"))
         #expect(!controller.isDragging("b"))
@@ -126,7 +130,7 @@ struct CanvasInteractionControllerTests {
     @Test("drag-end persists exactly ONE row, snapped to the grid")
     func singleRowPersistSnapped() async {
         let layout = SpyLayoutStore()
-        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box([]))
 
         controller.beginDrag("drag")
         await controller.endDrag(
@@ -146,7 +150,7 @@ struct CanvasInteractionControllerTests {
         let layout = SpyLayoutStore()
         layout.rows = [CanvasItemLayout(itemId: "drag", x: 1, y: 1, z: 1)]
         layout.saveResult = false
-        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box([]))
 
         var rolledBack: (String, SIMD3<Double>)?
         controller.onRollback = { rolledBack = ($0, $1) }
@@ -162,7 +166,7 @@ struct CanvasInteractionControllerTests {
     @Test("dropping on a container fires the move-into hook and does not persist a row")
     func moveIntoHook() async {
         let layout = SpyLayoutStore()
-        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box([]))
         var moved: (String, String)?
         controller.onMoveInto = { moved = ($0, $1) }
 
@@ -180,7 +184,7 @@ struct CanvasInteractionControllerTests {
     @Test("dropping on a leaf creates a link and persists the dragged row")
     func dropCreatesLink() async {
         let layout = SpyLayoutStore(), items = SpyItemStore()
-        let controller = makeController(layout: layout, items: items, selection: Box(nil))
+        let controller = makeController(layout: layout, items: items, selection: Box([]))
 
         controller.beginDrag("drag")
         await controller.endDrag(
@@ -196,7 +200,7 @@ struct CanvasInteractionControllerTests {
     func addItemPlacesRow() async {
         let layout = SpyLayoutStore(), items = SpyItemStore()
         items.nextId = "note-1"
-        let controller = makeController(layout: layout, items: items, selection: Box(nil))
+        let controller = makeController(layout: layout, items: items, selection: Box([]))
 
         await controller.addItem(kind: .note, position: SIMD3<Double>(2, 2, 0))
 
@@ -208,7 +212,7 @@ struct CanvasInteractionControllerTests {
     @Test("editItem and deleteItem reach the item store")
     func editDelete() async {
         let items = SpyItemStore()
-        let controller = makeController(layout: SpyLayoutStore(), items: items, selection: Box(nil))
+        let controller = makeController(layout: SpyLayoutStore(), items: items, selection: Box([]))
         await controller.editItem(id: "x", text: "hello")
         await controller.deleteItem(id: "y")
         #expect(items.edits["x"] == "hello")
@@ -218,7 +222,7 @@ struct CanvasInteractionControllerTests {
     @Test("moveItem persists exactly one snapped row (undo/redo primitive)")
     func moveItemSnaps() async {
         let layout = SpyLayoutStore()
-        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box([]))
         await controller.moveItem(id: "x", to: SIMD3<Double>(1.13, -0.37, 0.12))
         #expect(layout.savedItems?.count == 1)
         #expect(layout.savedItems?.first?.itemId == "x")
@@ -229,7 +233,7 @@ struct CanvasInteractionControllerTests {
     @Test("moveItem persists a z push/pull (3D z-placement round-trips, #3090)")
     func moveItemPersistsZ() async {
         let layout = SpyLayoutStore()
-        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box([]))
         await controller.moveItem(id: "x", to: SIMD3<Double>(1, 1, 2.0))
         #expect(layout.savedItems?.first?.z == 2.0)   // z on the grid, kept end-to-end
     }
@@ -237,7 +241,7 @@ struct CanvasInteractionControllerTests {
     @Test("disappear flush persists the in-flight drag position")
     func flushActiveDrag() async {
         let layout = SpyLayoutStore()
-        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box(nil))
+        let controller = makeController(layout: layout, items: SpyItemStore(), selection: Box([]))
 
         controller.beginDrag("d")
         controller.dragMoved(id: "d", position: SIMD3<Double>(3, 3, 0))
