@@ -190,9 +190,7 @@ extension LibraryView {
             // Finder/NNW (#4160). Row taps win — their own tap gestures are
             // deeper in the hierarchy.
             .onTapGesture {
-                selection.removeAll()
-                selectionAnchor = nil
-                selectionCursor = nil
+                apply(SelectionGrammar.clear())
             },
             proxy: proxy
         )

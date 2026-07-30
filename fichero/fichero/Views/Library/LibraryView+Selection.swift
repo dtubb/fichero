@@ -65,47 +65,66 @@ extension LibraryView {
         openDocument(doc)
     }
 
-    func handleTap(_ doc: Document) {
-        onRequestFocus()
+    /// The modifiers currently held, translated for `SelectionGrammar`.
+    /// `NSEvent.modifierFlags` is the live modifier state, still valid inside a
+    /// tap callback; iOS has no equivalent on a tap, so it reports none and the
+    /// grammar collapses to plain selection there.
+    var currentSelectionModifiers: SelectionGrammar.Modifiers {
         #if os(macOS)
-        let modifiers = NSEvent.modifierFlags
-        if modifiers.contains(.shift), let anchor = selectionAnchor {
-            handleShiftClick(doc, anchor: anchor, commandKeyDown: modifiers.contains(.command))
-        } else if modifiers.contains(.command) {
-            handleCommandClick(doc)
-        } else {
-            handlePlainClick(doc)
-        }
+        let flags = NSEvent.modifierFlags
+        var modifiers: SelectionGrammar.Modifiers = []
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.command) { modifiers.insert(.command) }
+        return modifiers
         #else
-        handlePlainClick(doc)
+        return []
         #endif
     }
 
-    private func handleShiftClick(_ doc: Document, anchor: String, commandKeyDown: Bool) {
-        // Shift+click: range select from anchor to clicked item — over the
-        // ACTIVE column's order in columns mode (#4160 step 4).
-        let docs = keyboardNavigationDocuments
-        guard let anchorIndex = docs.firstIndex(where: { $0.id == anchor }),
-              let clickIndex = docs.firstIndex(where: { $0.id == doc.id }) else {
-            return
+    /// One click, one grammar (#4377).
+    ///
+    /// This used to be three private methods with their own anchor handling,
+    /// and the ⇧ branch silently did NOTHING whenever the anchor was missing or
+    /// no longer visible — after a filter change, a re-sort, a columns-mode
+    /// switch, or a selection restored from state rather than clicked. That is
+    /// why shift-click read as "not enabled". `SelectionGrammar` always returns
+    /// a selection; there is no path back to a no-op.
+    func handleTap(_ doc: Document) {
+        onRequestFocus()
+        let result = SelectionGrammar.click(
+            id: doc.id,
+            in: keyboardNavigationDocuments.map(\.id),
+            selection: selection,
+            anchor: selectionAnchor,
+            modifiers: currentSelectionModifiers
+        )
+        apply(result)
+
+        // The preview follows the row you just acted on — unless the click
+        // DESELECTED it, in which case previewing it would contradict the
+        // selection.
+        if result.selection.contains(doc.id) {
+            detailDocument = doc
         }
-        let range = min(anchorIndex, clickIndex)...max(anchorIndex, clickIndex)
-        let rangeIds = Set(docs[range].map(\.id))
-        if commandKeyDown {
-            selection.formUnion(rangeIds)
-        } else {
-            selection = rangeIds
+
+        // Drill-in is a PLAIN-click behaviour only: a ⇧ or ⌘ click is building
+        // a selection, and navigating away mid-build would throw it out.
+        guard currentSelectionModifiers.isEmpty else { return }
+        if Self.plainTapNavigatesInto(
+            isNavigableContainer: canNavigateInto(doc),
+            sidebarHidden: sidebarHidden,
+            isCompactWidth: horizontalSizeClass == .compact
+        ) {
+            onNavigateInto(doc)
         }
     }
 
-    private func handleCommandClick(_ doc: Document) {
-        // Cmd+click: toggle individual item.
-        if selection.contains(doc.id) {
-            selection.remove(doc.id)
-        } else {
-            selection.insert(doc.id)
-        }
-        selectionAnchor = doc.id
+    /// Commit a grammar result to the three pieces of selection state, which
+    /// always move together.
+    func apply(_ result: SelectionGrammar.Result) {
+        selection = result.selection
+        selectionAnchor = result.anchor
+        selectionCursor = result.cursor
     }
 
     /// Whether a PLAIN tap opens a navigable container in place (#2666).
@@ -124,80 +143,33 @@ extension LibraryView {
         isNavigableContainer && (sidebarHidden || isCompactWidth)
     }
 
-    private func handlePlainClick(_ doc: Document) {
-        // Plain click: replace selection.
-        selection = [doc.id]
-        selectionAnchor = doc.id
-        detailDocument = doc
-        if Self.plainTapNavigatesInto(
-            isNavigableContainer: canNavigateInto(doc),
-            sidebarHidden: sidebarHidden,
-            isCompactWidth: horizontalSizeClass == .compact
-        ) {
-            onNavigateInto(doc)
-        }
-    }
-
+    /// The entity browser reads the SAME grammar over its own ordered ids —
+    /// one rulebook, two lists (#4377).
     func handleEntityTap(_ entity: Components.Schemas.KnowledgeEntity) {
         onRequestFocus()
-        #if os(macOS)
-        let modifiers = NSEvent.modifierFlags
-        if modifiers.contains(.shift), let anchor = selectionAnchor {
-            handleEntityShiftClick(entity, anchor: anchor, commandKeyDown: modifiers.contains(.command))
-        } else if modifiers.contains(.command) {
-            handleEntityCommandClick(entity)
-        } else {
-            handleEntityPlainClick(entity)
-        }
-        #else
-        handleEntityPlainClick(entity)
-        #endif
+        apply(SelectionGrammar.click(
+            id: entitySelectionId(for: entity),
+            in: filteredEntities.map { entitySelectionId(for: $0) },
+            selection: selection,
+            anchor: selectionAnchor,
+            modifiers: currentSelectionModifiers
+        ))
         focusEntityIfPossible(entity)
     }
 
     func handleEntityDoubleClick(_ entity: Components.Schemas.KnowledgeEntity) {
         let entityId = entitySelectionId(for: entity)
         withAnimation(.easeInOut(duration: 0.2)) {
-            selection = [entityId]
-            selectionAnchor = entityId
+            apply(SelectionGrammar.click(
+                id: entityId,
+                in: filteredEntities.map { entitySelectionId(for: $0) },
+                selection: selection,
+                anchor: selectionAnchor,
+                modifiers: []
+            ))
         }
         listScrollCenterTarget = entityId
         focusEntityIfPossible(entity)
-    }
-
-    private func handleEntityShiftClick(
-        _ entity: Components.Schemas.KnowledgeEntity,
-        anchor: String,
-        commandKeyDown: Bool
-    ) {
-        let items = filteredEntities
-        guard let anchorIndex = items.firstIndex(where: { entitySelectionId(for: $0) == anchor }),
-              let clickIndex = items.firstIndex(where: { entitySelectionId(for: $0) == entitySelectionId(for: entity) }) else {
-            return
-        }
-        let range = min(anchorIndex, clickIndex)...max(anchorIndex, clickIndex)
-        let rangeIds = Set(range.map { entitySelectionId(for: items[$0]) })
-        if commandKeyDown {
-            selection.formUnion(rangeIds)
-        } else {
-            selection = rangeIds
-        }
-    }
-
-    private func handleEntityCommandClick(_ entity: Components.Schemas.KnowledgeEntity) {
-        let entityId = entitySelectionId(for: entity)
-        if selection.contains(entityId) {
-            selection.remove(entityId)
-        } else {
-            selection.insert(entityId)
-        }
-        selectionAnchor = entityId
-    }
-
-    private func handleEntityPlainClick(_ entity: Components.Schemas.KnowledgeEntity) {
-        let entityId = entitySelectionId(for: entity)
-        selection = [entityId]
-        selectionAnchor = entityId
     }
 
     // MARK: - Open Affordances (#1685)
@@ -205,8 +177,10 @@ extension LibraryView {
     /// In-window "Open": navigate into containers, otherwise show the doc in
     /// the detail/preview pane. Mirrors the existing double-click open path.
     func openDocument(_ doc: Document) {
-        selection = [doc.id]
-        selectionAnchor = doc.id
+        // Opening is a plain selection of one row — cursor included, so the
+        // arrows resume from what you just opened rather than from wherever
+        // the previous anchor was (#4377).
+        apply(SelectionGrammar.Result(selection: [doc.id], anchor: doc.id, cursor: doc.id))
         if canNavigateInto(doc) {
             onNavigateInto(doc)
         } else {

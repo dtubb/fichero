@@ -49,6 +49,11 @@ struct InspectorEntityBulkSelection {
         }
     }
 
+    /// Delegates to `SelectionGrammar` (#4377) — the inspector's list obeys the
+    /// same Mac grammar as the library's, because there is now only one
+    /// implementation of it to obey. This entry point stays because the
+    /// inspector speaks its own `InspectorEntitySelectionModifiers` (built from
+    /// a platform event) and has no use for the grammar's cursor.
     static func reduceTap(
         tappedId: String,
         orderedIds: [String],
@@ -56,29 +61,17 @@ struct InspectorEntityBulkSelection {
         anchor: String?,
         modifiers: InspectorEntitySelectionModifiers
     ) -> ReductionResult {
-        if modifiers.contains(.shift),
-           let anchor,
-           let anchorIndex = orderedIds.firstIndex(of: anchor),
-           let tappedIndex = orderedIds.firstIndex(of: tappedId) {
-            let range = min(anchorIndex, tappedIndex)...max(anchorIndex, tappedIndex)
-            let rangeIds = Set(orderedIds[range])
-            if modifiers.contains(.command) {
-                return ReductionResult(selection: selection.union(rangeIds), anchor: anchor)
-            }
-            return ReductionResult(selection: rangeIds, anchor: anchor)
-        }
-
-        if modifiers.contains(.command) {
-            var updated = selection
-            if updated.contains(tappedId) {
-                updated.remove(tappedId)
-            } else {
-                updated.insert(tappedId)
-            }
-            return ReductionResult(selection: updated, anchor: tappedId)
-        }
-
-        return ReductionResult(selection: [tappedId], anchor: tappedId)
+        var grammarModifiers: SelectionGrammar.Modifiers = []
+        if modifiers.contains(.shift) { grammarModifiers.insert(.shift) }
+        if modifiers.contains(.command) { grammarModifiers.insert(.command) }
+        let result = SelectionGrammar.click(
+            id: tappedId,
+            in: orderedIds,
+            selection: selection,
+            anchor: anchor,
+            modifiers: grammarModifiers
+        )
+        return ReductionResult(selection: result.selection, anchor: result.anchor)
     }
 
     static func libraryWideSuppressRules(
