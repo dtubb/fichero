@@ -368,10 +368,13 @@ struct EntityDigestContent: View {
 
     /// The entity this digest is showing, which every claim below is grouped
     /// under — so its name is redundant on each row (#4393).
-    private var groupSubject: String? {
-        guard let selectedEntityId else { return nil }
-        return entities.first(where: { $0.id == selectedEntityId })?.canonicalName
-    }
+    ///
+    /// Read from `entity`, this view's own input. The first attempt reached for
+    /// `selectedEntityId` / `entities`, which are `@State` on
+    /// `EntityDigestView` — a DIFFERENT type in the same file. One file, two
+    /// views, and the properties looked ambient because they were a few
+    /// hundred lines up.
+    private var groupSubject: String? { entity.canonicalName }
 
     private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
         let svo = ClaimSummaryCard.svoTriple(for: claim)
