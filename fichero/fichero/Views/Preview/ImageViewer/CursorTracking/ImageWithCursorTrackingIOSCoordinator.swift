@@ -37,6 +37,8 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
 
     func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
         isUserMagnifying = true
+        // A pinch hands zoom control to the user (#4279).
+        markManualZoom()
     }
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
@@ -102,15 +104,58 @@ final class ImageWithCursorTrackingIOSCoordinator: NSObject, UIScrollViewDelegat
         onVisibleRectChanged?(rect)
     }
 
+    /// Scale that fits the image in the scroll view. The rule lives in
+    /// `PreviewInitialZoomPolicy` so image and PDF previews open alike (#4279);
+    /// `nil` means "not measurable yet".
     func calculateFitScale() -> CGFloat? {
         guard let scrollView = scrollView,
-              let image = (imageView as? UIImageView)?.image else { return nil }
-        let viewSize = scrollView.bounds.size
-        guard viewSize.width > 0, viewSize.height > 0 else { return nil }
-        let imageSize = image.size
-        let scaleX = viewSize.width / imageSize.width
-        let scaleY = viewSize.height / imageSize.height
-        return min(scaleX, scaleY, 1.0)
+              let image = (imageView as? UIImageView)?.image,
+              let fit = PreviewInitialZoomPolicy.fitScale(
+                  contentSize: image.size,
+                  paneSize: scrollView.bounds.size
+              ) else { return nil }
+        return PreviewInitialZoomPolicy.clamped(fit, kind: .raster)
+    }
+
+    // MARK: - Zoom Ownership (#4279)
+
+    /// True once the user has taken manual control of the zoom (pinch or a
+    /// toolbar zoom command). While false the preview keeps re-fitting to the
+    /// pane on resize/rotation; once true the scale is frozen until a different
+    /// item is displayed.
+    var userHasZoomedManually = false
+
+    /// Pane size the last automatic fit was computed for.
+    private var lastAutoFitPaneSize: CGSize = .zero
+
+    /// The user just took over the zoom — stop auto-fitting.
+    func markManualZoom() {
+        userHasZoomedManually = true
+    }
+
+    /// A new item is on screen — hand the zoom back to the automatic fit.
+    func resetZoomOwnershipForNewItem() {
+        userHasZoomedManually = false
+        lastAutoFitPaneSize = .zero
+    }
+
+    /// Record that an automatic fit has just been applied at the pane's
+    /// current size.
+    func noteAutoFitApplied() {
+        lastAutoFitPaneSize = scrollView?.bounds.size ?? .zero
+    }
+
+    /// The scale to re-fit to because the pane resized and the user hasn't
+    /// taken over, or `nil` when nothing should change.
+    func autoRefitScale() -> CGFloat? {
+        guard !userHasZoomedManually, let scrollView = scrollView else { return nil }
+        let paneSize = scrollView.bounds.size
+        // Sub-point jitter is layout noise, not a resize.
+        guard abs(paneSize.width - lastAutoFitPaneSize.width) > 0.5
+                || abs(paneSize.height - lastAutoFitPaneSize.height) > 0.5,
+              let fit = calculateFitScale() else { return nil }
+        lastAutoFitPaneSize = paneSize
+        return fit
     }
 
     /// Scroll to a normalized position (0-1 coordinates, top-left origin).

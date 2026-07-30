@@ -2,49 +2,29 @@
 import SwiftUI
 
 extension ZoomableImagePreview {
-    // MARK: - Persisted per-document zoom scale
-    // (Moved from the main struct body to stay under type-body-length.)
-
-    func loadSavedScale(for key: String) -> CGFloat? {
-        guard let data = zoomScalesByDocumentJSON.data(using: .utf8),
-              let values = try? JSONDecoder().decode([String: Double].self, from: data),
-              let saved = values[key],
-              saved > 0 else {
-            return nil
-        }
-        return CGFloat(saved)
-    }
-
-    func saveScale(_ newScale: CGFloat, for key: String) {
-        var values: [String: Double] = [:]
-        if let data = zoomScalesByDocumentJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([String: Double].self, from: data) {
-            values = decoded
-        }
-        values[key] = Double(newScale)
-        if let encoded = try? JSONEncoder().encode(values),
-           let json = String(data: encoded, encoding: .utf8) {
-            zoomScalesByDocumentJSON = json
-        }
-    }
-
     // MARK: - Zoom Actions
 
     func zoomIn() {
+        imageCoordinator?.markManualZoom()
         withAnimation(.easeInOut(duration: 0.2)) {
             scale = min(scale * 1.25, maxScale)
         }
     }
 
     func zoomOut() {
+        imageCoordinator?.markManualZoom()
         withAnimation(.easeInOut(duration: 0.2)) {
             scale = max(scale / 1.25, minScale)
         }
     }
 
     func fitToWindow() {
+        // Fit hands the zoom back to the automatic policy, so a later pane
+        // resize keeps the image fitted (#4279).
+        imageCoordinator?.resetZoomOwnershipForNewItem()
         if let fitScale = imageCoordinator?.calculateFitScale() {
             scale = fitScale
+            imageCoordinator?.noteAutoFitApplied()
             // Defer center to next run loop so magnification has applied
             DispatchQueue.main.async {
                 imageCoordinator?.centerContent()
@@ -53,6 +33,7 @@ extension ZoomableImagePreview {
     }
 
     func actualSize() {
+        imageCoordinator?.markManualZoom()
         // #599: pixel 1:1 — one image pixel per display point. Setting
         // `scale = 1.0` (NSScrollView.magnification = 1.0) shows the image
         // at NSImage.size, which on TIFF files with DPI metadata is

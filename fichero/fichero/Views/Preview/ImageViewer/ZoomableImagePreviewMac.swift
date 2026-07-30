@@ -102,12 +102,6 @@ struct ZoomableImagePreview: View {
         return (start...end).compactMap { idx in idx == index ? nil : docs[idx].id }
     }
 
-    var scaleKey: String? {
-        documentId.map { "imageZoom_\($0)" }
-    }
-
-    @SceneStorage("imagePreview.zoomScalesByDocument") var zoomScalesByDocumentJSON: String = "{}"
-
     // These settings persist across image changes using AppStorage
     @AppStorage("imagePreview.magnifierEnabled") var magnifierEnabled = false
     @AppStorage("imagePreview.loupeEnabled") var loupeEnabled = false
@@ -148,8 +142,9 @@ struct ZoomableImagePreview: View {
     @State var highResImage: NSImage?
     @State var isLoadingHighRes = false
 
-    // loadSavedScale/saveScale live in ZoomableImagePreviewMac+ZoomActions.swift
-    // (moved to keep this body under the type-body-length budget).
+    // Zoom actions live in ZoomableImagePreviewMac+ZoomActions.swift and the
+    // opening-zoom rule in PreviewInitialZoomPolicy.swift (moved/extracted to
+    // keep this body under the type-body-length budget).
 
     /// The position to use for magnifier (locked or cursor)
     var magnifierPosition: CGPoint {
@@ -272,7 +267,6 @@ struct ZoomableImagePreview: View {
         .onAppear { handleViewAppeared() }
         .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
         .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
-        .onChange(of: url) { _, _ in handleURLChanged() }
         .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
         .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
         .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }

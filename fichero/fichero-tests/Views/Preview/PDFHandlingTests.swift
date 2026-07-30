@@ -260,13 +260,37 @@ struct PDFPageViewZoomTests {
 
         let owner = PDFPageView(documentId: url.path, pageIndex: 0)
         let coordinator = makeCoordinator(owner: owner)
+        // #4279: the handler now distinguishes a user zoom from a programmatic
+        // fit, so the pinch/toolbar path has to declare itself first.
+        coordinator.userHasZoomedManually = true
 
         let notification = Notification(name: .PDFViewScaleChanged, object: view)
         coordinator.scaleDidChange(notification)
 
         #expect(
             view.autoScales == false,
-            "autoScales must be false after any scale change, otherwise PDFKit will snap user zoom back to fit-to-pane on the next layout"
+            "autoScales must be false after a user zoom, otherwise PDFKit will snap user zoom back to fit-to-pane on the next layout"
+        )
+    }
+
+    @Test("#4279 a programmatic fit leaves autoScales on so the page keeps fitting the pane")
+    func scaleDidChangeKeepsAutoScalesForAutomaticFit() throws {
+        let url = try PDFThumbnailRenderingTests.makeMultiPagePDF(pageColors: [.red])
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let view = PDFView()
+        view.document = PDFDocument(url: url)
+        view.autoScales = true
+
+        let owner = PDFPageView(documentId: url.path, pageIndex: 0)
+        let coordinator = makeCoordinator(owner: owner)
+        #expect(coordinator.userHasZoomedManually == false, "a freshly loaded document is auto-fit")
+
+        coordinator.scaleDidChange(Notification(name: .PDFViewScaleChanged, object: view))
+
+        #expect(
+            view.autoScales,
+            "PDFKit's own initial fit must not freeze the scale — that is what made previews open too small and never re-fit when the pane grew"
         )
     }
 
