@@ -69,7 +69,6 @@ def test_import_artifacts_preset_registers_page_artifacts_and_is_idempotent(
             if artifact.artifact_type == "import_receipt"
         )
         assert receipt.data["source"] == "manifest-import"
-        assert receipt.step_name == "import_artifacts"
 
         transcription = next(
             artifact
@@ -77,7 +76,17 @@ def test_import_artifacts_preset_registers_page_artifacts_and_is_idempotent(
             if artifact.artifact_type == "transcription"
         )
         assert transcription.content == FIXTURE_TEXT
-        assert transcription.step_name == "import_artifacts"
+
+        # #4345: the receipt shipped with a NULL workflow_id, so no import
+        # artifact could be traced to the run that wrote it. Every artifact
+        # this stage writes carries the full #4313 trio.
+        for artifact in (receipt, transcription):
+            assert artifact.run_id == "import-artifacts-first"
+            assert artifact.workflow_id == (
+                "default-import-artifacts-regression-harness"
+            )
+            assert artifact.step_name == "import-artifacts"
+            assert artifact.sequence is not None and artifact.sequence >= 1
 
 
 def _seed_importable_pdf_library(tmp_path: Path) -> tuple[Path, str, list[str]]:

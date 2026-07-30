@@ -75,3 +75,23 @@ def next_artifact_sequence(run_id: str, *, seed_fn=None) -> int:
         while len(_run_sequences) > _RUN_SEQUENCES_LIMIT:
             _run_sequences.pop(next(iter(_run_sequences)))
         return current
+
+
+def artifact_provenance(run_id: str | None, *, seed_fn=None) -> dict[str, object]:
+    """The #4313 provenance trio for an ``Artifact`` written by the current node.
+
+    ``llm_base._save_artifact_sync`` grew this inline; every OTHER tool that
+    constructs an ``Artifact`` directly (import_artifacts, similarity, …) has
+    to stamp the same fields or the artifact is untraceable — the #4345 lane
+    caught ``import_receipt`` shipping with a NULL ``workflow_id``. One helper
+    so the field set can't drift between call sites.
+
+    ``sequence`` is only assigned when a run id exists; a tool invoked outside
+    a run (direct call, test) leaves it NULL rather than inventing a number.
+    """
+    ctx = get_current_node()
+    return {
+        "step_name": ctx.node_id if ctx else None,
+        "workflow_id": (ctx.workflow_id or None) if ctx else None,
+        "sequence": next_artifact_sequence(run_id, seed_fn=seed_fn) if run_id else None,
+    }
