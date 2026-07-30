@@ -14,6 +14,10 @@ enum WorkflowStatus {
     case paused
     case completed
     case failed
+    /// User-initiated stop (#4321). Distinct from `.failed` — a cancelled run
+    /// used to render as Failed everywhere because the case didn't exist, and
+    /// every mapper collapsed the backend's "cancelled" onto `.failed`.
+    case cancelled
 }
 
 struct DocumentProgress: Identifiable {

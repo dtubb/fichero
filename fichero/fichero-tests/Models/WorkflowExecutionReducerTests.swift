@@ -163,13 +163,13 @@ struct WorkflowExecutionReducerTests {
         #expect(execution.overallProgress == nil)
     }
 
-    @Test("cancelled event is terminal")
+    @Test("cancelled event is terminal AND renders as cancelled, not failed (#4321)")
     func cancelledEventIsTerminal() {
         var execution = runningExecution()
 
         execution.apply(.cancelled(threadId: "thread-1"))
 
-        #expect(execution.status == .failed)
+        #expect(execution.status == .cancelled)
         #expect(execution.isRunning == false)
         #expect(execution.workflowError == "Cancelled by user")
     }

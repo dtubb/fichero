@@ -144,6 +144,7 @@ func activityMapExecutionStatus(_ status: WorkflowStatus) -> ActivityRunStatus {
     case .paused: return .paused
     case .completed: return .completed
     case .failed: return .failed
+    case .cancelled: return .cancelled
     }
 }
 

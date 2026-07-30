@@ -33,6 +33,9 @@ extension WorkflowOutputLog {
         case .failed:
             Image(systemName: "xmark.circle.fill")
                 .foregroundColor(.red)
+        case .cancelled:
+            Image(systemName: "stop.circle.fill")
+                .foregroundColor(.orange)
         }
     }
 
@@ -43,6 +46,7 @@ extension WorkflowOutputLog {
         case .paused: return Text("Paused")
         case .completed: return Text("Completed")
         case .failed: return Text("Failed")
+        case .cancelled: return Text("Cancelled")
         }
     }
 

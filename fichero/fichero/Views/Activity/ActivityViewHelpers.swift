@@ -23,13 +23,6 @@ final class ActivityWindowSelectionState {
 /// Shared helper functions for Activity views
 enum ActivityViewHelpers {
 
-    enum RunAction {
-        case pause
-        case resume
-        case stop
-        case delete
-    }
-
     // MARK: - Status Helpers
 
     static func statusIcon(for status: SelectedActivityRun.ActivityRunStatusType) -> String {
@@ -86,6 +79,24 @@ enum ActivityViewHelpers {
             return .completed
         case .failed:
             return .failed
+        case .cancelled:
+            return .cancelled
+        }
+    }
+
+    /// Inverse bridge for surfaces that hold only the lightweight
+    /// `ActivityRunStatusType` snapshot (the Detail window's `selectedRun`):
+    /// maps 1:1 onto the app-wide `WorkflowStatus` vocabulary the shared
+    /// `RunControls` component speaks (#4321).
+    static func workflowStatus(
+        for status: SelectedActivityRun.ActivityRunStatusType
+    ) -> WorkflowStatus {
+        switch status {
+        case .running: return .running
+        case .paused: return .paused
+        case .completed: return .completed
+        case .failed: return .failed
+        case .cancelled: return .cancelled
         }
     }
 
@@ -130,27 +141,9 @@ enum ActivityViewHelpers {
         }
     }
 
-    @MainActor
-    static func performRunAction(
-        _ action: RunAction,
-        threadId: String,
-        apiClient: APIClient
-    ) async throws {
-        let service = WorkflowExecutionService(
-            baseURL: apiClient.baseURL,
-            libraryPath: apiClient.currentLibraryPath
-        )
-        switch action {
-        case .pause:
-            try await service.pauseWorkflow(threadId: threadId)
-        case .resume:
-            _ = try await service.resumeWorkflow(threadId: threadId)
-        case .stop:
-            try await service.cancelWorkflow(threadId: threadId)
-        case .delete:
-            try await service.deleteThread(threadId: threadId)
-        }
-    }
+    // `performRunAction` (fire-and-forget, throwaway service, no state applied)
+    // was retired in #4321 — run actions are transactional now: see
+    // `WorkflowExecutionStore.perform(_:threadId:)` and `RunControls`.
 }
 
 // MARK: - Activity Browser

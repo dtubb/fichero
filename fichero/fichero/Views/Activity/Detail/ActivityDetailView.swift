@@ -21,7 +21,6 @@ struct ActivityDetailView: View {
     @State private var error: String?
     @State private var workflowRun: WorkflowRunResponse?
     @State private var selectedSectionId: String = "overview"
-    @State private var isActingOnRun = false
 
     private var liveExecution: WorkflowExecution? {
         if let threadId = selectedRun.threadId,
@@ -178,37 +177,21 @@ extension ActivityDetailView {
         .background(.bar)
     }
 
+    /// Same component, same status vocabulary as the Monitor toolbar (#4321):
+    /// the two surfaces used to switch over different enums and expose
+    /// different buttons. Actions are transactional through
+    /// `WorkflowExecutionStore.perform` — the live entry updates in place and
+    /// the SSE stream is (re)subscribed for non-terminal outcomes.
     @ViewBuilder
     private var runControls: some View {
         if let threadId = selectedRun.threadId {
             HStack(spacing: 8) {
-                switch effectiveStatus {
-                case .running:
-                    Button("Pause") {
-                        Task { await performRunAction(.pause, threadId: threadId) }
-                    }
-                    .disabled(isActingOnRun)
-
-                    Button("Stop") {
-                        Task { await performRunAction(.stop, threadId: threadId) }
-                    }
-                    .disabled(isActingOnRun)
-                case .paused:
-                    Button("Resume") {
-                        Task { await performRunAction(.resume, threadId: threadId) }
-                    }
-                    .disabled(isActingOnRun)
-
-                    Button("Stop") {
-                        Task { await performRunAction(.stop, threadId: threadId) }
-                    }
-                    .disabled(isActingOnRun)
-                case .cancelled, .completed, .failed:
-                    Button("Delete") {
-                        Task { await performRunAction(.delete, threadId: threadId) }
-                    }
-                    .disabled(isActingOnRun)
-                }
+                RunControls(
+                    threadId: threadId,
+                    status: liveExecution?.status
+                        ?? ActivityViewHelpers.workflowStatus(for: effectiveStatus),
+                    onError: { self.error = $0 }
+                )
             }
             .font(.caption)
         }
@@ -310,7 +293,9 @@ extension ActivityDetailView {
     }
 
     private func subscribeToLiveExecutionIfRunning() {
-        guard selectedRun.status == .running,
+        // Paused runs subscribe too (#4321): without a stream, the eventual
+        // Resume transition had nowhere to land and never showed.
+        guard selectedRun.status == .running || selectedRun.status == .paused,
               let threadId = selectedRun.threadId,
               let store = executionStore else { return }
         store.subscribe(
@@ -362,15 +347,5 @@ extension ActivityDetailView {
         }
 
         isLoading = false
-    }
-
-    private func performRunAction(_ action: ActivityViewHelpers.RunAction, threadId: String) async {
-        isActingOnRun = true
-        defer { isActingOnRun = false }
-        do {
-            try await ActivityViewHelpers.performRunAction(action, threadId: threadId, apiClient: apiClient)
-        } catch {
-            self.error = error.localizedDescription
-        }
     }
 }

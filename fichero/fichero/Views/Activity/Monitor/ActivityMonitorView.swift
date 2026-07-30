@@ -26,7 +26,6 @@ struct ActivityMonitorView: View {
 
     @State private var selection: ActivityMonitorRow.ID?
     @State private var logRun: SelectedActivityRun?
-    @State private var isActing = false
     @State private var errorMessage: String?
 
     private var activeImportService: ImportService? {
@@ -178,47 +177,16 @@ struct ActivityMonitorView: View {
             }
             .disabled(selectedExecution == nil)
 
+            // ONE control component over ONE status vocabulary (#4321):
+            // Monitor and Detail render the same buttons, and every action is
+            // transactional through WorkflowExecutionStore.perform — the row
+            // updates (or disappears, on Delete) when the POST lands.
             if let execution = selectedExecution {
-                switch execution.status {
-                case .running:
-                    Button {
-                        Task { await act(.pause) }
-                    } label: {
-                        Label("Pause", systemImage: "pause")
-                    }
-                    .disabled(isActing)
-
-                    Button {
-                        Task { await act(.stop) }
-                    } label: {
-                        Label("Stop", systemImage: "stop")
-                    }
-                    .disabled(isActing)
-                case .paused:
-                    Button {
-                        Task { await act(.resume) }
-                    } label: {
-                        Label("Resume", systemImage: "play.fill")
-                    }
-                    .disabled(isActing)
-
-                    Button {
-                        Task { await act(.stop) }
-                    } label: {
-                        Label("Stop", systemImage: "stop")
-                    }
-                    .disabled(isActing)
-                // Terminal / non-live states surface Delete. `.idle` is the
-                // non-running case on WorkflowStatus (the switch was
-                // non-exhaustive without it — #2631).
-                case .completed, .failed, .idle:
-                    Button {
-                        Task { await act(.delete) }
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                    .disabled(isActing)
-                }
+                RunControls(
+                    threadId: execution.threadId,
+                    status: execution.status,
+                    onError: { errorMessage = $0 }
+                )
             }
         }
     }
@@ -253,17 +221,6 @@ struct ActivityMonitorView: View {
         )
     }
 
-    private func act(_ action: ActivityViewHelpers.RunAction) async {
-        guard let threadId = selectedExecution?.threadId else { return }
-        isActing = true
-        defer { isActing = false }
-        do {
-            try await ActivityViewHelpers.performRunAction(action, threadId: threadId, apiClient: apiClient)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     // MARK: - Populate
 
     /// Make the monitor self-populating: subscribe any live runs this process
@@ -287,7 +244,11 @@ struct ActivityMonitorView: View {
         for item in items {
             guard let threadId = item.threadId, seen.insert(threadId).inserted else { continue }
             await store.seedFromPersistedRun(threadId: threadId)
-            if let execution = store.execution(forThreadId: threadId), execution.status == .running {
+            // Subscribe any NON-TERMINAL run — paused included (#4321): a
+            // paused run was never subscribed, so a later Resume had no stream
+            // to carry the transition and could never visibly work.
+            if let execution = store.execution(forThreadId: threadId),
+               WorkflowExecutionStore.shouldSubscribe(status: execution.status) {
                 store.subscribe(
                     threadId: threadId,
                     workflowId: execution.id,
