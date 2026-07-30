@@ -116,7 +116,7 @@ struct StatusIslandToolbarTests {
     func engineFailureOutranksImportProgress() {
         let status = resolve(
             enginePhase: .unreachable(diagnosis: "No response"),
-            engineDiagnosis: "No response",
+            engineStatusTitle: "No response",
             isImporting: true,
             importProgress: "Importing 4 of 900…",
             backendWorkLabel: "Indexing — 40%",
