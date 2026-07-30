@@ -124,7 +124,10 @@ extension ContentView {
                 Button {
                     setCanvasPaneVisible(!showDocumentCanvas)
                 } label: {
-                    Label("Preview Pane", systemImage: showDocumentCanvas ? "rectangle.center.inset.filled" : "rectangle")
+                    Label(
+                        "Preview Pane",
+                        systemImage: showDocumentCanvas ? "rectangle.center.inset.filled" : "rectangle"
+                    )
                 }
                 .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
             }

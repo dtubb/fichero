@@ -94,11 +94,11 @@ struct PaneToggleButton: View {
 
 // MARK: - Selection-driven Layout
 
-/// Opt-in toggle for selection-driven layout changes. OFF by default so the
-/// visible pane set is stable — selecting a folder vs a PDF shows the same
-/// panes. ON restores the legacy behaviour where a folder collapses the
-/// preview pane. App-wide @AppStorage; the toggle now lives in Settings ▸
-/// General (#4121) — SelectionDrivenLayoutToggle deleted with the move.
+// Opt-in toggle for selection-driven layout changes. OFF by default so the
+// visible pane set is stable — selecting a folder vs a PDF shows the same
+// panes. ON restores the legacy behaviour where a folder collapses the
+// preview pane. App-wide @AppStorage; the toggle now lives in Settings ▸
+// General (#4121) — SelectionDrivenLayoutToggle deleted with the move.
 
 // MARK: - Show Mini Toolbar (#2460)
 

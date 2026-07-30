@@ -101,7 +101,8 @@ extension SidebarItemRow {
                !workflowTargetIDs.isEmpty {
                 Divider()
                 Menu("Run Workflow") {
-                    RunWorkflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
+                    RunWorkflowSubmenuItems(workflows: availableWorkflows) {
+                        workflowId, providerOverride, modelOverride in
                         runWorkflowOnDocuments(
                             workflowId: workflowId,
                             docIds: workflowTargetIDs,

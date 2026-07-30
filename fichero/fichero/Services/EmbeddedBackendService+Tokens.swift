@@ -33,7 +33,10 @@ extension EmbeddedBackendService {
         // zero/partial-entropy token silently, and every auth would fail with no
         // clue why. A CSPRNG failure is unrecoverable and must be loud.
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
-        precondition(status == errSecSuccess, "SecRandomCopyBytes failed (OSStatus \(status)) — refusing to mint a weak token")
+        precondition(
+            status == errSecSuccess,
+            "SecRandomCopyBytes failed (OSStatus \(status)) — refusing to mint a weak token"
+        )
         return Data(bytes).base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")

@@ -258,9 +258,12 @@ extension BatchService {
     }
 
     /// Convert generated BatchResponse to app BatchInfo
-    private func convertToBatchInfo(_ response: Components.Schemas.BatchResponse) -> BatchInfo {
+    private func convertToBatchInfo(
+        _ response: Components.Schemas.BatchResponse
+    ) -> BatchInfo {
         let items: [BatchItemInfo]? = response.items?.map { item in
-            // Convert inputs from InputsPayload (which has additionalProperties: OpenAPIObjectContainer) to [String: String]
+            // Convert inputs from InputsPayload (which has additionalProperties:
+            // OpenAPIObjectContainer) to [String: String]
             var converted: [String: String] = [:]
             if let inputsDict = item.inputs.additionalProperties.value as [String: any Sendable]? {
                 for (key, value) in inputsDict {

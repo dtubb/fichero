@@ -167,9 +167,21 @@ struct ImageEditChainPanel: View {
         chain: ImageEditChain(
             documentId: "doc1",
             operations: [
-                ImageEditOperation(raw: AnyCodable(["op": "rotate", "page": 1, "params": ["angle": 90]] as [String: Any])),
-                ImageEditOperation(raw: AnyCodable(["op": "enhance", "page": 1, "params": ["brightness": 1.2]] as [String: Any])),
-                ImageEditOperation(raw: AnyCodable(["op": "remove_background", "page": 1, "params": [:]] as [String: Any]))
+                ImageEditOperation(
+                    raw: AnyCodable(
+                        ["op": "rotate", "page": 1, "params": ["angle": 90]] as [String: Any]
+                    )
+                ),
+                ImageEditOperation(
+                    raw: AnyCodable(
+                        ["op": "enhance", "page": 1, "params": ["brightness": 1.2]] as [String: Any]
+                    )
+                ),
+                ImageEditOperation(
+                    raw: AnyCodable(
+                        ["op": "remove_background", "page": 1, "params": [:]] as [String: Any]
+                    )
+                )
             ],
             updatedAt: nil
         ),

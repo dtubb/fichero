@@ -114,7 +114,9 @@ final class EngineLifecycleController {
             let budgetRemaining = backendService.shouldAutoRestartAfterCrash()
             attemptsUsed = attempt
             guard budgetRemaining else {
-                logger.error("Supervised backend drop: crash-loop budget exhausted before attempt \(attempt) — surfacing Retry/Quit modal (#4064)")
+                logger.error(
+                    "Supervised backend drop: crash-loop budget exhausted before attempt \(attempt) — surfacing Retry/Quit modal (#4064)"
+                )
                 // The engine is still down (we crashed) and the spawn supervisor
                 // refused another restart — surface the modal; prefer-raise over
                 // silent fallback (#4064).
@@ -141,7 +143,9 @@ final class EngineLifecycleController {
                 try? await Task.sleep(for: .seconds(backoffSeconds))
             }
         }
-        logger.error("Supervised backend drop: auto-restart exhausted after \(attemptsUsed) attempts — surfacing Retry/Quit modal (#4064)")
+        logger.error(
+            "Supervised backend drop: auto-restart exhausted after \(attemptsUsed) attempts — surfacing Retry/Quit modal (#4064)"
+        )
         appState.showBackendDropModal = true
     }
 

@@ -92,7 +92,9 @@ enum KGSurfaceTab: String, CaseIterable, Identifiable {
         switch self {
         case .transcript: return "Transcript — read the document's full text"
         case .digest: return "Statements — every subject-verb-object statement we know about this entity"
-        case .graph: return "Graph — entities and their connections as a network (\(KGGraphRendererFramework.selected.displayName))"
+        case .graph:
+            return "Graph — entities and their connections as a network "
+            + "(\(KGGraphRendererFramework.selected.displayName))"
         case .claims: return "Claims — statements extracted from the document, grouped by source"
         case .timeline: return "Timeline — dated entities and events in chronological order"
         case .map: return "Map — entities laid out on a visual canvas"
@@ -175,7 +177,7 @@ struct DocumentKGSurface: View {
     /// every existing call site working with find inactive.
     var searchQuery: String = ""
     var searchSelectionIndex: Int = -1
-    var onSearchMatchCount: (@MainActor @Sendable (Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
+    var onSearchMatchCount: (@MainActor @Sendable (Int) -> Void)?
 
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }

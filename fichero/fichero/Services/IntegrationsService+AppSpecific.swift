@@ -12,7 +12,8 @@ extension IntegrationsService {
 
     /// List DEVONthink databases
     func listDEVONthinkDatabases() async throws -> [DEVONthinkDatabase] {
-        let response = try await client.api.listDevonthinkDatabasesApiIntegrationsDevonthinkDatabasesGet(headers: .init())
+        let response = try await client.api
+            .listDevonthinkDatabasesApiIntegrationsDevonthinkDatabasesGet(headers: .init())
         switch response {
         case .ok(let okResponse):
             let body = try okResponse.body.json

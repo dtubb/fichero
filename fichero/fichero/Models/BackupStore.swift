@@ -138,7 +138,9 @@ final class BackupStore {
         } catch {
             if error.isCancellationError { return false }   // superseded — not a failure
             statusMessage = "Restore failed"
-            log.error("restore(\(snapshotId, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
+            log.error(
+                "restore(\(snapshotId, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)"
+            )
             return false
         }
     }

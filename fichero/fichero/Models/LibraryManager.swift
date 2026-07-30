@@ -133,7 +133,8 @@ class LibraryManager {
         /// Per-library annotation store (#1883). Wraps `annotationService`,
         /// owns the annotation list for the current scope, and reacts to
         /// `annotation.*` change events.
-        @ObservationIgnored lazy var annotationStore: AnnotationStore = AnnotationStore(annotationService: annotationService)
+        @ObservationIgnored lazy var annotationStore: AnnotationStore =
+            AnnotationStore(annotationService: annotationService)
 
         /// Per-library action store (#1905). Wraps `actionsService`, owns the
         /// action list + categories, and reacts to `action.*` change events.
@@ -212,7 +213,8 @@ class LibraryManager {
         /// Per-document interpretation store (#2009). Wraps `entityService`, owns
         /// the selected document's hermeneutic interpretations, and reacts to
         /// `interpretation.*` change events (#2008).
-        @ObservationIgnored lazy var interpretationStore: InterpretationStore = InterpretationStore(entityService: entityService)
+        @ObservationIgnored lazy var interpretationStore: InterpretationStore =
+            InterpretationStore(entityService: entityService)
 
         /// Per-library canvas layout store (#2293 / #3082) — ONE instance shared
         /// across this library's windows and both the 2D and future 3D renderers,

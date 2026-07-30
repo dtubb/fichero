@@ -188,7 +188,9 @@ struct ZoomableImagePreview: View {
                             if !regionBoxes.isEmpty || isDrawingRegion {
                                 BoundingBoxOverlay(
                                     boxes: regionBoxes,
-                                    visible: visibleRect == .zero ? CGRect(x: 0, y: 0, width: 1, height: 1) : visibleRect,
+                                    visible: visibleRect == .zero
+                                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
+                                        : visibleRect,
                                     isDrawing: isDrawingRegion,
                                     onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
                                 )
@@ -198,7 +200,9 @@ struct ZoomableImagePreview: View {
                             if ocrBoxesEnabled, let ocrGeometry {
                                 OCRGeometryOverlay(
                                     geometry: ocrGeometry,
-                                    visible: visibleRect == .zero ? CGRect(x: 0, y: 0, width: 1, height: 1) : visibleRect
+                                    visible: visibleRect == .zero
+                                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
+                                        : visibleRect
                                 )
                             }
                         }

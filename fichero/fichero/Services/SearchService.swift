@@ -302,7 +302,10 @@ class SearchService {
     }
 
     /// Extract embed status from untyped response container
-    private func extractEmbedStatus(from container: OpenAPIRuntime.OpenAPIValueContainer, defaultDocId: String) -> EmbedStatus {
+    private func extractEmbedStatus(
+        from container: OpenAPIRuntime.OpenAPIValueContainer,
+        defaultDocId: String
+    ) -> EmbedStatus {
         var documentId = defaultDocId
         var embedded = false
 

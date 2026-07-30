@@ -158,7 +158,9 @@ class ChatService {
     }
 
     /// Convert generated ExtractTextResponse to app ExtractTextResponse
-    private func convertToExtractTextResponse(_ response: Components.Schemas.ExtractTextResponse) -> ExtractTextResponse {
+    private func convertToExtractTextResponse(
+        _ response: Components.Schemas.ExtractTextResponse
+    ) -> ExtractTextResponse {
         ExtractTextResponse(
             extracted: response.extracted,
             skipped: response.skipped,

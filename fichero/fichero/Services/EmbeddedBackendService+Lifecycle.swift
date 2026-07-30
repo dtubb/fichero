@@ -190,15 +190,20 @@ extension EmbeddedBackendService {
         } else {
             dialTarget = "HTTPS :8765"
         }
-        logger.info("DEBUG mode: adopting external engine over \(dialTarget, privacy: .public) (engine not bundled in Debug)")
+        logger.info(
+            "DEBUG mode: adopting external engine over \(dialTarget, privacy: .public) (engine not bundled in Debug)"
+        )
         do {
             try await waitForBackend(timeout: debugExternalReadinessTimeout)
             if currentEngineOwnership == .ownedEmbedded {
-                backendPID = await Self.ownedDebugEnginePID(transportMode: lastTransportMode ?? EngineConfig.transportMode)
+                let transportMode = lastTransportMode ?? EngineConfig.transportMode
+                backendPID = await Self.ownedDebugEnginePID(transportMode: transportMode)
             }
             status = .running
             let ownership = String(describing: currentEngineOwnership)
-            logger.info("Connected to external backend over \(dialTarget, privacy: .public) (ownership: \(ownership, privacy: .public))")
+            logger.info(
+                "Connected to external backend over \(dialTarget, privacy: .public) (ownership: \(ownership, privacy: .public))"
+            )
         } catch {
             status = .failed
             // Distinguish "engine unreachable" from "engine reachable but rejected
@@ -209,9 +214,7 @@ extension EmbeddedBackendService {
                 logger.error(
                     "Engine is reachable over \(dialTarget, privacy: .public) but rejected credentials — token/.api-key mismatch"
                 )
-                errorMessage = "The engine is running but rejected the app's credentials (401). "
-                    + "The app's token doesn't match the engine's — this is an auth/.api-key "
-                    + "mismatch, not a missing engine."
+                errorMessage = "The engine is running but rejected the app's credentials (401). The app's token doesn't match the engine's — this is an auth/.api-key mismatch, not a missing engine."
                 throw BackendError.authenticationRequired
             }
             logger.error(

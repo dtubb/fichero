@@ -483,7 +483,7 @@ extension WorkflowService {
                 "position_x": AnyCodable(node.positionX ?? 0),
                 "position_y": AnyCodable(node.positionY ?? 0),
                 "enabled": AnyCodable(node.enabled ?? true),
-                "uses_llm": AnyCodable(node.usesLlm ?? false),
+                "uses_llm": AnyCodable(node.usesLlm ?? false)
             ]
             if let label = node.label { dict["label"] = AnyCodable(label) }
             if let desc = node.description { dict["description"] = AnyCodable(desc) }
@@ -495,7 +495,7 @@ extension WorkflowService {
             var dict: [String: AnyCodable] = [
                 "id": AnyCodable(edge.id ?? ""),
                 "source": AnyCodable(edge.source),
-                "target": AnyCodable(edge.target ?? ""),
+                "target": AnyCodable(edge.target ?? "")
             ]
             if let sp = edge.sourcePort { dict["source_port"] = AnyCodable(sp) }
             if let tp = edge.targetPort { dict["target_port"] = AnyCodable(tp) }

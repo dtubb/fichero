@@ -180,10 +180,11 @@ extension LibraryManager {
         }
 
         let resolvedName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultName = url.deletingPathExtension().lastPathComponent
         let library = LibraryReference(
             url: url,
             document: FicheroDocument(),
-            displayName: (resolvedName?.isEmpty == false ? resolvedName! : url.deletingPathExtension().lastPathComponent),
+            displayName: (resolvedName?.isEmpty == false ? resolvedName! : defaultName),
             startAccessing: false  // remote path — no local security scope
         )
 
