@@ -9,13 +9,14 @@ enum ContentToolbarID {
     static let inspectorToggle = "fichero.inspectorToggle"
     static let compactInspectorToggle = "fichero.inspectorToggle.compact"
     static let activityStatus = "fichero.activityStatus"
-    static let viewMenu = "fichero.viewMenu"
     static let viewDisplayMode = "fichero.viewDisplayMode"
-    static let libraryPaneToggle = "fichero.libraryPane.toggle"
-    static let previewPaneToggle = "fichero.previewPane.toggle"
-    static let readingPaneToggle = "fichero.readingPane.toggle"
-    static let librarySortMenu = "fichero.library.sortMenu"
-    static let libraryFilterToggle = "fichero.library.filterToggle"
+    /// The three pane toggles as ONE control (#4374). A group collapses as a
+    /// unit under overflow instead of shedding an arbitrary pane toggle into
+    /// the overflow menu, which is what a flat `.automatic` run did.
+    static let paneToggleGroup = "fichero.paneToggles"
+    /// Sort + filter: controls that act on the library LIST, grouped apart
+    /// from the pane toggles because they are a different kind of thing.
+    static let libraryControlsGroup = "fichero.library.controls"
     static let breadcrumb = "fichero.breadcrumb"
     static let statusIsland = "fichero.statusIsland"
 }
@@ -80,11 +81,18 @@ extension ContentView {
 
         // Activity status now lives in the center status island
         // (`ContentToolbarID.statusIsland`, principal zone) beside the title.
-        // Show/hide-panes + view-mode control on every platform's toolbar,
-        // including Mac (previously menu-bar only) so it matches iPad/iOS (#2493).
-        ToolbarItem(id: ContentToolbarID.viewMenu, placement: .primaryAction) {
-            platformViewMenuButton
-        }
+        //
+        // The "View" menu button used to sit here. It rendered the shared
+        // view-menu commands — "choose visible panes and document views" —
+        // which is the same three panes the toggles a few points away already
+        // toggle, plus the display mode the adjacent menu already offers. It
+        // existed so Mac matched iPad (#2493); the toggles now ship on every
+        // platform, so the reason it existed has been satisfied by other means
+        // (#4374). Those commands stay in the MENU BAR, which is where a
+        // complete list of view commands belongs — see FicheroApp's View group.
+        //
+        // The test that pins this greps for the symbol, so this comment names
+        // it in prose rather than in code.
     }
 
     @ToolbarContentBuilder
@@ -101,19 +109,26 @@ extension ContentView {
                 }
             }
 
-            // Library list pane toggle (#4288) — the standard Mac "hide the
-            // list, focus on reading" control, first in the pane group because
-            // the list is the leading column.
-            ToolbarItem(id: ContentToolbarID.libraryPaneToggle, placement: .automatic) {
-                libraryPaneToggleButton
-            }
-
+            // ONE group, not three loose items (#4374). Six controls of three
+            // different kinds used to sit in a single undifferentiated
+            // `.automatic` run, so nothing told the system that these three
+            // toggles are one control and the sort/filter pair is another —
+            // which is why overflow shed an arbitrary pane toggle instead of
+            // collapsing the set. The missing structure WAS the bug; spacing
+            // was only its symptom.
+            //
+            // Order is the columns' own leading-to-trailing order: library
+            // list (#4288, the standard Mac "hide the list, focus on reading"
+            // control), then preview, then reading.
+            //
             // Pane toggles are native `Toggle`s (#4360): the on-state is the
             // system's own treatment on the toolbar's Liquid Glass, so each
             // control keeps ONE position-encoded glyph. The old glyph-swap
             // grammar decayed both the library and preview toggles to the same
             // bare `rectangle` when hidden — two meanings on one symbol.
-            ToolbarItem(id: ContentToolbarID.previewPaneToggle, placement: .automatic) {
+            ToolbarItemGroup(id: ContentToolbarID.paneToggleGroup, placement: .automatic) {
+                libraryPaneToggleButton
+
                 Toggle(isOn: Binding(
                     get: { showDocumentCanvas },
                     set: { setCanvasPaneVisible($0) }
@@ -121,9 +136,7 @@ extension ContentView {
                     Label("Preview Pane", systemImage: ToolbarSymbols.previewPane)
                 }
                 .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
-            }
 
-            ToolbarItem(id: ContentToolbarID.readingPaneToggle, placement: .automatic) {
                 Toggle(isOn: Binding(
                     get: { showReadingPane },
                     set: { setReadingPaneVisible($0) }
@@ -138,15 +151,20 @@ extension ContentView {
         // Available in the compact flow too — sorting and filtering a list is
         // not a split-pane concept — so this sits outside the block above.
         if supportsReadingWorkspace {
-            ToolbarItem(id: ContentToolbarID.librarySortMenu, placement: .automatic) {
+            // A SEPARATE group from the pane toggles (#4374): these act on the
+            // library list's contents, not on which panes are visible, and
+            // grouping them apart is what makes that legible.
+            //
+            // Declared unconditionally within this zone (#3163): the filter's
+            // feature flag varies the item's CONTENT, it must not make the
+            // toolbar item itself appear/disappear — that is the
+            // duplicate-identifier crash class. The flag itself is deliberately
+            // untouched here: it is OFF, not broken, and whether to enable or
+            // delete it is a product decision that needs the filter bar
+            // exercised first.
+            ToolbarItemGroup(id: ContentToolbarID.libraryControlsGroup, placement: .automatic) {
                 librarySortMenu
-            }
 
-            // Declared unconditionally within this zone (#3163): the feature
-            // flag varies the item's CONTENT, it must not make the toolbar item
-            // itself appear/disappear — that is the duplicate-identifier crash
-            // class.
-            ToolbarItem(id: ContentToolbarID.libraryFilterToggle, placement: .automatic) {
                 libraryFilterToggleButton
             }
         }
@@ -252,17 +270,6 @@ extension ContentView {
             Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
         }
         .help("Choose how library items are shown")
-    }
-
-    @ViewBuilder
-    private var platformViewMenuButton: some View {
-        Menu {
-            ViewMenuCommands()
-                .environment(viewSettings)
-        } label: {
-            Label("View", systemImage: ToolbarSymbols.viewMenu)
-        }
-        .help("Choose visible panes and document views")
     }
 
     /// Native `Toggle` — the system's on-state on the toolbar glass replaces
