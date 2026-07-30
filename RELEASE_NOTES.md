@@ -2,6 +2,64 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.07.29.2
+
+### Dev build
+
+Second cut of the day: the overnight bug sweep on top of the morning's
+2026.07.29 release. Internal TestFlight + DMG dev prerelease from green
+`integration`.
+
+### Fixed
+
+**iPhone launches again.** The iOS TestFlight build crashed instantly at
+launch: the shell's fully composed view type overflowed the iPhone's 1MB
+main-thread stack during type-metadata instantiation (macOS's 8MB stack
+absorbed the identical code). Bounded type-erasures at the compact layout's
+chokepoints fix it (#4331).
+
+**Edits can no longer vanish.** A rejected page-content save silently marked
+the buffer clean, so the next refresh replaced your edit with stale content.
+Saves are now transactional: a failure keeps the buffer dirty, shows an
+inline error, and retries — and write conflicts with a running workflow
+resolve with retries server-side instead of surfacing as an unexplained
+error (#4285, #4286).
+
+**Table sorting can't crash.** Sorting by Name crashed the app when the
+persisted sort field had no matching table column; sort state now only emits
+column-backed descriptors (#4282).
+
+**Sidebar behaves.** Chevron prefetch restored (#4294), selection survives
+tree rebuilds (#4297), drop-hover highlights only the target row instead of
+washing the whole subtree (#4229), folders dropped at the library root import
+at the root instead of vanishing into Inbox (#4274), and per-row progress
+spinners reflect actual running work regardless of selection (#4295).
+
+**Workflows tell the truth.** Single-page runs no longer widen to the whole
+PDF (#4298); runs where every file failed record as failed with the real
+error instead of a green checkmark (#4283); newly added AI providers appear
+in the Run Workflow menu immediately, from any window or device (#4276); and
+a connection error in the status island clears itself once the server is
+reachable again (#4296).
+
+### New
+
+**iPhone essentials.** Tapping a document on iPhone opens the reader again
+(#2666), first-run setup skips the Mac-only steps (#2807), and list rows get
+native swipe-to-delete (#2501).
+
+**Recognized-text boxes.** Every OCR/transcription pass now stores the text's
+bounding geometry, and the reader gains a Text Boxes overlay showing exactly
+where each recognized line sits on the page (#4309).
+
+**Convert to Markdown, HTML, and SVG.** New AI conversion workflows render a
+page into portable formats, viewable in place — flip a page between its image
+and its generated rendition in the reader (#4329).
+
+**Chat with your library.** The research chat now answers through audited,
+read-only library tools with each tool call visible and attributed, and
+creating a chat works without an AI provider configured (#2067, #4308).
+
 ## 2026.07.26
 
 ### Dev build
