@@ -564,7 +564,7 @@ def _action_update_entity(
 
 
 def delete_entity_impl(
-    db: Database, entity_id: str, *, cascade_claims: bool = False
+    db: Database, entity_id: str, *, cascade_claims: bool = False, actor: str
 ) -> dict:
     entity = db.get(KnowledgeEntity, entity_id)
     if entity is None:
@@ -606,6 +606,8 @@ def delete_entity_impl(
                 operation=MutationOperationType.delete,
                 before_state=before_state,
                 after_state=None,
+                # #4415: name the actor; never let it default.
+                created_by=actor,
             )
         )
     except Exception as exc:
@@ -660,6 +662,7 @@ def _action_delete_entity(
         db,
         params.entity_id,
         cascade_claims=params.cascade_claims,
+        actor=ctx.actor,
     )
     spec = ChangeSpec(
         domains=["entity"],

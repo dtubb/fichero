@@ -5,9 +5,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from fichero_server.workflows.run_status import RunStatus
+from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,37 @@ class ExecuteWorkflowRequest(BaseModel):
     )
     provider_override: str | None = None  # Optional run-level provider override
     model_override: str | None = None  # Optional run-level model override
+
+    # What the user pointed at (#4397/#4396). Before this there was NO schema
+    # for the selection at all — `selected_doc_ids` rode untyped inside
+    # `inputs` — which is why a client sending a whole folder for a one-file
+    # selection could not be rejected: there was no contract to violate.
+    selection: WorkflowSelection | None = None
+
+    @model_validator(mode="after")
+    def _derive_selection(self) -> "ExecuteWorkflowRequest":
+        """Adapt a legacy `inputs["selected_doc_ids"]` into the typed field.
+
+        ONE adapter, at the boundary, so everything downstream sees only the
+        typed selection — not a try-new-then-old chain threaded through each
+        use site. It exists solely so the server can start validating and
+        recording scope before the client sends the new field, and it is
+        removable in a single edit once the client does.
+
+        It cannot launder a bad request into a good one. A flat list of ids is
+        described as exactly what it is — `kind=documents`, an explicit set —
+        so the legacy path can never *claim* to be a folder run. Only a client
+        that sends `selection` explicitly can say `kind=folder`, and that claim
+        is validated.
+        """
+        if self.selection is not None:
+            return self
+        raw = self.inputs.get("selected_doc_ids") if self.inputs else None
+        if isinstance(raw, list) and raw:
+            self.selection = WorkflowSelection(
+                kind=SelectionKind.documents, ids=[str(i) for i in raw]
+            )
+        return self
 
 
 class ExecutionStatusResponse(BaseModel):
