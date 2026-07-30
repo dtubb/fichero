@@ -14,9 +14,14 @@ extension ContentView {
     @ToolbarContentBuilder
     var detailToolbarContent: some ToolbarContent {
         contentPaneToolbarContent
-        // Inspector toggle in the content section. .automatic on the detail
-        // column view lands in the content-column toolbar section (#2309).
+        // Compact inspector toggle in the content section. .automatic on the
+        // detail column view lands in the content-column toolbar section
+        // (#2309). macOS has nothing left in this zone since the View menu was
+        // removed (#4374), so the property is compiled out there and this call
+        // is guarded to match — an empty toolbar builder does not type-check.
+        #if !os(macOS)
         trailingToolbarContent
+        #endif
         // Centred context label. .principal on the detail column centres
         // within the content section — visually near window centre at
         // typical sidebar widths (#2309).

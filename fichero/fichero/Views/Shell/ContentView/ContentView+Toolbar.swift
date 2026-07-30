@@ -62,35 +62,40 @@ extension ContentView {
         }
     }
 
-    /// TRAILING zone: activity status (#2309).
-    /// The inspector toggle moved to the `.inspector()` panel's toolbar so
-    /// macOS places it in the inspector section (far right) rather than the
-    /// content section (see `mainContentView`).
+    /// TRAILING zone: the compact inspector toggle, and nothing else.
+    ///
+    /// Activity status lives in the centre status island
+    /// (`ContentToolbarID.statusIsland`, principal zone) beside the title, and
+    /// the inspector toggle moved to the `.inspector()` panel's own toolbar so
+    /// macOS places it in the inspector section rather than the content section
+    /// (see `mainContentView`).
+    ///
+    /// The "View" menu button used to sit here. It rendered the shared
+    /// view-menu commands — "choose visible panes and document views" — which
+    /// is the same three panes the toggles a few points away already toggle,
+    /// plus the display mode the adjacent menu already offers. It existed so
+    /// Mac matched iPad (#2493); the toggles now ship on every platform, so the
+    /// reason it existed has been satisfied by other means (#4374). Those
+    /// commands stay in the MENU BAR, where a complete list of view commands
+    /// belongs — see FicheroApp's View group. The test that pins this greps for
+    /// the symbol, so this comment names it in prose rather than in code.
+    ///
+    /// On macOS the compact toggle is compiled out and the View menu is gone,
+    /// so this zone has NOTHING left — and an empty `@ToolbarContentBuilder`
+    /// body does not type-check. The whole property is therefore compiled out
+    /// on macOS and its call site guarded to match, rather than kept alive by a
+    /// placeholder: an `EmptyView()` filler would ship a real, invisible
+    /// toolbar item, which is a worse answer than not declaring the zone.
+    #if !os(macOS)
     @ToolbarContentBuilder
     var trailingToolbarContent: some ToolbarContent {
-        #if !os(macOS)
         if showInspectorToggle && !usesDockedInspector {
             ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .topBarTrailing) {
                 inspectorToggleButton
             }
         }
-        #endif
-
-        // Activity status now lives in the center status island
-        // (`ContentToolbarID.statusIsland`, principal zone) beside the title.
-        //
-        // The "View" menu button used to sit here. It rendered the shared
-        // view-menu commands — "choose visible panes and document views" —
-        // which is the same three panes the toggles a few points away already
-        // toggle, plus the display mode the adjacent menu already offers. It
-        // existed so Mac matched iPad (#2493); the toggles now ship on every
-        // platform, so the reason it existed has been satisfied by other means
-        // (#4374). Those commands stay in the MENU BAR, which is where a
-        // complete list of view commands belongs — see FicheroApp's View group.
-        //
-        // The test that pins this greps for the symbol, so this comment names
-        // it in prose rather than in code.
     }
+    #endif
 
     @ToolbarContentBuilder
     var contentPaneToolbarContent: some ToolbarContent {
@@ -174,6 +179,27 @@ extension ContentView {
     // Library sort + filter moved to `LibraryView+MiniToolbar` (#4407 /
     // #4374 finding 3): a control lives with the surface it acts on, and these
     // act on the library list, not the window.
+
+    /// How library items are shown. This is a LIBRARY control by the same rule
+    /// that moved sort and filter, so it belongs in the mini toolbar too — but
+    /// it still renders from `contentPaneToolbarContent`, because the display
+    /// mode is also what the reading workspace switches between. Moving it is
+    /// tracked with the rest of #4374; until then it stays declared beside its
+    /// one use, so the symbol and its call site cannot drift apart again.
+    private var viewDisplayModeMenu: some View {
+        Menu {
+            ForEach(availableViewDisplayModes) { mode in
+                Button {
+                    updateViewDisplayMode(mode)
+                } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                }
+            }
+        } label: {
+            Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
+        }
+        .help("Choose how library items are shown")
+    }
 
     /// Native `Toggle` — the system's on-state on the toolbar glass replaces
     /// the old hand-rolled highlight helper (a rounded rect with a painted
