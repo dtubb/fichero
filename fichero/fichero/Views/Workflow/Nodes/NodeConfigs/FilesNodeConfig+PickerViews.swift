@@ -102,7 +102,8 @@ struct FilePickerRowView: View {
                 )
                 Image(systemName: doc.fileType?.icon ?? "doc")
                     .foregroundStyle(.secondary)
-                Text(doc.name)
+                // #4416: a page's `name` is the engine's upload temp file.
+                Text(DocumentTitle.displayName(for: doc))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                 Spacer()

@@ -171,7 +171,7 @@ private extension CollectionWorkspaceStub {
                                 Image(systemName: document.isWorkspace ? "square.stack.3d.up" : "doc")
                                     .foregroundStyle(.secondary)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(document.name)
+                                    Text(DocumentTitle.displayName(for: document))
                                         .font(.body)
                                         .foregroundStyle(.primary)
                                         .lineLimit(1)

@@ -204,6 +204,39 @@ struct DocumentTitleTests {
             .joined(separator: "\n")
     }
 
+    /// The sweep, as a guardrail: no view renders a `Document`'s raw `name`.
+    ///
+    /// #4416 was reported on the island, but the same `Text(document.name)`
+    /// appeared in the reader, the inspector header, the thumbnail grids, the
+    /// editor header, chat scope and four pickers — twelve surfaces that would
+    /// each show `fichero_upload_…pdf` for a page. Fixing the reported one and
+    /// leaving eleven is how a defect class survives being fixed.
+    ///
+    /// The rename field is the deliberate exception and is not a render: it
+    /// binds `$editingName`, because renaming edits the real name.
+    @Test("no view renders a document's raw name")
+    func noViewRendersARawDocumentName() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views")
+
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        #expect(!files.isEmpty, "the sweep must actually read files")
+
+        var offenders: [String] = []
+        for file in files {
+            let source = Self.codeOnly(try String(contentsOf: file, encoding: .utf8))
+            for raw in ["Text(document.name)", "Text(doc.name)"] where source.contains(raw) {
+                offenders.append("\(file.lastPathComponent): \(raw)")
+            }
+        }
+        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: ", ")))
+    }
+
     /// "One function builds a document title, and every surface uses it."
     /// Comments are stripped: the ones in these files quote the old shape.
     @Test("the title and the breadcrumb both compose through DocumentTitle")
