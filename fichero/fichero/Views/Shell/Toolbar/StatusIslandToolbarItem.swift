@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Xcode-style center status island (#4036 follow-up): ONE `.principal`

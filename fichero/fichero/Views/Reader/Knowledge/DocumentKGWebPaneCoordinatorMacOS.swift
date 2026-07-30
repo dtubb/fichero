@@ -2,6 +2,7 @@
 import AppKit
 import FicheroAPIClient
 import Foundation
+import OSLog
 import WebKit
 
 final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, WKScriptMessageHandler {

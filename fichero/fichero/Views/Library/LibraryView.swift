@@ -273,7 +273,22 @@ struct LibraryView: View {
             connectionErrorState(message: engineFailure)
         } else if isCollectionLoading || isAwaitingFirstLoad {
             loadingState
-        } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
+        } else {
+            libraryFailureOrRows
+        }
+    }
+
+    /// The failure branches, split out of `libraryContent` so no single
+    /// `@ViewBuilder` body carries seven branches plus a nested switch.
+    ///
+    /// Purely a factoring: the chain order is unchanged, so the precedence
+    /// (access denial → engine outage → generic error → rows) is exactly what
+    /// it was. `LibraryWindow.body` has a documented type-check-timeout history
+    /// in this codebase and #4372 added a branch to this chain, so it is
+    /// bounded now rather than after a failed build.
+    @ViewBuilder
+    private var libraryFailureOrRows: some View {
+        if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
             // Never a silent 403 / blank pane (F6): a denied library read lands on
             // the explicit access state — which library, why, who you are, and the
             // next action — instead of the generic "couldn't load" text.
@@ -289,7 +304,15 @@ struct LibraryView: View {
             connectionErrorState(message: engineUnreachableDetail)
         } else if let activeErrorMessage {
             errorState(message: activeErrorMessage)
-        } else if isCollectionEmpty {
+        } else {
+            libraryRowsOrEmptyState
+        }
+    }
+
+    /// The final answer: rows, or the empty/placeholder state.
+    @ViewBuilder
+    private var libraryRowsOrEmptyState: some View {
+        if isCollectionEmpty {
             // "Empty folder" and "contents not here yet" looked identical, so a
             // folder click or a drop showed "No Documents" and then relaid out
             // when the data landed (#4235). Show what is already in flight.

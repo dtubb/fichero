@@ -1,6 +1,7 @@
 #if canImport(UIKit)
 import FicheroAPIClient
 import Foundation
+import OSLog
 import UIKit
 import WebKit
 

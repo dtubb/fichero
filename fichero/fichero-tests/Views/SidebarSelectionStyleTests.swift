@@ -14,6 +14,13 @@ import Testing
 /// and forces the label white and bold. The sidebar was already 100% native —
 /// there is no hand-rolled fill anywhere under `Views/Sidebar` — so "prefer
 /// native" was satisfied and the appearance was still wrong.
+/// `@MainActor` is LOAD-BEARING, for the reason recorded on
+/// `LibraryView.isAwaitingFirstLoad`: `LibrarySelectionStyle.fill` reads
+/// `NSColor.unemphasizedSelectedContentBackgroundColor`, and the Swift Testing
+/// suite runs on a cooperative thread. Touching AppKit colour from off-main has
+/// SIGTRAPped this test process before, nondeterministically and misattributed
+/// to whichever test happened to be running (#4201).
+@MainActor
 struct SidebarSelectionStyleTests {
 
     // MARK: - Selection does not touch the label
