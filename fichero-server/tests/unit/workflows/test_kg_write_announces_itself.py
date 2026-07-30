@@ -58,8 +58,13 @@ def captured_emits(monkeypatch):
     def _record(library_path, **kwargs):
         events.append({"library_path": library_path, **kwargs})
 
+    # Patch the name IN the emitter module, not in `api.change_stream`.
+    # `_workflow_change_emit` does `from ... import emit_change` at import
+    # time, so it holds its own binding and patching the source module has no
+    # effect — the test would pass vacuously against a broken product.
     monkeypatch.setattr(
-        "fichero_server.api.change_stream.emit_change", _record
+        "fichero_server.workflows.tools._workflow_change_emit.emit_change",
+        _record,
     )
     return events
 
@@ -219,10 +224,21 @@ class TestGuardrailPinsTheSharedEmission:
     """Concentrating emission in one helper creates one place to break it."""
 
     def test_the_shared_write_paths_are_covered_by_the_ratchet(self):
-        from scripts.check_emit_change_coverage import (  # noqa: PLC0415
-            REQUIRED_TERMINAL_EMITS,
-            scan_required_terminal_emits,
+        import importlib.util
+        import sys
+
+        # `scripts/` is not an importable package; load the guardrail by path.
+        repo_root = Path(__file__).resolve().parents[4]
+        script = repo_root / "scripts" / "check_emit_change_coverage.py"
+        assert script.exists(), f"guardrail not found at {script}"
+        spec = importlib.util.spec_from_file_location(
+            "_check_emit_change_coverage", script
         )
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        REQUIRED_TERMINAL_EMITS = module.REQUIRED_TERMINAL_EMITS
+        scan_required_terminal_emits = module.scan_required_terminal_emits
 
         pinned = {rel_path for rel_path, _ in REQUIRED_TERMINAL_EMITS}
         assert (

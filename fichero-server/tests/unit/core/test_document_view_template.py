@@ -137,7 +137,9 @@ def test_transcript_body_uses_anywhere_not_break_word() -> None:
     body_rule = source[start : source.index("}", start)]
 
     assert "overflow-wrap: anywhere" in body_rule
-    assert "break-word" not in body_rule, (
+    # The DECLARATION, not the bare word — the rule's own comment explains why
+    # `break-word` is wrong, so a substring check on it matches the prose.
+    assert "overflow-wrap: break-word" not in body_rule, (
         "overflow-wrap: break-word does not shrink min-content width, so the "
         "page can still force the container wider (#4385)"
     )
@@ -171,8 +173,8 @@ def test_claim_source_excerpt_wraps_like_the_transcript() -> None:
     unbreakable runs and had the same half-configured wrap."""
     source = _template_source()
 
-    claim_index = source.index(".claim-source {")
-    claim_rule = source[claim_index : claim_index + 500]
+    start = source.index(".claim-source {")
+    claim_rule = source[start : source.index("}", start)]
     assert "white-space: pre-wrap;" in claim_rule
     assert "overflow-wrap: anywhere;" in claim_rule
 
