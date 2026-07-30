@@ -147,21 +147,30 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         }
     }
 
+    /// Move the transcript's own selected-page border to the page-focus cursor
+    /// (#4373). The decision is pure and lives in `ReaderActivePageSync`; this
+    /// only performs it.
     func syncActivePage(into webView: WKWebView, parent: DocumentKGWebPane) {
-        if lastActivePageNumber != parent.activePageNumber {
-            lastActivePageNumber = parent.activePageNumber
-            if Date() < suppressActivePageSyncUntil {
-                return
-            }
-            if parent.scrollSync.isDriving(.web) {
-                return
-            }
-            if let pageNumber = parent.activePageNumber {
-                webView.evaluateJavaScript("window.fichero?.setActivePage(\(pageNumber));")
-                if let pageCount = parent.pageCount {
-                    webView.evaluateJavaScript("window.ficheroScrollToPage?.(\(pageNumber), \(pageCount));")
-                }
-            }
+        let decision = ReaderActivePageSync.decide(
+            lastSent: lastActivePageNumber,
+            desired: parent.activePageNumber,
+            isScrollSuppressed: Date() < suppressActivePageSyncUntil,
+            isWebDriving: parent.scrollSync.isDriving(.web)
+        )
+        guard decision.sendsHighlight else { return }
+        // Record ONLY what actually went out. The old code recorded before its
+        // early returns, so a suppressed tick marked the border delivered and
+        // left it on the wrong page (#4373).
+        lastActivePageNumber = parent.activePageNumber
+        webView.evaluateJavaScript(
+            ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
+        )
+        if decision.sendsScroll,
+           let pageNumber = parent.activePageNumber,
+           let pageCount = parent.pageCount {
+            webView.evaluateJavaScript(
+                ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
+            )
         }
     }
 
@@ -290,6 +299,12 @@ extension DocumentKGWebPaneCoordinatorMacOS {
             readerPageActivationLogger.error("Reader page click carried no usable page number")
             return
         }
+        // The click came from INSIDE the transcript, so the page is already on
+        // screen. Suppress the follow-up scroll only — the border still moves,
+        // because `ReaderActivePageSync` never suppresses the highlight (#4373).
+        // Without this, clicking a visible page yanks it to the top of the
+        // viewport and moves the text out from under the pointer.
+        suppressActivePageSyncUntil = Date().addingTimeInterval(0.25)
         Task { @MainActor in
             guard let state = readerPageActivationState else { return }
             if !state.activate(pageNumber: pageNumber) {

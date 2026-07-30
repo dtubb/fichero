@@ -123,6 +123,159 @@ struct ReaderPageActivationTests {
         #expect(resolved?.id == "page-3")
     }
 
+    // MARK: - The selected-page border cannot go stale (#4373)
+
+    /// The failure that matters: if the cursor moves and the border does not,
+    /// the reader is lying about which page is selected. The highlight is
+    /// therefore sent under EVERY suppression condition — suppression exists
+    /// for the scroll, never for the border.
+    @Test("a moved cursor always moves the border, whatever is suppressed")
+    func aMovedCursorAlwaysMovesTheBorder() {
+        for suppressed in [true, false] {
+            for webDriving in [true, false] {
+                let decision = ReaderActivePageSync.decide(
+                    lastSent: 2,
+                    desired: 5,
+                    isScrollSuppressed: suppressed,
+                    isWebDriving: webDriving
+                )
+                #expect(
+                    decision.sendsHighlight,
+                    "suppressed: \(suppressed), webDriving: \(webDriving)"
+                )
+            }
+        }
+    }
+
+    /// The precise old bug: the value was recorded as delivered before two
+    /// early returns, so a suppressed tick marked the border sent and left it
+    /// on the wrong page forever. Recording and sending are now the same
+    /// condition.
+    @Test("nothing is ever recorded as sent unless it was sent")
+    func neverRecordsWhatItDidNotSend() {
+        let lastValues: [Int?] = [nil, 1, 2, 7]
+        let desiredValues: [Int?] = [nil, 1, 2, 7]
+        for lastSent in lastValues {
+            for desired in desiredValues {
+                for suppressed in [true, false] {
+                    for webDriving in [true, false] {
+                        let decision = ReaderActivePageSync.decide(
+                            lastSent: lastSent,
+                            desired: desired,
+                            isScrollSuppressed: suppressed,
+                            isWebDriving: webDriving
+                        )
+                        #expect(decision.recordsAsSent == decision.sendsHighlight)
+                        // And a scroll is never sent without the highlight that
+                        // justifies it.
+                        if decision.sendsScroll {
+                            #expect(decision.sendsHighlight)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Clicking the page you are already reading: the cursor does not move, so
+    /// nothing is redrawn — and nothing needs to be, because the border is
+    /// already on that page. The confirmation the user sees is that it stays.
+    @Test("a repeated click on the already-selected page redraws nothing")
+    func repeatedClickOnTheCurrentPageIsANoOp() {
+        let decision = ReaderActivePageSync.decide(
+            lastSent: 3,
+            desired: 3,
+            isScrollSuppressed: true,
+            isWebDriving: false
+        )
+        #expect(!decision.sendsHighlight)
+        #expect(!decision.sendsScroll)
+    }
+
+    /// Scrolling after a click must move the border with the scroll — the two
+    /// intents share the page-focus cursor, so the border follows both.
+    @Test("scrolling after a click moves the border to the scrolled-to page")
+    func scrollingAfterAClickMovesTheBorder() {
+        let decision = ReaderActivePageSync.decide(
+            lastSent: 3,
+            desired: 4,
+            isScrollSuppressed: false,
+            isWebDriving: true
+        )
+        #expect(decision.sendsHighlight)
+        // …but the web view is already at that page, so it is not re-scrolled.
+        #expect(!decision.sendsScroll)
+    }
+
+    /// A click comes from inside the transcript, so the page is already on
+    /// screen: border yes, scroll no. Without this the click yanks the page to
+    /// the top of the viewport and moves the text out from under the pointer.
+    @Test("a click moves the border without re-scrolling the transcript")
+    func clickMovesTheBorderWithoutScrolling() {
+        let decision = ReaderActivePageSync.decide(
+            lastSent: 5,
+            desired: 2,
+            isScrollSuppressed: true,
+            isWebDriving: false
+        )
+        #expect(decision.sendsHighlight)
+        #expect(!decision.sendsScroll)
+    }
+
+    /// A cursor change driven from OUTSIDE the reader — a sidebar or preview
+    /// click — has to bring the page into view, because the user is not
+    /// looking at it yet.
+    @Test("an externally driven change both borders and scrolls")
+    func externallyDrivenChangeScrolls() {
+        let decision = ReaderActivePageSync.decide(
+            lastSent: 1,
+            desired: 9,
+            isScrollSuppressed: false,
+            isWebDriving: false
+        )
+        #expect(decision.sendsHighlight)
+        #expect(decision.sendsScroll)
+    }
+
+    /// After a transcript reload the coordinator clears `lastActivePageNumber`,
+    /// so the first sync re-sends and the border is restored at the same page
+    /// rather than silently missing.
+    @Test("the border is redrawn after a transcript reload")
+    func borderSurvivesAReload() {
+        let afterReload = ReaderActivePageSync.decide(
+            lastSent: nil,
+            desired: 4,
+            isScrollSuppressed: false,
+            isWebDriving: false
+        )
+        #expect(afterReload.sendsHighlight)
+    }
+
+    /// A cursor that becomes nil clears the border instead of stranding it on
+    /// a page that is no longer selected.
+    @Test("a nil cursor clears the border rather than stranding it")
+    func nilCursorClearsTheBorder() {
+        let decision = ReaderActivePageSync.decide(
+            lastSent: 4,
+            desired: nil,
+            isScrollSuppressed: false,
+            isWebDriving: false
+        )
+        #expect(decision.sendsHighlight)
+        #expect(!decision.sendsScroll, "there is nowhere to scroll to")
+        #expect(ReaderActivePageSync.highlightScript(page: nil).contains("null"))
+    }
+
+    @Test("the highlight script addresses the page by number, not by a new scheme")
+    func highlightScriptUsesTheExistingBridge() {
+        let script = ReaderActivePageSync.highlightScript(page: 7)
+        #expect(script == "window.fichero?.setActivePage(7);")
+        #expect(
+            ReaderActivePageSync.scrollScript(page: 7, pageCount: 12)
+                == "window.ficheroScrollToPage?.(7, 12);"
+        )
+    }
+
     // MARK: - Structural: one seam, not a parallel navigation
 
     private static func appSource(_ relativePath: String) throws -> String {
@@ -134,6 +287,36 @@ struct ReaderPageActivationTests {
             .appendingPathComponent("fichero")
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// The border must be driven from the page-focus cursor, not set in the
+    /// click handler — a second source of truth for "which page is selected"
+    /// is the exact defect #4380 spent three commits removing from the
+    /// connection surfaces.
+    @Test("the border is driven from the cursor, never from the click handler")
+    func borderIsDrivenFromTheCursorNotTheClick() throws {
+        for coordinator in [
+            "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatorMacOS.swift",
+            "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift",
+        ] {
+            let source = try Self.appSource(coordinator)
+            // The highlight goes out from the cursor sync…
+            #expect(source.contains("ReaderActivePageSync.decide("), coordinator)
+            #expect(source.contains("ReaderActivePageSync.highlightScript("), coordinator)
+            // …and the value is recorded only after the guard, never before it.
+            let syncBody = source.components(separatedBy: "func syncActivePage(")[1]
+            let guardIndex = syncBody.range(of: "guard decision.sendsHighlight")
+            let recordIndex = syncBody.range(of: "lastActivePageNumber = parent.activePageNumber")
+            #expect(guardIndex != nil, coordinator)
+            #expect(recordIndex != nil, coordinator)
+            if let guardIndex, let recordIndex {
+                #expect(guardIndex.lowerBound < recordIndex.lowerBound, coordinator)
+            }
+            // The click handler must NOT set the highlight itself.
+            let clickBody = source.components(separatedBy: "func handlePageActivated(")[1]
+            #expect(!clickBody.contains("setActivePage"), coordinator)
+            #expect(!clickBody.contains("highlightScript"), coordinator)
+        }
     }
 
     /// A click and a scroll must share one application point. Two separate

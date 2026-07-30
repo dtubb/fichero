@@ -54,6 +54,89 @@ enum ReaderPageSignal: Equatable {
     var rerootsPreviewedDocument: Bool { false }
 }
 
+/// Keeping the transcript's own "this page is selected" border honest (#4373).
+///
+/// The border is not new and neither is its CSS: the engine template already
+/// has `.transcript-page.current { border-color: var(--accent) }` and a
+/// `setActivePage(_)` bridge function, driven from Swift with
+/// `DocumentKGWebPane.activePageNumber` — which is `selectedPageIndex + 1`,
+/// which is `pdfPageIndex(for: pageFocusDocument ?? detailDocument)`. So the
+/// border ALREADY reads from the page-focus cursor, which is what both
+/// `ReaderPageSignal` cases move. By construction it cannot disagree with the
+/// click, and there is no second addressing scheme to introduce.
+///
+/// What was broken is the DRIVE. The old sync recorded the value as sent
+/// *before* two early returns:
+///
+///     if lastActivePageNumber != parent.activePageNumber {
+///         lastActivePageNumber = parent.activePageNumber   // recorded…
+///         if Date() < suppressActivePageSyncUntil { return }  // …but not sent
+///         if parent.scrollSync.isDriving(.web) { return }     // …but not sent
+///
+/// so any cursor move landing inside the 0.25s suppression window — which is
+/// exactly the window a click following a scroll lands in — was marked
+/// delivered and never drawn. The next tick then saw "no change" and skipped.
+/// The border stayed on the wrong page until the cursor happened to move
+/// again: the reader lying about which page is selected, which is the same
+/// defect class as the connection surfaces disagreeing in #4380.
+///
+/// The fix splits the two things that suppression was conflating. The
+/// HIGHLIGHT is never suppressed — a border that is not current is worse than
+/// no border. The SCROLL is, because when the web view itself drove the change
+/// (a scroll, or a click on a page already on screen) the user is looking at
+/// the page already and yanking it to `block: 'start'` moves the content out
+/// from under them.
+enum ReaderActivePageSync {
+    struct Decision: Equatable {
+        /// Move the border. True whenever the cursor differs from what was
+        /// last drawn, under every suppression condition.
+        let sendsHighlight: Bool
+        /// Also scroll the transcript to that page.
+        let sendsScroll: Bool
+
+        /// The caller may record the value as delivered ONLY when the
+        /// highlight actually went out. Recording an unsent value is the
+        /// staleness bug, so the two are tied together here rather than left
+        /// to each call site to remember.
+        var recordsAsSent: Bool { sendsHighlight }
+    }
+
+    static func decide(
+        lastSent: Int?,
+        desired: Int?,
+        isScrollSuppressed: Bool,
+        isWebDriving: Bool
+    ) -> Decision {
+        // Already drawn where it belongs — including the repeated-click case,
+        // where the cursor did not move because the page was already current.
+        guard lastSent != desired else {
+            return Decision(sendsHighlight: false, sendsScroll: false)
+        }
+        return Decision(
+            sendsHighlight: true,
+            // A nil cursor clears the border and has nowhere to scroll to.
+            sendsScroll: desired != nil && !isScrollSuppressed && !isWebDriving
+        )
+    }
+
+    /// `null` clears it — the engine's `applyActivePageHighlight` treats a null
+    /// `activePage` as "no page current" and drops the class from every page,
+    /// so a cursor that becomes nil removes the border instead of stranding it.
+    static func highlightScript(page: Int?) -> String {
+        let argument: String
+        if let page {
+            argument = "\(page)"
+        } else {
+            argument = "null"
+        }
+        return "window.fichero?.setActivePage(\(argument));"
+    }
+
+    static func scrollScript(page: Int, pageCount: Int) -> String {
+        "window.ficheroScrollToPage?.(\(page), \(pageCount));"
+    }
+}
+
 /// Per-window bus for reader page activations (#4373).
 ///
 /// Scoped to the window's subtree via the SwiftUI environment, never `.shared`,
