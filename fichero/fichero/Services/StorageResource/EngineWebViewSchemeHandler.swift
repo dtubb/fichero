@@ -101,8 +101,9 @@ final class EngineWebViewSchemeHandler: NSObject, WKURLSchemeHandler {
                 }
                 // One OSLogMessage literal: `Logger` takes a literal, so `+`-joining
                 // two interpolated fragments does not type-check.
+                let reason = error.localizedDescription
                 logger.error(
-                    "fichero-server load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                    "fichero-server load failed for \(url.absoluteString, privacy: .public): \(reason, privacy: .public)"
                 )
                 guard self.tasks[key] != nil else { return }
                 urlSchemeTask.didFailWithError(error)

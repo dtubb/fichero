@@ -58,7 +58,10 @@ final class StorageResourceSchemeHandler: NSObject, WKURLSchemeHandler {
                     // stopped task.
                     return
                 }
-                logger.error("fichero-res web load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                let reason = error.localizedDescription
+                logger.error(
+                    "fichero-res web load failed for \(url.absoluteString, privacy: .public): \(reason, privacy: .public)"
+                )
                 guard let self, self.tasks[key] != nil else { return }
                 urlSchemeTask.didFailWithError(error)
                 self.tasks[key] = nil

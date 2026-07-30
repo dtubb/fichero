@@ -158,7 +158,9 @@ struct PDFPageView: NSViewRepresentable {
         NotificationCenter.default.removeObserver(coordinator)
         view.trackingAreas.forEach { view.removeTrackingArea($0) }
     }
+}
 
+extension PDFPageView {
     /// Bridges AppKit notifications / delegate into the SwiftUI callback.
     /// All PDFKit notification and gesture callbacks fire on the main thread,
     /// so @MainActor is correct and avoids nonisolated-context concurrency warnings.

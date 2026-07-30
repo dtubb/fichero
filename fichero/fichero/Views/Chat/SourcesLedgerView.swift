@@ -69,8 +69,20 @@ struct SourcesLedgerView: View {
 
 #Preview {
     SourcesLedgerView(entries: [
-        SourceLedgerEntry(id: "document:1", kind: .document, label: "Marshall Diary vol. 3", nodeId: "1", detail: "…the survey party reached the lake…"),
-        SourceLedgerEntry(id: "research:2", kind: .research, label: "LAC digitised map", nodeId: "2", detail: "https://recherche-collection.bac-lac.gc.ca/…")
+        SourceLedgerEntry(
+            id: "document:1",
+            kind: .document,
+            label: "Marshall Diary vol. 3",
+            nodeId: "1",
+            detail: "…the survey party reached the lake…"
+        ),
+        SourceLedgerEntry(
+            id: "research:2",
+            kind: .research,
+            label: "LAC digitised map",
+            nodeId: "2",
+            detail: "https://recherche-collection.bac-lac.gc.ca/…"
+        )
     ])
     .frame(width: 380)
 }

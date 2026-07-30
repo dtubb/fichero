@@ -66,11 +66,17 @@ struct EngineReadinessProbe {
         // reachable but rejected our token" rather than the false "engine isn't
         // running / start it with start_backend.sh". (#dev observability)
         if health.status == 401 || health.status == 403 {
-            probeLogger.info("readiness legs: health=\(health.status.map(String.init) ?? "?", privacy: .public) → authRejected (engine reachable, credentials rejected)")
+            let healthCode = health.status.map(String.init) ?? "?"
+            probeLogger.info(
+                "readiness legs: health=\(healthCode, privacy: .public) → authRejected (engine reachable, credentials rejected)"
+            )
             return .authRejected
         }
         guard health.status == 200 else {
-            probeLogger.info("readiness legs: health=\(health.status.map(String.init) ?? "nil (transport error)", privacy: .public) → notResponding (registry not attempted)")
+            let healthCode = health.status.map(String.init) ?? "nil (transport error)"
+            probeLogger.info(
+                "readiness legs: health=\(healthCode, privacy: .public) → notResponding (registry not attempted)"
+            )
             return .notResponding
         }
         if let expectedNonce, health.nonce != expectedNonce {
@@ -84,7 +90,11 @@ struct EngineReadinessProbe {
             enginePid: health.pid,
             registryStatus: registryStatus
         )
-        probeLogger.info("readiness legs: health=200 registry=\(registryStatus.map(String.init) ?? "nil (transport error)", privacy: .public) → \(String(describing: result), privacy: .public)")
+        let registryCode = registryStatus.map(String.init) ?? "nil (transport error)"
+        let resultDescription = String(describing: result)
+        probeLogger.info(
+            "readiness legs: health=200 registry=\(registryCode, privacy: .public) → \(resultDescription, privacy: .public)"
+        )
         return result
     }
 

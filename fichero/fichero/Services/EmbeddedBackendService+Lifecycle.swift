@@ -214,7 +214,11 @@ extension EmbeddedBackendService {
                 logger.error(
                     "Engine is reachable over \(dialTarget, privacy: .public) but rejected credentials — token/.api-key mismatch"
                 )
-                errorMessage = "The engine is running but rejected the app's credentials (401). The app's token doesn't match the engine's — this is an auth/.api-key mismatch, not a missing engine."
+                errorMessage = """
+                    The engine is running but rejected the app's credentials (401). \
+                    The app's token doesn't match the engine's — this is an \
+                    auth/.api-key mismatch, not a missing engine.
+                    """
                 throw BackendError.authenticationRequired
             }
             logger.error(

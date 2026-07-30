@@ -76,19 +76,23 @@ struct AIDefaults: Codable, Equatable {
     mutating func seedAppleDefaultsIfNeeded(appleAvailable: Bool) {
         guard appleAvailable else { return }
 
-        if textProvider.isEmpty { textProvider = "apple" }
-        if textProvider == "apple", textModel.isEmpty { textModel = "apple-intelligence" }
+        (textProvider, textModel) = Self.appleSeeded(textProvider, textModel, default: "apple-intelligence")
+        (visionProvider, visionModel) = Self.appleSeeded(visionProvider, visionModel, default: "apple-vision")
+        (audioProvider, audioModel) = Self.appleSeeded(audioProvider, audioModel, default: "apple-speech")
+        (smallProvider, smallModel) = Self.appleSeeded(smallProvider, smallModel, default: "apple-intelligence")
+        (largeProvider, largeModel) = Self.appleSeeded(largeProvider, largeModel, default: "apple-intelligence")
+    }
 
-        if visionProvider.isEmpty { visionProvider = "apple" }
-        if visionProvider == "apple", visionModel.isEmpty { visionModel = "apple-vision" }
-
-        if audioProvider.isEmpty { audioProvider = "apple" }
-        if audioProvider == "apple", audioModel.isEmpty { audioModel = "apple-speech" }
-
-        if smallProvider.isEmpty { smallProvider = "apple" }
-        if smallProvider == "apple", smallModel.isEmpty { smallModel = "apple-intelligence" }
-
-        if largeProvider.isEmpty { largeProvider = "apple" }
-        if largeProvider == "apple", largeModel.isEmpty { largeModel = "apple-intelligence" }
+    /// The seeding rule for one provider/model slot, written once instead of
+    /// five times: claim an empty provider for Apple, and only then fill an
+    /// empty model. A slot the user has already set is returned untouched.
+    private static func appleSeeded(
+        _ provider: String,
+        _ model: String,
+        default defaultModel: String
+    ) -> (provider: String, model: String) {
+        let seededProvider = provider.isEmpty ? "apple" : provider
+        let seededModel = (seededProvider == "apple" && model.isEmpty) ? defaultModel : model
+        return (seededProvider, seededModel)
     }
 }

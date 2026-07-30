@@ -21,7 +21,13 @@ class DocumentService {
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
     }
+}
 
+// MARK: - Create & read
+
+// Same-file extension to keep the class body within SwiftLint's type_body_length
+// budget; private members stay file-scoped and accessible (#4016).
+extension DocumentService {
     // MARK: - Create
 
     /// Create a new collection (folder)
