@@ -77,7 +77,7 @@ So the phone can already *find* the Mac; what it cannot do is *authenticate* to 
 
 - Payload struct `PairingQRCodePayload` (`Services/EngineConfig.swift:734-750`): `{v, api_url, pair_code, expires_at, spki, library_path}` — the SPKI pin travels **inside** the payload.
 - Invite-link form (#2399): `fichero://pair?payload=<base64 JSON>` — built by `RemoteClientPairing.inviteLinkString(from:)` (`Services/RemoteClientPairing.swift:77-86`), parsed by `pairingFields(fromInviteOrPayload:)` (`:66-75`), which accepts either the link or the raw QR JSON.
-- Engine (`fichero-server/src/fichero_server/api/routes/pairing.py`):
+- Engine (`fichero-server/src/fichero_server/api/routes/auth/pairing.py`):
   - `PAIRING_CODE_TTL = timedelta(minutes=10)` (`:28`); codes are held **in-memory** (`_PAIRING_CODES`), minted by an authenticated owner over secure transport (`create_pairing_code`, `:391-421`).
   - `pair_device` (`:424-470`): strictly **one-time** (`record.used` + popped, `:459-460`), rate-limited, mints a per-device token via `app_db.create_device` (`fichero-server/src/fichero_server/app_db.py:1611-1627`, default **TTL 90 days**), stored **hashed** (`accounts.hash_token`).
   - Renewal endpoint `POST /api/pair/devices/renew` (`:484-499`, #3096), rate-limited; device list/revoke endpoints exist (`/devices`).
@@ -85,7 +85,7 @@ So the phone can already *find* the Mac; what it cannot do is *authenticate* to 
 
 ### 0.5 The invite system for people (accounts) — endpoints + UI
 
-**Engine** (`fichero-server/src/fichero_server/api/routes/auth_accounts.py`):
+**Engine** (`fichero-server/src/fichero_server/api/routes/auth/accounts.py`):
 - `INVITE_TTL = timedelta(minutes=15)`; `SESSION_TTL = timedelta(days=30)` (`:28-31`).
 - `POST /api/auth/invites` (`create_invite`, `:475-508`): owner/bootstrap-gated, rate-limited by IP, rejects duplicate usernames/pending invites, stores the token **hashed**, returns `invite_token` + `redemption_url`.
 - `_invite_redemption_url` (`:374-375`): **`fichero://invite?token=<url-encoded>`** — note it carries **no host and no SPKI pin**.
@@ -97,7 +97,7 @@ So the phone can already *find* the Mac; what it cannot do is *authenticate* to 
 - Invitee side: `SessionStore.inviteToken(from:)` parses the deep link (`Models/SessionStore.swift:181-189`); `beginInviteRedemption`/`redeemInvite` (`:194-213`) drive the set-password gate in `AuthGateView` (`Views/Shell/Auth/AuthGateView.swift:21,252`). **`redeemInvite` calls the *currently configured* client** (`SessionStore.swift:213`) — i.e. redemption presumes the app is already connected to the right engine.
 - Deep-link receive paths exist on **both** platforms: macOS `handleOpenURL` (`FicheroApp.swift:314`, `:123-131`) and iOS `onOpenURL` (`FicheroApp_iOS.swift:117-131`), which also routes `fichero://pair` links into a `PairingIncomingLinkSheet` (`:124-133`).
 
-**Library-role sharing** (#3149): `ShareLibrarySheet` (`Views/Sidebar/Sharing/ShareLibrarySheet.swift`) grants a per-library role via the audited `acl.set` action and shows the returned `share_url` with Copy + **`ShareLink` "Send…"** (`:114-131`). But `_build_share_url` (`fichero-server/src/fichero_server/api/routes/authz.py:262-273`) returns a **bare engine HTTPS URL** (engine root or `/api/documents/{id}`) — an API endpoint, not an app link: opening it in a browser yields a 401 JSON, and it carries nothing that would connect a recipient's app. There is also `ShareSettingsView` (`Views/Settings/Sharing/ShareSettingsView.swift`, macOS Sharing settings pane) which fronts the same hosting/pairing/authz state.
+**Library-role sharing** (#3149): `ShareLibrarySheet` (`Views/Sidebar/Sharing/ShareLibrarySheet.swift`) grants a per-library role via the audited `acl.set` action and shows the returned `share_url` with Copy + **`ShareLink` "Send…"** (`:114-131`). But `_build_share_url` (`fichero-server/src/fichero_server/api/routes/auth/authz.py:262-273`) returns a **bare engine HTTPS URL** (engine root or `/api/documents/{id}`) — an API endpoint, not an app link: opening it in a browser yields a 401 JSON, and it carries nothing that would connect a recipient's app. There is also `ShareSettingsView` (`Views/Settings/Sharing/ShareSettingsView.swift`, macOS Sharing settings pane) which fronts the same hosting/pairing/authz state.
 
 ### 0.6 The missing piece — `fichero://` is not registered with the OS
 

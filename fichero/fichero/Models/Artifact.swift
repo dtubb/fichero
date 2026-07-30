@@ -109,15 +109,19 @@ struct Artifact: Identifiable, Codable, Hashable {
 
 extension Artifact {
     /// Common artifact types
+    /// Only types the server actually writes (#4418).
+    ///
+    /// `grouping`, `segmentation` and `embedding` were removed: no server path
+    /// produced them and no client code read them, so each was a claim the
+    /// backend does not support — the same shape as #4418, where the server
+    /// wrote `text_geometry`, the client asked for `transcription`, and two
+    /// green commits produced one dead feature.
     enum ArtifactType: String {
         case transcription
         case entities
         case summary
         case translation
-        case grouping
-        case segmentation
         case classification
-        case embedding
     }
 
     /// Check if this is a transcription artifact

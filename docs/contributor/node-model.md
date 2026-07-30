@@ -54,7 +54,7 @@ attributes, and invalid chains fail loudly.
 Prototype assignment is also shipped as part of the documents API:
 
 - `PUT /api/documents/{doc_id}/prototype` in
-  `fichero-server/src/fichero_server/api/routes/documents.py` validates the requested
+  `fichero-server/src/fichero_server/api/routes/document/documents.py` validates the requested
   key against seeded/user-defined `ClassificationValue` rows.
 - The same route can apply a prototype to descendants, and can restrict that
   assignment to descendant page nodes within a page range.
@@ -193,7 +193,7 @@ Important boundary:
 ## Bookmarks as alias-backed nodes
 
 Bookmark nodes ship as backend routes in
-`fichero-server/src/fichero_server/api/routes/bookmarks.py`.
+`fichero-server/src/fichero_server/api/routes/system/bookmarks.py`.
 
 - `POST /api/bookmarks` creates a bookmark by calling `make_alias(...)` and then
   setting `prototype_key="bookmark"`.

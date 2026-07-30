@@ -19,7 +19,7 @@ extend it with a small platform strategy layer:
    foreground/background mask generation.
 
 That split preserves the existing contract in
-[`fichero-server/src/fichero_server/api/routes/image_editing.py`](../../../fichero-server/src/fichero_server/api/routes/image_editing.py)
+[`fichero-server/src/fichero_server/api/routes/ingest/image_editing.py`](../../../fichero-server/src/fichero_server/api/routes/ingest/image_editing.py)
 while giving us a future native fast path on Apple without forcing a rewrite of
 the current route or workflow tools.
 
@@ -191,7 +191,7 @@ If a field is not declared on the Pydantic model, it is easy to lose it later.
 
 ### Current route implication
 
-[`image_editing.py`](../../../fichero-server/src/fichero_server/api/routes/image_editing.py)
+[`image_editing.py`](../../../fichero-server/src/fichero_server/api/routes/ingest/image_editing.py)
 still stores edit operations as raw dictionaries inside `ImageEditChain`.
 That is acceptable for the current implementation, but the architecture should
 converge on a typed `ImageEditOperation` model if the edit surface grows or if

@@ -38,7 +38,7 @@ When enabled:
 ### Library sharing and members API
 
 The current shipped sharing surface is built around the library-level authz
-routes in `fichero-server/src/fichero_server/api/routes/authz.py`.
+routes in `fichero-server/src/fichero_server/api/routes/auth/authz.py`.
 
 Current endpoints on `main`:
 

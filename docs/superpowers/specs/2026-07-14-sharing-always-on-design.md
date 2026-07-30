@@ -68,7 +68,7 @@ The auth middleware (`fichero-server/src/fichero_server/api/auth.py:617-728`) ad
 ### 2.2 Transport is separately fail-closed
 
 - The engine binds `127.0.0.1` by default; non-loopback bind requires the explicit risk-acknowledgement env (`FICHERO_ALLOW_NON_LOOPBACK_BIND=I_UNDERSTAND_SHARED_SECRET_RISK`, `fichero-server/src/fichero_server/bind_host.py:16-20,47-56`).
-- Remote pairing refuses non-HTTPS and refuses to run without a configured SPKI pin (`fichero-server/src/fichero_server/api/routes/pairing.py:357-369`); direct loopback pairing is exempt (`:359-360`) — the local Mac pairing its own phone over the QR channel.
+- Remote pairing refuses non-HTTPS and refuses to run without a configured SPKI pin (`fichero-server/src/fichero_server/api/routes/auth/pairing.py:357-369`); direct loopback pairing is exempt (`:359-360`) — the local Mac pairing its own phone over the QR channel.
 - Bonjour is advertisement only, "not authorization" by design (`fichero-server/src/fichero_server/discovery.py:3-5`).
 
 ### 2.3 But "always on" is contradicted by three switch layers
@@ -110,7 +110,7 @@ Every path that reaches the authz choke points, what actor it carries today, wha
 | 8 | **Chat/AI agent tools** (`fichero-server/src/fichero_server/actions/chat_tools.py:185-194`) | `actor` is a parameter; the #1847 wiring comment says how it will be connected; **no production caller yet** (grep found none) | Denied unless the passed actor is a real account | **A real user account with a role** — Daniel's #1847 model, verbatim. The AI signs in as itself; its role rows scope what it may touch; audits attribute it honestly (AI-as-instrument requires exactly this) |
 | 9 | **Registry default** `ActionContext.actor = "system"` (`registry.py:51`) | anonymous | Denied wherever defaulted | After rows 6–8 are fixed, make `actor` **required** (no default) so a new caller cannot compile/run anonymously by accident |
 | 10 | **Read guards** `assert_library_read_authorized` / write twin (`api/main.py:1140-1199`) | `request.state.user` | Bootstrap bypasses (`:1149-1150`); users need role rows | Unchanged mechanism; legacy-library role backfill covers the role-row gap (§6) |
-| 11 | **Owner-gated admin routes** (`_require_owner_or_bootstrap`: accounts, providers, provider_keys, settings, mcp_servers, kg curation — `fichero-server/src/fichero_server/api/routes/auth_accounts.py:…`) | bootstrap **or** session owner | Works | Unchanged — this helper already implements "local Mac = owner" for admin surfaces |
+| 11 | **Owner-gated admin routes** (`_require_owner_or_bootstrap`: accounts, providers, provider_keys, settings, mcp_servers, kg curation — `fichero-server/src/fichero_server/api/routes/auth/accounts.py:…`) | bootstrap **or** session owner | Works | Unchanged — this helper already implements "local Mac = owner" for admin surfaces |
 | 12 | **Search visibility filters** (`fichero-server/src/fichero_server/api/routes/search.py:57,92,108,130`) | bootstrap bypass or per-user `can_read` | Works | Unchanged |
 | 13 | **Pairing routes** (`pairing.py:179-186 _pairing_user`) | single-user: synthesizes/returns an owner account; multi-user: requires session owner or bootstrap | Works | Unchanged in mechanism, but see §5 on the **two competing owner accounts** it can create |
 

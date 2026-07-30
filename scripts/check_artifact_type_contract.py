@@ -84,6 +84,11 @@ CONSUMER_ALLOWLIST: dict[str, str] = {}
 # Adding an entry is a claim: "this type is read generically, by design."
 _ORPHAN_BASELINE: frozenset[str] = frozenset(
     {
+        # "catalogue.chunk" is a GENERIC read: catalogue.py writes per-chunk
+        # summaries and the inspector's artifact list renders them like any
+        # other artifact, with no by-name query. Baselined, not deleted — the
+        # rows are user-visible, they are simply not fetched by type.
+        "catalogue.chunk",
         "analysis", "book_index_topics", "caption", "catalogue", "classification",
         "clean_text", "colors", "comparison", "description", "diagram", "entities",
         "extraction", "extraction_error", "faces", "geo", "handwriting",
@@ -106,6 +111,10 @@ _SWIFT_ENUM_CASE = re.compile(r"^\s*case\s+(?P<name>[A-Za-z0-9_]+)\s*$", re.M)
 
 _SWIFT_GETARTIFACTS = re.compile(r"getArtifacts\s*\((?P<args>[^)]*)\)", re.S)
 _SWIFT_TYPE_ARG = re.compile(r"\btype:\s*\"(?P<val>[A-Za-z0-9_.\-]+)\"")
+_SWIFT_LET_LIST = re.compile(
+    r"static\s+let\s+(?P<name>[A-Za-z0-9_]+)\s*(?::\s*\[String\]\s*)?=\s*\[(?P<body>[^\]]*)\]"
+)
+_SWIFT_STR = re.compile(r"\"(?P<val>[A-Za-z0-9_.\-]+)\"")
 
 
 def _producers(py_root: Path) -> tuple[set[str], list[tuple[str, int, str]]]:
@@ -141,9 +150,33 @@ def _producers(py_root: Path) -> tuple[set[str], list[tuple[str, int, str]]]:
     return found, dynamic
 
 
+def _swift_type_lists(swift_root: Path) -> dict[str, tuple[list[str], str]]:
+    """`static let NAME = ["a", "b"]` -> (values, "file:line").
+
+    A client can ask for a type through a named constant instead of a literal —
+    `OCRGeometrySelection.geometryBearingTypes` is exactly that. Reading only
+    literals made those reads invisible and reported a live consumer as an
+    orphan, which is the wrong direction for this check to be wrong in: a false
+    "nothing reads this" invites deleting a feature that works.
+    """
+    out: dict[str, tuple[list[str], str]] = {}
+    for path in sorted(swift_root.rglob("*.swift")):
+        try:
+            src = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        for m in _SWIFT_LET_LIST.finditer(src):
+            values = _SWIFT_STR.findall(m.group("body"))
+            if values:
+                line = src[: m.start()].count("\n") + 1
+                out[m.group("name")] = (values, f"{path.as_posix()}:{line}")
+    return out
+
+
 def _consumers(swift_root: Path) -> dict[str, list[str]]:
     """artifact type literal -> Swift call sites asking for it."""
     out: dict[str, list[str]] = {}
+    type_lists = _swift_type_lists(swift_root)
     for path in sorted(swift_root.rglob("*.swift")):
         try:
             src = path.read_text(encoding="utf-8")
@@ -153,9 +186,16 @@ def _consumers(swift_root: Path) -> dict[str, list[str]]:
             continue
         rel = path.as_posix()
         for call in _SWIFT_GETARTIFACTS.finditer(src):
-            for m in _SWIFT_TYPE_ARG.finditer(call.group("args")):
-                line = src[: call.start()].count("\n") + 1
+            args = call.group("args")
+            line = src[: call.start()].count("\n") + 1
+            for m in _SWIFT_TYPE_ARG.finditer(args):
                 out.setdefault(m.group("val"), []).append(f"{rel}:{line}")
+            # `type: someVar` where the loop variable comes from a known list —
+            # credit every value that list can supply.
+            for name, (values, origin) in type_lists.items():
+                if re.search(rf"\b{re.escape(name)}\b", src):
+                    for value in values:
+                        out.setdefault(value, []).append(f"{rel}:{line} (via {origin})")
     return out
 
 

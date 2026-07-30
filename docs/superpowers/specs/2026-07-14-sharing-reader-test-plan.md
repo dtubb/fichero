@@ -36,7 +36,7 @@ Tests that assert "the code says what the code says" (mocking both sides of the 
 | **Keychain write sets NO `kSecAttrAccessible`** (candidate cause of #3772) | grep of `fichero/fichero-api-client/Sources/FicheroAPIClient/AuthTokenMiddleware.swift` — zero hits |
 | Device-token auth is fail-closed: unknown/revoked/expired token or inactive user → error string → 401 | `fichero-server/src/fichero_server/api/auth.py:435-456` (`_authenticate_device_token`) |
 | Last-owner guarantee: sole owner cannot revoke own role; a second owner can remove the first | `fichero-server/src/fichero_server/authz.py:128-142` |
-| Invite TTL is a single global 15-minute constant; no channel concept; **no redemption notification exists** | `fichero-server/src/fichero_server/api/routes/auth_accounts.py:31` (`INVITE_TTL`), endpoints at `:463-609` (mint/list/redeem/revoke only) |
+| Invite TTL is a single global 15-minute constant; no channel concept; **no redemption notification exists** | `fichero-server/src/fichero_server/api/routes/auth/accounts.py:31` (`INVITE_TTL`), endpoints at `:463-609` (mint/list/redeem/revoke only) |
 | `PairingBlocker` (#3769 fix) exists with 7 cases, each carrying its own headline/detail/action — but it is **`private`**, hence currently untestable | `fichero/fichero/Views/Settings/Sharing/PairingCardView.swift:374-438` |
 | The Backend settings pane's existence hangs on a feature flag that **defaults to `false`** and is flipped only by `resetToV001()` | `fichero/fichero/Models/FeatureManager.swift:84-85,209,334` |
 | Reader fix (#3765) landed: the Page tab now renders the real multi-page WebKit transcript | `fichero/fichero/Views/Reader/Page/ReadingPaneView.swift:372-387` (`surfaceView(tab: .transcript)`) |

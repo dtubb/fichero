@@ -35,7 +35,7 @@ The shipped MCP story on current `main` has two distinct surfaces:
 
 - `python -m fichero_mcp.simple` and `python -m fichero_mcp.server` are stdio
   MCP servers that call the typed `FicheroClient`.
-- `fichero-server/src/fichero_server/api/routes/mcp_tools.py` is a separate FastAPI
+- `fichero-server/src/fichero_server/api/routes/mcp/tools.py` is a separate FastAPI
   REST adapter mounted at `/api/mcp/tools` from `api/main.py`.
 
 That REST adapter is now hardened in a few specific ways:

@@ -26,7 +26,7 @@ rewrite proposed, per #3213's own conclusion.
 
 The image-editing surface is **already built and working**, not greenfield:
 
-- **Engine**: `fichero-server/src/fichero_server/api/routes/image_editing.py` — a
+- **Engine**: `fichero-server/src/fichero_server/api/routes/ingest/image_editing.py` — a
   single router that stores an ordered `ImageEditChain.operations` list per
   document (`fichero-server/src/fichero_server/models.py:1008`) and renders
   `/images/{id}/preview?apply_edits=` on demand by replaying the chain in
@@ -75,7 +75,7 @@ The image-editing surface is **already built and working**, not greenfield:
 - **The gap (#3218) is real and precisely scoped.** `resolve_source()` is the
   one function that returns the *original, unedited* file bytes, and it is
   called from: `fichero-server/src/fichero_server/db/storage.py` (thumbnails/display cache),
-  `fichero-server/src/fichero_server/api/routes/storage.py`
+  `fichero-server/src/fichero_server/api/routes/system/storage.py`
   (`get_source_file`, display), `export_service.py`
   (`_require_image_source` for Markdown/DOCX export), and
   `vision_base.py`/Apple Vision OCR (`apple_vision_ocr_with_geometry` opens

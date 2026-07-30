@@ -35,8 +35,9 @@ carry the same set and must agree).
 
 No core dependency is exact-pinned (`==`); floors only, so the set still floats
 upward. `pip-audit` over the resolved set on 2026-07-30 reported no known
-vulnerabilities. Full before/after table and the storage-format compatibility
-evidence: `agent-work/status/deps-refresh-2026-07-30.md`.
+vulnerabilities. Re-run `pip-audit` to reproduce that; the before/after table it
+pointed at was never written, so the claim is the audit result above and nothing
+more.
 
 The previous `websockets<14` / LangGraph cap has been removed. The server now
 launches Uvicorn with the modern sans-IO websocket protocol:

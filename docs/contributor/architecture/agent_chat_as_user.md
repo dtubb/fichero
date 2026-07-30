@@ -19,7 +19,7 @@ In the target design, chat can do anything the app can do, but only by going thr
 - Per-library roles already exist as `LibraryRole` rows in `fichero-server/src/fichero_server/models.py:1045-1055`.
 - Per-target ACL overrides already exist as `LibraryAclOverride` rows in `fichero-server/src/fichero_server/models.py:1058-1069`.
 - The shipped role vocabulary is `owner`, `editor`, and `viewer` in `fichero-server/src/fichero_server/authz.py:23-30`, and the macOS UI surfaces the same three roles in `fichero/fichero/Views/Settings/Sharing/UsersSettingsView.swift:343-385`.
-- Account/session routes already exist behind multi-user mode: login/logout/me in `fichero-server/src/fichero_server/api/routes/auth_accounts.py:243-300`, create/list/update users in `fichero-server/src/fichero_server/api/routes/auth_accounts.py:303-380`.
+- Account/session routes already exist behind multi-user mode: login/logout/me in `fichero-server/src/fichero_server/api/routes/auth/accounts.py:243-300`, create/list/update users in `fichero-server/src/fichero_server/api/routes/auth/accounts.py:303-380`.
 
 ### 2. The audited mutation choke point already exists
 
@@ -62,7 +62,7 @@ So the audit/tool foundation exists, but "chat can act" is still a planned wirin
 
 - The target design here wants all model writes to flow through `registry.invoke(...)`.
 - Some MCP-adjacent mutation paths already fit that direction via the action registry and `chat_tools.py`.
-- But the dedicated MCP REST adapter routes in `fichero-server/src/fichero_server/api/routes/mcp_tools.py` still perform direct persistence for at least some writes, for example entity upsert via `db.save(existing)` / `db.save(entity)` in `mcp_tools.py:215-259`.
+- But the dedicated MCP REST adapter routes in `fichero-server/src/fichero_server/api/routes/mcp/tools.py` still perform direct persistence for at least some writes, for example entity upsert via `db.save(existing)` / `db.save(entity)` in `mcp_tools.py:215-259`.
 
 That means the repo already has the pieces needed for audited model-user writes, but the MCP surface is not yet fully normalized onto the action registry.
 

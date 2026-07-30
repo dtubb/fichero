@@ -111,14 +111,14 @@ Grounded code paths on `main`:
 - the corresponding `claim.create`, `claim.patch`, and `claim.delete` actions in
   the same file return `ChangeSpec` payloads that carry audit snapshots and the
   claim/entity ids needed for observer updates
-- `fichero-server/src/fichero_server/api/routes/documents.py`
+- `fichero-server/src/fichero_server/api/routes/document/documents.py`
   `create_document(...)`, `delete_document(...)`, and `move_document(...)` route
   through `registry.invoke(...)`; their actions return `ChangeSpec` with
   document ids and undo payloads
-- `fichero-server/src/fichero_server/api/routes/notes.py`
+- `fichero-server/src/fichero_server/api/routes/research/notes.py`
   `create_note(...)` now routes through `registry.invoke(...)`, and
   `note.create` returns a `ChangeSpec` scoped to the note's linked documents
-- `fichero-server/src/fichero_server/api/routes/entities.py`
+- `fichero-server/src/fichero_server/api/routes/entity/entities.py`
   create flows now use `registry.invoke(...)` via `entity.create`; the action
   returns `ChangeSpec` with the created entity id
 - `fichero-server/src/fichero_server/actions/registry.py`
@@ -135,13 +135,13 @@ direct-write route:
 
 - for a document-style mutation, use the `document.create` /
   `document.move` route+action pair in
-  `fichero-server/src/fichero_server/api/routes/documents.py`
+  `fichero-server/src/fichero_server/api/routes/document/documents.py`
 - for a claim mutation, use the `claim.create` / `claim.patch` /
   `claim.delete` route+action pairs in
   `fichero-server/src/fichero_server/api/routes/claim/claims.py`
 - for a folded note or entity create, use `note.create` in
-  `fichero-server/src/fichero_server/api/routes/notes.py` and `entity.create` in
-  `fichero-server/src/fichero_server/api/routes/entities.py`
+  `fichero-server/src/fichero_server/api/routes/research/notes.py` and `entity.create` in
+  `fichero-server/src/fichero_server/api/routes/entity/entities.py`
 
 The #2789 sweep is largely complete, but not every legacy mutation route in
 those modules has been converted yet. Treat the `registry.invoke(...)` paths as
@@ -163,7 +163,7 @@ Grounded examples:
   `await patch_claim(claim.id, patch_request, db)` directly
 
 That is why `fichero-server/src/fichero_server/api/routes/claim/claims.py` and
-`fichero-server/src/fichero_server/api/routes/entities.py` now use
+`fichero-server/src/fichero_server/api/routes/entity/entities.py` now use
 `_resolve_action_ctx(...)` and tolerate unresolved `Depends(...)` sentinels for
 `ctx`, `actor`, and library-path inputs. If you make a route audited, keep it
 callable both via HTTP and via direct unit-test invocation. Do not assume the
