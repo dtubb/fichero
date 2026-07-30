@@ -18,11 +18,11 @@ async def test_cancel_not_running():
     with patch(
         "fichero_server.api.routes.workflow_execution.threads.cancel_workflow.__wrapped__"
         if hasattr(cancel_workflow, "__wrapped__")
-        else "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        else "fichero_server.execution.runner._get_workflow_state",
         return_value=None,
     ):
         with patch(
-            "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+            "fichero_server.execution.runner._get_workflow_state",
             return_value=None,
         ):
             result = await cancel_workflow("thread-not-there")
@@ -39,7 +39,7 @@ async def test_cancel_already_completed():
 
     state = {"status": "completed"}
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=state,
     ):
         result = await cancel_workflow("thread-done")
@@ -55,7 +55,7 @@ async def test_cancel_already_failed():
 
     state = {"status": "failed"}
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=state,
     ):
         result = await cancel_workflow("thread-failed")
@@ -71,7 +71,7 @@ async def test_cancel_already_cancelled():
 
     state = {"status": "cancelled"}
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=state,
     ):
         result = await cancel_workflow("thread-cancelled")
@@ -86,7 +86,7 @@ async def test_cancel_running_sets_flag():
 
     state = {"status": "running"}
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=state,
     ):
         result = await cancel_workflow("thread-running")
@@ -104,7 +104,7 @@ async def test_cancel_idempotent_second_call():
 
     state = {"status": "running", "cancel_requested": True}
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=state,
     ):
         result = await cancel_workflow("thread-running")

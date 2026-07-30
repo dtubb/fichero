@@ -1618,7 +1618,7 @@ class TestWorkflowFold:
         """Duplicating a locked system preset must land as a normal,
         writable, library-scoped copy — never inherit is_system/read_only.
         """
-        from fichero_server.api.routes.workflows import duplicate_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import duplicate_workflow_impl
 
         preset = Workflow(name="Catalogue", is_system=True, is_template=True)
         temp_db.save(preset)
@@ -1643,7 +1643,7 @@ class TestWorkflowFold:
     def test_update_is_system_workflow_rejected_403(self, temp_db):
         from fastapi import HTTPException
 
-        from fichero_server.api.routes.workflows import update_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import update_workflow_impl
         from fichero_server.workflows.types import WorkflowDef
 
         preset = Workflow(name="Locked", is_system=True)
@@ -1662,7 +1662,7 @@ class TestWorkflowFold:
     def test_patch_is_system_workflow_rejected_403(self, temp_db):
         from fastapi import HTTPException
 
-        from fichero_server.api.routes.workflows import (
+        from fichero_server.api.routes.workflow.workflows import (
             WorkflowPatchRequest,
             patch_workflow_impl,
         )
@@ -1677,7 +1677,7 @@ class TestWorkflowFold:
     def test_delete_is_system_workflow_rejected_403(self, temp_db):
         from fastapi import HTTPException
 
-        from fichero_server.api.routes.workflows import delete_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import delete_workflow_impl
 
         preset = Workflow(name="Locked", is_system=True)
         temp_db.save(preset)
@@ -1693,7 +1693,7 @@ class TestWorkflowFold:
     def test_reorder_is_system_workflow_rejected_403(self, temp_db):
         from fastapi import HTTPException
 
-        from fichero_server.api.routes.workflows import reorder_workflows_impl
+        from fichero_server.api.routes.workflow.workflows import reorder_workflows_impl
 
         preset = Workflow(name="Locked", is_system=True, sort_order=0)
         temp_db.save(preset)
@@ -1706,7 +1706,7 @@ class TestWorkflowFold:
         """The 403 guard is scoped to is_system=True only — ordinary
         library workflows (including user-editable is_template ones) are
         unaffected."""
-        from fichero_server.api.routes.workflows import update_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import update_workflow_impl
         from fichero_server.workflows.types import WorkflowDef
 
         regular = Workflow(name="Mine", is_template=True, is_system=False)

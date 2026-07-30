@@ -30,7 +30,7 @@ from watchdog.events import (
     FileMovedEvent,
 )
 
-from fichero_server.workflows.batch import BatchManager
+from fichero_server.execution.batch import BatchManager
 from fichero_server.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)

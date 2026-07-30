@@ -771,7 +771,7 @@ async def cancel_workflow(
     """
     # Import lazily to keep test isolation tight — the runner module
     # imports a lot of LangChain machinery; we only need its registry.
-    from .runner import _get_workflow_state
+    from fichero_server.execution.runner import _get_workflow_state
 
     state = _get_workflow_state(thread_id)
     run: WorkflowRun | None = None
@@ -869,7 +869,7 @@ async def pause_workflow(
     thread_id: str,
 ) -> PauseResponse:
     """Signal a running workflow to pause at the next execution tick."""
-    from .runner import _get_workflow_state
+    from fichero_server.execution.runner import _get_workflow_state
 
     state = _get_workflow_state(thread_id)
     if state is None:

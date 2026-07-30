@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.api.routes.chains import _build_paleography_chain
+from fichero_server.api.routes.workflow.chains import _build_paleography_chain
 
 
 def _wf(id_: str, name: str):

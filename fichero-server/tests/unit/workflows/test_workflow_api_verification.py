@@ -14,7 +14,7 @@ def test_workflow_api_imports():
 
     try:
         # Test importing the workflows routes module
-        from fichero_server.api.routes import workflows
+        from fichero_server.api.routes.workflow import workflows
         print("✅ Successfully imported workflows routes")
 
         # Check that the router is available

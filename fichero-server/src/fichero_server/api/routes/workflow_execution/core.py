@@ -36,7 +36,7 @@ from .schemas import (
     format_sse,
     workflow_internal_error,
 )
-from .runner import (
+from fichero_server.execution.runner import (
     WorkflowEventHub,
     _get_workflow_state,
     _run_workflow_in_background,

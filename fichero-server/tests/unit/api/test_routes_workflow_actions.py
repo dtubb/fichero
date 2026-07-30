@@ -27,7 +27,7 @@ from fastapi import HTTPException
 
 # Importing the route module registers the workflow.* actions on the
 # process-global registry via the @action decorator.
-import fichero_server.api.routes.workflows  # noqa: F401
+import fichero_server.api.routes.workflow.workflows  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Workflow
 from fichero_server.workflows.registry import list_tools

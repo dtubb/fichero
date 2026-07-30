@@ -101,7 +101,7 @@ class TestToolRegistryApiExposesTested:
     """The registry API response model carries the `tested` field."""
 
     def test_tool_response_serializes_tested(self):
-        from fichero_server.api.routes.workflows import _tool_to_response
+        from fichero_server.api.routes.workflow.workflows import _tool_to_response
 
         td = get_tool_def("transcribe")
         resp = _tool_to_response(td)
@@ -111,7 +111,7 @@ class TestToolRegistryApiExposesTested:
         assert _tool_to_response(td2).tested is False
 
     def test_tool_response_field_present(self):
-        from fichero_server.api.routes.workflows import ToolResponse
+        from fichero_server.api.routes.workflow.workflows import ToolResponse
 
         assert "tested" in ToolResponse.model_fields
 
@@ -165,7 +165,7 @@ class TestWorkflowUntestedResponse:
     """The API derives `untested` from is_system + config.tested."""
 
     def _untested(self, *, is_system, config):
-        from fichero_server.api.routes.workflows import _workflow_untested
+        from fichero_server.api.routes.workflow.workflows import _workflow_untested
 
         return _workflow_untested(SimpleNamespace(is_system=is_system, config=config))
 

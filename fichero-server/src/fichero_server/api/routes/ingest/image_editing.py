@@ -27,7 +27,7 @@ from fichero_server.api.routes.workflow.batch import BatchResponse, get_batch_ma
 from fichero_server.api.routes.document.documents import _descendant_document_ids
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
-from fichero_server.workflows.batch import BatchItemStatus, BatchStatus
+from fichero_server.execution.batch import BatchItemStatus, BatchStatus
 from fichero_server.db.storage import resolve_source
 # NOTE: apply_operation is imported inside the functions that render (#3985) and
 # apply_fuzzy_clean inside the one handler that uses it

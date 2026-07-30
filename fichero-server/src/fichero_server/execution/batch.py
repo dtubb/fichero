@@ -37,7 +37,7 @@ from fichero_server.workflows.workflow_store import WorkflowStore
 # Passthrough wrappers (#3950).
 #
 # Deferring these imports must not remove them as MODULE ATTRIBUTES: tests
-# patch `fichero_server.workflows.batch.<name>`, which needs (1) the attribute to exist for mock.patch,
+# patch `fichero_server.execution.batch.<name>`, which needs (1) the attribute to exist for mock.patch,
 # and (2) the call site to resolve it as a module GLOBAL so the patch takes
 # effect. A function-local import satisfies neither and would let those tests
 # pass while silently running the real implementation.

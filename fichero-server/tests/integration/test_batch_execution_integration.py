@@ -15,7 +15,7 @@ from datetime import datetime
 import pytest
 
 # Test the batch module
-from fichero_server.workflows.batch import (
+from fichero_server.execution.batch import (
     BatchItemStatus,
     BatchManager,
     BatchStatus,

@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from fichero_server.api.routes import batch as batch_routes
+from fichero_server.api.routes.workflow import batch as batch_routes
 from fichero_server.models import DocType, Document, FileType
-from fichero_server.workflows.batch import BatchManager
+from fichero_server.execution.batch import BatchManager
 
 
 def _image(db, folder: Document, name: str) -> Document:

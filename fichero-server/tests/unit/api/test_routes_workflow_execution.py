@@ -16,7 +16,7 @@ from langgraph.types import Send
 
 from fichero_server.api.routes.workflow_execution.core import get_thread_status
 from fichero_server.api.routes.workflow_execution.schemas import SSEEvent, format_sse
-from fichero_server.api.routes.workflow_execution.runner import _missing_exit_nodes
+from fichero_server.execution.runner import _missing_exit_nodes
 from fichero_server.models import Artifact, Document, DocType, FileType, Status, Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.activity_types import WorkflowRun
@@ -821,7 +821,7 @@ class TestIsInternalLangchainNode:
     (#1002)"""
 
     def test_runnable_variants_filtered(self):
-        from fichero_server.api.routes.workflow_execution.runner import (
+        from fichero_server.execution.runner import (
             _is_internal_langchain_node,
         )
         for name in (
@@ -834,7 +834,7 @@ class TestIsInternalLangchainNode:
             assert _is_internal_langchain_node(name), name
 
     def test_user_node_names_kept(self):
-        from fichero_server.api.routes.workflow_execution.runner import (
+        from fichero_server.execution.runner import (
             _is_internal_langchain_node,
         )
         # Real user-authored node names (snake_case from catalogue.json)
@@ -853,33 +853,33 @@ class TestIsInternalLangchainNode:
 
 class TestClassifyProviderError:
     def test_quota(self):
-        from fichero_server.api.routes.workflow_execution.runner import _classify_provider_error
+        from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("Error 429: insufficient_quota")
         assert out["category"] == "quota"
 
     def test_auth(self):
-        from fichero_server.api.routes.workflow_execution.runner import _classify_provider_error
+        from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("401 Unauthorized: invalid api key")
         assert out["category"] == "auth"
 
     def test_model_not_found(self):
-        from fichero_server.api.routes.workflow_execution.runner import _classify_provider_error
+        from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("404 model_not_found")
         assert out["category"] == "model_not_found"
 
     def test_network(self):
-        from fichero_server.api.routes.workflow_execution.runner import _classify_provider_error
+        from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("connection timed out while calling provider")
         assert out["category"] == "network"
 
     def test_server(self):
-        from fichero_server.api.routes.workflow_execution.runner import _classify_provider_error
+        from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("upstream returned 500 Internal Server Error")
         assert out["category"] == "server"
 
     def test_402_out_of_credits_is_quota(self):
         """#2612: 402 Payment Required must be classified as a quota error."""
-        from fichero_server.api.routes.workflow_execution.runner import _classify_provider_error
+        from fichero_server.execution.runner import _classify_provider_error
         out = _classify_provider_error("Provider returned 402: out of credits")
         assert out["category"] == "quota"
         assert "credits" in out["action"].lower() or "account" in out["action"].lower()
@@ -889,7 +889,7 @@ class TestSystemicFailureMessage:
     """#2612: systemic failures must surface provider/auth/quota details."""
 
     def test_402_message_includes_provider_detail(self):
-        from fichero_server.api.routes.workflow_execution.runner import (
+        from fichero_server.execution.runner import (
             _systemic_failure_message,
         )
         from fichero_server.workflows.builder import SystemicErrorDetected
@@ -907,7 +907,7 @@ class TestSystemicFailureMessage:
         assert "Top up account" in message
 
     def test_unknown_error_passes_through_raw_message(self):
-        from fichero_server.api.routes.workflow_execution.runner import (
+        from fichero_server.execution.runner import (
             _systemic_failure_message,
         )
         from fichero_server.workflows.builder import SystemicErrorDetected
@@ -924,7 +924,7 @@ class TestDetectEmptyTextOutput:
     produced no text, without false-positives on no-input or rich-output workflows."""
 
     def _fn(self, state):
-        from fichero_server.api.routes.workflow_execution.runner import _detect_empty_text_output
+        from fichero_server.execution.runner import _detect_empty_text_output
         return _detect_empty_text_output(state)
 
     def test_no_files_not_empty(self):

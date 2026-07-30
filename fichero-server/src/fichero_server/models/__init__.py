@@ -62,7 +62,7 @@ from fichero_server.models.knowledge import (
 # route modules call model_rebuild() on their owning envelope at module end.
 if TYPE_CHECKING:
     from fichero_server.api.routes.system.activity import ActivityResponse
-    from fichero_server.api.routes.batch import BatchResponse
+    from fichero_server.api.routes.workflow.batch import BatchResponse
     from fichero_server.api.routes.kg_entity_curation import EntityAuditResponse
 
 

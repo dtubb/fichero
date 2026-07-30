@@ -8,7 +8,7 @@ Tests mock get_batch_manager() to avoid needing a real batch DB.
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from fichero_server.workflows.batch import BatchStatus, BatchItemStatus
+from fichero_server.execution.batch import BatchStatus, BatchItemStatus
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +70,7 @@ def _make_mock_manager(batch: MagicMock | None = None) -> MagicMock:
 class TestListBatches:
     def test_empty_list(self, client):
         manager = _make_mock_manager()
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches")
         assert r.status_code == 200
         data = r.json()
@@ -84,7 +84,7 @@ class TestListBatches:
         batch = _make_mock_batch()
         manager = MagicMock()
         manager.list_batches = AsyncMock(return_value=[batch])
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches")
         assert r.status_code == 200
         data = r.json()
@@ -101,7 +101,7 @@ class TestCreateBatch:
     def test_create_batch(self, client):
         batch = _make_mock_batch()
         manager = _make_mock_manager(batch)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.post("/api/batches", json={
                 "workflow_id": "wf-1",
                 "items": [{"input_text": "item 1"}, {"input_text": "item 2"}],
@@ -111,7 +111,7 @@ class TestCreateBatch:
 
     def test_empty_items_returns_400(self, client):
         manager = _make_mock_manager()
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.post("/api/batches", json={
                 "workflow_id": "wf-1",
                 "items": [],
@@ -128,14 +128,14 @@ class TestGetBatch:
     def test_get_existing_batch(self, client):
         batch = _make_mock_batch()
         manager = _make_mock_manager(batch)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches/batch-1")
         assert r.status_code == 200
         assert r.json()["batch_id"] == "batch-1"
 
     def test_get_missing_batch_returns_404(self, client):
         manager = _make_mock_manager(None)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches/no-such-batch")
         assert r.status_code == 404
 
@@ -149,7 +149,7 @@ class TestGetBatchProgress:
     def test_get_progress(self, client):
         batch = _make_mock_batch(total_items=10)
         manager = _make_mock_manager(batch)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches/batch-1/progress")
         assert r.status_code == 200
         data = r.json()
@@ -158,7 +158,7 @@ class TestGetBatchProgress:
 
     def test_progress_missing_batch_returns_404(self, client):
         manager = _make_mock_manager(None)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches/no-such-batch/progress")
         assert r.status_code == 404
 
@@ -167,7 +167,7 @@ class TestBatchControls:
     def test_pause_batch(self, client):
         batch = _make_mock_batch(status=BatchStatus.RUNNING)
         manager = _make_mock_manager(batch)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.post("/api/batches/batch-1/pause")
         assert r.status_code == 200
         assert r.json()["batch_id"] == "batch-1"
@@ -176,7 +176,7 @@ class TestBatchControls:
     def test_cancel_batch(self, client):
         batch = _make_mock_batch(status=BatchStatus.RUNNING)
         manager = _make_mock_manager(batch)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.post("/api/batches/batch-1/cancel")
         assert r.status_code == 200
         assert r.json()["batch_id"] == "batch-1"
@@ -184,13 +184,13 @@ class TestBatchControls:
 
     def test_execute_missing_batch_returns_404(self, client):
         manager = _make_mock_manager(None)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.post("/api/batches/no-such-batch/execute")
         assert r.status_code == 404
 
     def test_resume_missing_batch_returns_404(self, client):
         manager = _make_mock_manager(None)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.post("/api/batches/no-such-batch/resume")
         assert r.status_code == 404
 
@@ -209,7 +209,7 @@ class TestBatchControls:
         batch.items = [failed_item]
 
         manager = _make_mock_manager(batch)
-        with patch("fichero_server.api.routes.batch.get_batch_manager", return_value=manager):
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
             r = client.get("/api/batches/batch-1")
 
         assert r.status_code == 200
