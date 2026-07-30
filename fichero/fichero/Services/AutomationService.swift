@@ -40,8 +40,8 @@ class AutomationService {
             .init(body: .json(try .init(app: request)))
         )
         switch response {
-        case .ok(let ok):
-            return ScheduleInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return ScheduleInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -61,8 +61,8 @@ class AutomationService {
             .init(query: .init(status: status, workflowId: workflowId, limit: limit))
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.items.map { ScheduleInfo(response: $0) }
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map { ScheduleInfo(response: $0) }
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -79,8 +79,8 @@ class AutomationService {
             .init(path: .init(scheduleId: scheduleId))
         )
         switch response {
-        case .ok(let ok):
-            return ScheduleInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return ScheduleInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -115,8 +115,8 @@ class AutomationService {
             .init(path: .init(scheduleId: scheduleId))
         )
         switch response {
-        case .ok(let ok):
-            return ScheduleInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return ScheduleInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -133,8 +133,8 @@ class AutomationService {
             .init(path: .init(scheduleId: scheduleId))
         )
         switch response {
-        case .ok(let ok):
-            return ScheduleInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return ScheduleInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -151,8 +151,8 @@ class AutomationService {
             .init(path: .init(scheduleId: scheduleId))
         )
         switch response {
-        case .ok(let ok):
-            return ScheduleRunInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return ScheduleRunInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -169,8 +169,8 @@ class AutomationService {
             .init(path: .init(scheduleId: scheduleId), query: .init(limit: limit))
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.items.map { ScheduleRunInfo(response: $0) }
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map { ScheduleRunInfo(response: $0) }
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -188,8 +188,8 @@ class AutomationService {
             .init(body: .json(.init(app: request)))
         )
         switch response {
-        case .ok(let ok):
-            return TriggerInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return TriggerInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -209,8 +209,8 @@ class AutomationService {
             .init(query: .init(status: status, workflowId: workflowId, limit: limit))
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.items.map { TriggerInfo(response: $0) }
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map { TriggerInfo(response: $0) }
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -227,8 +227,8 @@ class AutomationService {
             .init(path: .init(triggerId: triggerId))
         )
         switch response {
-        case .ok(let ok):
-            return TriggerInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return TriggerInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -263,8 +263,8 @@ class AutomationService {
             .init(path: .init(triggerId: triggerId))
         )
         switch response {
-        case .ok(let ok):
-            return TriggerInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return TriggerInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -281,8 +281,8 @@ class AutomationService {
             .init(path: .init(triggerId: triggerId))
         )
         switch response {
-        case .ok(let ok):
-            return TriggerInfo(response: try ok.body.json)
+        case .ok(let okResponse):
+            return TriggerInfo(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -299,8 +299,8 @@ class AutomationService {
             .init(path: .init(triggerId: triggerId), query: .init(limit: limit))
         )
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.items.map { TriggerExecutionInfo(response: $0) }
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map { TriggerExecutionInfo(response: $0) }
         case .unprocessableContent(let error):
             throw AutomationServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"

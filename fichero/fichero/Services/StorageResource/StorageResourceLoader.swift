@@ -71,8 +71,8 @@ final class StorageResourceLoader {
             .init(path: .init(docId: documentId))
         )
         switch response {
-        case .ok(let ok):
-            let data = try await Data(collecting: try ok.body.jpeg, upTo: Self.maxImageBytes)
+        case .ok(let okResponse):
+            let data = try await Data(collecting: try okResponse.body.jpeg, upTo: Self.maxImageBytes)
             return Resource(data: data, contentType: "image/jpeg")
         case .notFound:
             throw StorageResourceError.notFound(kind: .thumbnail, documentId: documentId)
@@ -86,8 +86,8 @@ final class StorageResourceLoader {
             .init(path: .init(docId: documentId))
         )
         switch response {
-        case .ok(let ok):
-            let data = try await Data(collecting: try ok.body.jpeg, upTo: Self.maxImageBytes)
+        case .ok(let okResponse):
+            let data = try await Data(collecting: try okResponse.body.jpeg, upTo: Self.maxImageBytes)
             return Resource(data: data, contentType: "image/jpeg")
         case .notFound:
             throw StorageResourceError.notFound(kind: .display, documentId: documentId)
@@ -102,8 +102,8 @@ final class StorageResourceLoader {
             .init(path: .init(docId: documentId))
         )
         switch response {
-        case .ok(let ok):
-            let body = try ok.body.any
+        case .ok(let okResponse):
+            let body = try okResponse.body.any
             let data = try await Data(collecting: body, upTo: Self.maxSourceBytes)
             return Resource(data: data, contentType: contentTypeHint)
         case .notFound:

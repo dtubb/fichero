@@ -22,8 +22,8 @@ class MCPService {
     func listServers() async throws -> [MCPServerResponse] {
         let response = try await api.api.listMcpServersApiMcpServersGet()
         switch response {
-        case .ok(let ok):
-            return try ok.body.json.items.map { MCPServerResponse(response: $0) }
+        case .ok(let okResponse):
+            return try okResponse.body.json.items.map { MCPServerResponse(response: $0) }
         default:
             throw MCPServiceError.unexpectedResponse
         }
@@ -35,8 +35,8 @@ class MCPService {
             .init(path: .init(serverId: id))
         )
         switch response {
-        case .ok(let ok):
-            return MCPServerResponse(response: try ok.body.json)
+        case .ok(let okResponse):
+            return MCPServerResponse(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw MCPServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -52,8 +52,8 @@ class MCPService {
             .init(body: .json(.init(app: request)))
         )
         switch response {
-        case .ok(let ok):
-            return MCPServerResponse(response: try ok.body.json)
+        case .ok(let okResponse):
+            return MCPServerResponse(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw MCPServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -69,8 +69,8 @@ class MCPService {
             .init(path: .init(serverId: id), body: .json(.init(app: request)))
         )
         switch response {
-        case .ok(let ok):
-            return MCPServerResponse(response: try ok.body.json)
+        case .ok(let okResponse):
+            return MCPServerResponse(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw MCPServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -105,8 +105,8 @@ class MCPService {
             .init(path: .init(serverId: serverId), query: .init(forceReload: forceReload))
         )
         switch response {
-        case .ok(let ok):
-            return LoadToolsResponse(response: try ok.body.json)
+        case .ok(let okResponse):
+            return LoadToolsResponse(response: try okResponse.body.json)
         case .unprocessableContent(let error):
             throw MCPServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
@@ -120,8 +120,8 @@ class MCPService {
     func getAllTools() async throws -> AllToolsResponse {
         let response = try await api.api.getAllMcpToolsApiMcpServersToolsAllGet()
         switch response {
-        case .ok(let ok):
-            return AllToolsResponse(response: try ok.body.json)
+        case .ok(let okResponse):
+            return AllToolsResponse(response: try okResponse.body.json)
         default:
             throw MCPServiceError.unexpectedResponse
         }
@@ -132,8 +132,8 @@ class MCPService {
         let response = try await api.api
             .loadMcpToolsIntoWorkflowRegistryApiMcpServersToolsLoadIntoWorkflowRegistryPost()
         switch response {
-        case .ok(let ok):
-            return RegistryLoadResponse(response: try ok.body.json)
+        case .ok(let okResponse):
+            return RegistryLoadResponse(response: try okResponse.body.json)
         default:
             throw MCPServiceError.unexpectedResponse
         }
@@ -144,8 +144,8 @@ class MCPService {
         let response = try await api.api
             .reloadMcpToolsInWorkflowRegistryApiMcpServersToolsReloadWorkflowRegistryPost()
         switch response {
-        case .ok(let ok):
-            return RegistryLoadResponse(response: try ok.body.json)
+        case .ok(let okResponse):
+            return RegistryLoadResponse(response: try okResponse.body.json)
         default:
             throw MCPServiceError.unexpectedResponse
         }

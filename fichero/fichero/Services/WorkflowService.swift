@@ -136,9 +136,9 @@ class WorkflowService {
             body: .json(request)
         ))
         switch response {
-        case .ok(let ok):
+        case .ok(let okResponse):
             logger.info("createWorkflow: success")
-            return try convertToWorkflowResponse(ok.body.json)
+            return try convertToWorkflowResponse(okResponse.body.json)
         case .unprocessableContent(let error):
             logger.error("createWorkflow: unprocessableContent - \(String(describing: error))")
             throw WorkflowServiceError.validationError("Invalid workflow data")
@@ -337,8 +337,8 @@ class WorkflowService {
         ))
 
         switch response {
-        case .ok(let ok):
-            return convertToWorkflowResponse(try ok.body.json)
+        case .ok(let okResponse):
+            return convertToWorkflowResponse(try okResponse.body.json)
         case .unprocessableContent:
             throw WorkflowServiceError.validationError("Invalid workflow data")
         default:
