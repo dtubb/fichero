@@ -43,6 +43,11 @@ final class TransportMatrixRoundTripTests: XCTestCase {
         let transport = InMemoryASGIClientTransport(app: InMemoryEngineApp.shared())
         var request = HTTPRequest(method: method, scheme: nil, authority: nil, path: path)
         request.headerFields[.accept] = "application/json"
+        // #4245: the engine requires a matching bootstrap token on EVERY
+        // transport, in-memory included. Omitting it is what produced nine
+        // blanket 401s here. Set before `headers` is applied so an individual
+        // test can still override or clear it — which the auth cases below do.
+        request.headerFields[.authorization] = InMemoryTestEnv.authorizationHeader
         var body: HTTPBody?
         if let json {
             request.headerFields[.contentType] = "application/json"
@@ -136,6 +141,73 @@ final class TransportMatrixRoundTripTests: XCTestCase {
         XCTAssertEqual(thumb.status, 200,
                        "thumbnail failed: \(String(decoding: thumb.body, as: UTF8.self).prefix(200))")
         XCTAssertGreaterThan(thumb.body.count, 0, "thumbnail body is empty")
+    }
+    // MARK: - The auth contract itself (#4245, #4432)
+
+    /// The half nobody has been able to run. These tests existed to prove a
+    /// real transport carries a real round-trip; what they could never show
+    /// is WHO that transport trusts — and that is the guarantee unit tests
+    /// structurally cannot check, because it lives in the middleware, not in
+    /// any one function.
+    ///
+    /// It matters here more than usual: the `.inMemory` transport is the one
+    /// whose doc comment claims the marker "grants loopback-owner auth"
+    /// (#4432). If that were true, the first test below would fail. It is not
+    /// true, and pinning it stops the comment being believed again.
+    ///
+    /// `/api/registry` deliberately, NOT `/api/health`: health is in
+    /// `_UNAUTHENTICATED_PATHS` (auth.py:51) so the app can poll readiness
+    /// before it has read the token file. Testing auth against an endpoint
+    /// that does not require it would pass no matter what the gate did.
+
+    func testInMemoryRequestWithoutATokenIsRejected() async throws {
+        // Explicitly clear the header the helper sets.
+        let transport = InMemoryASGIClientTransport(app: InMemoryEngineApp.shared())
+        var request = HTTPRequest(
+            method: .get, scheme: nil, authority: nil, path: "/api/registry"
+        )
+        request.headerFields[.accept] = "application/json"
+
+        let (response, body) = try await transport.send(
+            request, body: nil,
+            baseURL: URL(string: "http://asgi.local")!,
+            operationID: "matrixRoundTrip.authMissing"
+        )
+        var bytes = Data()
+        if let body { for try await chunk in body { bytes.append(contentsOf: chunk) } }
+
+        XCTAssertEqual(
+            response.status.code, 401,
+            """
+            An in-memory request with NO bearer token was accepted. The \
+            transport marker grants loopback ELIGIBILITY, not auth — if this \
+            starts passing, the token gate at auth.py:697 has been removed \
+            and the in-process transport is now unauthenticated (#4432).
+            Body: \(String(decoding: bytes, as: UTF8.self).prefix(200))
+            """
+        )
+    }
+
+    func testInMemoryRequestWithTheWrongTokenIsRejected() async throws {
+        let wrong = try await send(
+            .get, "/api/registry",
+            headers: [("Authorization", "Bearer definitely-not-the-token")]
+        )
+        XCTAssertEqual(
+            wrong.status, 401,
+            "a mismatched bearer token was accepted over .inMemory: " +
+            String(decoding: wrong.body, as: UTF8.self).prefix(200)
+        )
+    }
+
+    func testInMemoryRequestWithTheMatchingTokenSucceeds() async throws {
+        let ok = try await send(.get, "/api/registry")
+        XCTAssertEqual(
+            ok.status, 200,
+            "the matching bootstrap token was rejected — the harness and the " +
+            "engine disagree about which token is expected: " +
+            String(decoding: ok.body, as: UTF8.self).prefix(200)
+        )
     }
 }
 #endif

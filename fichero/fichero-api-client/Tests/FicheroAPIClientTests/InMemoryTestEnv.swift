@@ -43,7 +43,31 @@ enum InMemoryTestEnv {
             throw XCTSkip("Could not resolve libpython from the venv; PythonKit cannot boot CPython.")
         }
         setenvIfUnset("PYTHON_LIBRARY", libpython)
+
+        // Auth (#4245). The engine ALWAYS requires a matching bootstrap token,
+        // even in-process: the `inmemory` transport marker makes a request
+        // loopback-ELIGIBLE (`auth.py:474`) but does not waive the token
+        // comparison at `auth.py:697`. The `.inMemory` doc comment claiming
+        // the marker "grants loopback-owner auth" overstates that — see #4432
+        // — and the round-trip tests were evidently written believing it,
+        // which is why they returned 401 across the board the moment the
+        // transport leg compiled far enough to run them.
+        //
+        // Supply the token DELIBERATELY rather than inheriting whatever
+        // `.api-key` happens to be on this machine. A round-trip test that
+        // depends on ambient state is not testing the contract, it is testing
+        // the box — and it fails differently for the next person.
+        setenvIfUnset("FICHERO_BOOTSTRAP_TOKEN", bootstrapToken)
     }
+
+    /// The bootstrap token these tests hand the in-process engine.
+    ///
+    /// Fixed rather than random so a failure is reproducible, and obviously a
+    /// test value so it can never be mistaken for a real credential.
+    static let bootstrapToken = "fichero-inmemory-test-bootstrap-token"
+
+    /// The `Authorization` header value matching ``bootstrapToken``.
+    static var authorizationHeader: String { "Bearer \(bootstrapToken)" }
 
     static func setenvIfUnset(_ key: String, _ value: String) {
         if let existing = ProcessInfo.processInfo.environment[key], !existing.isEmpty { return }
