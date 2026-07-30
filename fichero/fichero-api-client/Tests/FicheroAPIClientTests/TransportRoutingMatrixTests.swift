@@ -277,12 +277,17 @@ final class TransportRoutingMatrixTests: XCTestCase {
         let baseURL = try liveHTTPSBaseURL()
         let transport = FicheroClient.makeTransport(transportMode: .https)
         let token = try liveBootstrapToken()
+        // A REAL registered library: the engine enforces a library-path
+        // allowlist, so the old hard-coded `/tmp/live-matrix-lib` always 403'd
+        // and this live case could never pass against a running engine.
+        let library = try await liveLibraryPath(
+            transport: transport, baseURL: baseURL, token: token)
         let (status, firstLine) = try await sendGetFirstLine(
             transport: transport, baseURL: baseURL,
             path: "/api/changes/stream",
             headers: [
                 ("authorization", "Bearer \(token)"),
-                ("x-fichero-library-path", "/tmp/live-matrix-lib")
+                ("x-fichero-library-path", library)
             ])
         XCTAssertEqual(status, 200, "https live: changes/stream must open 200 (got \(status))")
         XCTAssertEqual(firstLine, ": connected",
@@ -296,16 +301,102 @@ final class TransportRoutingMatrixTests: XCTestCase {
             transportMode: .uds(path: socket))
         let transport = FicheroClient.makeTransport(transportMode: .uds(path: socket))
         let token = try liveBootstrapToken()
+        // A REAL registered library — see the note in `testMatrixHTTPSStreaming`.
+        let library = try await liveLibraryPath(
+            transport: transport, baseURL: baseURL, token: token)
         let (status, firstLine) = try await sendGetFirstLine(
             transport: transport, baseURL: baseURL,
             path: "/api/changes/stream",
             headers: [
                 ("authorization", "Bearer \(token)"),
-                ("x-fichero-library-path", "/tmp/live-matrix-lib")
+                ("x-fichero-library-path", library)
             ])
         XCTAssertEqual(status, 200, "uds live: changes/stream must open 200 (got \(status))")
         XCTAssertEqual(firstLine, ": connected",
                        "uds live: first SSE frame must be ': connected' (got \(firstLine ?? "nil"))")
+    }
+
+    // MARK: - Matrix: pool segmentation under N open streams (#4349)
+
+    /// The live-socket acceptance case for #4349: FOUR concurrent SSE
+    /// subscriptions (four open libraries' worth) held open while ordinary
+    /// request traffic runs. Request traffic must still succeed and the
+    /// near-ceiling tripwire must stay silent on BOTH pools.
+    ///
+    /// Before the fix this failed with AsyncHTTPClient's inherited per-host soft
+    /// limit of 8: streams and requests shared one pool, so the fifth-or-so
+    /// long-lived stream pinned the last connection and `/api/health` queued
+    /// until it timed out. Headless coverage of the same invariant (no engine
+    /// required) lives in `ConnectionPoolSegmentationTests`.
+    func testMatrixUDSStreamPoolDoesNotStarveRequestTraffic() async throws {
+        let socket = try liveUDSPath()
+        let baseURL = FicheroClient.makeServerURL(
+            baseURL: URL(string: "https://127.0.0.1:8765")!,
+            transportMode: .uds(path: socket))
+        let streamTransport = FicheroClient.makeTransport(
+            transportMode: .uds(path: socket), usage: .stream)
+        let requestTransport = FicheroClient.makeTransport(
+            transportMode: .uds(path: socket), usage: .request)
+        let token = try liveBootstrapToken()
+        // `/api/changes/stream` is library-scoped and the engine enforces the
+        // library-path allowlist, so use a REAL registered library rather than a
+        // made-up path (a 403 would prove nothing about pools).
+        let library = try await liveLibraryPath(
+            transport: requestTransport, baseURL: baseURL, token: token)
+
+        LocalTransportPool.requestPressure.reset()
+        LocalTransportPool.streamPressure.reset()
+
+        // Hold four SSE subscriptions open for the duration of the request run.
+        // `sendGetFirstLine` would RELEASE the connection (it drops the body once
+        // it has a line), so these tasks keep iterating the body instead — that
+        // is what "an open library" actually looks like to the pool.
+        let streamCount = 4
+        let streamTasks = (0..<streamCount).map { index in
+            Task {
+                var request = HTTPRequest(
+                    method: .get, scheme: nil, authority: nil, path: "/api/changes/stream")
+                request.headerFields[.accept] = "text/event-stream"
+                request.headerFields[.authorization] = "Bearer \(token)"
+                if let name = HTTPField.Name("x-fichero-library-path") {
+                    request.headerFields[name] = library
+                }
+                let (response, body) = try await streamTransport.send(
+                    request, body: nil, baseURL: baseURL,
+                    operationID: "matrix.pool.changesStream.\(index)")
+                XCTAssertEqual(response.status.code, 200, "stream \(index) must open 200")
+                guard let body else { return }
+                for try await _ in body { if Task.isCancelled { break } }
+            }
+        }
+
+        // Wait until the pool actually reports four held connections (up to 10s),
+        // so the request run below happens with the streams genuinely open.
+        for _ in 0..<1000 where LocalTransportPool.streamPressure.snapshot().inUse < streamCount {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(
+            LocalTransportPool.streamPressure.snapshot().inUse, streamCount,
+            "all \(streamCount) SSE subscriptions must be open before the request run")
+
+        // Request traffic while the streams are open.
+        for index in 0..<12 {
+            let (status, _) = try await sendGet(
+                transport: requestTransport, baseURL: baseURL, path: "/api/health")
+            XCTAssertEqual(
+                status, 200,
+                "request #\(index) must succeed with \(streamCount) streams open — "
+                    + "streams and requests must not share a connection pool")
+        }
+
+        XCTAssertEqual(
+            LocalTransportPool.streamPressure.snapshot().nearCeilingWarnings, 0,
+            "\(streamCount) streams must not approach the stream-pool ceiling")
+        XCTAssertEqual(
+            LocalTransportPool.requestPressure.snapshot().nearCeilingWarnings, 0,
+            "ordinary request traffic must not approach the request-pool ceiling")
+
+        for task in streamTasks { task.cancel() }
     }
 
     // MARK: - Live-transport env helpers (skip when no live engine is configured)
@@ -316,6 +407,28 @@ final class TransportRoutingMatrixTests: XCTestCase {
             throw XCTSkip("Set FICHERO_TEST_HTTPS_URL to a live engine base URL to exercise the HTTPS matrix.")
         }
         return url
+    }
+
+    /// A REAL registered library path from the live engine's registry. The
+    /// engine enforces a library-path allowlist, so a made-up path yields 403 —
+    /// which would tell us nothing about connection pools. Skips when the
+    /// registry is empty.
+    private func liveLibraryPath(
+        transport: any ClientTransport,
+        baseURL: URL,
+        token: String
+    ) async throws -> String {
+        let (status, body) = try await sendGet(
+            transport: transport, baseURL: baseURL, path: "/api/registry",
+            headers: [("authorization", "Bearer \(token)")])
+        guard status == 200,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let libraries = json["libraries"] as? [[String: Any]],
+              let path = libraries.compactMap({ $0["path"] as? String }).first
+        else {
+            throw XCTSkip("Live engine has no registered library; cannot open a library-scoped stream.")
+        }
+        return path
     }
 
     private func liveUDSPath() throws -> String {
