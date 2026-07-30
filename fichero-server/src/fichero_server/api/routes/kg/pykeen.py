@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -177,7 +177,7 @@ async def decide_prediction_review(
     review.state = decision.state
     review.decision_note = decision.note
     review.resulting_claim_id = decision.resulting_claim_id
-    review.reviewed_at = datetime.now()
+    review.reviewed_at = utc_now()
     db.save(review)
     return review
 

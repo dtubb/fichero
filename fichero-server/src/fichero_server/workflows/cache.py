@@ -19,10 +19,11 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
+from fichero_server.core.timeutil import ensure_utc
 from pathlib import Path
 from typing import Any
 
-import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 
 from fichero_server.workflows.activity_types import CacheEntry
 
@@ -110,7 +111,7 @@ class NodeCache:
         # connect() calls, so writes here are visible to the managed Database
         # via MVCC. Folding NodeCache onto the shared Database (pass a Database
         # instead of db_path) is a separate architectural decision (lead review).
-        self.conn = duckdb.connect(str(self.db_path))
+        self.conn = connect_utc(str(self.db_path))
         self._ensure_schema()
 
     def _ensure_schema(self) -> None:
@@ -162,7 +163,7 @@ class NodeCache:
                     node_id=result[2],
                     tool=result[3],
                     file_path=result[4],
-                    created_at=result[5],
+                    created_at=ensure_utc(result[5]),
                     result=json.loads(result[6]),
                 )
 

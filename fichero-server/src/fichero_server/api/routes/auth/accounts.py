@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timedelta
+from fichero_server.core.timeutil import utc_now
 from functools import cache
 import sys
 from typing import Literal
@@ -400,7 +401,7 @@ def login(
 ) -> LoginResponse:
     _multiuser_disabled()
 
-    now = datetime.now()
+    now = utc_now()
     username = body.username.strip()
     _check_login_rate_limit(request, username, now)
 
@@ -487,7 +488,7 @@ def create_invite(
     _multiuser_disabled()
     _require_owner_or_bootstrap(request)
 
-    now = datetime.now()
+    now = utc_now()
     _check_invite_rate_limit(_INVITE_MINT_ATTEMPTS_BY_IP, request, now)
 
     username = body.username.strip()
@@ -524,7 +525,7 @@ def redeem_invite(
 ) -> LoginResponse | JSONResponse:
     _multiuser_disabled()
 
-    now = datetime.now()
+    now = utc_now()
     _check_invite_rate_limit(_INVITE_REDEEM_ATTEMPTS_BY_IP, request, now)
 
     invite = app_db.get_invite_by_token_hash(accounts.hash_token(body.invite_token.strip()))

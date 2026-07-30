@@ -9,7 +9,7 @@ corpus.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -271,7 +271,7 @@ def patch_note_impl(
         )
     for field, value in updates.items():
         setattr(note, field, value)
-    note.updated_at = datetime.now()
+    note.updated_at = utc_now()
     db.save(note)
     return note, before
 

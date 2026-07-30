@@ -8,7 +8,7 @@ library items (document, note, entity, claim) via source_id/target_id.
 
 from __future__ import annotations
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 import logging
 from typing import Any
 
@@ -148,7 +148,7 @@ def _create_library_link_impl(
         link_quality=request.link_quality,
         evidence=request.evidence,
         metadata=request.metadata,
-        created_at=datetime.now(),
+        created_at=utc_now(),
     )
     db.save(link)
     return link
@@ -166,7 +166,7 @@ def _update_library_link_impl(
     data = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in data.items():
         setattr(link, key, value)
-    link.updated_at = datetime.now()
+    link.updated_at = utc_now()
     db.save(link)
     return link, before
 

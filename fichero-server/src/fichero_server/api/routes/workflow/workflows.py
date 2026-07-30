@@ -7,7 +7,7 @@ Provides tools with port definitions for the visual node editor.
 
 import logging
 from typing import Any, Optional
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -730,7 +730,7 @@ async def export_workflow(
             format=workflow.format,
             nodes=workflow.nodes,
             edges=workflow.edges,
-            exported_at=datetime.now().isoformat(),
+            exported_at=utc_now().isoformat(),
         )
     except HTTPException:
         raise
@@ -910,7 +910,7 @@ def update_workflow_impl(
     existing.model = workflow.model or ""
     existing.nodes = [node.model_dump_for_storage() for node in workflow.nodes]
     existing.edges = [edge.model_dump() for edge in workflow.edges]
-    existing.updated_at = datetime.now()
+    existing.updated_at = utc_now()
     # Once a user edits a preset workflow, it stops being a template —
     # reinstall-defaults must NOT wipe it on next app launch (#780).
     # Same intent as macOS Finder's "user has customized this" flag —
@@ -1026,7 +1026,7 @@ def patch_workflow_impl(
     if patch.sort_order is not None:
         workflow.sort_order = patch.sort_order
 
-    workflow.updated_at = datetime.now()
+    workflow.updated_at = utc_now()
     db.save(workflow)
     return workflow
 

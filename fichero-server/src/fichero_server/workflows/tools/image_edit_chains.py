@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any, Callable
 
 from fichero_server.db import db_manager
@@ -52,13 +52,13 @@ def append_image_edit_operations(
         if doc is None:
             continue
         operation = build_operation(doc)
-        operation.setdefault("created_at", datetime.now().isoformat())
+        operation.setdefault("created_at", utc_now().isoformat())
 
         rows = list(db.query(ImageEditChain, document_id=doc.id))
         if rows:
             chain = rows[0]
             chain.operations.append(operation)
-            chain.updated_at = datetime.now()
+            chain.updated_at = utc_now()
         else:
             chain = ImageEditChain(document_id=doc.id, operations=[operation])
         db.save(chain)

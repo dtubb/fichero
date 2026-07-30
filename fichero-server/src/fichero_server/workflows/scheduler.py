@@ -15,11 +15,12 @@ import logging
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from enum import Enum
 from typing import Any, Optional
 
-import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 
 # apscheduler is imported lazily inside the methods that use it (constructors,
 # trigger factories, JobLookupError catches). Keeping it off module scope defers
@@ -32,16 +33,11 @@ logger = logging.getLogger(__name__)
 MAX_SCHEDULE_CACHE_SIZE = 512
 
 
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _ensure_aware_utc(value: Optional[datetime]) -> Optional[datetime]:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+# The scheduler was already tz-correct before #4347; both local helpers now
+# delegate to the one canonical implementation in core.timeutil so there is a
+# single definition of "now" and of "a naive value means UTC".
+_utcnow = utc_now
+_ensure_aware_utc = ensure_utc
 
 
 class ScheduleType(str, Enum):
@@ -179,7 +175,7 @@ class WorkflowScheduler:
         # Database connection. Database._lock and the locked execute() helpers do
         # not apply. Folding the scheduler onto the shared Database is a separate
         # architectural call (lead review).
-        conn = duckdb.connect(self.db_path)
+        conn = connect_utc(self.db_path)
         try:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS schedules (
@@ -250,7 +246,7 @@ class WorkflowScheduler:
         """Load active schedules from database and register with APScheduler."""
 
         def _load():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 results = conn.execute("""
                     SELECT * FROM schedules WHERE status = 'active'
@@ -279,7 +275,7 @@ class WorkflowScheduler:
                 schedule_type=ScheduleType(row[3]),
                 cron_expression=row[4],
                 interval_seconds=row[5],
-                run_at=row[6],
+                run_at=ensure_utc(row[6]),
                 timezone=row[7] or "UTC",
                 start_date=row[8],
                 end_date=row[9],
@@ -290,10 +286,10 @@ class WorkflowScheduler:
             use_batch=row[13],
             batch_items=json.loads(row[14]) if row[14] else [],
             max_concurrent=row[15] or 5,
-            created_at=row[16],
-            updated_at=row[17],
-            last_run_at=row[18],
-            next_run_at=row[19],
+            created_at=ensure_utc(row[16]),
+            updated_at=ensure_utc(row[17]),
+            last_run_at=ensure_utc(row[18]),
+            next_run_at=ensure_utc(row[19]),
             run_count=row[20] or 0,
             error_message=row[21],
         )
@@ -535,7 +531,7 @@ class WorkflowScheduler:
 
         def _save():
 
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute(
                     """
@@ -582,7 +578,7 @@ class WorkflowScheduler:
         """Save schedule run to database."""
 
         def _save():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute(
                     """
@@ -613,7 +609,7 @@ class WorkflowScheduler:
             return self._schedules[schedule_id]
 
         def _load():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 result = conn.execute(
                     "SELECT * FROM schedules WHERE schedule_id = ?", [schedule_id]
@@ -639,7 +635,7 @@ class WorkflowScheduler:
         """List schedules with optional filtering."""
 
         def _list():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 query = "SELECT * FROM schedules WHERE 1=1"
                 params = []
@@ -774,7 +770,7 @@ class WorkflowScheduler:
 
         # Remove from database
         def _delete():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute(
                     "DELETE FROM schedule_runs WHERE schedule_id = ?", [schedule_id]
@@ -801,7 +797,7 @@ class WorkflowScheduler:
         """Get run history for a schedule."""
 
         def _get_runs():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 results = conn.execute(
                     """
@@ -823,8 +819,8 @@ class WorkflowScheduler:
             ScheduleRun(
                 run_id=row[0],
                 schedule_id=row[1],
-                started_at=row[2],
-                completed_at=row[3],
+                started_at=ensure_utc(row[2]),
+                completed_at=ensure_utc(row[3]),
                 status=row[4],
                 batch_id=row[5],
                 error=row[6],

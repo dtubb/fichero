@@ -32,7 +32,7 @@ import json
 import logging
 import re as _re
 import unicodedata
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -1509,7 +1509,7 @@ async def _run_extractor(
                     created_artifact_ids.append(page_artifact.id)
                     artifact_document_ids.add(page_doc_id)
                 # Bump container updated_at so the folder inspector refreshes.
-                container.updated_at = datetime.now()
+                container.updated_at = utc_now()
                 db.save(container)
                 logger.info(
                     f"{section['name']}: saved {section['artifact']} on "
@@ -1529,7 +1529,7 @@ async def _run_extractor(
                 db.save(artifact)
                 created_artifact_ids.append(artifact.id)
                 artifact_document_ids.add(container.id)
-                container.updated_at = datetime.now()
+                container.updated_at = utc_now()
                 db.save(container)
                 logger.info(
                     f"{section['name']}: saved {section['artifact']} artifact "

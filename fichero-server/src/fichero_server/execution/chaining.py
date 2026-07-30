@@ -19,6 +19,7 @@ import logging
 import re
 import uuid
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from typing import Any, Callable
 
@@ -155,8 +156,8 @@ class WorkflowChain(BaseModel):
     )
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     folder_path: str = "/"  # Folder organization path
     sort_order: int = 0  # Sort order within folder
 
@@ -252,7 +253,7 @@ class ChainProgressEvent(BaseModel):
     message: str = ""
     error: str | None = None
     progress: float = 0.0  # 0.0 to 1.0
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -441,7 +442,7 @@ class ChainExecutor:
             ChainExecutionResult with all step results
         """
         execution_id = str(uuid.uuid4())
-        start_time = datetime.now()
+        start_time = utc_now()
         self._cancel_requested = False
 
         # Merge initial inputs
@@ -603,7 +604,7 @@ class ChainExecutor:
                     )
                 )
 
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             result.total_duration_ms = (
                 result.completed_at - start_time
             ).total_seconds() * 1000
@@ -613,7 +614,7 @@ class ChainExecutor:
         except Exception as e:
             logger.exception(f"Chain execution failed: {e}")
             result.status = ChainStepStatus.FAILED
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
 
             await self._emit_event(
                 ChainProgressEvent(
@@ -638,7 +639,7 @@ class ChainExecutor:
         step_index: int,
     ) -> ChainStepResult:
         """Execute a single chain step."""
-        start_time = datetime.now()
+        start_time = utc_now()
 
         # Emit step started event
         await self._emit_event(
@@ -663,7 +664,7 @@ class ChainExecutor:
                 status=ChainStepStatus.FAILED,
                 error=f"Workflow not found: {step.workflow_id}",
                 started_at=start_time,
-                completed_at=datetime.now(),
+                completed_at=utc_now(),
             )
 
         # Map inputs from previous step
@@ -701,12 +702,12 @@ class ChainExecutor:
                     output_files=final_state.get("output_files", []),
                     error=final_state["error"],
                     started_at=start_time,
-                    completed_at=datetime.now(),
-                    duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
+                    completed_at=utc_now(),
+                    duration_ms=(utc_now() - start_time).total_seconds() * 1000,
                 )
 
             # Success
-            completed_at = datetime.now()
+            completed_at = utc_now()
             result = ChainStepResult(
                 step_id=step.id,
                 workflow_id=step.workflow_id,
@@ -742,8 +743,8 @@ class ChainExecutor:
                 inputs=step_inputs,
                 error=f"Step timed out after {step.timeout_seconds}s",
                 started_at=start_time,
-                completed_at=datetime.now(),
-                duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
+                completed_at=utc_now(),
+                duration_ms=(utc_now() - start_time).total_seconds() * 1000,
             )
 
         except Exception as e:
@@ -768,8 +769,8 @@ class ChainExecutor:
                 inputs=step_inputs,
                 error=str(e),
                 started_at=start_time,
-                completed_at=datetime.now(),
-                duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
+                completed_at=utc_now(),
+                duration_ms=(utc_now() - start_time).total_seconds() * 1000,
             )
 
     async def _emit_event(self, event: ChainProgressEvent) -> None:
@@ -800,7 +801,7 @@ class ChainStore:
 
     def save(self, chain: WorkflowChain) -> WorkflowChain:
         """Save a chain definition."""
-        chain.updated_at = datetime.now()
+        chain.updated_at = utc_now()
         self._chains[chain.id] = chain
         return chain
 

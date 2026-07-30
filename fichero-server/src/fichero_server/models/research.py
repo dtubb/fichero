@@ -1,6 +1,7 @@
 """Research agent models for 0.0.2 Layer 0 — Agent Research Infrastructure."""
 
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from typing import Any
 from uuid import uuid4
@@ -75,8 +76,8 @@ class ResearchProject(BaseModel):
     created_by: str = "human"
     library_destination_folder_id: str | None = None
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ResearchPlan(BaseModel):
@@ -91,8 +92,8 @@ class ResearchPlan(BaseModel):
     status: PlanStatus = PlanStatus.draft
     order_index: int = 0
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ResearchTask(BaseModel):
@@ -108,8 +109,8 @@ class ResearchTask(BaseModel):
     priority: int = 0  # lower = higher priority
     assigned_to: str | None = None
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     completed_at: datetime | None = None
 
 
@@ -139,8 +140,8 @@ class ResearchStep(BaseModel):
     result: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
     order_index: int = 0
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     completed_at: datetime | None = None
 
 
@@ -161,7 +162,7 @@ class SearchSource(BaseModel):
     reliability: float = 0.5  # 0-1 reliability rating
     scraped_at: datetime | None = None
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ResearchNote(BaseModel):
@@ -180,8 +181,8 @@ class ResearchNote(BaseModel):
     linked_claim_ids: list[str] = Field(default_factory=list)  # KnowledgeClaim IDs
     created_by: str = "human"
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ChecklistItem(BaseModel):
@@ -208,8 +209,8 @@ class ResearchChecklist(BaseModel):
     items: list[ChecklistItem] = Field(default_factory=list)
     created_by: str = "human"
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

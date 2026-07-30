@@ -1,6 +1,6 @@
 """Research Agents notes routes — Search Sources, Notes, Checklists."""
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -193,7 +193,7 @@ def update_note_impl(
         note.linked_claim_ids = request.linked_claim_ids
     if request.metadata is not None:
         note.metadata = request.metadata
-    note.updated_at = datetime.now()
+    note.updated_at = utc_now()
     db.save(note)
     return note
 
@@ -320,10 +320,10 @@ def toggle_checklist_item_impl(
             item.checked = request.checked
             item.notes = request.notes
             if request.checked:
-                item.checked_at = datetime.now()
+                item.checked_at = utc_now()
                 item.checked_by = "human"
             break
-    checklist.updated_at = datetime.now()
+    checklist.updated_at = utc_now()
     db.save(checklist)
     return checklist
 

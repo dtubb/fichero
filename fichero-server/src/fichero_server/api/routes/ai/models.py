@@ -8,6 +8,7 @@ Proxies Hugging Face Hub API with caching for model discovery.
 import logging
 from typing import Optional
 from datetime import datetime, timedelta
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -70,7 +71,7 @@ def _get_cache(key: str) -> Optional[list]:
     """Get cached response if not expired."""
     if key in _cache:
         cached_at, data = _cache[key]
-        if datetime.now() - cached_at < CACHE_TTL:
+        if utc_now() - cached_at < CACHE_TTL:
             return data
         del _cache[key]
     return None
@@ -78,7 +79,7 @@ def _get_cache(key: str) -> Optional[list]:
 
 def _set_cache(key: str, data: list) -> None:
     """Cache response."""
-    _cache[key] = (datetime.now(), data)
+    _cache[key] = (utc_now(), data)
 
 
 async def _fetch_hf_models(

@@ -34,6 +34,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from typing import Callable, TypeVar
 from uuid import uuid4
@@ -72,7 +73,7 @@ class MigrationRunRecord(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     details: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class MigrationStatus(str, Enum):
@@ -106,7 +107,7 @@ class MigrationResult:
     dry_run: bool = False
     audit_id: str | None = None
     error_message: str | None = None
-    started_at: datetime = field(default_factory=datetime.now)
+    started_at: datetime = field(default_factory=utc_now)
     completed_at: datetime | None = None
     details: dict = field(default_factory=dict)
 
@@ -146,7 +147,7 @@ class RollbackResult:
     restored: int = 0
     failed: int = 0
     error_message: str | None = None
-    started_at: datetime = field(default_factory=datetime.now)
+    started_at: datetime = field(default_factory=utc_now)
     completed_at: datetime | None = None
 
 
@@ -302,7 +303,7 @@ class MigrationRunner:
                     self._report_progress("migrate_claims", processed, len(all_claims))
 
             result.status = MigrationStatus.completed
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             result.details = {"run_id": run_id, "total_claims": len(all_claims)}
 
             logger.info(
@@ -313,7 +314,7 @@ class MigrationRunner:
         except Exception as e:
             result.status = MigrationStatus.failed
             result.error_message = str(e)
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             logger.error(f"Migration failed: {e}")
             raise
 
@@ -405,7 +406,7 @@ class MigrationRunner:
                     )
 
             result.status = MigrationStatus.completed
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             result.details = {"run_id": run_id, "total_claims": len(all_claims)}
 
             logger.info(
@@ -416,7 +417,7 @@ class MigrationRunner:
         except Exception as e:
             result.status = MigrationStatus.failed
             result.error_message = str(e)
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             logger.error(f"Backfill failed: {e}")
             raise
 
@@ -476,7 +477,7 @@ class MigrationRunner:
                 result.migrated += 1
 
             result.status = MigrationStatus.completed
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             result.details = {
                 "run_id": run_id,
                 "total_links": len(all_links),
@@ -488,7 +489,7 @@ class MigrationRunner:
         except Exception as e:
             result.status = MigrationStatus.failed
             result.error_message = str(e)
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             logger.error(f"Repair failed: {e}")
             raise
 
@@ -574,7 +575,7 @@ class MigrationRunner:
                     result.failed += 1
 
             result.status = MigrationStatus.completed
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             if result.migrated and not dry_run:
                 result.audit_id = run_id
             result.details = {
@@ -594,7 +595,7 @@ class MigrationRunner:
         except Exception as e:
             result.status = MigrationStatus.failed
             result.error_message = str(e)
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             logger.error(f"SVO repr repair failed: {e}")
             raise
 
@@ -830,7 +831,7 @@ class MigrationRunner:
                 self.db.save(mutation)
 
             result.status = MigrationStatus.rolled_back
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
 
             logger.info(
                 f"Rollback complete: {result.restored} restored, {result.failed} failed"
@@ -839,7 +840,7 @@ class MigrationRunner:
         except Exception as e:
             result.status = MigrationStatus.failed
             result.error_message = str(e)
-            result.completed_at = datetime.now()
+            result.completed_at = utc_now()
             logger.error(f"Rollback failed: {e}")
             raise
 

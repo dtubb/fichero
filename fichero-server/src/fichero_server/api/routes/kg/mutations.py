@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -112,7 +113,7 @@ async def undo_mutation(
         )
 
     restored: Any = model_cls.model_validate(log.before_state)
-    restored.updated_at = datetime.now()
+    restored.updated_at = utc_now()
     db.save(restored)
 
     # Refresh the LanceDB vector for restored entities.

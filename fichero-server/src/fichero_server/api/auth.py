@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timedelta
+from fichero_server.core.timeutil import utc_now
 import logging
 import os
 import secrets
@@ -415,12 +416,12 @@ def _authenticate_session_token(token: str):
     session = app_db.get_session_by_token_hash(token_hash)
     if session is None:
         return None, None
-    if session.revoked or session.expires_at <= datetime.now():
+    if session.revoked or session.expires_at <= utc_now():
         return None, session
     user = app_db.get_user(session.user_id)
     if user is None or not user.active:
         return None, session
-    now = datetime.now()
+    now = utc_now()
     if _should_touch_last_seen(session.last_seen_at, now):
         expires_at = None
         if _session_expiry_should_refresh(session.expires_at, now):
@@ -439,7 +440,7 @@ def _authenticate_device_token(token: str):
     device = app_db.get_device_by_token_hash(token_hash)
     if device is None:
         return None, None, "missing or invalid Authorization header"
-    now = datetime.now()
+    now = utc_now()
     if device.revoked:
         return None, device, "missing or invalid Authorization header"
     if device.expires_at <= now:
@@ -733,7 +734,7 @@ def attach_auth_middleware(
             request.state.session = session
             request.state.bootstrap_auth = False
             return await call_next(request)
-        if session is not None and not session.revoked and session.expires_at <= datetime.now():
+        if session is not None and not session.revoked and session.expires_at <= utc_now():
             return JSONResponse(
                 {
                     "detail": "missing or invalid Authorization header",

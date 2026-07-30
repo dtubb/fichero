@@ -9,7 +9,7 @@ freely.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -167,7 +167,7 @@ def patch_value_impl(
         raise HTTPException(404, f"Value not found: {value_id}")
     for field, val in request.model_dump(exclude_unset=True).items():
         setattr(value, field, val)
-    value.updated_at = datetime.now()
+    value.updated_at = utc_now()
     db.save(value)
     return value
 

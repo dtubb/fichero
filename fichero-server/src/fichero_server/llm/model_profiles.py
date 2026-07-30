@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from typing import Any
 import uuid
@@ -57,8 +58,8 @@ class ModelProfile(BaseModel):
     local_only: bool = False
     api_base: str | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     @field_validator("id", "name", "provider", "model", mode="before")
     @classmethod

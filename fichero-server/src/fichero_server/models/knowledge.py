@@ -1,6 +1,7 @@
 """Knowledge graph models for 0.0.2 Search + Semantic backend slices."""
 
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from uuid import uuid4
 
@@ -742,8 +743,8 @@ class KnowledgeEntity(BaseModel):
     curation_state: EntityCurationState = EntityCurationState.unreviewed
     corroboration_count: int = 0
     merged_into_id: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class AuthoritySnapshot(BaseModel):
@@ -757,7 +758,7 @@ class AuthoritySnapshot(BaseModel):
     type: str | None = None
     description: str | None = None
     source_url: str
-    fetched_at: datetime = Field(default_factory=datetime.now)
+    fetched_at: datetime = Field(default_factory=utc_now)
 
 
 class LibrarySetting(BaseModel):
@@ -765,7 +766,7 @@ class LibrarySetting(BaseModel):
 
     id: str
     value: str
-    updated_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class EntityResolutionRule(BaseModel):
@@ -779,8 +780,8 @@ class EntityResolutionRule(BaseModel):
     target_entity_type: EntityType | None = None
     reason: str
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ClaimSuppressionRule(BaseModel):
@@ -794,8 +795,8 @@ class ClaimSuppressionRule(BaseModel):
     suppress_is_a_copulas: bool = False
     reason: str
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class EntityMergeOperationType(str, Enum):
@@ -821,7 +822,7 @@ class EntityMergeAudit(BaseModel):
     )
     reversal_id: str | None = None  # set to the audit ID that reverses this operation
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ClaimMergeOperationType(str, Enum):
@@ -847,7 +848,7 @@ class ClaimMergeAudit(BaseModel):
     )
     reversal_id: str | None = None
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ClassificationDimension(str, Enum):
@@ -911,8 +912,8 @@ class ClassificationValue(BaseModel):
     )
     sort_order: int = 0
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class LibraryEntityType(BaseModel):
@@ -935,8 +936,8 @@ class LibraryEntityType(BaseModel):
         default=True,
         description="Whether this type is active for extraction in this library.",
     )
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class DocumentCitation(BaseModel):
@@ -969,7 +970,7 @@ class DocumentCitation(BaseModel):
         description="Which detector emitted this citation: manual / regex / llm / bibtex_import",
     )
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ReferenceKind(str, Enum):
@@ -1129,8 +1130,8 @@ class Reference(BaseModel):
     tags: list[str] = Field(default_factory=list)
     status: ReferenceStatus = ReferenceStatus.to_find
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     @model_validator(mode="after")
     def _synchronise_bibtex(self):
@@ -1168,7 +1169,7 @@ class ReferenceProvenance(BaseModel):
     span_start: int | None = None
     span_end: int | None = None
     citation_location: ReferenceCitationLocation = ReferenceCitationLocation.unknown
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ProjectStatus(str, Enum):
@@ -1199,8 +1200,8 @@ class Project(BaseModel):
     members: list[str] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ProjectInclusion(BaseModel):
@@ -1220,7 +1221,7 @@ class ProjectInclusion(BaseModel):
     )
     notes: str | None = None
     added_by: str = "human"
-    added_at: datetime = Field(default_factory=datetime.now)
+    added_at: datetime = Field(default_factory=utc_now)
 
 
 class NoteKind(str, Enum):
@@ -1274,8 +1275,8 @@ class Note(BaseModel):
 
     author_type: str = "user"  # "user" | "ai"
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class Milestone(BaseModel):
@@ -1290,8 +1291,8 @@ class Milestone(BaseModel):
     status: str = "planned"
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class NoteLink(BaseModel):
@@ -1309,7 +1310,7 @@ class NoteLink(BaseModel):
     target_note_id: str
     link_type: str = "free"     # follows | references | contradicts | supports | free
     annotation: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class AnnotationKind(str, Enum):
@@ -1394,8 +1395,8 @@ class Annotation(BaseModel):
     linked_note_ids: list[str] = Field(default_factory=list)  # see Note model
 
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     @field_validator("bbox")
     @classmethod
@@ -1464,7 +1465,7 @@ class EntityMatchCandidate(BaseModel):
     )
     decided_by: str | None = None
     decided_at: datetime | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class MutationOperationType(str, Enum):
@@ -1508,7 +1509,7 @@ class MutationLog(BaseModel):
     agent_id: str | None = Field(default=None)
     created_by: str = "human"
     reversal_id: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class KnowledgeClaim(BaseModel):
@@ -1945,8 +1946,8 @@ class KnowledgeClaim(BaseModel):
     )
 
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class KnowledgeClaimLink(BaseModel):
@@ -1959,7 +1960,7 @@ class KnowledgeClaimLink(BaseModel):
     link_quality: float = 0.5
     evidence: str | None = None
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 class LibraryItemType(str, Enum):
     """Node kinds that can participate in a general library link."""
@@ -1990,7 +1991,7 @@ class LibraryItemLink(BaseModel):
     link_quality: float = 0.5
     evidence: str | None = None
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime | None = None
 
 
@@ -2003,7 +2004,7 @@ class KnowledgeGraphInclusion(BaseModel):
     included: bool = True
     reason: str | None = None
     updated_by: str = "human"
-    updated_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class PredictionModelType(str, Enum):
@@ -2038,7 +2039,7 @@ class KnowledgePredictionReview(BaseModel):
     decision_note: str | None = None
     resulting_claim_id: str | None = None
     reviewed_at: datetime | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class KnowledgePredictionRun(BaseModel):
@@ -2053,7 +2054,7 @@ class KnowledgePredictionRun(BaseModel):
     id: str = Field(default_factory=_new_id)
     model_type: PredictionModelType
     pykeen_config: dict = Field(default_factory=dict)  # PyKEEN config dict
-    trained_at: datetime = Field(default_factory=datetime.now)
+    trained_at: datetime = Field(default_factory=utc_now)
     # Training set info
     num_entities: int = 0
     num_claims: int = 0

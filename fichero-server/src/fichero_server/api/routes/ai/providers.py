@@ -6,6 +6,7 @@ API endpoints for managing LLM providers and models.
 
 import logging
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -84,7 +85,7 @@ router.include_router(keys_router)
 def _safe_isoformat(value) -> str:
     """Return ISO string when value behaves like datetime, else current time."""
     return (
-        value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+        value.isoformat() if hasattr(value, "isoformat") else utc_now().isoformat()
     )
 
 
@@ -444,7 +445,7 @@ def update_provider_ref_impl(
     if request.sort_order is not None:
         ref.sort_order = request.sort_order
 
-    ref.updated_at = datetime.now()
+    ref.updated_at = utc_now()
     db.save(ref)
     return ref
 

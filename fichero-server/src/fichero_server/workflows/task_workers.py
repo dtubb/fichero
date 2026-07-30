@@ -10,7 +10,7 @@ self._executing, self._tasks.
 
 import asyncio
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 
 from fichero_server.db import db_manager
@@ -61,12 +61,12 @@ class TaskWorkersMixin:
         self._emit_task_change(task, "backend.work.started")
 
     async def _save_task_progress(self, task: BackgroundTask) -> None:
-        task.progress.updated_at = datetime.now()
+        task.progress.updated_at = utc_now()
         await self._save_task(task)
         self._emit_task_change(task, "backend.work.progress")
 
     async def _finalize_task_execution(self, task: BackgroundTask) -> None:
-        task.completed_at = datetime.now()
+        task.completed_at = utc_now()
         await self._save_task(task)
         terminal_type = (
             "backend.work.completed"
@@ -323,10 +323,10 @@ class TaskWorkersMixin:
         for doc in docs:
             needs_save = False
             if not doc.updated_at:
-                doc.updated_at = datetime.now()
+                doc.updated_at = utc_now()
                 needs_save = True
             if not doc.created_at:
-                doc.created_at = datetime.now()
+                doc.created_at = utc_now()
                 needs_save = True
             if needs_save:
                 await asyncio.to_thread(self._db_call, "save", doc)

@@ -8,6 +8,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,8 +41,8 @@ class Action(BaseModel):
     author: str = ""
     use_count: int = 0
     last_used_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     model_config = ConfigDict(ser_json_timedelta="iso8601")
 
@@ -215,7 +216,7 @@ class ActionStore:
 
     def _update(self, action: Action) -> None:
         """Update an action."""
-        action.updated_at = datetime.now()
+        action.updated_at = utc_now()
         self.db.execute(
             """
             UPDATE actions SET name=?, description=?, category=?, tags=?, icon=?,
@@ -257,9 +258,10 @@ class ActionStore:
             is_composite=row[10],
             author=row[11],
             use_count=row[12],
-            last_used_at=row[13],
-            created_at=row[14],
-            updated_at=row[15],
+            # naive stored value IS UTC (#4347)
+            last_used_at=ensure_utc(row[13]),
+            created_at=ensure_utc(row[14]),
+            updated_at=ensure_utc(row[15]),
         )
 
     def get(self, action_id: str) -> Optional[Action]:
@@ -359,7 +361,7 @@ class ActionStore:
         """Record action usage."""
         self.db.execute(
             "UPDATE actions SET use_count = use_count + 1, last_used_at = ? WHERE id = ?",
-            [datetime.now(), action_id],
+            [utc_now(), action_id],
         )
 
     def export_action(self, action_id: str) -> str:
@@ -377,8 +379,8 @@ class ActionStore:
         data["is_builtin"] = False
         data["use_count"] = 0
         data["last_used_at"] = None
-        data["created_at"] = datetime.now()
-        data["updated_at"] = datetime.now()
+        data["created_at"] = utc_now()
+        data["updated_at"] = utc_now()
         action = Action(**data)
         self.save(action)
         return action

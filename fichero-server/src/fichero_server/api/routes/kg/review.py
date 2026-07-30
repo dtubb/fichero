@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -294,7 +295,7 @@ async def accept_pair(
                 if eid not in seen:
                     seen.append(eid)
             claim.entity_ids = seen
-            claim.updated_at = datetime.now()
+            claim.updated_at = utc_now()
             db.save(claim)
             claims_touched += 1
 
@@ -304,13 +305,13 @@ async def accept_pair(
     for alias in (candidate.aliases or []):
         merged_aliases.add(alias)
     survivor.aliases = sorted(merged_aliases - {survivor.canonical_name})
-    survivor.updated_at = datetime.now()
+    survivor.updated_at = utc_now()
     db.save(survivor)
 
     # 3. Soft-delete the candidate by pointing merged_into_id at survivor.
     #    Keeps the row around for undo + audit.
     candidate.merged_into_id = survivor.id
-    candidate.updated_at = datetime.now()
+    candidate.updated_at = utc_now()
     db.save(candidate)
 
     # 4. Drop the candidate's vector + refresh the survivor's.
@@ -341,7 +342,7 @@ async def accept_pair(
 
     # 6. Close the review row.
     pair.state = PendingMatchState.accepted
-    pair.decided_at = datetime.now()
+    pair.decided_at = utc_now()
     pair.decided_by = "human"
     db.save(pair)
 
@@ -385,7 +386,7 @@ async def reject_pair(
             detail=f"Pair already {pair.state.value} — cannot re-decide",
         )
     pair.state = PendingMatchState.rejected
-    pair.decided_at = datetime.now()
+    pair.decided_at = utc_now()
     pair.decided_by = "human"
     db.save(pair)
 

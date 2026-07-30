@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 import re
 
@@ -301,7 +302,7 @@ def _patch_reference_impl(
     before = existing.model_dump(mode="json")
     updates = request.model_dump(exclude_unset=True)
     payload = existing.model_dump()
-    payload["updated_at"] = datetime.now()
+    payload["updated_at"] = utc_now()
 
     if "bibtex" in updates and updates["bibtex"]:
         bibtex = updates.pop("bibtex")

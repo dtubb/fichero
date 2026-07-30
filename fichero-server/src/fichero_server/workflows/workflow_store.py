@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any
 
@@ -82,7 +82,7 @@ class WorkflowStore:
             raise PermissionError(
                 "Default workflows are read-only; duplicate to edit."
             )
-        workflow.updated_at = datetime.now()
+        workflow.updated_at = utc_now()
         self.db.save(workflow)
         if self.db.get(Workflow, workflow.id) is None:
             raise RuntimeError(f"Workflow save did not persist row: {workflow.id}")

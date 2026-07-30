@@ -7,7 +7,7 @@ Thumbnail and file serving endpoints.
 import asyncio
 import logging
 import os
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from urllib.parse import quote
 
@@ -66,7 +66,7 @@ def _record_snapshot_audit(
         target_ids=[library_path],
         params=params,
         after=after,
-        created_at=datetime.now(),
+        created_at=utc_now(),
     )
     get_app_db().save_action_audit(audit)
     return audit

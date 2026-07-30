@@ -1,6 +1,6 @@
 """Canvas routes."""
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 import logging
 from typing import Any
 
@@ -130,7 +130,7 @@ def _save_canvas_layout_row(
         angle=item.angle,
         z_index=item.z_index,
         style=item.style if "style" in field_set else (existing.style if existing else None),
-        updated_at=datetime.now(),
+        updated_at=utc_now(),
     )
     db.save(row)
     return row
@@ -492,7 +492,7 @@ class CanvasItemUpdateRequest(BaseModel):
 def create_canvas_item_impl(
     db: Database, folder_id: str, req: CanvasItemCreateRequest
 ) -> CanvasItem:
-    now = datetime.now()
+    now = utc_now()
     item = CanvasItem(
         folder_id=folder_id,
         kind=req.kind,
@@ -516,7 +516,7 @@ def update_canvas_item_impl(
     before = item.model_dump(mode="json")
     for name, value in req.model_dump(exclude_unset=True).items():
         setattr(item, name, value)
-    item.updated_at = datetime.now()
+    item.updated_at = utc_now()
     db.save(item)
     return before, item
 
@@ -752,7 +752,7 @@ def _action_restore_canvas_item(
     existing = db.get(CanvasItem, item_id) if item_id else None
     before = existing.model_dump(mode="json") if existing else None
     item = CanvasItem.model_validate(params.snapshot)
-    item.updated_at = datetime.now()
+    item.updated_at = utc_now()
     db.save(item)
     after = item.model_dump(mode="json")
     spec = ChangeSpec(

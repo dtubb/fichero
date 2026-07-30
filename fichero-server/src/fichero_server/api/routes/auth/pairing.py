@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from fichero_server.core.timeutil import utc_now
 import logging
 import os
 import secrets
@@ -373,7 +374,7 @@ def _record_device_audit(
         params=params,
         before=before,
         after=after,
-        created_at=datetime.now(),
+        created_at=utc_now(),
     )
     get_app_db().save_action_audit(audit)
     return audit
@@ -387,7 +388,7 @@ def create_pairing_code(
     """Mint a short-lived one-time pairing code for the authenticated caller."""
     _require_secure_pairing_transport(request)
     user = _pairing_user(request, app_db)
-    now = datetime.now()
+    now = utc_now()
     _prune_pairing_codes(now)
     code = _new_pairing_code()
     expires_at = now + PAIRING_CODE_TTL
@@ -418,7 +419,7 @@ def pair_device(
 ) -> PairResponse:
     """Exchange a valid one-time pairing code for a device token."""
     _require_secure_pairing_transport(request)
-    now = datetime.now()
+    now = utc_now()
     _prune_pairing_codes(now)
     _check_pair_rate_limit(request, now, record_attempt=False)
 
@@ -463,7 +464,7 @@ def enroll_device(
 ) -> PairResponse:
     """Exchange one owner's synced enrollment secret for a new device token."""
     _require_secure_pairing_transport(request)
-    now = datetime.now()
+    now = utc_now()
     _check_pair_rate_limit(request, now, record_attempt=False)
 
     try:
@@ -519,7 +520,7 @@ def renew_device_token(
     app_db: AppDatabase = Depends(get_app_database),
 ) -> PairResponse:
     """Rotate one valid paired-device token and extend its expiry."""
-    now = datetime.now()
+    now = utc_now()
     _check_pair_renew_rate_limit(request, now)
     current = _current_paired_device(request)
     raw_token = accounts.new_session_token()

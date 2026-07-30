@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
@@ -268,7 +269,7 @@ async def get_activity_stats(
     """
     tracker = get_activity_tracker(str(db.path))
 
-    until = datetime.now()
+    until = utc_now()
     since = until - timedelta(hours=hours)
 
     stats = await tracker.get_stats(since=since, until=until)
@@ -455,7 +456,7 @@ def _action_cleanup_old_activities(
     ctx: ActionContext,
 ) -> tuple[dict[str, Any], ChangeSpec]:
     tracker = get_activity_tracker(str(db.path))
-    older_than = datetime.now() - timedelta(days=params.days)
+    older_than = utc_now() - timedelta(days=params.days)
     deleted = tracker.store.delete_old_sync(older_than)
     result = {"deleted": deleted, "older_than": older_than.isoformat()}
     spec = ChangeSpec(
@@ -515,7 +516,7 @@ async def get_activity_metrics_summary(
     """
     tracker = get_activity_tracker(str(db.path))
 
-    until = datetime.now()
+    until = utc_now()
     since = until - timedelta(hours=hours)
 
     # Get basic stats
@@ -533,7 +534,10 @@ async def get_activity_metrics_summary(
     batch_count = 0
 
     for act in activities:
-        # Hour distribution
+        # Hour distribution, in UTC. Timestamps are aware UTC as of #4347, so
+        # `busiest_hour` below is a UTC hour-of-day — before the sweep it was
+        # accidentally the *server's* local hour, which was never the viewer's
+        # either. A client that wants a local hour converts the UTC one.
         hour = act.timestamp.hour
         hour_counts[hour] = hour_counts.get(hour, 0) + 1
 

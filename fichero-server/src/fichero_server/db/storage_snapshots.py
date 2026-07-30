@@ -15,11 +15,12 @@ import logging
 import os
 import shutil
 from datetime import datetime, timedelta
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 
 from fichero_server.db.library_paths import nfc_path
 from fichero_server.security.path_security import resolve_snapshot_record_path
@@ -176,7 +177,7 @@ def snapshot_library(
     library_name = nfc_path(library_path_p.stem)  # "MyLibrary" from "MyLibrary.fichero"
     snapshot_id = str(uuid4())
 
-    created_at = datetime.now()
+    created_at = utc_now()
 
     # Snapshot directory: snapshots/{library_name}/{snapshot_id}/
     snapshot_root = settings.snapshots_dir / library_name / snapshot_id
@@ -201,7 +202,7 @@ def snapshot_library(
             shutil.copy2(db_path, duckdb_copy_path)
             duckdb_size = duckdb_copy_path.stat().st_size
 
-            export_conn = duckdb.connect(str(db_path), read_only=True)
+            export_conn = connect_utc(str(db_path), read_only=True)
             # Get list of tables
             tables = export_conn.execute("SHOW TABLES").fetchall()
             for (table_name,) in tables:
@@ -261,7 +262,7 @@ def snapshot_library(
     # Build snapshot record
     expires_at = None
     if auto_expire_days is not None:
-        expires_at = datetime.now() + timedelta(days=auto_expire_days)
+        expires_at = utc_now() + timedelta(days=auto_expire_days)
 
     snapshot = LibrarySnapshot(
         id=snapshot_id,
@@ -363,7 +364,7 @@ def list_snapshots(
         snapshots = [s for s in snapshots if s.library_name == library_name]
 
     if not include_expired:
-        now = datetime.now()
+        now = utc_now()
         snapshots = [s for s in snapshots if s.expires_at is None or s.expires_at > now]
 
     snapshots.sort(key=lambda s: s.created_at, reverse=True)
@@ -415,7 +416,7 @@ def restore_snapshot(snapshot_id: str) -> dict:
     except ValueError as exc:
         raise FileNotFoundError(str(exc)) from exc
     db_src = db_src_dir / "fichero.duckdb" if db_src_dir.is_dir() else db_src_dir
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = utc_now().strftime("%Y%m%d_%H%M%S")
 
     current_db_path = lib_path / "fichero.duckdb"
     restored_db_path = current_db_path if db_src.exists() else None
@@ -655,7 +656,7 @@ def _enforce_retention(
     """
     snapshots = _load_all_snapshot_records()
     snapshots = [s for s in snapshots if s.library_name == library_name]
-    now = datetime.now()
+    now = utc_now()
 
     deleted = 0
     for s in snapshots:
@@ -724,7 +725,7 @@ def run_due_scheduled_snapshots(
     now: datetime | None = None,
 ) -> list["LibrarySnapshot"]:
     """Create any periodic snapshots that are currently due."""
-    current_time = now or datetime.now()
+    current_time = now or utc_now()
     created: list["LibrarySnapshot"] = []
 
     for library in _list_scheduled_libraries():

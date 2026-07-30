@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, TYPE_CHECKING
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 
 from pydantic import BaseModel, Field
@@ -95,7 +95,7 @@ class ModelResult:
     fallback_provider: str | None = None
     fallback_model: str | None = None
     raw_response: Any | None = None
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = field(default_factory=lambda: utc_now().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -129,7 +129,7 @@ class ComparisonResult:
     total_cost_usd: float = 0.0
     total_latency_ms: float = 0.0
     comparison_id: str = ""
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = field(default_factory=lambda: utc_now().isoformat())
 
     def to_dict(self) -> dict[str, Any]:
         return {

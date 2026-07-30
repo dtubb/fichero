@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 from datetime import datetime
+from fichero_server.core.timeutil import ensure_utc, utc_now
 import hashlib
 import hmac
 import json
@@ -70,7 +71,13 @@ def _canonical_hash_bytes(audit: ActionAudit) -> bytes:
 
 def _canonical_json_value(value: Any) -> Any:
     if isinstance(value, datetime):
-        return value.isoformat()
+        # Offset-STRIPPED UTC, deliberately (#4347). Rows written before the
+        # timezone sweep were hashed from a naive datetime; rows written after it
+        # carry ``+00:00``. Canonicalizing to the naive UTC wall clock makes both
+        # hash to the same bytes, so the sweep does not retroactively mark every
+        # historical audit row as tampered. ``ensure_utc`` first, so an aware
+        # non-UTC value is converted rather than merely truncated.
+        return ensure_utc(value).replace(tzinfo=None).isoformat()
     if isinstance(value, dict):
         return {str(k): _canonical_json_value(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -213,7 +220,7 @@ def _store_chain_anchor(db, *, chain_count: int, head_row_hash: str | None) -> d
         "chain_count": chain_count,
         "head_row_hash": head_row_hash,
         "hash_mode": _AUDIT_CHAIN_HASH_MODE,
-        "updated_at": datetime.now().isoformat(),
+        "updated_at": utc_now().isoformat(),
     }
     path = _anchor_file_path(db)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -255,7 +262,7 @@ def save_chained_audit(db, audit: ActionAudit) -> None:
     # One ordered load (also backfills legacy rows) gives both the max chain_seq
     # and the current head — no raw SQL needed (#1876).
     rows = _audit_rows_in_chain_order(db)
-    audit.created_at = datetime.now()
+    audit.created_at = utc_now()
     head = rows[-1] if rows else None
     audit.chain_seq = (head.chain_seq or 0) + 1 if head else 1
     audit.prev_hash = head.row_hash or None if head else None

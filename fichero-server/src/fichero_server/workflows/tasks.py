@@ -12,11 +12,11 @@ import json
 import threading
 import logging
 import uuid
-from datetime import datetime
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 
 if TYPE_CHECKING:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -77,7 +77,7 @@ class TaskQueue(TaskWorkersMixin):
         # connection. Database._lock and the locked execute() helpers do not
         # apply. Folding TaskQueue's SQL onto self.database is a separate
         # architectural call (lead review).
-        conn = duckdb.connect(self.db_path)
+        conn = connect_utc(self.db_path)
         try:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS background_tasks (
@@ -154,7 +154,7 @@ class TaskQueue(TaskWorkersMixin):
         """Load pending and running tasks from database."""
 
         def _load():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 results = conn.execute("""
                     SELECT * FROM background_tasks
@@ -191,7 +191,7 @@ class TaskQueue(TaskWorkersMixin):
             current=row[7] or 0,
             total=row[8] or 0,
             message=row[9] or "",
-            updated_at=row[10] or datetime.now(),
+            updated_at=ensure_utc(row[10]) or utc_now(),
         )
         if progress.total > 0:
             progress.percent = (progress.current / progress.total) * 100
@@ -219,9 +219,10 @@ class TaskQueue(TaskWorkersMixin):
             ),
             progress=progress,
             result=result,
-            created_at=row[15],
-            started_at=row[16],
-            completed_at=row[17],
+            # naive stored value IS UTC (#4347)
+            created_at=ensure_utc(row[15]),
+            started_at=ensure_utc(row[16]),
+            completed_at=ensure_utc(row[17]),
             error_message=row[18],
         )
 
@@ -235,7 +236,7 @@ class TaskQueue(TaskWorkersMixin):
     ) -> BackgroundTask:
         """Create a new background task."""
         task_id = str(uuid.uuid4())
-        now = datetime.now()
+        now = utc_now()
 
         task = BackgroundTask(
             task_id=task_id,
@@ -293,7 +294,7 @@ class TaskQueue(TaskWorkersMixin):
 
         def _save():
             with self._db_lock:
-                conn = duckdb.connect(self.db_path)
+                conn = connect_utc(self.db_path)
                 try:
                     conn.execute(
                         """
@@ -376,7 +377,7 @@ class TaskQueue(TaskWorkersMixin):
             self._executing.add(task.task_id)
             if task.status == TaskStatus.PENDING:
                 task.status = TaskStatus.RUNNING
-                task.started_at = datetime.now()
+                task.started_at = utc_now()
             return True
 
     async def _execute_task(self, task_id: str) -> None:
@@ -389,7 +390,7 @@ class TaskQueue(TaskWorkersMixin):
                 return
 
             task.status = TaskStatus.RUNNING
-            task.started_at = datetime.now()
+            task.started_at = utc_now()
             self._executing.add(task_id)
             await self._save_task(task)
 
@@ -427,7 +428,7 @@ class TaskQueue(TaskWorkersMixin):
             )
 
         finally:
-            task.completed_at = datetime.now()
+            task.completed_at = utc_now()
             self._executing.discard(task_id)
             await self._save_task(task)
             terminal_type = (
@@ -448,7 +449,7 @@ class TaskQueue(TaskWorkersMixin):
             return self._tasks[task_id]
 
         def _load():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 result = conn.execute(
                     "SELECT * FROM background_tasks WHERE task_id = ?", [task_id]
@@ -474,7 +475,7 @@ class TaskQueue(TaskWorkersMixin):
         """List tasks with optional filtering."""
 
         def _list():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 query = "SELECT * FROM background_tasks WHERE 1=1"
                 params = []
@@ -507,7 +508,7 @@ class TaskQueue(TaskWorkersMixin):
             raise ValueError(f"Cannot cancel task with status {task.status.value}")
 
         task.status = TaskStatus.CANCELLED
-        task.completed_at = datetime.now()
+        task.completed_at = utc_now()
         await self._save_task(task)
         self._emit_task_change(task, "backend.work.cancelled")
 
@@ -524,7 +525,7 @@ class TaskQueue(TaskWorkersMixin):
             raise ValueError("Cannot delete running/pending task")
 
         def _delete():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute(
                     "DELETE FROM background_tasks WHERE task_id = ?", [task_id]

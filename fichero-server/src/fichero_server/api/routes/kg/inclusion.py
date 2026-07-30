@@ -7,7 +7,7 @@ queries roll up entities/claims. Lives under ``/api/kg/inclusion``.
 
 from __future__ import annotations
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -42,7 +42,7 @@ async def upsert_inclusion(
         scope_type=request.scope_type,
         target_id=request.target_id,
     )
-    now = datetime.now()
+    now = utc_now()
     if existing:
         record = max(existing, key=lambda row: row.updated_at)
         record.included = request.included

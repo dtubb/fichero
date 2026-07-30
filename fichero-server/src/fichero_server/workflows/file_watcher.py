@@ -16,11 +16,12 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 from watchdog.observers import Observer
 from watchdog.events import (
     FileSystemEventHandler,
@@ -91,8 +92,8 @@ class FileTrigger:
     inputs_template: dict[str, Any] = field(
         default_factory=dict
     )  # Template with {file_path} placeholder
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
     last_triggered_at: Optional[datetime] = None
     trigger_count: int = 0
     error_message: Optional[str] = None
@@ -170,7 +171,7 @@ class FileWatchHandler(FileSystemEventHandler):
                     return False
 
         # Debounce
-        now = datetime.now()
+        now = utc_now()
         key = f"{event_type}:{path}"
         if key in self._last_events:
             elapsed = (now - self._last_events[key]).total_seconds()
@@ -248,7 +249,7 @@ class FileWatcherManager:
 
     def _init_database(self) -> None:
         """Initialize database tables for trigger tracking."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_utc(self.db_path)
         try:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS file_triggers (
@@ -320,7 +321,7 @@ class FileWatcherManager:
         """Load active triggers from database and set up watchers."""
 
         def _load():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 results = conn.execute("""
                     SELECT * FROM file_triggers WHERE status = 'active'
@@ -362,9 +363,10 @@ class FileWatcherManager:
             status=TriggerStatus(row[13]),
             use_batch=row[14] if row[14] is not None else True,
             max_concurrent=row[15] or 5,
-            created_at=row[16],
-            updated_at=row[17],
-            last_triggered_at=row[18],
+            # naive stored value IS UTC (#4347)
+            created_at=ensure_utc(row[16]),
+            updated_at=ensure_utc(row[17]),
+            last_triggered_at=ensure_utc(row[18]),
             trigger_count=row[19] or 0,
             error_message=row[20],
         )
@@ -439,7 +441,7 @@ class FileWatcherManager:
         execution = TriggerExecution(
             execution_id=str(uuid.uuid4()),
             trigger_id=trigger_id,
-            triggered_at=datetime.now(),
+            triggered_at=utc_now(),
             file_paths=file_paths,
         )
         await self._save_execution(execution)
@@ -471,14 +473,14 @@ class FileWatcherManager:
             # Update trigger stats
             trigger.last_triggered_at = execution.triggered_at
             trigger.trigger_count += len(file_paths)
-            trigger.updated_at = datetime.now()
+            trigger.updated_at = utc_now()
             await self._save_trigger(trigger)
 
         except Exception as e:
             logger.exception(f"Trigger {trigger_id} execution failed: {e}")
             execution.status = "failed"
             execution.error = str(e)
-            execution.completed_at = datetime.now()
+            execution.completed_at = utc_now()
             await self._save_execution(execution)
 
             trigger.error_message = str(e)
@@ -519,14 +521,14 @@ class FileWatcherManager:
                 logger.debug(f"Batch {batch_id} event: {event.event_type}")
 
             execution.status = "completed"
-            execution.completed_at = datetime.now()
+            execution.completed_at = utc_now()
             await self._save_execution(execution)
 
         except Exception as e:
             logger.exception(f"Batch {batch_id} failed: {e}")
             execution.status = "failed"
             execution.error = str(e)
-            execution.completed_at = datetime.now()
+            execution.completed_at = utc_now()
             await self._save_execution(execution)
 
     async def _execute_single(
@@ -548,14 +550,14 @@ class FileWatcherManager:
                 await execute_workflow(workflow=workflow, inputs=inputs)
 
             execution.status = "completed"
-            execution.completed_at = datetime.now()
+            execution.completed_at = utc_now()
             await self._save_execution(execution)
 
         except Exception as e:
             logger.exception(f"Single execution failed: {e}")
             execution.status = "failed"
             execution.error = str(e)
-            execution.completed_at = datetime.now()
+            execution.completed_at = utc_now()
             await self._save_execution(execution)
 
     async def create_trigger(
@@ -591,7 +593,7 @@ class FileWatcherManager:
             raise ValueError(f"Watch path does not exist: {watch_path}")
 
         trigger_id = str(uuid.uuid4())
-        now = datetime.now()
+        now = utc_now()
 
         trigger = FileTrigger(
             trigger_id=trigger_id,
@@ -622,7 +624,7 @@ class FileWatcherManager:
 
         def _save():
 
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 events = [e.value for e in trigger.config.events]
                 conn.execute(
@@ -670,7 +672,7 @@ class FileWatcherManager:
 
         def _save():
 
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute(
                     """
@@ -701,7 +703,7 @@ class FileWatcherManager:
             return self._triggers[trigger_id]
 
         def _load():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 result = conn.execute(
                     "SELECT * FROM file_triggers WHERE trigger_id = ?", [trigger_id]
@@ -727,7 +729,7 @@ class FileWatcherManager:
         """List triggers with optional filtering."""
 
         def _list():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 query = "SELECT * FROM file_triggers WHERE 1=1"
                 params = []
@@ -765,7 +767,7 @@ class FileWatcherManager:
             del self._handlers[trigger_id]
 
         trigger.status = TriggerStatus.PAUSED
-        trigger.updated_at = datetime.now()
+        trigger.updated_at = utc_now()
         await self._save_trigger(trigger)
 
         logger.info(f"Paused file trigger {trigger_id}")
@@ -784,7 +786,7 @@ class FileWatcherManager:
         self._setup_watcher(trigger)
 
         trigger.status = TriggerStatus.ACTIVE
-        trigger.updated_at = datetime.now()
+        trigger.updated_at = utc_now()
         await self._save_trigger(trigger)
 
         logger.info(f"Resumed file trigger {trigger_id}")
@@ -859,7 +861,7 @@ class FileWatcherManager:
 
         # Remove from database
         def _delete():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute(
                     "DELETE FROM trigger_executions WHERE trigger_id = ?", [trigger_id]
@@ -886,7 +888,7 @@ class FileWatcherManager:
         """Get execution history for a trigger."""
 
         def _get_executions():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 results = conn.execute(
                     """
@@ -908,12 +910,12 @@ class FileWatcherManager:
             TriggerExecution(
                 execution_id=row[0],
                 trigger_id=row[1],
-                triggered_at=row[2],
+                triggered_at=ensure_utc(row[2]),
                 file_paths=json.loads(row[3]) if row[3] else [],
                 batch_id=row[4],
                 status=row[5],
                 error=row[6],
-                completed_at=row[7],
+                completed_at=ensure_utc(row[7]),
             )
             for row in rows
         ]

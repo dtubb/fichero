@@ -17,11 +17,12 @@ import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from enum import Enum
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
-import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 
 # NOTE: fichero_server.workflows.runtime is imported at CALL time, not here (#3950).
 # It pulls builder -> langgraph -> the whole tool universe (~700 modules,
@@ -187,7 +188,7 @@ class BatchEvent:
     item_index: Optional[int] = None
     progress: Optional[BatchProgress] = None
     error: Optional[str] = None
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=utc_now)
 
 
 class BatchManager:
@@ -219,7 +220,7 @@ class BatchManager:
 
     def _init_database(self) -> None:
         """Initialize database tables for batch tracking."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_utc(self.db_path)
         try:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS batches (
@@ -284,7 +285,7 @@ class BatchManager:
             BatchExecution object
         """
         batch_id = str(uuid.uuid4())
-        now = datetime.now()
+        now = utc_now()
 
         # Create batch items with unique thread IDs
         items = [
@@ -323,7 +324,7 @@ class BatchManager:
 
         def _save():
             with duckdb_connection_lock(self.db_path):
-                conn = duckdb.connect(self.db_path)
+                conn = connect_utc(self.db_path)
                 try:
                     # Save batch
                     conn.execute(
@@ -383,7 +384,7 @@ class BatchManager:
         """Load batch from database."""
 
         def _load():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 # Load batch
                 result = conn.execute(
@@ -426,8 +427,8 @@ class BatchManager:
                         inputs=json.loads(row[2]) if row[2] else {},
                         status=BatchItemStatus(row[3]),
                         error=row[4],
-                        started_at=row[5],
-                        completed_at=row[6],
+                        started_at=ensure_utc(row[5]),
+                        completed_at=ensure_utc(row[6]),
                     )
                     for row in items_result
                 ]
@@ -460,7 +461,7 @@ class BatchManager:
         """List batches with optional filtering."""
 
         def _list():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 if status:
                     result = conn.execute(
@@ -995,7 +996,7 @@ class BatchManager:
         """Delete a batch and its items."""
 
         def _delete():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute("DELETE FROM batch_items WHERE batch_id = ?", [batch_id])
                 conn.execute(

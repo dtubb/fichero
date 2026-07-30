@@ -7,7 +7,7 @@ Semantic search using LanceDB vector embeddings.
 import asyncio
 import logging
 from dataclasses import asdict
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fichero_server.retrieval.query_compiler import (
     CompiledQuery,
@@ -177,7 +177,7 @@ def _artifact_snippet(body: str, query: str, radius: int = 80) -> str:
 def _safe_isoformat(value) -> str:
     """Return ISO string when value behaves like datetime, else now."""
     return (
-        value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+        value.isoformat() if hasattr(value, "isoformat") else utc_now().isoformat()
     )
 
 
@@ -1533,7 +1533,7 @@ def update_saved_search_impl(
     if request.folder_path is not None:
         saved.folder_path = request.folder_path
 
-    saved.updated_at = datetime.now()
+    saved.updated_at = utc_now()
     db.save(saved)
     return saved
 

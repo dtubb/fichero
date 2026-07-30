@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -113,7 +113,9 @@ class TestLibraryRegistryCRUD:
         db.save(lib)
 
         old_accessed = lib.last_accessed
-        lib.last_accessed = datetime.now() + timedelta(hours=1)
+        # Aware UTC (#4347): a naive local write is read back as UTC, which on a
+        # negative-offset machine lands BEFORE the aware default it must beat.
+        lib.last_accessed = datetime.now(timezone.utc) + timedelta(hours=1)
         db.save(lib)
 
         retrieved = db.get(KnownLibrary, lib.id)

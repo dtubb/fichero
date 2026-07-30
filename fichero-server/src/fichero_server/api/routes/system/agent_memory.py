@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
@@ -118,7 +118,7 @@ def patch_agent_note_impl(
         updates["actor"] = AgentNoteActor.model_validate(updates["actor"])
     for field, value in updates.items():
         setattr(note, field, value)
-    note.updated_at = datetime.now()
+    note.updated_at = utc_now()
     db.save(note)
     return note, before
 

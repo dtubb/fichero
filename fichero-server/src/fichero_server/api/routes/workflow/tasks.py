@@ -8,7 +8,8 @@ Provides REST endpoints for:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
+from fichero_server.core.timeutil import utc_now
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -728,7 +729,7 @@ async def get_task_system_health(
     pending_count = sum(1 for t in all_tasks if t.status == TaskStatus.PENDING)
     running_count = sum(1 for t in all_tasks if t.status == TaskStatus.RUNNING)
 
-    last_24h = datetime.now() - timedelta(hours=24)
+    last_24h = utc_now() - timedelta(hours=24)
     recent_tasks = [t for t in all_tasks if t.created_at > last_24h]
     completed_count = sum(1 for t in recent_tasks if t.status == TaskStatus.COMPLETED)
     failed_count = sum(1 for t in recent_tasks if t.status == TaskStatus.FAILED)
