@@ -25,7 +25,13 @@ import json
 from pathlib import Path
 
 PRESET_DIR = Path(__file__).resolve().parent.parent / "resources" / "default_workflows"
-MANIFEST_PATH = PRESET_DIR / "preset_version_manifest.json"
+# The manifest is METADATA about the presets, not a preset. It lives outside
+# PRESET_DIR so that directory holds exactly one kind of thing — every loader
+# that iterates presets would otherwise have to special-case this file, and one
+# that forgets fails with a confusing KeyError instead of a clear error.
+MANIFEST_PATH = (
+    Path(__file__).resolve().parent.parent / "resources" / "workflow_meta" / "preset_version_manifest.json"
+)
 
 
 def _sha256(data: bytes) -> str:

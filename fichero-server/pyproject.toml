@@ -166,6 +166,7 @@ where = ["src"]
 fichero = [
     "resources/bin/*",
     "resources/default_workflows/*.json",
+    "resources/workflow_meta/*.json",
 ]
 
 # =============================================================================
