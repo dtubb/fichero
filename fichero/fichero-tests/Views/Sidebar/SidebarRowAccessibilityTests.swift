@@ -58,23 +58,26 @@ final class SidebarRowAccessibilityTests: XCTestCase {
 
     /// #571 restoration: on expandable rows the drop highlight, drop target,
     /// and context menu must sit on the OUTER DisclosureGroup (covering the
-    /// chevron/indent strip), with a bare label so nothing is doubled.
+    /// chevron/indent strip). The drop HIGHLIGHT, by contrast, sits INSIDE the
+    /// label (#4229): on the group it painted the expanded subtree's whole
+    /// frame, reading as a mass selection.
     func testExpandableRowModifiersSitOnOuterDisclosureGroup() throws {
         let source = try appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift")
         guard let disclosureRange = source.range(of: "DisclosureGroup(isExpanded: isExpanded)") else {
             return XCTFail("expected the expandable-row DisclosureGroup")
         }
         let afterDisclosure = source[disclosureRange.upperBound...]
-        // The bare label — folderLabel/leafLabel (which carry their own copies
-        // for non-expandable rows) must not appear inside this branch's label.
-        XCTAssertTrue(afterDisclosure.contains("} label: {\n                fullWidthLabel\n            }"))
-        // And the three modifiers hang off the group itself.
-        // Prefix match, no closing paren: the call gained an `operation:`
-        // argument, and this test only cares that the highlight hangs off the
-        // outer group with the row's own targeting/folder state — not about
-        // the full argument list, which is free to grow.
+        // The label is fullWidthLabel carrying the row-scoped highlight —
+        // folderLabel/leafLabel (which carry their own copies for
+        // non-expandable rows) must not appear inside this branch's label.
         XCTAssertTrue(
-            afterDisclosure.contains(".sidebarDropHighlight(isDropTargeted, stronger: isFolder")
+            afterDisclosure.contains("} label: {\n                fullWidthLabel\n                    .sidebarDropHighlight(")
+        )
+        // And no highlight hangs off the group itself (#4229) — the group
+        // keeps only the drop target / context-menu surface (#571).
+        let labelEnd = afterDisclosure.range(of: ".sidebarDropHighlight(")!
+        XCTAssertFalse(
+            afterDisclosure[labelEnd.upperBound...].contains(".sidebarDropHighlight(isDropTargeted, stronger: isFolder")
         )
     }
 

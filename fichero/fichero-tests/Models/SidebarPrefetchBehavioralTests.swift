@@ -86,7 +86,8 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
     private func docJSON(_ id: String, parent: String?, docType: String) -> String {
         let parentJSON = parent.map { "\"\($0)\"" } ?? "null"
         return #"{"id":"\#(id)","name":"\#(id)","parent_id":\#(parentJSON),"# +
-            #""doc_type":"\#(docType)","status":"completed"}"#
+            #""doc_type":"\#(docType)","status":"completed","# +
+            #""expected_thumbnail_path":"thumbnails/\#(id).jpg"}"#
     }
 
     private func listJSON(_ docs: [String]) -> String {

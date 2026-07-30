@@ -22,7 +22,10 @@ import XCTest
 final class SidebarDropHighlightScopeTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
+        // #filePath = fichero/fichero-tests/Views/Sidebar/<this file> — four
+        // components up to the repo's fichero/ dir, then into the app target.
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("fichero")
