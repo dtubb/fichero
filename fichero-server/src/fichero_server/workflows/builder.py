@@ -19,6 +19,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from fichero_server.execution.cancellation import WorkflowCancelled
 from fichero_server.workflows.types import State, WorkflowDef, NodeDef
 from fichero_server.workflows.node_context import set_current_node
 from fichero_server.workflows.registry import get_tool, get_tool_def
@@ -795,6 +796,32 @@ def _make_node_function(
                     event_type: str,
                     data: dict[str, Any],
                 ) -> None:
+                    # #4402: the per-item cancellation boundary.
+                    #
+                    # Stop was previously honoured in only two places: the
+                    # parallel fan-out (builder, #4317) and between LangGraph
+                    # events in the runner. But most tools do NOT fan out —
+                    # they loop over documents INSIDE one node, emitting no
+                    # graph events until the whole node finishes. So a 200-page
+                    # transcribe consulted the flag exactly once, at the end,
+                    # and Stop appeared to do nothing while provider calls kept
+                    # burning.
+                    #
+                    # Every such loop already calls this callback once per item
+                    # to report progress, which makes it the one place that is
+                    # both a genuine work boundary and shared by every
+                    # per-item tool. Checking here reaches all of them without
+                    # editing thirty loops, and cannot drift out of sync with
+                    # them the way thirty separate checks would.
+                    from fichero_server.execution.cancellation import (  # noqa: PLC0415
+                        WorkflowCancelled,
+                        cancellation_requested,
+                    )
+
+                    run_id = state.get("task_id", "")
+                    if cancellation_requested(run_id):
+                        raise WorkflowCancelled(run_id)
+
                     payload = dict(data)
                     payload.setdefault("node_id", node_id)
                     await event_callback(event_type, payload)
@@ -1013,6 +1040,12 @@ def _make_node_function(
 
             return update
 
+        except WorkflowCancelled:
+            # #4402: a user pressing Stop is not a failure. Propagate
+            # untouched so the runner reports the run as CANCELLED; falling
+            # into the generic handler below would mark it 'failed' and
+            # surface the cancellation as an error.
+            raise
         except SystemicErrorDetected:
             # Hard-abort signal — must propagate, not be reduced to a dict.
             # The aggregator + node-error paths raise this when the workflow
