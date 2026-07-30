@@ -310,6 +310,12 @@ extension LibraryManager {
         }
 
         guard !Task.isCancelled else { return }
+        if FeatureManager.shared.isVisible(.modelComparison) {
+            await library.modelComparisonStore.loadHistory()
+            libraryManagerLogger.info("⏱ loadLibraryData comparisons loaded")
+        }
+
+        guard !Task.isCancelled else { return }
         try? await library.savedSearchService.loadSavedSearches()
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }

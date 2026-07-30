@@ -1065,11 +1065,14 @@ class TestResearchMutationsEmitChange:
         assert r.status_code == 200, r.text
         project = r.json()
 
-        assert len(captured) == 1
-        call = captured[0]
-        assert call["library_path"] == str(test_package)
-        assert call["type"] == "research.created"
-        assert project["id"] in call["entity_ids"]
+        # #4335: the project mirrors into the document tree (workspace node),
+        # so the mutation emits BOTH research.created and document.created —
+        # the sidebar listens on the document domain.
+        assert len(captured) == 2
+        assert [c["type"] for c in captured] == ["research.created", "document.created"]
+        for call in captured:
+            assert call["library_path"] == str(test_package)
+            assert project["id"] in call["entity_ids"]
 
     def test_patch_project_emits_updated(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
@@ -1088,10 +1091,13 @@ class TestResearchMutationsEmitChange:
         )
         assert r.status_code == 200, r.text
 
-        assert len(captured) >= 1
+        # #4335: the workspace mirror means the update pairs with a
+        # document.updated event for the same id.
+        assert len(captured) >= 2
+        assert captured[-2]["type"] == "research.updated"
         call = captured[-1]
         assert call["library_path"] == str(test_package)
-        assert call["type"] == "research.updated"
+        assert call["type"] == "document.updated"
         assert project["id"] in call["entity_ids"]
 
     def test_delete_project_emits_deleted(self, client, db, test_package, monkeypatch):
@@ -1109,10 +1115,13 @@ class TestResearchMutationsEmitChange:
         r = client.delete(f"/api/research/projects/{project['id']}")
         assert r.status_code == 200, r.text
 
-        assert len(captured) >= 1
+        # #4335: deleting the project deletes its workspace mirror node, so a
+        # document.deleted follows the research.deleted for the same id.
+        assert len(captured) >= 2
+        assert captured[-2]["type"] == "research.deleted"
         call = captured[-1]
         assert call["library_path"] == str(test_package)
-        assert call["type"] == "research.deleted"
+        assert call["type"] == "document.deleted"
         assert project["id"] in call["entity_ids"]
 
 

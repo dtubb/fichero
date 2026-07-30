@@ -190,7 +190,14 @@ extension SidebarView {
             sidebarViewLogger.info("Switching to activity view with run: \(selectedRun.id)")
             sidebarMode = .activity
             viewMode = .activity(selectedRun)
-        case .chain, .comparison, .schedule, .trigger, .batch:
+        case .comparison(let summary):
+            // #4335: a comparison history row opens the comparison detail
+            // surface — same mode `browser(.comparison)` uses for the empty
+            // state, here carrying the clicked summary.
+            sidebarViewLogger.info("Switching to comparison view: \(summary.comparisonId)")
+            sidebarMode = .chat
+            viewMode = .comparison(summary)
+        case .chain, .schedule, .trigger, .batch:
             // These item types are handled by their specialized sidebar modes
             sidebarViewLogger.info("Item type \(item.category.rawValue) clicked - detail views handled by mode sidebar")
         case .folder:
