@@ -7,6 +7,7 @@ from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from typing import Any
 
+from fichero_server.api.auth import request_actor
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
@@ -85,6 +86,7 @@ class UndoResponse(BaseModel):
 async def undo_mutation(
     mutation_id: str,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> UndoResponse:
     log = db.get(MutationLog, mutation_id)
     if log is None:
@@ -138,6 +140,10 @@ async def undo_mutation(
         before_state=log.after_state,
         after_state=log.before_state,
         reversal_id=log.id,
+        # #4415: an undo is itself an edit, and whoever performed it must be
+        # named — a reversal recorded as an anonymous 'human' is exactly the
+        # attribution hole this closes.
+        created_by=actor,
     )
     db.save(reversal)
 

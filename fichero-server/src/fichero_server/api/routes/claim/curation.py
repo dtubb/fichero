@@ -258,7 +258,14 @@ def _log_claim_curation_mutation(
     db: Database,
     claim: KnowledgeClaim,
     before_state: dict[str, Any],
+    actor: str,
 ) -> None:
+        # #4415: the actor is REQUIRED, never defaulted. `created_by`
+        # defaults to "human", so a site that omits it records a human
+        # edit whoever made it — and the incremental runner treats a
+        # mutation-log entry as "a person curated this, do not
+        # regenerate". A wrong actor there does not mislead a reader, it
+        # decides whether the user's work is overwritten.
     db.save(
         MutationLog(
             entity_type="KnowledgeClaim",
@@ -267,6 +274,7 @@ def _log_claim_curation_mutation(
             before_state=before_state,
             after_state=claim.model_dump(mode="json"),
             changed_fields=["curation_state"],
+            created_by=actor,
         )
     )
 
@@ -678,7 +686,7 @@ def batch_transition_claims_impl(
 
 
 def batch_set_claim_curation_state_impl(
-    db: Database, request: "BatchClaimCurationRequest"
+    db: Database, request: "BatchClaimCurationRequest", actor: str
 ) -> tuple[BatchClaimCurationResponse, list[str]]:
     """Batch-set claim curation_state (404 if any id is unknown).
 
@@ -701,7 +709,9 @@ def batch_set_claim_curation_state_impl(
         claim.curation_state = request.curation_state
         claim.updated_at = now
         db.save(claim)
-        _log_claim_curation_mutation(db=db, claim=claim, before_state=before_state)
+        _log_claim_curation_mutation(
+            db=db, claim=claim, before_state=before_state, actor=actor
+        )
         updated_ids.append(claim.id)
 
     logger.info(
@@ -847,7 +857,7 @@ def unmerge_claims_impl(
 
 
 def prune_trivial_claims_impl(
-    db: Database, request: "PruneTrivialClaimsRequest"
+    db: Database, request: "PruneTrivialClaimsRequest", actor: str
 ) -> PruneTrivialClaimsResponse:
     """Suppress trivially-true (is-a copula) claims in scope. Returns the report."""
     scope_type, scoped_doc_ids = _scope_doc_ids(db, request)
@@ -873,7 +883,9 @@ def prune_trivial_claims_impl(
         claim.confidence = next_confidence
         claim.updated_at = now
         db.save(claim)
-        _log_claim_curation_mutation(db=db, claim=claim, before_state=before_state)
+        _log_claim_curation_mutation(
+            db=db, claim=claim, before_state=before_state, actor=actor
+        )
         suppressed_ids.append(claim.id)
 
     rules_written = 0
@@ -1374,7 +1386,7 @@ def _action_batch_transition(
 def _action_batch_curation(
     db: Database, params: BatchClaimCurationRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    response, updated_ids = batch_set_claim_curation_state_impl(db, params)
+    response, updated_ids = batch_set_claim_curation_state_impl(db, params, ctx.actor)
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=updated_ids,
@@ -1449,7 +1461,7 @@ def _action_unmerge_claims(
 def _action_prune_trivial(
     db: Database, params: PruneTrivialClaimsRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    response = prune_trivial_claims_impl(db, params)
+    response = prune_trivial_claims_impl(db, params, ctx.actor)
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=response.suppressed_claim_ids,

@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.auth import request_actor
 from fichero_server.api.routes.auth.accounts import _require_authenticated_or_bootstrap
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -202,6 +203,43 @@ def _validate_source_type(source_type: str) -> SourceType:
 # =============================================================================
 
 
+def _log_mcp_entity_mutation(
+    *,
+    db: Database,
+    entity: KnowledgeEntity,
+    before_state: dict,
+    actor: str,
+) -> None:
+    """Record an agent's entity edit so it is protected like a person's (#4415).
+
+    Best-effort: an audit-write failure must not fail the edit the agent asked
+    for. It IS logged loudly, because a missing record here silently downgrades
+    curated work to disposable.
+    """
+    from fichero_server.models.knowledge import MutationLog, MutationOperationType
+
+    try:
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity.id,
+                operation=MutationOperationType.update,
+                before_state=before_state,
+                after_state=entity.model_dump(mode="json"),
+                created_by=actor,
+            )
+        )
+    except Exception as exc:
+        logger.error(
+            "MCP entity %s edited by %s but the mutation log FAILED (%s) — this "
+            "edit is now invisible to the curated-check and may be overwritten "
+            "by a re-run (#4415)",
+            entity.id,
+            actor,
+            exc,
+        )
+
+
 @router.post(
     "/knowledge/entities/upsert",
     response_model=KnowledgeEntityUpsertResponse,
@@ -212,6 +250,7 @@ def _validate_source_type(source_type: str) -> SourceType:
 async def mcp_knowledge_entity_upsert(
     request: KnowledgeEntityUpsertRequest,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeEntityUpsertResponse:
     """MCP tool endpoint: Upsert knowledge entity.
 
@@ -224,6 +263,16 @@ async def mcp_knowledge_entity_upsert(
     if request.id:
         existing = db.get(KnowledgeEntity, request.id)
         if existing:
+            # #4415: capture BEFORE, so the edit is auditable and — critically
+            # — visible to the curated-check that decides whether an
+            # incremental re-run may overwrite this row.
+            #
+            # An agent is a user account making audited edits, and that
+            # principle only holds if the audit record exists. Without this,
+            # an agent renaming an entity or fixing its aliases left NO trace:
+            # the row's `created_by` names the CREATOR, not the editor, so the
+            # edit looked generated and a re-run would regenerate over it.
+            before_state = existing.model_dump(mode="json")
             existing.canonical_name = request.canonical_name
             existing.entity_type = entity_type
             existing.aliases = request.aliases
@@ -234,7 +283,10 @@ async def mcp_knowledge_entity_upsert(
                 existing.metadata = request.metadata
 
             db.save(existing)
-            logger.info("MCP: Updated entity %s", request.id)
+            _log_mcp_entity_mutation(
+                db=db, entity=existing, before_state=before_state, actor=actor
+            )
+            logger.info("MCP: Updated entity %s by %s", request.id, actor)
             return KnowledgeEntityUpsertResponse(
                 success=True,
                 entity_id=existing.id,

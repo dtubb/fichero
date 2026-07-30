@@ -300,7 +300,14 @@ def _log_entity_curation_mutation(
     db: Database,
     entity: KnowledgeEntity,
     before_state: dict[str, Any],
+    actor: str,
 ) -> None:
+        # #4415: the actor is REQUIRED, never defaulted. `created_by`
+        # defaults to "human", so a site that omits it records a human
+        # edit whoever made it — and the incremental runner treats a
+        # mutation-log entry as "a person curated this, do not
+        # regenerate". A wrong actor there does not mislead a reader, it
+        # decides whether the user's work is overwritten.
     db.save(
         MutationLog(
             entity_type="KnowledgeEntity",
@@ -309,6 +316,7 @@ def _log_entity_curation_mutation(
             before_state=before_state,
             after_state=entity.model_dump(mode="json"),
             changed_fields=["curation_state"],
+            created_by=actor,
         )
     )
 
@@ -430,6 +438,7 @@ async def merge_entities(
 async def batch_set_entity_curation_state(
     request: BatchEntityCurationRequest,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> BatchEntityCurationResponse:
     entities: list[KnowledgeEntity] = []
     for entity_id in request.entity_ids:
@@ -449,7 +458,9 @@ async def batch_set_entity_curation_state(
         entity.curation_state = request.curation_state
         entity.updated_at = now
         db.save(entity)
-        _log_entity_curation_mutation(db=db, entity=entity, before_state=before_state)
+        _log_entity_curation_mutation(
+            db=db, entity=entity, before_state=before_state, actor=actor
+        )
         updated_ids.append(entity.id)
 
     return BatchEntityCurationResponse(updated=len(updated_ids), entity_ids=updated_ids)

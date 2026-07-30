@@ -499,7 +499,7 @@ def patch_claim_impl(
 
 
 def delete_claim_impl(
-    db: Database, claim_id: str
+    db: Database, claim_id: str, actor: str
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
     """Hard-delete a claim + its orphaning links.
 
@@ -523,6 +523,8 @@ def delete_claim_impl(
                 operation=MutationOperationType.delete,
                 before_state={**before_state, "deleted_claim_links": deleted_links},
                 after_state=None,
+                # #4415: name the actor; never let it default.
+                created_by=actor,
             )
         )
     except Exception as exc:
@@ -1155,7 +1157,7 @@ def _action_delete_claim(
     db: Database, params: ClaimDeleteParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     before_state, deleted_links, affected_entity_ids = delete_claim_impl(
-        db, params.claim_id
+        db, params.claim_id, ctx.actor
     )
     spec = ChangeSpec(
         domains=["claim"],
