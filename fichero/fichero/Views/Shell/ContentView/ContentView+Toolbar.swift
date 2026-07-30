@@ -10,10 +10,6 @@ enum ContentToolbarID {
     static let compactInspectorToggle = "fichero.inspectorToggle.compact"
     static let activityStatus = "fichero.activityStatus"
     static let viewDisplayMode = "fichero.viewDisplayMode"
-    /// The three pane toggles as ONE control (#4374). A group collapses as a
-    /// unit under overflow instead of shedding an arbitrary pane toggle into
-    /// the overflow menu, which is what a flat `.automatic` run did.
-    static let paneToggleGroup = "fichero.paneToggles"
     static let breadcrumb = "fichero.breadcrumb"
     static let statusIsland = "fichero.statusIsland"
 }
