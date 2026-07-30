@@ -202,12 +202,12 @@ extension ContentView {
     /// Human summary of a compiled query's structured filters (#4116).
     static func compiledFiltersSummary(_ compiled: Components.Schemas.CompiledQuery) -> String {
         var parts: [String] = []
-        if let from = compiled.dateFrom, let to = compiled.dateTo {
-            parts.append("\(from) – \(to)")
+        if let from = compiled.dateFrom, let until = compiled.dateTo {
+            parts.append("\(from) – \(until)")
         } else if let from = compiled.dateFrom {
             parts.append("from \(from)")
-        } else if let to = compiled.dateTo {
-            parts.append("until \(to)")
+        } else if let until = compiled.dateTo {
+            parts.append("until \(until)")
         }
         if let entities = compiled.entities, !entities.isEmpty {
             parts.append(entities.joined(separator: ", "))

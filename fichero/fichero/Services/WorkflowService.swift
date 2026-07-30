@@ -497,8 +497,8 @@ extension WorkflowService {
                 "source": AnyCodable(edge.source),
                 "target": AnyCodable(edge.target ?? "")
             ]
-            if let sp = edge.sourcePort { dict["source_port"] = AnyCodable(sp) }
-            if let tp = edge.targetPort { dict["target_port"] = AnyCodable(tp) }
+            if let sourcePort = edge.sourcePort { dict["source_port"] = AnyCodable(sourcePort) }
+            if let targetPort = edge.targetPort { dict["target_port"] = AnyCodable(targetPort) }
             if let cond = edge.condition { dict["condition"] = AnyCodable(cond) }
             if let anim = edge.animated { dict["animated"] = AnyCodable(anim) }
             return dict

@@ -61,8 +61,8 @@ enum MermaidHTML {
     }
 
     static func page(mermaidCode: String) -> String {
-        let js = mermaidJS
-        guard !js.isEmpty else {
+        let script = mermaidJS
+        guard !script.isEmpty else {
             return unavailablePage()
         }
         return """
@@ -90,7 +90,7 @@ enum MermaidHTML {
         <body>
           <div id="diagram"><pre class="mermaid">\(escape(mermaidCode))</pre></div>
           <div id="message" hidden></div>
-          <script>\(js)</script>
+          <script>\(script)</script>
           <script>
             (function () {
               var dark = window.matchMedia &&
