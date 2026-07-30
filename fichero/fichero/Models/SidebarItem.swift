@@ -201,11 +201,15 @@ struct SidebarItem: Identifiable, Hashable {
             // workflows. Otherwise prefer the file-type-specific icon (e.g.
             // "doc.richtext" for PDFs) over the generic docType icon ("doc"
             // for any .file) — makes PDFs visually distinct (#574).
+            // Workspace folders (#4308/#4335) read as workspaces, not plain
+            // folders — one typed node vocabulary in the tree.
             icon: isLockedSystemFolder
                 ? "folder.badge.gearshape"
-                : doc.isWorkflowNode
-                    ? ItemCategory.workflow.icon
-                    : (doc.fileType?.icon ?? doc.docType.icon),
+                : doc.isWorkspace
+                    ? "square.grid.2x2"
+                    : doc.isWorkflowNode
+                        ? ItemCategory.workflow.icon
+                        : (doc.fileType?.icon ?? doc.docType.icon),
             category: .folder,
             itemType: .document(doc),
             children: children,

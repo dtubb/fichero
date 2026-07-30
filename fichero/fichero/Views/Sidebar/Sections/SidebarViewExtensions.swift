@@ -50,6 +50,22 @@ func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem])
     return deletable.isEmpty ? [clicked] : deletable
 }
 
+/// #4292 — the workflow-editor destination for a workflow MIRROR doc row.
+///
+/// The engine mirrors every workflow into the document tree as a `.file` doc
+/// with `prototype_key == "workflow"` sharing the workflow's id. Selecting
+/// that row must open the workflow EDITOR, never the document preview (whose
+/// container fallback is "No Preview available"). Resolve the live store item
+/// by id; when the store hasn't loaded yet (fresh install, first click before
+/// `loadWorkflows()` lands) fall back to an id/name placeholder — the editor
+/// loads the full definition by id, so routing must not wait on the store.
+func sidebarWorkflowDestination(
+    for doc: Document,
+    workflows: [WorkflowSidebarItem]
+) -> WorkflowSidebarItem {
+    workflows.first { $0.id == doc.id } ?? WorkflowSidebarItem(id: doc.id, name: doc.name)
+}
+
 /// Whether a right-arrow keypress should hand keyboard focus to the content
 /// pane instead of being left to the List: only when a NON-expandable leaf is
 /// selected. Folder rows keep right-arrow = native expand; no selection keeps
@@ -90,11 +106,19 @@ func sidebarOpenPrefersTab(_ preference: NSWindow.UserTabbingPreference) -> Bool
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
 extension View {
-    /// Applies standard sidebar styling (minimum width only).
+    /// Applies standard sidebar styling.
     /// Note: Individual content views apply their own .listStyle(.sidebar) to their List.
+    ///
+    /// #4301: this used to force `.frame(minWidth: SidebarConstants.minimumWidth)`
+    /// (200pt) INSIDE the sidebar column. The column's real minimum is owned by
+    /// `.navigationSplitViewColumnWidth(min:)` in `ContentView+SidebarLayout`
+    /// (160pt); when the split view collapsed the column toward 0pt, the inner
+    /// frame kept laying the content out 200pt wide. The List clips itself, but
+    /// the bottom toolbar strip does not — so the bottom row stayed painted over
+    /// the content column after collapse. The column min lives in ONE place now;
+    /// `.clipped()` on the column content is the belt-and-braces guard.
     func sidebarStyle() -> some View {
         self
-            .frame(minWidth: SidebarConstants.minimumWidth)
     }
 }
 

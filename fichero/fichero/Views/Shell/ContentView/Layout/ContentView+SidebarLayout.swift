@@ -52,6 +52,11 @@ extension ContentView {
         .environment(conversationService)
         .environment(ErrorService.shared)
         .environment(performanceService)
+        // #4301: never let sidebar content paint outside its column. During
+        // collapse the column animates below the content's laid-out width; the
+        // List clips itself but the bottom toolbar strip does not, and its
+        // overflow was left painted over the content column after collapse.
+        .clipped()
         .overlay { paneFocusIndicator(for: .sidebar) }
         // Make the sidebar focusable so arrow keys navigate the List.
         // (Removing this broke arrow-key navigation — see #560.)

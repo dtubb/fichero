@@ -98,6 +98,58 @@ extension ReadingPaneView {
             .background(Color(.textBackgroundColor))
     }
 
+    /// The in-reader find bar (#4338), hosted by the pane's bottom
+    /// `PaneFilterBar`: query field, "n of m" status, previous/next match,
+    /// clear. The query and current match drive the shared WebKit surface's
+    /// CSS-highlight finder; the surface reports the match count back.
+    @ViewBuilder
+    var readerFindBar: some View {
+        Image(systemName: "magnifyingglass")
+            .foregroundStyle(.secondary)
+        TextField("Find in document", text: Binding(
+            get: { searchState.query },
+            set: { searchState.query = $0 }
+        ))
+        .textFieldStyle(.plain)
+        .onSubmit { searchState.next() }
+        .accessibilityIdentifier("readerFindField")
+
+        if !searchState.query.isEmpty {
+            Text(searchState.statusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+            Button {
+                searchState.previous()
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            .buttonStyle(.plain)
+            .disabled(searchState.matchCount == 0)
+            .help("Previous match")
+            .accessibilityLabel("Previous match")
+            Button {
+                searchState.next()
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+            .buttonStyle(.plain)
+            .disabled(searchState.matchCount == 0)
+            .help("Next match")
+            .accessibilityLabel("Next match")
+            Button {
+                searchState.dismiss()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Clear find")
+            .accessibilityLabel("Clear find")
+        }
+        Spacer(minLength: 0)
+    }
+
     /// The shared WebKit surface, driven by an explicit tab. The Page tab passes
     /// `.transcript` (the assembled multi-page transcript) and the Knowledge tab
     /// passes its viz sub-mode — one WKWebView, two readings of the same document.
@@ -123,7 +175,11 @@ extension ReadingPaneView {
                 onTabSelected: { newTab in
                     if tab != .transcript { activeTab = newTab }
                 },
-                document: doc
+                document: doc,
+                // In-reader find (#4338): 0-based select index for the JS side.
+                searchQuery: searchState.query,
+                searchSelectionIndex: searchState.currentIndex - 1,
+                onSearchMatchCount: { count in searchState.recordMatches(count) }
             )
         } else {
             readerEmptyState

@@ -78,24 +78,23 @@ enum SidebarItemBuilder {
     ///   - Workflow mirror nodes, the engine-side rows under "Default Workflows"
     ///     (#4058) — `.file` docs with no `fileType`, so without an explicit
     ///     case they were filtered out and took their container's chevron too.
+    ///   - Every other leaf `.file` document — text/Markdown/docx/… (#4300).
+    ///     Finder rule: show ALL items. Excluding generic files made a folder
+    ///     of Markdown files render chevron-less and un-expandable.
     ///
     /// **Not** included in the sidebar:
-    ///   - Text/docx/other generic files — stay in the main grid only.
-    ///
-    /// The sidebar is for containers, one level of drill-in at a time, like
-    /// Finder.
+    ///   - `.chunk` rows (text fragments, not user-facing nodes).
     ///
     /// NOTE: this predicate runs BEFORE the parent→children map is built, so a
     /// kind omitted here doesn't merely hide its own row — it also strips its
     /// parent's `children`, and a parent built with `children == nil` reports
     /// `isExpandable == false` (the backend sends no `child_count` on
     /// `getRoots`/`getChildren`) so it renders with no disclosure chevron at
-    /// all. Add new sidebar-visible node kinds here (#4058).
+    /// all. Add new sidebar-visible node kinds here (#4058, #4300).
     static func isSidebarVisible(_ doc: Document) -> Bool {
         if doc.isNavigableContainer { return true }
         if doc.docType == .page { return true }
-        if doc.fileType == .image { return true }
-        if doc.isWorkflowNode { return true }
+        if doc.docType == .file { return true }
         return false
     }
 

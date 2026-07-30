@@ -40,6 +40,32 @@ extension SidebarView {
         }
     }
 
+    /// Create a new saved workspace (#4308/#4335): a workspace node (folder +
+    /// `is_workspace`) in the CURRENT window's library, selected in the
+    /// sidebar, opening the Research surface. `createWorkspace` reloads the
+    /// document collections, so the node appears in this window's tree
+    /// immediately; other windows follow through the document change stream.
+    func createNewWorkspace() {
+        guard let library = libraryManager.getLibrary(id: windowState.libraryId)
+            ?? libraryManager.globalLibrary else {
+            logger.error("No library available for workspace creation")
+            return
+        }
+
+        Task {
+            do {
+                let workspace = try await library.documentStore.createWorkspace(name: "New Workspace")
+                rebuildCaches()
+                selectedItemId = "doc:\(workspace.id)"
+                sidebarMode = .research
+                logger.info("Created new workspace: \(workspace.id)")
+            } catch {
+                logger.error("Failed to create workspace: \(error.localizedDescription)")
+                library.documentStore.error = error
+            }
+        }
+    }
+
     /// Create a new workflow - defaults to Global library
     func createNewWorkflow() {
         guard let globalLibrary = libraryManager.globalLibrary else {

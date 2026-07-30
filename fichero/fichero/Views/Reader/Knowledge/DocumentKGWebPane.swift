@@ -42,6 +42,11 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var scrollSync: DocumentScrollSyncState
     /// Zoom level applied via WKWebView.pageZoom. 1.0 = 100%. (#2316)
     var zoom: Double = 1.0
+    /// In-reader find (#4338): the live query ("" = cleared), the 0-based
+    /// current match to select, and the match-count report back to the bar.
+    var searchQuery: String = ""
+    var searchSelectionIndex: Int = -1
+    var onSearchMatchCount: ((Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
     /// Reader text font scale (#3681). Bound to the shared key so a change
     /// re-invokes `updateNSView`, which re-injects the scaled `--reader-base-size`
     /// live — no reload (systemThemeCSS reads the current scale).
@@ -160,6 +165,10 @@ struct DocumentKGWebPane: UIViewRepresentable {
     var onPageSelected: (Int) -> Void = { _ in }
     var scrollSync: DocumentScrollSyncState
     var zoom: Double = 1.0
+    /// In-reader find (#4338) — see the macOS pane.
+    var searchQuery: String = ""
+    var searchSelectionIndex: Int = -1
+    var onSearchMatchCount: ((Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
     /// Reader text font scale (#3681) — see the macOS pane. Re-injects the scaled
     /// `--reader-base-size` live on change.
     @AppStorage(ViewSettings.FontScale.readerKey)

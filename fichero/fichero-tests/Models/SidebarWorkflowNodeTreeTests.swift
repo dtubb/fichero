@@ -96,16 +96,17 @@ final class SidebarWorkflowNodeTreeTests: XCTestCase {
         XCTAssertTrue(SidebarItemBuilder.isSidebarVisible(makeWorkflowMirror(id: "wf-1", name: "Transcribe")))
     }
 
-    /// Guard against over-fixing: admitting workflow mirrors must NOT admit
-    /// generic files. Text/docx stay in the grid only.
-    func testVisibilityPredicateStillExcludesGenericFiles() {
+    /// #4300 flipped the old exclusion: generic `.file` docs (text/Markdown/
+    /// docx/…) are sidebar-visible now — Finder rule, show ALL items. The old
+    /// filter made a folder of Markdown files chevron-less and un-expandable.
+    func testVisibilityPredicateAdmitsGenericFiles() {
         let plain = Document(parentId: Self.containerId, docType: .file, name: "notes.txt")
-        XCTAssertFalse(SidebarItemBuilder.isSidebarVisible(plain))
+        XCTAssertTrue(SidebarItemBuilder.isSidebarVisible(plain))
 
         let otherPrototype = Document(
             parentId: Self.containerId, docType: .file, name: "note", prototypeKey: "note"
         )
-        XCTAssertFalse(SidebarItemBuilder.isSidebarVisible(otherPrototype))
+        XCTAssertTrue(SidebarItemBuilder.isSidebarVisible(otherPrototype))
     }
 
     // MARK: - Edge cases

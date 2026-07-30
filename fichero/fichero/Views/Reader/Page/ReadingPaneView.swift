@@ -45,6 +45,9 @@ struct ReadingPaneView: View {
         Binding(get: { notesMode }, set: { notesModeRaw = $0.rawValue })
     }
 
+    /// In-reader find (#4338): per-pane query + match navigation, driven from
+    /// the bottom filter bar and executed inside the shared WebKit surface.
+    @State var searchState = ReaderSearchState()
     @State var isPinned = false
     @State private var pinnedDocument: Document?
     @State private var pinnedActivePageNumber: Int?
@@ -89,7 +92,9 @@ struct ReadingPaneView: View {
 
             readerTabContent
 
-            PaneFilterBar { Spacer(minLength: 0) }
+            // In-reader find (#4338): the pane's bottom filter bar hosts the
+            // find field — match count + prev/next drive the WebKit highlight.
+            PaneFilterBar { readerFindBar }
 
             // Bottom-anchored mini-toolbar (#3060 / #2670): close/title/zoom/pin
             // now sit at the bottom, matching every other pane bar.
