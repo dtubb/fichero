@@ -53,7 +53,13 @@ extension AppState {
     /// (#3975). The session refresh and identity load are independent, so they
     /// overlap instead of running strictly serial (#3975); both still complete
     /// BEFORE `markReady`, so the #2407 first-call-auth-race gate is intact.
-    private func warmContextThenMarkReady() async {
+    /// Internal (not private): the heartbeat-recovery and endpoint-failover
+    /// paths in `AppState+Heartbeat` flip the app back to ready and must run
+    /// this SAME warm-up — marking ready without resolving the session phase
+    /// left `phase == .checking` behind a true `isBackendRunning`, which is
+    /// exactly the state that put a sign-in wall in front of the loopback
+    /// owner (#4359).
+    func warmContextThenMarkReady() async {
         async let session: Void = sessionStore.refresh()
         async let identity: Void = identityStore.load()
         _ = await (session, identity)

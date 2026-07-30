@@ -37,11 +37,14 @@ extension AppState {
             heartbeatFailureCount = 0
             recordActiveEndpoint()
             if !isBackendRunning {
-                engine.markReady()
                 logger.info("Backend heartbeat: recovered — back online")
-                // Reload providers now that the engine is back so list views
-                // aren't empty until next manual refresh.
-                await loadProviders()
+                // #4359: recovery must run the SAME warm-up as launch —
+                // session refresh + identity BEFORE markReady. Flipping
+                // ready directly left the session phase at `.checking`,
+                // which the old full-window gate rendered as a "Sign In"
+                // wall to the loopback owner. (Also reloads providers so
+                // list views aren't empty until next manual refresh.)
+                await warmContextThenMarkReady()
             }
         case .authRejected:
             heartbeatFailureCount = 0
@@ -188,8 +191,10 @@ extension AppState {
             case .ready:
                 commitActiveEndpoint(candidate)
                 heartbeatFailureCount = 0
-                engine.markReady()
-                await loadProviders()
+                // #4359: same warm-up contract as launch and heartbeat
+                // recovery — resolve session + identity BEFORE markReady so
+                // the gate phase is never `.checking` behind a ready engine.
+                await warmContextThenMarkReady()
                 logger.info(
                     "Endpoint failover recovered on \(candidate.url.host ?? candidate.url.absoluteString)"
                 )

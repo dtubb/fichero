@@ -79,9 +79,18 @@ final class SessionStore {
         }
     }
 
+    /// True only when the gate RESOLVED to a state that needs the sign-in /
+    /// owner-setup UI. `.checking` is deliberately excluded: an undetermined
+    /// (or failed — #4348 class) probe is "unknown", never "signed out", and
+    /// must not surface auth chrome (#4359).
+    var requiresAuthUI: Bool {
+        phase == .needsLogin || phase == .needsOwnerSetup
+    }
+
     // MARK: - Launch probe / session restore
 
     func refresh() async {
+        let priorPhase = phase
         phase = .checking
         let meCode = await meStatusCode()
         switch meCode {
@@ -101,6 +110,17 @@ final class SessionStore {
             // as that owner, never a create-user wall. (When multi-user is OFF
             // the credential is likewise sufficient, #3330.)
             let identity = await identity()
+            // #4359/#4348 class: when the me-probe FAILED (network/transport,
+            // not a real HTTP answer) AND the identity probe also resolved
+            // nothing, we know NOTHING new — the server never said "signed
+            // out". Resolving that to `.needsLogin` turned every transient
+            // failure into a sign-in wall for the loopback owner. Keep the
+            // prior phase instead: unknown is not signed-out.
+            if meCode < 0, identity == nil {
+                phase = Self.phaseAfterUnresolvedProbes(prior: priorPhase)
+                log.warning("Session refresh probes failed — keeping prior phase (failure is not sign-out)")
+                return
+            }
             let multiuserEnabled = identity?.multiuserEnabled
             let identityUserResolved = identity?.user != nil
             let isOwnerAccess = identity?.isOwnerAccess ?? false
@@ -143,6 +163,15 @@ final class SessionStore {
     /// the bootstrap token, `/api/documents`, `/api/entities`, `/api/activity`
     /// and `/api/authz/library` all return 200. The wall gated access the engine
     /// had already granted.
+    /// Phase to hold when EVERY probe failed (no HTTP answer at all): keep
+    /// whatever the gate last knew. A previously-authenticated or disabled
+    /// gate stays open; a previously-resolved login wall stays (the server DID
+    /// say so, earlier); a never-resolved gate stays `.checking`. A failed
+    /// request must never RESOLVE to "signed out" (#4348 class, #4359).
+    nonisolated static func phaseAfterUnresolvedProbes(prior: Phase) -> Phase {
+        prior
+    }
+
     nonisolated static func resolvePhase(
         meStatusCode: Int,
         accountsExist: Bool?,

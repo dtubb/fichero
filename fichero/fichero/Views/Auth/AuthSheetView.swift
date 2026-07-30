@@ -5,12 +5,19 @@ import UIKit
 #endif
 import SwiftUI
 
-/// The login gate shown instead of the library when multi-user auth is on and
-/// there is no valid session (EPIC #2021/#2022). Switches between the normal
-/// sign-in form and the first-run "create owner" form based on the session
-/// phase. Native SwiftUI, semantic fonts, `SecureField` for secrets; passwords
-/// are held only in local `@State` and never logged.
-struct AuthGateView: View {
+/// The multi-user sign-in surface (EPIC #2021/#2022), presented as CHROME —
+/// a modal sheet on macOS (a full-screen cover on iOS, an explicit platform
+/// decision in `ContentView`) — never as a view that replaces the window
+/// (#4359: the full-window `AuthGateView` takeover is deleted; the window
+/// keeps its shell, sidebar and content while this sheet is up). Switches
+/// between the normal sign-in form and the first-run "create owner" form
+/// based on the session phase. Native SwiftUI, semantic fonts, `SecureField`
+/// for secrets; passwords are held only in local `@State` and never logged.
+///
+/// Presented only for a RESOLVED gate (`requiresAuthUI` / a pending invite);
+/// `.checking` — including failed probes — must present nothing (#4348 class:
+/// failure is "unknown", never "signed out").
+struct AuthSheetView: View {
     @Bindable var session: SessionStore
     /// User chose "Set up an owner account" from the sign-in form (#3331) — show
     /// owner setup even though accounts exist (they just can't sign in).
@@ -36,8 +43,8 @@ struct AuthGateView: View {
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .padding()
+        .presentationBackground(.background)
     }
 }
 
