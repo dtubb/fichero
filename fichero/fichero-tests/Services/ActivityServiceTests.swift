@@ -129,7 +129,7 @@ struct ActivityServiceTests {
             workflowName: "Summarize",
             pythonCode: "print('ok')",
             executionLog: "log line",
-            status: "completed",
+            status: .completed,
             startedAt: "2024-01-01T12:00:00Z",
             completedAt: "2024-01-01T12:01:00Z",
             durationMs: 1234.0,
