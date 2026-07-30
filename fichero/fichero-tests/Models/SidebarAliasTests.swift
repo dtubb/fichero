@@ -46,8 +46,11 @@ final class SidebarAliasTests: XCTestCase {
     func testSelectionResolvesAliasesViaBackendFetch() throws {
         let routing = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
         // Aliases route through the resolver (backend fetch — lazy caches
-        // can't prove danglingness), and dangling surfaces the alert.
-        XCTAssertTrue(routing.contains("case .document(let doc) where doc.isAlias:"))
+        // can't prove danglingness), and dangling surfaces the alert. The
+        // branch lives inside the consolidated routeDocumentSelection seam
+        // since #4335's routing unification.
+        XCTAssertTrue(routing.contains("routeDocumentSelection"))
+        XCTAssertTrue(routing.contains("doc.isAlias"))
         XCTAssertTrue(routing.contains("library.documentService.getDocument(targetId)"))
         XCTAssertTrue(routing.contains("sidebarState.aliasErrorMessage"))
     }

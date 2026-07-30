@@ -109,7 +109,7 @@ extension View {
     /// Applies standard sidebar styling.
     /// Note: Individual content views apply their own .listStyle(.sidebar) to their List.
     ///
-    /// #4301: this used to force `.frame(minWidth: SidebarConstants.minimumWidth)`
+    /// #4301: this used to force an inner minimum-width frame
     /// (200pt) INSIDE the sidebar column. The column's real minimum is owned by
     /// `.navigationSplitViewColumnWidth(min:)` in `ContentView+SidebarLayout`
     /// (160pt); when the split view collapsed the column toward 0pt, the inner
