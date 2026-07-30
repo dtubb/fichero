@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import threading
 
@@ -243,7 +243,11 @@ def test_same_microsecond_rows_verify_via_chain_seq_order(db):
     assert result.anchored is False
 
     rows = _audit_rows(db)
-    assert rows[0].created_at == rows[1].created_at == shared_created_at
+    # #4347: a naive stored value comes back as aware UTC — the same instant,
+    # now self-describing. The hash payload canonicalizes to naive UTC, which is
+    # why the pre-sweep chain above still verifies.
+    expected = shared_created_at.replace(tzinfo=timezone.utc)
+    assert rows[0].created_at == rows[1].created_at == expected
     assert [row.chain_seq for row in rows] == [1, 2]
 
 
