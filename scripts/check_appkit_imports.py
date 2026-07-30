@@ -41,6 +41,14 @@ RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 # Keys are paths relative to SWIFT_DIR (posix). Value documents why it is a
 # sanctioned bridge OR that it is baseline debt to migrate.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    # #4354: undo routing must inspect the AppKit responder chain — deciding
+    # whether a text view owns the undo IS an NSTextView/first-responder
+    # question, and SwiftUI exposes no equivalent. AppKit here is the feature,
+    # not a shortcut around cross-platform code.
+    "App/Menus/UndoRouting.swift": "#4354 — first-responder probe for editor-scoped undo (macOS-only by nature)",
+    # #4359: the auth sheet renders the running app's own icon, which comes
+    # from NSApplication/UIApplication; the platform image type is unavoidable.
+    "Views/Auth/AuthSheetView.swift": "#4359 — platform image type for the app icon in the auth sheet",
     "Views/Library/Export/DocumentExporter.swift": "#4121 — macOS export destination uses NSSavePanel behind #if os(macOS); iOS uses its system share sheet",
     "Views/Sidebar/ItemRow/SidebarDropOperation.swift": "Option-drag copy (Daniel 2026-07-26) — the ⌥ key at drop time is unreadable from SwiftUI drop callbacks; NSEvent.modifierFlags on macOS, GameController hardware keyboard on iOS/visionOS. Both #if os-gated; no drag-stack surgery",
     "App/ViewSettings.swift": "#3682 — Reader/Editor font scale multiplies the SEMANTIC base size, which only NSFont/UIFont.preferredFont(forTextStyle:) can report (SwiftUI exposes no point size). Both sides are #if canImport-guarded; #2101",
@@ -61,7 +69,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services/ImageEditingService.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Services/EngineConfig+Launch.swift": "#2381 — macOS launch-mode bridge reads Option-key state via NSEvent; #2101 (split out of EngineConfig.swift)",
     "Services/RemoteClientPairing.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
-    "Views/Auth/AuthGateView.swift": "#3331 — auth gate loads the platform app icon via NSApp/UIImage fallback; #2101",
     "Views/Capture/MobileCaptureQueueView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnection/BackendConnectionView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnection/BackendConnectionView+Actions.swift": "#2713 — retry/reset actions use NSApplication.terminate + platform affordances via #if canImport (split from BackendConnectionView by file_length); #2101",
