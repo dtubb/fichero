@@ -675,6 +675,12 @@ class ToolDef(BaseModel):
     supports_streaming: bool = False  # Can stream progress updates
     supports_structured_output: bool = False  # Can use JSON Schema output
 
+    # Hard requirement, not a preference (#4345): this tool PARSES the model's
+    # answer, so a recognition-only model (Apple Vision OCR returns page text
+    # and ignores the prompt) can never satisfy it. Preflight refuses such a
+    # node before the run starts instead of failing mid-run on a JSON parse.
+    requires_generative_model: bool = False
+
     # Sort order for UI
     sort_order: int = 100  # Lower = higher in list
 

@@ -132,6 +132,7 @@ def register_tool(
     supports_batch: bool = False,
     supports_streaming: bool = False,
     supports_structured_output: bool = False,
+    requires_generative_model: bool = False,
     sort_order: int = 100,
     tested: bool = False,
 ):
@@ -193,6 +194,7 @@ def register_tool(
             supports_batch=supports_batch,
             supports_streaming=supports_streaming,
             supports_structured_output=supports_structured_output,
+            requires_generative_model=requires_generative_model,
             sort_order=sort_order,
             tested=tested,
         )
