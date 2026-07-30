@@ -12,7 +12,7 @@
   "timeout_seconds": 600,
   "max_retries": 2,
   "version": 1,
-  "config": {"preset_version": 1},
+  "config": {"preset_version": 2},
   "nodes": [
     {"id":"files-source","tool":"files","label":"Files","position_x":80,"position_y":420,"inputs":{},"config":{}},
     {"id":"zoom","tool":"zoom","label":"Zoom Line Strips","position_x":280,"position_y":420,"inputs":{},"config":{"mode":"tile","scale":2.0,"overlap":0.15}},

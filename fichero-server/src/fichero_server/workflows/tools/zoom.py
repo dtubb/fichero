@@ -10,6 +10,7 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
+from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
 from fichero_server.workflows.tools.enhance_images import _extension_for_format, _save_image
 from fichero_server.workflows.types import DataType, PortDef, State
 
@@ -148,7 +149,15 @@ async def zoom(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> d
         files = [files]
     output_dir = inputs.get("output_dir") or str(Path(tempfile.gettempdir()) / "fichero-zoom")
     options = {key: inputs[key] for key in ZOOM_CONFIG if key in inputs and key != "output_dir"}
-    documents = list(inputs.get("documents") or [])
+    # Page scoping (#4298): the paired document's `sequence` is what confines a
+    # PDF to the ONE page the user selected. When a stored graph wires only the
+    # `files` port (older stored copies of the ensemble preset predate #4146's
+    # documents wiring, and preset_version was never bumped so they never
+    # upgraded), the pairing is dropped and `page_index` stays None — this tool
+    # then tiles EVERY page of the PDF and downstream vision passes bill the
+    # whole document. Recover the index-aligned pairing from the upstream
+    # node's recorded outputs, exactly like the vision tools do.
+    documents = list(inputs.get("documents") or []) or documents_from_state_outputs(state, files)
     results = []
     for index, file_path in enumerate(files):
         document = documents[index] if index < len(documents) else None

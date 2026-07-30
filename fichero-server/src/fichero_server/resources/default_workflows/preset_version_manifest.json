@@ -1,0 +1,154 @@
+{
+ "capture_ocr_transcribe.json": {
+  "preset_version": 1,
+  "sha256": "582ec1997db79a555ebfdad9186baa1d7d1cc8a8635b86d1240790d01f5ee9a1"
+ },
+ "catalogue.json": {
+  "preset_version": 5,
+  "sha256": "24fda829f86a4f08ed98883043491ae9974502b07055d1481e93b3badd935f32"
+ },
+ "catalogue_stage_1_import_artifacts.json": {
+  "preset_version": 1,
+  "sha256": "5a108c261978dc135022a221289da052b730a71e5ce93f710e07d7c975ba0141"
+ },
+ "catalogue_stage_2_extract_entities.json": {
+  "preset_version": 1,
+  "sha256": "aadc7accd4d7a5648bab4b2c6b06069adf6ae903c4b1c658b95e76283788b9bd"
+ },
+ "catalogue_stage_3_extract_svo.json": {
+  "preset_version": 1,
+  "sha256": "613212ad6e90cec9c003e319a63774b6b90e5d0a6ce801de0a0ad000213cfe61"
+ },
+ "catalogue_stage_4_merge_dedup.json": {
+  "preset_version": 1,
+  "sha256": "0a940c75edc18f1903ddd26af0bdabcd377981b09a2aecc4df5b99d410c69f9e"
+ },
+ "catalogue_stage_5_kg_persist.json": {
+  "preset_version": 1,
+  "sha256": "51df73d76a959c7cec8f4b3e78fc6387fa330f5d38eec971a31f2e23a69372f3"
+ },
+ "clean_up_text.json": {
+  "preset_version": 1,
+  "sha256": "b8f2e6d5a95764cfc25d278d5d18d5ebaa1378fc0501219936754bb2354fb6c0"
+ },
+ "convert_to_html.json": {
+  "preset_version": 1,
+  "sha256": "e182f698bc714188fde71be9a372c30f6a217ca7d1ec9c1feb4f8e3695adeae1"
+ },
+ "convert_to_markdown.json": {
+  "preset_version": 1,
+  "sha256": "8ef52b05ae207455571f7c7ae0cc459542dc6e60e2baac2d48cd78fe6abb381a"
+ },
+ "convert_to_svg.json": {
+  "preset_version": 1,
+  "sha256": "33df47dd82dd0f7f5ba662b6469def2979addbfb7a5571e6d16f4ac92e6bd948"
+ },
+ "describe_visual.json": {
+  "preset_version": 1,
+  "sha256": "b2e52b5b8655ab11aeef89b179c4efd6b29792aca88fe98fec5ec974a2452a99"
+ },
+ "enhance_images.json": {
+  "preset_version": 1,
+  "sha256": "a349ad5bee8961514432386914394a0bea079e1f60f06f2059ab85b6b477c8e2"
+ },
+ "export_to_desktop.json": {
+  "preset_version": 2,
+  "sha256": "c5d2e7e95959ec20d0dab99cb78c42325f293d1f0579b6581f93b2729d069221"
+ },
+ "extract_geo.json": {
+  "preset_version": 1,
+  "sha256": "5d411e0b356b3f6d0a0ef981cd5e487febda7f2c1d8be32329cd5cc7d186f460"
+ },
+ "extract_table.json": {
+  "preset_version": 1,
+  "sha256": "4d5ddc40bb7d7f59086092d4bd05f2852de0543c23e4c2a1850f2dd2a5a8cbf9"
+ },
+ "fuzzy_clean_images.json": {
+  "preset_version": 1,
+  "sha256": "9b2850762130faf86fcff270cc2b484fa96603ea1dd48f4489eeadbc11caf7c9"
+ },
+ "group_same_documents.json": {
+  "preset_version": 2,
+  "sha256": "1bebfd741a26e0df7e2ebd846c341cc877aed9077d824e175a83adae06c97773"
+ },
+ "ner_per_page_local.json": {
+  "preset_version": 3,
+  "sha256": "552c1cf86f77976bd55774826cbd18c86ac4bf2f1b2aa323a176c56dccb54933"
+ },
+ "prepare_images_for_ocr.json": {
+  "preset_version": 1,
+  "sha256": "a8050b097f41dea468382f4b6dbe2bc802bc096b6d63eabc961e155d397dc87d"
+ },
+ "recombine_segments.json": {
+  "preset_version": 1,
+  "sha256": "5bd7370a8ffd4425787dd37685e10b3c5796f65bb2ce2a6b80fcc0d3e4edc09f"
+ },
+ "remove_background_images.json": {
+  "preset_version": 1,
+  "sha256": "56d7fafde9d94c802a6059c803e71770dc249f7b64af24b8f992940201ebc1cf"
+ },
+ "rotate_auto_orient_images.json": {
+  "preset_version": 2,
+  "sha256": "c9377328a37dfdb30e18341e1d4259e06737403ee0a1c9e4789db903e8632d38"
+ },
+ "segment_images.json": {
+  "preset_version": 1,
+  "sha256": "cf68cdb8b47c1b0d61b101b17ecc10265749d26265a103e3dbe21e2376630b17"
+ },
+ "split_chapters.json": {
+  "preset_version": 1,
+  "sha256": "28500862ee71473c9902f55a620a306e88dcbac9953beb96a51f8dccc66ae2b8"
+ },
+ "split_images.json": {
+  "preset_version": 1,
+  "sha256": "823c049f84ab385a3f0fc6a1e7fbffbd5d4bf86360c0d9404b4bf596f4f03cb0"
+ },
+ "transcribe_auto_detect.json": {
+  "preset_version": 4,
+  "sha256": "6025b7ed6b7d11a3e9a325b4bab0a63959573c2bfd25ad04cd67fbd5d61ba82f"
+ },
+ "transcribe_cloud.json": {
+  "preset_version": 4,
+  "sha256": "0bd7b32f89c2d44f40e5529605ffba181ff311d7af46708e68f19ebc1eb5ec22"
+ },
+ "transcribe_htr.json": {
+  "preset_version": 6,
+  "sha256": "1d9cfcecbb962674391ce4769f7f9695cf17658d4a14b43d9ad654c9aaeb032f"
+ },
+ "transcribe_manuscript.json": {
+  "preset_version": 4,
+  "sha256": "0588c8d2b62720c6badd3f495ce9bb4a7de23651f1374537fec64ec4f3603c52"
+ },
+ "transcribe_paleography.json": {
+  "preset_version": 6,
+  "sha256": "90b44a4cc3fa3b66ab3f9cd7ac88141ff8d6a1a63baf4ee0b3e916cabe8f56e9"
+ },
+ "transcribe_paleography_ensemble.json": {
+  "preset_version": 2,
+  "sha256": "abbed683d0e9c2ff471abf51843c15a600e15495a23e4249bcb618fe3393fc65"
+ },
+ "transcribe_spanish_script_v2_child.json": {
+  "preset_version": 2,
+  "sha256": "6031ab110f5e3bf038d86b7db5f0f98f61d51a2caaf71c55c0c7b05359d4210c"
+ },
+ "transcribe_spanish_script_v2_subworkflow.json": {
+  "preset_version": 2,
+  "sha256": "293cc27d7757e14c16ed936ec1e2fe6a3f5a4a22cf2f5c3f995279dd1794af4c"
+ },
+ "transcribe_typescript.json": {
+  "preset_version": 4,
+  "sha256": "163b3b5b43c627d5785b480520aee1fb839f572257a13ffd5dbaa8eb6a52bae7"
+ },
+ "translate.json": {
+  "preset_version": 2,
+  "sha256": "f75737b8771ea872e3708ae076e3ab4df549436f09fbd7d6e0165a501cd92ac8"
+ },
+ "translate_deepl.json": {
+  "preset_version": 1,
+  "sha256": "2468fd9c80e273a7d5b6cf48ded991d3a6428e794018bdee1ccfa70a92101a07"
+ },
+ "translate_review.json": {
+  "preset_version": 1,
+  "sha256": "790d485cacbdd0b236eb646263575fb01d324dd153c1b78cb31badb4ef255233"
+ }
+}
