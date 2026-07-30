@@ -606,6 +606,16 @@ def build_graph(
                 for tid in edge.route_map.values():
                     if tid in route_map_parallel:
                         path_map[f"{node_names[tid]}_process"] = f"{node_names[tid]}_process"
+                        # #4345: the direct SOURCE→PARALLEL wiring above pairs
+                        # every _process with its _aggregate; the route_map
+                        # fan-out never did. The routed branch therefore ran
+                        # its _process node and then dead-ended — no aggregate,
+                        # no outputs, no exit-node completion, and the run died
+                        # with "stream ended before exit node(s) completed".
+                        graph.add_edge(
+                            f"{node_names[tid]}_process",
+                            f"{node_names[tid]}_aggregate",
+                        )
                     else:
                         path_map[node_names[tid]] = node_names[tid]
                 graph.add_conditional_edges(source_name, fan_out_fn, path_map)
