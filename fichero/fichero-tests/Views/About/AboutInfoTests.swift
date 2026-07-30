@@ -41,6 +41,15 @@ final class AboutInfoTests: XCTestCase {
         XCTAssertNil(AboutInfo.engineVersionLine(" "))
     }
 
+    /// #4094: a failed connection is the SAME rendered state as "not yet
+    /// connected" — the health-check failure paths clear `backendVersion` to
+    /// nil, so About omits the Server row entirely. No dangling "Server —"
+    /// placeholder, and nothing that pretends to still be loading.
+    func testEngineVersionLineIsOmittedAfterConnectionFailure() {
+        let versionAfterFailedHealthCheck: String? = nil
+        XCTAssertNil(AboutInfo.engineVersionLine(versionAfterFailedHealthCheck))
+    }
+
     func testCopyrightLineUsesBundleValue() {
         XCTAssertEqual(
             AboutInfo.copyrightLine(bundleValue: "© 2026 Daniel Tubb · MIT License", fallback: "fallback"),
