@@ -361,8 +361,17 @@ async def files_tool(
 
                     abs_path = _abs(file_doc)
                     try:
+                        # #4395: embed the pages this backfill creates.
+                        # This path splits already-imported PDFs on their next
+                        # workflow run, so it produced the BULK of a library's
+                        # page documents — 676 of 745 in the reported case —
+                        # and `auto_embed=False` meant none of them were ever
+                        # searchable. The parent import embeds its pages; a
+                        # page created here is the same kind of thing and must
+                        # not be silently less searchable for having arrived
+                        # by a different route.
                         created = _create_pdf_page_children(
-                            file_doc, Path(abs_path), db, auto_embed=False
+                            file_doc, Path(abs_path), db, auto_embed=True
                         )
                     except Exception as exc:
                         logger.error(

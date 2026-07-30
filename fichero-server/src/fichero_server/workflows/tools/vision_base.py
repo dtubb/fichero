@@ -2580,8 +2580,11 @@ async def process_vision(
                             _db = _dbm.get_database(library_path)
                             _parent_doc = _db.get(_Document, _whole_pdf_parent)
                             if _parent_doc is not None:
+                                # #4395: same reasoning as the sources
+                                # backfill — a page split out here is a normal
+                                # page and must be searchable.
                                 _create_pdf_page_children(
-                                    _parent_doc, Path(file_path), _db, auto_embed=False
+                                    _parent_doc, Path(file_path), _db, auto_embed=True
                                 )
                         except Exception as _split_exc:
                             logger.error(
