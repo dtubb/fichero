@@ -101,7 +101,7 @@ func classifySidebarDropPayload(
 /// not, so this is cheap and safe to over-answer: a false positive costs one
 /// failed read, and then `classifySidebarDropPayload` sorts it out.
 func sidebarDropMightCarryInternalID(_ providers: [SidebarDropProviderCapabilities]) -> Bool {
-    providers.contains(\.canLoadString)
+    providers.contains(where: \.canLoadString)
 }
 
 /// Capability-shaped route. Still correct for what it answers, and still the
@@ -165,7 +165,7 @@ extension SidebarItemRow {
                 registeredTypeIdentifiers: $0.registeredTypeIdentifiers
             )
         }
-        let hasFileURL = capabilities.contains(\.canLoadURL)
+        let hasFileURL = capabilities.contains(where: \.canLoadURL)
         // Worth trying to read an id? Capabilities alone can no longer decide
         // the ROUTE (#4401) — since #4123 an internal document drag also vends
         // a file — so they only decide whether to attempt the read.
