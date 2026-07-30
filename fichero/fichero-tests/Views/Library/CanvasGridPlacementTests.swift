@@ -28,6 +28,7 @@ import CoreGraphics
 import FicheroAPIClient
 import Foundation
 import simd
+import SwiftUI
 import Testing
 
 // MARK: - Helpers
