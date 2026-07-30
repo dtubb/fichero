@@ -62,7 +62,8 @@ fi
 # packaged + tagged as this release — that shipped a 07.07 app under a 07.08 tag
 # and created a Sparkle update loop.
 BUILT_VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist" 2>/dev/null)"
-EXPECT_VER="$(awk -F'= ' '/MARKETING_VERSION[[:space:]]*=/ {gsub(/[;"]/,"",$2); print $2; exit}' "$ROOT_DIR/fichero/fichero.xcodeproj/project.pbxproj")"
+# #3234: the version lives ONLY in Version.xcconfig (pbxproj has no literals).
+EXPECT_VER="$(awk -F' = ' '$1 == "MARKETING_VERSION" { print $2; exit }' "$ROOT_DIR/fichero/Configs/Version.xcconfig")"
 if [ -n "$EXPECT_VER" ] && [ "$BUILT_VER" != "$EXPECT_VER" ]; then
   echo "error: built app version '$BUILT_VER' != project MARKETING_VERSION '$EXPECT_VER'." >&2
   echo "       Refusing to ship a stale app. Clean-build the app (drop --skip-app-build) or fix the version stamp." >&2

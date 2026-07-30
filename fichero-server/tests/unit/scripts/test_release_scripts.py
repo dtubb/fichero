@@ -129,7 +129,7 @@ def test_embedded_engine_version_guard_rejects_stale_bundle(tmp_path: Path) -> N
     )
     app = tmp_path / "Fichero Server.app"
     contents = app / "Contents"
-    metadata = contents / "Resources" / "app" / f"server-{expected}.dist-info" / "METADATA"
+    metadata = contents / "Resources" / "app" / f"fichero_server-{expected}.dist-info" / "METADATA"
     metadata.parent.mkdir(parents=True)
     metadata.write_text(f"Name: engine\nVersion: {expected}\n")
     plist = contents / "Info.plist"

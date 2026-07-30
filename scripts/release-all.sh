@@ -55,9 +55,12 @@ APP_BUNDLE_ID="${FICHERO_APP_BUNDLE_ID:-app.fichero.fichero}"
 # before tier_build_map.sh resolves (scheme, config) from it.
 
 project_setting() {
+  # #3234: MARKETING_VERSION / CURRENT_PROJECT_VERSION live ONLY in
+  # Version.xcconfig — project.pbxproj carries no version literals, so a raw
+  # pbxproj grep would come back empty and silently break the release.
   local name="$1"
-  awk -F'= ' -v name="$name" '$1 ~ name"[[:space:]]*$" { gsub(/[;"]/,"",$2); print $2; exit }' \
-    "$ROOT_DIR/fichero/fichero.xcodeproj/project.pbxproj"
+  awk -F' = ' -v name="$name" '$1 == name { print $2; exit }' \
+    "$ROOT_DIR/fichero/Configs/Version.xcconfig"
 }
 
 app_store_version() {

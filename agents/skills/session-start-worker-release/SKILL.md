@@ -55,7 +55,8 @@ Do not write "Fixed assorted bugs." Name them or drop them.
 ## Versions are dated, not numbered
 
 `scripts/set-release-version.sh` owns `MARKETING_VERSION` and
-`CURRENT_PROJECT_VERSION`. It auto-stamps today's date across frontend and engine; a
+`CURRENT_PROJECT_VERSION` (both live only in `fichero/Configs/Version.xcconfig`,
+never in `project.pbxproj` — #3234). It auto-stamps today's date across frontend and engine; a
 second build the same day bumps a sub-number so Sparkle's build integer stays
 strictly increasing. Never hand-edit either field. Never write a version number into
 the notes that the manifest does not carry:

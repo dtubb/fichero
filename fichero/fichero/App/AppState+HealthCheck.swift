@@ -78,11 +78,16 @@ extension AppState {
 
             default:
                 backendAccessError = nil
+                backendVersion = nil
                 engine.markUnreachable("API returned error status")
             }
 
         } catch let error as URLError where error.code == .cannotConnectToHost {
             backendAccessError = .engineUnreachable
+            // #4094: an unreachable server's version is unknown — it may have
+            // been updated before it comes back. Clearing drops the About
+            // window's "Server X" row instead of showing a stale version.
+            backendVersion = nil
             // #4064: the manual-CLI hint is a Debug-external-only affordance —
             // the release/embedded build spawns its own engine and must NEVER
             // tell the user to run one by hand. The debug dev runs the engine
@@ -96,6 +101,7 @@ extension AppState {
         } catch {
             let accessError = AccessError.classify(error)
             backendAccessError = accessError
+            backendVersion = nil
             engine.markUnreachable(Self.diagnosis(for: accessError))
             logger.error("Backend health check failed: \(error.localizedDescription)")
         }

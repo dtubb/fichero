@@ -1,0 +1,12 @@
+// Version.xcconfig — the single source of the app's version (#3234).
+//
+// scripts/set-release-version.sh rewrites this file; nothing else edits the
+// version. project.pbxproj deliberately contains NO MARKETING_VERSION /
+// CURRENT_PROJECT_VERSION literals — every target inherits these two values
+// from the project-level baseConfigurationReference on this file.
+//
+// MARKETING_VERSION stays UNQUOTED: xcconfig values are raw tokens, and quotes
+// would leak verbatim into CFBundleShortVersionString.
+
+MARKETING_VERSION = 2026.07.29
+CURRENT_PROJECT_VERSION = 2026072901

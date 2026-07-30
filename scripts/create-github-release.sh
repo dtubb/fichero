@@ -111,8 +111,9 @@ if [ "$DRY_RUN" = false ]; then
 else
   # Rehearse with the version actually stamped in the project, not a placeholder,
   # so the release-notes lookup below is genuinely exercised by --dry-run.
-  VERSION=$(sed -nE 's/^[[:space:]]*MARKETING_VERSION = "?([^";]+)"?;/\1/p' \
-    "$ROOT_DIR/fichero/fichero.xcodeproj/project.pbxproj" | head -1)
+  # #3234: the version lives ONLY in Version.xcconfig (pbxproj has no literals).
+  VERSION=$(sed -nE 's/^MARKETING_VERSION = (.+)$/\1/p' \
+    "$ROOT_DIR/fichero/Configs/Version.xcconfig" | head -1)
   BUILD="0"
   DMG_SIZE="0"
   DMG_SIZE_HUMAN="0B"
