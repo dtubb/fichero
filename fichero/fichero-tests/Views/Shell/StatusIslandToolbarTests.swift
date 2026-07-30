@@ -167,14 +167,14 @@ struct StatusIslandToolbarTests {
     /// #3163: a `ToolbarItem` that appears and disappears with state has
     /// crashed this app before (duplicate registration). The island's CONTENT
     /// varies; the item is declared unconditionally, exactly once.
-    @Test("the island is one unconditionally-declared principal item")
+    @Test("the island is one unconditionally-declared item, outside .principal")
     func islandIsOneUnconditionalItem() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
         // Anchored on the DECLARATION form, not the bare symbol: prose that
         // merely mentions `ContentToolbarID.statusIsland` (the comments left
         // where the engine/activity items used to sit) is not a second item.
         let declaration = "ToolbarItem(id: ContentToolbarID.statusIsland"
-        #expect(source.contains("\(declaration), placement: .principal)"))
+        #expect(source.contains("\(declaration), placement: .automatic)"))
         #expect(source.components(separatedBy: declaration).count - 1 == 1)
     }
 
