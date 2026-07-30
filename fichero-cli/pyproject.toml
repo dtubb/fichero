@@ -23,7 +23,7 @@ requires-python = ">=3.10"
 dependencies = [
     "httpx",
     "typer",
-    "pydantic",
+    "pydantic>=2.13",  # matches the server floor; see fichero-server/pyproject.toml (#4337)
     # Response models + (for now) engine_manager helpers come from the server
     # package; resolved from the local checkout via editable installs.
     "fichero-server",

@@ -21,8 +21,13 @@ description = "MCP server for Fichero — exposes document, search, and knowledg
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp",
-    "pydantic",
+    # This is the package that imports `mcp.server.fastmcp` (server.py, full.py,
+    # simple.py), so the constraint belongs here and not only inherited from
+    # fichero-server. Floor: PYSEC-2026-3483. Ceiling: mcp 2.0 removed
+    # `mcp.server.fastmcp` in favour of `mcp.server.mcpserver`, so an unbounded
+    # install resolves 2.x and this product stops importing entirely (#4337).
+    "mcp>=1.28.1,<2",
+    "pydantic>=2.13",  # matches the server floor; see fichero-server/pyproject.toml
     # FicheroClient (shared HTTP client) lives in the CLI product for now;
     # a dedicated shared client-connection library is the next phase.
     "fichero-cli",
