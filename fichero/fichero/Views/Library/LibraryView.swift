@@ -234,7 +234,7 @@ struct LibraryView: View {
     /// failure branches win.
     ///
     /// Pure so the invariant is testable without a live engine, the same reason
-    /// `BackendConnectionView.connectionFailureTitle` is pure (#3341).
+    /// `ConnectionPresentation.failureTitle` is pure (#3341).
     /// `nonisolated` is LOAD-BEARING: a static on a `View` inherits the type's
     /// MainActor isolation under the macOS 26 SDK, and the Swift Testing suite
     /// that calls this runs on a cooperative thread — the off-main call

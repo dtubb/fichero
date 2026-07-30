@@ -72,7 +72,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Capture/MobileCaptureQueueView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnection/BackendConnectionView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Components/BackendConnection/BackendConnectionView+Actions.swift": "#2713 — retry/reset actions use NSApplication.terminate + platform affordances via #if canImport (split from BackendConnectionView by file_length); #2101",
-    "Views/Components/BackendConnection/BackendConnectionView+Icons.swift": "#2713 — engine/app icon loading via NSImage/UIImage #if canImport (split from BackendConnectionView by file_length); #2101",
     "App/AppState+Settings.swift": "#3341 — settings navigation touches macOS activation via NSApp #if canImport (split from AppState by file_length); #2101",
     "Views/Components/MacPlainTextEditor.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",

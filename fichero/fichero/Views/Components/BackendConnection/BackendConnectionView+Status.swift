@@ -51,31 +51,6 @@ extension BackendConnectionView {
         return false
     }
 
-    /// Pure phase → failure-title mapping (#3341). The implementation now lives
-    /// in `ConnectionPresentation.failureTitle` so the popover, the status
-    /// island and the library pane all read ONE table; this stays as the
-    /// boolean-shaped entry point the existing `AccessError` suite drives.
-    static func connectionFailureTitle(
-        accessError: AccessError?,
-        authBroken: Bool,
-        usesExternalBackendConnection: Bool,
-        usesAppManagedEmbeddedEngine: Bool = false
-    ) -> String {
-        let ownership: ConnectionPresentation.EngineOwnership
-        if usesAppManagedEmbeddedEngine {
-            ownership = .appManaged
-        } else if usesExternalBackendConnection {
-            ownership = .remote
-        } else {
-            ownership = .externalLocal
-        }
-        return ConnectionPresentation.failureTitle(
-            accessError: accessError,
-            authBroken: authBroken,
-            ownership: ownership
-        )
-    }
-
     var failureAccessError: AccessError? {
         appState.backendAccessError ?? (appState.authBroken ? .unauthenticated : nil)
     }
