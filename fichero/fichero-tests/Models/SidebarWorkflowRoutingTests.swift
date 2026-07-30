@@ -52,18 +52,19 @@ final class SidebarWorkflowRoutingTests: XCTestCase {
 
     // MARK: - #4292 routing seam (source contract)
 
-    /// The selection handler must special-case workflow mirror docs BEFORE the
-    /// generic `.document` case, and route them to the workflows surface.
+    /// The document routing seam must special-case workflow mirrors BEFORE
+    /// falling back to the library view, and route them to the workflows
+    /// surface through the shared pure helper.
     func testSelectionHandlerRoutesWorkflowMirrorsToTheEditor() throws {
         let source = try appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
-        let mirrorCase = source.range(of: "case .document(let doc) where doc.isWorkflowNode:")
-        let genericCase = source.range(of: "case .document(let doc):")
-        XCTAssertNotNil(mirrorCase, "#4292: workflow mirror rows need their own routing case")
-        XCTAssertNotNil(genericCase)
-        if let mirrorCase, let genericCase {
+        let mirrorBranch = source.range(of: "if doc.isWorkflowNode {")
+        let libraryFallback = source.range(of: "viewMode = .library(doc)")
+        XCTAssertNotNil(mirrorBranch, "#4292: workflow mirror rows need their own routing branch")
+        XCTAssertNotNil(libraryFallback)
+        if let mirrorBranch, let libraryFallback {
             XCTAssertTrue(
-                mirrorCase.lowerBound < genericCase.lowerBound,
-                "the mirror case must precede the generic document case or it is dead"
+                mirrorBranch.lowerBound < libraryFallback.lowerBound,
+                "the mirror branch must precede the generic library fallback or it is dead"
             )
         }
         XCTAssertTrue(

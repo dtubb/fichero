@@ -192,6 +192,7 @@ extension SidebarView {
             importFiles(mode: .link)  // Default to link mode from Add menu
         }
         itemRegistry.createChat = createNewChat
+        itemRegistry.createWorkspace = createNewWorkspace
         itemRegistry.createComparison = createNewComparison
         if FeatureManager.shared.isWorkflowChainsEnabled {
             itemRegistry.createWorkflow = createNewWorkflow

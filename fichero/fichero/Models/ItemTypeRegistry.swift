@@ -45,6 +45,9 @@ class ItemTypeRegistry {
     var createFolder: (() -> Void)?
     var importFiles: (() -> Void)?
     var createChat: (() -> Void)?
+    /// New saved agent workspace (#4308/#4335): a workspace node in the
+    /// current library that opens the Research surface.
+    var createWorkspace: (() -> Void)?
     var createComparison: (() -> Void)?
     var createWorkflow: (() -> Void)?
     var createChain: (() -> Void)?
@@ -93,6 +96,16 @@ class ItemTypeRegistry {
                 icon: "message.circle",
                 category: .aiTools,
                 keyboardShortcut: "t",
+                handler: handler
+            ))
+        }
+
+        if let handler = createWorkspace {
+            items.append(ItemTypeDefinition(
+                id: "workspace",
+                name: "Workspace",
+                icon: "square.grid.2x2",
+                category: .aiTools,
                 handler: handler
             ))
         }

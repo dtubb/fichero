@@ -156,18 +156,8 @@ extension SidebarView {
     private func handleItemTypeSelection(_ item: SidebarItem) {
         // Update view mode based on item type
         switch item.itemType {
-        case .document(let doc) where doc.isAlias:
-            // Finder semantics (#2591): selecting an alias opens its TARGET.
-            // Resolution fetches from the backend (caches are lazy, so a
-            // cache miss is NOT proof of a dangling alias); a genuinely
-            // missing target surfaces a loud alert, never a stand-in.
-            resolveAliasSelection(doc, libraryId: item.libraryId)
-        case .document(let doc) where doc.isWorkflowNode:
-            routeWorkflowMirrorSelection(doc, libraryId: item.libraryId)
         case .document(let doc):
-            sidebarViewLogger.info("Switching to library view with document: \(doc.name)")
-            sidebarMode = .library
-            viewMode = .library(doc)
+            routeDocumentSelection(doc, libraryId: item.libraryId)
         case .savedSearch(let search):
             // Saved searches run through the transient toolbar-search path
             // (#4106/S2) — results render INTO the Library view; there is no
@@ -209,6 +199,36 @@ extension SidebarView {
             // Library headers just toggle expansion
             sidebarViewLogger.info("Library header clicked - just toggling expansion")
         }
+    }
+
+    /// One typed routing seam for every document-row flavor (#4335): alias →
+    /// its target (#2591), workflow mirror → the editor (#4292), workspace →
+    /// the Research surface (#4308), everything else → the library view.
+    /// Order matters: the specialized flavors must win over the generic
+    /// library fallback.
+    private func routeDocumentSelection(_ doc: Document, libraryId: UUID?) {
+        if doc.isAlias {
+            // Finder semantics (#2591): selecting an alias opens its TARGET.
+            // Resolution fetches from the backend (caches are lazy, so a
+            // cache miss is NOT proof of a dangling alias); a genuinely
+            // missing target surfaces a loud alert, never a stand-in.
+            resolveAliasSelection(doc, libraryId: libraryId)
+            return
+        }
+        if doc.isWorkflowNode {
+            routeWorkflowMirrorSelection(doc, libraryId: libraryId)
+            return
+        }
+        if doc.isWorkspace {
+            // #4308/#4335: a workspace node opens the Research surface (the
+            // agent workspace), not the plain folder browse.
+            sidebarViewLogger.info("Routing workspace node \(doc.id) to the Research surface")
+            sidebarMode = .research
+            return
+        }
+        sidebarViewLogger.info("Switching to library view with document: \(doc.name)")
+        sidebarMode = .library
+        viewMode = .library(doc)
     }
 
     /// #4292: a workflow mirror node is an editor surface, never a preview.
