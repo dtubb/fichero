@@ -13,7 +13,7 @@ struct DocumentInspectorInfoTab: View {
     @State var libraryAuthzSnapshot: Components.Schemas.LibraryAuthzSnapshot?
     @State var libraryAuthzError: String?
     @State var isLoadingLibraryAuthz = false
-    @State private var selectedAttribute: InfoAttribute?
+    @State private var selectedAttribute: InspectorAttribute?
     /// Geo points the engine derived for this document (#3055) — shown only when present.
     @State private var geoPoints: [Components.Schemas.DocGeoPoint] = []
 
@@ -123,7 +123,7 @@ struct DocumentInspectorInfoTab: View {
 
     @ViewBuilder
     private var statusSection: some View {
-        infoSection("Status") {
+        attributeSection("Status", attributes: [.state]) {
             attributeRow(
                 name: "State",
                 summary: document.status.rawValue.capitalized,
@@ -135,15 +135,6 @@ struct DocumentInspectorInfoTab: View {
                         ProgressView().scaleEffect(0.7)
                     }
                 }
-            }
-
-            attributeRow(
-                name: "Ingest Mode",
-                summary: document.ingestMode.rawValue.capitalized,
-                attribute: .ingestMode
-            ) {
-                Text(document.ingestMode.rawValue.capitalized)
-                    .foregroundStyle(.secondary)
             }
 
             attributeRow(
@@ -168,7 +159,7 @@ struct DocumentInspectorInfoTab: View {
 
     @ViewBuilder
     private var classSection: some View {
-        infoSection("Class") {
+        attributeSection("Class", attributes: [.documentClass]) {
             attributeRow(
                 name: "Class",
                 summary: document.prototypeKey ?? "Default",
@@ -184,7 +175,7 @@ struct DocumentInspectorInfoTab: View {
 
     @ViewBuilder
     private var fileSection: some View {
-        infoSection("File") {
+        attributeSection("File", attributes: [.kind, .fileType, .format, .fileSize]) {
             attributeRow(
                 name: "Kind",
                 summary: document.docType.rawValue.capitalized,
@@ -218,13 +209,12 @@ struct DocumentInspectorInfoTab: View {
                 }
             }
 
-            if let path = document.path {
-                attributeRow(name: "Path", summary: path, attribute: .path) {
-                    Text(path)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-            }
+            // `Ingest Mode` and `Path` are DELETED, not hidden (#4422). They
+            // describe how the app filed the bytes, not the document, and the
+            // path exposes the generated storage filename — the same value that
+            // is wrong in the island (#4416). There is no configuration in
+            // which showing them is right, so they are not offerable at all:
+            // `InspectorAttribute` has no case for either.
         }
     }
 
@@ -237,7 +227,7 @@ struct DocumentInspectorInfoTab: View {
         let height = intMetadata("height")
 
         if pageCount != nil || (width != nil && height != nil) {
-            infoSection("Content") {
+            attributeSection("Content", attributes: [.pageCount, .dimensions]) {
                 if let pageCount {
                     let summary = "\(pageCount) page\(pageCount == 1 ? "" : "s")"
                     attributeRow(name: "Pages", summary: summary, attribute: .pageCount) {
@@ -273,25 +263,56 @@ struct DocumentInspectorInfoTab: View {
         }
     }
 
+    /// A section whose entire content is attribute rows (#4422).
+    ///
+    /// With the default visible set empty, every row inside gates off — and
+    /// `infoSection` renders its heading unconditionally, so the user would be
+    /// left with bare "Status" / "File" / "Class" headings above nothing. That
+    /// is worse than the strip it replaced, and exactly the half-working
+    /// affordance the release gate forbids. The heading follows its rows.
+    @ViewBuilder
+    func attributeSection<Content: View>(
+        _ title: String,
+        attributes: [InspectorAttribute],
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if attributes.contains(where: visibleAttributes.contains) {
+            infoSection(title, content: content)
+        }
+    }
+
     /// Wraps the existing `InfoAttributeRow` with tap-to-select behaviour,
     /// replacing the `List(selection:)` driver that no longer applies.
     @ViewBuilder
     private func attributeRow<Detail: View>(
         name: String,
         summary: String,
-        attribute: InfoAttribute,
+        attribute: InspectorAttribute,
         @ViewBuilder detail: @escaping () -> Detail
     ) -> some View {
-        InfoAttributeRow(
-            name: name,
-            summary: summary,
-            isSelected: selectedAttribute == attribute,
-            detail: detail
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            selectedAttribute = (selectedAttribute == attribute) ? nil : attribute
+        // ONE gate for every attribute row (#4422). They all funnel through
+        // here, so the visible set is enforced in a single place rather than by
+        // fifteen `if`s that could drift. Default is nothing;
+        // `InspectorAttributeVisibility` is where a per-prototype resolver will
+        // later decide differently.
+        if visibleAttributes.contains(attribute) {
+            InfoAttributeRow(
+                name: name,
+                summary: summary,
+                isSelected: selectedAttribute == attribute,
+                detail: detail
+            )
+            // #4386: full-width row target, not the label's intrinsic width.
+            .inspectorListRowTarget()
+            .onTapGesture {
+                selectedAttribute = (selectedAttribute == attribute) ? nil : attribute
+            }
         }
+    }
+
+    /// The attributes this document shows, resolved as data (#4422).
+    private var visibleAttributes: [InspectorAttribute] {
+        InspectorAttributeVisibility.visibleAttributes(for: document)
     }
 
     // MARK: - Metadata helpers
@@ -347,12 +368,9 @@ struct DocumentInspectorInfoTab: View {
 
 // MARK: - Supporting types
 
-private enum InfoAttribute: Hashable {
-    case state, ingestMode, created, modified
-    case kind, fileType, format, fileSize, path
-    case pageCount, dimensions
-    case documentClass
-}
+// `InspectorAttribute` moved to `InspectorAttributeVisibility.swift` as
+// `InspectorAttribute` (#4422): the visible set is DATA now, so the type that
+// names the keys has to be reachable from the resolver and its tests.
 
 private struct InfoAttributeRow<Detail: View>: View {
     let name: String

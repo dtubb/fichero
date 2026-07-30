@@ -366,6 +366,13 @@ struct FicheroApp: App {
 
             // Edit menu
             CommandGroup(after: .pasteboard) {
+                // ⌘A, routed by focus (#4376). Declared AFTER the system
+                // pasteboard group on purpose: menu key equivalents match in
+                // menu order, and this item disables itself whenever the app
+                // has no business claiming ⌘A — so the reader's WebKit surface
+                // still gets its own select-all through the responder chain.
+                SelectAllButton()
+
                 Divider()
 
                 FocusedRenameButton()

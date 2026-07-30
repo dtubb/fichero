@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 // MARK: - Reading Layout Helpers (#1189)
@@ -28,15 +29,51 @@ extension ContentView {
         return max(0, (doc.sequence ?? 1) - 1)
     }
 
+    /// The reader scrolled past a page. Moves the page-focus cursor only —
+    /// never `detailDocument`, never `browserSelection` (#1463).
     func syncGridSelectionToPDFPage(index: Int) {
-        guard let match = Self.pageDocument(atPDFIndex: index, in: documentStore.currentDocuments) else { return }
-        // Update only the page-focus cursor — never re-root detailDocument or
-        // browserSelection from a scroll event (#1463). detailDocument stays
-        // pinned to the active container (parent PDF / folder) so the WebKit
-        // transcript doesn't reload; pageFocusDocument drives the inspector.
-        if pageFocusDocument?.id != match.id {
+        applyReaderPageSignal(.scrolledPast, pageIndex: index)
+    }
+
+    /// The user CLICKED a page in the reader (#4373).
+    ///
+    /// Routes through the same page resolution and the same state the scroll
+    /// path uses — one selection seam, not a parallel navigation — and then
+    /// applies the one extra thing a click is allowed to do: move the library
+    /// selection. The preview and inspector follow `pageFocusDocument` as they
+    /// already do, so no extra wiring is needed for either.
+    func handleReaderPageActivated() {
+        guard let request = readerPageActivationState.currentRequest else { return }
+        applyReaderPageSignal(.clicked, pageIndex: request.pageIndex)
+    }
+
+    /// The one place a reader page signal is applied. `signal` decides how much
+    /// of the window may move; everything else is identical between the two.
+    private func applyReaderPageSignal(_ signal: ReaderPageSignal, pageIndex: Int) {
+        guard let match = Self.pageDocument(
+            atPDFIndex: pageIndex,
+            in: documentStore.currentDocuments
+        ) else {
+            // Routine while scrolling — the transcript can report a page before
+            // its children have loaded — but a CLICK that resolves to nothing is
+            // a real failure the user just experienced as "that did nothing",
+            // so it says so rather than vanishing.
+            if signal == .clicked {
+                readerPageActivationLogger.error(
+                    "Reader page click found no page document at index \(pageIndex, privacy: .public)"
+                )
+            }
+            return
+        }
+        if signal.movesPageFocus, pageFocusDocument?.id != match.id {
             pageFocusDocument = match
         }
+        if signal.movesBrowserSelection, browserSelection != [match.id] {
+            browserSelection = [match.id]
+        }
+        // `detailDocument` is deliberately untouched by BOTH signals: it is the
+        // reader's own input, and re-rooting it reloads the WebKit transcript
+        // under the click that was meant to move within it (#1463).
     }
 
     /// Resolved parent-PDF document id for the currently previewed document, or nil.

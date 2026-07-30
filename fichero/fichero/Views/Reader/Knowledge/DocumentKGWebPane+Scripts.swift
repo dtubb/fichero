@@ -144,6 +144,27 @@ extension DocumentKGPaneRoute {
             }
             return current;
         }
+        // #4373: which page a CLICKED node belongs to — the nearest page anchor
+        // at or above it. An empty, untranscribed page is resolved exactly like
+        // any other: the anchors come from the page structure, not from whether
+        // a page has text, so an empty page is clickable rather than inert.
+        function pageForNode(node) {
+            var element = (node && node.nodeType === 1) ? node : (node ? node.parentElement : null);
+            var root = scroller();
+            var offsets = pageOffsets();
+            if (!element || !root || offsets.length === 0) { return null; }
+            var rootTop = (root === document.scrollingElement)
+                ? 0
+                : root.getBoundingClientRect().top;
+            var top = element.getBoundingClientRect().top - rootTop + root.scrollTop;
+            var current = offsets[0].page;
+            for (var i = 0; i < offsets.length; i++) {
+                // +1px of slack: a click lands ON the heading whose anchor sits
+                // a hair above it, and strict `<=` would attribute it upward.
+                if (offsets[i].top <= top + 1) { current = offsets[i].page; } else { break; }
+            }
+            return current;
+        }
         """
     }
 
@@ -184,10 +205,42 @@ extension DocumentKGPaneRoute {
                 if (page !== null) { postPage(page); }
             });
         }
+        // #4373: a click on a page is an instruction to select it; a scroll past
+        // it is not. Separate message kind, because the app is allowed to move
+        // the library selection and the preview for one and not the other
+        // (#1463).
+        function onTranscriptClick(event) {
+            // A drag that selected text is reading, not navigating. Selecting a
+            // quote must never yank the library out from under the user.
+            var selection = window.getSelection();
+            if (selection && !selection.isCollapsed) { return; }
+            var page = pageForNode(event.target);
+            var handler = window.webkit?.messageHandlers?.ficheroBridge;
+            if (!handler || page === null || !Number.isFinite(page)) { return; }
+            // Deliberately NOT gated on ficheroScrollSyncLastPage: clicking the
+            // page you are already reading is still a request to select it.
+            handler.postMessage({ kind: 'pageActivated', pageNumber: page });
+        }
+        function installPageClicks() {
+            var transcript = document.querySelector('.transcript');
+            if (!transcript) { return; }
+            if (window.ficheroPageClickTarget && window.ficheroPageClickHandler) {
+                window.ficheroPageClickTarget.removeEventListener(
+                    'click', window.ficheroPageClickHandler
+                );
+            }
+            window.ficheroPageClickTarget = transcript;
+            window.ficheroPageClickHandler = onTranscriptClick;
+            transcript.addEventListener('click', onTranscriptClick);
+        }
         function installScrollSync() {
             var root = scroller();
             var count = window.ficheroPageCount || 0;
             installPageAnchors();
+            // Installed BEFORE the single-page bail-out below: scroll sync is
+            // pointless in a one-page document, but a click still has to select
+            // that page.
+            installPageClicks();
             if (!root || count <= 1) { return; }
             var target = (root === document.scrollingElement) ? document : root;
             if (window.ficheroScrollTarget && window.ficheroScrollHandler) {

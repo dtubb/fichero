@@ -274,19 +274,29 @@ extension LibraryView {
     @ViewBuilder
     private func runWorkflowMenuItem(for clickedDocument: Document) -> some View {
         let availableWorkflows = libraryWorkflows
-        let workflowTargetIDs = resolvedWorkflowTargetIDs(for: clickedDocument)
+        let resolution = resolvedWorkflowRun(for: clickedDocument)
+        // #4419: not gated on the target list being non-empty — that gate is
+        // how the affordance silently vanished for a whole subtree.
         if featureManager.isWorkflowRunOnSelectionEnabled,
-           !availableWorkflows.isEmpty,
-           !workflowTargetIDs.isEmpty {
+           !availableWorkflows.isEmpty {
             Menu {
-                RunWorkflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
-                    Task { @MainActor in
-                        selectedDocumentIdsForBatch = workflowTargetIDs
-                        await runBatchWorkflow(
-                            workflowId: workflowId,
-                            providerOverride: providerOverride,
-                            modelOverride: modelOverride
-                        )
+                if resolution.isEmpty {
+                    Button("Nothing to run on") {}
+                        .disabled(true)
+                } else {
+                    if resolution.ignoredSelection {
+                        Text("Runs on this item only — it is outside your selection")
+                        Divider()
+                    }
+                    RunWorkflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
+                        Task { @MainActor in
+                            selectedDocumentIdsForBatch = resolution.targetIds
+                            await runBatchWorkflow(
+                                workflowId: workflowId,
+                                providerOverride: providerOverride,
+                                modelOverride: modelOverride
+                            )
+                        }
                     }
                 }
             } label: {
@@ -304,16 +314,20 @@ extension LibraryView {
         }
     }
 
-    private func resolvedWorkflowTargetIDs(for clickedDocument: Document) -> [String] {
+    /// #4419: the clicked row's identity is the anchor; `documents` only helps
+    /// EXPAND a folder. A selection is read from the grid's own `selection`
+    /// set, which is what the user can see is selected.
+    private func resolvedWorkflowRun(
+        for clickedDocument: Document
+    ) -> WorkflowRunTargetResolver.Resolution {
         let currentLibraryDocuments = documentStore.sidebarDocuments
-        let clickedTarget = workflowRunTarget(for: clickedDocument)
         let selectedTargets = Set(
             currentLibraryDocuments
                 .filter { selection.contains($0.id) }
                 .map(workflowRunTarget(for:))
         )
         return WorkflowRunTargetResolver.resolve(
-            clicked: clickedTarget,
+            clicked: workflowRunTarget(for: clickedDocument),
             selection: selectedTargets,
             documents: currentLibraryDocuments
         )

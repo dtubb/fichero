@@ -1,11 +1,19 @@
 @testable import Fichero
 import Testing
 
-/// #3944: an app-managed embedded engine is the app's lifecycle/credential job,
-/// not the user's. These pure predicates prove the view cannot render restart /
-/// reset-sign-in / reset-certificate actions for that host class while preserving
-/// the same actions for user-managed debug-local and remote/auth cases.
+/// #3944 + #4380: which recovery the connection surface offers is a pure
+/// function of the engine phase, who owns the engine process, and the
+/// classified access error — never of who happens to be rendering.
+///
+/// #3944's rule survives in a sharper form: an app-managed embedded engine
+/// mints its own credentials and pins its own certificate, so it must never
+/// offer to reset either. What #4380 changes is the *positive* case — it now
+/// offers "Restart Engine", because the app owns the process and restarting it
+/// is a real thing the app can do, where the old copy offered a shell command
+/// under a label truncated to "Start Exte…".
 struct BackendConnectionActionPolicyTests {
+    private typealias Ownership = ConnectionPresentation.EngineOwnership
+
     @Test func onlyReleaseEmbeddedIsAppManaged() {
         #expect(BackendConnectionView.usesAppManagedEmbeddedEngine(.releaseEmbedded))
         #expect(!BackendConnectionView.usesAppManagedEmbeddedEngine(.debugExternal))
@@ -14,55 +22,83 @@ struct BackendConnectionActionPolicyTests {
         #expect(!BackendConnectionView.usesAppManagedEmbeddedEngine(.inert))
     }
 
-    @Test func appManagedEmbeddedEngineShowsNoUserRemedyButtons() {
+    @Test func ownershipFollowsProvisioningStrategy() {
+        #expect(Ownership.resolve(.releaseEmbedded) == .appManaged)
+        #expect(Ownership.resolve(.debugExternal) == .externalLocal)
+        #expect(Ownership.resolve(.inert) == .externalLocal)
+        #expect(Ownership.resolve(.configuredRemote) == .remote)
+        #expect(Ownership.resolve(.iosCompanion) == .remote)
+    }
+
+    @Test func appManagedEngineNeverOffersSignInOrCertificateResets() {
         for error in [AccessError.engineUnreachable, .staleBootstrapToken, .unauthenticated, .tlsPinFailure] {
-            #expect(!BackendConnectionView.showsRetryButton(usesAppManagedEmbeddedEngine: true))
-            #expect(!BackendConnectionView.showsResetSignInButton(
+            let action = ConnectionPresentation.failureAction(
                 accessError: error,
-                usesAppManagedEmbeddedEngine: true
-            ))
-            #expect(!BackendConnectionView.showsResetCertificateButton(
-                accessError: error,
-                usesAppManagedEmbeddedEngine: true
-            ))
+                authBroken: false,
+                ownership: .appManaged
+            )
+            #expect(action != .resetSignIn)
+            #expect(action != .resetCertificate)
+            // It always offers the one thing it CAN do.
+            #expect(action == .restartEngine)
         }
     }
 
-    @Test func remoteAndDebugLocalKeepRetryOrAuthRemedies() {
-        #expect(BackendConnectionView.showsRetryButton(usesAppManagedEmbeddedEngine: false))
-        #expect(BackendConnectionView.showsResetSignInButton(
+    @Test func userManagedEnginesKeepTheirAuthRemedies() {
+        #expect(ConnectionPresentation.failureAction(
             accessError: .unauthenticated,
-            usesAppManagedEmbeddedEngine: false
-        ))
-        #expect(BackendConnectionView.showsResetCertificateButton(
+            authBroken: true,
+            ownership: .remote
+        ) == .resetSignIn)
+        #expect(ConnectionPresentation.failureAction(
             accessError: .tlsPinFailure,
-            usesAppManagedEmbeddedEngine: false
-        ))
+            authBroken: false,
+            ownership: .remote
+        ) == .resetCertificate)
+        #expect(ConnectionPresentation.failureAction(
+            accessError: .deviceAccessExpired,
+            authBroken: false,
+            ownership: .remote
+        ) == .forgetPairing)
     }
 
-    @Test func inappropriateRemoteRemediesStayHidden() {
-        #expect(!BackendConnectionView.showsResetSignInButton(
+    @Test func inappropriateRemediesStayHidden() {
+        // A scoped 403 is not fixed by signing in again, and nothing the app
+        // can do mints authorization — so it offers nothing rather than
+        // something that cannot work.
+        #expect(ConnectionPresentation.failureAction(
             accessError: .forbidden(reason: "not_a_member", message: nil),
-            usesAppManagedEmbeddedEngine: false
-        ))
-        #expect(!BackendConnectionView.showsResetCertificateButton(
+            authBroken: false,
+            ownership: .remote
+        ) == nil)
+        #expect(ConnectionPresentation.failureAction(
+            accessError: .forbidden(reason: "not_a_member", message: nil),
+            authBroken: false,
+            ownership: .appManaged
+        ) == nil)
+        // An unreachable engine is not a certificate problem.
+        #expect(ConnectionPresentation.failureAction(
             accessError: .engineUnreachable,
-            usesAppManagedEmbeddedEngine: false
-        ))
+            authBroken: false,
+            ownership: .externalLocal
+        ) == .reconnect)
     }
 
-    @Test func retryCopySeparatesDebugLocalFromRemote() {
-        #expect(BackendConnectionView.retryButtonTitle(
-            accessError: .engineUnreachable,
-            usesExternalBackendConnection: false
-        ) == "Start External Server")
-        #expect(BackendConnectionView.retryButtonTitle(
-            accessError: .engineUnreachable,
-            usesExternalBackendConnection: true
-        ) == "Retry Connection")
-        #expect(BackendConnectionView.retryButtonTitle(
-            accessError: .staleBootstrapToken,
-            usesExternalBackendConnection: true
-        ) == "Retry After Restarting Server")
+    /// The regression this issue is named for: the primary label used to be
+    /// "Start External Server", which the popover rendered as "Start Exte…".
+    @Test func primaryActionLabelsAreShortAndNeverPrescribeACommand() {
+        for action in [
+            ConnectionPresentation.Action.reconnect,
+            .restartEngine,
+            .resolvePortConflict,
+            .resetSignIn,
+            .resetCertificate,
+            .forgetPairing
+        ] {
+            #expect(action.title.count <= ConnectionPresentation.labelBudget)
+            #expect(!action.title.isEmpty)
+            #expect(!action.title.contains("Start External Server"))
+            #expect(!action.systemImage.isEmpty)
+        }
     }
 }

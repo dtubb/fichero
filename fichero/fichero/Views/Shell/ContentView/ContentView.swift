@@ -90,6 +90,9 @@ struct ContentView: View {
     // window never drives another (#3437). Injected into the subtree below.
     @State var entitySearchState = EntitySearchState()
     @State var claimSourceNavigationState = ClaimSourceNavigationState()
+    /// Reader page clicks (#4373). Per-window like the buses above, so a click
+    /// in one window's reader never moves another window's selection.
+    @State var readerPageActivationState = ReaderPageActivationState()
     /// Which Preview/Reader pane updates on the next library click (#3579).
     /// Per-window like the others; injected below, read by the pane views.
     @State var activeSurfaceState = ActiveSurfaceState()

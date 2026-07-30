@@ -78,20 +78,23 @@ struct EngineStatusToolbarItem: View {
             // Retry / reset-sign-in / reset-certificate / port-conflict /
             // show-log actions all live in BackendConnectionView+Actions and
             // +Status) rather than re-implementing any of that chrome here.
+            // #4380: the popover is now a title, one sentence and one action —
+            // it no longer needs 340pt of illustration and cycling copy.
             BackendConnectionView(appState: appState, onRetry: engineRetry)
-                .frame(width: 360, height: 340)
+                .frame(width: 380, height: 200)
         }
         .accessibilityLabel(accessibilityLabel)
     }
 
+    /// The same mapped title the popover and the island show — VoiceOver must
+    /// not be told a third version of the story, and must never be read a
+    /// multi-line shell command (#4380).
     private var accessibilityLabel: String {
-        switch phase {
-        case .starting:
-            return "Connecting to engine"
-        case .portConflict, .authRejected, .unreachable, .failed:
-            return appState.engine.diagnosis ?? "Engine connection problem"
-        case .setupNeeded, .ready:
-            return "Engine ready"
-        }
+        ConnectionPresentation.status(
+            phase: phase,
+            ownership: ConnectionPresentation.EngineOwnership.current(),
+            accessError: appState.backendAccessError,
+            authBroken: appState.authBroken
+        ).title
     }
 }

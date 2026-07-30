@@ -2,38 +2,33 @@ import FicheroAPIClient
 import SwiftUI
 
 extension BackendConnectionView {
-    /// Red failure UI shows ONLY for an explicit terminal failure
-    /// (`status == .failed`). During normal startup the service walks
-    /// `.stopped → .starting → .running`, and `appState.isCheckingBackend`
-    /// flips false in the 5 s gaps between health polls — keying failure off
-    /// `(!isCheckingBackend && !isBackendRunning)` painted a misleading red
-    /// "Engine Not Running" flash during those gaps while the engine was still
-    /// cold-starting (#2664). Genuine failures still surface: external/custom
-    /// hosts set `.failed` immediately, and the embedded poll loop below flips
-    /// to `.failed` after the 60 s timeout.
-    var showsFailureState: Bool {
-        // Driven by the single phase owner (#3107): any non-ready, non-starting,
-        // non-setup phase is a failure the user can act on.
-        switch appState.engine.phase {
-        case .portConflict, .authRejected, .unreachable, .failed:
-            return true
-        case .setupNeeded, .starting, .ready:
-            return false
-        }
+    /// Who owns the engine PROCESS for this build/launch — the input that
+    /// decides whether "Restart Engine" is a truthful offer (#4380).
+    ///
+    /// Distinct from `EmbeddedBackendService.engineOwnership`, which answers
+    /// "who owns the PORT" (#4057).
+    var engineProcessOwnership: ConnectionPresentation.EngineOwnership {
+        ConnectionPresentation.EngineOwnership.resolve(EngineConfig.engineProvisioningStrategy())
     }
 
-    var titleText: String {
-        usesExternalBackendConnection ? "Connect to Fichero" : "Starting Fichero"
+    /// The ONE status this popover renders, derived from the same mapping the
+    /// status island and the library pane read (#4380). The view never invents
+    /// copy of its own — including "is this a failure", which is now simply
+    /// `connectionStatus.isError` instead of a second phase switch that could
+    /// disagree with the first.
+    var connectionStatus: ConnectionPresentation.Status {
+        ConnectionPresentation.status(
+            phase: appState.engine.phase,
+            ownership: engineProcessOwnership,
+            accessError: failureAccessError,
+            authBroken: appState.authBroken
+        )
     }
 
     static func usesAppManagedEmbeddedEngine(
         _ strategy: EngineConfig.EngineProvisioningStrategy
     ) -> Bool {
         strategy.spawnsBundledEngine
-    }
-
-    var usesAppManagedEmbeddedEngine: Bool {
-        Self.usesAppManagedEmbeddedEngine(EngineConfig.engineProvisioningStrategy())
     }
 
     /// The holding PID when the engine is in the `portConflict` phase (#3111),
@@ -56,90 +51,7 @@ extension BackendConnectionView {
         return false
     }
 
-    var failureTitle: String {
-        if isPortConflict {
-            // Foreign holder of :8765 — the in-window replacement for the old
-            // pre-window NSAlert (#3111).
-            return "Port 8765 Is In Use"
-        }
-        return Self.connectionFailureTitle(
-            accessError: failureAccessError,
-            authBroken: appState.authBroken,
-            usesExternalBackendConnection: usesExternalBackendConnection,
-            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
-        )
-    }
-
-    /// Pure phase → failure-title mapping (#3341). Extracted so the invariant
-    /// "never claim the engine is NOT RUNNING when we only failed to CONNECT" is
-    /// unit-testable. When the engine is reachable-but-unusable (unreachable /
-    /// unclassified failure), the copy says "Can't Connect to Server" — the
-    /// engine may well be running (wrong port / transient / socket); the screen's
-    /// Retry + Show Log let the user act, and the detail carries the real reason.
-    static func connectionFailureTitle(
-        accessError: AccessError?,
-        authBroken: Bool,
-        usesExternalBackendConnection: Bool,
-        usesAppManagedEmbeddedEngine: Bool = false
-    ) -> String {
-        switch accessError {
-        case .staleBootstrapToken:
-            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Refresh Its Server Token" : "Server Token Mismatch"
-        case .tlsPinFailure:
-            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Verify Its Server" : "Certificate Mismatch"
-        case .deviceAccessExpired:
-            return "Device Access Expired"
-        case .forbidden:
-            return "No Access to Server"
-        case .transport:
-            return "Connection Failed"
-        case .engineUnreachable:
-            // Couldn't reach the engine — NOT the same as "not running" (#3341).
-            return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Server"
-        case .unauthenticated, .none:
-            break
-        }
-        if authBroken {
-            // Health-200-but-auth-broken: the specific state that used to blank
-            // the window with silent 401s (#2864). Connected to a user-managed
-            // engine, but the saved sign-in is stale → remote auth recovery.
-            return usesAppManagedEmbeddedEngine ? "Fichero Couldn't Authenticate to Its Server" : "Can't Authenticate to Server"
-        }
-        // Unclassified failure (e.g. `.failed`): we know we couldn't connect, not
-        // that the engine is stopped — so never assert "Engine Not Running" (#3341).
-        return usesExternalBackendConnection ? "Backend Not Reachable" : "Can't Connect to Server"
-    }
-
-    /// Prefer the specific diagnosis (port occupied by PID / auth rejected /
-    /// probe failed) over the generic error string (#2864).
-    var failureDetail: String? {
-        failureAccessError?.errorDescription ?? appState.backendDiagnosis ?? appState.backendError
-    }
-
     var failureAccessError: AccessError? {
         appState.backendAccessError ?? (appState.authBroken ? .unauthenticated : nil)
-    }
-
-    static func retryButtonTitle(
-        accessError: AccessError?,
-        usesExternalBackendConnection: Bool,
-        usesAppManagedEmbeddedEngine: Bool = false
-    ) -> String {
-        if usesAppManagedEmbeddedEngine { return "" }
-        if !usesExternalBackendConnection { return "Start External Server" }
-        if case .staleBootstrapToken? = accessError { return "Retry After Restarting Server" }
-        return "Retry Connection"
-    }
-
-    var retryButtonTitle: String {
-        Self.retryButtonTitle(
-            accessError: failureAccessError,
-            usesExternalBackendConnection: usesExternalBackendConnection,
-            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
-        )
-    }
-
-    var secondaryStatusText: String {
-        usesExternalBackendConnection ? "Connect to a running Fichero server to continue." : "This can take a moment."
     }
 }

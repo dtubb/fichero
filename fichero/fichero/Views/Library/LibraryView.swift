@@ -48,6 +48,20 @@ struct LibraryView: View {
     /// Sidebar-parity Add to Chat (#4121): the host opens chat scoped to the
     /// current selection; nil hides the menu item (previews, non-chat hosts).
     var onAddToChat: (() -> Void)?
+    /// The engine-search field's text and mode, now that the field lives in
+    /// the library's own mini toolbar rather than on the window (#4407).
+    /// Defaulted so the previews construct unchanged.
+    var searchFieldText: Binding<String> = .constant("")
+    var searchFieldMode: Binding<SearchFieldMode> = .constant(.ask)
+    /// The transient search this grid is showing results for, if any (#4403).
+    /// Non-nil means the empty state must talk about the SEARCH — never about
+    /// choosing a collection, which is what it used to fall back to under a
+    /// header reading "3 results for …".
+    var activeSearchQuery: String?
+    /// What that search matched, per kind. The grid can only render the
+    /// document leg, so these are how the body explains a header count it
+    /// cannot show.
+    var searchHitCounts: SearchHitCounts = SearchHitCounts()
 
     @State var searchText: String = ""
     /// Precomputed lowercased ⌘F search keys per docId (#3865). Rebuilt only when
@@ -234,7 +248,7 @@ struct LibraryView: View {
     /// failure branches win.
     ///
     /// Pure so the invariant is testable without a live engine, the same reason
-    /// `BackendConnectionView.connectionFailureTitle` is pure (#3341).
+    /// `ConnectionPresentation.failureTitle` is pure (#3341).
     /// `nonisolated` is LOAD-BEARING: a static on a `View` inherits the type's
     /// MainActor isolation under the macOS 26 SDK, and the Swift Testing suite
     /// that calls this runs on a cooperative thread — the off-main call
@@ -264,9 +278,31 @@ struct LibraryView: View {
     // See memory: librarywindow-body-typecheck-timeout.
     @ViewBuilder
     private var libraryContent: some View {
-        if isCollectionLoading || isAwaitingFirstLoad {
+        // #4372: a failed engine is an error affordance, never a spinner. This
+        // branch has to come FIRST, because `isAwaitingFirstLoad` is true
+        // whenever no load has succeeded AND no load has failed — which is
+        // exactly the shape of "the engine never answered, so nothing was ever
+        // asked for". Without it the pane spins forever over a dead engine.
+        if let engineFailure = engineFailureDetail {
+            connectionErrorState(message: engineFailure)
+        } else if isCollectionLoading || isAwaitingFirstLoad {
             loadingState
-        } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
+        } else {
+            libraryFailureOrRows
+        }
+    }
+
+    /// The failure branches, split out of `libraryContent` so no single
+    /// `@ViewBuilder` body carries seven branches plus a nested switch.
+    ///
+    /// Purely a factoring: the chain order is unchanged, so the precedence
+    /// (access denial → engine outage → generic error → rows) is exactly what
+    /// it was. `LibraryWindow.body` has a documented type-check-timeout history
+    /// in this codebase and #4372 added a branch to this chain, so it is
+    /// bounded now rather than after a failed build.
+    @ViewBuilder
+    private var libraryFailureOrRows: some View {
+        if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
             // Never a silent 403 / blank pane (F6): a denied library read lands on
             // the explicit access state — which library, why, who you are, and the
             // next action — instead of the generic "couldn't load" text.
@@ -279,10 +315,18 @@ struct LibraryView: View {
                 onResetPin: { RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString) }
             )
         } else if !isShowingEntitiesCollection, Self.isEngineOutage(documentStore.error) {
-            connectionErrorState
+            connectionErrorState(message: engineUnreachableDetail)
         } else if let activeErrorMessage {
             errorState(message: activeErrorMessage)
-        } else if isCollectionEmpty {
+        } else {
+            libraryRowsOrEmptyState
+        }
+    }
+
+    /// The final answer: rows, or the empty/placeholder state.
+    @ViewBuilder
+    private var libraryRowsOrEmptyState: some View {
+        if isCollectionEmpty {
             // "Empty folder" and "contents not here yet" looked identical, so a
             // folder click or a drop showed "No Documents" and then relaid out
             // when the data landed (#4235). Show what is already in flight.
@@ -307,79 +351,6 @@ struct LibraryView: View {
             case .space:
                 spaceModeView
             }
-        }
-    }
-
-    /// Move a dragged canvas node INTO a container via the audited `document.move`
-    /// action (#3086). Maps spatial node ids → document ids; a non-document drag
-    /// (canvas item) has no `doc:` id and is a safe no-op. The change stream
-    /// reconciles both windows; a failure leaves the row put (never silent-drops).
-    private func moveCanvasNodeIntoContainer(_ nodeId: String, _ containerNodeId: String) {
-        guard let docId = SpatialLibraryProjector.documentId(fromNodeId: nodeId),
-              let parentId = SpatialLibraryProjector.documentId(fromNodeId: containerNodeId) else { return }
-        Task { @MainActor in
-            _ = try? await documentStore.moveDocument(docId, toParent: parentId)
-        }
-    }
-
-    @ViewBuilder
-    private var spaceModeView: some View {
-        if featureManager.isCanvasRealityKit3DEnabled {
-            CanvasSpaceView(
-                nodes: libraryProjection.nodes,
-                connections: [],
-                selectedNodeId: canvasSelectedNodeId,
-                layoutStore: canvasLayoutStore,
-                itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId,
-                containerIds: canvasContainerIds,
-                moveIntoContainer: moveCanvasNodeIntoContainer
-            )
-        } else {
-            SpaceSceneView(
-                nodes: libraryProjection.nodes,
-                connections: [],
-                selectedNodeId: canvasSelectedNodeId,
-                layoutStore: canvasLayoutStore,
-                itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId,
-                // #4160: textures must fetch through THIS library's storage —
-                // the cache previously always used the global library, so any
-                // non-global library rendered colored placeholders instead of
-                // page thumbnails.
-                storageService: activeLibraryReference?.storageService
-            )
-        }
-    }
-
-    /// The 2D Canvas renderer, gated (#3083): the new RealityKit-ortho
-    /// `CanvasSceneView` when the flag is on, else the SwiftUI `Spatial2DCanvas`.
-    /// Both read the SAME shared stores, so switching engines is transparent;
-    /// the SwiftUI canvas is retired only at cutover (#3087). Extracted to keep
-    /// `libraryContent`'s switch within the type-checker budget.
-    @ViewBuilder
-    private var canvasModeView: some View {
-        if featureManager.isCanvasRealityKit2DEnabled {
-            CanvasSceneView(
-                nodes: libraryProjection.nodes,
-                connections: [],
-                selectedNodeId: canvasSelectedNodeId,
-                layoutStore: canvasLayoutStore,
-                itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId,
-                containerIds: canvasContainerIds,
-                moveIntoContainer: moveCanvasNodeIntoContainer
-            )
-        } else {
-            Spatial2DCanvas(
-                nodes: libraryProjection.nodes,
-                connections: [],
-                selectedNodeId: canvasSelectedNodeId,
-                layoutStore: canvasLayoutStore,
-                itemStore: canvasItemStore,
-                folderScopeId: folderId ?? wholeLibraryRoomId,
-                storageService: activeLibraryReference?.storageService
-            )
         }
     }
 
@@ -434,6 +405,17 @@ struct LibraryView: View {
             // through behind the pill.
             .safeAreaInset(edge: .top, spacing: 0) {
                 liveUpdatesPausedInset
+            }
+            // The library's own mini toolbar (#4407 / #4374): search, sort and
+            // filter live with the surface they act on. Top on the Mac, bottom
+            // on touch — the same single platform decision the reader's find
+            // bar makes, from the same place, so the two panes agree. Because
+            // it is an inset on THIS view it resizes with the library pane and
+            // disappears with it, which window chrome could never do.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if Self.miniToolbarPlacement == .top {
+                    PaneFilterBar(placement: .top) { libraryMiniToolbar }
+                }
             }
             // Closes the sidebar-click interval opened in `handleSelectionChange`
             // (#4228). See `InteractionProfile.Phase.selectionToContent` for what
@@ -604,8 +586,10 @@ extension LibraryView {
     /// Canvas stores are shared per library (#3082), but must never silently
     /// swap to another library's client/scope while this window's library is
     /// still loading or unavailable (#3198).
-    private var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
-    private var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
+    /// Promoted `private` → internal: read from `LibraryView+CanvasModes.swift`
+    /// after the #4353 file split, and `private` is file-scoped.
+    var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
+    var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
 
     /// Extracted from `.focusedSceneValue` so the Swift type-checker doesn't
     /// time out on the inline ternary-with-closure expression. Wrapped in
@@ -627,14 +611,18 @@ extension LibraryView {
         Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
     }
 
-    /// Shown only for a load that failed because the engine was unreachable
-    /// (`isEngineOutage`) — never for a library that simply hasn't loaded yet.
-    /// The engine is started and managed by the app, so the copy never asks the
-    /// user to go check a service or a port they don't run.
-    private var connectionErrorState: some View {
+    /// Shown for a load that failed because the engine was unreachable
+    /// (`isEngineOutage`) or because the engine itself is in a failure phase —
+    /// never for a library that simply hasn't loaded yet.
+    ///
+    /// The sentence comes from `ConnectionPresentation` (#4380), the same
+    /// mapping the engine popover reads, so the two surfaces cannot describe
+    /// one failure two different ways. A raw transport error never reaches
+    /// this pane (#4269); it lives in the engine log.
+    private func connectionErrorState(message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 48))
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
 
             Text("Can't Reach the Server")
@@ -644,7 +632,7 @@ extension LibraryView {
                 // has to be able to catch it claiming one on a healthy engine.
                 .accessibilityIdentifier("library.outage")
 
-            Text("Fichero can't reach its server right now, so this library can't load. Try again in a moment.")
+            Text(message)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -658,9 +646,48 @@ extension LibraryView {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Filter bar + bottom action bar stacked at the bottom of every library view mode.
+    /// The honest sentence for the CURRENT engine phase, or nil when the engine
+    /// is not in a failure phase at all (#4372). Non-nil is what promotes the
+    /// pane from "loading" to "the error affordance".
+    private var engineFailureDetail: String? {
+        switch appState.engine.phase {
+        case .portConflict, .authRejected, .unreachable, .failed:
+            return engineStatusDetail
+        case .setupNeeded, .starting, .ready:
+            return nil
+        }
+    }
+
+    /// The sentence for a store load that failed with `engineUnreachable` while
+    /// the session itself has not (yet) flipped to a failure phase.
+    private var engineUnreachableDetail: String {
+        ConnectionPresentation.failureDetail(
+            accessError: .engineUnreachable,
+            authBroken: false,
+            ownership: ConnectionPresentation.EngineOwnership.current()
+        )
+    }
+
+    /// Everything stacked below the library's rows, in ONE inset with an
+    /// explicit order (#4424).
+    ///
+    /// It used to be two separate `.safeAreaInset(edge: .bottom)` modifiers —
+    /// the mini toolbar added by #4407, then this one. SwiftUI applies insets
+    /// outward in modifier order, so the later one lands FURTHEST from the
+    /// content: the window-scoped status row ended up beneath the pane-scoped
+    /// mini toolbar, which says the opposite of what is true about their
+    /// scopes. Two bottom insets is two orderings competing; one inset with a
+    /// stated order cannot drift.
+    ///
+    /// Order, content outward:
+    ///   1. the library's mini toolbar — pane-scoped, so nearest its rows
+    ///   2. the quick-filter row it reveals
+    ///   3. the bottom action/status bar — the outermost thing, beneath all of it
     private var bottomInsetContent: some View {
         VStack(spacing: 0) {
+            if Self.miniToolbarPlacement == .bottom {
+                PaneFilterBar(placement: .bottom) { libraryMiniToolbar }
+            }
             if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
                 filterBarView
             }
@@ -668,230 +695,6 @@ extension LibraryView {
         }
     }
 }
-
-// MARK: - Bottom Action Bar (#2313)
-extension LibraryView {
-    private var bottomBarLogger: Logger {
-        Logger(subsystem: "app.fichero.fichero", category: "LibraryView.BottomBar")
-    }
-
-    /// Minimum hit-target side for each bottom-bar button. Follows the shared
-    /// MiniToolbar metric policy: 28pt on the Mac (compact Finder bar) but 44pt
-    /// on touch platforms so iPhone/iPad targets are comfortably tappable (#2474).
-    private var bottomBarTouchTarget: CGFloat {
-        MiniToolbar<EmptyView, EmptyView>.touchTargetSide
-    }
-
-    /// Height of the bottom action bar. Matches the shared mini-toolbar policy
-    /// so library, sidebar, reader, preview, and inspector strips line up.
-    private var bottomBarHeight: CGFloat {
-        MiniToolbar<EmptyView, EmptyView>.standardHeight
-    }
-
-    /// Finder/Xcode-style bottom toolbar acting on the current library selection.
-    ///
-    /// Rewrapped on the shared `AdaptiveMiniToolbarRow` (#3057, parent #2670) so
-    /// the bar no longer "extends and is weird" in a narrow pane: essential verbs
-    /// stay inline, secondary verbs collapse into a trailing `…` menu when they
-    /// don't fit (macOS) or on compact width (iPhone). Every action / `.help` /
-    /// `.accessibilityLabel` is unchanged — iterate, never replace.
-    private var libraryBottomActionBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-
-            // Translucent Liquid Glass background, matching the sidebar mini-toolbars
-            // (SidebarModeBar / SidebarBottomToolbar / PaneFilterBar) for a consistent
-            // glass look across the window chrome (#2550).
-            GlassEffectContainer {
-                AdaptiveMiniToolbarRow {
-                    essentialBarButtons
-                } secondary: {
-                    secondaryBarButtons
-                } overflowMenu: {
-                    bottomBarOverflowMenu
-                }
-                .padding(.horizontal, 10)
-                .frame(height: bottomBarHeight)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
-            }
-        }
-    }
-
-    /// Essential verbs — always inline (#3057): New Folder, Delete, Import. The
-    /// trailing Spacer keeps them left-aligned with the secondary/overflow on the
-    /// right, preserving the bar's existing Finder-style layout.
-    @ViewBuilder
-    private var essentialBarButtons: some View {
-        Button {
-            handleCreateNewFolder()
-        } label: {
-            Image(systemName: "plus")
-                .accessibilityLabel("New Folder")
-        }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Create a new folder")
-
-        Button {
-            promptDeleteSelected()
-        } label: {
-            Image(systemName: "minus")
-                .accessibilityLabel("Delete")
-        }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Delete selection")
-        .disabled(isShowingEntitiesCollection || selection.isEmpty)
-
-        Button {
-            showingFileImporter = true
-        } label: {
-            Image(systemName: "square.and.arrow.down")
-                .accessibilityLabel("Import")
-        }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Import files")
-
-        Spacer()
-    }
-
-    /// Secondary verbs — inline on Mac when they fit, else the `…` menu; menu-only
-    /// on compact (#3057): entity filter (list mode), Export BibTeX, Run Workflow.
-    @ViewBuilder
-    private var secondaryBarButtons: some View {
-        if displayMode == .list {
-            entityFilterMenu
-        }
-
-        Button {
-            Task { await exportSelectedBibtex() }
-        } label: {
-            Image(systemName: "square.and.arrow.up")
-                .accessibilityLabel("Export BibTeX")
-        }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Export selection as BibTeX")
-        .disabled(isShowingEntitiesCollection || selection.isEmpty)
-
-        Button {
-            selectedDocumentIdsForBatch = Array(selection)
-            showWorkflowPicker = true
-        } label: {
-            Image(systemName: "bolt")
-                .accessibilityLabel("Run Workflow")
-        }
-        .buttonStyle(.borderless)
-        .controlSize(.small)
-        .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
-        .contentShape(Rectangle())
-        .help("Run workflow on selection")
-        .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
-    }
-
-    /// `Label`-based mirror of the secondary verbs for the overflow `…` menu
-    /// (#3057) — same actions + disabled logic, menu-item presentation.
-    @ViewBuilder
-    private var bottomBarOverflowMenu: some View {
-        if displayMode == .list {
-            entityFilterMenu
-        }
-
-        Button {
-            Task { await exportSelectedBibtex() }
-        } label: {
-            Label("Export BibTeX", systemImage: "square.and.arrow.up")
-        }
-        .disabled(isShowingEntitiesCollection || selection.isEmpty)
-
-        Button {
-            selectedDocumentIdsForBatch = Array(selection)
-            showWorkflowPicker = true
-        } label: {
-            Label("Run Workflow", systemImage: "bolt")
-        }
-        .disabled(isShowingEntitiesCollection || selection.isEmpty || !featureManager.isWorkflowRunOnSelectionEnabled)
-    }
-
-    private func exportSelectedBibtex() async {
-        guard !selection.isEmpty else { return }
-        let documentIds = Array(selection)
-        guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
-
-        do {
-            // Route through the service wrapper instead of raw ficheroClient.api
-            // (observable-data-layer, #3258); it owns the response handling.
-            let bib = try await library.entityService.exportBibliographyBib(documentIds: documentIds)
-            guard let saveURL = await presentBibtexSavePanel() else { return }
-            try Data(bib.utf8).write(to: saveURL, options: .atomic)
-        } catch {
-            bottomBarLogger.error("Failed to export selected BibTeX: \(error.localizedDescription)")
-        }
-    }
-
-    private func presentBibtexSavePanel() async -> URL? {
-        #if canImport(AppKit)
-        await withCheckedContinuation { continuation in
-            let savePanel = NSSavePanel()
-            savePanel.nameFieldStringValue = "selection.bib"
-            if let bibType = UTType(filenameExtension: "bib") {
-                savePanel.allowedContentTypes = [bibType]
-            }
-            savePanel.allowsOtherFileTypes = false
-            savePanel.canCreateDirectories = true
-            savePanel.begin { result in
-                continuation.resume(returning: result == .OK ? savePanel.url : nil)
-            }
-        }
-        #else
-        return nil
-        #endif
-    }
-
-    private func handleCreateNewFolder() {
-        guard libraryManager.globalLibrary != nil else { return }
-        // Creation lives on the library's document store; no sidebarState here.
-        Task {
-            guard let library = libraryManager.getLibrary(id: windowState.libraryId)
-                ?? libraryManager.globalLibrary else { return }
-            do {
-                _ = try await library.documentStore.createCollection(name: "New Folder")
-                await library.documentStore.refresh()
-            } catch {
-                bottomBarLogger.error("Failed to create folder from bottom bar: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func handleBottomBarImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            Task { @MainActor in
-                guard let library = libraryManager.getLibrary(id: windowState.libraryId)
-                    ?? libraryManager.globalLibrary else { return }
-                do {
-                    _ = try await library.importService.importFiles(urls, mode: .link)
-                    await library.documentStore.refresh()
-                } catch {
-                    bottomBarLogger.error("Bottom-bar import failed: \(error.localizedDescription)")
-                }
-            }
-        case .failure(let error):
-            bottomBarLogger.debug("Bottom-bar import cancelled or failed: \(error.localizedDescription)")
-        }
-    }
-
-}
-
 // MARK: - Spatial projection
 
 extension LibraryView {
@@ -946,9 +749,16 @@ private extension LibraryView {
         documents.contains { $0.status == .processing || $0.status == .pending }
     }
 
+}
+
+// Moved OUT of the `private extension` above, not merely un-marked: a member's
+// own access modifier cannot exceed its enclosing extension's, so dropping
+// `private` from the property left it fileprivate and still unreachable from
+// `LibraryView+CanvasModes.swift` after the #4353 split.
+extension LibraryView {
     /// Spatial node ids of container documents (folder / workspace) — drag-onto
     /// move-into targets (#3086). Dropping onto one moves the dragged doc inside.
-    private var canvasContainerIds: Set<String> {
+    var canvasContainerIds: Set<String> {
         Set(
             documentStore.collections
                 .filter { $0.docType == .folder || $0.isWorkspace }

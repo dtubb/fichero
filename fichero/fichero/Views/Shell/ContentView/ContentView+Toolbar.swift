@@ -9,13 +9,7 @@ enum ContentToolbarID {
     static let inspectorToggle = "fichero.inspectorToggle"
     static let compactInspectorToggle = "fichero.inspectorToggle.compact"
     static let activityStatus = "fichero.activityStatus"
-    static let viewMenu = "fichero.viewMenu"
     static let viewDisplayMode = "fichero.viewDisplayMode"
-    static let libraryPaneToggle = "fichero.libraryPane.toggle"
-    static let previewPaneToggle = "fichero.previewPane.toggle"
-    static let readingPaneToggle = "fichero.readingPane.toggle"
-    static let librarySortMenu = "fichero.library.sortMenu"
-    static let libraryFilterToggle = "fichero.library.filterToggle"
     static let breadcrumb = "fichero.breadcrumb"
     static let statusIsland = "fichero.statusIsland"
 }
@@ -64,28 +58,40 @@ extension ContentView {
         }
     }
 
-    /// TRAILING zone: activity status (#2309).
-    /// The inspector toggle moved to the `.inspector()` panel's toolbar so
-    /// macOS places it in the inspector section (far right) rather than the
-    /// content section (see `mainContentView`).
+    /// TRAILING zone: the compact inspector toggle, and nothing else.
+    ///
+    /// Activity status lives in the centre status island
+    /// (`ContentToolbarID.statusIsland`, principal zone) beside the title, and
+    /// the inspector toggle moved to the `.inspector()` panel's own toolbar so
+    /// macOS places it in the inspector section rather than the content section
+    /// (see `mainContentView`).
+    ///
+    /// The "View" menu button used to sit here. It rendered the shared
+    /// view-menu commands — "choose visible panes and document views" — which
+    /// is the same three panes the toggles a few points away already toggle,
+    /// plus the display mode the adjacent menu already offers. It existed so
+    /// Mac matched iPad (#2493); the toggles now ship on every platform, so the
+    /// reason it existed has been satisfied by other means (#4374). Those
+    /// commands stay in the MENU BAR, where a complete list of view commands
+    /// belongs — see FicheroApp's View group. The test that pins this greps for
+    /// the symbol, so this comment names it in prose rather than in code.
+    ///
+    /// On macOS the compact toggle is compiled out and the View menu is gone,
+    /// so this zone has NOTHING left — and an empty `@ToolbarContentBuilder`
+    /// body does not type-check. The whole property is therefore compiled out
+    /// on macOS and its call site guarded to match, rather than kept alive by a
+    /// placeholder: an `EmptyView()` filler would ship a real, invisible
+    /// toolbar item, which is a worse answer than not declaring the zone.
+    #if !os(macOS)
     @ToolbarContentBuilder
     var trailingToolbarContent: some ToolbarContent {
-        #if !os(macOS)
         if showInspectorToggle && !usesDockedInspector {
             ToolbarItem(id: ContentToolbarID.compactInspectorToggle, placement: .topBarTrailing) {
                 inspectorToggleButton
             }
         }
-        #endif
-
-        // Activity status now lives in the center status island
-        // (`ContentToolbarID.statusIsland`, principal zone) beside the title.
-        // Show/hide-panes + view-mode control on every platform's toolbar,
-        // including Mac (previously menu-bar only) so it matches iPad/iOS (#2493).
-        ToolbarItem(id: ContentToolbarID.viewMenu, placement: .primaryAction) {
-            platformViewMenuButton
-        }
     }
+    #endif
 
     @ToolbarContentBuilder
     var contentPaneToolbarContent: some ToolbarContent {
@@ -101,19 +107,30 @@ extension ContentView {
                 }
             }
 
-            // Library list pane toggle (#4288) — the standard Mac "hide the
-            // list, focus on reading" control, first in the pane group because
-            // the list is the leading column.
-            ToolbarItem(id: ContentToolbarID.libraryPaneToggle, placement: .automatic) {
-                libraryPaneToggleButton
-            }
-
+            // ONE group, not three loose items (#4374). Six controls of three
+            // different kinds used to sit in a single undifferentiated
+            // `.automatic` run, so nothing told the system that these three
+            // toggles are one control and the sort/filter pair is another —
+            // which is why overflow shed an arbitrary pane toggle instead of
+            // collapsing the set. The missing structure WAS the bug; spacing
+            // was only its symptom.
+            //
+            // Order is the columns' own leading-to-trailing order: library
+            // list (#4288, the standard Mac "hide the list, focus on reading"
+            // control), then preview, then reading.
+            //
             // Pane toggles are native `Toggle`s (#4360): the on-state is the
             // system's own treatment on the toolbar's Liquid Glass, so each
             // control keeps ONE position-encoded glyph. The old glyph-swap
             // grammar decayed both the library and preview toggles to the same
             // bare `rectangle` when hidden — two meanings on one symbol.
-            ToolbarItem(id: ContentToolbarID.previewPaneToggle, placement: .automatic) {
+            // No `id:` — `ToolbarItemGroup` has no identified initialiser, only
+            // `(placement:content:)`. The group is positional; customisation
+            // identity belongs to the items a user can reorder, and these three
+            // move as one by construction.
+            ToolbarItemGroup(placement: .automatic) {
+                libraryPaneToggleButton
+
                 Toggle(isOn: Binding(
                     get: { showDocumentCanvas },
                     set: { setCanvasPaneVisible($0) }
@@ -121,9 +138,7 @@ extension ContentView {
                     Label("Preview Pane", systemImage: ToolbarSymbols.previewPane)
                 }
                 .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
-            }
 
-            ToolbarItem(id: ContentToolbarID.readingPaneToggle, placement: .automatic) {
                 Toggle(isOn: Binding(
                     get: { showReadingPane },
                     set: { setReadingPaneVisible($0) }
@@ -134,22 +149,12 @@ extension ContentView {
             }
         }
 
-        // Finder-style sort + filter for the CURRENT library view (#4289).
-        // Available in the compact flow too — sorting and filtering a list is
-        // not a split-pane concept — so this sits outside the block above.
-        if supportsReadingWorkspace {
-            ToolbarItem(id: ContentToolbarID.librarySortMenu, placement: .automatic) {
-                librarySortMenu
-            }
-
-            // Declared unconditionally within this zone (#3163): the feature
-            // flag varies the item's CONTENT, it must not make the toolbar item
-            // itself appear/disappear — that is the duplicate-identifier crash
-            // class.
-            ToolbarItem(id: ContentToolbarID.libraryFilterToggle, placement: .automatic) {
-                libraryFilterToggleButton
-            }
-        }
+        // Sort and filter used to sit here, outside the split-pane block, with
+        // a comment explaining that "sorting and filtering a list is not a
+        // split-pane concept". That special case is GONE rather than ported
+        // (#4407): the controls now live in the library's own mini toolbar, so
+        // they follow their pane — including in the compact flow — and there is
+        // nothing left to except. See `LibraryView+MiniToolbar`.
     }
 
     // MARK: Library pane toggle (#4288)
@@ -171,74 +176,16 @@ extension ContentView {
         .accessibilityLabel(model.title)
     }
 
-    // MARK: Library sort + filter (#4289)
+    // Library sort + filter moved to `LibraryView+MiniToolbar` (#4407 /
+    // #4374 finding 3): a control lives with the surface it acts on, and these
+    // act on the library list, not the window.
 
-    /// Drives `libraryToolbarState` — the SAME sort model the View menu, the
-    /// table column headers, and the per-folder `@SceneStorage` persistence in
-    /// `LibraryView` already share. There is deliberately no second sort path
-    /// here (#4282).
-    private var librarySortMenu: some View {
-        let model = libraryToolbarState.sortMenuModel
-        return Menu {
-            Section("Sort By") {
-                ForEach(model.fields) { field in
-                    Button {
-                        libraryToolbarState.apply(model.selecting(field))
-                    } label: {
-                        Label(field.rawValue, systemImage: field.icon)
-                        if model.isSelected(field) {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                    .accessibilityLabel("Sort by \(field.rawValue)")
-                }
-            }
-
-            Section {
-                Button {
-                    libraryToolbarState.apply(model.settingAscending(true))
-                } label: {
-                    Label("Ascending", systemImage: "arrow.up")
-                    if model.ascending {
-                        Image(systemName: "checkmark")
-                    }
-                }
-
-                Button {
-                    libraryToolbarState.apply(model.settingAscending(false))
-                } label: {
-                    Label("Descending", systemImage: "arrow.down")
-                    if !model.ascending {
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-        } label: {
-            Label(model.label, systemImage: model.systemImage)
-        }
-        .help(model.help)
-    }
-
-    /// Reveals the inline per-view filter bar (the ⌘F row pinned to the bottom
-    /// of the library list) — NOT the global `.searchable` field.
-    @ViewBuilder
-    private var libraryFilterToggleButton: some View {
-        let model = LibraryFilterToggleModel(
-            isAvailable: FeatureManager.shared.isLibraryFilterToolbarEnabled,
-            isActive: libraryToolbarState.showFilterBar
-        )
-        if model.isAvailable {
-            Toggle(isOn: Binding(
-                get: { model.isActive },
-                set: { libraryToolbarState.setFilterBar($0) }
-            )) {
-                Label(model.title, systemImage: model.systemImage)
-            }
-            .help(model.help)
-            .accessibilityLabel(model.title)
-        }
-    }
-
+    /// How library items are shown. This is a LIBRARY control by the same rule
+    /// that moved sort and filter, so it belongs in the mini toolbar too — but
+    /// it still renders from `contentPaneToolbarContent`, because the display
+    /// mode is also what the reading workspace switches between. Moving it is
+    /// tracked with the rest of #4374; until then it stays declared beside its
+    /// one use, so the symbol and its call site cannot drift apart again.
     private var viewDisplayModeMenu: some View {
         Menu {
             ForEach(availableViewDisplayModes) { mode in
@@ -252,17 +199,6 @@ extension ContentView {
             Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
         }
         .help("Choose how library items are shown")
-    }
-
-    @ViewBuilder
-    private var platformViewMenuButton: some View {
-        Menu {
-            ViewMenuCommands()
-                .environment(viewSettings)
-        } label: {
-            Label("View", systemImage: ToolbarSymbols.viewMenu)
-        }
-        .help("Choose visible panes and document views")
     }
 
     /// Native `Toggle` — the system's on-state on the toolbar glass replaces
@@ -330,8 +266,10 @@ extension ContentView {
                 // No painted lozenge (#4360): the toolbar's own Liquid Glass
                 // carries this principal item; the old low-opacity primary
                 // fill was a hand-rolled approximation of that material.
-                // Search field removed (#3037) — now the native `.searchable`
-                // bar (ToolbarSearchableModifier).
+                // Search field removed from the principal zone (#3037), and
+                // the window-level `.searchable` that replaced it is gone too
+                // (#4407) — search now lives in the library's mini toolbar,
+                // with the pane it acts on.
                 }
             }
 

@@ -159,7 +159,8 @@ final class ColdLaunchReachesLibraryUITests: XCTestCase {
     /// The recovery UI must never render on a healthy launch, in any form.
     ///
     /// `backend.connection.title` is the load-bearing assertion: it renders iff
-    /// `showsFailureState`, so it catches EVERY failure phase — including
+    /// `ConnectionPresentation.status(…).isError`, so it catches EVERY failure
+    /// phase — including
     /// `.portConflict`, which offers "Stop It / Use the Existing Engine / Quit"
     /// and would slip past a check that only knows the two named buttons.
     /// The buttons are asserted too, because they are the specific bar: on an

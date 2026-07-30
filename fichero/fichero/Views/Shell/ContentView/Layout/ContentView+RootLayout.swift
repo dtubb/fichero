@@ -169,17 +169,12 @@ extension ContentView {
         .modifier(NavigationSubtitleCompat(
             subtitle: horizontalSizeClass == .compact ? "" : breadcrumbSubtitle
         ))
-        // Native `.searchable` for all widths (#3037) — replaces the hand-rolled
-        // fixed-220 principal search field; the breadcrumb lozenge stays.
-        .modifier(ToolbarSearchableModifier(
-            text: $toolbarSearchText,
-            mode: Binding(
-                get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
-                set: { searchFieldModeRaw = $0.rawValue }
-            ),
-            isCompact: horizontalSizeClass == .compact,
-            onSubmit: { runToolbarSearch(toolbarSearchText) }
-        ))
+        // The search field moved into the library's mini toolbar (#4407).
+        // `.searchable` attaches to a NAVIGATION CONTAINER, and this one was on
+        // the whole `NavigationSplitView` — so `.searchScopes` drew the
+        // Ask/Keyword selector as a bar spanning the library, the preview and
+        // the reader together. A control whose placement claimed window scope
+        // while it filtered one list. See `LibraryView+MiniToolbar`.
         // Clearing the field (or its ⓧ) exits transient-search presentation
         // and restores the browsed folder's contents (#4106/S2).
         .onChange(of: toolbarSearchText) { _, newText in
@@ -270,9 +265,16 @@ extension ContentView {
             .onChange(of: claimSourceNavigationState.requestID) { _, _ in
                 handleOpenClaimSource()
             }
+            // #4373: a reader page click routes through the SAME selection path
+            // a sidebar click uses, so the sidebar, preview and inspector all
+            // update as observers rather than through a parallel navigation.
+            .onChange(of: readerPageActivationState.requestID) { _, _ in
+                handleReaderPageActivated()
+            }
             // Scope both request buses to this window's subtree (#3437).
             .environment(entitySearchState)
             .environment(claimSourceNavigationState)
+            .environment(readerPageActivationState)
             .environment(activeSurfaceState)
             .onReceive(NotificationCenter.default.publisher(for: .ficheroSelectDocumentRequested)) { note in
                 handleAppleScriptSelectDocument(note)
@@ -360,36 +362,9 @@ enum SearchFieldMode: String, CaseIterable, Hashable {
     case keyword
 }
 
-private struct ToolbarSearchableModifier: ViewModifier {
-    @Binding var text: String
-    @Binding var mode: SearchFieldMode
-    let isCompact: Bool
-    let onSubmit: () -> Void
-
-    func body(content: Content) -> some View {
-        let searchable = content
-            .searchable(
-                text: $text,
-                placement: .automatic,
-                // Always "Search" (#4361): the placeholder names the control,
-                // not a capability. The Ask scope below advertises that the
-                // field also takes plain-language questions; a placeholder
-                // describing a different feature makes the control unguessable.
-                prompt: "Search"
-            )
-            .searchScopes($mode) {
-                Label("Ask", systemImage: "sparkles").tag(SearchFieldMode.ask)
-                Text("Keyword").tag(SearchFieldMode.keyword)
-            }
-            .onSubmit(of: .search, onSubmit)
-        #if os(iOS)
-        if isCompact {
-            searchable.navigationBarTitleDisplayMode(.inline)
-        } else {
-            searchable
-        }
-        #else
-        searchable
-        #endif
-    }
-}
+// `ToolbarSearchableModifier` is DELETED (#4407). It applied `.searchable` +
+// `.searchScopes` to the whole `NavigationSplitView`, which is why the
+// Ask/Keyword selector rendered as a bar across the library, the preview and
+// the reader. The search field now lives in the library's own mini toolbar —
+// see `LibraryView+MiniToolbar`. Left as a comment rather than deleted
+// silently: this is where the next person will look for the window search.

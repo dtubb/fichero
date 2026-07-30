@@ -92,23 +92,40 @@ extension SidebarItemRow {
                 #endif
             }
 
-            let workflowTargetIDs = resolvedWorkflowTargetIDs
+            let resolution = resolvedWorkflowRun
             let availableWorkflows = Self.contextMenuWorkflows(
                 own: workflowStore?.workflows ?? [],
                 global: libraryManager.globalLibrary?.workflowStore.workflows ?? []
             )
-            if !availableWorkflows.isEmpty,
-               !workflowTargetIDs.isEmpty {
+            // #4419: the menu is NOT gated on the target list being non-empty
+            // any more. That gate is how "nothing in Marshall can be run" was
+            // produced — a cross-library row resolved to nothing and the whole
+            // submenu vanished, which reads as an unsupported feature rather
+            // than a failure. The resolver now always yields a target, and if
+            // it somehow cannot, the disabled row below names the reason.
+            if !availableWorkflows.isEmpty {
                 Divider()
                 Menu("Run Workflow") {
-                    RunWorkflowSubmenuItems(workflows: availableWorkflows) {
-                        workflowId, providerOverride, modelOverride in
-                        runWorkflowOnDocuments(
-                            workflowId: workflowId,
-                            docIds: workflowTargetIDs,
-                            providerOverride: providerOverride,
-                            modelOverride: modelOverride
-                        )
+                    if resolution.isEmpty {
+                        Button("Nothing to run on") {}
+                            .disabled(true)
+                    } else {
+                        // Silently discarding a selection is the same defect as
+                        // silently widening one (#4396) — so say it, in the menu,
+                        // before the run rather than after.
+                        if resolution.ignoredSelection {
+                            Text("Runs on this item only — it is outside your selection")
+                            Divider()
+                        }
+                        RunWorkflowSubmenuItems(workflows: availableWorkflows) {
+                            workflowId, providerOverride, modelOverride in
+                            runWorkflowOnDocuments(
+                                workflowId: workflowId,
+                                docIds: resolution.targetIds,
+                                providerOverride: providerOverride,
+                                modelOverride: modelOverride
+                            )
+                        }
                     }
                 }
                 .onAppear {
@@ -238,15 +255,23 @@ extension SidebarItemRow {
         }
     }
 
-    private var resolvedWorkflowTargetIDs: [String] {
-        guard let clickedTarget = workflowRunTarget(for: item),
-              let documents = documentStore?.sidebarDocuments else {
-            return []
+    /// #4419: resolves against the row's own identity first, so a row in a
+    /// library whose store this view does not hold still runs. `documents` is
+    /// only ever an EXPANSION hint for folders now — never a membership gate —
+    /// so an unloaded or cross-library store degrades to "run this row" instead
+    /// of to nothing.
+    private var resolvedWorkflowRun: WorkflowRunTargetResolver.Resolution {
+        guard let clickedTarget = workflowRunTarget(for: item) else {
+            return WorkflowRunTargetResolver.Resolution(
+                targetIds: [],
+                ignoredSelection: false,
+                usedRowIdentityFallback: false
+            )
         }
         return WorkflowRunTargetResolver.resolve(
             clicked: clickedTarget,
             selection: Set(selectedDestinations.compactMap(workflowRunTarget(for:))),
-            documents: documents
+            documents: documentStore?.sidebarDocuments ?? []
         )
     }
 

@@ -25,7 +25,7 @@ extension EmbeddedBackendService {
     /// Order matters: an exit diagnosis beats the cap, so a child that dies at
     /// the cap boundary still reports why it died rather than "never became
     /// ready". Pure so the timing invariants are testable without an engine —
-    /// the `BackendConnectionView.connectionFailureTitle` pattern (#3341).
+    /// the `ConnectionPresentation.failureTitle` pattern (#3341).
     enum SpawnWaitStep: Equatable {
         case ready
         case keepWaiting

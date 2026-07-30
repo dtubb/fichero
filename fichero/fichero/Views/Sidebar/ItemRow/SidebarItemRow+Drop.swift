@@ -14,6 +14,99 @@ struct SidebarDropProviderCapabilities: Equatable {
     let registeredTypeIdentifiers: [String]
 }
 
+/// What a sidebar drop actually carries (#4401).
+///
+/// The old classifier decided "external" by ELIMINATION: any provider that
+/// could load a URL, or registered any type identifier that was not one of
+/// three plain-text ones, made the whole drop external. That was safe only
+/// while an internal drag advertised nothing but its id.
+///
+/// #4123 then taught `SidebarDragID` to export a real file and RTF so a drag
+/// OUT of the app would deposit something useful in Finder. A document row's
+/// provider therefore began registering `public.data` and `public.rtf`, and
+/// `canLoadObject(ofClass: URL.self)` began answering true — so every internal
+/// document drag classified as EXTERNAL FILES and was handed to
+/// `importService.importFiles`, which re-ingested it as a brand-new document.
+///
+/// That is both halves of the bug exactly: a second document appears, and it
+/// is hollow because it was freshly imported and has never been processed. It
+/// also explains why folders moved correctly — `SidebarDragID(item:)` only
+/// sets `documentId` for non-folders, so a folder row exports no file, kept
+/// the id-only shape, and stayed on the move path.
+///
+/// The fix is to identify an internal drag POSITIVELY, by the id it carries,
+/// rather than by the absence of anything that looks external. Export
+/// representations can then be added freely without silently re-routing moves.
+enum SidebarDropPayload: Equatable {
+    /// Our own ids — a MOVE. Never an import, whatever else the drag also
+    /// advertises for the benefit of other applications.
+    case internalItems([String])
+    /// No internal id anywhere: a genuine drop from outside the app.
+    case externalFiles
+    /// The drag carries an internal flavour but no id could be read from it.
+    /// Reported loudly, never treated as an import — re-ingesting something
+    /// already in the library is the data-loss shape this issue is about.
+    case unreadableInternal
+    case unsupported
+}
+
+/// The sidebar's document-row id shape, `doc:<uuid>` (`SidebarItem.swift:193`).
+/// A Finder drag can never produce one.
+func isInternalSidebarItemID(_ candidate: String) -> Bool {
+    let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("doc:") else { return false }
+    return trimmed.count > "doc:".count
+}
+
+/// Route a drop from what its providers actually yielded.
+///
+/// - Parameters:
+///   - loadedIDs: strings successfully loaded from the providers, in order.
+///   - hasFileURL: any provider could vend a file URL.
+///   - carriesOwnProcessFlavor: the drag advertises the in-process flavour, so
+///     it started inside this app even if no id could be read.
+func classifySidebarDropPayload(
+    loadedIDs: [String],
+    hasFileURL: Bool,
+    carriesOwnProcessFlavor: Bool
+) -> SidebarDropPayload {
+    // Positive identification first, and it WINS over any file URL the drag
+    // also happens to advertise. This ordering is the fix.
+    let internalIDs = loadedIDs.filter(isInternalSidebarItemID)
+    if !internalIDs.isEmpty {
+        return .internalItems(internalIDs)
+    }
+    if carriesOwnProcessFlavor {
+        // Started inside the app, but we could not read what it was. Do NOT
+        // fall through to ingestion.
+        return .unreadableInternal
+    }
+    if hasFileURL {
+        return .externalFiles
+    }
+    return .unsupported
+}
+
+/// Could this drop carry one of OUR ids? A cheap pre-check that decides
+/// whether to attempt a string read — never the route (#4401).
+///
+/// Deliberately separate from `classifySidebarDropProviders` rather than
+/// folded into it: that function answers "does this look external by
+/// capability", which is a fine question and still correctly answered. What it
+/// cannot do is decide the route, because since #4123 an internal document
+/// drag and a Finder file drag advertise the same capabilities. Conflating the
+/// two questions is what let the routing regress silently.
+///
+/// An internal drag always vends its id as a string. A Finder file drag does
+/// not, so this is cheap and safe to over-answer: a false positive costs one
+/// failed read, and then `classifySidebarDropPayload` sorts it out.
+func sidebarDropMightCarryInternalID(_ providers: [SidebarDropProviderCapabilities]) -> Bool {
+    providers.contains(where: \.canLoadString)
+}
+
+/// Capability-shaped route. Still correct for what it answers, and still the
+/// external-vs-unsupported decision — but NOT the internal-vs-external one.
+/// See `classifySidebarDropPayload`, which routes on the id actually read.
 func classifySidebarDropProviders(_ providers: [SidebarDropProviderCapabilities]) -> SidebarDropProviderRoute {
     guard !providers.isEmpty else { return .unsupported }
 
@@ -65,45 +158,59 @@ extension SidebarItemRow {
         // the visual from imitating one.
         isDropTargeted = false
 
-        let route = classifySidebarDropProviders(
-            providers.map {
-                SidebarDropProviderCapabilities(
-                    canLoadURL: $0.canLoadObject(ofClass: URL.self),
-                    canLoadString: $0.canLoadObject(ofClass: NSString.self),
-                    registeredTypeIdentifiers: $0.registeredTypeIdentifiers
-                )
-            }
-        )
-
-        switch route {
-        case .internalTextOnly:
-            // Providers that only load String are internal sidebar drags.
-            // `.draggable(item.id)` advertises the String via utf8PlainText.
-            let textOnly = providers.filter {
-                !$0.canLoadObject(ofClass: URL.self) && $0.canLoadObject(ofClass: NSString.self)
-            }
-            Task {
-                var ids: [String] = []
-                for provider in textOnly {
-                    if let str = try? await Self.loadString(from: provider) {
-                        ids.append(str)
-                    }
-                }
-                guard !ids.isEmpty else { return }
-                _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
-            }
-            return true
-
-        case .externalFiles:
-            // Any mixed/internal+Finder payload is treated as external so we
-            // don't partially route the same drop through document moves.
-            let targetFolder = item.isFolder ? item : parentFolderItem(of: item)
-            _ = handleProvidersDrop(providers, targetFolder: targetFolder)
-            return true
-
-        case .unsupported:
-            return false
+        let capabilities = providers.map {
+            SidebarDropProviderCapabilities(
+                canLoadURL: $0.canLoadObject(ofClass: URL.self),
+                canLoadString: $0.canLoadObject(ofClass: NSString.self),
+                registeredTypeIdentifiers: $0.registeredTypeIdentifiers
+            )
         }
+        let hasFileURL = capabilities.contains(where: \.canLoadURL)
+        // Worth trying to read an id? Capabilities alone can no longer decide
+        // the ROUTE (#4401) — since #4123 an internal document drag also vends
+        // a file — so they only decide whether to attempt the read.
+        let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
+        let capabilityRoute = classifySidebarDropProviders(capabilities)
+        guard mightBeInternal || capabilityRoute == .externalFiles else { return false }
+
+        // Read FIRST, route second. Every provider is asked for a string,
+        // including ones that can also vend a URL — that inclusion is the fix,
+        // because the document drags this bug destroyed vend both.
+        Task {
+            var loadedIDs: [String] = []
+            for provider in providers where provider.canLoadObject(ofClass: NSString.self) {
+                if let string = try? await Self.loadString(from: provider) {
+                    loadedIDs.append(string)
+                }
+            }
+            let payload = classifySidebarDropPayload(
+                loadedIDs: loadedIDs,
+                hasFileURL: hasFileURL,
+                carriesOwnProcessFlavor: mightBeInternal
+            )
+            switch payload {
+            case .internalItems(let ids):
+                _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
+
+            case .externalFiles:
+                let targetFolder = item.isFolder ? item : parentFolderItem(of: item)
+                _ = handleProvidersDrop(providers, targetFolder: targetFolder)
+
+            case .unreadableInternal:
+                // Started inside the app and we could not read what it was.
+                // Re-importing would create a hollow duplicate of something
+                // already here — the #4401 data loss. Say so instead.
+                sidebarRowLogger.error(
+                    "Sidebar drop came from inside the app but carried no readable item id; refusing to import"
+                )
+                sidebarState.dropErrorMessage =
+                    "Couldn't read what was dragged. Nothing was moved or imported."
+
+            case .unsupported:
+                break
+            }
+        }
+        return true
     }
 
     /// Async helper to unwrap a plain-text NSItemProvider into a String.

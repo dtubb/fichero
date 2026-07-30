@@ -10,8 +10,18 @@ import SwiftUI
 /// (HIG: only key-window controls carry color), secondary otherwise. This
 /// replaces the #3875 solid-accent fill and the #4160 white-on-accent text
 /// inversion that only existed because black-on-accent was illegible.
-/// The sidebar itself is a native `.listStyle(.sidebar)` List, which already
-/// renders this treatment — these tokens bring the custom surfaces in line.
+///
+/// This comment used to claim "the sidebar itself is a native
+/// `.listStyle(.sidebar)` List, which already renders this treatment". That
+/// assumption was wrong and is the whole of #4371: the sidebar IS fully
+/// native — there is no hand-rolled fill anywhere under `Views/Sidebar` — and
+/// what the native emphasized source-list selection actually renders is a
+/// saturated accent bar with the label forced to white and bolded, which is
+/// exactly what Daniel reported and nothing like Finder's soft grey row with
+/// a green folder icon and normal black text. "Native" was already satisfied;
+/// it was the premise that was stale. So the tokens below are now the app's
+/// ONE selection vocabulary for every surface INCLUDING the sidebar, rather
+/// than a set of catch-up tokens for the custom surfaces only.
 enum LibrarySelectionStyle {
     /// AppKit's own unemphasized-selection color, so light/dark mode and
     /// increased-contrast track the system for free.
@@ -27,6 +37,31 @@ enum LibrarySelectionStyle {
 
     static func labelTint(focused: Bool) -> Color {
         focused ? .accentColor : .secondary
+    }
+
+    // MARK: - Sidebar rows (#4371)
+
+    /// How a sidebar row's label renders.
+    ///
+    /// Two fields, both of which the native emphasized selection changes and
+    /// neither of which it should: Daniel's report names bolding and
+    /// colour-stripping specifically. Modelled as a value so "selection does
+    /// not touch the label" is one assertable equality rather than an absence
+    /// spread across a view body.
+    struct SidebarRowLabel: Equatable {
+        let color: Color
+        let weight: Font.Weight
+    }
+
+    /// Finder/Mail: the ROW carries the selection; the item keeps its own
+    /// appearance. The `isSelected` parameter is deliberately ignored — that
+    /// is the rule, not an oversight, and `sidebarLabel(isSelected: true) ==
+    /// sidebarLabel(isSelected: false)` is how the test states it.
+    ///
+    /// This is also what keeps the icon's semantic colour: nothing here
+    /// re-tints it, so a green folder stays green when selected.
+    static func sidebarLabel(isSelected: Bool) -> SidebarRowLabel {
+        SidebarRowLabel(color: .primary, weight: .regular)
     }
 }
 

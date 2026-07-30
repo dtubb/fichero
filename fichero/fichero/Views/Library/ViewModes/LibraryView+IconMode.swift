@@ -117,9 +117,7 @@ extension LibraryView {
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
                 .onTapGesture {
-                    selection.removeAll()
-                    selectionAnchor = nil
-                    selectionCursor = nil
+                    apply(SelectionGrammar.clear())
                 }
                 // In icon mode, ScrollView may consume arrow keys for scrolling first.
                 // Handle them at this level so keyboard selection always works.

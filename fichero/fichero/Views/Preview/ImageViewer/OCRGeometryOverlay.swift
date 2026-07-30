@@ -56,24 +56,39 @@ struct OCRGeometryOverlay: View {
 
 #if os(macOS)
 extension ZoomableImagePreview {
-    /// Fetch the latest transcription artifact's typed geometry for this page.
-    /// List first (lean payload), then the single GET which carries geometry
-    /// (#4309). Lives here so the (large) preview struct body stays under the
+    /// Fetch this page's typed geometry (#4309, repaired by #4418).
+    ///
+    /// List first (lean payload), then the single GET which carries geometry.
+    /// Which artifact wins is `OCRGeometrySelection`'s decision, not this
+    /// function's — see there for why it cannot be "the newest transcription"
+    /// and cannot be "the text_geometry one" either.
+    ///
+    /// Probes candidates best-first and stops at the first that actually
+    /// carries boxes, because an artifact of the right type can still be empty:
+    /// the importer writes a zero-box `text_geometry` artifact for every
+    /// scanned page on purpose.
+    ///
+    /// Lives here so the (large) preview struct body stays under the
     /// type-body-length budget.
     func loadOCRGeometry() async {
         ocrGeometry = nil
         guard ocrBoxesEnabled, let documentId, let artifactService else { return }
         do {
-            let transcriptions = try await artifactService.getArtifacts(
-                forDocumentId: documentId,
-                type: "transcription",
-                includeDescendants: false
-            )
-            guard let latest = transcriptions.max(by: { $0.createdAt < $1.createdAt }) else {
-                return
+            var candidates: [Artifact] = []
+            for type in OCRGeometrySelection.geometryBearingTypes {
+                candidates += try await artifactService.getArtifacts(
+                    forDocumentId: documentId,
+                    type: type,
+                    includeDescendants: false
+                )
             }
-            let full = try await artifactService.getArtifact(id: latest.id)
-            ocrGeometry = full.ocrGeometry
+            for candidate in OCRGeometrySelection.ranked(candidates) {
+                let full = try await artifactService.getArtifact(id: candidate.id)
+                if OCRGeometrySelection.carriesGeometry(full.ocrGeometry) {
+                    ocrGeometry = full.ocrGeometry
+                    return
+                }
+            }
         } catch {
             // Surface in the log, render nothing — the toggle stays honest
             // (no boxes ≠ silent success).

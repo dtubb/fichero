@@ -179,20 +179,20 @@ struct AccessErrorTests {
     @Test func unreachableEmbeddedSaysCantConnectNotNotRunning() {
         // The engine may be running but we couldn't reach it (wrong port /
         // transient) — the actionable screen must NOT claim it's "not running".
-        let title = BackendConnectionView.connectionFailureTitle(
+        let title = ConnectionPresentation.failureTitle(
             accessError: .engineUnreachable,
             authBroken: false,
-            usesExternalBackendConnection: false
+            ownership: .externalLocal
         )
         #expect(title == "Can't Connect to Server")
         #expect(title != "Server Not Running")
     }
 
     @Test func unclassifiedEmbeddedFailureStillNeverSaysNotRunning() {
-        let title = BackendConnectionView.connectionFailureTitle(
+        let title = ConnectionPresentation.failureTitle(
             accessError: nil,
             authBroken: false,
-            usesExternalBackendConnection: false
+            ownership: .externalLocal
         )
         #expect(title == "Can't Connect to Server")
     }
@@ -200,30 +200,29 @@ struct AccessErrorTests {
     @Test func authBrokenRoutesToTheActionableAuthTitle() {
         // Health-200-but-auth-broken on a user-managed engine: connected to the
         // engine, stale sign-in → the "Can't Authenticate" screen, never "not running".
-        let title = BackendConnectionView.connectionFailureTitle(
+        let title = ConnectionPresentation.failureTitle(
             accessError: .unauthenticated,
             authBroken: true,
-            usesExternalBackendConnection: false
+            ownership: .externalLocal
         )
         #expect(title == "Can't Authenticate to Server")
     }
 
     @Test func embeddedAuthBrokenUsesAppOwnedCopy() {
-        let title = BackendConnectionView.connectionFailureTitle(
+        let title = ConnectionPresentation.failureTitle(
             accessError: .unauthenticated,
             authBroken: true,
-            usesExternalBackendConnection: false,
-            usesAppManagedEmbeddedEngine: true
+            ownership: .appManaged
         )
         #expect(title == "Fichero Couldn't Authenticate to Its Server")
         #expect(!title.contains("Sign-In"))
     }
 
     @Test func externalUnreachableReadsAsBackendNotReachable() {
-        let title = BackendConnectionView.connectionFailureTitle(
+        let title = ConnectionPresentation.failureTitle(
             accessError: .engineUnreachable,
             authBroken: false,
-            usesExternalBackendConnection: true
+            ownership: .remote
         )
         #expect(title == "Backend Not Reachable")
     }

@@ -68,9 +68,57 @@ enum FocusedTextResponder {
     static var canUndo: Bool { editableTextView?.undoManager?.canUndo ?? false }
 
     static func undo() { editableTextView?.undoManager?.undo() }
+
+    /// Hand ⌘A back to the editor that has focus (#4376) — the same
+    /// give-it-back move `undo()` makes for ⌘Z.
+    static func selectAll() { editableTextView?.selectAll(nil) }
     #else
     static var isEditing: Bool { false }
     static var canUndo: Bool { false }
     static func undo() {}
+    static func selectAll() {}
     #endif
+}
+
+// MARK: - ⌘A (#4376)
+
+/// Where ⌘A lands, decided by what currently has focus.
+///
+/// Same shape and same root cause as ⌘Z (#4354): a `.keyboardShortcut` on a
+/// menu item is an NSMenuItem key equivalent, and AppKit matches key
+/// equivalents BEFORE the event reaches the responder chain. A ⌘A claimed once
+/// at app level would select library rows while the user is typing.
+///
+/// The `none` case is load-bearing and is NOT a failure: it disables this menu
+/// item so the key equivalent falls through to the system's own Select All and
+/// on to the responder chain — which is exactly what a focused WKWebView (the
+/// reader) needs, since selecting its text is the web view's own job. The app
+/// declines rather than guessing.
+enum SelectAllRoute: Equatable {
+    /// An editable text responder holds focus — its own select-all owns ⌘A.
+    case focusedTextEditor
+    /// The library pane holds focus — select every row it is showing.
+    case libraryRows
+    /// Nobody the app speaks for holds focus. Disabled; let it fall through.
+    case none
+}
+
+/// Pure focus→route policy. No AppKit, no view state: testable on its own.
+enum SelectAllRoutingPolicy {
+    /// - Parameters:
+    ///   - isTextEditing: an editable text responder holds focus.
+    ///   - libraryHasSelectableRows: a focused library pane published a
+    ///     select-all action AND has rows to select. Nil/false means either no
+    ///     library focus or an empty list — both of which must fall through
+    ///     rather than fire an empty selection.
+    static func route(
+        isTextEditing: Bool,
+        libraryHasSelectableRows: Bool
+    ) -> SelectAllRoute {
+        // Text focus wins outright. "Select all" while typing means the text,
+        // and it must never reach past the caret to the library behind it.
+        if isTextEditing { return .focusedTextEditor }
+        if libraryHasSelectableRows { return .libraryRows }
+        return .none
+    }
 }

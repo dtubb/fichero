@@ -51,6 +51,21 @@ extension ContentView {
         viewMode = route.viewMode
     }
 
+    /// What the active search matched, per kind (#4403). The header already
+    /// counts all of these; this is how the grid's empty state gets to explain
+    /// a count it structurally cannot render.
+    var transientSearchHitCounts: SearchHitCounts {
+        guard let stats = transientSearchStore?.searchStats else {
+            return SearchHitCounts(documents: searchResultDocuments.count)
+        }
+        return SearchHitCounts(
+            documents: searchResultDocuments.count,
+            artifacts: stats.artifactHits.count,
+            entities: stats.entityHits.count,
+            claims: stats.claimHits.count
+        )
+    }
+
     var transientSearchStore: SearchStore? {
         (LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary)?.searchStore
@@ -163,18 +178,22 @@ extension ContentView {
         }
     }
 
-    /// Navigate to the document that owns a matched artifact (#4118).
+    /// Navigate to the document behind any search hit (#4118, #4403).
+    ///
+    /// Took a typed `SearchArtifactHit` while artifacts were the only rendered
+    /// leg. Entities and claims resolve to a document too, so the parameter is
+    /// the document id all three already carry.
     @MainActor
-    func openArtifactHit(_ hit: Components.Schemas.SearchArtifactHit) {
+    func openHitDocument(_ documentId: String) {
         Task { @MainActor in
             guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId)
                 ?? LibraryManager.shared.globalLibrary else { return }
             do {
-                let doc = try await library.documentService.getDocument(hit.documentId)
+                let doc = try await library.documentService.getDocument(documentId)
                 navigateToDocument(doc)
             } catch {
                 searchResultsLogger.error(
-                    "artifact hit \(hit.documentId, privacy: .public) failed to open: \(error.localizedDescription)"
+                    "search hit \(documentId, privacy: .public) failed to open: \(error.localizedDescription)"
                 )
             }
         }
@@ -245,9 +264,11 @@ extension ContentView {
             // to override. Compilation failure shows too, never hidden.
             compilationDetailRow(store: store)
 
-            // Typed artifact hits (#4118): workflow outputs that matched —
-            // type-badged, snippeted, click navigates to the owning doc.
-            artifactHitsSection(store: store)
+            // Every non-document leg the engine searched (#4118, #4403).
+            // Entities and claims were returned and counted but never
+            // rendered, which is why searching a person surfaced only
+            // Artifacts. All three now share one section type.
+            nonDocumentHitSections(store: store)
 
             Divider()
         }
@@ -427,46 +448,32 @@ extension ContentView {
         }
     }
 
+    /// Artifacts, entities and claims — the three legs the engine searches
+    /// besides documents (#4403).
+    ///
+    /// Each renders through the same `SearchHitSection`, so a leg cannot be
+    /// silently unrepresented again: adding one here is the whole change.
     @ViewBuilder
-    private func artifactHitsSection(store: SearchStore) -> some View {
-        if let artifactHits = store.searchStats?.artifactHits, !artifactHits.isEmpty {
-            DisclosureGroup {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(artifactHits.prefix(5).enumerated()), id: \.offset) { _, hit in
-                        Button {
-                            openArtifactHit(hit)
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(hit.artifactType)
-                                    .font(.caption2.weight(.medium))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 1)
-                                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
-                                Text(hit.snippet ?? hit.documentName ?? hit.documentId)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    if artifactHits.count > 5 {
-                        Text("…and \(artifactHits.count - 5) more")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.leading, 4)
-            } label: {
-                Label("Artifacts (\(artifactHits.count))", systemImage: "shippingbox")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
-            .background(.bar)
+    private func nonDocumentHitSections(store: SearchStore) -> some View {
+        if let stats = store.searchStats {
+            SearchHitSection(
+                title: "Artifacts",
+                systemImage: "shippingbox",
+                rows: SearchHitPresentation.artifactRows(stats.artifactHits),
+                open: openHitDocument
+            )
+            SearchHitSection(
+                title: "People & Places",
+                systemImage: "person.2",
+                rows: SearchHitPresentation.entityRows(stats.entityHits),
+                open: openHitDocument
+            )
+            SearchHitSection(
+                title: "Claims",
+                systemImage: "quote.opening",
+                rows: SearchHitPresentation.claimRows(stats.claimHits),
+                open: openHitDocument
+            )
         }
     }
 

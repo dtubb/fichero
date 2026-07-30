@@ -40,9 +40,23 @@ struct BreadcrumbBuilder {
             current = doc.parentId.flatMap(parentLookup)
             guardCount += 1
         }
-        segments += chain.map { Segment(name: $0.name, documentId: $0.id, isRoot: false) }
+        // Names come from `DocumentTitle`, never from `Document.name` directly:
+        // a page child's name is the engine's upload temp file, so the trail
+        // read `… › fichero_upload_c84fgjke.pdf` for a document the sidebar
+        // called `18590129.pdf` (#4416).
+        segments += chain.map { doc in
+            Segment(
+                name: DocumentTitle.displayName(
+                    for: doc, parent: doc.parentId.flatMap(parentLookup)
+                ),
+                documentId: doc.id,
+                isRoot: false
+            )
+        }
 
-        if let pageLabel {
+        // A page already appears as the trail's leaf via `displayName`, so an
+        // appended label would repeat it — the doubled "Page 1" (#4416).
+        if let pageLabel, chain.last?.docType != .page {
             segments.append(Segment(name: pageLabel, documentId: nil, isRoot: false))
         }
         return segments
@@ -58,15 +72,19 @@ struct BreadcrumbBuilder {
     ) -> String {
         var path: [String] = []
         var current: Document? = document
+        var isLeaf = true
+        var leafIsPage = false
 
-        // Traverse up the parent chain
+        // Traverse up the parent chain, naming each step through DocumentTitle
+        // so a page never contributes its storage filename (#4416).
         while let doc = current {
-            path.insert(doc.name, at: 0)
-            if let parentId = doc.parentId {
-                current = parentLookup(parentId)
-            } else {
-                current = nil
+            let parent = doc.parentId.flatMap(parentLookup)
+            path.insert(DocumentTitle.displayName(for: doc, parent: parent), at: 0)
+            if isLeaf {
+                leafIsPage = doc.docType == .page
+                isLeaf = false
             }
+            current = parent
         }
 
         // Add library root if path is not empty
@@ -74,8 +92,9 @@ struct BreadcrumbBuilder {
             path.insert("Library", at: 0)
         }
 
-        // Add page label if provided
-        if let pageLabel {
+        // Only when the leaf is not already the page (#4416): otherwise the
+        // page number lands in the trail twice.
+        if let pageLabel, !leafIsPage {
             path.append(pageLabel)
         }
 
@@ -96,7 +115,7 @@ struct BreadcrumbBuilder {
 
         // Check if this document has a parent — if not, just return the name
         if doc.parentId == nil && pageLabel == nil {
-            return doc.name
+            return DocumentTitle.displayName(for: doc)
         }
 
         // Full breadcrumb with hierarchy

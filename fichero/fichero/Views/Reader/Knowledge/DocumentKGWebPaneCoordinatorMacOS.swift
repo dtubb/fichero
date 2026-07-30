@@ -2,6 +2,7 @@
 import AppKit
 import FicheroAPIClient
 import Foundation
+import OSLog
 import WebKit
 
 final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -13,6 +14,10 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// Per-window source-navigation bus, captured from the environment each
     /// `updateNSView` so async bridge callbacks route to THIS window (#3437).
     var claimSourceNavigationState: ClaimSourceNavigationState?
+    /// Per-window reader page-activation bus (#4373), captured the same way and
+    /// for the same reason: a click on a page arrives on an async bridge
+    /// callback, outside view evaluation, where reading `@Environment` is unsafe.
+    var readerPageActivationState: ReaderPageActivationState?
     /// Retained weakly so the Coordinator can apply zoom without a full updateNSView cycle.
     weak var webView: GuardedWKWebView?
 
@@ -142,21 +147,30 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         }
     }
 
+    /// Move the transcript's own selected-page border to the page-focus cursor
+    /// (#4373). The decision is pure and lives in `ReaderActivePageSync`; this
+    /// only performs it.
     func syncActivePage(into webView: WKWebView, parent: DocumentKGWebPane) {
-        if lastActivePageNumber != parent.activePageNumber {
-            lastActivePageNumber = parent.activePageNumber
-            if Date() < suppressActivePageSyncUntil {
-                return
-            }
-            if parent.scrollSync.isDriving(.web) {
-                return
-            }
-            if let pageNumber = parent.activePageNumber {
-                webView.evaluateJavaScript("window.fichero?.setActivePage(\(pageNumber));")
-                if let pageCount = parent.pageCount {
-                    webView.evaluateJavaScript("window.ficheroScrollToPage?.(\(pageNumber), \(pageCount));")
-                }
-            }
+        let decision = ReaderActivePageSync.decide(
+            lastSent: lastActivePageNumber,
+            desired: parent.activePageNumber,
+            isScrollSuppressed: Date() < suppressActivePageSyncUntil,
+            isWebDriving: parent.scrollSync.isDriving(.web)
+        )
+        guard decision.sendsHighlight else { return }
+        // Record ONLY what actually went out. The old code recorded before its
+        // early returns, so a suppressed tick marked the border delivered and
+        // left it on the wrong page (#4373).
+        lastActivePageNumber = parent.activePageNumber
+        webView.evaluateJavaScript(
+            ReaderActivePageSync.highlightScript(page: parent.activePageNumber)
+        )
+        if decision.sendsScroll,
+           let pageNumber = parent.activePageNumber,
+           let pageCount = parent.pageCount {
+            webView.evaluateJavaScript(
+                ReaderActivePageSync.scrollScript(page: pageNumber, pageCount: pageCount)
+            )
         }
     }
 
@@ -255,6 +269,12 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             }
             guard parent?.scrollSync.beginDriving(.web) ?? false else { return }
             parent?.onPageSelected(max(0, pageNumber - 1))
+        case "pageActivated":
+            // A CLICK, not a scroll (#4373). It is allowed to move the library
+            // selection and the preview, which `pageSelected` deliberately is
+            // not (#1463) — hence the separate kind and the separate bus. No
+            // scroll-sync driving claim: the user is not scrolling.
+            handlePageActivated(body)
         default:
             break
         }
@@ -265,6 +285,36 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
 // Bridge-message routing, in an extension so the coordinator's own body stays
 // under the SwiftLint type-body threshold.
 extension DocumentKGWebPaneCoordinatorMacOS {
+    /// A reader page click (#4373). Validates the bridge payload and publishes
+    /// it on the per-window activation bus, where ContentView routes it through
+    /// the SAME selection path a sidebar click uses — so the sidebar highlight,
+    /// the preview and the inspector all follow as observers rather than
+    /// through a parallel navigation of their own.
+    ///
+    /// A malformed or out-of-range page is REPORTED, never clamped: silently
+    /// selecting page 1 because the payload said 0 is precisely the kind of
+    /// quiet wrong answer that makes a navigation bug unfindable.
+    func handlePageActivated(_ body: [String: Any]) {
+        guard let pageNumber = pageNumber(from: body) else {
+            readerPageActivationLogger.error("Reader page click carried no usable page number")
+            return
+        }
+        // The click came from INSIDE the transcript, so the page is already on
+        // screen. Suppress the follow-up scroll only — the border still moves,
+        // because `ReaderActivePageSync` never suppresses the highlight (#4373).
+        // Without this, clicking a visible page yanks it to the top of the
+        // viewport and moves the text out from under the pointer.
+        suppressActivePageSyncUntil = Date().addingTimeInterval(0.25)
+        Task { @MainActor in
+            guard let state = readerPageActivationState else { return }
+            if !state.activate(pageNumber: pageNumber) {
+                readerPageActivationLogger.error(
+                    "Reader page click carried an out-of-range page number \(pageNumber, privacy: .public)"
+                )
+            }
+        }
+    }
+
     func focusKGSource(
         documentId: String?,
         entityId: String?,

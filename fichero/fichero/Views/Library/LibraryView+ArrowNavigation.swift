@@ -67,9 +67,7 @@ extension LibraryView {
 
         // Select first item if nothing is selected yet
         guard let currentIndex = currentSelectionIndex(in: ids) else {
-            selection = [ids[0]]
-            selectionAnchor = ids[0]
-            selectionCursor = ids[0]
+            apply(SelectionGrammar.Result(selection: [ids[0]], anchor: ids[0], cursor: ids[0]))
             focusSelectedEntityIfNeeded()
             return .handled
         }
@@ -171,36 +169,31 @@ extension LibraryView {
         return 10
     }
 
+    /// Arrow-key selection, through the SAME grammar the mouse uses (#4377).
+    ///
+    /// The Finder/NNW anchor rule this used to implement inline — the anchor
+    /// never moves during a ⇧-extend, only the cursor end does, so ⇧↓ ⇧↓ ⇧↑
+    /// can SHRINK the range — now lives in `SelectionGrammar.extend` alongside
+    /// the click rules. Keyboard and mouse resolve a stale anchor identically;
+    /// they used to differ, and the mouse path was the one that silently did
+    /// nothing.
     private func applySelection(targetIndex: Int, ids: [String]) {
         let targetId = ids[targetIndex]
         #if os(macOS)
-        if NSEvent.modifierFlags.contains(.shift) {
-            // Finder/NNW semantics (#4160): the anchor NEVER moves during a
-            // shift-extend — only the cursor end of the range does. The old
-            // code re-anchored on the target whenever the anchor was missing,
-            // so ⇧↓ degraded to add-one-at-a-time and could never shrink.
-            let anchor = selectionAnchor.flatMap { ids.contains($0) ? $0 : nil }
-                ?? selection.compactMap { ids.firstIndex(of: $0) }.min().map { ids[$0] }
-                ?? targetId
-            selectionAnchor = anchor
-            if let anchorIndex = ids.firstIndex(of: anchor) {
-                let range = min(anchorIndex, targetIndex)...max(anchorIndex, targetIndex)
-                selection = Set(range.map { ids[$0] })
-            } else {
-                selection = [targetId]
-            }
-        } else {
-            selection = [targetId]
-            selectionAnchor = targetId
-        }
+        let extending = NSEvent.modifierFlags.contains(.shift)
         #else
         // iOS: keyboard modifier flags aren't available on .onKeyPress;
         // collapse to plain selection. Modifier-aware keyboard selection
         // is a separate iPad UI pass.
-        selection = [targetId]
-        selectionAnchor = targetId
+        let extending = false
         #endif
-        selectionCursor = targetId
+        apply(SelectionGrammar.extend(
+            to: targetId,
+            in: ids,
+            selection: selection,
+            anchor: selectionAnchor,
+            extendingRange: extending
+        ))
     }
 
     private func focusSelectedEntityIfNeeded() {

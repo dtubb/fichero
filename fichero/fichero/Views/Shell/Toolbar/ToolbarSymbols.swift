@@ -44,7 +44,6 @@ enum ToolbarSymbols {
     static let activityError = "exclamationmark.circle.fill"
 
     // MARK: Panes & view (trailing/content zone)
-    static let viewMenu = "rectangle.split.3x1"
     static let libraryPane = "rectangle.leadinghalf.inset.filled"
     static let previewPane = "rectangle.center.inset.filled"
     static let readingPane = "text.book.closed"
@@ -80,7 +79,6 @@ enum ToolbarSymbols {
         ("engine problem", engineProblem),
         ("activity idle", activityIdle),
         ("activity error", activityError),
-        ("view menu", viewMenu),
         ("library pane toggle", libraryPane),
         ("preview pane toggle", previewPane),
         ("reading pane toggle", readingPane),

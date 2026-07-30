@@ -268,7 +268,11 @@ struct DocumentInspectorContentV2: View {
                 await saveArtifact(artifact, content: newContent)
             }
         )
-        .contentShape(Rectangle())
+        // #4386: the ROW is the target, not the label. `contentShape` alone
+        // only makes a view's OWN frame hittable, and an unstretched row's
+        // frame is its content's width — which is why clicks landed only to
+        // the left of the name. The shared modifier stretches first.
+        .inspectorListRowTarget()
         .onTapGesture {
             inspectArtifact(artifact)
         }

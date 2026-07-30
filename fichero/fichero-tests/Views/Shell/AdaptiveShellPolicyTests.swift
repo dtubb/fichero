@@ -365,10 +365,12 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         let principalSource = toolbarSource[principalRange.lowerBound...]
 
         XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
-        // ToolbarSearchableModifier moved out of ContentView.swift with
-        // 408e4ae81's view-builder split; it is declared in the toolbar file
-        // and applied by the root layout.
-        XCTAssertTrue(toolbarSource.contains("ToolbarSearchableModifier"))
+        // #4407: the window-level `.searchable` is gone entirely — search moved
+        // into the library's mini toolbar, with the pane it acts on. What this
+        // still guards is that the principal zone did not grow a search field
+        // back; it must stay the title/breadcrumb zone.
+        XCTAssertFalse(principalSource.contains(".searchable("))
+        XCTAssertFalse(principalSource.contains("TextField(\"Search\""))
     }
 
     func testBottomEdgeFiltersStayPaneScoped() throws {

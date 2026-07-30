@@ -51,6 +51,14 @@ extension SidebarView {
             pinnedGlobalNavigationRows()
         }
         .listStyle(.sidebar)
+        // #4371: the system's own selection fill, tinted to the SAME
+        // unemphasized colour the library rows use, so a selected sidebar row
+        // reads like Finder's soft grey rather than a saturated accent bar.
+        // One selection vocabulary, one colour token — the sidebar is not a
+        // second selection language. Row chrome (badges, the open affordance,
+        // status dots) sets its colours explicitly, so it does not inherit
+        // this tint.
+        .tint(LibrarySelectionStyle.fill)
         .scrollContentBackground(.hidden)
         .background(.bar)
         #if os(macOS)

@@ -278,19 +278,60 @@ extension LibraryView {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// ONE honest line, derived from the actual phase (#4372).
+    ///
+    /// This used to stack "Loading Documents…" over "Connecting to library
+    /// data" — two different states asserted simultaneously, so at launch the
+    /// pane claimed to be fetching a tree from an engine it had not connected
+    /// to yet. Connecting and loading are different answers; the pane now gives
+    /// whichever one is true.
     var loadingState: some View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.large)
 
-            Text(isShowingEntitiesCollection ? "Loading Entities..." : "Loading Documents...")
+            Text(loadingMessage)
                 .font(.headline)
-
-            Text(isShowingEntitiesCollection ? "Reading knowledge graph entities" : "Connecting to library data")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The honest sentence for the current engine phase. Single source: the
+    /// engine popover renders the very same string for the very same failure,
+    /// so the two surfaces cannot describe one outage two ways (#4380).
+    var engineStatusDetail: String {
+        ConnectionPresentation.status(
+            phase: appState.engine.phase,
+            ownership: ConnectionPresentation.EngineOwnership.current(),
+            accessError: appState.backendAccessError,
+            authBroken: appState.authBroken
+        ).detail
+    }
+
+    /// The current load phase for this collection, read from the single
+    /// connection-state source plus this view's own fetch state.
+    var libraryLoadPhase: LibraryLoadPhase {
+        LibraryLoadPhase.resolve(
+            enginePhase: appState.engine.phase,
+            ownership: ConnectionPresentation.EngineOwnership.current(),
+            hasLoadedSuccessfully: isConnected,
+            isFetching: isCollectionLoading,
+            isEmpty: isCollectionEmpty,
+            engineDetail: engineStatusDetail,
+            loadErrorMessage: activeErrorMessage
+        )
+    }
+
+    /// Short enough to read at a glance (#4366); the detail, when there is any,
+    /// belongs in the connection popover.
+    var loadingMessage: String {
+        let phase = libraryLoadPhase
+        if phase == .loadingDocuments, isShowingEntitiesCollection {
+            return "Loading entities…"
+        }
+        // `.empty`/`.loaded`/`.failed` have their own views and never reach the
+        // spinner branch; "Loading…" is the honest last resort if one ever does.
+        return phase.message ?? "Loading…"
     }
 
     func errorState(message: String) -> some View {
@@ -323,19 +364,35 @@ extension LibraryView {
         .padding()
     }
 
+    /// Why this pane is empty, from the ONE mapping (#4403). Reading it here
+    /// rather than re-deriving in the body is what stops the body contradicting
+    /// the search header above it.
+    var emptyReason: LibraryEmptyReason {
+        LibraryEmptyReason.resolve(
+            isShowingEntities: isShowingEntitiesCollection,
+            filterText: searchText,
+            activeSearchQuery: activeSearchQuery,
+            hitCounts: searchHitCounts
+        )
+    }
+
     var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: isShowingEntitiesCollection ? "person.3.sequence" : "doc.text.magnifyingglass")
-                .font(.system(size: 48))
+        let reason = emptyReason
+        return VStack(spacing: 12) {
+            Image(systemName: reason.systemImage)
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
 
-            Text(isShowingEntitiesCollection ? "No Entities" : "No Documents")
+            Text(reason.title)
                 .font(.headline)
 
-            if !searchText.isEmpty {
-                Text("No results for \"\(searchText)\"")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            Text(reason.message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+
+            if reason.offersClearFilter {
                 // Escape route — clicking a tag in a row could trap the
                 // user with a stuck filter and no visible filter bar
                 // (the user hit this with "Image"). Always offer Clear.
@@ -348,14 +405,6 @@ extension LibraryView {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .padding(.top, 4)
-            } else if isShowingEntitiesCollection {
-                Text("Select an entity to inspect it.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                Text("Select a collection to view documents")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

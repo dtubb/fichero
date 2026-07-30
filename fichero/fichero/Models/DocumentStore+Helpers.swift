@@ -364,15 +364,34 @@ extension DocumentStore {
     /// by live status in the grid or the sidebar cache, or by being a running
     /// execution's target (override) even when its container copy is stale.
     func folderHasBusyChild(_ folderId: String) -> Bool {
-        if currentDocuments.contains(where: { $0.parentId == folderId && $0.status == .processing }) {
-            return true
+        childActivityCounts(of: folderId).busy > 0
+    }
+
+    /// How many direct children are busy, and how many there are (#4417).
+    ///
+    /// The counting half of `folderHasBusyChild`, which threw the numbers away
+    /// and returned a Bool — so the parent could only borrow the child's
+    /// spinner instead of summarising them. Same sources, same staleness
+    /// tolerance; it just keeps what it counted.
+    ///
+    /// Children are unioned by id across the grid and the sidebar cache: the
+    /// same child can appear in both, and counting it twice would report more
+    /// work in flight than exists.
+    func childActivityCounts(of parentId: String) -> (busy: Int, total: Int) {
+        var statusById: [String: Bool] = [:]
+
+        for doc in currentDocuments where doc.parentId == parentId {
+            statusById[doc.id] = doc.status == .processing
+                || workflowStatusOverrides[doc.id] == .processing
         }
-        if let kids = childrenCache[folderId] {
-            return kids.contains {
-                $0.status == .processing || workflowStatusOverrides[$0.id] == .processing
-            }
+        for kid in childrenCache[parentId] ?? [] {
+            let busy = kid.status == .processing || workflowStatusOverrides[kid.id] == .processing
+            // A cached copy can be staler than the grid's; either saying busy
+            // is enough, which matches the tolerance #4295 established.
+            statusById[kid.id] = (statusById[kid.id] ?? false) || busy
         }
-        return false
+
+        return (busy: statusById.values.filter { $0 }.count, total: statusById.count)
     }
 
     /// Apply workflowStatusOverrides to a freshly-loaded array so the UI sees

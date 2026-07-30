@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Xcode-style center status island (#4036 follow-up): ONE `.principal`
@@ -75,7 +76,17 @@ struct StatusIslandToolbarItem: View {
     private var message: some View {
         let status = StatusIslandMessage.resolve(
             enginePhase: appState.engine.phase,
-            engineDiagnosis: appState.engine.diagnosis,
+            // The MAPPED short title, never the engine's raw diagnosis (#4366):
+            // the debug-external diagnosis is a multi-line
+            // `PYTHONPATH=src python -m fichero_server.api` invocation, and the
+            // island rendered it truncated to a fragment of a shell command.
+            // Detail belongs in the popover; the line carries the short form.
+            engineStatusTitle: ConnectionPresentation.status(
+                phase: appState.engine.phase,
+                ownership: ConnectionPresentation.EngineOwnership.current(),
+                accessError: appState.backendAccessError,
+                authBroken: appState.authBroken
+            ).shortTitle,
             importError: importError,
             isImporting: isImporting,
             importProgress: importProgress,
@@ -87,7 +98,12 @@ struct StatusIslandToolbarItem: View {
             .foregroundStyle(status.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
             .lineLimit(1)
             .truncationMode(.tail)
-            .frame(minWidth: 120, maxWidth: 260)
+            // The width `StatusIslandMessage.budget` was derived from (#4366).
+            // Named rather than inlined so the two cannot drift: widen the
+            // island and the budget test tells you to re-derive the character
+            // count. `truncationMode` stays as a backstop for a pathological
+            // glyph run — it is not the length policy.
+            .frame(minWidth: 120, maxWidth: StatusIslandMessage.declaredMaxWidth)
     }
 
     private static func label(for work: BackendWorkStatus) -> String {
@@ -106,14 +122,81 @@ struct StatusIslandMessage: Equatable {
     let text: String
     let isError: Bool
 
+    /// Characters that fit the island's line. One number, shared with
+    /// `ConnectionPresentation` so the engine's short titles and the island's
+    /// own strings are held to the same contract (#4366).
+    static var budget: Int { ConnectionPresentation.islandBudget }
+
+    /// The island's declared max width, in points. `islandBudget` was derived
+    /// from THIS number; the test asserts the view still declares it, so
+    /// widening the island forces the budget to be re-derived rather than
+    /// silently drifting out of date.
+    static let declaredMaxWidth: CGFloat = 260
+
+    /// Every string the APP itself authors for the island.
+    ///
+    /// The table exists so a test can hold all of it to `budget` at once — the
+    /// point of #4366 is that a new message which is too long fails a test
+    /// rather than quietly truncating in the toolbar. Strings that come from
+    /// OUTSIDE the app (a backend task name, an import error, an import
+    /// progress line) are not in here; they cannot be written short in advance,
+    /// so they go through `shortForm(_:)` instead.
+    static let authoredMessages: [String] = [
+        "Ready",
+        "Importing…",
+        "Running 1 workflow…",
+        "Running 99 workflows…"
+    ]
+
+    /// The short form of a string the app did not author.
+    ///
+    /// NOT a silent truncation: it is a named, tested seam that exists because
+    /// a backend task name or an OS error string has no length contract, and
+    /// the alternative — letting SwiftUI clip it at render time — is the bug.
+    /// Clips on a word boundary where one is available so the result reads as
+    /// a phrase rather than a severed word, and the full text stays where it
+    /// already was (the activity popover, the import surface).
+    ///
+    /// A string already within budget is returned untouched, so this can never
+    /// shorten something that did not need it.
+    static func shortForm(_ text: String) -> String {
+        // Flatten first: the island is ONE line, and a multi-line payload — the
+        // debug-external engine diagnosis is three lines with a shell command in
+        // the middle — must not arrive with hard returns in it. Collapsing every
+        // whitespace run to a single space is what makes the length below a
+        // meaningful measure of what will actually be drawn.
+        let flattened = text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        guard flattened.count > budget else { return flattened }
+        // Leave room for the ellipsis so the RESULT is within budget, not the
+        // part before it.
+        let room = budget - 1
+        let clipped = flattened.prefix(room)
+        if let lastSpace = clipped.lastIndex(of: " ") {
+            let words = clipped[..<lastSpace].trimmingCharacters(in: .whitespaces)
+            // Only prefer the word boundary when it leaves a usable phrase; a
+            // single very long word would otherwise collapse to just "…".
+            if words.count >= room / 2 {
+                return words + "…"
+            }
+        }
+        return String(clipped) + "…"
+    }
+
     /// Highest-urgency source first: engine failure → engine booting → import
     /// error → import → engine background work → workflows → idle. Errors
     /// outrank progress because a stalled connection explains why the progress
     /// stopped; engine state outranks import state because an import cannot
     /// proceed without the engine at all.
+    /// - Parameter engineStatusTitle: the SHORT title from
+    ///   `ConnectionPresentation.status(…)` — the same words the engine popover
+    ///   puts at the top of the same failure. Never a raw diagnosis or a
+    ///   transport error string (#4366/#4269/#4380).
     static func resolve(
         enginePhase: EngineSession.Phase,
-        engineDiagnosis: String?,
+        engineStatusTitle: String,
         importError: String?,
         isImporting: Bool,
         importProgress: String?,
@@ -122,15 +205,20 @@ struct StatusIslandMessage: Equatable {
     ) -> StatusIslandMessage {
         switch enginePhase {
         case .portConflict, .authRejected, .unreachable, .failed:
-            return .init(text: engineDiagnosis ?? "Engine connection problem", isError: true)
+            return .init(text: engineStatusTitle, isError: true)
         case .starting:
-            return .init(text: "Starting engine…", isError: false)
+            return .init(text: engineStatusTitle, isError: false)
         case .setupNeeded, .ready:
             break
         }
-        if let importError { return .init(text: importError, isError: true) }
-        if isImporting { return .init(text: importProgress ?? "Importing…", isError: false) }
-        if let backendWorkLabel { return .init(text: backendWorkLabel, isError: false) }
+        // The three strings the app does NOT author. An OS error, a dropped
+        // folder's progress line and a backend task name all arrive with no
+        // length contract, so they are shortened at this ONE seam rather than
+        // clipped by the renderer (#4366). Everything below this point is
+        // app-authored and short by construction.
+        if let importError { return .init(text: shortForm(importError), isError: true) }
+        if isImporting { return .init(text: shortForm(importProgress ?? "Importing…"), isError: false) }
+        if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         if runningWorkflows > 0 {
             let text = runningWorkflows == 1
                 ? "Running 1 workflow…"

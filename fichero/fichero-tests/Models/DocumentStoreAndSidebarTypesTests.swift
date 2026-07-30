@@ -378,12 +378,24 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))
     }
 
-    func testIpadViewMenuUsesSharedViewCommands() throws {
+    /// #4374 inverted this assertion. The toolbar's "View" button rendered
+    /// `ViewMenuCommands()` — the same panes the three toggles beside it
+    /// already toggle, plus the display mode the adjacent menu already offers.
+    /// It existed so Mac matched iPad (#2493); the toggles now ship everywhere,
+    /// so the button is gone from the TOOLBAR and the complete list of view
+    /// commands lives in the MENU BAR, where a complete list belongs.
+    func testViewCommandsLiveInTheMenuBarNotTheToolbar() throws {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        XCTAssertFalse(
+            contentSource.contains("ViewMenuCommands()"),
+            "The toolbar must not host the View menu — it duplicates the adjacent pane toggles (#4374)."
+        )
+        XCTAssertFalse(contentSource.contains("ContentToolbarID.viewMenu"))
+        XCTAssertFalse(contentSource.contains("platformViewMenuButton"))
 
-        XCTAssertTrue(contentSource.contains("ViewMenuCommands()"))
-        // #4360: the glyph now comes from the ToolbarSymbols uniqueness policy.
-        XCTAssertTrue(contentSource.contains("Label(\"View\", systemImage: ToolbarSymbols.viewMenu)"))
+        // Still reachable, in the right place.
+        let appSource = try Self.appSource("FicheroApp.swift")
+        XCTAssertTrue(appSource.contains("ViewMenuCommands()"))
     }
 
     func testEngineLaunchSequenceIsOwnedByLifecycleController() throws {

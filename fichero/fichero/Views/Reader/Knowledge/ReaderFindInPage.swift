@@ -87,6 +87,19 @@ extension DocumentKGPaneRoute {
                 + '::highlight(fichero-find-current){background-color:rgba(255,149,0,.9);color:#000;}';
             (document.head || document.documentElement).appendChild(style);
             window.__ficheroFindState = { ranges: [] };
+            // #4406: is this element actually on screen? `checkVisibility`
+            // accounts for `display:none` on any ancestor, which is exactly how
+            // the inactive tabs are hidden. The `offsetParent`/`getClientRects`
+            // fallback covers engines without it. FILTER_REJECT (not SKIP) on a
+            // hidden element prunes its whole subtree, so a hidden tab costs one
+            // check rather than a walk of everything inside it.
+            window.__ficheroFindVisible = function(el) {
+                if (!el) { return false; }
+                if (typeof el.checkVisibility === 'function') {
+                    return el.checkVisibility({ checkVisibilityCSS: true });
+                }
+                return !!(el.offsetParent || (el.getClientRects && el.getClientRects().length));
+            };
             window.__ficheroFind = function(query) {
                 var state = window.__ficheroFindState;
                 state.ranges = [];
@@ -96,8 +109,37 @@ extension DocumentKGPaneRoute {
                 }
                 if (!query || !(window.CSS && CSS.highlights)) { return 0; }
                 var q = query.toLowerCase();
-                var root = document.querySelector('.content') || document.body;
-                var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+                // #4406: every tab's markup is RETAINED in the DOM — the
+                // in-page tab bar is hidden and `fichero.showTab` drives
+                // visibility — so a walk rooted at `.content` counted matches
+                // in the hidden entities, claims, timeline and artifacts tabs.
+                // That is how ~7 visible occurrences reported 314.
+                //
+                // Two independent guards, because either alone is brittle:
+                // prefer the transcript container when it is the visible
+                // surface, AND reject invisible nodes in the filter regardless,
+                // so this survives markup changes instead of depending on one
+                // selector. The filter is also what makes the count HONEST:
+                // `__ficheroFindSelect` scrolls a match into view, and a range
+                // in a hidden subtree cannot be scrolled to — so an unfiltered
+                // count produced long runs of next/previous where nothing
+                // visibly happened.
+                var transcript = document.getElementById('transcript-panel')
+                    || document.querySelector('.transcript');
+                var root = (transcript && window.__ficheroFindVisible(transcript))
+                    ? transcript
+                    : (document.querySelector('.content') || document.body);
+                var walker = document.createTreeWalker(
+                    root,
+                    NodeFilter.SHOW_TEXT,
+                    {
+                        acceptNode: function(candidate) {
+                            return window.__ficheroFindVisible(candidate.parentElement)
+                                ? NodeFilter.FILTER_ACCEPT
+                                : NodeFilter.FILTER_REJECT;
+                        }
+                    }
+                );
                 var node;
                 while ((node = walker.nextNode())) {
                     var text = node.nodeValue.toLowerCase();

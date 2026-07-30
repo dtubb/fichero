@@ -1,16 +1,14 @@
 #if canImport(AppKit)
 import AppKit
-#elseif canImport(UIKit)
-import UIKit
 #endif
 import FicheroAPIClient
 import SwiftUI
 
 extension BackendConnectionView {
     /// Route a broken connection into engine Settings (host / sharing / login) —
-    /// the way OUT when Retry isn't enough (wrong host, needs a remote/login, or
-    /// the engine must be configured). Available on every failure phase, since the
-    /// app now stays usable behind the non-modal toolbar popover.
+    /// the way OUT when the primary action isn't enough (wrong host, needs a
+    /// remote/login, or the engine must be configured). Available on every
+    /// failure phase, since the app stays usable behind the non-modal popover.
     @ViewBuilder
     var settingsButton: some View {
         Button {
@@ -21,32 +19,66 @@ extension BackendConnectionView {
         .accessibilityIdentifier("backend.action.openSettings")
     }
 
-    static func showsRetryButton(usesAppManagedEmbeddedEngine: Bool) -> Bool {
-        !usesAppManagedEmbeddedEngine
-    }
-
-    var showsRetryButton: Bool {
-        Self.showsRetryButton(usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine)
-    }
-
-    /// The single retry entry point (#3108) — reconnect (remote / debug-local).
+    /// The ONE primary action, chosen by `ConnectionPresentation` (#4380).
+    ///
+    /// There is exactly one of these on screen, its label is short enough not
+    /// to truncate (#4366), and it agrees with the sidebar's "Live updates
+    /// paused / Reconnect" pill because both read the same mapping. Reconnect
+    /// and Restart Engine both run the single retry entry point (#3108) — the
+    /// difference is only what the app can honestly claim it is doing.
     @ViewBuilder
-    var retryButton: some View {
+    func primaryActionButton(_ action: ConnectionPresentation.Action) -> some View {
         Button {
-            // Reset the cycling copy, then delegate to the ONE retry entry
-            // point (#3108). The retry flips the phase back to `.starting`,
-            // which re-fires the booting UI — the view never probes health or
-            // spawns an engine itself.
-            messageIndex = 0
-            Task { await onRetry?() }
+            perform(action)
         } label: {
-            Label(retryButtonTitle, systemImage: "arrow.clockwise")
+            Label(action.title, systemImage: action.systemImage)
+                .lineLimit(1)
         }
         .buttonStyle(.borderedProminent)
         .disabled(backendService.isStarting)
-        // Stable identifier for the user-managed retry action; app-managed
-        // embedded engines hide it entirely (#3944).
-        .accessibilityIdentifier("backend.action.restartEngine")
+        .accessibilityIdentifier(Self.accessibilityIdentifier(for: action))
+    }
+
+    /// Stable per-action identifiers so the launch UI tests can assert that a
+    /// specific recovery is ABSENT on a healthy launch (#3919/#3944).
+    static func accessibilityIdentifier(
+        for action: ConnectionPresentation.Action
+    ) -> String {
+        switch action {
+        case .reconnect: return "backend.action.reconnect"
+        case .restartEngine: return "backend.action.restartEngine"
+        case .resolvePortConflict: return "backend.action.resolvePortConflict"
+        case .resetSignIn: return "backend.action.resetSignIn"
+        case .resetCertificate: return "backend.action.resetCertificate"
+        case .forgetPairing: return "backend.action.forgetPairing"
+        }
+    }
+
+    /// Every action ends in the one retry entry point (#3108) except
+    /// `forgetPairing`, which has nothing to retry until the user re-pairs.
+    func perform(_ action: ConnectionPresentation.Action) {
+        switch action {
+        case .reconnect, .restartEngine:
+            break
+        case .resolvePortConflict:
+            // Adopt the process already holding :8765 — still gated on the
+            // authenticated probe (#3111).
+            backendService.pendingPortConflictResolution = .useIt
+        case .resetSignIn:
+            // Clearing the session token forces the next connect to recover
+            // auth instead of retrying the same rejected token forever (#2864).
+            AuthTokenMiddleware.clearSessionToken()
+        case .resetCertificate:
+            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString)
+        case .forgetPairing:
+            // The pairing escape hatch (#3971): clear the pairing, then flip the
+            // session to `.setupNeeded` so `BackendRootGate` re-renders the QR /
+            // Bonjour / manual-invite screen. No retry — there is no host left.
+            RemoteClientPairing.forgetPairing()
+            appState.engine.markSetupNeeded()
+            return
+        }
+        Task { await onRetry?() }
     }
 
     /// The in-window replacement for the old pre-window port-conflict NSAlert
@@ -57,10 +89,10 @@ extension BackendConnectionView {
     var useExistingEngineButton: some View {
         Button {
             backendService.pendingPortConflictResolution = .useIt
-            messageIndex = 0
             Task { await onRetry?() }
         } label: {
             Label("Use the Existing Server", systemImage: "link")
+                .lineLimit(1)
         }
         .disabled(backendService.isStarting)
     }
@@ -74,10 +106,10 @@ extension BackendConnectionView {
         if portConflictPID != nil {
             Button {
                 backendService.pendingPortConflictResolution = .stopIt
-                messageIndex = 0
                 Task { await onRetry?() }
             } label: {
-                Label("Stop It & Start Fichero's Server", systemImage: "stop.circle")
+                Label("Stop It & Restart", systemImage: "stop.circle")
+                    .lineLimit(1)
             }
             .buttonStyle(.borderedProminent)
             .disabled(backendService.isStarting)
@@ -98,112 +130,15 @@ extension BackendConnectionView {
             NSApplication.shared.terminate(nil)
         } label: {
             Label("Quit Fichero", systemImage: "xmark.circle")
+                .lineLimit(1)
         }
         .buttonStyle(.bordered)
         #endif
     }
 
-    static func showsResetSignInButton(
-        accessError: AccessError?,
-        usesAppManagedEmbeddedEngine: Bool
-    ) -> Bool {
-        accessError?.recovery == .signIn && !usesAppManagedEmbeddedEngine
-    }
-
-    var showsResetSignInButton: Bool {
-        Self.showsResetSignInButton(
-            accessError: failureAccessError,
-            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
-        )
-    }
-
-    static func showsResetCertificateButton(
-        accessError: AccessError?,
-        usesAppManagedEmbeddedEngine: Bool
-    ) -> Bool {
-        accessError?.recovery == .resetPin && !usesAppManagedEmbeddedEngine
-    }
-
-    var showsResetCertificateButton: Bool {
-        Self.showsResetCertificateButton(
-            accessError: failureAccessError,
-            usesAppManagedEmbeddedEngine: usesAppManagedEmbeddedEngine
-        )
-    }
-
-    /// Stale-credential recovery, shown only in the auth-rejected phase (#2864):
-    /// the engine is up but refusing a user-managed token. Clearing the session token
-    /// forces the next connect to recover remote/debug-local auth instead of retrying
-    /// the same rejected token forever. App-managed embedded engines mint their own
-    /// bootstrap credential, so they never show sign-in reset (#3944).
-    @ViewBuilder
-    var resetSignInButton: some View {
-        Button {
-            AuthTokenMiddleware.clearSessionToken()
-            messageIndex = 0
-            Task { await onRetry?() }
-        } label: {
-            Label("Reset Sign-In & Retry", systemImage: "person.badge.key")
-        }
-        .buttonStyle(.bordered)
-        .disabled(backendService.isStarting)
-        // #3919's assertion target: this button must be ABSENT for any failure
-        // whose remedy isn't `.signIn` (a scoped 403, an unreachable engine).
-        .accessibilityIdentifier("backend.action.resetSignIn")
-    }
-
-    @ViewBuilder
-    var resetCertificateButton: some View {
-        Button {
-            RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString)
-            messageIndex = 0
-            Task { await onRetry?() }
-        } label: {
-            Label("Reset Certificate & Retry", systemImage: "lock.rotation")
-        }
-        .buttonStyle(.borderedProminent)
-        .disabled(backendService.isStarting)
-    }
-
-    /// True only for the two iOS pairing dead-ends (#3971): a paired host that
-    /// is `unreachable` or has `failed`. A permanently-broken pairing otherwise
-    /// has no way back to the QR screen — Retry just re-probes the same dead
-    /// host forever — so these phases (and only these) offer "Forget This Mac".
-    /// Gated to platforms that pair to an external engine; macOS starts its own
-    /// embedded engine and never pairs, so it must never show this.
-    var showsForgetPairingButton: Bool {
-        #if os(iOS) || os(visionOS)
-        switch appState.engine.phase {
-        case .unreachable, .failed:
-            return true
-        case .setupNeeded, .starting, .portConflict, .authRejected, .ready:
-            return false
-        }
-        #else
-        return false
-        #endif
-    }
-
-    /// The pairing escape hatch (#3971): clears every trace of the current
-    /// pairing, then flips the session to `.setupNeeded` so `BackendRootGate`
-    /// re-renders `RemoteConnectionSetupView` (the QR / Bonjour / manual-invite
-    /// screen). Unlike the sign-in / certificate buttons this is NOT tied to a
-    /// specific `AccessError` — it is the last resort when the host itself is
-    /// gone and re-pairing is the only fix.
-    @ViewBuilder
-    var forgetPairingButton: some View {
-        Button {
-            RemoteClientPairing.forgetPairing()
-            appState.engine.markSetupNeeded()
-        } label: {
-            Label("Forget This Mac", systemImage: "xmark.circle")
-        }
-        .buttonStyle(.bordered)
-        .accessibilityIdentifier("backend.action.forgetPairing")
-    }
-
-    /// Opens the full engine log so a failure has a next step beyond "try
-    /// again" — the tail already appears inline (#2864). macOS only.
+    /// Opens the full engine log — where the developer detail belongs. The
+    /// popover deliberately shows no raw transport error and no shell command
+    /// (#4380/#4269); this button is the way to both. macOS only.
     @ViewBuilder
     var showLogButton: some View {
         #if canImport(AppKit)
