@@ -38,7 +38,7 @@ from pydantic import ValidationError
 # Importing the route modules registers the import.* (+ the document.* used by
 # undo) actions at import time.
 import fichero_server.api.routes.ingest  # noqa: F401
-import fichero_server.api.routes.documents  # noqa: F401
+import fichero_server.api.routes.document.documents  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Document
 

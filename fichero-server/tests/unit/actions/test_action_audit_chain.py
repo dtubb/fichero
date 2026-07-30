@@ -23,7 +23,7 @@ from fichero_server.actions.registry import (
     ChangeSpec,
     registry,
 )
-from fichero_server.api.routes.actions_registry import undo_action
+from fichero_server.api.routes.system.actions_registry import undo_action
 from fichero_server.models import ActionAudit
 
 

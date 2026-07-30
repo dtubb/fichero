@@ -30,13 +30,13 @@ from urllib.parse import urlparse
 
 import httpx
 
-from fichero_server.api.routes.activity import ActivityResponse
-from fichero_server.api.routes.artifacts import ArtifactResponse
-from fichero_server.api.routes.document_inspector import (
+from fichero_server.api.routes.system.activity import ActivityResponse
+from fichero_server.api.routes.document.artifacts import ArtifactResponse
+from fichero_server.api.routes.document.inspector import (
     DocumentInspectorResponse,
     DocumentKnowledgeGraphResponse,
 )
-from fichero_server.api.routes.entities import (
+from fichero_server.api.routes.entity.entities import (
     EntityAuditResponse,
     EntityCoOccurrence,
     EntityDocumentLink,
@@ -44,15 +44,15 @@ from fichero_server.api.routes.entities import (
     EntityResolutionResponse,
     TopEntityRow,
 )
-from fichero_server.api.routes.entity_inspector import EntityInspectorResponse
+from fichero_server.api.routes.entity.inspector import EntityInspectorResponse
 from fichero_server.api.routes.kg_graph import NeighborhoodResponse
 from fichero_server.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero_server.api.routes.kg_search import KGSearchResponse
-from fichero_server.api.routes.model_comparison import ComparisonResultResponse
-from fichero_server.api.routes.provider_models import ProviderResponse
+from fichero_server.api.routes.ai.model_comparison import ComparisonResultResponse
+from fichero_server.api.routes.ai.provider_models import ProviderResponse
 from fichero_server.models.hermeneutics import Interpretation
 from fichero_server.api.routes.search import SearchResponse
-from fichero_server.api.routes.settings import AIDefaults
+from fichero_server.api.routes.system.settings import AIDefaults
 from fichero_server.api.routes.workflow_execution.schemas import (
     ExecuteAcceptedResponse,
     ExecutionStatusResponse,

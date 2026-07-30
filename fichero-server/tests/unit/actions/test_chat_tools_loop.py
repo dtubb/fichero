@@ -111,11 +111,11 @@ def demo_actions():
 
 def _stub_llm(monkeypatch, llm):
     monkeypatch.setattr(
-        "fichero_server.api.routes.chat._get_langchain_llm",
+        "fichero_server.api.routes.system.chat._get_langchain_llm",
         lambda *_a, **_k: llm,
     )
     monkeypatch.setattr(
-        "fichero_server.api.routes.chat.GraphAwareRetriever",
+        "fichero_server.api.routes.system.chat.GraphAwareRetriever",
         lambda *_a, **_k: _FakeRetriever(),
     )
 

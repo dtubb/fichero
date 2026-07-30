@@ -16,8 +16,8 @@ import pytest
 
 from fichero_server.db import storage as storage_module
 from fichero_server.actions.registry import ActionContext, ActionResult
-from fichero_server.api.routes import documents as documents_routes
-from fichero_server.api.routes.documents import related_documents
+from fichero_server.api.routes.document import documents as documents_routes
+from fichero_server.api.routes.document.documents import related_documents
 from fichero_server.models.knowledge import (
     ClassificationDimension,
     ClassificationValue,

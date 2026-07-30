@@ -251,7 +251,7 @@ class TestListPlanTasks:
 
 class TestProjectFolderDestinationHandlers:
     async def test_create_persists_library_destination_folder_id(self, db):
-        from fichero_server.api.routes.research_crud import (
+        from fichero_server.api.routes.research.crud import (
             ProjectCreateRequest,
             create_project,
         )
@@ -273,7 +273,7 @@ class TestProjectFolderDestinationHandlers:
         assert workspace.attributes["library_destination_folder_id"] == "folder-abc"
 
     async def test_update_changes_library_destination_folder_id(self, db):
-        from fichero_server.api.routes.research_crud import (
+        from fichero_server.api.routes.research.crud import (
             ProjectUpdateRequest,
             update_project,
         )
@@ -289,7 +289,7 @@ class TestProjectFolderDestinationHandlers:
         assert db.get(ResearchProject, "p-folder").library_destination_folder_id == "folder-xyz"
 
     async def test_list_projects_reads_folded_workspace_nodes(self, db):
-        from fichero_server.api.routes.research_crud import list_projects
+        from fichero_server.api.routes.research.crud import list_projects
 
         db.save(
             Document(
@@ -317,7 +317,7 @@ class TestProjectFolderDestinationHandlers:
         assert project.metadata == {"topic": "letters"}
 
     async def test_get_project_uses_inherited_workspace_prototype_defaults(self, db):
-        from fichero_server.api.routes.research_crud import get_project
+        from fichero_server.api.routes.research.crud import get_project
 
         db.save(
             Document(
@@ -337,7 +337,7 @@ class TestProjectFolderDestinationHandlers:
         assert project.metadata == {"topic": "letters"}
 
     async def test_create_list_get_workspace_round_trip_and_contained_items(self, client, db):
-        from fichero_server.api.routes.research_crud import (
+        from fichero_server.api.routes.research.crud import (
             ProjectCreateRequest,
             create_project,
             get_project,
@@ -428,7 +428,7 @@ class TestProjectFolderDestinationHandlers:
         assert payload["items"][0]["target"]["id"] == target.id
 
     async def test_missing_folded_workspace_raises_not_found(self, db):
-        from fichero_server.api.routes.research_crud import get_project
+        from fichero_server.api.routes.research.crud import get_project
 
         db.save(_make_project("legacy-only", "Legacy Only"))
         db._execute("DELETE FROM documents WHERE id = $id", {"id": "legacy-only"})
@@ -439,7 +439,7 @@ class TestProjectFolderDestinationHandlers:
         assert exc.value.status_code == 404
 
     async def test_missing_workspace_prototype_definition_raises(self, db):
-        from fichero_server.api.routes.research_crud import get_project
+        from fichero_server.api.routes.research.crud import get_project
 
         db.save(
             Document(
@@ -468,7 +468,7 @@ class TestProjectFolderDestinationHandlers:
 
 class TestListProjectTasksHandler:
     async def test_aggregates_tasks_across_all_plans_in_project(self, db):
-        from fichero_server.api.routes.research_crud import list_project_tasks
+        from fichero_server.api.routes.research.crud import list_project_tasks
 
         db.save(_make_project("proj-agg"))
         db.save(_make_plan("plan-a", "proj-agg"))
@@ -489,7 +489,7 @@ class TestListProjectTasksHandler:
 
 class TestResearchContentHandlers:
     async def test_list_plans_tasks_steps_read_folded_document_nodes(self, db):
-        from fichero_server.api.routes.research_crud import list_plans, list_tasks, list_steps
+        from fichero_server.api.routes.research.crud import list_plans, list_tasks, list_steps
 
         db.save(
             Document(
@@ -645,7 +645,7 @@ class TestResearchContentHandlers:
         assert [item["id"] for item in step_children.json()["items"]] == ["step-tree"]
 
     async def test_missing_folded_plan_raises_not_found(self, db):
-        from fichero_server.api.routes.research_crud import get_plan
+        from fichero_server.api.routes.research.crud import get_plan
 
         db.save(_make_plan("legacy-plan", "proj-1"))
         db._execute("DELETE FROM documents WHERE id = $id", {"id": "legacy-plan"})
@@ -656,7 +656,7 @@ class TestResearchContentHandlers:
         assert exc.value.status_code == 404
 
     async def test_folded_plan_missing_parent_raises(self, db):
-        from fichero_server.api.routes.research_crud import get_plan
+        from fichero_server.api.routes.research.crud import get_plan
 
         db.save(
             Document(

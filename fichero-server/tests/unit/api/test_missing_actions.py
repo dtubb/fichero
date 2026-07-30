@@ -34,7 +34,7 @@ from pydantic import ValidationError
 from fastapi import HTTPException
 
 # Importing the route modules registers the actions on the process-global registry.
-import fichero_server.api.routes.annotations  # noqa: F401
+import fichero_server.api.routes.document.annotations  # noqa: F401
 import fichero_server.api.routes.batch as batch_routes  # noqa: F401
 import fichero_server.api.routes.search  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry

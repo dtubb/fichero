@@ -662,7 +662,7 @@ class TestAnnotationBboxValidation:
     def test_bbox_wrong_length_rejected(self, client):
         """bbox must be exactly 4 elements."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
             AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.3])
         assert "bbox must have exactly 4 elements" in str(exc.value)
@@ -670,7 +670,7 @@ class TestAnnotationBboxValidation:
     def test_bbox_negative_value_rejected(self, client):
         """bbox values must be in [0, 1]."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
             AnnotationCreateRequest(kind="highlight", bbox=[-0.1, 0.2, 0.3, 0.4])
         assert "must be in [0, 1]" in str(exc.value)
@@ -678,7 +678,7 @@ class TestAnnotationBboxValidation:
     def test_bbox_zero_width_rejected(self, client):
         """bbox width must be > 0."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
             AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.0, 0.4])
         assert "width must be > 0" in str(exc.value)
@@ -686,46 +686,46 @@ class TestAnnotationBboxValidation:
     def test_bbox_zero_height_rejected(self, client):
         """bbox height must be > 0."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
             AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.3, 0.0])
         assert "height must be > 0" in str(exc.value)
 
     def test_bbox_valid_passes(self, client):
         """Valid bbox values pass."""
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         req = AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.3, 0.4])
         assert req.bbox == [0.1, 0.2, 0.3, 0.4]
 
     def test_bbox_none_passes(self, client):
         """None bbox is allowed."""
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         req = AnnotationCreateRequest(kind="highlight", bbox=None)
         assert req.bbox is None
 
     def test_color_invalid_string_rejected(self, client):
         """color must be hex like #RRGGBB."""
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
             AnnotationCreateRequest(kind="highlight", color="red")
         assert "hex colour" in str(exc.value)
 
     def test_color_valid_hex_passes(self, client):
         """Valid hex colour passes."""
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         req = AnnotationCreateRequest(kind="highlight", color="#FFFF00")
         assert req.color == "#FFFF00"
 
     def test_color_hex_with_alpha_passes(self, client):
         """Hex colour with alpha (#RRGGBBAA) passes."""
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         req = AnnotationCreateRequest(kind="highlight", color="#FFFF0080")
         assert req.color == "#FFFF0080"
 
     def test_color_none_passes(self, client):
         """None color is allowed."""
-        from fichero_server.api.routes.annotations import AnnotationCreateRequest
+        from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         req = AnnotationCreateRequest(kind="highlight", color=None)
         assert req.color is None
 
@@ -735,21 +735,21 @@ class TestAnnotationPatchBboxValidation:
 
     def test_patch_bbox_wrong_length_rejected(self, client):
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationPatchRequest
+        from fichero_server.api.routes.document.annotations import AnnotationPatchRequest
         with pytest.raises(ValidationError) as exc:
             AnnotationPatchRequest(bbox=[0.1, 0.2])
         assert "bbox must have exactly 4 elements" in str(exc.value)
 
     def test_patch_color_invalid_rejected(self, client):
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationPatchRequest
+        from fichero_server.api.routes.document.annotations import AnnotationPatchRequest
         with pytest.raises(ValidationError) as exc:
             AnnotationPatchRequest(color="not-a-color")
         assert "hex colour" in str(exc.value)
 
     def test_patch_rating_out_of_range_rejected(self, client):
         from pydantic import ValidationError
-        from fichero_server.api.routes.annotations import AnnotationPatchRequest
+        from fichero_server.api.routes.document.annotations import AnnotationPatchRequest
         with pytest.raises(ValidationError):
             AnnotationPatchRequest(rating=0)
         with pytest.raises(ValidationError):

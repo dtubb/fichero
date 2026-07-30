@@ -352,7 +352,7 @@ class TestGetHistory:
         mock_engine = MagicMock()
         mock_engine.get_history.return_value = []
 
-        with patch("fichero_server.api.routes.model_comparison.get_comparison_engine", return_value=mock_engine):
+        with patch("fichero_server.api.routes.ai.model_comparison.get_comparison_engine", return_value=mock_engine):
             r = client.get("/api/model-comparison/history")
         assert r.status_code == 200
         data = r.json()
@@ -378,7 +378,7 @@ class TestGetHistory:
         mock_engine.get_history.return_value = [comparison.to_dict()]
 
         with patch(
-            "fichero_server.api.routes.model_comparison.get_comparison_engine",
+            "fichero_server.api.routes.ai.model_comparison.get_comparison_engine",
             return_value=mock_engine,
         ):
             r = client.get("/api/model-comparison/history")
@@ -397,7 +397,7 @@ class TestGetComparison:
         mock_engine = MagicMock()
         mock_engine.get_comparison.return_value = None
 
-        with patch("fichero_server.api.routes.model_comparison.get_comparison_engine", return_value=mock_engine):
+        with patch("fichero_server.api.routes.ai.model_comparison.get_comparison_engine", return_value=mock_engine):
             r = client.get("/api/model-comparison/comparison/no-such-id")
         assert r.status_code == 404
 
@@ -450,7 +450,7 @@ class TestCompareModels:
         mock_engine.compare = AsyncMock(return_value=comparison)
 
         with patch(
-            "fichero_server.api.routes.model_comparison.get_comparison_engine",
+            "fichero_server.api.routes.ai.model_comparison.get_comparison_engine",
             return_value=mock_engine,
         ):
             r = client.post(
@@ -487,7 +487,7 @@ class TestCompareModels:
         mock_engine.compare = AsyncMock(return_value=comparison)
 
         with patch(
-            "fichero_server.api.routes.model_comparison.get_comparison_engine",
+            "fichero_server.api.routes.ai.model_comparison.get_comparison_engine",
             return_value=mock_engine,
         ):
             r = client.post(
@@ -536,10 +536,10 @@ class TestCompareVision:
 
         with (
             patch(
-                "fichero_server.api.routes.model_comparison.get_comparison_engine",
+                "fichero_server.api.routes.ai.model_comparison.get_comparison_engine",
                 return_value=mock_engine,
             ),
-            patch("fichero_server.api.routes.model_comparison.get_display", return_value=image),
+            patch("fichero_server.api.routes.ai.model_comparison.get_display", return_value=image),
         ):
             r = client.post(
                 "/api/model-comparison/compare-vision",
@@ -593,7 +593,7 @@ class TestCompareWorkflow:
         mock_engine.compare_workflow = AsyncMock(return_value=comparison)
 
         with patch(
-            "fichero_server.api.routes.model_comparison.get_comparison_engine",
+            "fichero_server.api.routes.ai.model_comparison.get_comparison_engine",
             return_value=mock_engine,
         ):
             r = client.post(
@@ -636,7 +636,7 @@ class TestCompareWorkflow:
         mock_engine.compare_workflow = AsyncMock(return_value=comparison)
 
         with patch(
-            "fichero_server.api.routes.model_comparison.get_comparison_engine",
+            "fichero_server.api.routes.ai.model_comparison.get_comparison_engine",
             return_value=mock_engine,
         ):
             r = client.post(
@@ -675,7 +675,7 @@ class TestCompareWorkflowNode:
         mock_engine.compare_tool = AsyncMock(return_value=comparison)
 
         with patch(
-            "fichero_server.api.routes.model_comparison.get_comparison_engine",
+            "fichero_server.api.routes.ai.model_comparison.get_comparison_engine",
             return_value=mock_engine,
         ):
             r = client.post(

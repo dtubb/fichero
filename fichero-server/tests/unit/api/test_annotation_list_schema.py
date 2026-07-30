@@ -1,4 +1,4 @@
-from fichero_server.api.routes.annotations import AnnotationListResponse
+from fichero_server.api.routes.document.annotations import AnnotationListResponse
 
 
 def test_annotation_list_schema_has_typed_items():

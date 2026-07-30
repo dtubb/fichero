@@ -128,7 +128,7 @@ async def test_plan_term_planning_generates_metadata(client, db):
             "iterations": 1,
         }
     )
-    with patch("fichero_server.api.routes.research_crud.react_agent", mock_agent):
+    with patch("fichero_server.api.routes.research.crud.react_agent", mock_agent):
         proj_resp = client.post(
             "/api/research/projects",
             json={"name": "Term Planning Project"},

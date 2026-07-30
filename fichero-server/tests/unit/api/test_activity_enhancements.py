@@ -8,7 +8,7 @@ conversion — and pin the prune so the dead surface cannot quietly return.
 
 from datetime import datetime
 
-from fichero_server.api.routes.activity import (
+from fichero_server.api.routes.system.activity import (
     ActivityMetricsSummary,
     ActivityResponse,
     router,

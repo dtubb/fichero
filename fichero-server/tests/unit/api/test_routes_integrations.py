@@ -49,7 +49,7 @@ def _make_registry(integrations: list | None = None, available: list | None = No
 class TestListIntegrations:
     def test_empty_registry(self, client):
         registry = _make_registry()
-        with patch("fichero_server.api.routes.integrations.get_integration_registry", return_value=registry):
+        with patch("fichero_server.api.routes.mcp.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations")
         assert r.status_code == 200
         assert r.json() == {"items": [], "count": 0}
@@ -58,7 +58,7 @@ class TestListIntegrations:
         devonthink = _make_integration("DEVONthink")
         registry = _make_registry([devonthink])
 
-        with patch("fichero_server.api.routes.integrations.get_integration_registry", return_value=registry):
+        with patch("fichero_server.api.routes.mcp.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations")
         assert r.status_code == 200
         data = r.json()
@@ -77,7 +77,7 @@ class TestListAvailableIntegrations:
         available = _make_integration("Tinderbox", "com.eastgate.tinderbox", "available")
         registry = _make_registry(available=[available])
 
-        with patch("fichero_server.api.routes.integrations.get_integration_registry", return_value=registry):
+        with patch("fichero_server.api.routes.mcp.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations/available")
         assert r.status_code == 200
         data = r.json()
@@ -96,7 +96,7 @@ class TestGetIntegration:
         registry = _make_registry()
         registry.get.return_value = devonthink
 
-        with patch("fichero_server.api.routes.integrations.get_integration_registry", return_value=registry):
+        with patch("fichero_server.api.routes.mcp.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations/devonthink")
         assert r.status_code == 200
         assert r.json()["name"] == "DEVONthink"
@@ -105,6 +105,6 @@ class TestGetIntegration:
         registry = _make_registry()
         registry.get.return_value = None
 
-        with patch("fichero_server.api.routes.integrations.get_integration_registry", return_value=registry):
+        with patch("fichero_server.api.routes.mcp.integrations.get_integration_registry", return_value=registry):
             r = client.get("/api/integrations/no-such-app")
         assert r.status_code == 404

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from fichero_server.api.routes import storage as storage_routes
+from fichero_server.api.routes.system import storage as storage_routes
 from fichero_server.export_service import export_markdown_folder
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
 from fichero_server.db.storage import ensure_thumbnail, resolve_edited_source, resolve_source

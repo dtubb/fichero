@@ -27,7 +27,7 @@ os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
 os.environ.setdefault("FICHERO_DISABLE_AUTH", "1")
 
 from fichero_server.api.main import app, get_library_database  # noqa: E402
-from fichero_server.api.routes.providers import get_app_database  # noqa: E402
+from fichero_server.api.routes.ai.providers import get_app_database  # noqa: E402
 from fichero_server.db import db_manager  # noqa: E402
 
 # Seeded IDs reused across path-param substitution so nested list endpoints

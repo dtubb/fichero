@@ -38,10 +38,10 @@ from starlette.requests import Request
 # Importing the route modules registers the relevant @action decorators AND the
 # generic undo / audit-log endpoint handlers under test.
 import fichero_server.api.routes.claim.claims  # noqa: F401
-import fichero_server.api.routes.documents  # noqa: F401
-import fichero_server.api.routes.entities  # noqa: F401
+import fichero_server.api.routes.document.documents  # noqa: F401
+import fichero_server.api.routes.entity.entities  # noqa: F401
 import fichero_server.api.routes.kg_entity_curation  # noqa: F401
-from fichero_server.api.routes.actions_registry import list_audit_log, undo_action
+from fichero_server.api.routes.system.actions_registry import list_audit_log, undo_action
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import ActionAudit, DocType, Document

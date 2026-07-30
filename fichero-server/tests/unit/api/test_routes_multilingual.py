@@ -30,7 +30,7 @@ def _make_detection_result(language: str = "en", confidence: float = 0.9) -> Mag
 class TestDetectLanguage:
     def test_detects_english(self, client):
         detection = _make_detection_result("en", 0.95)
-        with patch("fichero_server.api.routes.multilingual.detect_language", return_value=detection):
+        with patch("fichero_server.api.routes.ai.multilingual.detect_language", return_value=detection):
             r = client.post("/api/multilingual/detect", json={"text": "Hello world"})
         assert r.status_code == 200
         data = r.json()
@@ -41,7 +41,7 @@ class TestDetectLanguage:
 
     def test_detects_french(self, client):
         detection = _make_detection_result("fr", 0.88)
-        with patch("fichero_server.api.routes.multilingual.detect_language", return_value=detection):
+        with patch("fichero_server.api.routes.ai.multilingual.detect_language", return_value=detection):
             r = client.post("/api/multilingual/detect", json={"text": "Bonjour le monde"})
         assert r.status_code == 200
         data = r.json()
@@ -50,7 +50,7 @@ class TestDetectLanguage:
 
     def test_unknown_language_code(self, client):
         detection = _make_detection_result("xx", 0.5)
-        with patch("fichero_server.api.routes.multilingual.detect_language", return_value=detection):
+        with patch("fichero_server.api.routes.ai.multilingual.detect_language", return_value=detection):
             r = client.post("/api/multilingual/detect", json={"text": "????"})
         assert r.status_code == 200
         assert r.json()["language_name"] == "Unknown"
@@ -64,7 +64,7 @@ class TestDetectLanguage:
 class TestTransliterate:
     def test_returns_variants(self, client):
         with patch(
-            "fichero_server.api.routes.multilingual.get_transliteration_variants",
+            "fichero_server.api.routes.ai.multilingual.get_transliteration_variants",
             return_value=["Moskva", "Moskwa"],
         ):
             r = client.post("/api/multilingual/transliterate", json={
@@ -79,7 +79,7 @@ class TestTransliterate:
 
     def test_empty_variants(self, client):
         with patch(
-            "fichero_server.api.routes.multilingual.get_transliteration_variants",
+            "fichero_server.api.routes.ai.multilingual.get_transliteration_variants",
             return_value=[],
         ):
             r = client.post("/api/multilingual/transliterate", json={

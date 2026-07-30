@@ -141,6 +141,23 @@ def _mounted_route_prefixes(root: Path) -> dict[str, str]:
     except SyntaxError:
         return {}
 
+    # Map local alias -> real module rel-path from main.py's own imports, so a
+    # route registered as `notes.router` resolves to api/routes/document/notes.py
+    # (the module actually imported) rather than assuming a flat
+    # api/routes/notes.py file — the #4071-#4077 shim deletions removed those.
+    alias_rel: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom) or not node.module:
+            continue
+        if not node.module.startswith("fichero_server.api.routes"):
+            continue
+        base = node.module.removeprefix("fichero_server.").replace(".", "/")
+        for alias in node.names:
+            local = alias.asname or alias.name
+            candidate = f"{base}/{alias.name}.py"
+            if (root / candidate).is_file() or (root / base / alias.name).is_dir():
+                alias_rel[local] = candidate
+
     prefixes: dict[str, str] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
@@ -170,7 +187,10 @@ def _mounted_route_prefixes(root: Path) -> dict[str, str]:
                 or not isinstance(prefix.value, str)
             ):
                 continue
-            rel_path = _resolve_real_rel_path(root, f"api/routes/{router.value.id}.py")
+            default_rel = f"api/routes/{router.value.id}.py"
+            rel_path = _resolve_real_rel_path(
+                root, alias_rel.get(router.value.id, default_rel)
+            )
             prefixes[rel_path] = prefix.value
     return prefixes
 

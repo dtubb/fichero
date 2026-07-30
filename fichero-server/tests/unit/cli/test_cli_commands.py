@@ -15,10 +15,10 @@ from fichero_cli import __main__ as cli
 from fichero_cli import FicheroError
 from fichero_cli import client as client_module
 from fichero_cli.formatters import render
-from fichero_server.api.routes.activity import ActivityResponse
-from fichero_server.api.routes.artifacts import ArtifactResponse
-from fichero_server.api.routes.document_inspector import DocumentInspectorResponse
-from fichero_server.api.routes.entities import (
+from fichero_server.api.routes.system.activity import ActivityResponse
+from fichero_server.api.routes.document.artifacts import ArtifactResponse
+from fichero_server.api.routes.document.inspector import DocumentInspectorResponse
+from fichero_server.api.routes.entity.entities import (
     EntityAuditResponse,
     EntityCoOccurrence,
     EntityDocumentLink,
@@ -26,7 +26,7 @@ from fichero_server.api.routes.entities import (
     TopEntityRow,
 )
 from fichero_server.api.routes.kg_search import KGSearchResponse
-from fichero_server.api.routes.provider_models import ProviderResponse
+from fichero_server.api.routes.ai.provider_models import ProviderResponse
 from fichero_server.api.routes.workflow_execution.schemas import (
     ExecuteAcceptedResponse,
     ExecutionStatusResponse,
@@ -415,7 +415,7 @@ class FakeClient:
 
     def document_knowledge_graph(self, doc_id, **kw):
         self.calls.append(("document_knowledge_graph", doc_id, kw))
-        from fichero_server.api.routes.document_inspector import DocumentKnowledgeGraphResponse
+        from fichero_server.api.routes.document.inspector import DocumentKnowledgeGraphResponse
         return DocumentKnowledgeGraphResponse(
             document_id=doc_id,
             include_children=kw.get("include_children", False),
@@ -1547,7 +1547,7 @@ def test_render_nested_dict():
 
 def test_render_top_entity():
     from fichero_cli.formatters import render_top_entity
-    from fichero_server.api.routes.entities import TopEntityRow
+    from fichero_server.api.routes.entity.entities import TopEntityRow
 
     # Test with all fields
     entity = TopEntityRow(

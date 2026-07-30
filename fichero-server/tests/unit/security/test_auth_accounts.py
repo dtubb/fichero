@@ -10,7 +10,8 @@ from fastapi.testclient import TestClient
 from fichero_server.security import accounts
 from fichero_server.actions import registry
 from fichero_server.api.auth import initialize_token
-from fichero_server.api.routes import auth_accounts, pairing
+from fichero_server.api.routes.auth import accounts as auth_accounts
+from fichero_server.api.routes.auth import pairing
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -52,7 +53,7 @@ def _client_for_address(app_db, client_addr: tuple[str, int] = ("testclient", 50
     import fichero_server.api.main as api_main
 
     api_main = importlib.reload(api_main)
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db
     with TestClient(api_main.app, client=client_addr) as test_client:
@@ -66,7 +67,7 @@ def client(app_db, monkeypatch):
     import fichero_server.api.main as api_main
 
     api_main = importlib.reload(api_main)
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db
     with TestClient(api_main.app) as test_client:

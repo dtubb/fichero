@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-import fichero_server.api.routes.actions_registry  # noqa: F401 - registers acl.set
+import fichero_server.api.routes.system.actions_registry  # noqa: F401 - registers acl.set
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.actions.registry import (
@@ -20,19 +20,19 @@ from fichero_server.actions.registry import (
 )
 from fichero_server.api.change_stream import _change_hub
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.api.routes.auth_accounts import (
+from fichero_server.api.routes.auth.accounts import (
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
-from fichero_server.api.routes.library_entity_types import (
+from fichero_server.api.routes.library.entity_types import (
     _get_db_manager,
     _get_library_db,
     add_library_entity_type,
     list_library_entity_types,
 )
-from fichero_server.api.routes.changes import stream_library_changes
-from fichero_server.api.routes.entities import _digest_library_database
-from fichero_server.api.routes.library_registry import add_known_library
+from fichero_server.api.routes.system.changes import stream_library_changes
+from fichero_server.api.routes.entity.entities import _digest_library_database
+from fichero_server.api.routes.library.registry import add_known_library
 from fichero_server.api.routes.schedules import get_library_database as get_schedule_database
 from fichero_server.api.routes.triggers import get_library_database as get_trigger_database
 from fichero_server.db import Database

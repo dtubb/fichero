@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
 from fichero_server.security import authz
-from fichero_server.api.routes import pairing
+from fichero_server.api.routes.auth import pairing
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -32,7 +32,7 @@ def paired_device_client(test_package, app_db, monkeypatch):
     pairing._PAIRING_RENEW_ATTEMPTS.clear()
 
     import fichero_server.api.main as api_main
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main = importlib.reload(api_main)
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db

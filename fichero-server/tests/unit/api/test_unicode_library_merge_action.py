@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from fichero_server.actions.registry import ActionContext, registry
-from fichero_server.api.routes import library_registry  # noqa: F401  # register action
+from fichero_server.api.routes.library import registry as library_registry  # noqa: F401  # register action
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, AnnotationKind, EntityType, KnowledgeEntity, Note, NoteKind
 from fichero_server.models import ActionAudit, DocType, Document, KnownLibrary
@@ -534,7 +534,7 @@ def test_unicode_merge_action_double_trigger_only_merges_once(tmp_path, global_d
 
 
 def test_unicode_merge_action_aborts_on_snapshot_failure(tmp_path, global_db, monkeypatch) -> None:
-    from fichero_server.api.routes import library_registry as registry_routes
+    from fichero_server.api.routes.library import registry as registry_routes
 
     left, right = _seed_sidecar_merge_pair(tmp_path, global_db)
     calls: list[str] = []

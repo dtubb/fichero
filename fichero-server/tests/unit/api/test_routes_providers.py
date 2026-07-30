@@ -11,7 +11,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 from fichero_server.models import Provider, ProviderType
-from fichero_server.api.routes.providers import get_app_database
+from fichero_server.api.routes.ai.providers import get_app_database
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ class TestProviderCatalog:
 class TestAppleAvailability:
     def test_reports_available_probe(self, client):
         with patch(
-            "fichero_server.api.routes.providers.probe_apple_intelligence_bridge",
+            "fichero_server.api.routes.ai.providers.probe_apple_intelligence_bridge",
             new=AsyncMock(return_value=(True, None)),
         ):
             r = client.get("/api/providers/apple/availability")
@@ -82,7 +82,7 @@ class TestAppleAvailability:
 
     def test_reports_bridge_failure_reason(self, client):
         with patch(
-            "fichero_server.api.routes.providers.probe_apple_intelligence_bridge",
+            "fichero_server.api.routes.ai.providers.probe_apple_intelligence_bridge",
             new=AsyncMock(return_value=(False, "fm-bridge binary not found")),
         ):
             r = client.get("/api/providers/apple/availability")
@@ -96,10 +96,10 @@ class TestAppleAvailability:
 class TestProviderKeysAndConnection:
     def test_local_provider_api_key_status_reports_true_without_key_lookup(self, client):
         with patch(
-            "fichero_server.api.routes.provider_keys.has_api_key",
+            "fichero_server.api.routes.ai.provider_keys.has_api_key",
             side_effect=AssertionError("local provider should not probe key presence"),
         ), patch(
-            "fichero_server.api.routes.provider_keys.keychain_available",
+            "fichero_server.api.routes.ai.provider_keys.keychain_available",
             return_value=False,
         ):
             response = client.get("/api/providers/apple/api-key/status")
@@ -114,7 +114,7 @@ class TestProviderKeysAndConnection:
 
     def test_openai_connection_without_api_key_fails_loudly(self, client):
         with patch(
-            "fichero_server.api.routes.provider_keys.get_api_key",
+            "fichero_server.api.routes.ai.provider_keys.get_api_key",
             return_value=None,
         ):
             response = client.post("/api/providers/openai/test")
@@ -151,7 +151,7 @@ class TestListProviders:
 
 class TestCreateProvider:
     def test_create_provider(self, client):
-        with patch("fichero_server.api.routes.providers.set_api_key"):
+        with patch("fichero_server.api.routes.ai.providers.set_api_key"):
             r = client.post("/api/providers", json={
                 "name": "My Anthropic",
                 "provider_type": "anthropic",

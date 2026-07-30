@@ -25,7 +25,7 @@ from pydantic import BaseModel
 # Importing route modules registers their actions via the @action decorator at
 # import time — this is what populates the global registry for the chat agent.
 import fichero_server.api.routes.claim.claims  # noqa: F401  (registers claim.* actions)
-import fichero_server.api.routes.actions  # noqa: F401  (registers actionlib.* actions)
+import fichero_server.api.routes.system.actions  # noqa: F401  (registers actionlib.* actions)
 from fichero_server.actions.chat_tools import (
     action_tool,
     action_tools,

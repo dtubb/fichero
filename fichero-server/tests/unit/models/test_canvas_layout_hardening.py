@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fichero_server.api.routes.canvas import (
+from fichero_server.api.routes.interpretation.canvas import (
     CanvasLayoutItem,
     CanvasLayoutSaveRequest,
     _load_canvas_layout,

@@ -12,7 +12,7 @@ from __future__ import annotations
 import fastapi
 import pytest
 
-from fichero_server.api.routes.settings import (
+from fichero_server.api.routes.system.settings import (
     AIDefaultsUpdate,
     _validate_profile,
     _validate_provider_updates,

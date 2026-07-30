@@ -280,7 +280,7 @@ class TestProviderAPIRoutes:
 
     def test_list_catalog(self, client):
         """Test GET /api/providers/catalog"""
-        with patch("fichero_server.api.routes.providers.has_api_key") as mock_has_key:
+        with patch("fichero_server.api.routes.ai.providers.has_api_key") as mock_has_key:
             mock_has_key.return_value = False
 
             response = client.get("/api/providers/catalog")
@@ -299,7 +299,7 @@ class TestProviderAPIRoutes:
 
     def test_get_catalog_entry(self, client):
         """Test GET /api/providers/catalog/{provider_type}"""
-        with patch("fichero_server.api.routes.providers.has_api_key") as mock_has_key:
+        with patch("fichero_server.api.routes.ai.providers.has_api_key") as mock_has_key:
             mock_has_key.return_value = True
 
             response = client.get("/api/providers/catalog/openai")
@@ -317,7 +317,7 @@ class TestProviderAPIRoutes:
 
     def test_create_provider(self, client):
         """Test POST /api/providers"""
-        with patch("fichero_server.api.routes.providers.set_api_key") as mock_set_key:
+        with patch("fichero_server.api.routes.ai.providers.set_api_key") as mock_set_key:
             mock_set_key.return_value = True
 
             response = client.post(
@@ -416,7 +416,7 @@ class TestProviderAPIRoutes:
         assert sample["provider"] == "openrouter"
 
     def test_list_models_preserves_unknown_pricing_without_marking_free(self, client):
-        from fichero_server.api.routes.provider_models import generate_model_description
+        from fichero_server.api.routes.ai.provider_models import generate_model_description
 
         fake_models = [{
             "model_id": "gpt-opaque",
@@ -452,8 +452,8 @@ class TestProviderAPIRoutes:
 
     def test_api_key_status(self, client):
         """Test GET /api/providers/{provider_type}/api-key/status"""
-        with patch("fichero_server.api.routes.provider_keys.has_api_key") as mock_has:
-            with patch("fichero_server.api.routes.provider_keys.keychain_available") as mock_avail:
+        with patch("fichero_server.api.routes.ai.provider_keys.has_api_key") as mock_has:
+            with patch("fichero_server.api.routes.ai.provider_keys.keychain_available") as mock_avail:
                 mock_has.return_value = True
                 mock_avail.return_value = True
 
@@ -953,7 +953,7 @@ class TestCapabilityDerivation:
         )
 
     def test_chat_model_derives_text_and_tools(self):
-        from fichero_server.api.routes.providers import (
+        from fichero_server.api.routes.ai.providers import (
             _derive_capabilities_from_registry,
         )
 
@@ -969,7 +969,7 @@ class TestCapabilityDerivation:
         assert caps == ["text", "tools"]
 
     def test_omlx_vision_model_derives_text_and_vision(self):
-        from fichero_server.api.routes.providers import (
+        from fichero_server.api.routes.ai.providers import (
             _derive_capabilities_from_registry,
         )
 
@@ -977,7 +977,7 @@ class TestCapabilityDerivation:
         assert caps == ["text", "vision"]
 
     def test_vision_chat_model_derives_text_and_vision(self):
-        from fichero_server.api.routes.providers import (
+        from fichero_server.api.routes.ai.providers import (
             _derive_capabilities_from_registry,
         )
 
@@ -996,7 +996,7 @@ class TestCapabilityDerivation:
         assert "tools" in caps
 
     def test_transcription_model_derives_audio_and_transcription(self):
-        from fichero_server.api.routes.providers import (
+        from fichero_server.api.routes.ai.providers import (
             _derive_capabilities_from_registry,
         )
 
@@ -1013,7 +1013,7 @@ class TestCapabilityDerivation:
         assert caps == ["audio", "transcription"]
 
     def test_embedding_model_is_not_text(self):
-        from fichero_server.api.routes.providers import (
+        from fichero_server.api.routes.ai.providers import (
             _derive_capabilities_from_registry,
         )
 
@@ -1033,7 +1033,7 @@ class TestCapabilityDerivation:
         assert caps == ["embedding"]
 
     def test_unknown_model_returns_empty(self):
-        from fichero_server.api.routes.providers import (
+        from fichero_server.api.routes.ai.providers import (
             _derive_capabilities_from_registry,
         )
 
@@ -1044,7 +1044,7 @@ class TestCapabilityDerivation:
 
 class TestProviderModelDiscoveryHelpers:
     def test_openai_models_url_accepts_base_with_or_without_v1(self):
-        from fichero_server.api.routes.provider_models import _openai_models_url
+        from fichero_server.api.routes.ai.provider_models import _openai_models_url
 
         assert (
             _openai_models_url("http://localhost:8000")
@@ -1056,6 +1056,6 @@ class TestProviderModelDiscoveryHelpers:
         )
 
     def test_local_server_root_strips_openai_compatible_suffix(self):
-        from fichero_server.api.routes.provider_models import _local_server_root
+        from fichero_server.api.routes.ai.provider_models import _local_server_root
 
         assert _local_server_root("http://localhost:11434/v1") == "http://localhost:11434"

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context, request_actor
-from fichero_server.api.routes.auth_accounts import _require_owner_or_bootstrap
+from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database

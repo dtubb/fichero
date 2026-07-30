@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
 from fichero_server.api.auth import initialize_token
-from fichero_server.api.routes import pairing
+from fichero_server.api.routes.auth import pairing
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -38,8 +38,8 @@ def pairing_harness(test_package, app_db, monkeypatch):
 
     api_main = importlib.reload(api_main)
     from fichero_server.api.main import get_library_database, get_library_database_for_write
-    from fichero_server.api.routes.entities import _digest_library_database
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.entity.entities import _digest_library_database
+    from fichero_server.api.routes.ai.providers import get_app_database
     from fichero_server.db import db_manager
 
     library_db = db_manager.get_database(test_package)

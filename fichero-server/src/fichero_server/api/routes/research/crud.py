@@ -40,7 +40,7 @@ from fichero_server.models import ResearchCrudListResponse
 # Passthrough wrapper (#3950).
 #
 # `react_agent` must stay a MODULE ATTRIBUTE: tests patch
-# `fichero_server.api.routes.research_crud.react_agent`, which needs the attribute to
+# `fichero_server.api.routes.research.crud.react_agent`, which needs the attribute to
 # exist AND the call site to resolve it as a module global. Importing any
 # module in the tools package runs tools/__init__.py (every tool, Quartz, MCP,
 # langgraph), so the import itself stays deferred to first call.

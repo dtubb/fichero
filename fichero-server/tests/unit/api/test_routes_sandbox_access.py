@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from fichero_server.api.routes import sandbox_access
+from fichero_server.api.routes.auth import sandbox_access
 
 
 def _payload(path: str = "/tmp/library.fichero", bookmark: str = "Ym9va21hcms="):

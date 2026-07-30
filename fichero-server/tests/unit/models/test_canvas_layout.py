@@ -3,7 +3,7 @@
 import asyncio
 from types import SimpleNamespace
 
-from fichero_server.api.routes.actions_registry import undo_action
+from fichero_server.api.routes.system.actions_registry import undo_action
 from fichero_server.db import Database
 from fichero_server.db.migrations.schema import migrate_canvas_layout_table
 from fichero_server.knowledge.knowledge_models import KnowledgeEntity

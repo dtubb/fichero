@@ -3739,7 +3739,7 @@ _MANAGED_OMLX_RESTART_CAP = 2
 async def _ensure_managed_local_provider_ready(config: LLMConfig) -> None:
     if config.provider.lower() != "omlx":
         return
-    from fichero_server.api.routes.local_inference import _configured_omlx_profile, _manager_for_profile
+    from fichero_server.api.routes.ai.local_inference import _configured_omlx_profile, _manager_for_profile
     from fichero_server.llm.local_inference import (
         LocalModelHardwareError as LocalInferenceHardwareError,
         LocalInferenceRuntimeMissingError,

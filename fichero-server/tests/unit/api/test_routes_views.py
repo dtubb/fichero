@@ -295,7 +295,7 @@ class TestDocumentViewRoute:
                 return 251
             return original_count(self, model, **filters)
 
-        from fichero_server.api.routes.views import _GLOBAL_KG_LIMIT
+        from fichero_server.api.routes.system.views import _GLOBAL_KG_LIMIT
 
         monkeypatch.setattr(Database, "query_page", counting_query_page)
         monkeypatch.setattr(Database, "count", large_count)

@@ -24,7 +24,7 @@ def global_client(tmp_path):
     from fastapi.testclient import TestClient
 
     from fichero_server.api.main import app
-    from fichero_server.api.routes.library_registry import get_global_database
+    from fichero_server.api.routes.library.registry import get_global_database
 
     global_db = Database(path=tmp_path / "global.fichero" / "fichero.duckdb")
     app.dependency_overrides[get_global_database] = lambda: global_db

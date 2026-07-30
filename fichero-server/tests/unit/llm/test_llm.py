@@ -1020,7 +1020,7 @@ async def test_apple_chat_model_with_structured_output_delegates(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_omlx_chat_starts_managed_profile_before_langchain_call(monkeypatch):
-    from fichero_server.api.routes import local_inference as routes
+    from fichero_server.api.routes.ai import local_inference as routes
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
     profile = routes._configured_omlx_profile().model_copy(
@@ -1041,7 +1041,7 @@ async def test_omlx_chat_starts_managed_profile_before_langchain_call(monkeypatc
 
 @pytest.mark.asyncio
 async def test_omlx_start_failure_raises_unavailable_and_skips_langchain(monkeypatch):
-    from fichero_server.api.routes import local_inference as routes
+    from fichero_server.api.routes.ai import local_inference as routes
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
     manager = _omlx_manager(healthy=False, last_error="stderr excerpt")
@@ -1054,7 +1054,7 @@ async def test_omlx_start_failure_raises_unavailable_and_skips_langchain(monkeyp
 
 @pytest.mark.asyncio
 async def test_omlx_runtime_missing_raises_typed_error(monkeypatch):
-    from fichero_server.api.routes import local_inference as routes
+    from fichero_server.api.routes.ai import local_inference as routes
     from fichero_server.llm.local_inference import LocalInferenceRuntimeMissingError
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
@@ -1075,7 +1075,7 @@ async def test_omlx_runtime_missing_raises_typed_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_omlx_hardware_gate_raises_typed_error(monkeypatch):
-    from fichero_server.api.routes import local_inference as routes
+    from fichero_server.api.routes.ai import local_inference as routes
     from fichero_server.llm.local_inference import LocalModelHardwareError as LocalInferenceHardwareError
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
@@ -1116,7 +1116,7 @@ async def test_apple_chat_reports_platform_unavailable_before_missing_binary(mon
 
 @pytest.mark.asyncio
 async def test_omlx_manual_policy_never_auto_starts(monkeypatch):
-    from fichero_server.api.routes import local_inference as routes
+    from fichero_server.api.routes.ai import local_inference as routes
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
     profile = routes._configured_omlx_profile().model_copy(
@@ -1134,7 +1134,7 @@ async def test_omlx_manual_policy_never_auto_starts(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_unmanaged_omlx_base_url_bypasses_manager(monkeypatch):
-    from fichero_server.api.routes import local_inference as routes
+    from fichero_server.api.routes.ai import local_inference as routes
 
     cfg = LLMConfig(
         provider="omlx",
@@ -1153,7 +1153,7 @@ async def test_unmanaged_omlx_base_url_bypasses_manager(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_omlx_restart_cap_stays_failed(monkeypatch):
-    from fichero_server.api.routes import local_inference as routes
+    from fichero_server.api.routes.ai import local_inference as routes
 
     cfg = LLMConfig(provider="omlx", model="mlx-community/Qwen3-VL-8B")
     manager = _omlx_manager(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import fichero_server.api.routes.research_notes  # noqa: F401
+import fichero_server.api.routes.research.notes  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit
 from fichero_server.models.research import ResearchChecklist, ResearchNote, SearchSource

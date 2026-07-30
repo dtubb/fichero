@@ -27,11 +27,11 @@ import pytest
 from PIL import Image
 from pydantic import ValidationError
 
-import fichero_server.api.routes.actions_registry  # noqa: F401
+import fichero_server.api.routes.system.actions_registry  # noqa: F401
 # Importing the route module registers the image.* actions via @action at import.
-import fichero_server.api.routes.image_editing  # noqa: F401
+import fichero_server.api.routes.ingest.image_editing  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
-from fichero_server.api.routes.actions_registry import undo_action
+from fichero_server.api.routes.system.actions_registry import undo_action
 from fichero_server.models import ActionAudit, DocType, Document, FileType, ImageEditChain
 
 

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.api.routes import provider_keys as routes
+from fichero_server.api.routes.ai import provider_keys as routes
 
 
 def test_set_key_rejects_unavailable_keychain(monkeypatch):

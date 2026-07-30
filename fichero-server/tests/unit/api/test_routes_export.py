@@ -26,7 +26,7 @@ class TestMarkdownFolderExport:
             )
 
         monkeypatch.setattr(
-            "fichero_server.api.routes.export.export_markdown_folder",
+            "fichero_server.api.routes.ingest.export.export_markdown_folder",
             fake_export_markdown_folder,
         )
 
@@ -446,7 +446,7 @@ class TestEleventySiteExport:
             raise OSError("disk full")
 
         monkeypatch.setattr(
-            "fichero_server.api.routes.export.export_eleventy_site",
+            "fichero_server.api.routes.ingest.export.export_eleventy_site",
             fake_export_eleventy_site,
         )
 

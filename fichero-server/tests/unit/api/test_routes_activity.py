@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fichero_server.api import change_stream
 from fichero_server.api.change_stream import _ChangeHub, emit_change
-from fichero_server.api.routes import activity as activity_routes
+from fichero_server.api.routes.system import activity as activity_routes
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -78,7 +78,7 @@ def _make_mock_stats() -> MagicMock:
 class TestListActivities:
     def test_returns_empty_list(self, client):
         tracker = _make_mock_tracker()
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity")
         assert r.status_code == 200
         assert r.json()["items"] == []
@@ -87,7 +87,7 @@ class TestListActivities:
     def test_returns_activities(self, client):
         act = _make_mock_activity()
         tracker = _make_mock_tracker([act])
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity")
         assert r.status_code == 200
         assert len(r.json()["items"]) == 1
@@ -95,19 +95,19 @@ class TestListActivities:
 
     def test_invalid_activity_type_returns_400(self, client):
         tracker = _make_mock_tracker()
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity?types=invalid_type")
         assert r.status_code == 400
 
     def test_invalid_level_returns_400(self, client):
         tracker = _make_mock_tracker()
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity?levels=bogus")
         assert r.status_code == 400
 
     def test_since_z_is_normalized_for_query_filter(self, client):
         tracker = _make_mock_tracker()
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity?since=2026-05-16T14:32:06Z")
         assert r.status_code == 200
         assert tracker.query.await_count == 1
@@ -125,7 +125,7 @@ class TestGetRecentActivities:
     def test_returns_recent(self, client):
         act = _make_mock_activity()
         tracker = _make_mock_tracker([act])
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity/recent")
         assert r.status_code == 200
         assert len(r.json()["items"]) == 1
@@ -139,7 +139,7 @@ class TestGetRecentActivities:
 class TestGetActivityStats:
     def test_returns_stats(self, client):
         tracker = _make_mock_tracker()
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity/stats")
         assert r.status_code == 200
         data = r.json()
@@ -156,7 +156,7 @@ class TestGetActivityStats:
 class TestActivityStream:
     @pytest.mark.asyncio
     async def test_stream_disconnect_drains_pending_tasks(self, monkeypatch):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         tracker = _make_mock_tracker([])
         stopped = asyncio.Event()
@@ -180,7 +180,7 @@ class TestActivityStream:
 
         monkeypatch.setattr(activity_routes.asyncio, "wait", wait_until_started)
         db = MagicMock(path=Path("/tmp/test-activity.fichero/fichero.duckdb"))
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(db=db, types=None, levels=None)
 
         try:
@@ -194,7 +194,7 @@ class TestActivityStream:
 
     @pytest.mark.asyncio
     async def test_stream_logs_and_surfaces_unexpected_error(self, caplog):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         tracker = _make_mock_tracker([])
 
@@ -203,13 +203,13 @@ class TestActivityStream:
             yield None  # pragma: no cover
 
         tracker.stream = stream
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(
                 db=MagicMock(path="/tmp/test.fichero"), types=None, levels=None
             )
 
         try:
-            with caplog.at_level("ERROR", logger="fichero_server.api.routes.activity"):
+            with caplog.at_level("ERROR", logger="fichero_server.api.routes.system.activity"):
                 assert '"error": "tracker failed"' in await anext(response.body_iterator)
         finally:
             await response.body_iterator.aclose()
@@ -218,7 +218,7 @@ class TestActivityStream:
 
     @pytest.mark.asyncio
     async def test_stream_yields_activity_response_sse_shape(self):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         act = _make_mock_activity(
             activity_id="act-stream-1",
@@ -234,7 +234,7 @@ class TestActivityStream:
             yield act
 
         tracker.stream = stream
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(
                 db=MagicMock(path="/tmp/test.fichero"),
                 types=None,
@@ -250,7 +250,7 @@ class TestActivityStream:
 
     @pytest.mark.asyncio
     async def test_stream_yields_workflow_started_events(self):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         act = _make_mock_activity(
             activity_id="act-started-1",
@@ -264,7 +264,7 @@ class TestActivityStream:
             yield act
 
         tracker.stream = stream
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(
                 db=MagicMock(path="/tmp/test.fichero"),
                 types=None,
@@ -278,7 +278,7 @@ class TestActivityStream:
 
     @pytest.mark.asyncio
     async def test_stream_yields_change_events_for_current_library(self, monkeypatch):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         tracker = _make_mock_tracker([])
 
@@ -293,7 +293,7 @@ class TestActivityStream:
 
         library_path = "/tmp/test-activity.fichero"
         db = MagicMock(path=Path(library_path) / "fichero.duckdb")
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(db=db, types=None, levels=None)
 
         try:
@@ -319,7 +319,7 @@ class TestActivityStream:
 
     @pytest.mark.asyncio
     async def test_stream_ignores_other_library_change_events(self, monkeypatch):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         tracker = _make_mock_tracker([])
 
@@ -336,7 +336,7 @@ class TestActivityStream:
         library_path = "/tmp/test-activity.fichero"
         other_library_path = "/tmp/other-activity.fichero"
         db = MagicMock(path=Path(library_path) / "fichero.duckdb")
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             response = await stream_activities(db=db, types=None, levels=None)
 
         try:
@@ -362,7 +362,7 @@ class TestActivityCleanup:
     def test_cleanup_returns_deleted_count(self, client):
         tracker = _make_mock_tracker()
         tracker.store.delete_old_sync = MagicMock(return_value=42)
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.delete("/api/activity/cleanup")
         assert r.status_code == 200
         data = r.json()
@@ -373,7 +373,7 @@ class TestActivityCleanup:
         """Cleanup route goes through registry.invoke and writes an ActionAudit row."""
         tracker = _make_mock_tracker()
         tracker.store.delete_old_sync = MagicMock(return_value=10)
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.delete("/api/activity/cleanup?days=7")
         assert r.status_code == 200
         data = r.json()
@@ -390,7 +390,7 @@ class TestActivityCleanup:
         """Default days=30 when not specified."""
         tracker = _make_mock_tracker()
         tracker.store.delete_old_sync = MagicMock(return_value=5)
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.delete("/api/activity/cleanup")
         assert r.status_code == 200
         data = r.json()
@@ -410,7 +410,7 @@ class TestActivityCleanup:
         )
         tracker = _make_mock_tracker()
         tracker.store.delete_old_sync = MagicMock(return_value=3)
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.delete("/api/activity/cleanup?days=14")
         assert r.status_code == 200
         # Verify change event was emitted
@@ -421,7 +421,7 @@ class TestActivityCleanup:
     def test_cleanup_days_bounds(self, client):
         """Days parameter must be 1-365."""
         tracker = _make_mock_tracker()
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r0 = client.delete("/api/activity/cleanup?days=0")
             assert r0.status_code in (400, 422)
             r366 = client.delete("/api/activity/cleanup?days=366")
@@ -437,7 +437,7 @@ class TestWorkflowActivity:
     def test_returns_workflow_activities(self, client):
         act = _make_mock_activity()
         tracker = _make_mock_tracker([act])
-        with patch("fichero_server.api.routes.activity.get_activity_tracker", return_value=tracker):
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker", return_value=tracker):
             r = client.get("/api/activity/workflow/wf-123")
         assert r.status_code == 200
         assert "items" in r.json()

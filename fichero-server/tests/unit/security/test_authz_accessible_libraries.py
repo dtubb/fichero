@@ -8,7 +8,7 @@ from fastapi import HTTPException
 
 from fichero_server.security import accounts
 from fichero_server.security import authz
-from fichero_server.api.routes.authz import list_accessible_libraries
+from fichero_server.api.routes.auth.authz import list_accessible_libraries
 from fichero_server.db import Database
 from fichero_server.models import KnownLibrary
 

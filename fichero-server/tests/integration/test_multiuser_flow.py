@@ -12,7 +12,8 @@ import httpx
 import pytest
 
 from fichero_server.api.auth import initialize_token
-from fichero_server.api.routes import auth_accounts, pairing
+from fichero_server.api.routes.auth import accounts as auth_accounts
+from fichero_server.api.routes.auth import pairing
 from fichero_server.db.manager import db_manager
 from fichero_server.models import ActionAudit, DocType, Document, FileType, Status
 
@@ -63,7 +64,7 @@ def _client(app_db, monkeypatch, client_addr: tuple[str, int] = ("testclient", 5
     import fichero_server.api.main as api_main
 
     api_main = importlib.reload(api_main)
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db
     with TestClient(api_main.app, client=client_addr) as client:
@@ -82,7 +83,7 @@ def _client_bundle(app_db, monkeypatch):
     import fichero_server.api.main as api_main
 
     api_main = importlib.reload(api_main)
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db
     with (
@@ -108,7 +109,7 @@ async def _async_client_bundle(app_db, monkeypatch):
     import fichero_server.api.main as api_main
 
     api_main = importlib.reload(api_main)
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db
     local_transport = httpx.ASGITransport(
@@ -197,7 +198,7 @@ async def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db
     secondary = _create_library(tmp_path, "secondary")
 
     async with _async_client_bundle(app_db, monkeypatch) as (local_client, remote_client):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         create_owner = await local_client.post(
             "/api/users",

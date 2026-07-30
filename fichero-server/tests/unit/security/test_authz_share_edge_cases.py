@@ -14,10 +14,10 @@ import pytest
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.actions.registry import ActionContext
-from fichero_server.api.routes.authz import share_library_object
+from fichero_server.api.routes.auth.authz import share_library_object
 from fichero_server.models import ShareRequest
 
-import fichero_server.api.routes.actions_registry  # noqa: F401 - registers acl.set
+import fichero_server.api.routes.system.actions_registry  # noqa: F401 - registers acl.set
 
 
 @pytest.fixture

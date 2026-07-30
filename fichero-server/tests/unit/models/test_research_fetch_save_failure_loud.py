@@ -36,15 +36,15 @@ def _patch_fetch_ok():
     """Bypass SSRF gates + the real HTTP GET so only the save path is exercised."""
     return [
         patch(
-            "fichero_server.api.routes.research_tools._is_sandbox_violation",
+            "fichero_server.api.routes.research.tools._is_sandbox_violation",
             AsyncMock(return_value=False),
         ),
         patch(
-            "fichero_server.api.routes.research_tools._is_safe_url",
+            "fichero_server.api.routes.research.tools._is_safe_url",
             AsyncMock(return_value=(True, "")),
         ),
         patch(
-            "fichero_server.api.routes.research_tools._safe_http_get",
+            "fichero_server.api.routes.research.tools._safe_http_get",
             AsyncMock(return_value=_FakeResp()),
         ),
     ]
@@ -111,15 +111,15 @@ def test_browser_save_pdf_imports_document_and_page_children(client, db):
 
     ctxs = [
         patch(
-            "fichero_server.api.routes.research_tools._is_sandbox_violation",
+            "fichero_server.api.routes.research.tools._is_sandbox_violation",
             AsyncMock(return_value=False),
         ),
         patch(
-            "fichero_server.api.routes.research_tools._is_safe_url",
+            "fichero_server.api.routes.research.tools._is_safe_url",
             AsyncMock(return_value=(True, "")),
         ),
         patch(
-            "fichero_server.api.routes.research_tools._safe_http_get",
+            "fichero_server.api.routes.research.tools._safe_http_get",
             AsyncMock(return_value=_PdfResp()),
         ),
     ]

@@ -49,7 +49,7 @@ top-level exec cost, not children — children are counted separately):
 Top individual offenders by self-time (ms): `claim_curation` 73,
 `apscheduler.schedulers.base` 54, `fichero_server.knowledge.knowledge_models` 43,
 `fastapi.openapi.models` 43, `fichero_server.models` 37, `fichero.orchestration_policy`
-32, `fichero_server.api.routes.documents` 30, `.workflows` 25, `.entities` 25,
+32, `fichero_server.api.routes.document.documents` 30, `.workflows` 25, `.entities` 25,
 `.search` 23, `.hermeneutics` 21, `.image_editing` 21, `.claim_links` 20,
 `.claims` 18, `.activity`/`.model_comparison`/`.research_crud`/`.chat` 14–17
 each. No single route module dominates — the cost is the **sum of ~90 small

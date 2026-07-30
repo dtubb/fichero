@@ -480,7 +480,7 @@ class TestStorageRouteHeaders:
 
     def test_inline_content_disposition_ascii_filename(self):
         """ASCII filenames should preserve readable fallback and encoded variant."""
-        from fichero_server.api.routes.storage import _inline_content_disposition
+        from fichero_server.api.routes.system.storage import _inline_content_disposition
 
         header = _inline_content_disposition("report.pdf")
         assert 'filename="report.pdf"' in header
@@ -488,7 +488,7 @@ class TestStorageRouteHeaders:
 
     def test_inline_content_disposition_unicode_filename(self):
         """Unicode filenames should not crash header generation."""
-        from fichero_server.api.routes.storage import _inline_content_disposition
+        from fichero_server.api.routes.system.storage import _inline_content_disposition
 
         header = _inline_content_disposition("résumé-日本語.pdf")
         assert 'filename="r?sum?-???.pdf"' in header

@@ -267,8 +267,8 @@ class TestUpsertEntity:
 
 class TestEntityReadLogging:
     def test_entity_drill_down_logs_excerpt_lookup_failure(self, db, caplog):
-        from fichero_server.api.routes import entities as entities_routes
-        from fichero_server.api.routes.entities import entity_drill_down
+        from fichero_server.api.routes.entity import entities as entities_routes
+        from fichero_server.api.routes.entity.entities import entity_drill_down
 
         entity = _make_entity(db, "Alice")
         with (
@@ -291,8 +291,8 @@ class TestEntityReadLogging:
         assert f"entity-drill-down excerpt lookup failed for {entity.id}: boom" in caplog.text
 
     def test_entity_biography_logs_document_lookup_failure(self, db, caplog):
-        from fichero_server.api.routes import entities as entities_routes
-        from fichero_server.api.routes.entities import assemble_entity_biography
+        from fichero_server.api.routes.entity import entities as entities_routes
+        from fichero_server.api.routes.entity.entities import assemble_entity_biography
 
         entity = _make_entity(db, "Alice")
         with (
@@ -474,7 +474,7 @@ class TestDeleteEntity:
 
     def test_claim_lookup_for_multiple_entity_ids_returns_shared_claim_once(self, db):
         """Shared-claim lookup should return a claim once even if it matches two ids."""
-        from fichero_server.api.routes.entities import _claims_referencing_entity_ids
+        from fichero_server.api.routes.entity.entities import _claims_referencing_entity_ids
         from fichero_server.models.knowledge import KnowledgeClaim
 
         entity_a = _make_entity(db, "Alice")
@@ -490,7 +490,7 @@ class TestDeleteEntity:
         assert [row.id for row in matches] == [claim.id]
 
     def test_claim_lookup_delegates_json_membership_to_database(self, db, monkeypatch):
-        from fichero_server.api.routes.entities import _claims_referencing_entity_ids
+        from fichero_server.api.routes.entity.entities import _claims_referencing_entity_ids
         from fichero_server.models.knowledge import KnowledgeClaim
 
         claim = KnowledgeClaim(id="claim-1", text="linked", entity_ids=["entity-1"])

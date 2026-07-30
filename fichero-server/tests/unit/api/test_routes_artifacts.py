@@ -527,7 +527,7 @@ class TestListArtifactTypes:
 
 class TestDeleteArtifact:
     def test_delete_translation_removes_scoped_embeddings(self, db, monkeypatch):
-        from fichero_server.api.routes.artifacts import _delete_artifact_impl
+        from fichero_server.api.routes.document.artifacts import _delete_artifact_impl
 
         artifact = Artifact(document_id="doc-1", artifact_type="translation", content="hola")
         db.save(artifact)
