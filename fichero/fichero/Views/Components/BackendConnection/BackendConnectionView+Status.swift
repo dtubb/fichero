@@ -16,7 +16,7 @@ extension BackendConnectionView {
     /// copy of its own — including "is this a failure", which is now simply
     /// `connectionStatus.isError` instead of a second phase switch that could
     /// disagree with the first.
-    var connectionStatus: ConnectionPresentation.Status {
+    var connectionStatus: ConnectionPresentation.Display {
         ConnectionPresentation.status(
             phase: appState.engine.phase,
             ownership: engineProcessOwnership,

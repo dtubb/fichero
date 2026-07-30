@@ -36,7 +36,7 @@ struct BackendConnectionView: View {
     /// Split from `body` so each piece stays a small, bounded expression — the
     /// LibraryWindow type-check timeout is a standing hazard in this codebase.
     @ViewBuilder
-    private func content(_ status: ConnectionPresentation.Status) -> some View {
+    private func content(_ status: ConnectionPresentation.Display) -> some View {
         VStack(spacing: 16) {
             header(status)
             detail(status)
@@ -60,7 +60,7 @@ struct BackendConnectionView: View {
     /// One small symbol beside the title — consistent with the status island's
     /// error affordance. Never an illustration: this is status chrome, not an
     /// onboarding screen.
-    private func header(_ status: ConnectionPresentation.Status) -> some View {
+    private func header(_ status: ConnectionPresentation.Display) -> some View {
         HStack(spacing: 8) {
             Image(systemName: status.symbol)
                 .font(.title3)
@@ -79,7 +79,7 @@ struct BackendConnectionView: View {
     }
 
     @ViewBuilder
-    private func detail(_ status: ConnectionPresentation.Status) -> some View {
+    private func detail(_ status: ConnectionPresentation.Display) -> some View {
         if !status.detail.isEmpty {
             Text(status.detail)
                 .font(.body)
