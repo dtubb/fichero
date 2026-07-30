@@ -55,3 +55,12 @@ def iterparse_xml(
         reject_xml_entities(sample)
         source.seek(pos)
     return SafeET.iterparse(source, events=events)
+
+
+def parse_xml_string(text: str) -> Any:
+    """Parse an in-memory XML string through the same entity rejection +
+    defused parser as ``parse_xml`` — the chokepoint for well-formedness
+    checks on model-generated markup (#4329)."""
+
+    reject_xml_entities(text[:4096].encode("utf-8", errors="ignore"))
+    return SafeET.fromstring(text)

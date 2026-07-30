@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import re
-import xml.etree.ElementTree as ET
 from typing import Any
 
 from fichero_server.workflows.types import State
@@ -22,6 +21,7 @@ from fichero_server.workflows.tools.vision_base import (
     process_vision,
 )
 from fichero_server.llm import LLMConfig
+from fichero_server.security.xml_security import parse_xml_string
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +100,8 @@ def sanitize_converted_markup(text: str, target_format: str) -> str:
                 "refusing to save a non-SVG rendition"
             )
         try:
-            ET.fromstring(out)
-        except ET.ParseError as exc:
+            parse_xml_string(out)
+        except Exception as exc:
             raise ValueError(
                 f"Convert produced malformed SVG (not well-formed XML: {exc}); "
                 "refusing to save an unrenderable rendition"
