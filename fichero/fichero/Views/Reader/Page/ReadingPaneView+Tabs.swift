@@ -183,6 +183,27 @@ extension ReadingPaneView {
         )
     }
 
+    /// What this reader currently shows, for the highlight-layer precedence
+    /// (#4355). `showsPageImage` is the Preview pane's business and is not yet
+    /// plumbed across panes, so the geometry-mirroring arm stays dormant here.
+    var readerVisibleSplit: ReaderVisibleSplit {
+        ReaderVisibleSplit(
+            showsTranscript: readerTab == .page,
+            showsKnowledge: readerTab == .knowledge,
+            isFinding: !searchState.query.isEmpty
+        )
+    }
+
+    /// The claim to tint, or nil when another layer owns the surface. While find
+    /// is running, the knowledge tint stands down: the same visual surface must
+    /// not mean "match" and "claim" at once (#4355).
+    var highlightedClaimId: String? {
+        guard ReaderHighlightPrecedence.isVisible(.entityClaim, in: readerVisibleSplit) else {
+            return nil
+        }
+        return kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId
+    }
+
     /// The shared WebKit surface, driven by an explicit tab. The Page tab passes
     /// `.transcript` (the assembled multi-page transcript) and the Knowledge tab
     /// passes its viz sub-mode — one WKWebView, two readings of the same document.
@@ -196,7 +217,7 @@ extension ReadingPaneView {
                 documentScope: doc.docType == .page ? .page : .folder,
                 libraryPath: libraryPath,
                 selectedEntityId: kgFocusState.focusedEntityId,
-                selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,
+                selectedClaimId: highlightedClaimId,
                 activePageNumber: effectivePageNumber,
                 pageCount: effectivePageCount,
                 onPageSelected: isPinned ? { _ in } : onPageSelected,

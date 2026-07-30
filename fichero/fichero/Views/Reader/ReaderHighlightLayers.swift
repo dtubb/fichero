@@ -75,10 +75,12 @@ enum ReaderHighlightPrecedence {
     /// Rules:
     /// - the current page is always drawn where a transcript is visible — it is a
     ///   page marker, not a text mark, so it never competes for the text;
-    /// - find, when active, leads wherever text is visible, and pulls the
-    ///   geometry layer in so its matches mirror onto the image;
+    /// - find, when active, leads wherever text is visible, pulls the geometry
+    ///   layer in so its matches mirror onto the image, and SUPPRESSES the
+    ///   knowledge tint — one surface must not carry two meanings at once;
     /// - with only the image visible, geometry carries the meaning;
-    /// - knowledge highlights lead in the knowledge pane while find is inactive;
+    /// - knowledge highlights draw wherever text is visible and lead in the
+    ///   knowledge pane, while find is inactive;
     /// - a live selection always leads: it is the user's own act.
     static func layers(for split: ReaderVisibleSplit) -> [ReaderHighlightLayer] {
         var layers: [ReaderHighlightLayer] = []
@@ -86,19 +88,14 @@ enum ReaderHighlightPrecedence {
         if split.showsTranscript {
             layers.append(.currentPage)
         }
+        if split.showsPageImage {
+            layers.append(.geometryBox)
+        }
 
         if split.isFinding, split.showsTranscript || split.showsPageImage {
-            if split.showsPageImage {
-                layers.append(.geometryBox)
-            }
             layers.append(.findMatch)
-        } else {
-            if split.showsKnowledge {
-                layers.append(.entityClaim)
-            }
-            if split.showsPageImage {
-                layers.append(.geometryBox)
-            }
+        } else if split.showsTranscript || split.showsKnowledge {
+            layers.append(.entityClaim)
         }
 
         if split.hasSelection, split.showsTranscript || split.showsKnowledge {

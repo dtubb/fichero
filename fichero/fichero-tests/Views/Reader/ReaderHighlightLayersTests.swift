@@ -33,6 +33,14 @@ final class ReaderHighlightLayersTests: XCTestCase {
         XCTAssertEqual(ReaderHighlightPrecedence.leadingLayer(for: split), .entityClaim)
     }
 
+    func testKnowledgeHighlightsStillDrawInAPlainTranscript() {
+        // A revealed claim highlights in the transcript even with no knowledge
+        // pane open (#3511) — the knowledge pane changes which layer LEADS, it
+        // does not gate the layer's existence.
+        let split = ReaderVisibleSplit(showsTranscript: true)
+        XCTAssertTrue(ReaderHighlightPrecedence.isVisible(.entityClaim, in: split))
+    }
+
     func testFindOutranksKnowledgeWhileActive() {
         let split = ReaderVisibleSplit(
             showsTranscript: true,
