@@ -8,6 +8,8 @@ Inherits from vision_base.py - excellent for recreating document content.
 from __future__ import annotations
 
 import logging
+import re
+import xml.etree.ElementTree as ET
 from typing import Any
 
 from fichero_server.workflows.types import State
@@ -53,6 +55,59 @@ CONVERT_CONFIG = {
         "description": "Include CSS/styling",
     },
 }
+
+
+# =============================================================================
+# Output Sanitization / Validation (#4329)
+# =============================================================================
+
+# The whole output wrapped in a single code fence — models add this despite
+# the "no code fences" instruction.
+_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_+-]*[ \t]*\n(.*)\n?```\s*$", re.DOTALL)
+_SCRIPT_RE = re.compile(r"<script\b.*?</script\s*>", re.IGNORECASE | re.DOTALL)
+_EVENT_ATTR_RE = re.compile(
+    r"\s+on[a-zA-Z]+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", re.IGNORECASE
+)
+_JS_URL_RE = re.compile(
+    r"(href|xlink:href|src)\s*=\s*([\"'])\s*javascript:[^\"']*\2", re.IGNORECASE
+)
+
+
+def sanitize_converted_markup(text: str, target_format: str) -> str:
+    """Sanitize + validate model-generated markup BEFORE it is saved/rendered.
+
+    The converted artifact renders in WebKit (#4329), so:
+      * strip a whole-output code fence (models add one despite instructions);
+      * for html/svg: remove `<script>` blocks, inline `on*=` handlers, and
+        `javascript:` URLs — renditions are documents, never active content;
+      * for svg: require a well-formed `<svg>` XML document — malformed output
+        raises (fail loud, per-file) instead of persisting a broken artifact.
+    """
+    out = (text or "").strip()
+    fenced = _FENCE_RE.match(out)
+    if fenced:
+        out = fenced.group(1).strip()
+
+    if target_format in ("html", "svg"):
+        out = _SCRIPT_RE.sub("", out)
+        out = _EVENT_ATTR_RE.sub("", out)
+        out = _JS_URL_RE.sub(r"\1=\2#\2", out)
+
+    if target_format == "svg":
+        if "<svg" not in out[:500].lower():
+            raise ValueError(
+                "Convert produced no <svg> root for target_format=svg; "
+                "refusing to save a non-SVG rendition"
+            )
+        try:
+            ET.fromstring(out)
+        except ET.ParseError as exc:
+            raise ValueError(
+                f"Convert produced malformed SVG (not well-formed XML: {exc}); "
+                "refusing to save an unrenderable rendition"
+            ) from exc
+
+    return out
 
 
 # =============================================================================
@@ -178,6 +233,14 @@ async def convert(
         tool_config=TOOL_CONFIG,
         # Vision-specific
         vision_mode="llm",
+        # #4329: a rendition is GENERATED from the page image by the model —
+        # never satisfied by the pre-extracted text passthrough.
+        force_ocr=True,
+        # Sanitize/validate the markup before save (strip fences + scripts;
+        # SVG must be well-formed XML) and stamp the format on the artifact so
+        # the preview picks the right renderer.
+        postprocess_text=lambda t: sanitize_converted_markup(t, target_format),
+        artifact_data={"target_format": target_format},
         max_image_dimension=inputs.get(
             "max_image_dimension", 2048
         ),  # Full res for conversion
