@@ -48,6 +48,11 @@ struct LibraryView: View {
     /// Sidebar-parity Add to Chat (#4121): the host opens chat scoped to the
     /// current selection; nil hides the menu item (previews, non-chat hosts).
     var onAddToChat: (() -> Void)?
+    /// The engine-search field's text and mode, now that the field lives in
+    /// the library's own mini toolbar rather than on the window (#4407).
+    /// Defaulted so the previews construct unchanged.
+    var searchFieldText: Binding<String> = .constant("")
+    var searchFieldMode: Binding<SearchFieldMode> = .constant(.ask)
     /// The transient search this grid is showing results for, if any (#4403).
     /// Non-nil means the empty state must talk about the SEARCH — never about
     /// choosing a collection, which is what it used to fall back to under a
@@ -473,6 +478,22 @@ struct LibraryView: View {
             // through behind the pill.
             .safeAreaInset(edge: .top, spacing: 0) {
                 liveUpdatesPausedInset
+            }
+            // The library's own mini toolbar (#4407 / #4374): search, sort and
+            // filter live with the surface they act on. Top on the Mac, bottom
+            // on touch — the same single platform decision the reader's find
+            // bar makes, from the same place, so the two panes agree. Because
+            // it is an inset on THIS view it resizes with the library pane and
+            // disappears with it, which window chrome could never do.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if Self.miniToolbarPlacement == .top {
+                    PaneFilterBar(placement: .top) { libraryMiniToolbar }
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if Self.miniToolbarPlacement == .bottom {
+                    PaneFilterBar(placement: .bottom) { libraryMiniToolbar }
+                }
             }
             // Closes the sidebar-click interval opened in `handleSelectionChange`
             // (#4228). See `InteractionProfile.Phase.selectionToContent` for what

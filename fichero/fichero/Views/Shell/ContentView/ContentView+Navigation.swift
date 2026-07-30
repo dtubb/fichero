@@ -129,7 +129,14 @@ extension ContentView {
                 // told what the search actually found — otherwise its empty
                 // state contradicts the header counting every kind.
                 activeSearchQuery: activeSearchQuery,
-                searchHitCounts: transientSearchHitCounts
+                searchHitCounts: transientSearchHitCounts,
+                // #4407: the search field lives in the library's mini toolbar
+                // now, so its text and mode are handed to the pane that owns it.
+                searchFieldText: $toolbarSearchText,
+                searchFieldMode: Binding(
+                    get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
+                    set: { searchFieldModeRaw = $0.rawValue }
+                )
             )
             // Keep the library surface inside the content column across every
             // preview/sidebar layout variant; without this, list/table rows can

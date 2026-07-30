@@ -14,9 +14,6 @@ enum ContentToolbarID {
     /// unit under overflow instead of shedding an arbitrary pane toggle into
     /// the overflow menu, which is what a flat `.automatic` run did.
     static let paneToggleGroup = "fichero.paneToggles"
-    /// Sort + filter: controls that act on the library LIST, grouped apart
-    /// from the pane toggles because they are a different kind of thing.
-    static let libraryControlsGroup = "fichero.library.controls"
     static let breadcrumb = "fichero.breadcrumb"
     static let statusIsland = "fichero.statusIsland"
 }
@@ -147,27 +144,12 @@ extension ContentView {
             }
         }
 
-        // Finder-style sort + filter for the CURRENT library view (#4289).
-        // Available in the compact flow too — sorting and filtering a list is
-        // not a split-pane concept — so this sits outside the block above.
-        if supportsReadingWorkspace {
-            // A SEPARATE group from the pane toggles (#4374): these act on the
-            // library list's contents, not on which panes are visible, and
-            // grouping them apart is what makes that legible.
-            //
-            // Declared unconditionally within this zone (#3163): the filter's
-            // feature flag varies the item's CONTENT, it must not make the
-            // toolbar item itself appear/disappear — that is the
-            // duplicate-identifier crash class. The flag itself is deliberately
-            // untouched here: it is OFF, not broken, and whether to enable or
-            // delete it is a product decision that needs the filter bar
-            // exercised first.
-            ToolbarItemGroup(id: ContentToolbarID.libraryControlsGroup, placement: .automatic) {
-                librarySortMenu
-
-                libraryFilterToggleButton
-            }
-        }
+        // Sort and filter used to sit here, outside the split-pane block, with
+        // a comment explaining that "sorting and filtering a list is not a
+        // split-pane concept". That special case is GONE rather than ported
+        // (#4407): the controls now live in the library's own mini toolbar, so
+        // they follow their pane — including in the compact flow — and there is
+        // nothing left to except. See `LibraryView+MiniToolbar`.
     }
 
     // MARK: Library pane toggle (#4288)
@@ -189,88 +171,9 @@ extension ContentView {
         .accessibilityLabel(model.title)
     }
 
-    // MARK: Library sort + filter (#4289)
-
-    /// Drives `libraryToolbarState` — the SAME sort model the View menu, the
-    /// table column headers, and the per-folder `@SceneStorage` persistence in
-    /// `LibraryView` already share. There is deliberately no second sort path
-    /// here (#4282).
-    private var librarySortMenu: some View {
-        let model = libraryToolbarState.sortMenuModel
-        return Menu {
-            Section("Sort By") {
-                ForEach(model.fields) { field in
-                    Button {
-                        libraryToolbarState.apply(model.selecting(field))
-                    } label: {
-                        Label(field.rawValue, systemImage: field.icon)
-                        if model.isSelected(field) {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                    .accessibilityLabel("Sort by \(field.rawValue)")
-                }
-            }
-
-            Section {
-                Button {
-                    libraryToolbarState.apply(model.settingAscending(true))
-                } label: {
-                    Label("Ascending", systemImage: "arrow.up")
-                    if model.ascending {
-                        Image(systemName: "checkmark")
-                    }
-                }
-
-                Button {
-                    libraryToolbarState.apply(model.settingAscending(false))
-                } label: {
-                    Label("Descending", systemImage: "arrow.down")
-                    if !model.ascending {
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-        } label: {
-            Label(model.label, systemImage: model.systemImage)
-        }
-        .help(model.help)
-    }
-
-    /// Reveals the inline per-view filter bar (the ⌘F row pinned to the bottom
-    /// of the library list) — NOT the global `.searchable` field.
-    @ViewBuilder
-    private var libraryFilterToggleButton: some View {
-        let model = LibraryFilterToggleModel(
-            isAvailable: FeatureManager.shared.isLibraryFilterToolbarEnabled,
-            isActive: libraryToolbarState.showFilterBar
-        )
-        if model.isAvailable {
-            Toggle(isOn: Binding(
-                get: { model.isActive },
-                set: { libraryToolbarState.setFilterBar($0) }
-            )) {
-                Label(model.title, systemImage: model.systemImage)
-            }
-            .help(model.help)
-            .accessibilityLabel(model.title)
-        }
-    }
-
-    private var viewDisplayModeMenu: some View {
-        Menu {
-            ForEach(availableViewDisplayModes) { mode in
-                Button {
-                    updateViewDisplayMode(mode)
-                } label: {
-                    Label(mode.label, systemImage: mode.icon)
-                }
-            }
-        } label: {
-            Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
-        }
-        .help("Choose how library items are shown")
-    }
+    // Library sort + filter moved to `LibraryView+MiniToolbar` (#4407 /
+    // #4374 finding 3): a control lives with the surface it acts on, and these
+    // act on the library list, not the window.
 
     /// Native `Toggle` — the system's on-state on the toolbar glass replaces
     /// the old hand-rolled highlight helper (a rounded rect with a painted
@@ -337,8 +240,10 @@ extension ContentView {
                 // No painted lozenge (#4360): the toolbar's own Liquid Glass
                 // carries this principal item; the old low-opacity primary
                 // fill was a hand-rolled approximation of that material.
-                // Search field removed (#3037) — now the native `.searchable`
-                // bar (ToolbarSearchableModifier).
+                // Search field removed from the principal zone (#3037), and
+                // the window-level `.searchable` that replaced it is gone too
+                // (#4407) — search now lives in the library's mini toolbar,
+                // with the pane it acts on.
                 }
             }
 
