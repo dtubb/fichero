@@ -580,13 +580,14 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testActivityChildTypeAllCasesCount() {
-        XCTAssertEqual(ActivityChildType.allCases.count, 3)
+        // console, progress, log + the run-trace graph (#4320)
+        XCTAssertEqual(ActivityChildType.allCases.count, 4)
     }
 
     func testActivityChildTypeLabels() {
         let pairs: [(ActivityChildType, String)] = [
             (.console, "Console"), (.progress, "Progress"),
-            (.log, "Log")
+            (.log, "Log"), (.trace, "Trace")
         ]
         for (kind, label) in pairs {
             XCTAssertEqual(kind.label, label, "kind=\(kind.rawValue)")
