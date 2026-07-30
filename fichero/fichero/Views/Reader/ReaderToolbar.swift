@@ -61,6 +61,11 @@ struct ReaderToolbar: View {
     // ─── Magnifier panel (image only; nil ⇒ greyed) ───
     var magnifierEnabled: Binding<Bool>?
 
+    // ─── OCR text boxes overlay (#4309; image only, nil ⇒ greyed) ───
+    /// Toggles the word/line bounding boxes captured by the transcription pass
+    /// as an overlay on the page image.
+    var textBoxesEnabled: Binding<Bool>?
+
     // ─── Loupe (image + PDF; nil ⇒ greyed) ───
     var loupeEnabled: Binding<Bool>?
     var loupeLocked: Binding<Bool>?

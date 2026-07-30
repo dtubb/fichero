@@ -36,6 +36,9 @@ struct ImmersiveReaderView: View {
     @State var hideTask: Task<Void, Never>?
     /// Loaded translations for the current page, one per language (#3329).
     @State var translations: [TranslationRep] = []
+    /// Model-generated conversion renditions of this page (#4329) — newest per
+    /// format (Markdown / HTML / SVG), switchable in place like translations.
+    @State var renditions: [Artifact] = []
     /// Per-window: which representation the reader shows — "source",
     /// "diplomatic", or "lang:<code>" (#3325 reader slice / #3329).
     @SceneStorage("reader.representation") var representationKey: String = "source"
@@ -72,7 +75,10 @@ struct ImmersiveReaderView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: markConfirmation)
         .background(KeyboardExitCatcher { exit() })
-        .task(id: document.id) { await loadTranslations() }
+        .task(id: document.id) {
+            await loadTranslations()
+            await loadRenditions()
+        }
         .onContinuousHover { phase in
             switch phase {
             case .active:

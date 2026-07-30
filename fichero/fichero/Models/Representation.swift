@@ -53,9 +53,11 @@ enum Representation: String, CaseIterable, Identifiable, Hashable {
 
     /// True when ``DocumentCanvas`` can currently display this representation.
     /// The others are modelled but not yet wired (see the type doc).
+    /// HTML/SVG render via `WebContentCanvas` (WebKit, scripts disabled) since
+    /// #4329 — a conversion rendition is an alternate view of the same page.
     var isRenderable: Bool {
         switch self {
-        case .image, .markdown: return true
+        case .image, .markdown, .html, .svg: return true
         default: return false
         }
     }

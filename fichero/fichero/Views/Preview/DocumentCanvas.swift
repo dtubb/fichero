@@ -32,6 +32,35 @@ struct DocumentCanvas: View {
         case pdf(documentId: String, pageIndex: Int)
         /// A text/Markdown representation (#2264) — e.g. a `convert` artifact.
         case markdown(text: String)
+        /// A model-generated HTML rendition of the page (#4329), WebKit-rendered.
+        case html(content: String)
+        /// A model-generated SVG rendition of the page (#4329), WebKit-rendered.
+        case svg(content: String)
+    }
+
+    /// The canvas content for a `conversion` artifact, routed by its stamped
+    /// `target_format` (falling back to sniffing the markup) — so a rendition
+    /// renders, never shows raw source (#4329).
+    static func renditionContent(for artifact: Artifact) -> Content {
+        let text = artifact.content ?? ""
+        let format = (artifact.data?["target_format"]?.value as? String)
+            ?? Self.sniffRenditionFormat(text)
+        switch format {
+        case "svg": return .svg(content: text)
+        case "html": return .html(content: text)
+        default: return .markdown(text: text)
+        }
+    }
+
+    /// Best-effort format sniff for legacy conversion artifacts saved before
+    /// the `target_format` stamp existed.
+    static func sniffRenditionFormat(_ text: String) -> String {
+        let head = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .prefix(500)
+            .lowercased()
+        if head.contains("<svg") { return "svg" }
+        if head.hasPrefix("<!doctype html") || head.contains("<html") { return "html" }
+        return "markdown"
     }
 
     var body: some View {
@@ -57,6 +86,10 @@ struct DocumentCanvas: View {
             )
         case .markdown(let text):
             MarkdownCanvas(text: text)
+        case .html(let content):
+            WebContentCanvas(content: content, kind: .html)
+        case .svg(let content):
+            WebContentCanvas(content: content, kind: .svg)
         }
     }
 }

@@ -26,6 +26,9 @@ struct Artifact: Identifiable, Codable, Hashable {
     // Content
     var content: String?
     var data: [String: AnyCodable]?
+    /// Typed OCR/transcription geometry (#4309). Populated only on the
+    /// single-artifact fetch — list endpoints omit it to stay lean.
+    var ocrGeometry: OCRGeometry?
 
     // Provenance
     var runId: String?
@@ -48,6 +51,7 @@ struct Artifact: Identifiable, Codable, Hashable {
         case artifactType = "artifact_type"
         case content
         case data
+        case ocrGeometry = "ocr_geometry"
         case runId = "run_id"
         case provider
         case model
@@ -65,6 +69,7 @@ struct Artifact: Identifiable, Codable, Hashable {
         artifactType: String,
         content: String? = nil,
         data: [String: AnyCodable]? = nil,
+        ocrGeometry: OCRGeometry? = nil,
         runId: String? = nil,
         provider: String? = nil,
         model: String? = nil,
@@ -80,6 +85,7 @@ struct Artifact: Identifiable, Codable, Hashable {
         self.artifactType = artifactType
         self.content = content
         self.data = data
+        self.ocrGeometry = ocrGeometry
         self.runId = runId
         self.provider = provider
         self.model = model
