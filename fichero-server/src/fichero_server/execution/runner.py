@@ -1035,6 +1035,23 @@ async def _run_workflow_in_background(
             logger.warning(f"Could not generate diagram: {e}")
             diagram_mermaid = None
 
+        # #4384/#4396: record what this run is actually scoped to. A run knew
+        # which workflow executed and when, but never what it executed ON —
+        # which is why Activity cannot report scope, and why an over-scoped
+        # run stayed invisible until its effects showed up in the data.
+        # Best-effort: a run must not fail because its scope could not be
+        # described, and a failure is recorded IN the scope record rather than
+        # leaving an unexplained empty one.
+        try:
+            from fichero_server.workflows.run_scope import (  # noqa: PLC0415
+                resolve_run_scope,
+            )
+
+            resolved_scope = resolve_run_scope(db, state.get("selected_doc_ids"))
+        except Exception as scope_exc:
+            logger.warning("could not resolve run scope for %s: %s", thread_id, scope_exc)
+            resolved_scope = {"resolution_error": str(scope_exc)}
+
         # Save workflow run with all metadata
         await activity_tracker.store.save_workflow_run(
             thread_id=thread_id,
@@ -1045,6 +1062,7 @@ async def _run_workflow_in_background(
             node_name_map=node_name_map,
             diagram_mermaid=diagram_mermaid,
             started_at=start_time,
+            resolved_scope=resolved_scope,
         )
         await log_execution("Saved workflow run record with snapshot")
 

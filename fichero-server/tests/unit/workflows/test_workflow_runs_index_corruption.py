@@ -68,7 +68,12 @@ CREATE TABLE workflow_runs (
     workflow_snapshot JSON,
     node_name_map JSON,
     progress_timeline JSON,
-    diagram_mermaid TEXT
+    diagram_mermaid TEXT,
+    -- #4384: what the run was scoped to. This DDL mirrors the canonical
+    -- table, and the crash-safe rebuild copies every column in
+    -- `_WORKFLOW_RUNS_COLUMNS` — so a column added there and not here makes
+    -- the rebuild report degraded, which is exactly what these tests caught.
+    resolved_scope JSON
 )
 """
 

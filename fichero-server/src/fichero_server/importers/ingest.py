@@ -603,6 +603,11 @@ def _create_pdf_page_children(
         return []
 
     pages: list[Document] = []
+    # #4395: count embedding OUTCOMES BY REASON, not just successes. One
+    # warning per document is thousands of unread lines on a real import;
+    # a single line naming the causes is what answers "are embeddings
+    # working?" without anyone reading code.
+    embed_counts: dict[str, int] = {"embedded": 0}
     try:
         for page_index, page_dict in enumerate(page_records):
             page_number = page_dict.get("page_number") or (len(pages) + 1)
@@ -644,9 +649,17 @@ def _create_pdf_page_children(
 
             if auto_embed and page_doc.page_content:
                 try:
-                    db.embed(page_doc)
+                    if db.embed(page_doc):
+                        embed_counts["embedded"] += 1
+                    else:
+                        outcome = getattr(db, "last_embed_outcome", None)
+                        reason = getattr(outcome, "reason", None) or "unknown"
+                        embed_counts[reason] = embed_counts.get(reason, 0) + 1
                 except Exception as exc:
                     logger.debug("Embedding failed for page %s: %s", page_number, exc)
+                    embed_counts["embedding_failed"] = (
+                        embed_counts.get("embedding_failed", 0) + 1
+                    )
 
             _touch_ancestor_documents(db, page_doc.parent_id)
 
@@ -655,8 +668,60 @@ def _create_pdf_page_children(
         if pdf_doc is not None:
             pdf_doc.close()
 
+    _log_embed_summary(embed_counts, path.name, len(pages), auto_embed=auto_embed)
     logger.info("Created %d page children for PDF %s", len(pages), path.name)
     return pages
+
+
+def _log_embed_summary(
+    counts: dict[str, int],
+    source_name: str,
+    page_count: int,
+    *,
+    auto_embed: bool,
+) -> None:
+    """Report embedding outcomes for one import, by reason (#4395).
+
+    A library reached 669 documents with text and 12 embeddings without
+    anything saying so, because every failure was one `logger.warning` the
+    caller discarded. This states the outcome once per import, and escalates
+    when the shape says the LIBRARY is broken rather than a document being
+    unsuitable: if pages were meant to be embedded and NONE were, that is not
+    a partially successful import, and it must not read like one.
+    """
+    if not auto_embed:
+        return
+    embedded = counts.get("embedded", 0)
+    failures = {k: v for k, v in counts.items() if k != "embedded" and v}
+    attempted = embedded + sum(failures.values())
+    if not attempted:
+        return
+
+    detail = ", ".join(f"{reason}={count}" for reason, count in sorted(failures.items()))
+    if embedded == 0:
+        logger.error(
+            "EMBEDDINGS: %s — 0 of %d page(s) embedded (%s). Nothing imported "
+            "from this file is semantically searchable. This is an "
+            "infrastructure failure, not a per-document skip.",
+            source_name,
+            attempted,
+            detail or "no reason recorded",
+        )
+    elif failures:
+        logger.warning(
+            "EMBEDDINGS: %s — %d/%d page(s) embedded; %s",
+            source_name,
+            embedded,
+            attempted,
+            detail,
+        )
+    else:
+        logger.info(
+            "EMBEDDINGS: %s — %d/%d page(s) embedded",
+            source_name,
+            embedded,
+            page_count,
+        )
 
 
 #: Artifact type carrying a page's text-region geometry (#4418).

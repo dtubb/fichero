@@ -575,6 +575,45 @@ def _search_result_preview(
     return content[:max_chars] + "..." if len(content) > max_chars else content
 
 
+@dataclass(frozen=True)
+class EmbedOutcome:
+    """Why an embedding attempt succeeded or did not (#4395).
+
+    ``Database.embed`` returned a bare ``bool`` and every caller discarded it,
+    so three very different situations were indistinguishable:
+
+    * the document has no embeddable text — a legitimate skip;
+    * passage splitting produced nothing — a data problem;
+    * the embedding model could not be loaded — a BROKEN LIBRARY, where every
+      subsequent document will fail the same way and search silently degrades
+      to nothing.
+
+    All three logged one warning per document and returned ``False``. On a
+    large import that is thousands of lines nobody reads, which is how a
+    library reached 669 documents with text and 12 embeddings without anything
+    saying so.
+
+    Carrying the reason is what lets a caller count causes and report them —
+    "620 embedded, 49 skipped (no text)" is a fact a user can act on;
+    "620 embedded, 49 failed: model unavailable" is a different fact needing a
+    different action.
+    """
+
+    embedded: bool
+    document_id: str | None = None
+    reason: str | None = None
+    error: str | None = None
+
+    #: Reasons that mean the LIBRARY is broken rather than this document being
+    #: unsuitable. A run seeing these should stop and say so, not continue
+    #: producing an unembedded corpus.
+    INFRASTRUCTURE_REASONS = ("embedding_failed",)
+
+    @property
+    def is_infrastructure_failure(self) -> bool:
+        return self.reason in self.INFRASTRUCTURE_REASONS
+
+
 class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
@@ -3959,6 +3998,9 @@ class Database(DatabaseEmbeddingMixin):
         # / archive structure the user is browsing.
         text = self._embedding_text_for_document(doc)
         if not text:
+            self.last_embed_outcome = EmbedOutcome(
+                embedded=False, reason="no_embeddable_text", document_id=doc.id
+            )
             return False
 
         try:
@@ -3968,11 +4010,30 @@ class Database(DatabaseEmbeddingMixin):
             else:
                 count = self.save_passage_embeddings(doc, text=text)
                 if count == 0:
+                    self.last_embed_outcome = EmbedOutcome(
+                        embedded=False,
+                        reason="no_passages_produced",
+                        document_id=doc.id,
+                    )
                     return False
             logger.debug("Created %s embedding for %s", mode, doc.id)
+            self.last_embed_outcome = EmbedOutcome(embedded=True, document_id=doc.id)
             return True
         except Exception as e:
+            # #4395: the bool alone cannot distinguish "this document has no
+            # embeddable text" (a legitimate skip) from "the embedding model
+            # could not be loaded" (a broken library). Both were `False`, both
+            # were a warning nobody reads, and the caller discarded the value
+            # anyway — so an entirely unembedded library looked identical to a
+            # fully embedded one. The outcome now carries its reason so a
+            # caller can count and report causes rather than a bare failure.
             logger.warning("Failed to create embedding for %s: %s", doc.id, e)
+            self.last_embed_outcome = EmbedOutcome(
+                embedded=False,
+                reason="embedding_failed",
+                document_id=doc.id,
+                error=str(e),
+            )
             return False
 
     def _collect_folder_descendants(self, folder_id: str) -> set[str]:

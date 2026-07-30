@@ -179,6 +179,10 @@ class WorkflowRun:
     node_name_map: dict[str, Any] | None
     progress_timeline: dict[str, Any] | None
     diagram_mermaid: str | None
+    # What the run was actually scoped to (#4384/#4396): the server's
+    # RESOLVED document set plus the ids that were requested. None for
+    # runs recorded before the column existed.
+    resolved_scope: dict[str, Any] | None = None
 
 
 @dataclass
