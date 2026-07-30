@@ -564,36 +564,6 @@ def register_generated_openapi_commands(
             return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("get-feed")
-    def activity_get_feed_get(
-        ctx: typer.Context,
-        entity_id: Optional[str] = typer.Option(None, "--entity-id", help="Query parameter: entity_id."),
-        entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
-        group_by_entity: Optional[bool] = typer.Option(None, "--group-by-entity/--no-group-by-entity", help="Query parameter: group_by_entity."),
-        levels: Optional[str] = typer.Option(None, "--levels", help="Query parameter: levels."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
-        since: Optional[str] = typer.Option(None, "--since", help="Query parameter: since."),
-        types: Optional[str] = typer.Option(None, "--types", help="Query parameter: types."),
-        until: Optional[str] = typer.Option(None, "--until", help="Query parameter: until."),
-    ) -> None:
-        """Get Activity Feed (GET /api/activity/feed)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/activity/feed"
-            params = {
-                "entity_id": entity_id,
-                "entity_type": entity_type,
-                "group_by_entity": group_by_entity,
-                "levels": levels,
-                "limit": limit,
-                "offset": offset,
-                "since": since,
-                "types": types,
-                "until": until,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
     @target_app.command("get-metrics-summary")
     def activity_get_metrics_summary_get(
         ctx: typer.Context,
@@ -632,38 +602,6 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/activity/stats"
             params = {
                 "hours": hours,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-top-entities")
-    def activity_get_top_entities_get(
-        ctx: typer.Context,
-        hours: Optional[int] = typer.Option(None, "--hours", help="Query parameter: hours."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
-    ) -> None:
-        """Get Top Entities (GET /api/activity/top)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/activity/top"
-            params = {
-                "hours": hours,
-                "limit": limit,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-trends")
-    def activity_get_trends_get(
-        ctx: typer.Context,
-        hours: Optional[int] = typer.Option(None, "--hours", help="Query parameter: hours."),
-        period: Optional[str] = typer.Option(None, "--period", help="Query parameter: period."),
-    ) -> None:
-        """Get Activity Trends (GET /api/activity/trends)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/activity/trends"
-            params = {
-                "hours": hours,
-                "period": period,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

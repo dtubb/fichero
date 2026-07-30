@@ -360,62 +360,6 @@
       },
       {
         "method": "GET",
-        "path": "/activity/feed",
-        "operation_id": "get_activity_feed_api_activity_feed_get",
-        "summary": "Get Activity Feed",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "entity_id",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "entity_type",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "group_by_entity",
-            "required": false,
-            "type": "boolean"
-          },
-          {
-            "name": "levels",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "offset",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "since",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "types",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "until",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ActivityFeedResponse"
-      },
-      {
-        "method": "GET",
         "path": "/activity/metrics/summary",
         "operation_id": "get_activity_metrics_summary_api_activity_metrics_summary_get",
         "summary": "Get Activity Metrics Summary",
@@ -492,48 +436,6 @@
         ],
         "request_model": null,
         "response_model": null
-      },
-      {
-        "method": "GET",
-        "path": "/activity/top",
-        "operation_id": "get_top_entities_api_activity_top_get",
-        "summary": "Get Top Entities",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "hours",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "limit",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "request_model": null,
-        "response_model": "TopEntitiesResponse"
-      },
-      {
-        "method": "GET",
-        "path": "/activity/trends",
-        "operation_id": "get_activity_trends_api_activity_trends_get",
-        "summary": "Get Activity Trends",
-        "path_params": [],
-        "query_params": [
-          {
-            "name": "hours",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "name": "period",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "request_model": null,
-        "response_model": "ActivityTrendsResponse"
       },
       {
         "method": "GET",
