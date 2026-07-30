@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import importlib
 import json
 from pathlib import Path
@@ -575,14 +575,21 @@ def test_multiuser_invite_attack_surface_and_concurrent_redeem(
     tmp_path, app_db, monkeypatch
 ):
     _create_library(tmp_path, "primary")
-    base_now = datetime(2026, 7, 5, 12, 0, 0)
+    base_now = datetime(2026, 7, 5, 12, 0, 0, tzinfo=timezone.utc)
 
-    class FrozenDateTime(datetime):
+    class _Clock:
+        """Movable stand-in for ``utc_now`` — the real clock seam (#4347).
+
+        Patching ``<module>.datetime`` stopped intercepting anything when the
+        sweep moved clock reads to ``utc_now()``.
+        """
+
         current = base_now
 
-        @classmethod
-        def now(cls, tz=None):
-            return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
+        def __call__(self) -> datetime:
+            return self.current
+
+    clock = _Clock()
 
     with _client(app_db, monkeypatch) as client:
         _bootstrap_create_owner(client)
@@ -601,10 +608,10 @@ def test_multiuser_invite_attack_surface_and_concurrent_redeem(
             json={"invite_token": "not-a-real-token", "new_password": "password"},
         )
 
-        monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
-        monkeypatch.setattr("fichero_server.db.app.datetime", FrozenDateTime)
+        monkeypatch.setattr(auth_accounts, "utc_now", clock)
+        monkeypatch.setattr("fichero_server.db.app.utc_now", clock)
         expiring = _mint_invite(client, "bea", "Bea")
-        FrozenDateTime.current = base_now + auth_accounts.INVITE_TTL + timedelta(seconds=1)
+        clock.current = base_now + auth_accounts.INVITE_TTL + timedelta(seconds=1)
         expired = client.post(
             "/api/auth/invites/redeem",
             json={"invite_token": expiring["invite_token"], "new_password": "bea-password"},
