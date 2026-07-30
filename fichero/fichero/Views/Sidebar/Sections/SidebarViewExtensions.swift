@@ -90,11 +90,19 @@ func sidebarOpenPrefersTab(_ preference: NSWindow.UserTabbingPreference) -> Bool
 // MARK: - View Extensions (Apple's recommended pattern over ViewModifiers)
 
 extension View {
-    /// Applies standard sidebar styling (minimum width only).
+    /// Applies standard sidebar styling.
     /// Note: Individual content views apply their own .listStyle(.sidebar) to their List.
+    ///
+    /// #4301: this used to force `.frame(minWidth: SidebarConstants.minimumWidth)`
+    /// (200pt) INSIDE the sidebar column. The column's real minimum is owned by
+    /// `.navigationSplitViewColumnWidth(min:)` in `ContentView+SidebarLayout`
+    /// (160pt); when the split view collapsed the column toward 0pt, the inner
+    /// frame kept laying the content out 200pt wide. The List clips itself, but
+    /// the bottom toolbar strip does not — so the bottom row stayed painted over
+    /// the content column after collapse. The column min lives in ONE place now;
+    /// `.clipped()` on the column content is the belt-and-braces guard.
     func sidebarStyle() -> some View {
         self
-            .frame(minWidth: SidebarConstants.minimumWidth)
     }
 }
 
