@@ -95,23 +95,60 @@ enum RunTraceModelBuilder {
         let rawEdges = snapshot["edges"] as? [[String: Any]] ?? []
         let steps = timeline?["steps"] as? [[String: Any]] ?? []
 
-        // Last NODE-level timeline entry per node id (later entries win — a
-        // retried node reports its final outcome).
+        let index = timelineIndex(steps: steps)
+        let nodes = traceNodes(
+            rawNodes: rawNodes,
+            nodeNameMap: nodeNameMap,
+            index: index,
+            runStatus: runStatus,
+            runError: runError
+        )
+
+        let nodeIds = Set(nodes.map(\.id))
+        let edges: [RunTraceEdge] = rawEdges.compactMap { raw in
+            guard let source = raw["source"] as? String,
+                  let target = raw["target"] as? String,
+                  nodeIds.contains(source), nodeIds.contains(target) else { return nil }
+            return RunTraceEdge(source: source, target: target)
+        }
+
+        return RunTraceGraph(nodes: nodes, edges: edges)
+    }
+
+    /// What the timeline says about each node, reduced to the two lookups the
+    /// node build needs. Kept as one type so the node builder stays inside the
+    /// five-parameter limit.
+    private struct TimelineIndex {
+        /// Last NODE-level timeline entry per node id (later entries win — a
+        /// retried node reports its final outcome).
         var nodeSteps: [String: [String: Any]] = [:]
-        // File-level errors per node id, in order.
+        /// File-level errors per node id, in order.
         var fileErrors: [String: [String]] = [:]
+    }
+
+    private static func timelineIndex(steps: [[String: Any]]) -> TimelineIndex {
+        var index = TimelineIndex()
         for step in steps {
             guard let nodeId = step["node_id"] as? String, !nodeId.isEmpty else { continue }
             if step["type"] as? String == "file" {
                 if step["status"] as? String == "error",
                    let message = step["error"] as? String, !message.isEmpty {
-                    fileErrors[nodeId, default: []].append(message)
+                    index.fileErrors[nodeId, default: []].append(message)
                 }
             } else {
-                nodeSteps[nodeId] = step
+                index.nodeSteps[nodeId] = step
             }
         }
+        return index
+    }
 
+    private static func traceNodes(
+        rawNodes: [[String: Any]],
+        nodeNameMap: [String: String]?,
+        index: TimelineIndex,
+        runStatus: String,
+        runError: String?
+    ) -> [RunTraceNode] {
         let runFailed = ["failed", "error"].contains(runStatus.lowercased())
         let runTerminal = !["running", "paused", "accepted"].contains(runStatus.lowercased())
 
@@ -122,7 +159,7 @@ enum RunTraceModelBuilder {
                 ?? normalized(raw["label"] as? String)
                 ?? normalized(raw["tool"] as? String)
                 ?? id
-            let step = nodeSteps[id]
+            let step = index.nodeSteps[id]
             let status = nodeStatus(
                 stepStatus: step?["status"] as? String,
                 runFailed: runFailed,
@@ -140,23 +177,14 @@ enum RunTraceModelBuilder {
                     error: errorText(
                         for: id,
                         status: status,
-                        fileErrors: fileErrors,
+                        fileErrors: index.fileErrors,
                         runError: runError
                     ),
                     skipReason: normalized(step?["skip_reason"] as? String)
                 )
             )
         }
-
-        let nodeIds = Set(nodes.map(\.id))
-        let edges: [RunTraceEdge] = rawEdges.compactMap { raw in
-            guard let source = raw["source"] as? String,
-                  let target = raw["target"] as? String,
-                  nodeIds.contains(source), nodeIds.contains(target) else { return nil }
-            return RunTraceEdge(source: source, target: target)
-        }
-
-        return RunTraceGraph(nodes: nodes, edges: edges)
+        return nodes
     }
 
     /// Map one node's last timeline status into an executed status, folding in

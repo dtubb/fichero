@@ -72,19 +72,7 @@ enum MermaidHTML {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>
-            :root { --bg: #f7f4ee; --text: #1f1d1a; --muted: #6a6258; }
-            @media (prefers-color-scheme: dark) {
-              :root { --bg: #1e1b18; --text: #ece7df; --muted: #a59b8d; }
-            }
-            html, body { margin: 0; height: 100%; }
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-              background: var(--bg); color: var(--text);
-              display: flex; align-items: center; justify-content: center;
-            }
-            #diagram { padding: 1rem; }
-            #diagram svg { max-width: 100%; height: auto; }
-            #message { color: var(--muted); padding: 1.25rem; text-align: center; line-height: 1.45; }
+        \(diagramCSS)
           </style>
         </head>
         <body>
@@ -92,34 +80,59 @@ enum MermaidHTML {
           <div id="message" hidden></div>
           <script>\(script)</script>
           <script>
-            (function () {
-              var dark = window.matchMedia &&
-                window.matchMedia('(prefers-color-scheme: dark)').matches;
-              try {
-                mermaid.initialize({
-                  startOnLoad: false,
-                  securityLevel: 'strict',
-                  theme: dark ? 'dark' : 'default'
-                });
-                mermaid.run({ querySelector: '.mermaid' }).catch(showError);
-              } catch (err) {
-                showError(err);
-              }
-              function showError(err) {
-                var diagram = document.getElementById('diagram');
-                var message = document.getElementById('message');
-                if (diagram) { diagram.hidden = true; }
-                if (message) {
-                  message.hidden = false;
-                  message.textContent = 'Could not render this diagram.';
-                }
-              }
-            })();
+        \(bootstrapJS)
           </script>
         </body>
         </html>
         """
     }
+
+    /// Page chrome for the diagram — the light/dark palette and centring.
+    /// Held apart from `page` so the document structure stays readable; it is
+    /// a constant with no interpolation, so it never varies per diagram.
+    private static let diagramCSS = """
+    :root { --bg: #f7f4ee; --text: #1f1d1a; --muted: #6a6258; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #1e1b18; --text: #ece7df; --muted: #a59b8d; }
+    }
+    html, body { margin: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+      background: var(--bg); color: var(--text);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #diagram { padding: 1rem; }
+    #diagram svg { max-width: 100%; height: auto; }
+    #message { color: var(--muted); padding: 1.25rem; text-align: center; line-height: 1.45; }
+    """
+
+    /// Runs mermaid against the already-inlined bundle and swaps in a plain
+    /// message if rendering throws, so a bad diagram never shows a blank pane.
+    private static let bootstrapJS = """
+    (function () {
+      var dark = window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+      try {
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: dark ? 'dark' : 'default'
+        });
+        mermaid.run({ querySelector: '.mermaid' }).catch(showError);
+      } catch (err) {
+        showError(err);
+      }
+      function showError(err) {
+        var diagram = document.getElementById('diagram');
+        var message = document.getElementById('message');
+        if (diagram) { diagram.hidden = true; }
+        if (message) {
+          message.hidden = false;
+          message.textContent = 'Could not render this diagram.';
+        }
+      }
+    })();
+    """
 
     private static func unavailablePage() -> String {
         """
