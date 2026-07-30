@@ -648,6 +648,48 @@ private extension SpaceSceneView {
         let scale = Float(max(node.scale, 0.25))
         let cardWidth: Float = 0.8 * scale
         let cardHeight: Float = cardWidth / pageAspectRatio
+        let geometry = nodeGeometry(for: node, cardWidth: cardWidth, cardHeight: cardHeight)
+
+        let entity = ModelEntity(mesh: geometry.mesh, materials: geometry.materials)
+        entity.position = position
+        entity.orientation = simd_quatf(angle: Float(node.rotationY), axis: SIMD3<Float>(0, 1, 0))
+        entity.name = node.id
+        entity.components.set(InputTargetComponent())
+        entity.components.set(CollisionComponent(shapes: [geometry.collisionShape]))
+        // Cross-platform highlight: cursor change on Mac, system tint on
+        // visionOS. One line, no per-platform branch.
+        entity.components.set(HoverEffectComponent())
+
+        if let sourceId = node.sourceId, !sourceId.isEmpty, node.nodeType == .source {
+            refineWithPageTexture(
+                entity,
+                sourceId: sourceId,
+                cardWidth: cardWidth,
+                cardHeight: cardHeight
+            )
+        }
+
+        return entity
+    }
+
+    /// What a node is drawn with. A named type rather than a tuple: three
+    /// members is past the point where positional access reads clearly, and
+    /// the collision shape is deliberately part of the same value because it
+    /// must always track the drawn mesh.
+    private struct NodeGeometry {
+        let mesh: MeshResource
+        let materials: [any RealityFoundation.Material]
+        let collisionShape: ShapeResource
+    }
+
+    /// The drawn shape for one node: a sphere for an entity, a true-aspect page
+    /// plane for a source, a rounded box otherwise. Collision always tracks the
+    /// drawn shape, or hit-testing drifts from what is on screen.
+    private func nodeGeometry(
+        for node: SpatialNode,
+        cardWidth: Float,
+        cardHeight: Float
+    ) -> NodeGeometry {
         let nodeColor = SpaceTheme.materialColor(for: node.nodeType)
         let mesh: MeshResource
         let materials: [any RealityFoundation.Material]
@@ -690,52 +732,51 @@ private extension SpaceSceneView {
             collisionShape = ShapeResource.generateBox(size: SIMD3<Float>(cardWidth, cardHeight, depth))
         }
 
-        let entity = ModelEntity(mesh: mesh, materials: materials)
-        entity.position = position
-        entity.orientation = simd_quatf(angle: Float(node.rotationY), axis: SIMD3<Float>(0, 1, 0))
-        entity.name = node.id
-        entity.components.set(InputTargetComponent())
-        entity.components.set(CollisionComponent(shapes: [collisionShape]))
-        // Cross-platform highlight: cursor change on Mac, system tint on
-        // visionOS. One line, no per-platform branch.
-        entity.components.set(HoverEffectComponent())
+        return NodeGeometry(mesh: mesh, materials: materials, collisionShape: collisionShape)
+    }
 
-        if let sourceId = node.sourceId, !sourceId.isEmpty, node.nodeType == .source {
-            let service = storageService
-            Task { @MainActor in
-                do {
-                    let texture = try await SpaceTextureCache.shared.texture(
-                        forSourceId: sourceId, using: service
+    /// Swap the flat placeholder for the real page image once it decodes, and
+    /// on the FIRST load re-cut the plane and its collision to the texture's
+    /// true aspect (#4193). Failure keeps the coloured placeholder rather than
+    /// blanking the card.
+    private func refineWithPageTexture(
+        _ entity: ModelEntity,
+        sourceId: String,
+        cardWidth: Float,
+        cardHeight: Float
+    ) {
+        let service = storageService
+        Task { @MainActor in
+            do {
+                let texture = try await SpaceTextureCache.shared.texture(
+                    forSourceId: sourceId, using: service
+                )
+                entity.model?.materials = [UnlitMaterial(texture: texture)]
+                // First load of this page: re-cut the plane + collision to
+                // the texture's true aspect, area-normalized (#4193). The
+                // memo makes every later synchronous rebuild keep it.
+                if CanvasCardGeometry.recordAspect(of: texture, forSourceId: sourceId) {
+                    let dims = CanvasCardGeometry.dimensions(
+                        area: cardWidth * cardHeight,
+                        aspect: CanvasCardGeometry.knownAspect(forSourceId: sourceId),
+                        fallback: self.pageAspectRatio
                     )
-                    entity.model?.materials = [UnlitMaterial(texture: texture)]
-                    // First load of this page: re-cut the plane + collision to
-                    // the texture's true aspect, area-normalized (#4193). The
-                    // memo makes every later synchronous rebuild keep it.
-                    if CanvasCardGeometry.recordAspect(of: texture, forSourceId: sourceId) {
-                        let dims = CanvasCardGeometry.dimensions(
-                            area: cardWidth * cardHeight,
-                            aspect: CanvasCardGeometry.knownAspect(forSourceId: sourceId),
-                            fallback: self.pageAspectRatio
-                        )
-                        entity.model?.mesh = MeshResource.generatePlane(
-                            width: dims.width,
-                            height: dims.height,
-                            cornerRadius: min(dims.width, dims.height) * 0.07
-                        )
-                        entity.components.set(CollisionComponent(shapes: [
-                            ShapeResource.generateBox(size: SIMD3<Float>(dims.width, dims.height, cardWidth * 0.12))
-                        ]))
-                    }
-                } catch {
-                    // Keep the colored placeholder when the page image cannot
-                    // be loaded — but say WHY in the log (#4160): silence made
-                    // 'no thumbnails' undiagnosable.
-                    SpaceTextureCache.logTextureFailure(sourceId: sourceId, error: error)
+                    entity.model?.mesh = MeshResource.generatePlane(
+                        width: dims.width,
+                        height: dims.height,
+                        cornerRadius: min(dims.width, dims.height) * 0.07
+                    )
+                    entity.components.set(CollisionComponent(shapes: [
+                        ShapeResource.generateBox(size: SIMD3<Float>(dims.width, dims.height, cardWidth * 0.12))
+                    ]))
                 }
+            } catch {
+                // Keep the colored placeholder when the page image cannot
+                // be loaded — but say WHY in the log (#4160): silence made
+                // 'no thumbnails' undiagnosable.
+                SpaceTextureCache.logTextureFailure(sourceId: sourceId, error: error)
             }
         }
-
-        return entity
     }
 
     private var pageAspectRatio: Float { 3.0 / 4.0 }

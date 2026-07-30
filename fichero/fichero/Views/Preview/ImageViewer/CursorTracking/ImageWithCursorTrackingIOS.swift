@@ -26,41 +26,8 @@ struct ImageWithCursorTracking: UIViewRepresentable {
     @Binding var coordinator: Coordinator?
 
     func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
-        scrollView.backgroundColor = UIColor(white: 0.88, alpha: 1)
-        scrollView.delegate = context.coordinator
-        scrollView.minimumZoomScale = minScale
-        scrollView.maximumZoomScale = maxScale
-        scrollView.zoomScale = scale
-        scrollView.showsHorizontalScrollIndicator = true
-        scrollView.showsVerticalScrollIndicator = true
-        scrollView.alpha = 0
-
-        let imageView = TrackingImageView()
-        imageView.contentMode = .topLeft
-        imageView.isUserInteractionEnabled = true
-
-        imageView.onCursorMoved = { normalizedPos in
-            Task { @MainActor in
-                let clampedPos = CGPoint(
-                    x: max(0, min(1, normalizedPos.x)),
-                    y: max(0, min(1, normalizedPos.y))
-                )
-                self.cursorPosition = clampedPos
-            }
-        }
-        imageView.onLoupeMagnificationChanged = { newMag in
-            Task { @MainActor in
-                self.loupeMagnification = newMag
-            }
-        }
-        imageView.onLoupeSizeChanged = { newSize in
-            Task { @MainActor in
-                self.loupeSize = newSize
-            }
-        }
-        imageView.loupeMagnification = loupeMagnification
-        imageView.loupeSize = loupeSize
+        let scrollView = makeScrollView(delegate: context.coordinator)
+        let imageView = makeImageView()
 
         scrollView.addSubview(imageView)
         context.coordinator.scrollView = scrollView
@@ -117,57 +84,12 @@ struct ImageWithCursorTracking: UIViewRepresentable {
         }
 
         if let imageView = context.coordinator.imageView as? TrackingImageView {
-            imageView.loupeEnabled = loupeEnabled
-
-            if loupeEnabled && imageView.loupePosition == nil {
-                Task { @MainActor [weak imageView] in
-                    try? await Task.sleep(for: .milliseconds(50))
-                    guard let imageView = imageView,
-                          imageView.loupeEnabled,
-                          imageView.loupePosition == nil else { return }
-                    imageView.showLoupeAtCenter()
-                }
-            }
-
-            imageView.loupeLocked = loupeLocked
-            imageView.loupeMagnification = loupeMagnification
-            imageView.loupeSize = loupeSize
-
-            let overrideChanged = overrideImage !== context.coordinator.currentOverrideImage
-            let urlChanged = context.coordinator.currentURL != url
-            let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
-
-            if needsImageUpdate {
-                if let overrideImage {
-                    imageView.image = overrideImage
-                    imageView.frame = CGRect(origin: .zero, size: overrideImage.size)
-                    scrollView.contentSize = overrideImage.size
-                    imageView.loupePosition = nil
-                    context.coordinator.currentURL = url
-                    context.coordinator.currentOverrideImage = overrideImage
-                    // A different item is on screen — auto-fit owns the zoom
-                    // again until the user zooms this one manually (#4279).
-                    // Deliberately no `noteAutoFitApplied()` here: this branch
-                    // runs *after* this pass's zoom↔scale sync, so leaving the
-                    // recorded pane size cleared makes the next pass re-assert
-                    // the fit if the (one-turn-late) binding write hasn't landed.
-                    context.coordinator.resetZoomOwnershipForNewItem()
-                    Task { @MainActor in
-                        self.imageSize = overrideImage.size
-                    }
-                    if let fitScale = context.coordinator.calculateFitScale() {
-                        scrollView.zoomScale = fitScale
-                        Task { @MainActor in
-                            self.scale = fitScale
-                        }
-                    }
-                    context.coordinator.centerContent()
-                    if scrollView.alpha < 1 { scrollView.alpha = 1 }
-                } else if let url {
-                    // Decode the new page OFF-main (#3864); previous page stays until ready.
-                    loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: context.coordinator)
-                }
-            }
+            syncLoupeState(on: imageView)
+            applyImageChangeIfNeeded(
+                imageView: imageView,
+                scrollView: scrollView,
+                coordinator: context.coordinator
+            )
         }
 
         context.coordinator.centerContent()
@@ -231,6 +153,119 @@ struct ImageWithCursorTracking: UIViewRepresentable {
 // type-body-length budget, mirroring the macOS file.
 
 extension ImageWithCursorTracking {
+    /// The scroll view's own configuration — zoom limits and the initial
+    /// hidden state that prevents a flash before the first centring pass.
+    private func makeScrollView(delegate: Coordinator) -> UIScrollView {
+        let scrollView = UIScrollView()
+        scrollView.backgroundColor = UIColor(white: 0.88, alpha: 1)
+        scrollView.delegate = delegate
+        scrollView.minimumZoomScale = minScale
+        scrollView.maximumZoomScale = maxScale
+        scrollView.zoomScale = scale
+        scrollView.showsHorizontalScrollIndicator = true
+        scrollView.showsVerticalScrollIndicator = true
+        scrollView.alpha = 0
+        return scrollView
+    }
+
+    /// The image view and the three callbacks that write cursor and loupe
+    /// state back up, each hopping to the main actor before touching a
+    /// binding. The closures capture `self` exactly as they did inline.
+    private func makeImageView() -> TrackingImageView {
+        let imageView = TrackingImageView()
+        imageView.contentMode = .topLeft
+        imageView.isUserInteractionEnabled = true
+
+        imageView.onCursorMoved = { normalizedPos in
+            Task { @MainActor in
+                let clampedPos = CGPoint(
+                    x: max(0, min(1, normalizedPos.x)),
+                    y: max(0, min(1, normalizedPos.y))
+                )
+                self.cursorPosition = clampedPos
+            }
+        }
+        imageView.onLoupeMagnificationChanged = { newMag in
+            Task { @MainActor in
+                self.loupeMagnification = newMag
+            }
+        }
+        imageView.onLoupeSizeChanged = { newSize in
+            Task { @MainActor in
+                self.loupeSize = newSize
+            }
+        }
+        imageView.loupeMagnification = loupeMagnification
+        imageView.loupeSize = loupeSize
+        return imageView
+    }
+
+    /// Push the current loupe bindings onto the view, and open the loupe at
+    /// centre the first time it is enabled — after a short settle, because
+    /// drawing it before the view has bounds puts it in the wrong place.
+    private func syncLoupeState(on imageView: TrackingImageView) {
+        imageView.loupeEnabled = loupeEnabled
+
+        if loupeEnabled && imageView.loupePosition == nil {
+            Task { @MainActor [weak imageView] in
+                try? await Task.sleep(for: .milliseconds(50))
+                guard let imageView = imageView,
+                      imageView.loupeEnabled,
+                      imageView.loupePosition == nil else { return }
+                imageView.showLoupeAtCenter()
+            }
+        }
+
+        imageView.loupeLocked = loupeLocked
+        imageView.loupeMagnification = loupeMagnification
+        imageView.loupeSize = loupeSize
+    }
+
+    /// Swap in a new page when the override image or the URL changed. An
+    /// already-decoded override applies synchronously and fits in the same
+    /// frame; a URL decodes off-main (#3864) with the previous page left on
+    /// screen until the new one can swap in already fitted.
+    private func applyImageChangeIfNeeded(
+        imageView: TrackingImageView,
+        scrollView: UIScrollView,
+        coordinator: Coordinator
+    ) {
+        let overrideChanged = overrideImage !== coordinator.currentOverrideImage
+        let urlChanged = coordinator.currentURL != url
+        let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
+        guard needsImageUpdate else { return }
+
+        if let overrideImage {
+            imageView.image = overrideImage
+            imageView.frame = CGRect(origin: .zero, size: overrideImage.size)
+            scrollView.contentSize = overrideImage.size
+            imageView.loupePosition = nil
+            coordinator.currentURL = url
+            coordinator.currentOverrideImage = overrideImage
+            // A different item is on screen — auto-fit owns the zoom
+            // again until the user zooms this one manually (#4279).
+            // Deliberately no `noteAutoFitApplied()` here: this branch
+            // runs *after* this pass's zoom↔scale sync, so leaving the
+            // recorded pane size cleared makes the next pass re-assert
+            // the fit if the (one-turn-late) binding write hasn't landed.
+            coordinator.resetZoomOwnershipForNewItem()
+            Task { @MainActor in
+                self.imageSize = overrideImage.size
+            }
+            if let fitScale = coordinator.calculateFitScale() {
+                scrollView.zoomScale = fitScale
+                Task { @MainActor in
+                    self.scale = fitScale
+                }
+            }
+            coordinator.centerContent()
+            if scrollView.alpha < 1 { scrollView.alpha = 1 }
+        } else if let url {
+            // Decode the new page OFF-main (#3864); previous page stays until ready.
+            loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: coordinator)
+        }
+    }
+
     /// Apply this pass's automatic zoom, if one is due: the first-layout fit
     /// (and reveal), or a re-fit because the pane resized/rotated while the user
     /// hadn't taken manual control (#4279). Returns the scale applied, or `nil`
