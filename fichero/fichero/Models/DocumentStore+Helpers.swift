@@ -244,7 +244,12 @@ extension DocumentStore {
         // Persist to overlay so the status survives currentDocuments / cache
         // reloads on navigation (#791). Pending = clear (don't shadow live
         // backend state); processing/completed/failed = remember.
-        if let id = matchedDocId {
+        // Key the override on the RUN'S TARGET id even when no loaded container
+        // holds that document (#4295/#4346): a run targets a document, and
+        // whether the sidebar/grid happens to have hydrated it yet says nothing
+        // about whether work is under way. Falling back to `documentId` is what
+        // makes a page row's spinner correct before its children load.
+        if let id = matchedDocId ?? documentId {
             if status == .pending {
                 workflowStatusOverrides.removeValue(forKey: id)
             } else {
