@@ -45,6 +45,13 @@ SRC_ROOT = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 # --------------------------------------------------------------------------
 ALLOWLIST: frozenset[str] = frozenset(
     {
+        # The single DuckDB connection factory (#4347): every connect() in
+        # the tree routes through it so the session timezone is pinned to
+        # UTC. This IS the persistence seam the rule protects.
+        "core/duckdb_session.py",
+    }
+    |
+    {
         # Core DB layer
         "db/__init__.py",
         "db/embeddings.py",
@@ -64,7 +71,6 @@ ALLOWLIST: frozenset[str] = frozenset(
         "workflows/cache.py",
         "workflows/checkpointer.py",
         "workflows/activity_store.py",
-        "workflows/batch.py",
         "workflows/file_watcher.py",
         "workflows/scheduler.py",
         "workflows/tasks.py",
