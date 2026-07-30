@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-# NOTE: fichero_server.api.routes.documents is imported inside the tool body, not
+# NOTE: fichero_server.api.routes.document.documents is imported inside the tool body, not
 # here (#3950). A tool importing an API ROUTE is a layering inversion, and it
 # created a second import cycle:
-#     tools/__init__ -> this module -> api.routes.documents
-#     -> api.main -> api.routes.chat -> api.routes.documents (half-initialised)
+#     tools/__init__ -> this module -> api.routes.document.documents
+#     -> api.main -> api.routes.chat -> api.routes.document.documents (half-initialised)
 # which made `import fichero_server.workflows.tools` impossible standalone and so
 # blocked any background warm-up. The route import is a side effect that
 # registers the document.* actions — those are needed when this tool RUNS,
@@ -97,8 +97,8 @@ async def organize_same_documents(
     # Imported here rather than at module scope (#3950). The bare module import
     # is load-bearing: it registers the document.* actions that registry.invoke
     # below depends on. Keep both.
-    import fichero_server.api.routes.documents  # noqa: F401  (registers document.* actions)
-    from fichero_server.api.routes.documents import DocumentCreate
+    import fichero_server.api.routes.document.documents  # noqa: F401  (registers document.* actions)
+    from fichero_server.api.routes.document.documents import DocumentCreate
 
     ctx = ActionContext(
         actor="workflow",

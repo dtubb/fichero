@@ -1,4 +1,4 @@
-from fichero_server.api.routes import documents as document_routes
+from fichero_server.api.routes.document import documents as document_routes
 from fichero_server.models import DocType, Document
 
 

@@ -510,7 +510,7 @@ class TestKnowledgeGraphRoutes:
         """
         from fichero_server.models.knowledge import KnowledgeEntity, KnowledgeClaim
         from fichero_server.models import Document
-        from fichero_server.api.routes.documents import related_documents
+        from fichero_server.api.routes.document.documents import related_documents
         import asyncio
 
         # Seed entities and a 'leidy lives in Quibdó' claim on doc-001.

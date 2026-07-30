@@ -31,8 +31,8 @@ from urllib.parse import urlparse
 import httpx
 
 from fichero_server.api.routes.activity import ActivityResponse
-from fichero_server.api.routes.artifacts import ArtifactResponse
-from fichero_server.api.routes.document_inspector import (
+from fichero_server.api.routes.document.artifacts import ArtifactResponse
+from fichero_server.api.routes.document.inspector import (
     DocumentInspectorResponse,
     DocumentKnowledgeGraphResponse,
 )

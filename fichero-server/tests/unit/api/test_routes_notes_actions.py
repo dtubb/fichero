@@ -28,7 +28,7 @@ from fastapi import HTTPException
 
 # Importing the route module registers the note.* actions on the
 # process-global registry via the @action decorator.
-import fichero_server.api.routes.notes  # noqa: F401
+import fichero_server.api.routes.document.notes  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Document, DocType
 from fichero_server.models.knowledge import Note
@@ -46,7 +46,7 @@ def emit_spy(monkeypatch):
     """Spy on the note route module's emit_change symbol."""
     calls: list[tuple] = []
     monkeypatch.setattr(
-        "fichero_server.api.routes.notes.emit_change",
+        "fichero_server.api.routes.document.notes.emit_change",
         lambda *a, **k: calls.append((a, k)),
     )
     return calls

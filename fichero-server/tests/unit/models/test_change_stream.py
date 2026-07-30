@@ -626,7 +626,7 @@ class TestAnnotationMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.annotations.emit_change",
+            "fichero_server.api.routes.document.annotations.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -720,7 +720,7 @@ class TestNoteMutationsEmitChange:
     def test_create_note_emits_created(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.notes.emit_change",
+            "fichero_server.api.routes.document.notes.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -742,7 +742,7 @@ class TestNoteMutationsEmitChange:
     def test_patch_note_emits_updated(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.notes.emit_change",
+            "fichero_server.api.routes.document.notes.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -770,7 +770,7 @@ class TestNoteMutationsEmitChange:
     def test_delete_note_emits_deleted(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.notes.emit_change",
+            "fichero_server.api.routes.document.notes.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -797,7 +797,7 @@ class TestNoteMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.notes.emit_change",
+            "fichero_server.api.routes.document.notes.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -898,7 +898,7 @@ class TestDocumentMutationsEmitChange:
     def test_create_document_emits_created(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.documents.emit_change",
+            "fichero_server.api.routes.document.documents.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -938,7 +938,7 @@ class TestDocumentMutationsEmitChange:
     def test_delete_document_emits_deleted(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.documents.emit_change",
+            "fichero_server.api.routes.document.documents.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),

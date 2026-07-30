@@ -13,9 +13,9 @@ from collections.abc import Callable
 import pytest
 
 import fichero_server.api.routes.claim.claims  # noqa: F401
-import fichero_server.api.routes.documents  # noqa: F401
+import fichero_server.api.routes.document.documents  # noqa: F401
 import fichero_server.api.routes.entity.entities  # noqa: F401
-import fichero_server.api.routes.notes  # noqa: F401
+import fichero_server.api.routes.document.notes  # noqa: F401
 from fichero_server.models import ActionAudit, DocType, Document
 
 
@@ -32,10 +32,10 @@ def _install_emit_recorder(monkeypatch, emit_calls: list[tuple[tuple, dict]]) ->
     def _record(*args, **kwargs):
         emit_calls.append((args, kwargs))
 
-    monkeypatch.setattr("fichero_server.api.routes.notes.emit_change", _record)
+    monkeypatch.setattr("fichero_server.api.routes.document.notes.emit_change", _record)
     monkeypatch.setattr("fichero_server.api.routes.claim.claims.emit_change", _record)
     monkeypatch.setattr("fichero_server.api.routes.entity.entities.emit_change", _record)
-    monkeypatch.setattr("fichero_server.api.routes.documents.emit_change", _record)
+    monkeypatch.setattr("fichero_server.api.routes.document.documents.emit_change", _record)
     monkeypatch.setattr("fichero_server.api.change_stream.emit_change", _record)
 
 

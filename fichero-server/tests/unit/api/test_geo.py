@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 from fichero_server.media import geo
 from fichero_server.workflows.tools.geo_extract import _coerce_place_names
-from fichero_server.api.routes import documents as documents_routes
-from fichero_server.api.routes.documents import _points_from_metadata
+from fichero_server.api.routes.document import documents as documents_routes
+from fichero_server.api.routes.document.documents import _points_from_metadata
 
 
 # --- geocoding ---------------------------------------------------------------

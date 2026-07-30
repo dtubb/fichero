@@ -5,7 +5,7 @@ from fichero_server.models import (
     ContentSourceAnchor,
 )
 from fichero_server.actions.registry import ActionContext, registry
-import fichero_server.api.routes.content_representations  # noqa: F401
+import fichero_server.api.routes.document.content_representations  # noqa: F401
 
 
 def test_representation_and_revision_persist(db):

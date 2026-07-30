@@ -29,7 +29,7 @@ from fastapi import HTTPException
 
 # Importing the route module registers the annotation.* actions on the
 # process-global registry via the @action decorator.
-import fichero_server.api.routes.annotations  # noqa: F401
+import fichero_server.api.routes.document.annotations  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Document, DocType
 from fichero_server.models.knowledge import Annotation, AnnotationKind, KnowledgeClaim

@@ -38,8 +38,8 @@ def emit_calls(monkeypatch):
             calls.append({"args": args, "kwargs": kwargs})
 
     monkeypatch.setattr("fichero_server.api.change_stream.emit_change", spy)
-    monkeypatch.setattr("fichero_server.api.routes.notes.emit_change", spy)
-    monkeypatch.setattr("fichero_server.api.routes.documents.emit_change", spy)
+    monkeypatch.setattr("fichero_server.api.routes.document.notes.emit_change", spy)
+    monkeypatch.setattr("fichero_server.api.routes.document.documents.emit_change", spy)
     monkeypatch.setattr("fichero_server.api.routes.claim.claims.emit_change", spy)
     monkeypatch.setattr("fichero_server.api.routes.entity.entities.emit_change", spy)
     return calls

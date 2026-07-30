@@ -26,7 +26,7 @@ from fastapi import HTTPException
 
 # Importing the route modules registers their actions (classification.* /
 # framework.* / interpretation.* / pattern.*) on the process-global registry.
-import fichero_server.api.routes.classifications  # noqa: F401
+import fichero_server.api.routes.document.classifications  # noqa: F401
 import fichero_server.api.routes.interpretation.hermeneutics  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, KnowledgeClaim

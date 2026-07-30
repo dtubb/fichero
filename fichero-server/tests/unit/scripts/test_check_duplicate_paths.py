@@ -72,6 +72,51 @@ _CORE_ROUTE_SPECS = [
     assert len(concerns["route:GET /api/documents/workspaces"]) == 1
 
 
+def test_mount_prefix_resolves_via_main_imports_without_flat_shim(tmp_path):
+    """A route imported from its domain package (no flat shim file) still gets
+    its mounted prefix — this is what the #4071-#4077 shim deletions rely on.
+    Without alias-based resolution the two /notes handlers below would collide
+    at the bare path (the guardrail FIRES); with it, they stay distinct."""
+    src = tmp_path / "src"
+    for pkg in ("document", "research"):
+        d = src / "api" / "routes" / pkg
+        d.mkdir(parents=True)
+        (d / "notes.py").write_text(
+            """
+from fastapi import APIRouter
+router = APIRouter()
+
+@router.get("/notes")
+def list_notes():
+    return {}
+""",
+            encoding="utf-8",
+        )
+    main = """
+from fichero_server.api.routes.document import notes
+from fichero_server.api.routes.research import notes as research_notes
+
+_CORE_ROUTE_SPECS = [
+    (notes.router, "/api", ["notes"]),
+    (research_notes.router, "/api/research", ["research"]),
+]
+"""
+    (src / "api" / "main.py").write_text(main, encoding="utf-8")
+
+    concerns = check_duplicate_paths.collect(src)
+    assert len(concerns["route:GET /api/notes"]) == 1
+    assert len(concerns["route:GET /api/research/notes"]) == 1
+    assert check_duplicate_paths.find_violations(src) == {}
+
+    # Prove the rule still fires when resolution cannot disambiguate: drop the
+    # import lines and both modules collapse onto the same bare path.
+    (src / "api" / "main.py").write_text(
+        "_CORE_ROUTE_SPECS = [\n    (notes.router, \"\", [\"notes\"]),\n]\n",
+        encoding="utf-8",
+    )
+    assert "route:GET /notes" in check_duplicate_paths.find_violations(src)
+
+
 def test_repo_duplicate_gate_has_no_unallowlisted_concerns():
     violations = check_duplicate_paths.find_violations()
     assert violations == {}

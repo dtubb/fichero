@@ -140,7 +140,7 @@ class TestEmbedArtifactContent:
 class TestArtifactTranslateAction:
     def test_translate_action_is_registered(self):
         """artifact.translate is in the global action registry."""
-        import fichero_server.api.routes.artifacts  # noqa: F401 — registers the action
+        import fichero_server.api.routes.document.artifacts  # noqa: F401 — registers the action
         from fichero_server.actions.registry import registry
 
         action = registry.get("artifact.translate")
@@ -149,7 +149,7 @@ class TestArtifactTranslateAction:
         assert action.undoable is True
 
     def test_translate_action_params(self):
-        import fichero_server.api.routes.artifacts  # noqa: F401
+        import fichero_server.api.routes.document.artifacts  # noqa: F401
         from fichero_server.actions.registry import registry
 
         action = registry.get("artifact.translate")
@@ -169,7 +169,7 @@ class TestArtifactTranslateAction:
 class TestTranslationArtifactDeletion:
     def test_delete_translation_artifact_removes_vectors(self, db):
         """_delete_artifact_impl removes embedding vectors for translation artifacts."""
-        from fichero_server.api.routes.artifacts import _delete_artifact_impl
+        from fichero_server.api.routes.document.artifacts import _delete_artifact_impl
 
         doc = Document(
             name="del-test.txt",

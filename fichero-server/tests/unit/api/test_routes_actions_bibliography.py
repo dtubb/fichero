@@ -26,7 +26,7 @@ from fastapi import HTTPException
 # Importing the route modules registers their actions via @action at import time.
 import fichero_server.api.routes.citation.bibliography  # noqa: F401
 import fichero_server.api.routes.citation.references  # noqa: F401
-import fichero_server.api.routes.sources  # noqa: F401
+import fichero_server.api.routes.document.sources  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models.knowledge import (
     Reference,

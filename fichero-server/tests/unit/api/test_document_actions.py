@@ -32,7 +32,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 # Importing the route module registers the document.* actions at import time.
-import fichero_server.api.routes.documents  # noqa: F401
+import fichero_server.api.routes.document.documents  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Artifact, DocType, Document, Status
 
@@ -56,7 +56,7 @@ def spy_emit(monkeypatch):
     calls: list[tuple] = []
     def spy(*a, **k):
         calls.append((a, k))
-    monkeypatch.setattr("fichero_server.api.routes.documents.emit_change", spy)
+    monkeypatch.setattr("fichero_server.api.routes.document.documents.emit_change", spy)
     monkeypatch.setattr("fichero_server.api.change_stream.emit_change", spy)
     return calls
 

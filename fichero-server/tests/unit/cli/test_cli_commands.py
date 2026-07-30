@@ -16,8 +16,8 @@ from fichero_cli import FicheroError
 from fichero_cli import client as client_module
 from fichero_cli.formatters import render
 from fichero_server.api.routes.activity import ActivityResponse
-from fichero_server.api.routes.artifacts import ArtifactResponse
-from fichero_server.api.routes.document_inspector import DocumentInspectorResponse
+from fichero_server.api.routes.document.artifacts import ArtifactResponse
+from fichero_server.api.routes.document.inspector import DocumentInspectorResponse
 from fichero_server.api.routes.entity.entities import (
     EntityAuditResponse,
     EntityCoOccurrence,
@@ -415,7 +415,7 @@ class FakeClient:
 
     def document_knowledge_graph(self, doc_id, **kw):
         self.calls.append(("document_knowledge_graph", doc_id, kw))
-        from fichero_server.api.routes.document_inspector import DocumentKnowledgeGraphResponse
+        from fichero_server.api.routes.document.inspector import DocumentKnowledgeGraphResponse
         return DocumentKnowledgeGraphResponse(
             document_id=doc_id,
             include_children=kw.get("include_children", False),

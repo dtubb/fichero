@@ -13,7 +13,7 @@ from PIL import Image
 
 from fichero_server.api.auth import initialize_token
 from fichero_server.api.main import app
-from fichero_server.api.routes import image_editing
+from fichero_server.api.routes.ingest import image_editing
 from fichero_server.models import DocType, Document, FileType
 
 
@@ -250,7 +250,7 @@ class TestImageEditChainRoutes:
     ):
         doc = _make_image_doc(db, tmp_path, size=(120, 90))
 
-        from fichero_server.api.routes import image_editing as routes
+        from fichero_server.api.routes.ingest import image_editing as routes
 
         original_apply_operation = routes._apply_operation
 
@@ -288,7 +288,7 @@ class TestImageEditChainRoutes:
 class TestReversibleImageSplit:
     def test_archive_black_border_remover_masks_and_crops(self):
         pytest.importorskip("cv2")
-        from fichero_server.api.routes.image_editing import _remove_black_background_opencv
+        from fichero_server.api.routes.ingest.image_editing import _remove_black_background_opencv
 
         image = Image.new("RGB", (100, 80), "black")
         for x in range(15, 85):

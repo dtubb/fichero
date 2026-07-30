@@ -33,7 +33,7 @@ from fichero_server.models import Artifact, Document, DocType
 
 class TestDocumentInspector:
     def test_empty_document_returns_zero_counts(self, db):
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="empty.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -50,7 +50,7 @@ class TestDocumentInspector:
         assert result.projects == []
 
     def test_rich_document_aggregates_everything(self, db):
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="rich.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -137,7 +137,7 @@ class TestDocumentInspector:
         assert len(result.projects) == 1
 
     def test_page_returns_own_entities_and_parent_rolls_up_pages(self, db):
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         parent = Document(name="Preface.pdf", doc_type=DocType.file)
         db.save(parent)
@@ -189,7 +189,7 @@ class TestDocumentInspector:
 class TestDocumentKnowledgeGraph:
     def test_unknown_document_404s(self, db):
         from fastapi import HTTPException
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         try:
             asyncio.run(document_inspector.knowledge_graph("no-such-id", db=db))
@@ -198,7 +198,7 @@ class TestDocumentKnowledgeGraph:
             assert exc.status_code == 404
 
     def test_empty_document_returns_no_groups(self, db):
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="empty.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -210,7 +210,7 @@ class TestDocumentKnowledgeGraph:
 
     def test_groups_all_kinds_including_dates(self, db):
         """The Dates section must be present — its omission was #1068."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="page12.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -248,7 +248,7 @@ class TestDocumentKnowledgeGraph:
 
     def test_dedups_within_kind_and_keeps_all_claim_ids(self, db):
         """Multiple claims for the same canonical entity collapse to one row."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="dupes.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -272,7 +272,7 @@ class TestDocumentKnowledgeGraph:
         The old SwiftUI code skipped merged entities outright, silently
         dropping their claims — a cause of the #1068 under-counting.
         """
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="merged.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -301,7 +301,7 @@ class TestDocumentKnowledgeGraph:
 
 class TestDocumentOutline:
     def test_outline_aggregates_pages_structure_and_groups(self, db):
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(id="outline-doc", name="Book", doc_type=DocType.file)
         page1 = Document(id="outline-page-1", name="Page 1", doc_type=DocType.page, parent_id=doc.id, sequence=1)
@@ -356,7 +356,7 @@ class TestDocumentOutline:
 
     def test_parent_pdf_rolls_up_page_claims_by_default(self, db):
         """Page-level KG rows surface when the parent PDF is selected."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         parent = Document(name="Preface.pdf", doc_type=DocType.file)
         db.save(parent)
@@ -373,7 +373,7 @@ class TestDocumentOutline:
 
     def test_leaf_document_has_empty_catalogue(self, db):
         """A plain document carries no catalogue artifacts (#1047)."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="leaf.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -382,7 +382,7 @@ class TestDocumentOutline:
 
     def test_catalogue_artifacts_surface_narrative_first(self, db):
         """A catalogued folder surfaces its catalogue artifacts, narrative-first (#1047)."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         folder = Document(name="Letters", doc_type=DocType.folder)
         db.save(folder)
@@ -416,7 +416,7 @@ class TestDocumentOutline:
 
     def test_legacy_catalogue_artifact_included(self, db):
         """The legacy single-output 'catalogue' type still surfaces (#1047)."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         folder = Document(name="Old Letters", doc_type=DocType.folder)
         db.save(folder)
@@ -430,7 +430,7 @@ class TestDocumentOutline:
 
     def test_include_children_aggregates_page_claims_onto_parent(self, db):
         """include_children walks the doc tree and surfaces page-child KG (#1069)."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         parent = Document(name="Preface.pdf", doc_type=DocType.file)
         db.save(parent)
@@ -573,7 +573,7 @@ class TestEntityInspector:
 
 class TestDocumentRollup:
     def test_empty_document_returns_zero_counts(self, db):
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         doc = Document(name="empty.pdf", doc_type=DocType.file)
         db.save(doc)
@@ -589,7 +589,7 @@ class TestDocumentRollup:
         import pytest
         from fastapi import HTTPException
 
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         with pytest.raises(HTTPException) as excinfo:
             asyncio.run(document_inspector.document_rollup("does-not-exist", db=db))
@@ -597,7 +597,7 @@ class TestDocumentRollup:
 
     def test_rollup_counts_children_across_descendants(self, db):
         """Counts roll up the document and its descendant pages (#2258)."""
-        from fichero_server.api.routes import document_inspector
+        from fichero_server.api.routes.document import inspector as document_inspector
 
         parent = Document(name="Book.pdf", doc_type=DocType.file)
         page1 = Document(name="page 1", doc_type=DocType.page, parent_id=parent.id, sequence=1)
