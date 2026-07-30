@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException
-from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 # NOTE: apply_fuzzy_clean is imported at CALL time, not here (#3950).
 # fuzzy_clean_images lives in the tools package, and importing ANY module in
@@ -153,7 +153,11 @@ def apply_operation(image: Image.Image, op: dict[str, Any]) -> Image.Image:
         return apply_fuzzy_clean(image, despeckle_radius=int(params.get("radius", 3)), background_clean=False)
     if name == "adaptive_binarize":
         gray = image.convert("L")
-        threshold = sum(gray.getdata()) / (gray.width * gray.height)
+        # ImageStat, not sum(gray.getdata()): Pillow 12.3 deprecates getdata
+        # (removal in Pillow 14) and materialising every pixel into Python just
+        # to average it is wasteful on a scanned page. ImageStat reads the
+        # histogram, so the mean is identical, not approximated (#4337).
+        threshold = ImageStat.Stat(gray).mean[0]
         return gray.point(lambda value: 255 if value >= threshold else 0).convert("RGB")
     if name == "remove_background":
         return _remove_background(image, params)
