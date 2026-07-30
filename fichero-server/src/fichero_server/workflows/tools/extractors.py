@@ -45,7 +45,10 @@ from fichero_server.llm import (
     chat_structured_with_fallback,
 )
 from fichero_server.models import Artifact
-from fichero_server.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes
+from fichero_server.workflows.tools._workflow_change_emit import (
+    emit_workflow_artifact_changes,
+    emit_workflow_kg_changes_for_db,
+)
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.catalogue import _resolve_write_target
 from fichero_server.workflows.tools.llm_base import (
@@ -2755,6 +2758,31 @@ def _write_kg_rows(
             f"_write_kg_rows: {section.get('name')} "
             f"{page_label or 'whole-doc'} on {container_id} — "
             f"invariant violations: {summarize_violations(invariant_violations)}"
+        )
+
+    # Announce the write HERE, not in each caller (#4392).
+    #
+    # Every KG-writing tool used to emit its own change event after calling
+    # this helper — except `kg_writer`, which is the node that persists when
+    # `persist_kg` is off, i.e. the catalogue preset's DEFAULT path. So on the
+    # default path rows landed in the database and nothing was published: the
+    # Knowledge Graph inspector observes `ClaimStore.changeToken`, the token
+    # never bumped, and the pane went on showing what it loaded when the
+    # document was opened. Running the same extraction through a preset with
+    # `persist_kg` ON updated correctly, because that path emits — two paths
+    # silently disagreeing about whether a write is observable.
+    #
+    # Emitting from the shared write path makes every caller correct by
+    # construction: there is no way to add an eleventh caller that persists KG
+    # rows without announcing them, because persisting IS announcing. The
+    # callers' own emissions are removed in the same commit rather than left
+    # as belt-and-braces, which would double-emit and re-open the drift.
+    if written_entity_ids or written_claim_ids:
+        emit_workflow_kg_changes_for_db(
+            db,
+            entity_ids=written_entity_ids,
+            claim_ids=written_claim_ids,
+            document_ids=[container_id] if container_id else [],
         )
     return written_entity_ids, written_claim_ids
 

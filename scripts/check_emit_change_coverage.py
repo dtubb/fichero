@@ -137,6 +137,24 @@ REQUIRED_TERMINAL_EMITS: tuple[tuple[str, frozenset[str]], ...] = (
         "fichero-server/src/fichero_server/workflows/tools/llm_base.py",
         frozenset({"emit_workflow_document_changes_for_db"}),
     ),
+    # _write_kg_rows is THE shared KG write path — extract_all, extract_svo_only,
+    # kg_writer and every registered per-section extractor route through it. It
+    # emits for all of them (#4392), which is what makes each caller correct by
+    # construction instead of by remembering. That concentration is also a new
+    # single point of failure: delete this one emit and every KG write in the
+    # product goes silent at once, with no route-level check to notice. Pin it.
+    (
+        "fichero-server/src/fichero_server/workflows/tools/extractors.py",
+        frozenset({"emit_workflow_kg_changes_for_db"}),
+    ),
+    # _persist_additional_entities is the SECOND KG write path (custom entity
+    # types), writing via upsert_entity/save_claim rather than _write_kg_rows,
+    # so it announces its own rows. Pinned separately because the helper above
+    # does not cover it.
+    (
+        "fichero-server/src/fichero_server/workflows/tools/extract_all.py",
+        frozenset({"emit_workflow_kg_changes_for_db"}),
+    ),
 )
 
 

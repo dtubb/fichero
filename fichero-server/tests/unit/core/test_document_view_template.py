@@ -95,3 +95,94 @@ def test_per_page_progress_and_live_patch_never_reload() -> None:
     # In place: the patch writes the page body's text, it does not re-render.
     assert "body.textContent = text;" in source
     assert "page-working-spinner" in source
+
+
+# ---------------------------------------------------------------------------
+# Transcript wrapping (#4385)
+# ---------------------------------------------------------------------------
+#
+# `white-space: pre-wrap` wraps at existing whitespace but cannot break an
+# unbroken token, and nothing set `overflow-wrap`. One long OCR/HTR run — a
+# numeric string, an unspaced sequence where the model inferred no word
+# boundaries, a whole paragraph returned as one line — set a min-content width
+# for the page, so the pane scrolled sideways instead of wrapping. On a
+# handwriting-transcription corpus that input is the normal case.
+#
+# The true contract is `document.scrollWidth <= document.clientWidth` at a
+# narrow pane width with a 4000-character unbroken token. That needs a headless
+# browser; the backend suite has none and playwright is not a declared
+# dependency, so adding one is not this lane's call (see the report on #4385 —
+# it belongs with the Swift lane's WebKit tests, which already run a real
+# engine). These assert the CSS properties that make that contract hold, which
+# is what this suite can honestly check.
+
+
+def test_transcript_body_can_break_an_unbreakable_token() -> None:
+    source = _template_source()
+
+    assert ".transcript-page-body {" in source
+    assert "overflow-wrap: anywhere;" in source
+
+
+def test_transcript_body_uses_anywhere_not_break_word() -> None:
+    """`break-word` is the plausible-looking wrong answer.
+
+    Both break an otherwise unbreakable token, but only `anywhere` shrinks the
+    element's min-content width. With `break-word` the body still reports a
+    minimum as wide as its longest token, the page resolves to content width,
+    and the pane scrolls — i.e. the bug survives a fix that looks correct.
+    """
+    source = _template_source()
+    start = source.index(".transcript-page-body {")
+    body_rule = source[start : source.index("}", start)]
+
+    assert "overflow-wrap: anywhere" in body_rule
+    assert "break-word" not in body_rule, (
+        "overflow-wrap: break-word does not shrink min-content width, so the "
+        "page can still force the container wider (#4385)"
+    )
+
+
+def test_page_and_root_cannot_resolve_to_content_width() -> None:
+    """Defence in depth: a definite max width on the page, and a root that
+    refuses to scroll horizontally so a future rule cannot reintroduce it."""
+    source = _template_source()
+
+    assert "html, body {" in source
+    assert "overflow-x: hidden;" in source
+    assert "max-width: 100%;" in source
+
+
+def test_the_scroll_container_scrolls_vertically_only() -> None:
+    source = _template_source()
+
+    content_index = source.index(".content {")
+    content_rule = source[content_index : content_index + 400]
+    assert "overflow-y: auto;" in content_rule
+    assert "overflow-x: hidden;" in content_rule
+    assert "overflow: auto;" not in content_rule, (
+        "`overflow: auto` on both axes is what turned an over-wide page into "
+        "a horizontal scrollbar instead of a wrap (#4385)"
+    )
+
+
+def test_claim_source_excerpt_wraps_like_the_transcript() -> None:
+    """It is a verbatim slice of the same OCR text, so it carries the same
+    unbreakable runs and had the same half-configured wrap."""
+    source = _template_source()
+
+    claim_index = source.index(".claim-source {")
+    claim_rule = source[claim_index : claim_index + 500]
+    assert "white-space: pre-wrap;" in claim_rule
+    assert "overflow-wrap: anywhere;" in claim_rule
+
+
+def test_unwrappable_content_has_a_sanctioned_escape_hatch() -> None:
+    """Content that truly cannot wrap must scroll inside its own box rather
+    than widening the page."""
+    source = _template_source()
+
+    hatch_index = source.index(".overflow-scroll-x {")
+    hatch_rule = source[hatch_index : hatch_index + 200]
+    assert "overflow-x: auto;" in hatch_rule
+    assert "max-width: 100%;" in hatch_rule

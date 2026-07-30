@@ -52,7 +52,7 @@ from fichero_server.workflows.tools.llm_base import (
 )
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools._workflow_change_emit import (
-    emit_workflow_kg_changes,
+    emit_workflow_kg_changes_for_db,
     emit_workflow_artifact_changes,
 )
 from fichero_server.workflows.types import DataType, PortDef, State
@@ -675,6 +675,19 @@ def _persist_additional_entities(
                     "extract_all: failed to save provenance claim for custom entity %s/%s: %s",
                     type_key, name, exc,
                 )
+
+    # Announce its own writes, for the same reason `_write_kg_rows` does
+    # (#4392): this is a SECOND path that persists KG rows without going
+    # through that helper, so leaving it to the caller would reproduce exactly
+    # the omission this issue is about — one write path that announces and one
+    # that quietly does not.
+    if written_entity_ids or written_claim_ids:
+        emit_workflow_kg_changes_for_db(
+            db,
+            entity_ids=written_entity_ids,
+            claim_ids=written_claim_ids,
+            document_ids=[container_id] if container_id else [],
+        )
     return written_entity_ids, written_claim_ids
 
 
@@ -1494,13 +1507,10 @@ async def _run_two_stage(
         "%d entities with claims, %d KG rows queued",
         len(chunks), total_entities, entity_done, len(kg_payload),
     )
-    if persist_kg and db and (written_entity_ids or written_claim_ids):
-        emit_workflow_kg_changes(
-            str(db.path.parent),
-            entity_ids=written_entity_ids,
-            claim_ids=written_claim_ids,
-            document_ids=sorted(written_document_ids),
-        )
+    # #4392: no emit here. `_write_kg_rows` announces each write itself, and
+    # every id in `written_entity_ids` / `written_claim_ids` came from one of
+    # its returns — so emitting again would publish the same rows twice. The
+    # accumulators are kept because the return payload reports them.
     return {
         "text": _render_extraction_markdown(extraction),
         "value": {
@@ -2075,13 +2085,10 @@ async def extract_all(
             # drain before downstream folder-cleanup nodes read them.
             container.updated_at = utc_now()
             db.save(container)
-            if persist_kg and (written_entity_ids or written_claim_ids):
-                emit_workflow_kg_changes(
-                    str(db.path.parent),
-                    entity_ids=written_entity_ids,
-                    claim_ids=written_claim_ids,
-                    document_ids=sorted(written_document_ids),
-                )
+            # #4392: no KG emit here. Both write paths that fed
+            # `written_entity_ids` / `written_claim_ids` — `_write_kg_rows` and
+            # `_persist_additional_entities` — announce their own rows now, so
+            # emitting again would publish every row a second time.
             if created_artifact_ids:
                 emit_workflow_artifact_changes(
                     str(db.path.parent),
