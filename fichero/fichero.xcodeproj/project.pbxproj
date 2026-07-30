@@ -7,17 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2F7AEC61C0DC023262E5FA59 /* ReaderFindInPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363A21BA1C3DFB19A3B1BFD5 /* ReaderFindInPage.swift */; };
-		550387714E0057553752CA78 /* OCRGeometryOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7CFD25965F5EBC79A0924FB /* OCRGeometryOverlay.swift */; };
-		7D68A790FE4F69A65F5C7A1A /* OCRGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DD73262B8DFCA979150709 /* OCRGeometry.swift */; };
-		83EDB2CB0561AFE4BA93CD34 /* WebContentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A1821F134F46DF33D23A13 /* WebContentCanvas.swift */; };
-		99745474B42FD3C0F886D2CB /* WebContentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A1821F134F46DF33D23A13 /* WebContentCanvas.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
-		BAA39962F7ED7FDD0B518FE8 /* ReaderFindInPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 363A21BA1C3DFB19A3B1BFD5 /* ReaderFindInPage.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
-		CDFC1960F296BEE9B1262949 /* OCRGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DD73262B8DFCA979150709 /* OCRGeometry.swift */; };
-		E3FF16236EAA457AA71F5FE4 /* OCRGeometryOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7CFD25965F5EBC79A0924FB /* OCRGeometryOverlay.swift */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 /* End PBXBuildFile section */
@@ -58,16 +50,12 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		18DD73262B8DFCA979150709 /* OCRGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OCRGeometry.swift; sourceTree = "<group>"; };
-		363A21BA1C3DFB19A3B1BFD5 /* ReaderFindInPage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReaderFindInPage.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero.xctestplan; sourceTree = "<group>"; };
 		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-embedded.xctestplan"; sourceTree = "<group>"; };
 		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-ipad.xctestplan"; sourceTree = "<group>"; };
-		A8A1821F134F46DF33D23A13 /* WebContentCanvas.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WebContentCanvas.swift; sourceTree = "<group>"; };
-		D7CFD25965F5EBC79A0924FB /* OCRGeometryOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OCRGeometryOverlay.swift; sourceTree = "<group>"; };
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -173,7 +161,6 @@
 			isa = PBXGroup;
 			children = (
 				B32CF3D2AA65F664ECEFB82E /* ImageViewer */,
-				A8A1821F134F46DF33D23A13 /* WebContentCanvas.swift */,
 			);
 			name = Preview;
 			path = Preview;
@@ -182,7 +169,6 @@
 		51FC61283AC8DE6AC310A5C9 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				18DD73262B8DFCA979150709 /* OCRGeometry.swift */,
 			);
 			name = Models;
 			path = Models;
@@ -210,7 +196,6 @@
 		B32CF3D2AA65F664ECEFB82E /* ImageViewer */ = {
 			isa = PBXGroup;
 			children = (
-				D7CFD25965F5EBC79A0924FB /* OCRGeometryOverlay.swift */,
 			);
 			name = ImageViewer;
 			path = ImageViewer;
@@ -219,7 +204,6 @@
 		B8B08C708E1D44DE42C16313 /* Knowledge */ = {
 			isa = PBXGroup;
 			children = (
-				363A21BA1C3DFB19A3B1BFD5 /* ReaderFindInPage.swift */,
 			);
 			name = Knowledge;
 			path = Knowledge;
@@ -969,10 +953,6 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				7D68A790FE4F69A65F5C7A1A /* OCRGeometry.swift in Sources */,
-				E3FF16236EAA457AA71F5FE4 /* OCRGeometryOverlay.swift in Sources */,
-				99745474B42FD3C0F886D2CB /* WebContentCanvas.swift in Sources */,
-				2F7AEC61C0DC023262E5FA59 /* ReaderFindInPage.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -988,10 +968,6 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				CDFC1960F296BEE9B1262949 /* OCRGeometry.swift in Sources */,
-				550387714E0057553752CA78 /* OCRGeometryOverlay.swift in Sources */,
-				83EDB2CB0561AFE4BA93CD34 /* WebContentCanvas.swift in Sources */,
-				BAA39962F7ED7FDD0B518FE8 /* ReaderFindInPage.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

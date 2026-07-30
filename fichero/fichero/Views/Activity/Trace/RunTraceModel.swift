@@ -204,9 +204,9 @@ enum RunTraceModelBuilder {
     }
 
     private static func doubleValue(_ value: Any?) -> Double? {
-        if let d = value as? Double { return d }
-        if let i = value as? Int { return Double(i) }
-        if let n = value as? NSNumber { return n.doubleValue }
+        if let double = value as? Double { return double }
+        if let int = value as? Int { return Double(int) }
+        if let number = value as? NSNumber { return number.doubleValue }
         return nil
     }
 }
@@ -246,12 +246,12 @@ enum RunTraceLayoutEngine {
         var maxX: CGFloat = 0
         var maxY: CGFloat = 0
         for (depth, ids) in columns {
-            let x = margin + CGFloat(depth) * (nodeSize.width + horizontalGap) + nodeSize.width / 2
+            let colX = margin + CGFloat(depth) * (nodeSize.width + horizontalGap) + nodeSize.width / 2
             for (row, id) in ids.enumerated() {
-                let y = margin + CGFloat(row) * (nodeSize.height + verticalGap) + nodeSize.height / 2
-                positions[id] = CGPoint(x: x, y: y)
-                maxX = max(maxX, x + nodeSize.width / 2)
-                maxY = max(maxY, y + nodeSize.height / 2)
+                let rowY = margin + CGFloat(row) * (nodeSize.height + verticalGap) + nodeSize.height / 2
+                positions[id] = CGPoint(x: colX, y: rowY)
+                maxX = max(maxX, colX + nodeSize.width / 2)
+                maxY = max(maxY, rowY + nodeSize.height / 2)
             }
         }
         return RunTraceLayout(

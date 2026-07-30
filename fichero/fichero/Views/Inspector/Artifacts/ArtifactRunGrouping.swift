@@ -73,31 +73,31 @@ enum ArtifactRunGrouping {
     /// Within a run: pipeline `sequence` ascending; legacy rows without a
     /// sequence sort after sequenced ones, oldest-first (creation order is the
     /// best remaining proxy for pipeline order); id as the final tiebreak.
-    static func pipelineOrder(_ a: Artifact, _ b: Artifact) -> Bool {
-        switch (a.sequence, b.sequence) {
-        case let (sa?, sb?) where sa != sb:
-            return sa < sb
+    static func pipelineOrder(_ lhs: Artifact, _ rhs: Artifact) -> Bool {
+        switch (lhs.sequence, rhs.sequence) {
+        case let (lhsSeq?, rhsSeq?) where lhsSeq != rhsSeq:
+            return lhsSeq < rhsSeq
         case (.some, .none):
             return true
         case (.none, .some):
             return false
         default:
-            if a.createdAt != b.createdAt { return a.createdAt < b.createdAt }
-            return a.id < b.id
+            if lhs.createdAt != rhs.createdAt { return lhs.createdAt < rhs.createdAt }
+            return lhs.id < rhs.id
         }
     }
 
     /// The pre-#4319 browse order, kept for the "Earlier" section: raw +
     /// cleaned pairs grouped by base type with the cleaned canonical entry
     /// first, then newest-first within a type.
-    static func typeGroupedOrder(_ a: Artifact, _ b: Artifact) -> Bool {
-        let aBase = baseType(of: a.artifactType)
-        let bBase = baseType(of: b.artifactType)
-        if aBase != bBase { return aBase < bBase }
-        let aClean = a.artifactType.hasSuffix("_clean")
-        let bClean = b.artifactType.hasSuffix("_clean")
-        if aClean != bClean { return aClean }
-        return a.createdAt > b.createdAt
+    static func typeGroupedOrder(_ lhs: Artifact, _ rhs: Artifact) -> Bool {
+        let lhsBase = baseType(of: lhs.artifactType)
+        let rhsBase = baseType(of: rhs.artifactType)
+        if lhsBase != rhsBase { return lhsBase < rhsBase }
+        let lhsClean = lhs.artifactType.hasSuffix("_clean")
+        let rhsClean = rhs.artifactType.hasSuffix("_clean")
+        if lhsClean != rhsClean { return lhsClean }
+        return lhs.createdAt > rhs.createdAt
     }
 
     static func baseType(of artifactType: String) -> String {
