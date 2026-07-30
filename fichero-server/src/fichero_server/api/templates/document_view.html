@@ -146,6 +146,55 @@
             white-space: pre-wrap;
         }
 
+        /* An untranscribed page is a PAGE, not a gap (#4356): it keeps its
+           number and says what is missing, so the sequence still matches the
+           preview and the work still to do is visible. */
+        .transcript-page.empty-page {
+            background: transparent;
+            border-style: dashed;
+            box-shadow: none;
+        }
+
+        .page-placeholder {
+            color: var(--muted);
+            font: 500 0.9em/1.5 var(--font-system);
+        }
+
+        /* Current page layer (#4356 / #4355): the page the preview pane shows.
+           Deliberately NOT find-yellow — an accent edge, so a find match inside
+           the current page stays distinguishable from the page marker itself. */
+        .transcript-page.current {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 1px var(--accent);
+        }
+
+        .transcript-page.current .page-marker {
+            color: var(--accent);
+        }
+
+        /* Per-page work in progress (#4357): only pages in the run's scope. */
+        .page-working {
+            align-items: center;
+            color: var(--muted);
+            display: flex;
+            font: 500 0.85em/1.4 var(--font-system);
+            gap: 0.5em;
+            margin-top: 0.75em;
+        }
+
+        .page-working-spinner {
+            animation: page-working-spin 0.9s linear infinite;
+            border: 2px solid var(--line);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            height: 0.9em;
+            width: 0.9em;
+        }
+
+        @keyframes page-working-spin {
+            to { transform: rotate(360deg); }
+        }
+
         .transcript mark {
             background: rgba(255, 223, 128, 0.75);
             border-radius: 3px;
@@ -482,6 +531,8 @@ const state = {
     activeEntityId: null,
     activePage: null,
     showAllClaims: false,
+    // Page numbers a running workflow is currently writing (#4357).
+    busyPages: new Set(),
 };
 
 const DEMO_PLACE_LOOKUP = {
@@ -629,19 +680,41 @@ function groupedClaims() {
     return Array.from(groups.values()).filter((group) => group.claims.length > 0);
 }
 
+// The reader's page list. Prefers the structured `pages` payload — the
+// document's page CHILDREN, empty pages included (#4356) — so reader page N is
+// preview page N. Falls back to parsing the flat transcript for payloads
+// produced before `pages` existed.
 function transcriptPages() {
+    const pages = Array.isArray(documentData.pages) ? documentData.pages : [];
+    if (pages.length) {
+        return pages.map((page, index) => {
+            const content = page.content || "";
+            return {
+                number: page.number == null ? index + 1 : page.number,
+                content: content,
+                hasContent: page.has_content == null
+                    ? content.trim().length > 0
+                    : Boolean(page.has_content),
+            };
+        });
+    }
     const transcript = documentData.page_content || "";
+    if (!transcript) { return []; }
     const markers = [...transcript.matchAll(/^Page\s+(\d+)\s*\n/gm)];
     if (!markers.length) {
-        return [{ number: 1, content: transcript }];
+        return [{ number: 1, content: transcript, hasContent: transcript.trim().length > 0 }];
     }
-    return markers.map((marker, index) => ({
-        number: marker[1],
-        content: transcript.slice(
+    return markers.map((marker, index) => {
+        const content = transcript.slice(
             marker.index + marker[0].length,
             markers[index + 1]?.index
-        ),
-    }));
+        );
+        return {
+            number: Number(marker[1]),
+            content: content,
+            hasContent: content.trim().length > 0,
+        };
+    });
 }
 
 function escapeHtml(text) {
@@ -651,20 +724,102 @@ function escapeHtml(text) {
         .replaceAll(">", "&gt;");
 }
 
+function transcriptPageMarkup(page) {
+    const placeholder = page.hasContent
+        ? ""
+        : `<div class="page-placeholder">No transcription yet</div>`;
+    return `
+        <article class="transcript-page${page.hasContent ? "" : " empty-page"}" data-page="${page.number}">
+            <div class="page-marker">Page ${page.number}</div>
+            <div class="transcript-page-body">${escapeHtml(page.content)}</div>
+            ${placeholder}
+        </article>
+    `;
+}
+
 function renderTranscript() {
     const panel = document.getElementById("transcript-panel");
-    if (!documentData.page_content) {
+    const pages = transcriptPages();
+    if (!pages.length) {
         panel.innerHTML = `<div class="empty">No transcript is available for this selection yet.</div>`;
         return;
     }
     panel.innerHTML = `
-        <div class="transcript">${transcriptPages().map((page) => `
-            <article class="transcript-page" data-page="${page.number}">
-                <div class="page-marker">Page ${page.number}</div>
-                <div class="transcript-page-body">${escapeHtml(page.content)}</div>
-            </article>
-        `).join("")}</div>
+        <div class="transcript">${pages.map(transcriptPageMarkup).join("")}</div>
     `;
+    applyActivePageHighlight();
+    applyBusyPages();
+}
+
+// The "current page" highlight layer (#4356): toggles a class on the page the
+// preview pane is showing. In-place — never a re-render, so scrollTop survives.
+function applyActivePageHighlight() {
+    const panel = document.getElementById("transcript-panel");
+    const active = state.activePage == null ? null : Number(state.activePage);
+    panel.querySelectorAll(".transcript-page").forEach((el) => {
+        const isCurrent = active !== null && Number(el.dataset.page) === active;
+        el.classList.toggle("current", isCurrent);
+    });
+}
+
+// Per-page work in progress (#4357): only the pages in the run's scope carry a
+// spinner. Applied in place so a live run never reloads the reader.
+function applyBusyPages() {
+    const panel = document.getElementById("transcript-panel");
+    const busy = state.busyPages instanceof Set ? state.busyPages : new Set();
+    panel.querySelectorAll(".transcript-page").forEach((el) => {
+        const isBusy = busy.has(Number(el.dataset.page));
+        el.classList.toggle("working", isBusy);
+        const existing = el.querySelector(".page-working");
+        if (isBusy && !existing) {
+            const working = document.createElement("div");
+            working.className = "page-working";
+            const spinner = document.createElement("span");
+            spinner.className = "page-working-spinner";
+            spinner.setAttribute("aria-hidden", "true");
+            working.appendChild(spinner);
+            working.appendChild(document.createTextNode("Transcribing this page…"));
+            el.appendChild(working);
+        } else if (!isBusy && existing) {
+            existing.remove();
+        }
+    });
+}
+
+// Replace ONE page's text in place as a run writes it (#4357). Never re-renders
+// the transcript: a full reload would lose scroll position and flash.
+// Returns true when the page was found and patched.
+function patchPageContent(pageNumber, content) {
+    const panel = document.getElementById("transcript-panel");
+    const page = Number(pageNumber);
+    const article = panel.querySelector(`.transcript-page[data-page="${page}"]`);
+    if (!article) { return false; }
+    const body = article.querySelector(".transcript-page-body");
+    if (!body) { return false; }
+    const text = content == null ? "" : String(content);
+    if (body.textContent === text) { return true; }
+    body.textContent = text;
+    const hasContent = text.trim().length > 0;
+    article.classList.toggle("empty-page", !hasContent);
+    const placeholder = article.querySelector(".page-placeholder");
+    if (hasContent && placeholder) {
+        placeholder.remove();
+    } else if (!hasContent && !placeholder) {
+        const empty = document.createElement("div");
+        empty.className = "page-placeholder";
+        empty.textContent = "No transcription yet";
+        article.appendChild(empty);
+    }
+    // Keep the payload in step so a later re-render (tab switch) shows the
+    // patched text rather than reverting to the load-time content.
+    if (Array.isArray(documentData.pages)) {
+        const entry = documentData.pages.find((item) => Number(item.number) === page);
+        if (entry) {
+            entry.content = text;
+            entry.has_content = hasContent;
+        }
+    }
+    return true;
 }
 
 // Update the transcript highlight in-place without replacing the whole DOM
@@ -1352,13 +1507,29 @@ window.fichero = {
         renderMap();
     },
 
-    // Re-scope the graph to the active page unless the user asks for all claims.
+    // Re-scope the graph to the active page unless the user asks for all claims,
+    // and move the reader's "current page" highlight to it (#4356).
     setActivePage(pageNumber) {
         if (Number(state.activePage) !== Number(pageNumber)) {
             state.showAllClaims = false;
         }
         state.activePage = pageNumber;
+        applyActivePageHighlight();
         renderGraph();
+    },
+
+    // The pages a running workflow is writing (#4357). Called from Swift with
+    // the run's target set; [] clears every spinner, so a terminal state (or a
+    // dropped stream) can always stop them.
+    setBusyPages(pageNumbers) {
+        const numbers = Array.isArray(pageNumbers) ? pageNumbers : [];
+        state.busyPages = new Set(numbers.map(Number).filter(Number.isFinite));
+        applyBusyPages();
+    },
+
+    // Live per-page write (#4357): patch this page's text in place.
+    setPageContent(pageNumber, content) {
+        return patchPageContent(pageNumber, content);
     },
 
     // Scroll the transcript to a character span and highlight it.

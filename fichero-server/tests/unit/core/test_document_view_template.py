@@ -55,5 +55,43 @@ def test_transcript_page_cards_keep_scroll_sync_anchors() -> None:
     source = _template_source()
 
     assert "function transcriptPages()" in source
-    assert 'class="transcript-page" data-page="${page.number}"' in source
+    assert 'data-page="${page.number}"' in source
     assert "scroll-margin-block-start" in source
+
+
+def test_transcript_renders_every_page_including_empty_ones() -> None:
+    """Empty pages render as empty PAGES, never as gaps (#4356)."""
+    source = _template_source()
+
+    # The page list comes from the structured `pages` payload (page children),
+    # not from parsing the assembled transcript text.
+    assert "Array.isArray(documentData.pages)" in source
+    assert "No transcription yet" in source
+    assert "empty-page" in source
+    # The panel's empty state keys on the page list, not on transcript text —
+    # a document whose pages are all untranscribed still shows its pages.
+    assert "if (!pages.length) {" in source
+
+
+def test_current_page_highlight_is_applied_in_place() -> None:
+    """Preview -> reader current-page highlight, no re-render (#4356)."""
+    source = _template_source()
+
+    assert "function applyActivePageHighlight()" in source
+    assert 'el.classList.toggle("current", isCurrent);' in source
+    # setActivePage moves the highlight rather than only re-scoping the graph.
+    assert "applyActivePageHighlight();\n        renderGraph();" in source
+    assert ".transcript-page.current {" in source
+
+
+def test_per_page_progress_and_live_patch_never_reload() -> None:
+    """Per-page spinner + in-place page patch (#4357)."""
+    source = _template_source()
+
+    assert "function applyBusyPages()" in source
+    assert "setBusyPages(pageNumbers)" in source
+    assert "setPageContent(pageNumber, content)" in source
+    assert "function patchPageContent(pageNumber, content)" in source
+    # In place: the patch writes the page body's text, it does not re-render.
+    assert "body.textContent = text;" in source
+    assert "page-working-spinner" in source
