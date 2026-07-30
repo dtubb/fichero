@@ -690,7 +690,7 @@ async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> No
             for tid, state in list(_running_workflows.items())
             if not is_terminal(state.get("status"))
         )
-        recovered = await tracker.store.recover_stale_run_ids(
+        recovered = await tracker.store.recover_stale_runs(
             max_age_hours=0, exclude_thread_ids=live_thread_ids
         )
         if recovered:

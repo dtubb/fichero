@@ -1194,22 +1194,6 @@ class ActivityStore:
         self,
         max_age_hours: int = 2,
         exclude_thread_ids: tuple[str, ...] = (),
-    ) -> int:
-        """Transition stale non-terminal workflow_run rows to 'failed'.
-
-        Count-returning wrapper around :meth:`recover_stale_run_ids`. Kept
-        because callers that only report "how many zombies did we recover"
-        should not have to care which ones.
-        """
-        recovered = await self.recover_stale_run_ids(
-            max_age_hours=max_age_hours, exclude_thread_ids=exclude_thread_ids
-        )
-        return len(recovered)
-
-    async def recover_stale_run_ids(
-        self,
-        max_age_hours: int = 2,
-        exclude_thread_ids: tuple[str, ...] = (),
     ) -> list[str]:
         """Transition stale non-terminal workflow_run rows to 'failed' and
         return the ``thread_id`` of every run flipped.

@@ -284,27 +284,21 @@ class TestSweepNamesWhatItFlipped:
     count cannot name what to settle, which is why documents were stranded.
     """
 
-    def test_recover_stale_run_ids_returns_the_flipped_thread_ids(self, store):
+    def test_recover_stale_runs_returns_the_flipped_thread_ids(self, store):
         asyncio.run(_save_run(store, "t-a", "running"))
         asyncio.run(_save_run(store, "t-b", "accepted"))
         asyncio.run(_save_run(store, "t-done", "completed"))
 
-        recovered = asyncio.run(store.recover_stale_run_ids(max_age_hours=0))
+        recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
 
         assert sorted(recovered) == ["t-a", "t-b"]
-
-    def test_count_wrapper_still_reports_the_same_sweep(self, store):
-        asyncio.run(_save_run(store, "t-a", "running"))
-        asyncio.run(_save_run(store, "t-b", "paused"))
-
-        assert asyncio.run(store.recover_stale_runs(max_age_hours=0)) == 2
 
     def test_excluded_live_run_is_not_named(self, store):
         asyncio.run(_save_run(store, "t-live", "running"))
         asyncio.run(_save_run(store, "t-zombie", "running"))
 
         recovered = asyncio.run(
-            store.recover_stale_run_ids(
+            store.recover_stale_runs(
                 max_age_hours=0, exclude_thread_ids=("t-live",)
             )
         )

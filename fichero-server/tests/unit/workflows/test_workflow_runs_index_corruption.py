@@ -140,7 +140,7 @@ class TestStartupRecoveryIsCrashSafe:
 
         # (c) the explicit sweep flips them, crash-safe
         recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
-        assert recovered == 4
+        assert len(recovered) == 4
         counts = _status_counts(db_path)
         assert counts.get("failed") == 4, f"expected 4 failed, got {counts}"
         assert "running" not in counts
@@ -198,7 +198,8 @@ class TestStartupRecoveryIsCrashSafe:
         finally:
             conn.close()
 
-        assert flipped == 1
+        # Returns the flipped thread_ids, not a count (#4379).
+        assert flipped == ["old-zombie"]
         counts = _status_counts(db_path)
         assert counts.get("running") == 1  # fresh-live untouched
         assert counts.get("failed") == 1  # old-zombie flipped
@@ -240,7 +241,10 @@ class TestFatalFallbackRebuild:
 
         # (a) it did NOT raise — control reached here
         # zombie rows are now 'failed'
-        assert flipped == 4, f"expected 4 rebuilt-flipped rows, got {flipped}"
+        # The rebuild fallback names its rows too, so the caller can still
+        # settle each dead run's documents after an ART-index rebuild (#4379).
+        assert flipped is not None, "rebuild fallback must not report degraded"
+        assert len(flipped) == 4, f"expected 4 rebuilt-flipped rows, got {flipped}"
         counts = _status_counts(db_path)
         assert counts.get("failed") == 4
         assert "running" not in counts
@@ -361,7 +365,7 @@ class TestActivityStoreRecoverStaleRunsApi:
         )
 
         recovered = await store.recover_stale_runs(max_age_hours=1)
-        assert recovered == 1
+        assert len(recovered) == 1
 
         run = await store.get_workflow_run("zombie-async")
         assert run is not None
