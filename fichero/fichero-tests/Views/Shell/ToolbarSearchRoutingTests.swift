@@ -213,11 +213,16 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         let resultsSource = try Self.appSource(Self.resultsSource)
 
         // #4118 UI half: the transient search requests all four legs and the
-        // bar presents typed artifact hits (badge + snippet, click opens the
-        // owning document).
+        // bar presents typed hits (badge + snippet, click opens the owning
+        // document).
+        //
+        // #4403 widened this. Artifacts were the only leg with a renderer,
+        // which is why a search for a person returned only Artifacts, so all
+        // three non-document legs now share `SearchHitSection` and one
+        // document-opening seam takes an id rather than a typed artifact hit.
         XCTAssertTrue(resultsSource.contains("include: [.content, .entities, .claims, .artifacts]"))
-        XCTAssertTrue(resultsSource.contains("store.searchStats?.artifactHits"))
-        XCTAssertTrue(resultsSource.contains("func openArtifactHit"))
+        XCTAssertTrue(resultsSource.contains("SearchHitPresentation.artifactRows(stats.artifactHits)"))
+        XCTAssertTrue(resultsSource.contains("func openHitDocument"))
         XCTAssertTrue(resultsSource.contains("navigateToDocument(doc)"))
     }
 
