@@ -12,7 +12,12 @@ import XCTest
 /// `documentNodes` / `entityNodes` / `links`, and a phyllotaxis layout is
 /// exactly the kind of thing a refactor can perturb silently — every position
 /// still looks plausible, just not the one it was before.
-final class SpatialLibraryProjectorTests: XCTestCase {
+///
+/// Named for what it covers rather than for the type under test: the Swift
+/// Testing suite in `Services/MindPalaceLinkTypeTests.swift` already owned
+/// `SpatialLibraryProjectorTests`, and two files claiming one name compiled
+/// individually while the target could not build at all.
+final class SpatialLibraryProjectorGeometryTests: XCTestCase {
 
     private func input(documents: Int, entities: Int, claims: [SpatialLibraryInput.Claim] = [])
         -> SpatialLibraryInput {
