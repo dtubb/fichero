@@ -73,8 +73,7 @@ final class CitationStore: ObservableDomainStore {
             outbound = []
             usages = []
             log.error(
-                "Citations fetch failed for \(documentId, privacy: .public): " +
-                    "\(error.localizedDescription, privacy: .public)"
+                "Citations fetch failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
         }
     }
