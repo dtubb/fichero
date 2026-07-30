@@ -246,6 +246,22 @@ struct BrowserSelectionPreviewPolicy {
         }
         return selectedDocumentId != currentDetailDocumentId
     }
+
+    /// Whether a sidebar-selection change is a browse-CONTEXT change that
+    /// should reset the grid selection (and, through the selection cascade,
+    /// the detail/preview document).
+    ///
+    /// Clicking a `doc:` folder row IS a context change — the stale selection
+    /// from the previous folder must not shadow the new folder's inspector
+    /// (#712). But clicking the library root row (`library:<UUID>`, the
+    /// "/library" location) only re-roots the listing: nuking the selection
+    /// there blanked the preview pane while the user still had an image
+    /// selected (#4299). Empty-pane states are only for genuinely-nothing-
+    /// selected, so the library-row click preserves selection → detail.
+    static func shouldClearBrowseContext(onSidebarItemChangeTo newItemId: String?) -> Bool {
+        guard let newItemId else { return true }
+        return !newItemId.hasPrefix("library:")
+    }
 }
 
 /// Chooses the document that should drive the image/PDF canvas.

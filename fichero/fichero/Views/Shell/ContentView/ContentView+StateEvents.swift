@@ -48,7 +48,13 @@ extension ContentView {
         // from a previous folder can resolve to a child of the new folder
         // (when ids happen to be present in the new folder's children),
         // suppressing the folder inspector. (#712)
-        browserSelection.removeAll()
+        // EXCEPT the library-root row: clicking "/library" is a re-root of
+        // the listing, not a folder change — clearing there cascaded
+        // detailDocument = nil and blanked the preview while an image was
+        // still selected (#4299).
+        if BrowserSelectionPreviewPolicy.shouldClearBrowseContext(onSidebarItemChangeTo: newFolderId) {
+            browserSelection.removeAll()
+        }
 
         // Drive the inspector from sidebar selection so clicking a folder
         // (or any document row) in the sidebar populates the inspector.
@@ -129,7 +135,6 @@ extension ContentView {
             kgFocusState.clear()
         }
         guard let firstId = newSelection.first,
-              let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
               BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
                 layoutMode: currentLayoutMode,
                 selectedDocumentId: firstId,
@@ -140,7 +145,21 @@ extension ContentView {
             }
             return
         }
-        detailDocument = doc
+        if let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
+            detailDocument = doc
+            return
+        }
+        // Selection promotion must not silently fall through when the selected
+        // row isn't in currentDocuments yet (restore-before-load, columns-mode
+        // child columns, tree-rebuild reload in flight — #4297's family). The
+        // sidebar path already fetches; mirror it here so a selected image
+        // always reaches the preview pane instead of an empty state (#4299).
+        Task { @MainActor in
+            let fetched = try? await documentStore.documentService.getDocument(firstId)
+            if let fetched, browserSelection.first == firstId {
+                detailDocument = fetched
+            }
+        }
     }
 
     /// Handles `.onChange(of: detailDocument)`.
