@@ -187,13 +187,45 @@ final class CanvasLayoutStore {
         }
     }
 
-    /// Persist `items` as `folderId`'s layout and refresh `layouts[folderId]`
-    /// from the server's typed response. Returns `true` on success.
+    /// Monotonic save counter per folder, so a slow response cannot overwrite a
+    /// newer local value (#4410).
+    ///
+    /// Two quick drags produce two in-flight saves. Without this the FIRST
+    /// server echo to arrive wins, and the later position — the one the user
+    /// ended on — loses. Each save records its number and applies its echo only
+    /// while it is still the newest.
+    private var saveSequence: [String: Int] = [:]
+
+    /// Persist `items` as `folderId`'s layout. Returns `true` on success.
+    ///
+    /// **Publishes optimistically** (#4410). `layouts[folderId]` takes the local
+    /// value BEFORE the network call, not after the response.
+    ///
+    /// It used to assign only from the server echo, which left the store
+    /// holding the PRE-DRAG position for the whole round trip. Every reader in
+    /// that window saw a stale layout; the one that showed was a reconcile
+    /// triggered by an unrelated `@State` change, which repainted a just-moved
+    /// card back where it started. Fixing that reader's ordering would have
+    /// left the store lying to the others — the write went out and the local
+    /// model never heard about it.
+    ///
+    /// The echo still RECONCILES when it lands: the server may legitimately
+    /// return something different (clamping, snapping, another client's edit),
+    /// so it is applied rather than assumed to match.
     @discardableResult
     func saveLayout(folderId: String, items: [CanvasItemLayout]) async -> Bool {
         isSaving = true
         loadError = nil
         defer { isSaving = false }
+
+        let sequence = (saveSequence[folderId] ?? 0) + 1
+        saveSequence[folderId] = sequence
+        let previous = layouts[folderId]
+        // The invariant: after this line the store reads the NEW position, and
+        // it happens before any `await`. A reconcile at any moment from here on
+        // sees where the item actually is.
+        layouts[folderId] = items
+
         let body = Components.Schemas.CanvasLayoutSaveRequest(items: items.map(\.asSaveItem))
         do {
             let response = try await client.api
@@ -203,22 +235,50 @@ final class CanvasLayoutStore {
                 )
             switch response {
             case .ok(let okResponse):
-                layouts[folderId] = try okResponse.body.json.items.map(CanvasItemLayout.init(schema:))
-                log.info("Saved \(self.layouts[folderId]?.count ?? 0, privacy: .public) canvas items")
+                // Reconcile, but only while this is still the newest save — a
+                // slower earlier response must not overwrite a later drag.
+                let echoed = try okResponse.body.json.items.map(CanvasItemLayout.init(schema:))
+                if saveSequence[folderId] == sequence {
+                    layouts[folderId] = echoed
+                }
+                log.info("Saved \(echoed.count, privacy: .public) canvas items")
                 return true
             case .unprocessableContent(let error):
                 let detail = try? error.body.json
+                rollBack(folderId: folderId, to: previous, sequence: sequence)
                 loadError = detail?.detail?.description ?? "Validation error"
                 return false
             case .undocumented(let code, _):
+                rollBack(folderId: folderId, to: previous, sequence: sequence)
                 loadError = "Unexpected response (\(code))"
                 return false
             }
         } catch {
-            if error.isCancellationError { return false }   // superseded — not a failure
+            // Superseded by a newer save: do NOT roll back. A newer optimistic
+            // value is already in the store and rolling back would fight it.
+            if error.isCancellationError { return false }
+            rollBack(folderId: folderId, to: previous, sequence: sequence)
             loadError = error.localizedDescription
             log.error("Canvas layout save failed: \(error.localizedDescription)")
             return false
+        }
+    }
+
+    /// Undo an optimistic publish that did not persist (#4410).
+    ///
+    /// LOUD by construction: every caller sets `loadError` alongside, so the
+    /// item visibly returns AND the reason is on screen. An optimistic value
+    /// left sitting there would look saved and silently disagree with the
+    /// server — the silent-fallback rule, applied to layout.
+    ///
+    /// Skipped when a newer save has started: that save owns the store now, and
+    /// restoring this one's `previous` would drag the card back from under it.
+    private func rollBack(folderId: String, to previous: [CanvasItemLayout]?, sequence: Int) {
+        guard saveSequence[folderId] == sequence else { return }
+        if let previous {
+            layouts[folderId] = previous
+        } else {
+            layouts[folderId] = nil
         }
     }
 
