@@ -45,7 +45,7 @@ from types import UnionType
 from typing import TYPE_CHECKING, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
 
 if TYPE_CHECKING:
-    from fichero_server.models import Workflow
+    from fichero_server.models import Artifact, Workflow
 from dataclasses import dataclass, field
 from datetime import datetime
 import difflib
