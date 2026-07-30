@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from fichero_server.db import Database
-from fichero_server.knowledge.knowledge_models import (
+from fichero_server.models.knowledge import (
     ClassificationDimension,
     ClassificationValue,
 )

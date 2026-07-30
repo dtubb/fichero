@@ -3,7 +3,7 @@
 Ported from the deprecated ``/api/knowledge-graph/entities/{merge,split,audit,semantic}``
 endpoints. Lives under ``/api/kg/entity-curation``. The audit table is
 what the Swift curation UI shows when displaying "Davidson absorbed
-3 aliases" — see EntityMergeAudit in knowledge_models.
+3 aliases" — see EntityMergeAudit in models.knowledge.
 """
 
 from __future__ import annotations

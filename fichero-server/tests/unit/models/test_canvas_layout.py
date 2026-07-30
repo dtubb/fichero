@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from fichero_server.api.routes.system.actions_registry import undo_action
 from fichero_server.db import Database
 from fichero_server.db.migrations.schema import migrate_canvas_layout_table
-from fichero_server.knowledge.knowledge_models import KnowledgeEntity
+from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.actions.registry import ActionContext, registry

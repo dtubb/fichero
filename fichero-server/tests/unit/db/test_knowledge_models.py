@@ -32,18 +32,32 @@ from fichero_server.models.knowledge import (
 )
 
 
-def test_knowledge_import_shims_share_public_models():
+def test_knowledge_package_shares_public_models():
+    """fichero_server.knowledge re-exports the canonical models.knowledge
+    classes as the SAME objects. The knowledge_models / hermeneutics_models
+    alias modules were deleted in #4078 — models.knowledge is the only path."""
+    import importlib
+
     from fichero_server import knowledge
     from fichero_server.knowledge import KnowledgeClaim as PackageKnowledgeClaim
     from fichero_server.knowledge import KnowledgeEntity as PackageKnowledgeEntity
-    from fichero_server.knowledge.knowledge_models import KnowledgeClaim as NewKnowledgeClaim
-    from fichero_server.knowledge.knowledge_models import KnowledgeEntity as NewKnowledgeEntity
 
     assert knowledge.KnowledgeClaim is KnowledgeClaim
     assert PackageKnowledgeClaim is KnowledgeClaim
-    assert NewKnowledgeClaim is KnowledgeClaim
     assert PackageKnowledgeEntity is KnowledgeEntity
-    assert NewKnowledgeEntity is KnowledgeEntity
+
+    for retired in (
+        "fichero_server.knowledge.knowledge_models",
+        "fichero_server.knowledge.hermeneutics_models",
+        "fichero_server.db.core",
+        "fichero_server.llm.core",
+        "fichero_server.models.core",
+    ):
+        try:
+            importlib.import_module(retired)
+        except ModuleNotFoundError:
+            continue
+        raise AssertionError(f"retired compatibility facade still importable: {retired}")
 
 
 class TestSourceMetadata:
