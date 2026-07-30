@@ -1,6 +1,20 @@
 import SwiftUI
 
 extension SidebarItemRow {
+    /// Whether THIS row is the routed selection. Read from the same
+    /// `selectedItemId` binding the row already owns — not a second notion of
+    /// what is selected (#4371).
+    var isRowSelected: Bool {
+        selectedItemId == item.id
+    }
+
+    /// The label treatment, from the app's one selection vocabulary (#4371).
+    /// Applied explicitly so the row can never inherit the native emphasized
+    /// selection's white-and-bold inversion.
+    var rowLabelStyle: LibrarySelectionStyle.SidebarRowLabel {
+        LibrarySelectionStyle.sidebarLabel(isSelected: isRowSelected)
+    }
+
     var itemLabel: some View {
         // Manual HStack instead of `Label { ... } icon: { ... }`:
         // SwiftUI's `Label` registers its inner `Text` as an
@@ -10,9 +24,10 @@ extension SidebarItemRow {
         // SidebarDragID Transferable). Composing the row with a
         // plain `HStack { Image; Text }` keeps the visual identical
         // but lets the row container's `.draggable` be the sole
-        // drag source (#711). Sidebar selection styling (white-on-
-        // accent for selected row) still works because we're inside
-        // `.listStyle(.sidebar)` and use `.foregroundStyle(.primary)`.
+        // drag source (#711). Selection styling is applied EXPLICITLY
+        // below rather than inherited: the native source-list treatment
+        // paints white-on-accent and bolds the label, which is the
+        // #4371 complaint, not the goal.
         HStack(spacing: 6) {
             iconView
                 .allowsHitTesting(false)
@@ -21,6 +36,13 @@ extension SidebarItemRow {
             } else {
                 Text(item.name)
                     .lineLimit(1)
+                    // #4371: state the label's colour and weight rather than
+                    // inheriting them. The native emphasized source-list
+                    // selection forces white and bolds the text; Finder and
+                    // Mail leave the label alone and let the row's fill carry
+                    // the selection. These two modifiers ARE that difference.
+                    .foregroundStyle(rowLabelStyle.color)
+                    .fontWeight(rowLabelStyle.weight)
                     .allowsHitTesting(false)
                 // `.allowsHitTesting(false)` on the Text (and Image) is
                 // critical: SwiftUI `Text` on macOS registers itself as
@@ -135,6 +157,10 @@ extension SidebarItemRow {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.8)
+                    // The List's tint is the selection FILL colour (#4371);
+                    // restate the accent here so an in-flight row still spins
+                    // in the user's accent rather than inheriting grey.
+                    .tint(.accentColor)
             }
             .frame(width: 20, height: 20)
         } else if documentIsProcessing {
@@ -148,6 +174,9 @@ extension SidebarItemRow {
                 .controlSize(.small)
                 .scaleEffect(0.8)
                 .frame(width: 16, alignment: .center)
+                // See above (#4371): the List tint is a fill colour, not an
+                // accent, so progress restates its own.
+                .tint(.accentColor)
         } else if case .document(let doc) = item.itemType,
                   let badge = ingestBadge(for: doc) {
             // #603: visible per-mode badges driven by metadata.ingest_mode
