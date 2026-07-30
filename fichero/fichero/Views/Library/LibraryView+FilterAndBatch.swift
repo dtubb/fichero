@@ -364,19 +364,35 @@ extension LibraryView {
         .padding()
     }
 
+    /// Why this pane is empty, from the ONE mapping (#4403). Reading it here
+    /// rather than re-deriving in the body is what stops the body contradicting
+    /// the search header above it.
+    var emptyReason: LibraryEmptyReason {
+        LibraryEmptyReason.resolve(
+            isShowingEntities: isShowingEntitiesCollection,
+            filterText: searchText,
+            activeSearchQuery: activeSearchQuery,
+            hitCounts: searchHitCounts
+        )
+    }
+
     var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: isShowingEntitiesCollection ? "person.3.sequence" : "doc.text.magnifyingglass")
-                .font(.system(size: 48))
+        let reason = emptyReason
+        return VStack(spacing: 12) {
+            Image(systemName: reason.systemImage)
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
 
-            Text(isShowingEntitiesCollection ? "No Entities" : "No Documents")
+            Text(reason.title)
                 .font(.headline)
 
-            if !searchText.isEmpty {
-                Text("No results for \"\(searchText)\"")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+            Text(reason.message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+
+            if reason.offersClearFilter {
                 // Escape route — clicking a tag in a row could trap the
                 // user with a stuck filter and no visible filter bar
                 // (the user hit this with "Image"). Always offer Clear.
@@ -389,14 +405,6 @@ extension LibraryView {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .padding(.top, 4)
-            } else if isShowingEntitiesCollection {
-                Text("Select an entity to inspect it.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            } else {
-                Text("Select a collection to view documents")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

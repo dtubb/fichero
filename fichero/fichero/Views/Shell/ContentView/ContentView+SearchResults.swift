@@ -51,6 +51,21 @@ extension ContentView {
         viewMode = route.viewMode
     }
 
+    /// What the active search matched, per kind (#4403). The header already
+    /// counts all of these; this is how the grid's empty state gets to explain
+    /// a count it structurally cannot render.
+    var transientSearchHitCounts: SearchHitCounts {
+        guard let stats = transientSearchStore?.searchStats else {
+            return SearchHitCounts(documents: searchResultDocuments.count)
+        }
+        return SearchHitCounts(
+            documents: searchResultDocuments.count,
+            artifacts: stats.artifactHits.count,
+            entities: stats.entityHits.count,
+            claims: stats.claimHits.count
+        )
+    }
+
     var transientSearchStore: SearchStore? {
         (LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary)?.searchStore

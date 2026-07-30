@@ -48,6 +48,15 @@ struct LibraryView: View {
     /// Sidebar-parity Add to Chat (#4121): the host opens chat scoped to the
     /// current selection; nil hides the menu item (previews, non-chat hosts).
     var onAddToChat: (() -> Void)?
+    /// The transient search this grid is showing results for, if any (#4403).
+    /// Non-nil means the empty state must talk about the SEARCH — never about
+    /// choosing a collection, which is what it used to fall back to under a
+    /// header reading "3 results for …".
+    var activeSearchQuery: String?
+    /// What that search matched, per kind. The grid can only render the
+    /// document leg, so these are how the body explains a header count it
+    /// cannot show.
+    var searchHitCounts: SearchHitCounts = SearchHitCounts()
 
     @State var searchText: String = ""
     /// Precomputed lowercased ⌘F search keys per docId (#3865). Rebuilt only when

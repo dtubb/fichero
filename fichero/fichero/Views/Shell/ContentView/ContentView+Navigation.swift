@@ -124,7 +124,12 @@ extension ContentView {
                 },
                 onAddToChat: {
                     openChatWithCurrentScope()
-                }
+                },
+                // #4403: the grid renders only the document leg, so it must be
+                // told what the search actually found — otherwise its empty
+                // state contradicts the header counting every kind.
+                activeSearchQuery: activeSearchQuery,
+                searchHitCounts: transientSearchHitCounts
             )
             // Keep the library surface inside the content column across every
             // preview/sidebar layout variant; without this, list/table rows can
