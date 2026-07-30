@@ -195,17 +195,22 @@ extension EntityDetailView {
         showingDeleteClaimsConfirmation = true
     }
 
-    /// Short human label for a claim in confirmation copy — SVO triple when
-    /// available, else the claim text. Mirrors EntityDigestView.provenanceSummary.
+    /// Short human label for a claim in confirmation copy.
+    ///
+    /// `groupSubject: nil` deliberately (#4393): this names ONE claim out of
+    /// any list context — "This removes the claim …" — so the subject is what
+    /// identifies it and must stay. The digest passes its entity instead. Same
+    /// composer, opposite answer, and the difference is now stated rather than
+    /// being two copies that drifted.
     private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
-        if let svo = ClaimSummaryCard.svoTriple(for: claim) {
-            return [svo.subject, svo.verb, svo.object]
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-                .joined(separator: " · ")
-        }
-        let fallback = claim.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return fallback.isEmpty ? "Untitled claim" : fallback
+        let svo = ClaimSummaryCard.svoTriple(for: claim)
+        return ClaimLine.text(
+            subject: svo?.subject,
+            verb: svo?.verb,
+            object: svo?.object,
+            fallback: claim.text,
+            groupSubject: nil
+        )
     }
 
     private func deleteSelectedClaims(_ claims: [Components.Schemas.KnowledgeClaim]) async {
