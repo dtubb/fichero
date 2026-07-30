@@ -83,6 +83,11 @@ final class BreadcrumbBuilderTests: XCTestCase {
         XCTAssertEqual(result, "Library")
     }
 
+    /// This test used to assert `"Library › Folder A › page_0004 › p.4"` —
+    /// which is #4416 in miniature, pinned as correct: the page contributed its
+    /// STORAGE name (`page_0004`) and the label was appended on top, so the
+    /// page appeared twice. The expectation is corrected, not the code
+    /// loosened.
     func testBuildBreadcrumbForLibraryModeWithPageLabel() {
         let folder = Document(id: "folder-1", name: "Folder A")
         let page = Document(id: "page-1", parentId: "folder-1", docType: .page, name: "page_0004", sequence: 4)
@@ -96,7 +101,8 @@ final class BreadcrumbBuilderTests: XCTestCase {
             parentLookup: lookup
         )
 
-        XCTAssertEqual(result, "Library › Folder A › page_0004 › p.4")
+        XCTAssertEqual(result, "Library › Folder A › Page 4")
+        XCTAssertFalse(result.contains("page_0004"), "a storage name is never user-facing")
     }
 
     func testBreadcrumbWithMissingParent() {
