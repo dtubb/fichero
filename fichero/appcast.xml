@@ -6,6 +6,46 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.07.29</title>
+            <pubDate>Wed, 29 Jul 2026 14:06:16 -0300</pubDate>
+            <sparkle:version>2026072901</sparkle:version>
+            <sparkle:shortVersionString>2026.07.29</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Dev build</h3>
+<p>Internal TestFlight + DMG dev prerelease cut from green <code>integration</code> — the
+first release gated end-to-end by the new serialized test harness (full unit,
+engine, transport-matrix, and UI-session legs all green).</p>
+<p><strong>Fixed</strong>
+- Sidebar rows no longer jump after the list loads; root ordering is stable.
+- Sidebar clicks are faster: the selection path uses an O(1) index instead of
+  re-walking the whole tree, prefetch batches its cache writes, and disclosure
+  toggles no longer trigger needless preference writes.
+- Folder selection and drops show a loading/importing state immediately
+  instead of a dead interval or a false "No Documents".
+- Import status can no longer stick at "5/5" after an import finishes.
+- Thumbnails: intermittent 500s fixed (alias sync is idempotent and atomic);
+  imported images now get thumbnails via a background derivative stage instead
+  of staying "Pending"; HEIC photos are supported.
+- Legacy .doc files that failed with "Malformed MiniFAT" now extract via a
+  fallback reader.
+- iCloud placeholder files are refused loudly at import instead of importing
+  as empty records.
+- Ingest and serving path rules are unified — anything importable is servable.
+- Canvas (2D/3D) view modes share the library selection with the list views.
+- Engine startup prints a transport diagnostic naming exactly what bound
+  where and what a client must set (ends the socket-path guessing game).</p>
+<p><strong>App icon</strong>
+- New Icon Composer app icon.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.07.29/Fichero.dmg"
+                length="534896462"
+                type="application/octet-stream"
+                sparkle:edSignature="0nHcZqLamDm7ASj8WoxMeDWNP8105TM1HEe1oUiLh5SOPLBQscXzBk9AapVXZEKUkl/Xd28GJ1dnDr3oC1nkBQ=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.26</title>
             <pubDate>Sun, 26 Jul 2026 23:42:28 -0300</pubDate>
             <sparkle:version>2026072601</sparkle:version>
