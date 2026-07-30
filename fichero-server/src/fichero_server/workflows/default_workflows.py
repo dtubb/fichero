@@ -172,23 +172,13 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
     existing_names = set(existing_by_name.keys())
     seeded = 0
 
-    # Resolve the built-in Apple Intelligence provider's id (if it exists)
-    # so presets can reference it via the "$APPLE_INTELLIGENCE" sentinel.
-    # Done once per seed call rather than per node. The Apple provider has
-    # a runtime-generated UUID so presets can't hardcode it directly —
-    # the sentinel + late-binding resolves to the actual id at install time.
-    apple_provider_id = _resolve_apple_intelligence_id()
-
     for preset in presets:
         name = preset.get("name")
         if not name or name in existing_names:
             continue
 
         try:
-            nodes = _expand_provider_sentinels(
-                list(preset.get("nodes", [])),
-                apple_provider_id=apple_provider_id,
-            )
+            nodes = list(preset.get("nodes", []))
             workflow = Workflow(
                 name=name,
                 description=preset.get("description", ""),
@@ -211,61 +201,6 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
             logger.error(f"Failed to seed preset '{name}': {exc}")
 
     return seeded
-
-
-def _resolve_apple_intelligence_id() -> str | None:
-    """Resolve the sentinel '$APPLE_INTELLIGENCE' to the id the Swift
-    workflow editor uses when comparing node.provider_name to the
-    /api/chat/providers list.
-
-    Important: the chat/providers endpoint returns provider TYPES as IDs
-    for built-in providers (id="apple"), NOT the actual app_db UUIDs.
-    So the resolved sentinel must be the provider_type string, not
-    Provider.id from app_db. (A round-trip mismatch exposed this —
-    inspecting workflow DB showed UUID, but popover lookup never matched
-    because providers list returns "apple".)
-
-    Returns None if Apple Intelligence isn't enabled in app_db so the
-    sentinel survives in the preset and the user picks manually.
-    """
-    try:
-        from fichero_server.db.app import get_app_db
-        from fichero_server.models import ProviderType
-        app_db = get_app_db()
-        for provider in app_db.list_providers():
-            if provider.provider_type == ProviderType.apple:
-                # Return the provider_type ENUM VALUE — that's what the
-                # chat/providers endpoint exposes as the provider id.
-                return ProviderType.apple.value  # "apple"
-    except Exception as exc:
-        logger.warning(f"Apple Intelligence id lookup failed: {exc}")
-    return None
-
-
-def _expand_provider_sentinels(
-    nodes: list[dict],
-    apple_provider_id: str | None,
-) -> list[dict]:
-    """Replace '$APPLE_INTELLIGENCE' sentinel in each node's provider_name
-    with the resolved Apple Intelligence provider id. Sentinel comes from
-    preset JSON (catalogue_apple_vision.json) so the on-device workflow
-    pre-selects Apple Intelligence on every LLM node out of the box.
-    """
-    if not apple_provider_id:
-        # No Apple provider seeded yet — leave sentinel; the workflow will
-        # show "Select provider..." and the user picks Apple Intelligence
-        # manually after launch (still better than today: at least the user
-        # knows which provider to pick).
-        return nodes
-    expanded = []
-    for node in nodes:
-        if isinstance(node, dict) and node.get("provider_name") == "$APPLE_INTELLIGENCE":
-            new_node = dict(node)
-            new_node["provider_name"] = apple_provider_id
-            expanded.append(new_node)
-        else:
-            expanded.append(node)
-    return expanded
 
 
 def heal_default_workflow_tree(db: "Database") -> int:

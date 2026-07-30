@@ -161,6 +161,40 @@ class TestListWorkflows:
         assert by_name["Internal Child"]["direct_runnable"] is False
         assert by_name["Direct Workflow"]["direct_runnable"] is True
 
+    def test_list_marks_internal_flagged_presets_not_directly_runnable(self, client, db):
+        """#4324: config.internal excludes a component from Run menus by flag,
+        regardless of folder placement or whether it declares a contract."""
+        _make_workflow(
+            db,
+            "Flagged Component",
+            is_system=True,
+            config={"internal": True},
+        )
+        _make_workflow(db, "Plain Preset", is_system=True, config={})
+
+        response = client.get("/api/workflows")
+
+        assert response.status_code == 200
+        by_name = {item["name"]: item for item in response.json()["items"]}
+        assert by_name["Flagged Component"]["direct_runnable"] is False
+        assert by_name["Plain Preset"]["direct_runnable"] is True
+
+    def test_shipped_spanish_script_child_is_internal(self):
+        """The Spanish Script v2 child passes preset is a component (#4324)."""
+        import json as _json
+        from pathlib import Path
+
+        from fichero_server.workflows import default_workflows
+
+        path = (
+            Path(default_workflows.__file__).resolve().parent.parent
+            / "resources"
+            / "default_workflows"
+            / "transcribe_spanish_script_v2_child.json"
+        )
+        preset = _json.loads(path.read_text(encoding="utf-8"))
+        assert preset["config"]["internal"] is True
+
 
 # ---------------------------------------------------------------------------
 # POST /api/workflows — create

@@ -14,8 +14,10 @@
     "two-pass"
   ],
   "config": {
-    "preset_version": 5,
-    "tested": true
+    "preset_version": 6,
+    "tested": true,
+    "variant_group": "transcribe-two-pass",
+    "variant": "htr"
   },
   "nodes": [
     {

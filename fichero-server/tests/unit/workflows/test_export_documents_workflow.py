@@ -236,3 +236,75 @@ async def test_export_documents_eleventy_alongside_other_formats(tmp_path: Path)
     export_dir = destination / "Export Folder"
     assert (export_dir / "Export Folder_markdown" / "index.md").exists()
     assert (export_dir / "Export Folder_site" / "package.json").exists()
+
+
+def test_export_preset_declares_a_real_source_node():
+    """#4324(c): the Export preset must not depend solely on the
+    selected_doc_ids side-channel — it wires Files → Export explicitly."""
+    preset = next(
+        p
+        for p in _load_preset_files()
+        if p["name"] == "Export to Desktop (MD + DOCX + XLSX)"
+    )
+    tools = {n["tool"] for n in preset["nodes"]}
+    assert "files" in tools, "Export preset lost its source node"
+    edges = preset["edges"]
+    assert any(
+        e["source"] == "files-source"
+        and e["target"] == "export-documents"
+        and e["target_port"] == "documents"
+        for e in edges
+    ), edges
+
+
+@pytest.mark.asyncio
+async def test_export_documents_uses_documents_port_without_selection(tmp_path: Path):
+    """#4324(c): with no UI selection, the wired documents input drives the
+    export target instead of silently exporting the whole library."""
+    from fichero_server.workflows.tools.export_documents import export_documents
+
+    library_path, folder_id, _parent_id = _seed_library(tmp_path)
+    destination = tmp_path / "port-driven"
+    state = build_initial_state({"selected_doc_ids": []}, library_path=str(library_path))
+    state["task_id"] = "export-port-driven"
+
+    result = await export_documents(
+        inputs={
+            "documents": [{"id": folder_id, "name": "Export Folder"}],
+            "formats": ["markdown"],
+            "destination": str(destination),
+        },
+        state=state,
+        llm_config=None,
+    )
+
+    assert not result.get("error")
+    assert result["count"] > 0
+    assert (destination / "Export Folder" / "Export Folder_markdown" / "index.md").exists()
+
+
+@pytest.mark.asyncio
+async def test_export_documents_selection_still_wins_over_documents_port(tmp_path: Path):
+    """A UI folder selection names the FOLDER; expanded upstream documents
+    must not override it (#4324)."""
+    from fichero_server.workflows.tools.export_documents import export_documents
+
+    library_path, folder_id, parent_id = _seed_library(tmp_path)
+    destination = tmp_path / "selection-wins"
+    state = build_initial_state(
+        {"selected_doc_ids": [folder_id]}, library_path=str(library_path)
+    )
+    state["task_id"] = "export-selection-wins"
+
+    result = await export_documents(
+        inputs={
+            "documents": [{"id": parent_id, "name": "Not The Target"}],
+            "formats": ["markdown"],
+            "destination": str(destination),
+        },
+        state=state,
+        llm_config=None,
+    )
+
+    assert not result.get("error")
+    assert (destination / "Export Folder").exists()

@@ -486,6 +486,15 @@ class EdgeDef(BaseModel):
         default=None,
         description="Maps resolved route_key values to target node IDs (e.g. {'typescript': 'transcribe-ts'})",
     )
+    route_files_source: str | None = Field(
+        default=None,
+        description=(
+            "Explicit SOURCE node id whose files drive per-file fan-out for "
+            "route_map targets (#4324). When set, the builder uses this node "
+            "instead of inferring the files source by walking one hop "
+            "upstream of the routing node."
+        ),
+    )
 
     # Visual styling
     animated: bool = False  # Show animated flow

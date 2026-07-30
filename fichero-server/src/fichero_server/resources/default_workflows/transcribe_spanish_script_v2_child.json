@@ -16,7 +16,8 @@
     "v2"
   ],
   "config": {
-    "preset_version": 1,
+    "preset_version": 2,
+    "internal": true,
     "input_contract": [
       {
         "id": "files",

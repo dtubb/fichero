@@ -7,6 +7,7 @@ child workflows through ``state["sub_workflows"]`` without touching the DB.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -17,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.resolver import resolve_value
 from fichero_server.workflows.types import DataType, PortDef, State, WorkflowDef
+
+logger = logging.getLogger(__name__)
 
 
 class SubWorkflowContractEntry(BaseModel):
@@ -100,11 +103,41 @@ def parse_sub_workflow_config(config: Mapping[str, Any]) -> SubWorkflowConfig:
     return SubWorkflowConfig.model_validate(dict(config))
 
 
-def resolve_sub_workflow_ref(workflow_ref: str, state: State | None = None) -> WorkflowDef | None:
-    """Resolve a child workflow from injected state or shipped presets.
+def _resolve_from_library_db(workflow_ref: str, library_path: str) -> WorkflowDef | None:
+    """Resolve a child workflow from the library's workflow store (#4324).
 
-    The DB-backed resolver can be added later. For #2201, this keeps runtime
-    tests deterministic and lets #2202 compose shipped template JSON by name/id.
+    A user who edits a seeded sub-workflow component (e.g. tweaks the Spanish
+    Script child passes' prompts) edits the DB row — the shipped JSON is only
+    the install-time template. Resolution order within the DB: exact id, then
+    name match preferring the seeded (is_system/is_template) row, so a user's
+    same-named duplicate never hijacks a preset reference.
+    """
+    from fichero_server.db import db_manager
+    from fichero_server.models import Workflow
+    from fichero_server.workflows.runtime import to_workflow_def
+
+    db = db_manager.get_database(library_path)
+    stored = db.get(Workflow, workflow_ref)
+    if stored is None:
+        matches = [w for w in db.all(Workflow) if w.name == workflow_ref]
+        flagged = [
+            w
+            for w in matches
+            if getattr(w, "is_system", False) or getattr(w, "is_template", False)
+        ]
+        candidates = flagged or matches
+        stored = candidates[0] if candidates else None
+    if stored is None or not (getattr(stored, "nodes", None) or []):
+        return None
+    return to_workflow_def(stored)
+
+
+def resolve_sub_workflow_ref(workflow_ref: str, state: State | None = None) -> WorkflowDef | None:
+    """Resolve a child workflow: injected state, then DB, then shipped presets.
+
+    The DB step (#4324) makes user edits to a sub-workflow component take
+    effect when the parent runs; shipped JSON remains the fallback so a
+    library without the seeded row (or with it deleted) still resolves.
     """
 
     injected = (state or {}).get("sub_workflows")  # type: ignore[typeddict-item]
@@ -114,6 +147,20 @@ def resolve_sub_workflow_ref(workflow_ref: str, state: State | None = None) -> W
             return candidate
         if isinstance(candidate, Mapping):
             return WorkflowDef.model_validate(candidate)
+
+    library_path = str((state or {}).get("library_path") or "")
+    if library_path:
+        try:
+            resolved = _resolve_from_library_db(workflow_ref, library_path)
+            if resolved is not None:
+                return resolved
+        except Exception as exc:
+            logger.warning(
+                "Sub-workflow DB resolution failed for %r (%s); "
+                "falling back to shipped presets",
+                workflow_ref,
+                exc,
+            )
 
     try:
         from fichero_server.workflows.default_workflows import _load_preset_files

@@ -63,6 +63,18 @@ EXPORT_DOCUMENTS_CONFIG = {
             required=False,
             description="Folder/document ID to export. Uses workflow selection when omitted.",
         ),
+        PortDef(
+            id="documents",
+            name="Documents",
+            port_type="input",
+            data_type=DataType.JSON,
+            required=False,
+            description=(
+                "Upstream document metadata (e.g. from a Files source node). "
+                "Used as the export target when neither source_id nor a UI "
+                "selection is present."
+            ),
+        ),
     ],
     output_ports=[
         PortDef(
@@ -107,7 +119,11 @@ async def export_documents(
         or "~/Desktop"
     ).strip()
 
-    source_id = inputs.get("source_id") or _resolve_source_id(state)
+    source_id = (
+        inputs.get("source_id")
+        or _resolve_source_id(state)
+        or _first_document_id(inputs.get("documents"))
+    )
 
     library_path = state.get("library_path", "")
     if not library_path:
@@ -184,6 +200,22 @@ async def export_documents(
         written.extend(str(a.path) for a in result.assets)
 
     return {"files": written, "count": len(written)}
+
+
+def _first_document_id(documents: Any) -> str | None:
+    """Return the first upstream document id, if any (#4324).
+
+    The UI selection (state.selected_doc_ids) still wins when present — for a
+    folder selection it names the FOLDER itself, while upstream source nodes
+    expand a folder to its file descendants. The documents port makes the
+    export runnable as a wired graph node when there is no UI selection.
+    """
+    if not isinstance(documents, list):
+        return None
+    for doc in documents:
+        if isinstance(doc, dict) and doc.get("id"):
+            return str(doc["id"])
+    return None
 
 
 def _resolve_source_id(state: State) -> str | None:

@@ -168,8 +168,17 @@ def _workflow_untested(wf) -> bool:
 
 
 def _workflow_direct_runnable(wf) -> bool:
-    """Sub-workflow components require contract inputs, not document selection."""
-    return not bool((getattr(wf, "config", None) or {}).get("input_contract"))
+    """Internal components are not directly runnable from Run menus.
+
+    Two markers, either one excludes the workflow:
+    - ``config.internal`` — explicit flag on preset components (#4324); the
+      component is only meaningful when invoked by a parent ``sub_workflow``
+      node, regardless of where it lives in the folder tree.
+    - ``config.input_contract`` — sub-workflow components require contract
+      inputs, not document selection.
+    """
+    config = getattr(wf, "config", None) or {}
+    return not bool(config.get("internal") or config.get("input_contract"))
 
 
 class WorkflowListResponse(BaseModel):
