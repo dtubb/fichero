@@ -371,7 +371,11 @@ private struct ToolbarSearchableModifier: ViewModifier {
             .searchable(
                 text: $text,
                 placement: .automatic,
-                prompt: mode == .ask ? "Ask your library" : "Search"
+                // Always "Search" (#4361): the placeholder names the control,
+                // not a capability. The Ask scope below advertises that the
+                // field also takes plain-language questions; a placeholder
+                // describing a different feature makes the control unguessable.
+                prompt: "Search"
             )
             .searchScopes($mode) {
                 Label("Ask", systemImage: "sparkles").tag(SearchFieldMode.ask)

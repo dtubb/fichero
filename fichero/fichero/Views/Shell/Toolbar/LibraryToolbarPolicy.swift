@@ -29,12 +29,12 @@ struct LibraryPaneToggleModel: Equatable {
     /// preview/reading toggles.
     var title: String { "Library Pane" }
 
-    /// Filled-inset rectangle when shown, empty rectangle when hidden — the same
-    /// visual grammar the preview-pane toggle already uses, but leading-half so
-    /// it reads as the list column on the left.
-    var systemImage: String {
-        isVisible ? "rectangle.leadinghalf.inset.filled" : "rectangle"
-    }
+    /// ONE constant, position-encoded glyph (#4360). Visibility state is the
+    /// native `Toggle` on-state on the toolbar's glass, not a glyph swap: the
+    /// half-inset family has no outline variant, so the old hidden state fell
+    /// back to a bare `rectangle` — the same bare `rectangle` the preview-pane
+    /// toggle used, two meanings on one symbol.
+    var systemImage: String { ToolbarSymbols.libraryPane }
 
     /// The button is disabled only when hiding is refused by the invariant.
     var isEnabled: Bool { isVisible ? canHide : true }
@@ -89,7 +89,7 @@ struct LibrarySortMenuModel: Equatable {
     /// opening the menu (Finder shows the same).
     var label: String { selectedField.rawValue }
 
-    var systemImage: String { "arrow.up.arrow.down" }
+    var systemImage: String { ToolbarSymbols.sortMenu }
 
     /// Direction indicator drawn beside the checked field.
     var directionSystemImage: String { ascending ? "arrow.up" : "arrow.down" }
@@ -112,9 +112,9 @@ struct LibraryFilterToggleModel: Equatable {
 
     var title: String { "Filter" }
 
-    var systemImage: String {
-        isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle"
-    }
+    /// ONE constant glyph (#4360); the active state is the native `Toggle`
+    /// on-state, consistent with the pane toggles.
+    var systemImage: String { ToolbarSymbols.filter }
 
     var nextActive: Bool { !isActive }
 

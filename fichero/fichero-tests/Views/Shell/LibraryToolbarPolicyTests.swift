@@ -32,7 +32,10 @@ final class LibraryToolbarPolicyTests: XCTestCase {
         )
 
         XCTAssertFalse(model.isVisible)
-        XCTAssertEqual(model.systemImage, "rectangle")
+        // Hidden state keeps the SAME position-encoded glyph (#4360): the old
+        // bare-`rectangle` fallback collided with the preview pane's hidden
+        // state — two meanings on one symbol.
+        XCTAssertEqual(model.systemImage, ToolbarSymbols.libraryPane)
         XCTAssertTrue(model.nextVisibility, "a hidden pane toggles to visible")
         XCTAssertTrue(model.isEnabled, "showing a pane is always allowed")
         XCTAssertTrue(model.help.contains("Show"))
@@ -177,12 +180,14 @@ final class LibraryToolbarPolicyTests: XCTestCase {
 
     func testFilterToggleReflectsAndInvertsTheBarState() {
         let inactive = LibraryFilterToggleModel(isAvailable: true, isActive: false)
-        XCTAssertEqual(inactive.systemImage, "line.3.horizontal.decrease.circle")
+        XCTAssertEqual(inactive.systemImage, ToolbarSymbols.filter)
         XCTAssertTrue(inactive.nextActive)
         XCTAssertTrue(inactive.help.contains("Filter"))
 
+        // ONE constant glyph (#4360): the active state is the native Toggle
+        // on-state, not a `.fill` variant swap.
         let active = LibraryFilterToggleModel(isAvailable: true, isActive: true)
-        XCTAssertEqual(active.systemImage, "line.3.horizontal.decrease.circle.fill")
+        XCTAssertEqual(active.systemImage, ToolbarSymbols.filter)
         XCTAssertFalse(active.nextActive)
         XCTAssertTrue(active.help.contains("Hide"))
     }

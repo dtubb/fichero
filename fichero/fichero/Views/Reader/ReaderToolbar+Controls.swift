@@ -19,7 +19,7 @@ extension ReaderToolbar {
             Button {
                 closePane()
             } label: {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: ToolbarSymbols.closePane)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)

@@ -50,7 +50,8 @@ struct ReadingPaneView: View {
     }
 
     /// In-reader find (#4338): per-pane query + match navigation, driven from
-    /// the bottom filter bar and executed inside the shared WebKit surface.
+    /// the shared filter bar (top on Mac, bottom on touch — #4362) and
+    /// executed inside the shared WebKit surface.
     @State var searchState = ReaderSearchState()
     @State var isPinned = false
     @State private var pinnedDocument: Document?
@@ -98,11 +99,20 @@ struct ReadingPaneView: View {
             SurfaceTabBar(tabs: ReaderTab.allCases, selection: readerTabBinding)
             Divider()
 
+            // In-reader find (#4338): the shared filter bar hosts the find
+            // field — match count + prev/next drive the WebKit highlight. Its
+            // edge is the component's ONE platform decision (#4362): top on the
+            // Mac (controls near the head of the content), bottom on touch
+            // platforms (reachability). Behaviour is identical on both edges.
+            if MiniToolbarPlacement.preferredForReader == .top {
+                PaneFilterBar(placement: .top) { readerFindBar }
+            }
+
             readerTabContent
 
-            // In-reader find (#4338): the pane's bottom filter bar hosts the
-            // find field — match count + prev/next drive the WebKit highlight.
-            PaneFilterBar { readerFindBar }
+            if MiniToolbarPlacement.preferredForReader == .bottom {
+                PaneFilterBar(placement: .bottom) { readerFindBar }
+            }
 
             // Bottom-anchored mini-toolbar (#3060 / #2670): close/title/zoom/pin
             // now sit at the bottom, matching every other pane bar.
@@ -115,7 +125,11 @@ struct ReadingPaneView: View {
                     Button {
                         closePane()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
+                        // `xmark`, not `xmark.circle.fill` (#4360): the circled
+                        // fill is the platform's clear-a-text-field affordance
+                        // and the reader find bar uses it for exactly that —
+                        // closing a pane must not wear the same glyph.
+                        Image(systemName: ToolbarSymbols.closePane)
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
@@ -163,8 +177,8 @@ struct ReadingPaneView: View {
                         isPinned = true
                     }
                 } label: {
-                    Image(systemName: isPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 11))
+                    Image(systemName: isPinned ? "pin.fill" : ToolbarSymbols.pin)
+                        .imageScale(.small)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)

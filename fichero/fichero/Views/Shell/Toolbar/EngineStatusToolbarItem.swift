@@ -51,7 +51,7 @@ struct EngineStatusToolbarItem: View {
                 Button {
                     showPopover = true
                 } label: {
-                    Image(systemName: "exclamationmark.triangle.fill")
+                    Image(systemName: ToolbarSymbols.engineProblem)
                         .foregroundStyle(.orange)
                 }
                 .buttonStyle(.plain)
@@ -65,7 +65,7 @@ struct EngineStatusToolbarItem: View {
                 Button {
                     showPopover = true
                 } label: {
-                    Image(systemName: "bolt.horizontal.circle")
+                    Image(systemName: ToolbarSymbols.engineReady)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
