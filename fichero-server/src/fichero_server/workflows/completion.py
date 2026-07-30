@@ -95,6 +95,11 @@ def collect_processed_document_ids(final_state: Any) -> set[str]:
     return ids
 
 
+# Terminal outcomes finalize_run_documents accepts. "completed" advances the
+# run's documents; "failed"/"cancelled" revert them so nothing spins forever.
+FINAL_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
+
+
 def complete_run_documents(
     db: Any,
     document_ids: set[str],
@@ -102,22 +107,48 @@ def complete_run_documents(
 ) -> int:
     """Advance the run's documents (and their page children) to ``completed``.
 
-    Only documents currently in ``Status.processing`` are advanced. Documents a
-    content tool never touched (e.g. a KG-only run over already-transcribed
-    docs, which stay ``completed``) keep whatever status they had. Returns the
-    number of documents updated (for logging / tests).
+    Success-path wrapper around :func:`finalize_run_documents` (kept for the
+    existing runner/batch call sites and tests).
     """
+    return finalize_run_documents(db, document_ids, "completed", workflow_run)
+
+
+def finalize_run_documents(
+    db: Any,
+    document_ids: set[str],
+    final_status: str,
+    workflow_run: Any | None = None,
+) -> int:
+    """Settle the run's documents (and their page children) at a terminal
+    boundary — EVERY terminal path must call this (#4315).
+
+    - ``final_status="completed"``: documents in ``Status.processing`` advance
+      to ``completed`` (and explicitly-targeted ``pending`` parents, #2219).
+    - ``final_status="failed"`` / ``"cancelled"``: documents left in
+      ``Status.processing`` revert to ``pending`` so no document keeps a
+      permanent spinner; the provenance entry still records the outcome.
+
+    Documents a content tool never touched keep whatever status they had.
+    Returns the number of documents updated. Raises ``ValueError`` on an
+    unknown ``final_status`` — never silently guesses an outcome.
+    """
+    if final_status not in FINAL_STATUSES:
+        raise ValueError(
+            f"finalize_run_documents: unknown final_status {final_status!r} "
+            f"(expected one of {sorted(FINAL_STATUSES)})"
+        )
     if not document_ids:
         return 0
 
     from fichero_server.models import Document, Status
 
+    success = final_status == "completed"
     workflow_run_entry = _normalize_workflow_run(workflow_run)
 
     updated = 0
     changed_ids: list[str] = []
 
-    def _complete(doc: Any, explicit: bool = False) -> None:
+    def _finalize(doc: Any, explicit: bool = False) -> None:
         nonlocal updated
         if doc is None:
             return
@@ -125,9 +156,9 @@ def complete_run_documents(
         changed = False
         current_status = getattr(doc, "status", None)
         if current_status == Status.processing:
-            doc.status = Status.completed
+            doc.status = Status.completed if success else Status.pending
             changed = True
-        elif explicit and current_status == Status.pending:
+        elif success and explicit and current_status == Status.pending:
             # A parent file doc targeted via per-page fan-out is never touched
             # by save_artifact (which only sees page child IDs), so its status
             # stays pending even though all its children were processed (#2219).
@@ -150,21 +181,21 @@ def complete_run_documents(
 
     for doc_id in document_ids:
         try:
-            _complete(db.get(Document, doc_id), explicit=True)
+            _finalize(db.get(Document, doc_id), explicit=True)
             # Page children (PDF pages) may have been set to processing during
             # the run even when only the parent id surfaced in the outputs. The
             # processing guard leaves untouched siblings (e.g. unprocessed
             # folder members still pending) alone.
             for child in db.query(Document, parent_id=doc_id):
-                _complete(child)
+                _finalize(child)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning(
-                "complete_run_documents: %s failed: %s", doc_id, exc
+                "finalize_run_documents: %s failed: %s", doc_id, exc
             )
 
     if updated:
         logger.info(
-            "Workflow completion: marked %d document(s) completed", updated
+            "Workflow %s boundary: settled %d document(s)", final_status, updated
         )
 
     # Broadcast the terminal status to the library change-stream so the UI's
@@ -190,7 +221,7 @@ def complete_run_documents(
             )
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning(
-                "complete_run_documents: change-stream emit failed "
+                "finalize_run_documents: change-stream emit failed "
                 "(documents persisted; UI will refresh on reload): %s",
                 exc,
             )

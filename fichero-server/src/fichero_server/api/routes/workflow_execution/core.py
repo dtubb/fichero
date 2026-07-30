@@ -488,6 +488,42 @@ async def resume_workflow(
         # with None / new inputs.
         resume_arg = _resume_argument(request)
         resume_started_at = datetime.now(timezone.utc)
+
+        def _finalize_resume_documents(
+            state_for_docs: Any, final_status: str, **result_extra: Any
+        ) -> None:
+            """#4315: a resumed run hits the SAME document boundary as a live
+            run — success completes the run's documents, failure reverts
+            processing → pending. Best-effort, never masks the outcome."""
+            try:
+                from fichero_server.workflows.completion import (  # noqa: PLC0415
+                    collect_processed_document_ids,
+                    finalize_run_documents,
+                )
+
+                finalize_run_documents(
+                    db,
+                    collect_processed_document_ids(state_for_docs or {}),
+                    final_status,
+                    workflow_run={
+                        "thread_id": thread_id,
+                        "workflow_id": workflow_id,
+                        "workflow_name": workflow.name,
+                        "provider": workflow.provider,
+                        "model": workflow.model,
+                        "result": {"status": final_status, **result_extra},
+                        "started_at": resume_started_at,
+                        "completed_at": datetime.now(timezone.utc),
+                    },
+                )
+            except Exception as finalize_exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "Resume document finalize (%s) failed for %s: %s",
+                    final_status,
+                    thread_id,
+                    finalize_exc,
+                )
+
         try:
             final_state = await app.ainvoke(resume_arg, config=config)
         except Exception as resume_exc:
@@ -508,6 +544,20 @@ async def resume_workflow(
                 duration_ms=duration_ms,
                 completed_at=datetime.now(timezone.utc),
             )
+            # A failed resume must still settle the docs it left processing —
+            # use the latest checkpoint since ainvoke returned nothing.
+            try:
+                failed_tuple = await checkpointer.aget_tuple(config)
+                failed_state = (
+                    failed_tuple.checkpoint.get("channel_values")
+                    if failed_tuple
+                    else {}
+                )
+            except Exception:
+                failed_state = {}
+            _finalize_resume_documents(
+                failed_state, "failed", error=str(resume_exc)[:500]
+            )
             raise
 
         # Get latest checkpoint
@@ -525,6 +575,9 @@ async def resume_workflow(
             duration_ms=duration_ms,
             completed_at=datetime.now(timezone.utc),
         )
+        # #4315: resume-to-completion completes the run's documents, exactly
+        # like the live runner's success boundary.
+        _finalize_resume_documents(final_state, "completed")
 
         return ExecutionStatusResponse(
             thread_id=thread_id,

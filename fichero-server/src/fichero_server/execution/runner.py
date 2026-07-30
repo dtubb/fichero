@@ -643,6 +643,75 @@ async def _run_workflow_in_background(
             )
         )
 
+    # Predeclared so the terminal-path document finalizer (#4315) can reach the
+    # checkpointer/config even when the failure happened before graph build.
+    checkpointer = None
+    config: dict[str, Any] = {
+        "configurable": {
+            "thread_id": thread_id,
+            "checkpoint_ns": request.checkpoint_ns,
+        }
+    }
+
+    async def _finalize_documents(final_status: str, **result_extra: Any) -> None:
+        """Settle this run's documents on a non-success terminal path (#4315).
+
+        Cancelled/failed runs used to skip complete_run_documents entirely,
+        stranding every touched document at Status.processing forever.
+        Best-effort: a finalize failure must never mask the terminal outcome.
+        """
+        try:
+            from fichero_server.workflows.completion import (  # noqa: PLC0415
+                collect_processed_document_ids,
+                finalize_run_documents,
+            )
+
+            terminal_state: dict[str, Any] = {}
+            if checkpointer is not None:
+                try:
+                    tup = await checkpointer.aget_tuple(config)
+                    if tup:
+                        terminal_state = (
+                            tup.checkpoint.get("channel_values") or {}
+                        )
+                except Exception as ckpt_exc:
+                    logger.warning(
+                        "finalize(%s): checkpoint read failed for %s: %s",
+                        final_status,
+                        thread_id,
+                        ckpt_exc,
+                    )
+            doc_ids = collect_processed_document_ids(terminal_state)
+            settled = finalize_run_documents(
+                db,
+                doc_ids,
+                final_status,
+                workflow_run={
+                    "thread_id": thread_id,
+                    "workflow_id": workflow_id,
+                    "workflow_name": workflow.name,
+                    "provider": workflow.provider,
+                    "model": workflow.model,
+                    "result": {"status": final_status, **result_extra},
+                    "started_at": start_time,
+                    "completed_at": datetime.now(timezone.utc),
+                },
+            )
+            if settled:
+                logger.info(
+                    "Run %s %s: settled %d document(s) out of processing",
+                    thread_id,
+                    final_status,
+                    settled,
+                )
+        except Exception as finalize_exc:  # pragma: no cover - defensive
+            logger.warning(
+                "Terminal document finalize (%s) failed for %s: %s",
+                final_status,
+                thread_id,
+                finalize_exc,
+            )
+
     try:
         # Mark as running
         state["status"] = "running"
@@ -1051,6 +1120,9 @@ async def _run_workflow_in_background(
                     * 1000,
                     completed_at=datetime.now(timezone.utc),
                 )
+                # #4315: cancelled runs must not strand documents at
+                # Status.processing — revert them to pending with provenance.
+                await _finalize_documents("cancelled", reason="user_requested")
                 return
 
             event_kind = event.get("event", "")
@@ -1516,6 +1588,8 @@ async def _run_workflow_in_background(
             error=failure_message,
             completed_at=datetime.now(timezone.utc),
         )
+        # #4315: failed runs revert their processing documents to pending.
+        await _finalize_documents("failed", error=str(e)[:500])
 
     except Exception as e:
         logger.exception(f"Background workflow error for {workflow_id}")
@@ -1561,6 +1635,8 @@ async def _run_workflow_in_background(
             error=str(e),
             completed_at=datetime.now(timezone.utc),
         )
+        # #4315: failed runs revert their processing documents to pending.
+        await _finalize_documents("failed", error=str(e)[:500])
 
     finally:
         # Signal end of stream

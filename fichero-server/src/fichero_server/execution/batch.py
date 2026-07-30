@@ -560,6 +560,50 @@ class BatchManager:
 
         async def execute_item(item: BatchItem):
             """Execute a single batch item."""
+
+            async def _settle_item_documents(final_status: str, **extra) -> None:
+                """#4315: failed/cancelled items must not strand their
+                documents at Status.processing — revert to pending with a
+                provenance entry. Best-effort."""
+                try:
+                    from fichero_server.db.manager import db_manager
+                    from fichero_server.workflows.completion import (
+                        collect_processed_document_ids,
+                        finalize_run_documents,
+                    )
+
+                    snapshot = await compiled_graph.aget_state(
+                        {"configurable": {"thread_id": item.thread_id}}
+                    )
+                    item_db = db_manager.get_database(
+                        str(Path(self.db_path).parent)
+                    )
+                    finalize_run_documents(
+                        item_db,
+                        collect_processed_document_ids(
+                            getattr(snapshot, "values", None)
+                        ),
+                        final_status,
+                        workflow_run={
+                            "thread_id": item.thread_id,
+                            "batch_id": batch_id,
+                            "item_index": item.item_index,
+                            "workflow_id": batch.workflow_id,
+                            "workflow_name": workflow_def.name,
+                            "result": {"status": final_status, **extra},
+                            "started_at": item.started_at,
+                            "completed_at": datetime.now(timezone.utc),
+                        },
+                    )
+                except Exception as settle_exc:
+                    logger.warning(
+                        "Batch %s item %s document finalize (%s) failed: %s",
+                        batch_id,
+                        item.item_index,
+                        final_status,
+                        settle_exc,
+                    )
+
             # Check for cancellation
             if self._cancel_events[batch_id].is_set():
                 item.status = BatchItemStatus.CANCELLED
@@ -590,6 +634,9 @@ class BatchManager:
                         # Check for pause/cancel during execution
                         if self._cancel_events[batch_id].is_set():
                             item.status = BatchItemStatus.CANCELLED
+                            item.completed_at = datetime.now(timezone.utc)
+                            # #4315: settle docs this item left processing.
+                            await _settle_item_documents("cancelled")
                             return
 
                     item.status = BatchItemStatus.COMPLETED
@@ -645,6 +692,8 @@ class BatchManager:
                     item.error = str(e)
                     item.completed_at = datetime.now(timezone.utc)
                     logger.error(f"Batch {batch_id} item {item.item_index} failed: {e}")
+                    # #4315: settle docs this item left processing.
+                    await _settle_item_documents("failed", error=str(e)[:500])
 
         # Execute items with progress tracking
         event_queue: asyncio.Queue[BatchEvent] = asyncio.Queue()
