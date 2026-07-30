@@ -169,6 +169,12 @@ extension DocumentKGPaneRoute {
     }
 
     private static func scrollSyncEventHandlers() -> String {
+        [scrollReportingScript(), pageActivationScript()].joined(separator: "\n")
+    }
+
+    /// Programmatic scroll-to-page, and reporting the page scrolled past.
+    /// Scrolling is reading, so this only ever posts `pageSelected`.
+    private static func scrollReportingScript() -> String {
         """
         window.ficheroScrollToPage = function(pageNumber, pageCount) {
             var count = pageCount || window.ficheroPageCount || 0;
@@ -205,6 +211,14 @@ extension DocumentKGPaneRoute {
                 if (page !== null) { postPage(page); }
             });
         }
+        """
+    }
+
+    /// Clicking a page, and installing both listeners. A click is an
+    /// instruction to select (#4373), which is why it posts a different
+    /// message kind from scrolling.
+    private static func pageActivationScript() -> String {
+        """
         // #4373: a click on a page is an instruction to select it; a scroll past
         // it is not. Separate message kind, because the app is allowed to move
         // the library selection and the preview for one and not the other
