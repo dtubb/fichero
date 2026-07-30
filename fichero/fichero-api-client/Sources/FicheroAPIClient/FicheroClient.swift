@@ -284,7 +284,7 @@ public final class FicheroClient: ObservableObject {
     /// per-instance state — so concurrent `FicheroClient`s can use different
     /// transports. `internal` (not `private`) so the transport-selection unit
     /// tests can assert the chosen concrete type.
-    static func makeTransport(
+    nonisolated static func makeTransport(
         session: URLSession? = nil,
         transportMode: TransportMode = .https,
         usage: TransportUsage = .request
