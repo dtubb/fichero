@@ -719,11 +719,26 @@ async def catalogue(
             for chunk_index, chunk_text in enumerate(chunk_summaries, 1):
                 if not chunk_text:
                     continue
+                # #4426: a STABLE type with the index in `data`, not
+                # `catalogue.chunk.{n}`.
+                #
+                # The old form made `artifact_type` an UNBOUNDED vocabulary —
+                # a new value per chunk, forever — which is what stopped the
+                # field being declared as an enum in the OpenAPI schema. That
+                # bare `str` is why #4418 could ship as two green commits and
+                # one dead feature: the generated Swift client exposes a
+                # String, so a server/client mismatch has nothing to fail
+                # against. A closed vocabulary makes that a compile error.
+                #
+                # Safe to change: nothing reads these — grepped across Python
+                # and Swift, they are written and never queried — and the
+                # rerun sweep above deletes by the `catalogue.` prefix, which
+                # matches both forms.
                 a = Artifact(
                     document_id=container.id,
-                    artifact_type=f"catalogue.chunk.{chunk_index}",
+                    artifact_type="catalogue.chunk",
                     content=chunk_text,
-                    data=None,
+                    data={"chunk_index": chunk_index},
                     provider=provider,
                     model=model,
                     run_id=run_id,
