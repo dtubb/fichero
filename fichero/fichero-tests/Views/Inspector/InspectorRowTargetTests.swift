@@ -67,14 +67,12 @@ struct InspectorRowTargetTests {
             let source = try Self.appSource(file)
             #expect(
                 source.contains(".inspectorListRowTarget()"),
-                "\(file) has a selectable row without the shared full-width target"
-            )
+                "\(file) has a selectable row without the shared full-width target")
             // The half-fix: a contentShape immediately before the row's tap,
             // with no stretch in between.
             #expect(
                 !source.contains(".contentShape(Rectangle())\n        .onTapGesture"),
-                "\(file) still shapes an unstretched row"
-            )
+                "\(file) still shapes an unstretched row")
         }
     }
 }

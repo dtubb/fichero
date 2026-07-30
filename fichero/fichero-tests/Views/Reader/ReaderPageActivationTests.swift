@@ -141,8 +141,7 @@ struct ReaderPageActivationTests {
                 )
                 #expect(
                     decision.sendsHighlight,
-                    "suppressed: \(suppressed), webDriving: \(webDriving)"
-                )
+                    "suppressed: \(suppressed), webDriving: \(webDriving)")
             }
         }
     }
@@ -301,21 +300,21 @@ struct ReaderPageActivationTests {
         ] {
             let source = try Self.appSource(coordinator)
             // The highlight goes out from the cursor sync…
-            #expect(source.contains("ReaderActivePageSync.decide("), coordinator)
-            #expect(source.contains("ReaderActivePageSync.highlightScript("), coordinator)
+            #expect(source.contains("ReaderActivePageSync.decide("), Comment(rawValue: coordinator))
+            #expect(source.contains("ReaderActivePageSync.highlightScript("), Comment(rawValue: coordinator))
             // …and the value is recorded only after the guard, never before it.
             let syncBody = source.components(separatedBy: "func syncActivePage(")[1]
             let guardIndex = syncBody.range(of: "guard decision.sendsHighlight")
             let recordIndex = syncBody.range(of: "lastActivePageNumber = parent.activePageNumber")
-            #expect(guardIndex != nil, coordinator)
-            #expect(recordIndex != nil, coordinator)
+            #expect(guardIndex != nil, Comment(rawValue: coordinator))
+            #expect(recordIndex != nil, Comment(rawValue: coordinator))
             if let guardIndex, let recordIndex {
-                #expect(guardIndex.lowerBound < recordIndex.lowerBound, coordinator)
+                #expect(guardIndex.lowerBound < recordIndex.lowerBound, Comment(rawValue: coordinator))
             }
             // The click handler must NOT set the highlight itself.
             let clickBody = source.components(separatedBy: "func handlePageActivated(")[1]
-            #expect(!clickBody.contains("setActivePage"), coordinator)
-            #expect(!clickBody.contains("highlightScript"), coordinator)
+            #expect(!clickBody.contains("setActivePage"), Comment(rawValue: coordinator))
+            #expect(!clickBody.contains("highlightScript"), Comment(rawValue: coordinator))
         }
     }
 
@@ -350,8 +349,8 @@ struct ReaderPageActivationTests {
             "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift",
         ] {
             let source = try Self.appSource(coordinator)
-            #expect(source.contains("case \"pageActivated\":"), coordinator)
-            #expect(source.contains("handlePageActivated(body)"), coordinator)
+            #expect(source.contains("case \"pageActivated\":"), Comment(rawValue: coordinator))
+            #expect(source.contains("handlePageActivated(body)"), Comment(rawValue: coordinator))
         }
     }
 

@@ -153,8 +153,7 @@ struct InspectorAttributeVisibilityTests {
         for section in ["Status", "Class", "File", "Content"] {
             #expect(
                 source.contains("attributeSection(\"\(section)\""),
-                "\(section) is attribute-only and must follow its rows"
-            )
+                "\(section) is attribute-only and must follow its rows")
         }
         // Sections that carry real content keep rendering unconditionally.
         #expect(source.contains("infoSection(\"Related Claims\")"))

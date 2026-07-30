@@ -71,11 +71,10 @@ struct StatusIslandMessageBudgetTests {
         for message in StatusIslandMessage.authoredMessages {
             #expect(
                 message.count <= StatusIslandMessage.budget,
-                "over budget (\(message.count) > \(StatusIslandMessage.budget)): \(message)"
-            )
+                "over budget (\(message.count) > \(StatusIslandMessage.budget)): \(message)")
             // And it must not need shortening — an authored string that only
             // fits BECAUSE shortForm clipped it has not been written short.
-            #expect(StatusIslandMessage.shortForm(message) == message, message)
+            #expect(StatusIslandMessage.shortForm(message) == message, Comment(rawValue: message))
         }
     }
 
@@ -104,8 +103,7 @@ struct StatusIslandMessageBudgetTests {
                         let island = resolve(enginePhase: phase, engineStatusTitle: mapped.shortTitle)
                         #expect(
                             island.text.count <= StatusIslandMessage.budget,
-                            "over budget: \(island.text)"
-                        )
+                            "over budget: \(island.text)")
                         #expect(!island.text.isEmpty)
                     }
                 }
@@ -140,7 +138,7 @@ struct StatusIslandMessageBudgetTests {
             resolve(isImporting: true, importProgress: long),
             resolve(backendWorkLabel: long),
         ] {
-            #expect(message.text.count <= StatusIslandMessage.budget, message.text)
+            #expect(message.text.count <= StatusIslandMessage.budget, Comment(rawValue: message.text))
             #expect(message.text.hasSuffix("…"))
         }
     }
@@ -208,8 +206,7 @@ struct StatusIslandMessageBudgetTests {
             for candidate in candidates {
                 #expect(
                     candidate.text.count <= StatusIslandMessage.budget,
-                    "over budget: \(candidate.text)"
-                )
+                    "over budget: \(candidate.text)")
                 // Never an empty island either — blank reads as "fine".
                 #expect(!candidate.text.isEmpty)
             }

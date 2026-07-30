@@ -101,7 +101,7 @@ struct ToolbarGroupingTests {
             "static let librarySortMenu =",
             "static let libraryFilterToggle",
         ] {
-            #expect(!source.contains(dead), dead)
+            #expect(!source.contains(dead), Comment(rawValue: dead))
         }
     }
 

@@ -218,24 +218,20 @@ struct ConnectionPresentationTests {
                         let mapped = status(phase, ownership, accessError: error, authBroken: authBroken)
                         #expect(
                             mapped.title.count <= ConnectionPresentation.titleBudget,
-                            "title over budget: \(mapped.title)"
-                        )
+                            "title over budget: \(mapped.title)")
                         // #4366: the island form is held to the island's own,
                         // much tighter budget.
                         #expect(
                             mapped.shortTitle.count <= ConnectionPresentation.islandBudget,
-                            "shortTitle over island budget: \(mapped.shortTitle)"
-                        )
+                            "shortTitle over island budget: \(mapped.shortTitle)")
                         #expect(!mapped.shortTitle.isEmpty)
                         #expect(
                             mapped.detail.count <= ConnectionPresentation.detailBudget,
-                            "detail over budget: \(mapped.detail)"
-                        )
+                            "detail over budget: \(mapped.detail)")
                         if let action = mapped.action {
                             #expect(
                                 action.title.count <= ConnectionPresentation.labelBudget,
-                                "label over budget: \(action.title)"
-                            )
+                                "label over budget: \(action.title)")
                         }
                     }
                 }

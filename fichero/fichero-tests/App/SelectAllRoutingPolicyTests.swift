@@ -49,7 +49,7 @@ struct SelectAllRoutingPolicyTests {
                 isTextEditing: row.isTextEditing,
                 libraryHasSelectableRows: row.libraryHasSelectableRows
             )
-            #expect(route == row.expected, row.rule)
+            #expect(route == row.expected, Comment(rawValue: row.rule))
         }
     }
 
