@@ -85,9 +85,11 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
 
     private func docJSON(_ id: String, parent: String?, docType: String) -> String {
         let parentJSON = parent.map { "\"\($0)\"" } ?? "null"
+        // The generated Document schema requires name + both expected_* paths.
         return #"{"id":"\#(id)","name":"\#(id)","parent_id":\#(parentJSON),"# +
             #""doc_type":"\#(docType)","status":"completed","# +
-            #""expected_thumbnail_path":"thumbnails/\#(id).jpg"}"#
+            #""expected_thumbnail_path":"thumbnails/\#(id).jpg","# +
+            #""expected_display_path":"display/\#(id).jpg"}"#
     }
 
     private func listJSON(_ docs: [String]) -> String {
