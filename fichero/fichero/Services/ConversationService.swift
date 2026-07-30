@@ -1,9 +1,9 @@
-import Observation
-import Foundation
 import Combine
-import OSLog
 import FicheroAPIClient
+import Foundation
+import Observation
 import OpenAPIRuntime
+import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ConversationService")
 

@@ -1,5 +1,5 @@
-import Observation
 import FicheroAPIClient
+import Observation
 import SwiftUI
 
 // Force-directed graph model + simulation extracted from OntologyBrowser.swift

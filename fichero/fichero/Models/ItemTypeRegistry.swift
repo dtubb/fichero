@@ -1,5 +1,5 @@
-import Observation
 import Foundation
+import Observation
 
 /// Category for grouping item types in menus
 enum ItemMenuCategory: String, CaseIterable {

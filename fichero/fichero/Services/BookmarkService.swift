@@ -1,7 +1,7 @@
 import Combine
-import Observation
 import FicheroAPIClient
 import Foundation
+import Observation
 import OSLog
 
 /// A bookmark node (node-model fold F4, #2591): a saved pointer to a target

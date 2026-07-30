@@ -1,5 +1,5 @@
-import Observation
 import Foundation
+import Observation
 import os.log
 
 /// Service for centralized error handling and management

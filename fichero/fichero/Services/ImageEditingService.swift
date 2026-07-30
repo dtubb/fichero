@@ -3,10 +3,10 @@ import AppKit
 #elseif canImport(UIKit)
 import UIKit
 #endif
-import Observation
 import FicheroAPIClient
 import Foundation
 import ImageIO
+import Observation
 import OpenAPIRuntime
 import OSLog
 

@@ -1,5 +1,5 @@
-import Observation
 import Foundation
+import Observation
 
 /// Provider/model overrides for the Run Workflow submenus (#722, deduped
 /// #4121). One app-wide list shared by every context menu — the sidebar row
