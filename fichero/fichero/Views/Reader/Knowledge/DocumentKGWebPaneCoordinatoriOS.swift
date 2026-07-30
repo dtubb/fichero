@@ -26,6 +26,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     private var lastAppliedZoom: Double = 1.0
     var cachedBootstrapScript: String?
     var cachedBootstrapLibraryPath: String?
+    /// In-reader find sync (#4338) — shared query/index dedupe.
+    let findSync = WebPaneFindSync()
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -43,6 +45,7 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         lastSelectedClaimCharStart = nil
         lastSelectedClaimCharEnd = nil
         lastActivePageNumber = nil
+        findSync.reset()
         guard let parent, let request = DocumentKGPaneRoute.request(
             documentId: parent.documentId,
             libraryPath: parent.libraryPath
@@ -86,6 +89,13 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         syncSelectedClaim(into: webView, selectedClaimId: parent.selectedClaimId)
         syncSelectedEntity(into: webView, selectedEntityId: parent.selectedEntityId)
         syncActivePage(into: webView, parent: parent)
+        // In-reader find (#4338): query re-run + current-match select.
+        findSync.sync(
+            into: webView,
+            query: parent.searchQuery,
+            selectionIndex: parent.searchSelectionIndex,
+            onMatchCount: parent.onSearchMatchCount
+        )
     }
 
     func syncActiveTab(into webView: WKWebView, activeTab: String) {

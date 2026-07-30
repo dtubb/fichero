@@ -171,6 +171,11 @@ struct DocumentKGSurface: View {
     /// sub-mode (#3503). When nil the surface resolves it from the DocumentStore.
     /// `= nil` is load-bearing: the KnowledgeSurface call site omits it.
     var document: Document? = nil // swiftlint:disable:this implicit_optional_initialization
+    /// In-reader find (#4338), forwarded to the WebKit pane. Defaults keep
+    /// every existing call site working with find inactive.
+    var searchQuery: String = ""
+    var searchSelectionIndex: Int = -1
+    var onSearchMatchCount: ((Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
 
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
@@ -263,7 +268,10 @@ struct DocumentKGSurface: View {
                     pageCount: pageCount,
                     onPageSelected: onPageSelected,
                     scrollSync: scrollSync,
-                    zoom: zoom
+                    zoom: zoom,
+                    searchQuery: searchQuery,
+                    searchSelectionIndex: searchSelectionIndex,
+                    onSearchMatchCount: onSearchMatchCount
                 )
                 .opacity(activeTab.usesWebKit ? 1 : 0)
                 .allowsHitTesting(activeTab.usesWebKit)
