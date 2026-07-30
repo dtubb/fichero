@@ -115,8 +115,14 @@ enum ConnectionPresentation {
     /// One honest status: a short title, one sentence of detail, one small
     /// symbol, and at most one primary action.
     struct Status: Equatable {
-        /// Short headline. Never narrates a step the app is not observing.
+        /// Popover headline. Never narrates a step the app is not observing.
         let title: String
+        /// The SAME state, written for the status island's ~260pt line
+        /// (#4366). Length there is a contract: the island renders one
+        /// truncating line, so a title written for a 380pt popover header
+        /// arrives as a fragment. The line gets this; the popover gets
+        /// `title`; the full sentence stays in `detail`.
+        let shortTitle: String
         /// One plain sentence: what happened, and whether the app is already
         /// retrying. Empty when there is nothing true to add.
         let detail: String
@@ -136,6 +142,17 @@ enum ConnectionPresentation {
 
     /// Button labels must fit their control at the narrowest supported window.
     static let labelBudget = 20
+    /// Characters that fit the status island's message line (#4366).
+    ///
+    /// Derived, not guessed: the island renders `.subheadline` inside
+    /// `.frame(minWidth: 120, maxWidth: 260)` with `lineLimit(1)`. At ~11pt SF
+    /// an average mixed-case advance is a shade under 6pt, so 260pt holds
+    /// roughly 44 average characters — and rather less once a string leans on
+    /// wide glyphs. 38 is that figure with margin, so a message at the budget
+    /// still reads whole in the narrowest window the app supports.
+    /// `StatusIslandMessageTests` asserts the island's declared width still
+    /// matches the width this was derived from.
+    static let islandBudget = 38
     /// Status titles must fit a 360pt popover header and the status island's
     /// 260pt message area. The longest is "Fichero Couldn't Authenticate to Its
     /// Server" at 43 characters; nothing may grow past it without shrinking the
@@ -158,6 +175,7 @@ enum ConnectionPresentation {
         case .setupNeeded:
             return Status(
                 title: "Not Connected Yet",
+                shortTitle: "Not connected",
                 detail: "Choose a Fichero server to connect to.",
                 symbol: "link.badge.plus",
                 isError: false,
@@ -171,6 +189,7 @@ enum ConnectionPresentation {
             // neither (#4380).
             return Status(
                 title: ownership == .appManaged ? "Starting engine…" : "Connecting…",
+                shortTitle: ownership == .appManaged ? "Starting engine…" : "Connecting…",
                 detail: "",
                 symbol: "ellipsis.circle",
                 isError: false,
@@ -181,6 +200,7 @@ enum ConnectionPresentation {
         case .ready:
             return Status(
                 title: "Connected",
+                shortTitle: "Connected",
                 detail: "",
                 symbol: "checkmark.circle",
                 isError: false,
@@ -200,6 +220,7 @@ enum ConnectionPresentation {
             }
             return Status(
                 title: "Port 8765 Is In Use",
+                shortTitle: "Port 8765 in use",
                 detail: "\(who) is already using port 8765.",
                 symbol: "exclamationmark.triangle.fill",
                 isError: true,
@@ -230,6 +251,11 @@ enum ConnectionPresentation {
         )
         return Status(
             title: title,
+            shortTitle: failureShortTitle(
+                accessError: accessError,
+                authBroken: authBroken,
+                ownership: ownership
+            ),
             detail: failureDetail(
                 accessError: accessError,
                 authBroken: authBroken,
@@ -280,6 +306,44 @@ enum ConnectionPresentation {
             return isAppManaged ? "Fichero Couldn't Authenticate to Its Server" : "Can't Authenticate to Server"
         }
         return isRemote ? "Backend Not Reachable" : "Can't Connect to Server"
+    }
+
+    /// The island form of `failureTitle` (#4366).
+    ///
+    /// Same table, same branches, written for a one-line 260pt slot instead of
+    /// a popover header. "Fichero Couldn't Authenticate to Its Server" is 43
+    /// characters and arrives in the island as a fragment; "Sign-in rejected"
+    /// says the same thing and fits. This is the issue's rule applied to the
+    /// engine's own strings: the LINE gets the short form, the popover carries
+    /// the full one, and the sentence lives in `detail`.
+    ///
+    /// Sentence case on purpose — these sit in a status line beside progress
+    /// text ("Importing 4 of 900…"), not as a headline.
+    static func failureShortTitle(
+        accessError: AccessError?,
+        authBroken: Bool,
+        ownership: EngineOwnership
+    ) -> String {
+        switch accessError {
+        case .staleBootstrapToken:
+            return "Server token out of date"
+        case .tlsPinFailure:
+            return "Certificate mismatch"
+        case .deviceAccessExpired:
+            return "Device access expired"
+        case .forbidden:
+            return "No access to server"
+        case .transport:
+            return "Connection failed"
+        case .engineUnreachable:
+            return "Can't connect to server"
+        case .unauthenticated, .none:
+            break
+        }
+        if authBroken {
+            return "Sign-in rejected"
+        }
+        return "Can't connect to server"
     }
 
     /// One plain sentence. Derived from ownership, never from a raw transport

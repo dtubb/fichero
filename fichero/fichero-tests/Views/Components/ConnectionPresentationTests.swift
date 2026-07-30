@@ -220,6 +220,13 @@ struct ConnectionPresentationTests {
                             mapped.title.count <= ConnectionPresentation.titleBudget,
                             "title over budget: \(mapped.title)"
                         )
+                        // #4366: the island form is held to the island's own,
+                        // much tighter budget.
+                        #expect(
+                            mapped.shortTitle.count <= ConnectionPresentation.islandBudget,
+                            "shortTitle over island budget: \(mapped.shortTitle)"
+                        )
+                        #expect(!mapped.shortTitle.isEmpty)
                         #expect(
                             mapped.detail.count <= ConnectionPresentation.detailBudget,
                             "detail over budget: \(mapped.detail)"
@@ -252,7 +259,9 @@ struct ConnectionPresentationTests {
         )
         let island = StatusIslandMessage.resolve(
             enginePhase: phase,
-            engineStatusTitle: popover.title,
+            // The island renders the SHORT form of the same state (#4366) —
+            // same table, written for a 260pt line instead of a popover header.
+            engineStatusTitle: popover.shortTitle,
             importError: nil,
             isImporting: false,
             importProgress: nil,
@@ -268,7 +277,8 @@ struct ConnectionPresentationTests {
             engineDetail: popover.detail,
             loadErrorMessage: nil
         )
-        #expect(island.text == popover.title)
+        #expect(island.text == popover.shortTitle)
+        #expect(island.text.count <= ConnectionPresentation.islandBudget)
         #expect(island.isError)
         #expect(pane == .failed(message: popover.detail))
         // The sidebar's "Live updates paused / Reconnect" pill and the
