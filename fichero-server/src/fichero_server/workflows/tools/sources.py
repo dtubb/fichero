@@ -515,6 +515,14 @@ async def selection_tool(
     supports_batch=False,
     input_ports=[],  # Source - no inputs
     output_ports=[
+        # The container this node read from (#4404) — see `folder_tool`.
+        PortDef(
+            id="collection_id",
+            name="Collection",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Id of the collection these files came from",
+        ),
         PortDef(
             id="files",
             name="Files",
@@ -654,6 +662,8 @@ async def collection_tool(
         logger.info(f"Collection {collection_id}: found {len(files)} files")
 
         return {
+            # #4404: emit the container we read from — see `folder_tool`.
+            "collection_id": collection_id,
             "files": file_paths,
             "documents": doc_data,
             "count": len(files),
@@ -689,6 +699,21 @@ async def collection_tool(
         ),
     ],
     output_ports=[
+        # The container this node read from (#4404). Without it the declared
+        # graph has NO channel that can carry a folder id: `_expand_folder`
+        # dissolves the folder into leaf descendants and its identity is lost
+        # at this boundary. That is why `summarize_folder` declares a
+        # `folder_id` input nothing could fill — it generated a folder summary
+        # and silently dropped it — and why seventeen modules reach around the
+        # graph into `state["selected_doc_ids"]`, the only other channel
+        # carrying the information.
+        PortDef(
+            id="folder_id",
+            name="Folder",
+            port_type="output",
+            data_type=DataType.TEXT,
+            description="Id of the folder these files came from",
+        ),
         PortDef(
             id="files",
             name="Files",
@@ -831,6 +856,10 @@ async def folder_tool(
         )
 
         return {
+            # #4404: emit the container we read from, so a folder-scoped
+            # consumer can be wired to it on the canvas instead of reaching
+            # into `state["selected_doc_ids"]` behind the graph's back.
+            "folder_id": folder_id,
             "files": file_paths,
             "documents": doc_data,
             "subfolders": subfolder_ids,

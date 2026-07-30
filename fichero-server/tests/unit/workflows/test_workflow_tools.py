@@ -1747,8 +1747,23 @@ class TestProcessTextSave:
             assert output_path.read_text() == "Rewritten text content"
 
     @pytest.mark.asyncio
-    async def test_process_text_no_documents_skips_db_save(self, mock_llm_config):
-        """Test process_text skips DB save when no documents provided."""
+    async def test_process_text_no_documents_is_an_error_not_a_skip(
+        self, mock_llm_config
+    ):
+        """An empty write target must FAIL, not silently discard the result.
+
+        This test previously asserted the opposite — that `process_text`
+        "skips DB save when no documents provided", returning the generated
+        text with `artifacts == []`. That skip is the #4404 defect: the
+        provider call had already been spent producing the output, and it was
+        then dropped with no error and no artifact. `summarize_folder` hit it
+        on every single run, because it declares a `folder_id` input port no
+        source tool could fill, so `documents` was always empty.
+
+        The builder treats a returned `error` as a hard abort
+        (`SystemicErrorDetected`), so surfacing it here is what makes the run
+        fail visibly instead of reporting success having produced nothing.
+        """
         from fichero_server.workflows.tools.llm_base import process_text, LLMToolConfig
 
         tool_config = LLMToolConfig(
@@ -1770,8 +1785,70 @@ class TestProcessTextSave:
                 save_to_db=True,
             )
 
+            assert result["error"], (
+                "a generated summary with nowhere to be stored must report an "
+                "error — silently discarding it is the #4283/#4404 shape"
+            )
+            assert "nothing to attach" in result["error"]
+            assert result["artifacts"] == []
+
+    @pytest.mark.asyncio
+    async def test_process_text_documents_without_ids_is_also_an_error(
+        self, mock_llm_config
+    ):
+        """The same silence covered a non-empty list of unusable entries."""
+        from fichero_server.workflows.tools.llm_base import process_text, LLMToolConfig
+
+        tool_config = LLMToolConfig(artifact_type="summary")
+
+        with patch('fichero_server.llm.chat', new_callable=AsyncMock) as mock_chat:
+            mock_chat.return_value = "Summary result"
+
+            result = await process_text(
+                text="Input text",
+                prompt="Summarize",
+                llm_config=mock_llm_config,
+                library_path="/test/lib.fichero",
+                task_id=None,
+                tool_config=tool_config,
+                documents=[{"path": "/tmp/x.txt"}, {"name": "no id"}],
+                save_to_db=True,
+            )
+
+            assert result["error"]
+            assert "2 candidate(s)" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_process_text_without_save_to_db_still_returns_text(
+        self, mock_llm_config
+    ):
+        """A node explicitly not meant to persist is not an error.
+
+        The escape hatch the error message points at must actually work, or
+        every pure text transform (text_reflow, ner, consistency_check) would
+        start failing.
+        """
+        from fichero_server.workflows.tools.llm_base import process_text, LLMToolConfig
+
+        tool_config = LLMToolConfig(artifact_type="summary")
+
+        with patch('fichero_server.llm.chat', new_callable=AsyncMock) as mock_chat:
+            mock_chat.return_value = "Summary result"
+
+            result = await process_text(
+                text="Input text",
+                prompt="Summarize",
+                llm_config=mock_llm_config,
+                library_path="/test/lib.fichero",
+                task_id=None,
+                tool_config=tool_config,
+                documents=[],
+                save_to_db=False,
+            )
+
+            assert not result.get("error")
             assert result["text"] == "Summary result"
-            assert result["artifacts"] == []  # No save without documents
+            assert result["artifacts"] == []
 
     @pytest.mark.asyncio
     async def test_process_text_chunking_map_reduce_for_long_input(self):
