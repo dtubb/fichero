@@ -28,6 +28,12 @@ final class WorkflowStore: ChangeEventConsumer {
     /// invalidate their cached workflow-dependent UI.
     var changeToken: Int = 0
 
+    /// Node ids currently selected on the workflow canvas, mirrored here by
+    /// WorkflowCanvasView so sibling surfaces (the inspector's add-node
+    /// placement, #4323) can anchor on the selection without new plumbing
+    /// through every intermediate view.
+    var canvasSelectedNodeIds: Set<String> = []
+
     let logger = Logger(subsystem: "app.fichero.fichero", category: "WorkflowStore")
     let workflowService: WorkflowService
     let ficheroClient: FicheroClient

@@ -21,17 +21,21 @@ final class ToolbarFeatureFlagInjectionBoundaryTests: XCTestCase {
     }
 
     func testWorkflowNodeSurfacesReadFeatureManagerFromEnvironment() throws {
+        // Per-port geometry + data-type icons ship un-gated (#4322): the node
+        // view and port-position math must not consult the feature flag (or
+        // the singleton) any more.
         let nodeView = try Self.appSource("Views/Workflow/Nodes/WorkflowNodeView.swift")
-        XCTAssertTrue(nodeView.contains("@Environment(FeatureManager.self) private var featureManager"))
         XCTAssertFalse(nodeView.contains("FeatureManager.shared"))
+        XCTAssertFalse(nodeView.contains("isWorkflowEditorAdvancedViewsEnabled"))
+        XCTAssertTrue(nodeView.contains("showPortDetails: true"))
 
         let nodePopover = try Self.appSource("Views/Workflow/Nodes/NodePopover.swift")
         XCTAssertTrue(nodePopover.contains("@Environment(FeatureManager.self) private var featureManager"))
         XCTAssertFalse(nodePopover.contains("@ObservedObject var featureManager = FeatureManager.shared"))
 
         let edgeConnections = try Self.appSource("Views/Workflow/Canvas/WorkflowCanvasView+EdgeConnection.swift")
-        XCTAssertTrue(edgeConnections.contains("let showAdvancedPorts = featureManager.isWorkflowEditorAdvancedViewsEnabled"))
-        XCTAssertFalse(edgeConnections.contains("FeatureManager.shared.isWorkflowEditorAdvancedViewsEnabled"))
+        XCTAssertFalse(edgeConnections.contains("isWorkflowEditorAdvancedViewsEnabled"))
+        XCTAssertFalse(edgeConnections.contains("FeatureManager.shared"))
     }
 
     private static func appSource(_ relativePath: String) throws -> String {

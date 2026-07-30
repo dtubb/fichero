@@ -62,71 +62,11 @@ extension WorkflowEditor {
         }
     }
 
-    // Returns nodes in execution order when the graph is acyclic; falls back to visual order.
+    // Returns nodes in execution order when the graph is acyclic; falls back
+    // to visual order. Delegates to the shared WorkflowTopology so the list
+    // numbering and the canvas step badges always agree (#4322).
     func orderedWorkflowNodes() -> [WorkflowNode] {
-        let nodes = editingWorkflow.nodes
-        guard !nodes.isEmpty else { return [] }
-
-        let nodeById = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
-        let adjacency = buildWorkflowAdjacency(nodes: nodes, nodeById: nodeById)
-        var indegree = adjacency.indegree
-        let outgoing = adjacency.outgoing
-
-        // Stable tie-breaker by canvas position for deterministic ordering.
-        let positionSorted = nodes.sorted(by: isWorkflowNodeOrderedBefore)
-
-        var queue = positionSorted.filter { indegree[$0.id, default: 0] == 0 }.map(\.id)
-        var ordered: [WorkflowNode] = []
-
-        while !queue.isEmpty {
-            let currentId = queue.removeFirst()
-            guard let node = nodeById[currentId] else { continue }
-            ordered.append(node)
-
-            for nextId in outgoing[currentId, default: []] {
-                let nextIn = (indegree[nextId] ?? 0) - 1
-                indegree[nextId] = nextIn
-                if nextIn == 0 {
-                    queue.append(nextId)
-                    queue.sort { lhs, rhs in
-                        guard let lhsNode = nodeById[lhs], let rhsNode = nodeById[rhs] else { return lhs < rhs }
-                        return isWorkflowNodeOrderedBefore(lhsNode, rhsNode)
-                    }
-                }
-            }
-        }
-
-        // Cycles or disconnected malformed graph: fall back to visual order.
-        if ordered.count != nodes.count {
-            return positionSorted
-        }
-        return ordered
-    }
-
-    /// Builds the in-degree map and outgoing adjacency list for a topological sort,
-    /// ignoring edges that reference nodes outside `nodeById`.
-    private func buildWorkflowAdjacency(
-        nodes: [WorkflowNode],
-        nodeById: [String: WorkflowNode]
-    ) -> (indegree: [String: Int], outgoing: [String: [String]]) {
-        var indegree = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, 0) })
-        var outgoing: [String: [String]] = [:]
-
-        for edge in editingWorkflow.edges {
-            guard nodeById[edge.sourceNodeId] != nil, nodeById[edge.targetNodeId] != nil else { continue }
-            outgoing[edge.sourceNodeId, default: []].append(edge.targetNodeId)
-            indegree[edge.targetNodeId, default: 0] += 1
-        }
-
-        return (indegree, outgoing)
-    }
-
-    /// Deterministic canvas-position ordering used to break ties in the topological sort.
-    private func isWorkflowNodeOrderedBefore(_ lhs: WorkflowNode, _ rhs: WorkflowNode) -> Bool {
-        if lhs.positionX == rhs.positionX {
-            return lhs.positionY < rhs.positionY
-        }
-        return lhs.positionX < rhs.positionX
+        WorkflowTopology.orderedNodes(nodes: editingWorkflow.nodes, edges: editingWorkflow.edges)
     }
 
     /// Table view - shows nodes in columns

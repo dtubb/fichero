@@ -92,20 +92,60 @@ final class WorkflowNodeEdgeCodingTests: XCTestCase {
         XCTAssertEqual(edge.routeMap, ["a": "n-3"])
     }
 
-    /// A sparse edge (only id) must not throw — endpoints default to "" and
-    /// ports to output/input, animated to false.
-    func testEdgeMissingFieldsDefault() throws {
+    // MARK: - WorkflowEdge strict decoding (#4322)
+    //
+    // The decoder used to silently default missing endpoints to "" and
+    // missing ports to output/input, so malformed edges rendered as
+    // plausible-looking connections. Missing keys must now throw. The
+    // engine always serializes all four keys, so a miss is a real defect.
+
+    /// A sparse edge (only id) is malformed — it must throw, not default.
+    func testEdgeMissingEndpointsThrows() {
         let json = Data("""
         { "id": "e-2" }
         """.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(WorkflowEdge.self, from: json))
+    }
+
+    func testEdgeMissingSourcePortThrows() {
+        let json = Data("""
+        { "id": "e-2", "source": "n-1", "target": "n-2", "target_port": "in" }
+        """.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(WorkflowEdge.self, from: json))
+    }
+
+    func testEdgeMissingTargetPortThrows() {
+        let json = Data("""
+        { "id": "e-2", "source": "n-1", "target": "n-2", "source_port": "out" }
+        """.utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(WorkflowEdge.self, from: json))
+    }
+
+    /// Optional decoration stays optional: only ids/endpoints/ports are strict.
+    func testEdgeOptionalFieldsStillDefault() throws {
+        let json = Data("""
+        { "id": "e-2", "source": "n-1", "target": "n-2",
+          "source_port": "out", "target_port": "in" }
+        """.utf8)
         let edge = try JSONDecoder().decode(WorkflowEdge.self, from: json)
-        XCTAssertEqual(edge.sourceNodeId, "")
-        XCTAssertEqual(edge.targetNodeId, "")
-        XCTAssertEqual(edge.sourcePortId, "output")
-        XCTAssertEqual(edge.targetPortId, "input")
         XCTAssertFalse(edge.animated)
+        XCTAssertNil(edge.condition)
+        XCTAssertNil(edge.label)
         XCTAssertNil(edge.routeKey)
         XCTAssertNil(edge.routeMap)
+    }
+
+    /// Route-map edges fan to multiple targets; the engine serializes their
+    /// `target` as "" — the KEY must exist, the value may be empty.
+    func testEdgeEmptyTargetValueAllowedForRouteMapEdges() throws {
+        let json = Data("""
+        { "id": "e-2", "source": "n-1", "target": "",
+          "source_port": "out", "target_port": "in",
+          "route_key": "$.kind", "route_map": {"a": "n-3"} }
+        """.utf8)
+        let edge = try JSONDecoder().decode(WorkflowEdge.self, from: json)
+        XCTAssertEqual(edge.targetNodeId, "")
+        XCTAssertEqual(edge.routeMap, ["a": "n-3"])
     }
 
     // MARK: - WorkflowEdge encode always writes backend format

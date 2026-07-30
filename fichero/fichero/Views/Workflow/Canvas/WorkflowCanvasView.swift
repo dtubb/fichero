@@ -39,6 +39,9 @@ struct WorkflowCanvasView: View {
     @Environment(AppState.self) var appState
     @Environment(\.undoManager) var undoManager
     @Environment(FeatureManager.self) var featureManager
+    // Registry metadata for fan-badge derivation, and the mirror target for
+    // canvas selection (add-node placement anchors on it, #4322/#4323).
+    @Environment(WorkflowStore.self) var workflowStore
 
     /// Node execution states for the editor canvas.
     ///
@@ -186,6 +189,10 @@ struct WorkflowCanvasView: View {
             undoProxy.apply = { restored in
                 binding.wrappedValue = restored
             }
+            workflowStore.canvasSelectedNodeIds = selectedNodeIds
+        }
+        .onChange(of: selectedNodeIds) { _, newValue in
+            workflowStore.canvasSelectedNodeIds = newValue
         }
         #if os(macOS)
         .onDeleteCommand {

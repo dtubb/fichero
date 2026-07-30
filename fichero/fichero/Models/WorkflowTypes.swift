@@ -265,22 +265,27 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         case routeMap = "route_map"
     }
 
-    // Custom decoder to handle both sourceNodeId (UI) and source (backend)
+    // Strict decoder (#4322): node ids and port ids are REQUIRED. The old
+    // decoder silently defaulted missing ports to "output"/"input" (and
+    // missing endpoints to ""), which made malformed edges render as
+    // plausible-looking connections instead of surfacing the defect. The
+    // engine's EdgeDef always serializes source/target/source_port/
+    // target_port (pydantic defaults are included), so anything missing a
+    // key is genuinely malformed and should fail loudly.
+    // Note: `target` may legitimately be "" for route_map edges that fan to
+    // multiple targets — the KEY must be present, the value may be empty.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-
-        // Try backend names first (source/target), then fallback to UI names if needed
-        sourceNodeId = (try? container.decode(String.self, forKey: .source)) ?? ""
-        targetNodeId = (try? container.decode(String.self, forKey: .target)) ?? ""
-
-        sourcePortId = (try? container.decode(String.self, forKey: .sourcePort)) ?? "output"
-        targetPortId = (try? container.decode(String.self, forKey: .targetPort)) ?? "input"
-        condition = try? container.decodeIfPresent(String.self, forKey: .condition)
-        label = try? container.decodeIfPresent(String.self, forKey: .label)
-        animated = (try? container.decodeIfPresent(Bool.self, forKey: .animated)) ?? false
-        routeKey = try? container.decodeIfPresent(String.self, forKey: .routeKey)
-        routeMap = try? container.decodeIfPresent([String: String].self, forKey: .routeMap)
+        sourceNodeId = try container.decode(String.self, forKey: .source)
+        targetNodeId = try container.decode(String.self, forKey: .target)
+        sourcePortId = try container.decode(String.self, forKey: .sourcePort)
+        targetPortId = try container.decode(String.self, forKey: .targetPort)
+        condition = try container.decodeIfPresent(String.self, forKey: .condition)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        animated = try container.decodeIfPresent(Bool.self, forKey: .animated) ?? false
+        routeKey = try container.decodeIfPresent(String.self, forKey: .routeKey)
+        routeMap = try container.decodeIfPresent([String: String].self, forKey: .routeMap)
     }
 
     // Custom encoder to always write backend format (source/target)
