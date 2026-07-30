@@ -105,7 +105,6 @@ private struct ArtifactProvenanceSection: View {
     let provenance: ArtifactProvenanceDisplay
     var onOpenSource: (() -> Void)?
     var onOpenRun: (() -> Void)?
-    var runId: String?
     /// The producing run id, as recorded on the artifact. Resolved through
     /// `RunTraceLink` so the control's enablement matches what the action can do.
     var runId: String?
