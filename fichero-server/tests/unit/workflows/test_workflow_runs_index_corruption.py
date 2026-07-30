@@ -313,7 +313,9 @@ class TestFatalFallbackRebuild:
             conn.close()
 
         flipped = _rebuild_workflow_runs_flipping_stale(db_path, started_before=None)
-        assert flipped == 1
+        # Returns the flipped thread_ids, not a count, so the caller can settle
+        # each dead run's documents (#4379).
+        assert flipped == ["zombie"]
 
         conn = duckdb.connect(db_path)
         try:

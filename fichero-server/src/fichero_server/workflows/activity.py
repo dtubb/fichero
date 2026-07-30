@@ -671,6 +671,14 @@ async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> No
     cutoff but EXCLUDES every run this process is actively tracking in the
     runner registry; #4316 also widened the sweep to every non-terminal
     status ('running', 'accepted', 'paused').
+
+    Flipping the run row is only HALF of a terminal transition. #4315 requires
+    every terminal path to settle the run's documents, and process death is the
+    one terminal path where no in-process finalizer can run — so the documents
+    a killed run left at ``Status.processing`` used to stay there forever:
+    permanent spinner, and the document could never be re-run. The sweep now
+    settles them too, through the same ``finalize_run_documents`` every other
+    terminal path uses (#4379).
     """
     try:
         # Runs alive in THIS process must never be flipped by the sweep.
@@ -682,20 +690,67 @@ async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> No
             for tid, state in list(_running_workflows.items())
             if not is_terminal(state.get("status"))
         )
-        recovered = await tracker.store.recover_stale_runs(
+        recovered = await tracker.store.recover_stale_run_ids(
             max_age_hours=0, exclude_thread_ids=live_thread_ids
         )
         if recovered:
             logger.info(
                 "recover_stale_runs: recovered %d stale run(s) for library %s",
-                recovered,
+                len(recovered),
                 db_path,
             )
+            await _settle_recovered_run_documents(recovered, db_path)
     except Exception:
         logger.exception(
             "recover_stale_runs failed for %s (ignored — library open continues)",
             db_path,
         )
+
+
+async def _settle_recovered_run_documents(
+    thread_ids: list[str], db_path: str
+) -> None:
+    """Release the documents stranded by each run the sweep just failed (#4379).
+
+    Per-run isolation is deliberate: one run with an unreadable checkpoint must
+    not stop the others from being settled. The whole helper is best-effort for
+    the same reason the sweep is — a recovery pass must never break
+    library-open — but every skip is logged by name, so a document left
+    spinning is always traceable to a run rather than silently dropped.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    from fichero_server.db.manager import db_manager  # noqa: PLC0415
+    from fichero_server.workflows.completion import (  # noqa: PLC0415
+        settle_documents_for_dead_run,
+    )
+
+    # The tracker's db_path is the library's `fichero.duckdb`; the manager is
+    # keyed by the enclosing `.fichero` package. This returns the ALREADY-OPEN
+    # shared Database for the library the sweep just ran against — never a
+    # second read-write connection, which DuckDB would refuse.
+    db = db_manager.get_database(Path(db_path).parent)
+
+    for thread_id in thread_ids:
+        try:
+            await settle_documents_for_dead_run(
+                db,
+                thread_id,
+                "failed",
+                workflow_run={
+                    "thread_id": thread_id,
+                    "result": {
+                        "status": "failed",
+                        "reason": "process_died_recovered_on_library_open",
+                    },
+                },
+            )
+        except Exception:
+            logger.exception(
+                "settle documents for recovered run %s failed (run is still "
+                "marked failed; its documents may remain at 'processing')",
+                thread_id,
+            )
 
 
 def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:

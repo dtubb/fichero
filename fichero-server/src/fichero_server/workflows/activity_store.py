@@ -330,7 +330,7 @@ def _rebuild_workflow_runs_flipping_stale(
     *,
     started_before: Optional[datetime] = None,
     exclude_thread_ids: tuple[str, ...] = (),
-) -> int:
+) -> Optional[list[str]]:
     """Crash-safe recovery: rebuild ``workflow_runs`` with stale 'running' rows
     flipped to 'failed', WITHOUT any in-place index-backed DELETE/UPDATE.
 
@@ -357,8 +357,11 @@ def _rebuild_workflow_runs_flipping_stale(
             When ``None``, every ``running`` row is flipped (startup guard).
 
     Returns:
-        Number of rows flipped 'running' -> 'failed'. ``-1`` if the rebuild
-        itself failed (caller should treat as "degraded, do not raise").
+        The ``thread_id`` of every row flipped 'running' -> 'failed'. ``None``
+        if the rebuild itself failed (caller should treat as "degraded, do not
+        raise"). The ids — not just a count — because the caller must settle
+        each dead run's documents through ``finalize_run_documents`` (#4379);
+        a bare count cannot name what to settle.
     """
     # Use a FRESH connection: the caller's connection may already be poisoned
     # by the FatalException that sent us down this path.
@@ -399,11 +402,17 @@ def _rebuild_workflow_runs_flipping_stale(
                 select_cols.append(col)
         select_expr = ", ".join(select_cols)
 
-        # Count how many we will flip (read-only SELECT — safe on a fresh conn).
-        count_row = conn.execute(
-            f"SELECT count(*) FROM workflow_runs WHERE {flip_predicate}"
-        ).fetchone()
-        flipped = count_row[0] if count_row else 0
+        # Name the rows we will flip (read-only SELECT — safe on a fresh conn).
+        # Captured BEFORE the rebuild: afterwards the predicate no longer
+        # matches them, because they are the rows the rebuild just flipped.
+        flipped_ids = [
+            row[0]
+            for row in conn.execute(
+                f"SELECT thread_id FROM workflow_runs WHERE {flip_predicate}"
+            ).fetchall()
+            if row and row[0]
+        ]
+        flipped = len(flipped_ids)
 
         conn.execute("BEGIN TRANSACTION")
         conn.execute("DROP TABLE IF EXISTS workflow_runs__rebuild")
@@ -449,7 +458,7 @@ def _rebuild_workflow_runs_flipping_stale(
             "run(s) to 'failed' (sidestepped ART-index delete bug, #1362)",
             flipped,
         )
-        return flipped
+        return flipped_ids
     except Exception:
         # The rebuild itself failed. Roll back if a txn is open, log, and
         # report degraded — NEVER re-raise, or we re-poison library-open.
@@ -462,7 +471,7 @@ def _rebuild_workflow_runs_flipping_stale(
             "left as-is; library remains open (#1362)",
             db_path,
         )
-        return -1
+        return None
     finally:
         try:
             conn.close()
@@ -476,7 +485,7 @@ def _recover_stale_workflow_runs(
     *,
     started_before: Optional[datetime] = None,
     exclude_thread_ids: tuple[str, ...] = (),
-) -> int:
+) -> Optional[list[str]]:
     """Flip stale 'running' workflow_runs to 'failed' without ever leaving the
     connection (or the DB) in a poisoned state.
 
@@ -492,7 +501,9 @@ def _recover_stale_workflow_runs(
         started_before: Optional cutoff; see the rebuild helper.
 
     Returns:
-        Number of rows flipped, or ``-1`` if even the rebuild failed (degraded).
+        The ``thread_id`` of every flipped row, or ``None`` if even the rebuild
+        failed (degraded). Ids rather than a count so the caller can settle
+        each dead run's documents (#4379).
     """
     params: list = [_STALE_RUN_ERROR]
     where = f"status IN ({_SWEEPABLE_STATUS_SQL})"
@@ -518,7 +529,8 @@ def _recover_stale_workflow_runs(
         # Pre-count is cheap and lets us report even though RETURNING also works.
         result = conn.execute(sql, params)
         rows = result.fetchall() if result else []
-        flipped = len(rows)
+        flipped_ids = [row[0] for row in rows if row and row[0]]
+        flipped = len(flipped_ids)
         if flipped:
             logger.warning(
                 "recover_stale_runs: flipped %d stale 'running' run(s) to "
@@ -526,7 +538,7 @@ def _recover_stale_workflow_runs(
                 flipped,
                 db_path,
             )
-        return flipped
+        return flipped_ids
     except duckdb.Error as exc:
         # Connection is now poisoned (FATAL index error or otherwise). Do NOT
         # touch `conn` again. Rebuild the table on a fresh connection.
@@ -1185,15 +1197,36 @@ class ActivityStore:
     ) -> int:
         """Transition stale non-terminal workflow_run rows to 'failed'.
 
+        Count-returning wrapper around :meth:`recover_stale_run_ids`. Kept
+        because callers that only report "how many zombies did we recover"
+        should not have to care which ones.
+        """
+        recovered = await self.recover_stale_run_ids(
+            max_age_hours=max_age_hours, exclude_thread_ids=exclude_thread_ids
+        )
+        return len(recovered)
+
+    async def recover_stale_run_ids(
+        self,
+        max_age_hours: int = 2,
+        exclude_thread_ids: tuple[str, ...] = (),
+    ) -> list[str]:
+        """Transition stale non-terminal workflow_run rows to 'failed' and
+        return the ``thread_id`` of every run flipped.
+
         Sweeps EVERY non-terminal status — 'running', 'accepted', 'paused'
         (#4316) — for runs whose worker died without reaching a terminal
-        state (crash, OOM, app restart). Only rows older than
-        ``max_age_hours`` are touched, and runs named in
-        ``exclude_thread_ids`` (the ones THIS process is actively tracking)
-        are never flipped, so reopening a library mid-run can't fail a live
-        run (F5).
+        state (crash, OOM, app restart, or a dev-loop reload killing the
+        worker mid-run — #4379). Only rows older than ``max_age_hours`` are
+        touched, and runs named in ``exclude_thread_ids`` (the ones THIS
+        process is actively tracking) are never flipped, so reopening a
+        library mid-run can't fail a live run (F5).
 
-        Returns the number of rows updated.
+        The ids matter because flipping the RUN row is only half of a
+        terminal transition: the documents that run left at
+        ``Status.processing`` must also be settled, and only the caller (which
+        has the library ``Database``) can do that. Returning ids rather than a
+        count is what makes that possible (#4379).
         """
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
@@ -1213,7 +1246,8 @@ class ActivityStore:
                     conn.close()
                 except Exception:
                     pass
-            # -1 means even the rebuild failed; report 0 recovered to callers.
-            return max(recovered, 0)
+            # None means even the rebuild failed; nothing was flipped, so
+            # there is nothing for the caller to settle either.
+            return recovered or []
 
         return await asyncio.to_thread(_recover)

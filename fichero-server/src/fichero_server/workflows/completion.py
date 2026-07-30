@@ -235,3 +235,66 @@ def finalize_run_documents(
             )
 
     return updated
+
+
+async def settle_documents_for_dead_run(
+    db: Any,
+    thread_id: str,
+    final_status: str = "failed",
+    workflow_run: Any | None = None,
+) -> int:
+    """Settle the documents of a run whose process died, from its checkpoint.
+
+    Every OTHER terminal path settles documents in-process, because the run's
+    document set is sitting in memory when the run ends. A run whose process
+    was killed has no such moment: the finalizer never gets to run, so the
+    documents it left at ``Status.processing`` would spin forever and could
+    never be re-run (#4379). Recovery is the only remaining terminal path, and
+    #4315's rule — EVERY terminal path settles its documents — has to hold
+    there too.
+
+    The document set is recoverable without guessing, because
+    ``AsyncDuckDBCheckpointer`` persists LangGraph checkpoints into the same
+    library DuckDB: the checkpoint outlives the process that wrote it, and
+    ``collect_processed_document_ids`` reads the same channel values the
+    in-process finalizer would have read. So this settles exactly the set the
+    live path would have settled — not an approximation of it, and never a
+    blind "everything currently processing" sweep, which would trample
+    documents belonging to a run that is still alive.
+
+    ``checkpoint_ns=""`` is the top-level run's namespace: it is the schema
+    default, what every execution route reads with, and what the request model
+    defaults to. Sub-workflow namespaces belong to their parent run and are
+    settled through it.
+
+    Returns the number of documents settled. Raises nothing: a recovery sweep
+    must never break library-open, and the caller logs.
+    """
+    from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
+
+    checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
+    tup = await checkpointer.aget_tuple(
+        {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
+    )
+    if tup is None:
+        # No checkpoint: the run died before writing one, so it never reached a
+        # content tool and never moved a document to `processing`. Nothing to
+        # settle — and, importantly, nothing to guess at.
+        logger.info(
+            "settle_documents_for_dead_run: no checkpoint for %s — "
+            "run died before touching any document",
+            thread_id,
+        )
+        return 0
+
+    channel_values = tup.checkpoint.get("channel_values") or {}
+    document_ids = collect_processed_document_ids(channel_values)
+    settled = finalize_run_documents(db, document_ids, final_status, workflow_run)
+    if settled:
+        logger.warning(
+            "settle_documents_for_dead_run: recovered run %s settled %d "
+            "document(s) out of processing (#4379)",
+            thread_id,
+            settled,
+        )
+    return settled

@@ -315,9 +315,22 @@ public final class FicheroClient: ObservableObject {
             // #4349: streams dial a SECOND client with its own pool, and both are
             // wrapped in pool-pressure accounting so a connection leak announces
             // itself with a warning long before the pool runs dry.
+            //
+            // #4379: `timeout:` is passed EXPLICITLY. Omitting it inherited the
+            // transport's one-minute default, which deadlines the whole request
+            // *including the response body* — so every SSE subscription died at
+            // 60s with `HTTPClientError.deadlineExceeded` ("Lost connection to
+            // the Fichero server…"), and a workflow run could not outlive a
+            // minute. Requests keep a bounded deadline; streams get one scoped
+            // to what a stream actually is. See `LocalTransportPool.deadline`.
             let client = usage == .stream ? udsStreamHTTPClient : udsHTTPClient
             return PoolMonitoringTransport(
-                wrapped: AsyncHTTPClientTransport(configuration: .init(client: client)),
+                wrapped: AsyncHTTPClientTransport(
+                    configuration: .init(
+                        client: client,
+                        timeout: LocalTransportPool.deadline(for: usage)
+                    )
+                ),
                 pressure: usage == .stream
                     ? LocalTransportPool.streamPressure
                     : LocalTransportPool.requestPressure
