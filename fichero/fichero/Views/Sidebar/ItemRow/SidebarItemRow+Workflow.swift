@@ -109,18 +109,37 @@ extension SidebarItemRow {
                     }
                 }
             )
-            while !streamCompleted {
-                try await Task.sleep(for: .milliseconds(200))
-                if Task.isCancelled { break }
-                if let exec = observer.activeExecutions[executionThreadId], !exec.isRunning {
-                    streamCompleted = true
-                }
+            if !streamCompleted {
+                // Reconciles against the persisted run record when the SSE
+                // stream dies without a terminal frame (#4346/#4349).
+                _ = await observer.waitForTerminal(
+                    stream: stream,
+                    threadId: { executionThreadId },
+                    streamCompleted: { streamCompleted }
+                )
             }
             let status = sidebarWorkflowFinalStatus(forThreadId: executionThreadId, observer: observer)
             observer.endExecution(threadId: executionThreadId, status: status)
+            finishSidebarBusyState(status: status, store: store, observer: observer)
         } catch {
             sidebarRowLogger.error("Sidebar Run Workflow failed: \(error)")
             observer.endExecution(threadId: executionThreadId, status: .failed)
+            finishSidebarBusyState(status: .failed, store: store, observer: observer)
+        }
+    }
+
+    /// Terminal busy-state cleanup (#4346): a run settled by reconciliation
+    /// (dead stream) never got its terminal SSE frame, so the event-driven
+    /// flush never ran — settle fanout slots, then clear any document still
+    /// spinning unless another run is live (its own boundary will clear).
+    private func finishSidebarBusyState(
+        status: WorkflowStatus,
+        store: DocumentStore,
+        observer: WorkflowExecutionObserver
+    ) {
+        store.flushPendingFanoutCompletions(status: status == .completed ? .completed : .failed)
+        if !observer.hasRunningExecution {
+            store.clearResidualProcessing()
         }
     }
 
@@ -155,7 +174,10 @@ extension SidebarItemRow {
         case .complete:
             store.flushPendingFanoutCompletions(status: .completed)
             return true
-        case .error, .systemicError:
+        case .cancelled, .error, .systemicError:
+            // `.cancelled` is terminal too (#4321/#4346): omitting it left the
+            // stream un-completed and every mid-flight document spinning
+            // forever after a Stop.
             store.flushPendingFanoutCompletions(status: .failed)
             return true
         default:
@@ -168,6 +190,8 @@ extension SidebarItemRow {
         observer: WorkflowExecutionObserver
     ) -> WorkflowStatus {
         guard let exec = observer.activeExecutions[threadId] else { return .completed }
+        // Deliberate Stop stays `.cancelled`, never rendered as failed (#4321).
+        if exec.status == .cancelled { return .cancelled }
         return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
     }
 }

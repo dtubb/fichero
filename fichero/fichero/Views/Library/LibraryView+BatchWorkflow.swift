@@ -74,11 +74,24 @@ extension LibraryView {
             try await executeBatchWorkflowStream(request, library: context.library, threadId: threadId)
             let finalStatus = batchWorkflowFinalStatus(forThreadId: threadId.value)
             executionObserver.endExecution(threadId: threadId.value, status: finalStatus)
+            finishBatchBusyState(status: finalStatus, store: context.library.documentStore)
             logger.info("Workflow \(workflowId) finished with status: \(String(describing: finalStatus))")
         } catch {
             logger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
             ErrorService.shared.reportError(error)
             executionObserver.endExecution(threadId: threadId.value, status: .failed)
+            finishBatchBusyState(status: .failed, store: context.library.documentStore)
+        }
+    }
+
+    /// Terminal busy-state cleanup (#4346): a run settled by reconciliation
+    /// (dead stream) never got its terminal SSE frame, so the event-driven
+    /// flush never ran — settle fanout slots, then clear any document still
+    /// spinning unless another run is live (its own boundary will clear).
+    private func finishBatchBusyState(status: WorkflowStatus, store: DocumentStore) {
+        store.flushPendingFanoutCompletions(status: status == .completed ? .completed : .failed)
+        if !executionObserver.hasRunningExecution {
+            store.clearResidualProcessing()
         }
     }
 
@@ -126,7 +139,15 @@ extension LibraryView {
             "Started SSE workflow \(request.workflowId) thread \(response.threadId) for \(request.docIds.count) docs"
         )
 
-        try await awaitBatchWorkflowCompletion(threadId: threadId.value, streamCompleted: streamCompleted)
+        if !streamCompleted {
+            // Reconciles against the persisted run record when the SSE stream
+            // dies without a terminal frame (#4346/#4349).
+            _ = await executionObserver.waitForTerminal(
+                stream: stream,
+                threadId: { threadId.value },
+                streamCompleted: { streamCompleted }
+            )
+        }
     }
 
     /// Resolve and validate the library + workflow name a batch run should execute
@@ -146,19 +167,6 @@ extension LibraryView {
         }
         let workflowName = workflows.first(where: { $0.id == workflowId })?.name ?? workflowId
         return (library, workflowName)
-    }
-
-    /// Poll the execution observer until the SSE stream reports completion (or the
-    /// task is cancelled), mirroring the original inline wait loop.
-    private func awaitBatchWorkflowCompletion(threadId: String, streamCompleted: Bool) async throws {
-        var completed = streamCompleted
-        while !completed {
-            try await Task.sleep(for: .milliseconds(200))
-            if Task.isCancelled { break }
-            if let exec = executionObserver.activeExecutions[threadId], !exec.isRunning {
-                completed = true
-            }
-        }
     }
 
     private func handleBatchWorkflowEvent(
@@ -218,6 +226,8 @@ extension LibraryView {
         guard let exec = executionObserver.activeExecutions[threadId] else {
             return .completed
         }
+        // Deliberate Stop stays `.cancelled`, never rendered as failed (#4321).
+        if exec.status == .cancelled { return .cancelled }
         return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
     }
 }

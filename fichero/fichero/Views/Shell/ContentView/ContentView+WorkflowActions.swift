@@ -315,10 +315,16 @@ extension ContentView {
                 importProgress = nil
                 workflowLogger.info("Started SSE workflow \(workflowId) thread \(threadId) for \(docIds.count) docs")
 
-                streamCompleted = await waitForWorkflowCompletion(
-                    threadId: executionThreadId,
-                    streamCompleted: streamCompleted
-                )
+                if !streamCompleted {
+                    // Reconciles against the persisted run record when the SSE
+                    // stream dies without a terminal frame (#4346/#4349) —
+                    // the old poll loop hung forever in that case.
+                    streamCompleted = await executionObserver.waitForTerminal(
+                        stream: workflowStreamService,
+                        threadId: { executionThreadId },
+                        streamCompleted: { streamCompleted }
+                    )
+                }
                 await finishWorkflowExecution(
                     threadId: executionThreadId,
                     workflowId: workflowId,
@@ -330,6 +336,10 @@ extension ContentView {
                 importError = "Workflow failed to start: \(error.localizedDescription)"
                 workflowLogger.error("executeWorkflowViaSSE failed: \(error.localizedDescription)")
                 executionObserver.endExecution(threadId: executionThreadId, status: .failed)
+                documentStore.flushPendingFanoutCompletions(status: .failed)
+                if !executionObserver.hasRunningExecution {
+                    documentStore.clearResidualProcessing()
+                }
             }
         }
     }
@@ -352,6 +362,16 @@ extension ContentView {
         }
         let finalStatus = workflowFinalStatus(forThreadId: threadId)
         executionObserver.endExecution(threadId: threadId, status: finalStatus)
+        // A run settled by reconciliation (dead stream, #4346/#4349) never got
+        // its terminal SSE frame, so the event-driven flush never ran: settle
+        // fanout slots, then clear any document still spinning — unless
+        // another run is live (its own terminal boundary will clear).
+        documentStore.flushPendingFanoutCompletions(
+            status: finalStatus == .completed ? .completed : .failed
+        )
+        if !executionObserver.hasRunningExecution {
+            documentStore.clearResidualProcessing()
+        }
         workflowLogger.info(
             "Workflow \(workflowId) finished with status: \(String(describing: finalStatus))"
         )
@@ -371,23 +391,10 @@ extension ContentView {
         guard let exec = executionObserver.activeExecutions[threadId] else {
             return .completed
         }
+        // A deliberate Stop (or server-side cancellation surfaced by
+        // reconciliation) stays `.cancelled` — never rendered as failed (#4321).
+        if exec.status == .cancelled { return .cancelled }
         return exec.workflowError != nil || exec.status == .failed ? .failed : .completed
-    }
-
-    @MainActor
-    private func waitForWorkflowCompletion(
-        threadId: String,
-        streamCompleted: Bool
-    ) async -> Bool {
-        var completed = streamCompleted
-        while !completed {
-            try? await Task.sleep(for: .milliseconds(200))
-            if Task.isCancelled { break }
-            if let exec = executionObserver.activeExecutions[threadId], !exec.isRunning {
-                completed = true
-            }
-        }
-        return completed
     }
 
     private func updateDocumentStatusFromEvent(

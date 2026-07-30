@@ -105,9 +105,51 @@ final class WorkflowExecutionStore {
         let service = WorkflowStreamService(ficheroClient: ficheroClient)
         streamServices[threadId] = service
         log.info("Activity monitor subscribing to live stream for thread: \(threadId, privacy: .public)")
-        service.subscribe(threadId: threadId) { [weak self] event in
-            self?.apply(event, threadId: threadId)
+        service.subscribe(
+            threadId: threadId,
+            onEvent: { [weak self] event in
+                self?.apply(event, threadId: threadId)
+            },
+            onStreamEnd: { [weak self] in
+                Task { @MainActor in
+                    await self?.reconcileAfterStreamEnd(threadId: threadId)
+                }
+            }
+        )
+    }
+
+    /// Reconcile a run whose SSE stream ended WITHOUT a terminal frame
+    /// (#4346/#4349): the transport died (UDS pool starvation, engine restart,
+    /// network drop), so no `complete`/`error`/`cancelled` event can ever
+    /// arrive and the row's spinner had nothing to stop it. Poll the persisted
+    /// run record: a terminal status settles the row; a still-running status
+    /// resubscribes a fresh stream (whose own end lands back here, giving
+    /// spaced retries). Bounded so a dead engine doesn't poll forever — state
+    /// is then left visibly stale and the next Activity populate() retries.
+    func reconcileAfterStreamEnd(threadId: String) async {
+        // Drop the dead service handle so a reconcile that finds the run
+        // still live can attach a fresh stream.
+        streamServices.removeValue(forKey: threadId)
+        guard executions[threadId]?.isRunning == true else { return }
+
+        for attempt in 0..<12 {
+            try? await Task.sleep(for: .seconds(attempt == 0 ? 1 : 5))
+            if Task.isCancelled { return }
+            // Settled by an event elsewhere, or a fresh subscription exists.
+            guard executions[threadId]?.isRunning == true,
+                  streamServices[threadId] == nil else { return }
+            do {
+                try await applyRefreshedThreadStatus(threadId: threadId)
+                return
+            } catch {
+                log.warning(
+                    "reconcileAfterStreamEnd: status fetch failed for \(threadId, privacy: .public) (attempt \(attempt + 1)): \(error.localizedDescription, privacy: .public)"
+                )
+            }
         }
+        log.error(
+            "reconcileAfterStreamEnd: giving up on \(threadId, privacy: .public) — run state may be stale until Activity repopulates"
+        )
     }
 
     /// Cancel the live stream for a thread (the reduced state is kept so the
