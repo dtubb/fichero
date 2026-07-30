@@ -175,3 +175,57 @@ def emit_workflow_citation_changes_for_db(
         actor=actor,
         change_type=change_type,
     )
+
+
+def emit_workflow_document_changes(
+    library_path: str,
+    *,
+    document_ids: Iterable[str] = (),
+    document_parents: dict[str, str] | None = None,
+    run_id: str | None = None,
+    change_type: str = "updated",
+) -> None:
+    """Broadcast a mid-run document mutation (e.g. a page_content save) so an
+    open window updates live instead of waiting for the run boundary (#4318).
+
+    Best-effort by contract — a broadcast failure must never fail the save
+    that triggered it.
+    """
+    try:
+        document_ids_list = _dedupe_ids(document_ids)
+        if not document_ids_list:
+            return
+        emit_change(
+            library_path,
+            type=f"document.{change_type}",
+            document_ids=document_ids_list,
+            document_parents=document_parents,
+            run_id=run_id,
+            actor="workflow",
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("workflow document emit failed (best-effort, ignored): %s", exc)
+
+
+def emit_workflow_document_changes_for_db(
+    db,
+    *,
+    document_ids: Iterable[str] = (),
+    document_parents: dict[str, str] | None = None,
+    run_id: str | None = None,
+    change_type: str = "updated",
+) -> None:
+    library_path = ""
+    try:
+        library_path = str(Path(db.path).parent)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug(
+            "workflow document emit could not resolve library path: %s", exc,
+        )
+    emit_workflow_document_changes(
+        library_path,
+        document_ids=document_ids,
+        document_parents=document_parents,
+        run_id=run_id,
+        change_type=change_type,
+    )

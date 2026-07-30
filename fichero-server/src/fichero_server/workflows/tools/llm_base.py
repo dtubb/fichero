@@ -666,6 +666,28 @@ def _save_artifact_sync(
                 doc.updated_at = datetime.now()
                 db.save(doc)
 
+                # Broadcast the MID-RUN page_content write to the library
+                # change-stream (#4318): until now document.updated was emitted
+                # only at the run boundary (completion.finalize_run_documents),
+                # so an open window showed fresh transcription text only after
+                # reselecting the page. Best-effort by contract — the emit
+                # helper swallows failures so it can never fail the save above.
+                from fichero_server.workflows.tools._workflow_change_emit import (
+                    emit_workflow_document_changes_for_db,
+                )
+
+                parent_id = getattr(doc, "parent_id", None)
+                emit_workflow_document_changes_for_db(
+                    db,
+                    document_ids=[resolved_doc_id],
+                    document_parents=(
+                        {resolved_doc_id: parent_id}
+                        if isinstance(parent_id, str) and parent_id
+                        else None
+                    ),
+                    run_id=task_id,
+                )
+
                 if tool_config.trigger_embedding:
                     # Embedding is a best-effort TAIL: the artifact and the
                     # promoted page_content are already durably saved above, so

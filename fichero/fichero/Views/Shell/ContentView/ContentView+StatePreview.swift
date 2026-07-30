@@ -166,6 +166,28 @@ extension ContentView {
         return newDocs.first(where: { $0.id == current.id }) ?? current
     }
 
+    /// Handles `.onChange(of: documentStore.revision)` (#4318).
+    ///
+    /// `handleCurrentDocumentsChange` only fires when `currentDocuments`
+    /// itself changes — but a change-stream splice for a page child lands in
+    /// `childrenCache` / `collections` (both `@ObservationIgnored`), so the
+    /// focused snapshots (`detailDocument`, `pageFocusDocument`) kept stale
+    /// page_content until reselection. Re-resolve them through the store's
+    /// full-container lookup; the `!=` guard keeps identity stable when the
+    /// batch didn't touch the focused rows.
+    func handleDocumentRevisionChange() {
+        if let current = detailDocument,
+           let fresh = documentStore.liveDocument(id: current.id),
+           fresh != current {
+            detailDocument = fresh
+        }
+        if let current = pageFocusDocument,
+           let fresh = documentStore.liveDocument(id: current.id),
+           fresh != current {
+            pageFocusDocument = fresh
+        }
+    }
+
     /// Handles `.onChange(of: viewSettings.previewMode)`.
     /// Syncs View-menu changes back to the toolbar layout picker.
     func handlePreviewModeChange(_ newPreviewMode: PreviewMode) {

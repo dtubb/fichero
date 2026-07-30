@@ -198,6 +198,12 @@ extension ContentView {
         .onChange(of: documentStore.currentDocuments) { _, newDocs in
             handleCurrentDocumentsChange(newDocs)
         }
+        // Change-stream splices for page children land in childrenCache /
+        // collections, not currentDocuments — refresh the focused snapshots
+        // from the store's full-container lookup too (#4318).
+        .onChange(of: documentStore.revision) { _, _ in
+            handleDocumentRevisionChange()
+        }
         // Inspector visibility is per-window (@SceneStorage). It is NOT mirrored
         // into the app-wide ViewSettings any more — doing so flipped the
         // inspector in every open window at once (#1451). The View menu reaches
