@@ -84,7 +84,7 @@ struct AdaptiveMiniToolbarRow<Essential: View, Secondary: View, OverflowMenu: Vi
         Menu {
             overflow
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Image(systemName: ToolbarSymbols.overflowMenu)
                 .frame(
                     minWidth: MiniToolbar<EmptyView, EmptyView>.touchTargetSide,
                     minHeight: MiniToolbar<EmptyView, EmptyView>.touchTargetSide

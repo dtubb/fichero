@@ -98,13 +98,14 @@ extension ReadingPaneView {
             .background(Color(.textBackgroundColor))
     }
 
-    /// The in-reader find bar (#4338), hosted by the pane's bottom
-    /// `PaneFilterBar`: query field, "n of m" status, previous/next match,
-    /// clear. The query and current match drive the shared WebKit surface's
-    /// CSS-highlight finder; the surface reports the match count back.
+    /// The in-reader find bar (#4338), hosted by the shared `PaneFilterBar`
+    /// (top edge on Mac, bottom on touch — #4362): query field, "n of m"
+    /// status, previous/next match, clear. The query and current match drive
+    /// the shared WebKit surface's CSS-highlight finder; the surface reports
+    /// the match count back.
     @ViewBuilder
     var readerFindBar: some View {
-        Image(systemName: "magnifyingglass")
+        Image(systemName: ToolbarSymbols.findField)
             .foregroundStyle(.secondary)
         TextField("Find in document", text: Binding(
             get: { searchState.query },
@@ -122,7 +123,7 @@ extension ReadingPaneView {
             Button {
                 searchState.previous()
             } label: {
-                Image(systemName: "chevron.up")
+                Image(systemName: ToolbarSymbols.findPrevious)
             }
             .buttonStyle(.plain)
             .disabled(searchState.matchCount == 0)
@@ -131,7 +132,7 @@ extension ReadingPaneView {
             Button {
                 searchState.next()
             } label: {
-                Image(systemName: "chevron.down")
+                Image(systemName: ToolbarSymbols.findNext)
             }
             .buttonStyle(.plain)
             .disabled(searchState.matchCount == 0)
@@ -140,7 +141,7 @@ extension ReadingPaneView {
             Button {
                 searchState.dismiss()
             } label: {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: ToolbarSymbols.clearField)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)

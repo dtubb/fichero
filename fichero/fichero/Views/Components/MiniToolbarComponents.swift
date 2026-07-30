@@ -224,7 +224,7 @@ struct WorkflowMiniToolbarButton: View {
     var body: some View {
         if showRunOnSelection {
             Button(action: action) {
-                Image(systemName: "bolt")
+                Image(systemName: ToolbarSymbols.runWorkflow)
                     .accessibilityLabel("Run Workflow")
             }
             .buttonStyle(.plain)

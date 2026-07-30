@@ -28,18 +28,6 @@ enum ContentToolbarID {
 // different file. The rest stay private to this file.
 
 extension ContentView {
-    @ViewBuilder
-    func toolbarToggleIcon(_ systemName: String, isActive: Bool) -> some View {
-        Image(systemName: systemName)
-            .symbolVariant(isActive ? .fill : .none)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isActive ? Color.primary.opacity(0.1) : Color.clear)
-            )
-    }
-
     // MARK: Zoned toolbar (Mail-style)
     @ToolbarContentBuilder
     var mainToolbarContent: some ToolbarContent {
@@ -57,7 +45,7 @@ extension ContentView {
             Button {
                 navigateBack()
             } label: {
-                Label("Back", systemImage: "chevron.backward")
+                Label("Back", systemImage: ToolbarSymbols.navigateBack)
             }
             .help("Back (⌘')")
             .keyboardShortcut("'", modifiers: [.command])
@@ -68,7 +56,7 @@ extension ContentView {
             Button {
                 navigateForward()
             } label: {
-                Label("Forward", systemImage: "chevron.forward")
+                Label("Forward", systemImage: ToolbarSymbols.navigateForward)
             }
             .help("Forward (⌘⇧')")
             .keyboardShortcut("'", modifiers: [.command, .shift])
@@ -120,23 +108,27 @@ extension ContentView {
                 libraryPaneToggleButton
             }
 
+            // Pane toggles are native `Toggle`s (#4360): the on-state is the
+            // system's own treatment on the toolbar's Liquid Glass, so each
+            // control keeps ONE position-encoded glyph. The old glyph-swap
+            // grammar decayed both the library and preview toggles to the same
+            // bare `rectangle` when hidden — two meanings on one symbol.
             ToolbarItem(id: ContentToolbarID.previewPaneToggle, placement: .automatic) {
-                Button {
-                    setCanvasPaneVisible(!showDocumentCanvas)
-                } label: {
-                    Label(
-                        "Preview Pane",
-                        systemImage: showDocumentCanvas ? "rectangle.center.inset.filled" : "rectangle"
-                    )
+                Toggle(isOn: Binding(
+                    get: { showDocumentCanvas },
+                    set: { setCanvasPaneVisible($0) }
+                )) {
+                    Label("Preview Pane", systemImage: ToolbarSymbols.previewPane)
                 }
                 .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
             }
 
             ToolbarItem(id: ContentToolbarID.readingPaneToggle, placement: .automatic) {
-                Button {
-                    setReadingPaneVisible(!showReadingPane)
-                } label: {
-                    Label("Reading Pane", systemImage: showReadingPane ? "text.book.closed.fill" : "text.book.closed")
+                Toggle(isOn: Binding(
+                    get: { showReadingPane },
+                    set: { setReadingPaneVisible($0) }
+                )) {
+                    Label("Reading Pane", systemImage: ToolbarSymbols.readingPane)
                 }
                 .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
             }
@@ -164,11 +156,14 @@ extension ContentView {
 
     private var libraryPaneToggleButton: some View {
         let model = LibraryPaneToggleModel(paneVisibility: paneVisibility)
-        return Button {
-            withAnimation(FrameAnimation.snappy) {
-                setLibraryPaneVisible(model.nextVisibility)
+        return Toggle(isOn: Binding(
+            get: { model.isVisible },
+            set: { newValue in
+                withAnimation(FrameAnimation.snappy) {
+                    setLibraryPaneVisible(newValue)
+                }
             }
-        } label: {
+        )) {
             Label(model.title, systemImage: model.systemImage)
         }
         .disabled(!model.isEnabled)
@@ -233,9 +228,10 @@ extension ContentView {
             isActive: libraryToolbarState.showFilterBar
         )
         if model.isAvailable {
-            Button {
-                libraryToolbarState.setFilterBar(model.nextActive)
-            } label: {
+            Toggle(isOn: Binding(
+                get: { model.isActive },
+                set: { libraryToolbarState.setFilterBar($0) }
+            )) {
                 Label(model.title, systemImage: model.systemImage)
             }
             .help(model.help)
@@ -264,22 +260,25 @@ extension ContentView {
             ViewMenuCommands()
                 .environment(viewSettings)
         } label: {
-            Label("View", systemImage: "rectangle.split.3x1")
+            Label("View", systemImage: ToolbarSymbols.viewMenu)
         }
         .help("Choose visible panes and document views")
     }
 
+    /// Native `Toggle` — the system's on-state on the toolbar glass replaces
+    /// the old hand-rolled highlight helper (a rounded rect with a painted
+    /// primary-tint fill), which was a custom approximation of exactly this
+    /// treatment (#4360).
     var inspectorToggleButton: some View {
-        Button {
-            withAnimation(FrameAnimation.snappy) {
-                showInspectorSidebar.toggle()
+        Toggle(isOn: Binding(
+            get: { showInspectorSidebar },
+            set: { newValue in
+                withAnimation(FrameAnimation.snappy) {
+                    showInspectorSidebar = newValue
+                }
             }
-        } label: {
-            Label {
-                Text("Inspector")
-            } icon: {
-                toolbarToggleIcon("sidebar.right", isActive: showInspectorSidebar)
-            }
+        )) {
+            Label("Inspector", systemImage: ToolbarSymbols.inspector)
         }
         .help(showInspectorSidebar ? "Hide Inspector (⌘⌥I)" : "Show Inspector (⌘⌥I)")
     }
@@ -305,14 +304,16 @@ extension ContentView {
                 HStack(spacing: 4) {
                     if let libraryName {
                         HStack(spacing: 3) {
-                            Image(systemName: "books.vertical")
+                            Image(systemName: ToolbarSymbols.breadcrumbLibrary)
                                 .imageScale(.small)
                             Text(libraryName)
                                 .font(.subheadline)
                         }
                         .foregroundStyle(.secondary)
 
-                        Image(systemName: "chevron.right")
+                        // Compact chevron so the separator can't be read as the
+                        // Forward button's `chevron.forward` (#4360).
+                        Image(systemName: ToolbarSymbols.breadcrumbSeparator)
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
@@ -326,15 +327,11 @@ extension ContentView {
                     }
                     .foregroundStyle(.primary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.primary.opacity(0.06))
-                )
+                // No painted lozenge (#4360): the toolbar's own Liquid Glass
+                // carries this principal item; the old low-opacity primary
+                // fill was a hand-rolled approximation of that material.
                 // Search field removed (#3037) — now the native `.searchable`
-                // bar (ToolbarSearchableModifier). The breadcrumb lozenge above
-                // stays as the principal-zone context chrome.
+                // bar (ToolbarSearchableModifier).
                 }
             }
 

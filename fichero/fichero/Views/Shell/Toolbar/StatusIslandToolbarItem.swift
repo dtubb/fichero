@@ -62,9 +62,12 @@ struct StatusIslandToolbarItem: View {
                 importError: $importError
             )
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 3)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+        // No painted background (#4360). On macOS 26 the toolbar itself wraps
+        // this principal item in the system's Liquid Glass; the old
+        // `.quaternary.opacity(0.5)` fill sat ON TOP of that glass as an
+        // opaque plate — white-ish in dark appearance, where `.quaternary`
+        // resolves from a white primary. Native chrome means letting NSToolbar
+        // own the material; the island supplies content only.
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Status")
     }

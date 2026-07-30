@@ -154,7 +154,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             Divider().frame(height: 16)
 
             Button { actions.onToggleVertical() } label: {
-                Image(systemName: "rectangle.split.2x1")
+                Image(systemName: ToolbarSymbols.splitVertical)
                     .font(splitIconFont)
                     .frame(
                         minWidth: Self.touchTargetSide,
@@ -168,7 +168,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             .accessibilityLabel(verticalHelp)
 
             Button { actions.onToggleHorizontal() } label: {
-                Image(systemName: "rectangle.split.1x2")
+                Image(systemName: ToolbarSymbols.splitHorizontal)
                     .font(splitIconFont)
                     .frame(
                         minWidth: Self.touchTargetSide,
@@ -198,7 +198,7 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             } label: {
                 Label(
                     verticalTitle,
-                    systemImage: "rectangle.split.2x1"
+                    systemImage: ToolbarSymbols.splitVertical
                 )
             }
 
@@ -207,11 +207,11 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             } label: {
                 Label(
                     horizontalTitle,
-                    systemImage: "rectangle.split.1x2"
+                    systemImage: ToolbarSymbols.splitHorizontal
                 )
             }
         } label: {
-            Label("Split", systemImage: "rectangle.split.2x1")
+            Label("Split", systemImage: ToolbarSymbols.splitVertical)
                 .font(splitIconFont)
                 .frame(
                     minWidth: Self.touchTargetSide,
@@ -256,8 +256,15 @@ extension View {
 
 // MARK: - Lozenge Toggle Button (Xcode filter-bar style)
 
-/// A small pill-shaped toggle button matching Xcode's Navigator filter bar.
-/// Active state shows an accent fill; inactive state is borderless and secondary.
+/// A small toggle lozenge in the Xcode Navigator-filter-bar idiom.
+///
+/// Native, not hand-rolled (#4360): the platform ships this exact control as
+/// the `.accessoryBar` button style, so the body is a `Toggle` wearing it —
+/// the system supplies the fill, stroke, vibrancy, and both appearances. The
+/// old implementation painted its own rounded rect with
+/// `Color.accentColor.opacity(...)` fills and a hairline `strokeBorder`, a
+/// custom approximation of this treatment. `.accessoryBar` is macOS-only;
+/// touch platforms get the bordered toggle, their own native equivalent.
 ///
 /// Use inside bottom filter bars to let the user toggle visibility of document
 /// categories, entity types, or status filters.
@@ -275,76 +282,25 @@ struct LozengeButton: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Toggle(isOn: Binding(get: { isActive }, set: { _ in action() })) {
             HStack(spacing: 3) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.caption2.weight(.medium))
                 }
                 if !title.isEmpty {
                     Text(title)
-                        .font(.caption.weight(.medium))
+                        .font(.caption)
                 }
             }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(isActive ? Color.accentColor.opacity(0.15) : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .strokeBorder(
-                        isActive ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.12),
-                        lineWidth: 0.5
-                    )
-            )
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+        .toggleStyle(.button)
+        #if os(macOS)
+        .buttonStyle(.accessoryBar)
+        #else
+        .buttonStyle(.bordered)
+        #endif
+        .controlSize(.small)
         .help(title)
-    }
-}
-
-// MARK: - Pane Filter Bar (bottom of content panes)
-
-/// Mini-toolbar-height filter/action strip for sidebar / library / inspector
-/// panes. It shares `MiniToolbarMetricPolicy` so filter rows line up with the
-/// reader, preview, and inspector mini-toolbars on macOS, iPad, and iPhone.
-struct PaneFilterBar<Content: View>: View {
-    static var height: CGFloat {
-        MiniToolbar<EmptyView, EmptyView>.standardHeight
-    }
-
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-            #if os(visionOS)
-            HStack(spacing: 6) {
-                content
-            }
-            .padding(.horizontal, 8)
-            .frame(height: Self.height)
-            .frame(maxWidth: .infinity)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            #else
-            GlassEffectContainer {
-                HStack(spacing: 6) {
-                    content
-                }
-                .padding(.horizontal, 8)
-                .frame(height: Self.height)
-                .frame(maxWidth: .infinity)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
-            }
-            #endif
-        }
     }
 }
 

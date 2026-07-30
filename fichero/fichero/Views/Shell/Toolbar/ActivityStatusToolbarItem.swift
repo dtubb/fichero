@@ -49,7 +49,7 @@ struct ActivityStatusToolbarItem: View {
                 Button {
                     showPopover = true
                 } label: {
-                    Image(systemName: "exclamationmark.circle.fill")
+                    Image(systemName: ToolbarSymbols.activityError)
                         .foregroundStyle(.red)
                 }
                 .buttonStyle(.plain)
@@ -75,10 +75,14 @@ struct ActivityStatusToolbarItem: View {
             } else {
                 // Idle: subtle persistent glyph so the status island always
                 // has its right button — the popover shows "Nothing running."
+                // The glyph is the sidebar's Activity symbol, NOT the old
+                // `list.bullet.circle`, which was indistinguishable from the
+                // filter control's three-lines-in-a-circle at toolbar size
+                // (#4360).
                 Button {
                     showPopover = true
                 } label: {
-                    Image(systemName: "list.bullet.circle")
+                    Image(systemName: ToolbarSymbols.activityIdle)
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
