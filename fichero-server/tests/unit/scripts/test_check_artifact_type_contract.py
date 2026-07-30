@@ -113,3 +113,40 @@ def test_text_geometry_is_not_baselined(mod):
 def test_docstring_states_the_dynamic_blind_spot(mod):
     doc = mod.__doc__ or ""
     assert "NOT" in doc and "dynamic" in doc.lower()
+
+
+def test_enum_cases_are_extracted(mod, tmp_path):
+    """The Swift `enum ArtifactType: String` is a THIRD declaration of the same
+    contract, independent of both the server's writes and the client's queries.
+    """
+    root = _swift(
+        tmp_path,
+        "struct Artifact {\n"
+        "    enum ArtifactType: String {\n"
+        "        case transcription\n"
+        "        case grouping\n"
+        "    }\n"
+        "}\n",
+    )
+    cases, path = _enum_path(mod, root)
+    assert cases == {"transcription", "grouping"}
+    assert path is not None
+
+
+def _enum_path(mod, root):
+    return mod._enum_cases(root)
+
+
+def test_dead_enum_case_is_flagged(mod, tmp_path):
+    """An enum case naming a type no server path writes is a claim the backend
+    does not support. Live example on 2026-07-30: `embedding`, `grouping` and
+    `segmentation` are declared and produced by nothing.
+    """
+    py = _py(tmp_path, 'db.save(Artifact(artifact_type="transcription"))\n')
+    sw = _swift(
+        tmp_path,
+        "enum ArtifactType: String {\n    case transcription\n    case grouping\n}\n",
+    )
+    produced, _ = mod._producers(py)
+    cases, _p = mod._enum_cases(sw)
+    assert sorted(cases - produced) == ["grouping"]

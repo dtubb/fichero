@@ -98,6 +98,11 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
     }
 )
 
+_SWIFT_ENUM = re.compile(
+    r"enum\s+ArtifactType\s*:\s*String\s*\{(?P<body>.*?)\n\s*\}", re.S
+)
+_SWIFT_ENUM_CASE = re.compile(r"^\s*case\s+(?P<name>[A-Za-z0-9_]+)\s*$", re.M)
+
 _SWIFT_GETARTIFACTS = re.compile(r"getArtifacts\s*\((?P<args>[^)]*)\)", re.S)
 _SWIFT_TYPE_ARG = re.compile(r"\btype:\s*\"(?P<val>[A-Za-z0-9_.\-]+)\"")
 
@@ -153,6 +158,24 @@ def _consumers(swift_root: Path) -> dict[str, list[str]]:
     return out
 
 
+def _enum_cases(swift_root: Path) -> tuple[set[str], str | None]:
+    """Swift `enum ArtifactType: String` cases — a THIRD declaration of the contract.
+
+    The server writes artifact_type strings, the client queries some by name, and
+    this enum names a set independently of both. Three declarations, no mechanism
+    keeping them in agreement.
+    """
+    for path in sorted(swift_root.rglob("*.swift")):
+        try:
+            src = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        m = _SWIFT_ENUM.search(src)
+        if m:
+            return set(_SWIFT_ENUM_CASE.findall(m.group("body"))), path.as_posix()
+    return set(), None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=".", type=Path)
@@ -171,6 +194,9 @@ def main() -> int:
               "is broken or the layout moved. Refusing to pass vacuously.", file=sys.stderr)
         return 1
 
+    enum_cases, enum_path = _enum_cases(sw)
+    dead_cases = sorted(enum_cases - produced) if enum_cases else []
+
     unmatched = {v: s for v, s in consumed.items()
                  if v not in produced and v not in CONSUMER_ALLOWLIST}
     orphans = sorted(produced - set(consumed))
@@ -182,6 +208,20 @@ def main() -> int:
     if orphans:
         print(f"note — {len(orphans)} type(s) produced but never queried by name "
               f"({len(orphans) - len(new_orphans)} baselined as generic reads).")
+
+    if enum_cases:
+        print(f"note — Swift ArtifactType declares {len(enum_cases)} case(s); "
+              f"the server writes {len(produced)}.")
+
+    if dead_cases:
+        print(f"\nFAIL: {len(dead_cases)} ArtifactType case(s) that NO server path writes")
+        print(f"      in {enum_path}:\n")
+        for c in dead_cases:
+            print(f'  case {c}')
+        print("\nAn enum case naming an artifact type nothing produces is a claim the\n"
+              "backend does not support. Either the producer was never written, or the\n"
+              "case is dead and should go.")
+        return 1
 
     if new_orphans:
         print(f"\nFAIL: {len(new_orphans)} artifact type(s) written by the server that "
