@@ -339,33 +339,7 @@ extension ContentView {
                 }
             }
 
-            // Real parameters (#4112/S8): search type + sort, the
-            // knobs the deleted mode surface used to own. One compact
-            // menu, not a pile of chrome.
-            Menu {
-                Picker("Search Type", selection: $transientSearchType) {
-                    Text("Hybrid").tag("hybrid")
-                    Text("Semantic").tag("semantic")
-                    Text("Full Text").tag("fulltext")
-                }
-                Divider()
-                Picker("Sort By", selection: $transientSearchSortBy) {
-                    Text("Relevance").tag("relevance")
-                    Text("Date").tag("date")
-                    Text("Name").tag("name")
-                    Text("Size").tag("size")
-                }
-                Picker("Order", selection: $transientSearchSortDirection) {
-                    Text("Descending").tag("desc")
-                    Text("Ascending").tag("asc")
-                }
-            } label: {
-                Label("Search Options", systemImage: "slider.horizontal.3")
-                    .labelStyle(.iconOnly)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Search type and sort order")
+            searchOptionsMenu
 
             if store.searchStats?.hasMore == true {
                 Button("Load More") {
@@ -475,6 +449,43 @@ extension ContentView {
                 open: openHitDocument
             )
         }
+    }
+
+    /// Search type and sort order (#4112/S8), lifted out of
+    /// `searchResultsHeaderRow` (#4353).
+    ///
+    /// That function was at 95 of the 100-line ERROR threshold — five lines of
+    /// headroom, in a file #4403 had just added to. Extracted by cohesion: this
+    /// is one self-contained control, not a slice taken to reach a number.
+    @ViewBuilder
+    private var searchOptionsMenu: some View {
+                // Real parameters (#4112/S8): search type + sort, the
+                // knobs the deleted mode surface used to own. One compact
+                // menu, not a pile of chrome.
+                Menu {
+                    Picker("Search Type", selection: $transientSearchType) {
+                        Text("Hybrid").tag("hybrid")
+                        Text("Semantic").tag("semantic")
+                        Text("Full Text").tag("fulltext")
+                    }
+                    Divider()
+                    Picker("Sort By", selection: $transientSearchSortBy) {
+                        Text("Relevance").tag("relevance")
+                        Text("Date").tag("date")
+                        Text("Name").tag("name")
+                        Text("Size").tag("size")
+                    }
+                    Picker("Order", selection: $transientSearchSortDirection) {
+                        Text("Descending").tag("desc")
+                        Text("Ascending").tag("asc")
+                    }
+                } label: {
+                    Label("Search Options", systemImage: "slider.horizontal.3")
+                        .labelStyle(.iconOnly)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Search type and sort order")
     }
 
 }
