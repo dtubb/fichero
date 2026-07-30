@@ -29,9 +29,9 @@ from fichero_server.workflows.types import (
     EdgeDef,
 )
 from fichero_server.workflows.registry import (
-    list_tools,
     get_tool_def,
-    list_tools_by_category,
+    list_executable_tools,
+    list_executable_tools_by_category,
     get_categories,
     create_node_from_tool,
     enrich_node_with_ports,
@@ -366,7 +366,10 @@ def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float]
 @router.get("/tools", response_model=WorkflowToolListResponse)
 async def list_workflow_tools() -> WorkflowToolListResponse:
     """List all available workflow tools with port definitions."""
-    tools = list_tools()
+    # Palette contract (#4322): only tools with a loaded implementation
+    # (directly or via alias) are offered — a palette tool without an
+    # implementation kills the whole graph at build time.
+    tools = list_executable_tools()
     items = [_tool_to_response(t) for t in tools]
     return WorkflowToolListResponse(items=items, count=len(items))
 
@@ -378,7 +381,7 @@ async def list_tools_grouped() -> ToolListResponse:
     result = []
 
     for cat in categories:
-        tools = list_tools_by_category(cat)
+        tools = list_executable_tools_by_category(cat)
         if tools:
             result.append(
                 CategoryToolsResponse(
