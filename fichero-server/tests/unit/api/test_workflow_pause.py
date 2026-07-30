@@ -10,7 +10,7 @@ async def test_pause_not_running():
     from fichero_server.api.routes.workflow_execution.threads import pause_workflow
 
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=None,
     ):
         result = await pause_workflow("thread-not-there")
@@ -25,7 +25,7 @@ async def test_pause_already_terminal():
 
     state = {"status": "completed"}
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=state,
     ):
         result = await pause_workflow("thread-done")
@@ -40,7 +40,7 @@ async def test_pause_running_sets_flag():
 
     state = {"status": "running"}
     with patch(
-        "fichero_server.api.routes.workflow_execution.runner._get_workflow_state",
+        "fichero_server.execution.runner._get_workflow_state",
         return_value=state,
     ):
         result = await pause_workflow("thread-running")

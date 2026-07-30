@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fichero_server.workflows.batch import BatchManager, MAX_BATCH_CACHE_SIZE
+from fichero_server.execution.batch import BatchManager, MAX_BATCH_CACHE_SIZE
 from fichero_server.workflows.executor import (
     ProgressEventType,
     WorkflowExecutor,
@@ -225,7 +225,7 @@ async def test_batch_item_execution_accepts_string_db_path(tmp_path, monkeypatch
             return SimpleNamespace(values={})
 
     monkeypatch.setattr(
-        "fichero_server.workflows.batch.create_compiled_app",
+        "fichero_server.execution.batch.create_compiled_app",
         lambda *a, **k: (FakeGraph(), None),
     )
     monkeypatch.setattr(
@@ -266,7 +266,7 @@ async def test_batch_records_document_completion_failure(tmp_path, monkeypatch):
             return SimpleNamespace(values={})
 
     monkeypatch.setattr(
-        "fichero_server.workflows.batch.create_compiled_app",
+        "fichero_server.execution.batch.create_compiled_app",
         lambda *a, **k: (FakeGraph(), None),
     )
     monkeypatch.setattr(

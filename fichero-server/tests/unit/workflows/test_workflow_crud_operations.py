@@ -198,7 +198,7 @@ def test_workflow_conversion():
     print("\nTesting workflow conversion...")
 
     try:
-        from fichero_server.api.routes.workflows import _dict_to_node_def, _dict_to_edge_def
+        from fichero_server.api.routes.workflow.workflows import _dict_to_node_def, _dict_to_edge_def
 
         # Create a test workflow in database format
         db_workflow = Workflow(

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fichero_server.workflows.builder import build_graph
 from fichero_server.workflows.executor import WorkflowExecutor
-from fichero_server.workflows.chaining import (
+from fichero_server.execution.chaining import (
     WorkflowChain,
     ChainStep,
     OutputMapping,
@@ -380,7 +380,7 @@ class TestChainExecutor:
         }
 
         with patch(
-            "fichero_server.workflows.chaining.WorkflowExecutor"
+            "fichero_server.execution.chaining.WorkflowExecutor"
         ) as MockExecutor:
             mock_executor = MagicMock()
             mock_executor.execute = AsyncMock(return_value=mock_final_state)
@@ -494,7 +494,7 @@ class TestChainExecutor:
             }
 
         with patch(
-            "fichero_server.workflows.chaining.WorkflowExecutor"
+            "fichero_server.execution.chaining.WorkflowExecutor"
         ) as MockExecutor:
             mock_executor = MagicMock()
             mock_executor.execute = mock_execute
@@ -522,7 +522,7 @@ class TestChainExecutor:
         }
 
         with patch(
-            "fichero_server.workflows.chaining.WorkflowExecutor"
+            "fichero_server.execution.chaining.WorkflowExecutor"
         ) as MockExecutor:
             mock_executor = MagicMock()
             mock_executor.execute = AsyncMock(return_value=mock_final_state)
@@ -555,7 +555,7 @@ class TestChainExecutor:
             return {"outputs": {"done": True}, "output_files": [], "error": None}
 
         with patch(
-            "fichero_server.workflows.chaining.WorkflowExecutor"
+            "fichero_server.execution.chaining.WorkflowExecutor"
         ) as MockExecutor:
             mock_executor = MagicMock()
             mock_executor.execute = mock_execute
@@ -604,7 +604,7 @@ class TestChainExecutor:
         }
 
         with patch(
-            "fichero_server.workflows.chaining.WorkflowExecutor"
+            "fichero_server.execution.chaining.WorkflowExecutor"
         ) as MockExecutor:
             mock_executor = MagicMock()
             mock_executor.execute = AsyncMock(return_value=mock_final_state)

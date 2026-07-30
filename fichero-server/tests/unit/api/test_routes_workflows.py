@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import patch
 
 from fichero_server.models import Workflow
-from fichero_server.api.routes.workflows import create_workflow_impl
+from fichero_server.api.routes.workflow.workflows import create_workflow_impl
 from fichero_server.workflows.types import EdgeDef, NodeDef, WorkflowDef
 
 
@@ -493,7 +493,7 @@ class TestEstimateWorkflowCost:
                 }
             return None
 
-        monkeypatch.setattr("fichero_server.api.routes.workflows.get_model_cost", _fake_cost)
+        monkeypatch.setattr("fichero_server.api.routes.workflow.workflows.get_model_cost", _fake_cost)
 
         r = client.post(
             f"/api/workflows/{wf.id}/estimate-cost",
@@ -574,7 +574,7 @@ class TestListWorkflowTools:
     def test_create_node_from_tool(self, client, monkeypatch):
         calls: list[tuple] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.workflows.emit_change",
+            "fichero_server.api.routes.workflow.workflows.emit_change",
             lambda *a, **k: calls.append((a, k)),
         )
 

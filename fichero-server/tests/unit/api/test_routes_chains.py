@@ -7,9 +7,9 @@ between steps. Uses an in-memory store. Dev-tier feature.
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 
-from fichero_server.api.routes import chains as chain_routes
+from fichero_server.api.routes.workflow import chains as chain_routes
 
-from fichero_server.workflows.chaining import (
+from fichero_server.execution.chaining import (
     chain_store,
     ChainExecutionResult,
     ChainStepResult,
@@ -157,7 +157,7 @@ class TestExecuteChain:
         )
 
         with patch(
-            "fichero_server.api.routes.chains.ChainExecutor.execute",
+            "fichero_server.api.routes.workflow.chains.ChainExecutor.execute",
             new_callable=AsyncMock,
         ) as mock_execute:
             mock_execute.return_value = fake_result
@@ -209,7 +209,7 @@ class TestExecuteChain:
         )
 
         with patch(
-            "fichero_server.api.routes.chains.ChainExecutor.execute",
+            "fichero_server.api.routes.workflow.chains.ChainExecutor.execute",
             new_callable=AsyncMock,
         ) as mock_execute:
             mock_execute.return_value = pending_result

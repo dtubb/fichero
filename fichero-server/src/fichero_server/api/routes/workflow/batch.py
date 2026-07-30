@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from fichero_server.db.app import get_db_path
-from fichero_server.workflows.batch import (
+from fichero_server.execution.batch import (
     BatchEvent,
     BatchExecution,
     BatchItem,

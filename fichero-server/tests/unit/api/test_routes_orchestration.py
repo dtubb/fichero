@@ -50,7 +50,7 @@ def _make_engine(rules: list | None = None) -> MagicMock:
 class TestListPolicyRules:
     def test_returns_empty_list(self, client):
         engine = _make_engine()
-        with patch("fichero_server.api.routes.orchestration.get_policy_engine", return_value=engine):
+        with patch("fichero_server.api.routes.workflow.orchestration.get_policy_engine", return_value=engine):
             r = client.get("/api/policies/orchestration")
         assert r.status_code == 200
         data = r.json()
@@ -61,7 +61,7 @@ class TestListPolicyRules:
     def test_returns_rules(self, client):
         rule = _make_rule()
         engine = _make_engine([rule])
-        with patch("fichero_server.api.routes.orchestration.get_policy_engine", return_value=engine):
+        with patch("fichero_server.api.routes.workflow.orchestration.get_policy_engine", return_value=engine):
             r = client.get("/api/policies/orchestration")
         assert r.status_code == 200
         assert r.json()["total"] == 1
@@ -78,7 +78,7 @@ class TestCreatePolicyRule:
         engine = MagicMock()
         engine.add_rule.return_value = rule
 
-        with patch("fichero_server.api.routes.orchestration.get_policy_engine", return_value=engine):
+        with patch("fichero_server.api.routes.workflow.orchestration.get_policy_engine", return_value=engine):
             r = client.post("/api/policies/orchestration", json={
                 "name": "New rule",
                 "entity_type": "claims",
@@ -95,7 +95,7 @@ class TestCreatePolicyRule:
 class TestAgentWriteAudit:
     def test_returns_empty_audit(self, client):
         engine = _make_engine()
-        with patch("fichero_server.api.routes.orchestration.get_policy_engine", return_value=engine):
+        with patch("fichero_server.api.routes.workflow.orchestration.get_policy_engine", return_value=engine):
             r = client.get("/api/agents/write/audit")
         assert r.status_code == 200
         data = r.json()
@@ -130,7 +130,7 @@ class TestAgentWriteAudit:
         engine = _make_engine([record])
         engine._records = {"rec-1": record}
         engine.get_records.return_value = [record]
-        with patch("fichero_server.api.routes.orchestration.get_policy_engine", return_value=engine):
+        with patch("fichero_server.api.routes.workflow.orchestration.get_policy_engine", return_value=engine):
             r = client.get("/api/agents/write/audit", params={"document_id": "doc-1"})
         assert r.status_code == 200
         assert engine.get_records.call_args.kwargs["document_id"] == "doc-1"

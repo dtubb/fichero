@@ -35,7 +35,7 @@ from fastapi import HTTPException
 
 # Importing the route modules registers the actions on the process-global registry.
 import fichero_server.api.routes.document.annotations  # noqa: F401
-import fichero_server.api.routes.batch as batch_routes  # noqa: F401
+import fichero_server.api.routes.workflow.batch as batch_routes  # noqa: F401
 import fichero_server.api.routes.search  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Document, DocType
@@ -45,7 +45,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
 )
-from fichero_server.workflows.batch import BatchEvent, BatchManager, BatchStatus
+from fichero_server.execution.batch import BatchEvent, BatchManager, BatchStatus
 
 
 LIB = "/lib/test.fichero"

@@ -33,8 +33,8 @@ from fichero_server.api.routes.library.entity_types import (
 from fichero_server.api.routes.system.changes import stream_library_changes
 from fichero_server.api.routes.entity.entities import _digest_library_database
 from fichero_server.api.routes.library.registry import add_known_library
-from fichero_server.api.routes.schedules import get_library_database as get_schedule_database
-from fichero_server.api.routes.triggers import get_library_database as get_trigger_database
+from fichero_server.api.routes.workflow.schedules import get_library_database as get_schedule_database
+from fichero_server.api.routes.workflow.triggers import get_library_database as get_trigger_database
 from fichero_server.db import Database
 from fichero_server.models import AccountUser, ActionAudit, Document, DocType
 from fichero_server.workflows.tools._workflow_change_emit import emit_workflow_artifact_changes

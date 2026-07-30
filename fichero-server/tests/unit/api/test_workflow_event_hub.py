@@ -20,7 +20,7 @@ import queue
 
 import pytest
 
-from fichero_server.api.routes.workflow_execution.runner import WorkflowEventHub
+from fichero_server.execution.runner import WorkflowEventHub
 from fichero_server.api.routes.workflow_execution.schemas import SSEEvent
 
 

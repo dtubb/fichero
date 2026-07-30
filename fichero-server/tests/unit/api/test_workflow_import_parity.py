@@ -11,7 +11,7 @@ from fastapi import HTTPException
 
 def _make_workflow(db):
     """Create a stored workflow and return (workflow, export_payload dict)."""
-    from fichero_server.api.routes.workflows import create_workflow_impl
+    from fichero_server.api.routes.workflow.workflows import create_workflow_impl
     from fichero_server.workflows.types import WorkflowDef, NodeDef, EdgeDef
 
     wf = create_workflow_impl(
@@ -41,7 +41,7 @@ def _make_workflow(db):
 
 class TestImportParity:
     def test_export_import_round_trips_identical(self, db):
-        from fichero_server.api.routes.workflows import import_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import import_workflow_impl
 
         _, payload = _make_workflow(db)
         imported = import_workflow_impl(db, name="", description="", workflow_data=payload)
@@ -51,14 +51,14 @@ class TestImportParity:
         assert imported.name == "Round Trip"
 
     def test_missing_nodes_or_edges_fails_loud(self, db):
-        from fichero_server.api.routes.workflows import import_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import import_workflow_impl
 
         with pytest.raises(HTTPException) as exc:
             import_workflow_impl(db, name="", description="", workflow_data={"nodes": []})
         assert exc.value.status_code == 400
 
     def test_malformed_node_fails_loud_and_persists_nothing(self, db):
-        from fichero_server.api.routes.workflows import import_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import import_workflow_impl
         from fichero_server.models import Workflow
 
         before = len(db.query(Workflow))
@@ -71,7 +71,7 @@ class TestImportParity:
         assert len(db.query(Workflow)) == before
 
     def test_malformed_edge_fails_loud(self, db):
-        from fichero_server.api.routes.workflows import import_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import import_workflow_impl
 
         bad = {"nodes": [{"id": "n1", "tool": "transcribe"}], "edges": ["bad-edge"]}
         with pytest.raises(HTTPException) as exc:
@@ -80,7 +80,7 @@ class TestImportParity:
         assert "edge[0]" in exc.value.detail
 
     def test_nodes_not_a_list_fails_loud(self, db):
-        from fichero_server.api.routes.workflows import import_workflow_impl
+        from fichero_server.api.routes.workflow.workflows import import_workflow_impl
 
         with pytest.raises(HTTPException) as exc:
             import_workflow_impl(

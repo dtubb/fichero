@@ -12,7 +12,7 @@ from fichero_server.workflows.workflow_store import WorkflowStore
 # runtime -> builder -> langgraph + every tool. build_graph below was
 # already deferred this way.
 
-from .runner import _generate_workflow_python_code
+from fichero_server.execution.runner import _generate_workflow_python_code
 from .schemas import workflow_internal_error
 
 logger = logging.getLogger(__name__)

@@ -25,7 +25,7 @@ import duckdb
 # trigger factories, JobLookupError catches). Keeping it off module scope defers
 # ~77ms of import cost off the engine API bind path — the scheduler is only ever
 # instantiated at lifespan startup via init_scheduler(), never at import.
-from fichero_server.workflows.batch import BatchManager
+from fichero_server.execution.batch import BatchManager
 from fichero_server.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)

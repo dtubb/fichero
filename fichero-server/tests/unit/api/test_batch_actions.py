@@ -23,10 +23,10 @@ from datetime import datetime
 import pytest
 
 # Importing the route module registers the batch.* actions via @action.
-import fichero_server.api.routes.batch as batch_routes  # noqa: F401
+import fichero_server.api.routes.workflow.batch as batch_routes  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit
-from fichero_server.workflows.batch import (
+from fichero_server.execution.batch import (
     BatchEvent,
     BatchExecution,
     BatchItem,

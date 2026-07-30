@@ -3,7 +3,7 @@
 Simple tests for workflow API endpoints without requiring the database.
 """
 import sys
-import importlib.util
+import importlib
 from pathlib import Path
 
 SRC_DIR = Path(__file__).resolve().parents[3] / "src"
@@ -13,14 +13,12 @@ def test_workflow_routes_directly():
     print("Testing workflow routes directly...")
 
     try:
-        # Load the workflow routes module directly without going through the full API import chain
-        workflow_routes_path = SRC_DIR / "fichero_server" / "api" / "routes" / "workflows.py"
-
-        spec = importlib.util.spec_from_file_location("workflows", workflow_routes_path)
-        workflows_module = importlib.util.module_from_spec(spec)
-
-        # Execute the module
-        spec.loader.exec_module(workflows_module)
+        # Import the canonical workflow routes module (the flat
+        # api/routes/workflows.py shim was deleted in #4077).
+        sys.path.insert(0, str(SRC_DIR))
+        workflows_module = importlib.import_module(
+            "fichero_server.api.routes.workflow.workflows"
+        )
 
         # Check that the router is available
         assert hasattr(workflows_module, 'router'), "Router should be available"
