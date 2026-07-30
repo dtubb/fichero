@@ -23,6 +23,14 @@ final class CrossLanguageGateTests: XCTestCase {
         if env["CI_XCODE_CLOUD"] != nil || env["XCODE_CLOUD_DEPLOYMENT_VARIANT"] != nil {
             throw XCTSkip("Python gate runs in GitHub Actions Linux CI; skipped on Xcode Cloud.")
         }
+        // Opt-in only: verify_python.sh is a 30-45 MINUTE sweep — nesting it
+        // inside one XCTest blows the per-test watchdog and truncates the
+        // whole XCTest leg. The serialized harness runs the Python gate as
+        // its own leg; this cross-language wrapper exists for explicit
+        // one-command verification runs.
+        guard env["FICHERO_RUN_CROSS_LANGUAGE_GATE"] == "1" else {
+            throw XCTSkip("Set FICHERO_RUN_CROSS_LANGUAGE_GATE=1 to nest the Python gate in XCTest.")
+        }
 
         guard let repo = EngineHarness.repoRoot() else {
             throw XCTSkip("Repo root not found — skipping Python gate.")
