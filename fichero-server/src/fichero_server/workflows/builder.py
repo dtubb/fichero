@@ -1269,6 +1269,46 @@ def _make_parallel_node_function(
         index = state.get("parallel_index", 0)
         total = state.get("parallel_total", 1)
 
+        # #4317: per-file cancellation boundary. The Send fan-out materialises
+        # one branch per file up front; without this check a cancel only lands
+        # between LangGraph events on the main loop, so a long multi-file node
+        # kept burning provider calls. task_id is the run id (thread_id on the
+        # live path, item thread_id in batches).
+        run_id_for_cancel = state.get("task_id", "")
+
+        def _run_cancelled() -> bool:
+            from fichero_server.execution.cancellation import (  # noqa: PLC0415
+                cancellation_requested,
+            )
+
+            return cancellation_requested(run_id_for_cancel)
+
+        def _cancelled_result() -> dict:
+            logger.info(
+                "Parallel branch %s [%s/%s] skipped: run %s cancelled",
+                node_id,
+                index + 1,
+                total,
+                run_id_for_cancel,
+            )
+            return {
+                "parallel_results": {
+                    node_id: [
+                        {
+                            "file": file_path,
+                            "index": index,
+                            "total": total,
+                            "success": False,
+                            "cancelled": True,
+                            "error": "cancelled",
+                        }
+                    ]
+                },
+            }
+
+        if _run_cancelled():
+            return _cancelled_result()
+
         event_document_meta: dict[str, Any] = {}
         if isinstance(document, dict):
             leaf_id = document.get("id")
@@ -1418,6 +1458,11 @@ def _make_parallel_node_function(
             # Cap concurrent in-flight vision/LLM calls to avoid OOM when a
             # large batch dispatches dozens of Sends simultaneously (#2221).
             async with _get_vision_semaphore():
+                # #4317: branches queued behind the semaphore re-check after
+                # acquiring it, so a cancel stops the queue within one file
+                # boundary instead of draining every waiting branch.
+                if _run_cancelled():
+                    return _cancelled_result()
                 result = await tool_fn(
                     inputs=tool_inputs,
                     state=state,

@@ -15,6 +15,10 @@ from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 from fichero_server.db import Database
+from fichero_server.execution.cancellation import (
+    cancellation_requested,
+    clear_cancellation,
+)
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.registry import get_tool_def
@@ -583,6 +587,9 @@ async def _run_workflow_in_background(
     workflow: Workflow,
     request: ExecuteWorkflowRequest,
     db: Database,
+    *,
+    resume_input: Any = None,
+    is_resume: bool = False,
 ) -> None:
     """
     Run a workflow in the background, publishing events to the event hub.
@@ -592,6 +599,13 @@ async def _run_workflow_in_background(
     ``_running_workflows[thread_id]["events"]`` — a thread-safe
     :class:`WorkflowEventHub` that fans them out to every SSE subscriber
     (#2546). The producer interface is unchanged: ``.put(event)``.
+
+    #4317: resume runs on this SAME path. With ``is_resume=True`` the stream
+    input is ``resume_input`` (``None`` to continue the checkpoint, new
+    inputs, or ``Command(resume=answer)`` for an interrupt() answer) instead
+    of a fresh initial state — so a resumed run streams SSE, honors
+    pause/cancel, and hits the completion/finalize document boundary exactly
+    like a live run, instead of blocking the FastAPI loop with ``ainvoke``.
     """
     # SystemicErrorDetected is caught below; an `except` clause is a global
     # lookup, so it must be bound in this scope. The runtime entry points are
@@ -716,15 +730,26 @@ async def _run_workflow_in_background(
         # Mark as running
         state["status"] = "running"
 
-        await log_execution(f"Starting workflow '{workflow.name}'")
-
-        # Log activity: workflow started
-        activity_tracker.workflow_started(
-            workflow_id=workflow_id,
-            thread_id=thread_id,
-            workflow_name=workflow.name,
-            input_count=len(request.inputs),
+        await log_execution(
+            f"Resuming workflow '{workflow.name}' from checkpoint"
+            if is_resume
+            else f"Starting workflow '{workflow.name}'"
         )
+
+        # Log activity: workflow started / resumed
+        if is_resume:
+            activity_tracker.workflow_resumed(
+                workflow_id=workflow_id,
+                thread_id=thread_id,
+                workflow_name=workflow.name,
+            )
+        else:
+            activity_tracker.workflow_started(
+                workflow_id=workflow_id,
+                thread_id=thread_id,
+                workflow_name=workflow.name,
+                input_count=len(request.inputs),
+            )
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="running",
@@ -1042,9 +1067,36 @@ async def _run_workflow_in_background(
         logger.debug(f"Exit nodes for completion: {exit_node_event_names}")
         completed_exit_nodes = set()
 
+        # #4317: a resumed run only replays the REMAINING nodes — exit nodes
+        # that completed before the pause never fire on_chain_end again, so
+        # seed them from the checkpoint or the missing-exit-node guard would
+        # fail an honestly-completed resume.
+        if is_resume:
+            try:
+                pre_tuple = await checkpointer.aget_tuple(config)
+                pre_state = (
+                    pre_tuple.checkpoint.get("channel_values") if pre_tuple else {}
+                ) or {}
+                id_to_event_name = {
+                    n.get("id"): (n.get("label") or n.get("id"))
+                    for n in workflow.nodes
+                }
+                for done_node_id in pre_state.get("completed_nodes") or []:
+                    event_name = id_to_event_name.get(done_node_id, done_node_id)
+                    if event_name in exit_node_event_names:
+                        completed_exit_nodes.add(event_name)
+            except Exception as seed_exc:
+                logger.warning(
+                    "Resume: could not seed completed exit nodes for %s: %s",
+                    thread_id,
+                    seed_exc,
+                )
+
+        stream_input = resume_input if is_resume else initial_state
+
         # Stream execution events
         async for event in app.astream_events(
-            initial_state,
+            stream_input,
             config=config,
             version="v2",
         ):
@@ -1083,7 +1135,10 @@ async def _run_workflow_in_background(
             # results (per the issue invariant: "partial results are
             # NOT rolled back"), and the activity tracker emits a
             # workflow_cancelled event in the surrounding finally.
-            if state.get("cancel_requested"):
+            # #4317: also honor the shared cancellation event — the one
+            # primitive the cancel endpoint, DELETE, and batch cancel all set,
+            # reachable even after this run's registry entry was evicted.
+            if state.get("cancel_requested") or cancellation_requested(thread_id):
                 state["status"] = "cancelled"
                 await log_execution(
                     f"Workflow '{workflow.name}' cancelled by user "
@@ -1639,6 +1694,12 @@ async def _run_workflow_in_background(
         await _finalize_documents("failed", error=str(e)[:500])
 
     finally:
+        # Drop the shared cancellation event — but ONLY when the run actually
+        # ended. A pause returns through here too, and a paused run must stay
+        # cancellable via the same primitive (#4316/#4317).
+        if state.get("status") != "paused":
+            clear_cancellation(thread_id)
+
         # Signal end of stream
         event_queue.put(None)  # Sentinel to signal stream end
 

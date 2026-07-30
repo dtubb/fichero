@@ -9,7 +9,6 @@ import json
 import logging
 import queue
 import threading
-from datetime import datetime, timezone
 from typing import Any, AsyncGenerator, TYPE_CHECKING
 from uuid import uuid4
 
@@ -417,16 +416,22 @@ async def resume_workflow(
     db: Database = Depends(get_library_database_for_write),
 ) -> ExecutionStatusResponse:
     """
-    Resume a paused workflow from checkpoint.
+    Resume a paused workflow from checkpoint (non-blocking, #4317).
 
-    Continues execution from the last checkpoint, optionally with new inputs.
+    Continues execution from the last checkpoint, optionally with new inputs
+    or an interrupt() answer. The run is dispatched to the SAME dedicated
+    worker-thread path as ``/execute`` — it streams SSE via
+    ``GET /stream/{thread_id}``, honors pause/cancel, and hits the document
+    completion boundary — instead of blocking the FastAPI event loop with a
+    synchronous ``ainvoke`` that emitted no events and force-wrote
+    ``completed``.
 
     Args:
         thread_id: Thread ID from original execution
-        request: Optional new inputs
+        request: Optional new inputs / interrupt answer
 
     Returns:
-        Execution status after resume
+        Execution status with status="running" once dispatched
 
     Raises:
         404: Thread not found
@@ -467,127 +472,64 @@ async def resume_workflow(
                 detail=f"Cannot resume - workflow not found: {workflow_id}",
             )
 
-        # Rebuild graph with checkpointer
-        app = _build_workflow_with_checkpointer(workflow, checkpointer)
-
         activity_tracker = get_activity_tracker(str(db.path))
-        activity_tracker.workflow_resumed(
-            workflow_id=workflow_id,
-            thread_id=thread_id,
-            workflow_name=workflow.name if workflow else "Unknown",
-        )
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="running",
-            completed_at=None,
         )
 
-        # Resume from checkpoint. A run paused on a LangGraph interrupt()
-        # (human-in-the-loop, #2529) must be resumed with Command(resume=answer)
-        # so the answer reaches the interrupt() call; a normal pause continues
-        # with None / new inputs.
+        # A run paused on a LangGraph interrupt() (human-in-the-loop, #2529)
+        # must be resumed with Command(resume=answer) so the answer reaches
+        # the interrupt() call; a normal pause continues with None / new
+        # inputs.
         resume_arg = _resume_argument(request)
-        resume_started_at = datetime.now(timezone.utc)
 
-        def _finalize_resume_documents(
-            state_for_docs: Any, final_status: str, **result_extra: Any
-        ) -> None:
-            """#4315: a resumed run hits the SAME document boundary as a live
-            run — success completes the run's documents, failure reverts
-            processing → pending. Best-effort, never masks the outcome."""
-            try:
-                from fichero_server.workflows.completion import (  # noqa: PLC0415
-                    collect_processed_document_ids,
-                    finalize_run_documents,
-                )
+        # Register the run in the live registry with a fresh event hub so
+        # GET /stream/{thread_id} works and cancel/pause reach it (#4317).
+        event_hub = WorkflowEventHub()
+        _set_workflow_state(
+            thread_id,
+            {
+                "workflow_id": workflow_id,
+                "workflow_name": workflow.name,
+                "status": "accepted",
+                "events": event_hub,
+                "error": None,
+                "final_state": None,
+            },
+        )
 
-                finalize_run_documents(
-                    db,
-                    collect_processed_document_ids(state_for_docs or {}),
-                    final_status,
-                    workflow_run={
-                        "thread_id": thread_id,
-                        "workflow_id": workflow_id,
-                        "workflow_name": workflow.name,
-                        "provider": workflow.provider,
-                        "model": workflow.model,
-                        "result": {"status": final_status, **result_extra},
-                        "started_at": resume_started_at,
-                        "completed_at": datetime.now(timezone.utc),
-                    },
-                )
-            except Exception as finalize_exc:  # pragma: no cover - defensive
-                logger.warning(
-                    "Resume document finalize (%s) failed for %s: %s",
-                    final_status,
-                    thread_id,
-                    finalize_exc,
-                )
-
-        try:
-            final_state = await app.ainvoke(resume_arg, config=config)
-        except Exception as resume_exc:
-            duration_ms = (
-                datetime.now(timezone.utc) - resume_started_at
-            ).total_seconds() * 1000
-            activity_tracker.workflow_failed(
-                workflow_id=workflow_id,
-                thread_id=thread_id,
-                workflow_name=workflow.name,
-                error=str(resume_exc),
-                duration_ms=duration_ms,
-            )
-            await activity_tracker.store.update_workflow_run(
-                thread_id=thread_id,
-                status="failed",
-                error=str(resume_exc),
-                duration_ms=duration_ms,
-                completed_at=datetime.now(timezone.utc),
-            )
-            # A failed resume must still settle the docs it left processing —
-            # use the latest checkpoint since ainvoke returned nothing.
-            try:
-                failed_tuple = await checkpointer.aget_tuple(config)
-                failed_state = (
-                    failed_tuple.checkpoint.get("channel_values")
-                    if failed_tuple
-                    else {}
-                )
-            except Exception:
-                failed_state = {}
-            _finalize_resume_documents(
-                failed_state, "failed", error=str(resume_exc)[:500]
-            )
-            raise
-
-        # Get latest checkpoint
-        checkpoint_tuple = await checkpointer.aget_tuple(config)
-        duration_ms = (datetime.now(timezone.utc) - resume_started_at).total_seconds() * 1000
-        activity_tracker.workflow_completed(
+        exec_request = ExecuteWorkflowRequest(
             workflow_id=workflow_id,
+            inputs=(request.inputs if request and request.inputs else {}),
             thread_id=thread_id,
-            workflow_name=workflow.name,
-            duration_ms=duration_ms,
         )
-        await activity_tracker.store.update_workflow_run(
-            thread_id=thread_id,
-            status="completed",
-            duration_ms=duration_ms,
-            completed_at=datetime.now(timezone.utc),
-        )
-        # #4315: resume-to-completion completes the run's documents, exactly
-        # like the live runner's success boundary.
-        _finalize_resume_documents(final_state, "completed")
+
+        def _resume_workflow_thread() -> None:
+            asyncio.run(
+                _run_workflow_in_background(
+                    thread_id=thread_id,
+                    workflow=workflow,
+                    request=exec_request,
+                    db=db,
+                    resume_input=resume_arg,
+                    is_resume=True,
+                )
+            )
+
+        threading.Thread(
+            target=_resume_workflow_thread,
+            name=f"workflow-resume-{thread_id}",
+            daemon=True,
+        ).start()
 
         return ExecutionStatusResponse(
             thread_id=thread_id,
             workflow_id=workflow_id,
             workflow_name=workflow.name if workflow else "Unknown",
-            status="completed",
-            checkpoint_id=checkpoint_tuple.checkpoint["id"]
-            if checkpoint_tuple
-            else None,
-            current_state=_sanitize_for_json(final_state),
+            status="running",
+            checkpoint_id=checkpoint_tuple.checkpoint["id"],
+            current_state=_sanitize_for_json(resume_state),
             error=None,
         )
 
@@ -667,7 +609,9 @@ async def get_thread_status(
             run = None
 
         if run and run.status:
-            status = run.status
+            from fichero_server.workflows.run_status import normalize_status  # noqa: PLC0415
+
+            status = normalize_status(run.status)
             workflow_error = run.error or workflow_error
             workflow_name = run.workflow_name or workflow_name
             workflow_id = run.workflow_id or workflow_id
