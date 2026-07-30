@@ -366,16 +366,22 @@ struct EntityDigestContent: View {
         return all.first(where: { $0.id == docId })?.name ?? docId
     }
 
-    private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
-        if let svo = ClaimSummaryCard.svoTriple(for: claim) {
-            return [svo.subject, svo.verb, svo.object]
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-                .joined(separator: " · ")
-        }
+    /// The entity this digest is showing, which every claim below is grouped
+    /// under — so its name is redundant on each row (#4393).
+    private var groupSubject: String? {
+        guard let selectedEntityId else { return nil }
+        return entities.first(where: { $0.id == selectedEntityId })?.canonicalName
+    }
 
-        let fallback = claim.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return fallback.isEmpty ? "Untitled claim" : fallback
+    private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
+        let svo = ClaimSummaryCard.svoTriple(for: claim)
+        return ClaimLine.text(
+            subject: svo?.subject,
+            verb: svo?.verb,
+            object: svo?.object,
+            fallback: claim.text,
+            groupSubject: groupSubject
+        )
     }
 
     private func provenanceBadgeLabel(for claim: Components.Schemas.KnowledgeClaim) -> String {
