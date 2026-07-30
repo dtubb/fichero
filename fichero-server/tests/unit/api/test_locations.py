@@ -1,4 +1,4 @@
-from fichero_server.api.routes.locations import Location, LocationSurface, resolve_location
+from fichero_server.api.routes.system.locations import Location, LocationSurface, resolve_location
 from fichero_server.models import DocType, Document
 import asyncio
 import pytest

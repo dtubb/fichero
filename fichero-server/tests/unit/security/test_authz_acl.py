@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-import fichero_server.api.routes.actions_registry  # noqa: F401 - registers acl.set
+import fichero_server.api.routes.system.actions_registry  # noqa: F401 - registers acl.set
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.actions.registry import (
@@ -30,7 +30,7 @@ from fichero_server.api.routes.library.entity_types import (
     add_library_entity_type,
     list_library_entity_types,
 )
-from fichero_server.api.routes.changes import stream_library_changes
+from fichero_server.api.routes.system.changes import stream_library_changes
 from fichero_server.api.routes.entity.entities import _digest_library_database
 from fichero_server.api.routes.library.registry import add_known_library
 from fichero_server.api.routes.schedules import get_library_database as get_schedule_database

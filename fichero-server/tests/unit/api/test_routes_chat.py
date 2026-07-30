@@ -106,11 +106,11 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.GraphAwareRetriever",
+            "fichero_server.api.routes.system.chat.GraphAwareRetriever",
             lambda *_args, **_kwargs: _FakeRetriever(),
         )
 
@@ -152,11 +152,11 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.GraphAwareRetriever",
+            "fichero_server.api.routes.system.chat.GraphAwareRetriever",
             lambda *_args, **_kwargs: _FakeRetriever(),
         )
 
@@ -184,7 +184,7 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
 
@@ -238,7 +238,7 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
 
@@ -285,7 +285,7 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
 
@@ -306,7 +306,7 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
 
@@ -328,11 +328,11 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.GraphAwareRetriever",
+            "fichero_server.api.routes.system.chat.GraphAwareRetriever",
             lambda *_args, **_kwargs: _FakeRetriever(),
         )
 
@@ -359,11 +359,11 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.GraphAwareRetriever",
+            "fichero_server.api.routes.system.chat.GraphAwareRetriever",
             lambda *_args, **_kwargs: _FakeRetriever(),
         )
 
@@ -385,11 +385,11 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.GraphAwareRetriever",
+            "fichero_server.api.routes.system.chat.GraphAwareRetriever",
             lambda *_args, **_kwargs: _FakeRetriever(),
         )
 
@@ -412,11 +412,11 @@ class TestChatWithSources:
                 return type("_Response", (), {"content": "nope"})()
 
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: _ShouldNotRunLLM(),
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.GraphAwareRetriever",
+            "fichero_server.api.routes.system.chat.GraphAwareRetriever",
             lambda *_args, **_kwargs: _BrokenRetriever(),
         )
 
@@ -433,11 +433,11 @@ class TestChatWithSources:
         fake_llm = _FakeLLM()
 
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.emit_change",
+            "fichero_server.api.routes.system.chat.emit_change",
             lambda library_path, **kwargs: emitted.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -514,11 +514,11 @@ class TestChatWithSources:
 
         fake_llm = _FakeLLM()
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: fake_llm,
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.GraphAwareRetriever",
+            "fichero_server.api.routes.system.chat.GraphAwareRetriever",
             lambda *_args, **_kwargs: _FakeRetriever(),
         )
 
@@ -548,7 +548,7 @@ class TestChatWithSources:
                 raise RuntimeError("provider misconfigured")
 
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat._get_langchain_llm",
+            "fichero_server.api.routes.system.chat._get_langchain_llm",
             lambda *_args, **_kwargs: _BrokenLLM(),
         )
 
@@ -839,11 +839,11 @@ class TestGetLangchainLlm:
         fake_db.query.return_value = []  # no configured providers → fallback defaults
 
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.get_langchain_model",
+            "fichero_server.api.routes.system.chat.get_langchain_model",
             fake_get_langchain_model,
         )
 
-        from fichero_server.api.routes.chat import _get_langchain_llm
+        from fichero_server.api.routes.system.chat import _get_langchain_llm
 
         result = _get_langchain_llm(fake_db, provider="openai", model="gpt-4o-mini")
 
@@ -868,7 +868,7 @@ class TestGetLangchainLlm:
         fake_model.bind_tools.return_value = fake_model
 
         monkeypatch.setattr(
-            "fichero_server.api.routes.chat.get_langchain_model",
+            "fichero_server.api.routes.system.chat.get_langchain_model",
             lambda _config: fake_model,
         )
 

@@ -959,7 +959,7 @@ class TestActionMutationsEmitChange:
     def test_create_action_emits_created(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.actions.emit_change",
+            "fichero_server.api.routes.system.actions.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -989,7 +989,7 @@ class TestActionMutationsEmitChange:
     def test_update_action_emits_updated(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.actions.emit_change",
+            "fichero_server.api.routes.system.actions.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1021,7 +1021,7 @@ class TestActionMutationsEmitChange:
     def test_delete_action_emits_deleted(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.actions.emit_change",
+            "fichero_server.api.routes.system.actions.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1131,7 +1131,7 @@ class TestProjectsMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.projects.emit_change",
+            "fichero_server.api.routes.system.projects.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1152,7 +1152,7 @@ class TestProjectsMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.projects.emit_change",
+            "fichero_server.api.routes.system.projects.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1175,7 +1175,7 @@ class TestProjectsMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.projects.emit_change",
+            "fichero_server.api.routes.system.projects.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),

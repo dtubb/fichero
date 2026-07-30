@@ -24,7 +24,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 # Importing the route module registers the actionlib.* actions via @action.
-import fichero_server.api.routes.actions  # noqa: F401
+import fichero_server.api.routes.system.actions  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit
 from fichero_server.workflows.action_store import ActionStore

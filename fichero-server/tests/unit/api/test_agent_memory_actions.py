@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi import HTTPException
 
-import fichero_server.api.routes.agent_memory  # noqa: F401
+import fichero_server.api.routes.system.agent_memory  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, AgentNote, Document, DocType
 

@@ -61,7 +61,7 @@ from fichero_server.models.knowledge import (
 # Forward refs — routes import from this file, so we can't import back. The
 # route modules call model_rebuild() on their owning envelope at module end.
 if TYPE_CHECKING:
-    from fichero_server.api.routes.activity import ActivityResponse
+    from fichero_server.api.routes.system.activity import ActivityResponse
     from fichero_server.api.routes.batch import BatchResponse
     from fichero_server.api.routes.kg_entity_curation import EntityAuditResponse
 

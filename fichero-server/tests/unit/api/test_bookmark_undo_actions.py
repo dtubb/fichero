@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import fichero_server.api.routes.actions_registry  # noqa: F401
-import fichero_server.api.routes.bookmarks  # noqa: F401
+import fichero_server.api.routes.system.actions_registry  # noqa: F401
+import fichero_server.api.routes.system.bookmarks  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, DocType, Document
 

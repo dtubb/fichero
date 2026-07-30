@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-import fichero_server.api.routes.actions_registry  # noqa: F401 - registers acl.set
+import fichero_server.api.routes.system.actions_registry  # noqa: F401 - registers acl.set
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.actions.registry import ActionContext, registry

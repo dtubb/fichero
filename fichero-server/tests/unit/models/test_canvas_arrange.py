@@ -14,7 +14,7 @@ import pytest
 
 # Importing the route module registers the ``canvas.arrange`` action.
 import fichero_server.api.routes.interpretation.canvas  # noqa: F401
-from fichero_server.api.routes.actions_registry import undo_action
+from fichero_server.api.routes.system.actions_registry import undo_action
 from fichero_server.security import accounts
 from fichero_server.security import authz
 from fichero_server.actions.registry import ActionContext, registry

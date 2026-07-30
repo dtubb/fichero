@@ -69,7 +69,7 @@ class TestListMigrations:
 class TestRunMigration:
     def test_run_dry_run(self, client):
         result = _make_migration_result()
-        with patch("fichero_server.api.routes.migrations.MigrationRunner") as MockRunner:
+        with patch("fichero_server.api.routes.system.migrations.MigrationRunner") as MockRunner:
             MockRunner.return_value.migrate_claims_to_multi_source.return_value = result
             r = client.post(f"{BASE}/run", json={
                 "command": "migrate_claims_to_multi_source",
@@ -82,7 +82,7 @@ class TestRunMigration:
 
     def test_run_backfill(self, client):
         result = _make_migration_result("backfill_claim_source_metadata")
-        with patch("fichero_server.api.routes.migrations.MigrationRunner") as MockRunner:
+        with patch("fichero_server.api.routes.system.migrations.MigrationRunner") as MockRunner:
             MockRunner.return_value.backfill_claim_source_metadata.return_value = result
             r = client.post(f"{BASE}/run", json={
                 "command": "backfill_claim_source_metadata",
@@ -92,7 +92,7 @@ class TestRunMigration:
 
     def test_run_repair(self, client):
         result = _make_migration_result("repair_orphaned_claim_links")
-        with patch("fichero_server.api.routes.migrations.MigrationRunner") as MockRunner:
+        with patch("fichero_server.api.routes.system.migrations.MigrationRunner") as MockRunner:
             MockRunner.return_value.repair_orphaned_claim_links.return_value = result
             r = client.post(f"{BASE}/run", json={
                 "command": "repair_orphaned_claim_links",

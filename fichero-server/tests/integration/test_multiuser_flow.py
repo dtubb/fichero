@@ -198,7 +198,7 @@ async def test_multiuser_ann_flow_happy_path_and_acl_revocation(tmp_path, app_db
     secondary = _create_library(tmp_path, "secondary")
 
     async with _async_client_bundle(app_db, monkeypatch) as (local_client, remote_client):
-        from fichero_server.api.routes.activity import stream_activities
+        from fichero_server.api.routes.system.activity import stream_activities
 
         create_owner = await local_client.post(
             "/api/users",

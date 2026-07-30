@@ -4,7 +4,7 @@ Verify that prior turns are included in the LLM prompt, that truncation
 drops oldest turns, and that empty history is a no-op.
 """
 
-from fichero_server.api.routes.chat import _build_history_messages, MAX_HISTORY_TURNS
+from fichero_server.api.routes.system.chat import _build_history_messages, MAX_HISTORY_TURNS
 
 
 class TestBuildHistoryMessages:

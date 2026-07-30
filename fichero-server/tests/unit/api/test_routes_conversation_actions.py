@@ -27,7 +27,7 @@ from fastapi import HTTPException
 
 # Importing the route module registers the conversation.* actions on the
 # process-global registry via the @action decorator.
-import fichero_server.api.routes.chat  # noqa: F401
+import fichero_server.api.routes.system.chat  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Conversation
 

@@ -79,7 +79,7 @@ class TestActivityEndpoints:
     def test_list_activities(self, client, db, sample_activities):
         """List activities returns array of activity items."""
         # Mock the activity tracker
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=sample_activities)
             mock_tracker.return_value = mock_instance
@@ -97,7 +97,7 @@ class TestActivityEndpoints:
         """List activities with type filter."""
         completed_activities = [a for a in sample_activities if a.type == ActivityType.WORKFLOW_COMPLETED]
 
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=completed_activities)
             mock_tracker.return_value = mock_instance
@@ -112,7 +112,7 @@ class TestActivityEndpoints:
         """List activities with level filter."""
         error_activities = [a for a in sample_activities if a.level == ActivityLevel.ERROR]
 
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=error_activities)
             mock_tracker.return_value = mock_instance
@@ -127,7 +127,7 @@ class TestActivityEndpoints:
         """List activities filtered by workflow ID."""
         wf1_activities = [a for a in sample_activities if a.workflow_id == "wf-1"]
 
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=wf1_activities)
             mock_tracker.return_value = mock_instance
@@ -140,7 +140,7 @@ class TestActivityEndpoints:
 
     def test_list_activities_with_time_filter(self, client, db, sample_activities):
         """List activities with time range filter."""
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=sample_activities[:2])
             mock_tracker.return_value = mock_instance
@@ -162,7 +162,7 @@ class TestActivityEndpoints:
 
     def test_recent_activities(self, client, db, sample_activities):
         """Get recent activities from memory buffer."""
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.get_recent = MagicMock(return_value=sample_activities[:2])
             mock_tracker.return_value = mock_instance
@@ -187,7 +187,7 @@ class TestActivityEndpoints:
             period_end=datetime.now(),
         )
 
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.get_stats = AsyncMock(return_value=mock_stats)
             mock_tracker.return_value = mock_instance
@@ -203,7 +203,7 @@ class TestActivityEndpoints:
         """Get activities for specific workflow."""
         wf1_activities = [a for a in sample_activities if a.workflow_id == "wf-1"]
 
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=wf1_activities)
             mock_tracker.return_value = mock_instance
@@ -225,7 +225,7 @@ class TestActivityEndpoints:
             batch_id="batch-1",
         )
 
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=[batch_activity])
             mock_tracker.return_value = mock_instance
@@ -238,7 +238,7 @@ class TestActivityEndpoints:
 
     def test_cleanup_old_activities(self, client, db):
         """Delete old activities."""
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.store = MagicMock()
             mock_instance.store.delete_old_sync.return_value = 50
@@ -270,7 +270,7 @@ class TestActivityResponse:
             },
         )
 
-        with patch("fichero_server.api.routes.activity.get_activity_tracker") as mock_tracker:
+        with patch("fichero_server.api.routes.system.activity.get_activity_tracker") as mock_tracker:
             mock_instance = MagicMock()
             mock_instance.query = AsyncMock(return_value=[activity])
             mock_tracker.return_value = mock_instance

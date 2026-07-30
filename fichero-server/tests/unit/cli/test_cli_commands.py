@@ -15,7 +15,7 @@ from fichero_cli import __main__ as cli
 from fichero_cli import FicheroError
 from fichero_cli import client as client_module
 from fichero_cli.formatters import render
-from fichero_server.api.routes.activity import ActivityResponse
+from fichero_server.api.routes.system.activity import ActivityResponse
 from fichero_server.api.routes.document.artifacts import ArtifactResponse
 from fichero_server.api.routes.document.inspector import DocumentInspectorResponse
 from fichero_server.api.routes.entity.entities import (

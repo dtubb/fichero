@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, patch
 import fitz
 
 from fichero_server.db import storage as storage_module
-from fichero_server.api.routes import storage as storage_routes
+from fichero_server.api.routes.system import storage as storage_routes
 from fichero_server.db import Database
 from fichero_server.models import Document, DocType, FileType, Status
 from fichero_server.db.storage import expected_display_path, expected_thumbnail_path
@@ -443,7 +443,7 @@ class TestRegenerateMissingThumbnails:
 
 class TestListSnapshots:
     def test_returns_empty_snapshots(self, client):
-        with patch("fichero_server.api.routes.storage.list_snapshots") as mock_list:
+        with patch("fichero_server.api.routes.system.storage.list_snapshots") as mock_list:
             mock_list.return_value = []
             r = client.get("/api/storage/snapshots")
         assert r.status_code == 200
@@ -467,7 +467,7 @@ class TestListSnapshots:
             lance_path="lance/",
             created_at=datetime.now(),
         )
-        with patch("fichero_server.api.routes.storage.list_snapshots") as mock_list:
+        with patch("fichero_server.api.routes.system.storage.list_snapshots") as mock_list:
             mock_list.return_value = [snap]
             r = client.get("/api/storage/snapshots")
         assert r.status_code == 200

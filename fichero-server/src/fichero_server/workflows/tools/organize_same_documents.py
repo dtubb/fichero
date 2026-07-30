@@ -8,7 +8,7 @@ from typing import Any
 # here (#3950). A tool importing an API ROUTE is a layering inversion, and it
 # created a second import cycle:
 #     tools/__init__ -> this module -> api.routes.document.documents
-#     -> api.main -> api.routes.chat -> api.routes.document.documents (half-initialised)
+#     -> api.main -> api.routes.system.chat -> api.routes.document.documents (half-initialised)
 # which made `import fichero_server.workflows.tools` impossible standalone and so
 # blocked any background warm-up. The route import is a side effect that
 # registers the document.* actions — those are needed when this tool RUNS,

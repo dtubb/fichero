@@ -16,7 +16,7 @@ import pytest
 from fichero_server.api import change_stream
 from fichero_server.api.change_stream import _ChangeHub
 from fichero_server.api.change_stream import emit_change
-from fichero_server.api.routes import changes
+from fichero_server.api.routes.system import changes
 
 
 class _FakeRequest:
