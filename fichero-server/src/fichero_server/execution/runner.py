@@ -90,7 +90,10 @@ __all__ = [
     "_generate_workflow_python_code",
     "_get_workflow_state",
     "_is_internal_langchain_node",
+    "_exit_node_expectations",
     "_missing_exit_nodes",
+    "_unrouted_exit_nodes",
+    "_unsatisfied_exit_nodes",
     "_remove_workflow_state",
     "_run_workflow_in_background",
     "_set_workflow_state",
@@ -333,6 +336,109 @@ def _missing_exit_nodes(
     if not exit_node_ids:
         return set()
     return set(exit_node_ids) - set(completed_exit_nodes)
+
+
+def _exit_node_expectations(
+    nodes: list[dict],
+    edges: list[dict],
+) -> tuple[set[str], list[set[str]]]:
+    """Split graph exit nodes into unconditional ones and route-branch groups.
+
+    A ``route_map`` edge (#4324) picks exactly ONE branch at runtime. Every
+    other branch legitimately produces nothing, so requiring all four exits of
+    Transcribe (Auto-Detect) to complete failed every honest run with
+    "stream ended before exit node(s) completed" (#4345).
+
+    Returns ``(unconditional, groups)`` in EVENT-NAME space (label or id, what
+    LangGraph emits):
+
+    * ``unconditional`` — exits on no conditional branch. Each must complete.
+    * ``groups`` — one set per route_map edge, holding the exits reachable
+      only through that edge's branches. At least ONE member of each group
+      must complete: a route that selected nothing ran nothing, and that is
+      still a failure, not a quiet pass.
+    """
+    name_of = {
+        n.get("id", ""): (n.get("label") or n.get("id", ""))
+        for n in nodes
+        if n.get("id")
+    }
+
+    plain_targets: dict[str, list[str]] = {}
+    route_edges: list[list[str]] = []
+    source_ids: set[str] = set()
+    for edge in edges:
+        source = edge.get("source") or edge.get("source_node_id", "")
+        source_ids.add(source)
+        route_map = edge.get("route_map") or {}
+        if route_map:
+            route_edges.append([t for t in route_map.values() if t in name_of])
+            continue
+        target = edge.get("target", "")
+        if target:
+            plain_targets.setdefault(source, []).append(target)
+
+    exit_ids = {node_id for node_id in name_of if node_id not in source_ids}
+
+    def _reachable(roots: list[str]) -> set[str]:
+        seen: set[str] = set()
+        stack = list(roots)
+        while stack:
+            current = stack.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            stack.extend(plain_targets.get(current, []))
+        return seen
+
+    groups: list[set[str]] = []
+    conditional_ids: set[str] = set()
+    for roots in route_edges:
+        branch_exits = _reachable(roots) & exit_ids
+        if not branch_exits:
+            continue
+        conditional_ids |= branch_exits
+        groups.append({name_of[node_id] for node_id in branch_exits})
+
+    unconditional = {
+        name_of[node_id] for node_id in exit_ids - conditional_ids
+    }
+    return unconditional, groups
+
+
+def _unsatisfied_exit_nodes(
+    unconditional: set[str],
+    groups: list[set[str]],
+    completed_exit_nodes: set[str],
+) -> set[str]:
+    """Exit nodes whose absence means the run did NOT reach a terminal state.
+
+    Unconditional exits must all complete. A route-branch group is satisfied
+    by any single completed member; when none completed the whole group is
+    reported, because the route chose no branch at all.
+    """
+    missing = _missing_exit_nodes(unconditional, completed_exit_nodes)
+    for group in groups:
+        if not (group & set(completed_exit_nodes)):
+            missing |= group
+    return missing
+
+
+def _unrouted_exit_nodes(
+    groups: list[set[str]],
+    completed_exit_nodes: set[str],
+) -> set[str]:
+    """Branch exits that were skipped because the route picked a sibling.
+
+    Recorded on the run so "nothing ran here" is visible in the timeline
+    rather than inferred from an absence.
+    """
+    unrouted: set[str] = set()
+    for group in groups:
+        taken = group & set(completed_exit_nodes)
+        if taken:
+            unrouted |= group - taken
+    return unrouted
 
 
 # Marker the runner uses to escalate an empty run to status="failed" when the
@@ -1046,14 +1152,14 @@ async def _run_workflow_in_background(
         # Identify exit nodes (nodes with no outgoing edges). Workflow edges
         # use raw node IDs, but LangGraph events use the display label when one
         # exists, so completion tracking must compare against event names.
-        exit_node_event_names = set()
-        all_source_nodes = {
-            e.get("source") or e.get("source_node_id", "") for e in workflow.edges
-        }
-        for node in workflow.nodes:
-            node_id = node.get("id", "")
-            if node_id and node_id not in all_source_nodes:
-                exit_node_event_names.add(node.get("label") or node_id)
+        # Exits behind a route_map edge are grouped, not individually required:
+        # only one branch of a classify route ever runs (#4345).
+        unconditional_exit_names, route_exit_groups = _exit_node_expectations(
+            workflow.nodes, workflow.edges
+        )
+        exit_node_event_names = set(unconditional_exit_names)
+        for group in route_exit_groups:
+            exit_node_event_names |= group
 
         def _normalize_node_name(name: str) -> str:
             """Strip LangGraph internal suffixes to get the original node ID."""
@@ -1438,8 +1544,9 @@ async def _run_workflow_in_background(
             else {}
         )
 
-        missing_exit_nodes = _missing_exit_nodes(
-            exit_node_event_names,
+        missing_exit_nodes = _unsatisfied_exit_nodes(
+            unconditional_exit_names,
+            route_exit_groups,
             completed_exit_nodes,
         )
         if missing_exit_nodes:
@@ -1447,6 +1554,25 @@ async def _run_workflow_in_background(
             raise RuntimeError(
                 "Workflow stream ended before exit node(s) completed: "
                 f"{missing_list}"
+            )
+
+        # A branch the route did not select ran nothing. That is legitimate,
+        # but it must be RECORDED — an empty branch should be readable in the
+        # run log, not inferred from silence (#4345).
+        unrouted_exit_nodes = _unrouted_exit_nodes(
+            route_exit_groups, completed_exit_nodes
+        )
+        if unrouted_exit_nodes:
+            unrouted_list = ", ".join(sorted(unrouted_exit_nodes))
+            logger.info(
+                "Run %s: route selected one branch; unrouted exit node(s) "
+                "produced nothing: %s",
+                thread_id,
+                unrouted_list,
+            )
+            execution_log_lines.append(
+                f"Unrouted branch exit node(s) — not selected by the route, "
+                f"nothing produced: {unrouted_list}"
             )
 
         # Store final state
@@ -1462,6 +1588,8 @@ async def _run_workflow_in_background(
         completion_metadata = {
             "nodes_completed": len(completed_exit_nodes),
         }
+        if unrouted_exit_nodes:
+            completion_metadata["unrouted_exit_nodes"] = sorted(unrouted_exit_nodes)
 
         # Extract stats from final state
         if isinstance(final_state, dict):
