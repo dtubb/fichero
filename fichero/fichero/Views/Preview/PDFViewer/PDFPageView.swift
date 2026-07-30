@@ -884,6 +884,12 @@ struct PDFPageView: UIViewRepresentable {
 /// conditional disappears rather than wrapping the same body twice. That takes
 /// this file from 986 to well under the 1000-line error, so it no longer needs
 /// the split that was being planned for it.
+///
+/// `@MainActor` is load-bearing: this touches `PDFView.go(to:)` and mutates the
+/// page's annotations, both main-actor-isolated. Each platform copy sat inside a
+/// `@MainActor` context, so neither needed the attribute; the collapsed function
+/// is a free function and inherits nothing, which is how the isolation was lost.
+@MainActor
 private func applyHighlightSpan(
     on page: PDFPage,
     in view: PDFView,
