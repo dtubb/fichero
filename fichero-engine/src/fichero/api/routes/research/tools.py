@@ -39,12 +39,15 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     # Type-only: httpx is imported lazily in the tool handlers (#3985); the
     # helper's "httpx.AsyncClient"/"httpx.Response" annotations still need it.
     import httpx
 
+from fichero.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero.api.auth import action_context
 from fichero.api.main import get_library_database_for_write
 from fichero.db import Database
 from fichero.models import DocType, Document
@@ -415,6 +418,7 @@ async def execute_browser_navigate(
 async def execute_document_fetch(
     request: DocumentFetchRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> DocumentFetchResponse:
     """Fetch a document URL and optionally save as Layer 1 Source (sandboxed)."""
     import httpx  # lazy (#3985): keep off the engine boot path
@@ -475,30 +479,30 @@ async def execute_document_fetch(
             error=f"Fetch failed: {str(e)}",
         )
 
-    # Optionally create a Layer 1 Source document
+    # Optionally create a Layer 1 Source document. The fetch above is pure
+    # internet-egress (read-only); the SAVE is a corpus mutation, so it flows
+    # through the audited action layer (#1848) — registry.invoke writes the
+    # ActionAudit row (actor from ctx) and emits document.created.
     source_id = None
     save_error: str | None = None
     if request.create_as_source:
         try:
-            doc = Document(
-                name=title[:255] if title else request.url,
-                # A fetched web page is a file-type document. (#2507: the old
-                # value was a non-existent DocType member, so this save always
-                # raised AttributeError — silently swallowed, making "save as
-                # source" a no-op until now.)
-                doc_type=DocType.file,
-                path=request.url,
-                page_content=content[:50000],  # store truncated content
-                metadata={
-                    "source_url": request.url,
+            result = registry.invoke(
+                db,
+                "research.source.create",
+                {
+                    "url": request.url,
+                    "project_id": request.project_id,
+                    "title": title,
+                    "content": content,
                     "content_type": content_type,
-                    "research_project_id": request.project_id,
-                    "fetched_at": datetime.now().isoformat(),
-                    **request.metadata,
+                    "metadata": request.metadata,
                 },
+                ctx,
             )
-            db.save(doc)
-            source_id = doc.id
+            source_id = result.result["source_id"]
+        except HTTPException:
+            raise
         except Exception as exc:
             # #2507: the fetch itself succeeded, but the optional source save
             # failed. Never swallow it silently (the caller would believe the
@@ -556,12 +560,12 @@ def _ext_from_content_type(content_type: str | None, url: str) -> str:
 async def browser_save(
     request: BrowserSaveRequest,
     db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> BrowserSaveResponse:
     """Download a URL as raw bytes and import it into the library as a real Document."""
     import httpx  # lazy (#3985): keep off the engine boot path
     import tempfile
     from pathlib import Path as _Path
-    from fichero.importers.ingest import ingest_file, IngestMode
 
     if await _is_sandbox_violation(request.url):
         raise HTTPException(status_code=400, detail="URL scheme not allowed in sandboxed fetch")
@@ -608,44 +612,38 @@ async def browser_save(
         with os.fdopen(fd, "wb") as f:
             f.write(raw_bytes)
 
-        package_path = _Path(db.path).parent
-        doc = ingest_file(
-            path=temp_path,
-            mode=IngestMode.COPY,
-            parent_id=request.parent_folder_id,
-            extract_metadata=True,
-            extract_text=True,
-            save=True,
-            db=db,
-            package_path=package_path,
+        # The download above is pure internet-egress; importing the bytes as a
+        # library Document is a corpus mutation, so it flows through the audited
+        # action layer (#1848) — registry.invoke writes the ActionAudit row
+        # (actor from ctx) and emits document.created, just like other imports.
+        result = registry.invoke(
+            db,
+            "research.browser_save",
+            {
+                "url": request.url,
+                "project_id": request.project_id,
+                "temp_path": str(temp_path),
+                "display_name": display_name,
+                "content_type": content_type,
+                "parent_folder_id": request.parent_folder_id,
+                "metadata": request.metadata,
+            },
+            ctx,
         )
-
-        # Fix display name (ingest derives from temp filename)
-        if doc.name != display_name:
-            doc.name = display_name
-            db.save(doc)
-
-        # Tag with research context
-        doc.metadata = {
-            **(doc.metadata or {}),
-            "source_url": request.url,
-            "research_project_id": request.project_id,
-            "content_type": content_type,
-            "saved_at": datetime.now().isoformat(),
-            **request.metadata,
-        }
-        db.save(doc)
+        doc_dump = result.result
 
         return BrowserSaveResponse(
             url=request.url,
-            document_id=doc.id,
-            document_name=doc.name,
-            file_path=doc.path,
+            document_id=doc_dump["id"],
+            document_name=doc_dump["name"],
+            file_path=doc_dump["path"],
             content_type=content_type,
             size_bytes=len(raw_bytes),
             success=True,
             error=None,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         return BrowserSaveResponse(url=request.url, success=False, error=f"Import failed: {e}")
     finally:
@@ -653,3 +651,142 @@ async def browser_save(
             temp_path.unlink()
         except OSError:
             pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Audited actions (#1848)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# The corpus-mutating research tools (document-fetch's optional source save and
+# browser-save's import) route their DB write through ``registry.invoke`` so
+# they produce an ActionAudit row + emit ``document.created`` exactly like the
+# rest of the app — closing the "two provenance regimes" gap. The internet-only
+# tools (web-search, browser-navigate) carry no ``db`` and mutate nothing, so
+# they stay direct read paths.
+#
+# The async HTTP fetch stays in the route (``execute`` is a sync callable run
+# inside ``db.transaction()``); only the synchronous DB write lives in the
+# action — the same split the ingest routes use (import.file).
+
+
+class ResearchSourceCreateParams(BaseModel):
+    """Params for saving a fetched web page as a Layer-1 Source document."""
+
+    url: str
+    project_id: str
+    title: str | None = None
+    content: str = ""
+    content_type: str = "text/plain"
+    metadata: dict = Field(default_factory=dict)
+
+
+class ResearchBrowserSaveParams(BaseModel):
+    """Params for importing already-downloaded bytes (staged at ``temp_path``)."""
+
+    url: str
+    project_id: str
+    temp_path: str
+    display_name: str
+    content_type: str = "application/octet-stream"
+    parent_folder_id: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+def _invert_source_to_delete(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """Inverse for the created source/import: delete the created document."""
+    if not after:
+        return None
+    document_id = after.get("document_id")
+    if not document_id:
+        return None
+    return ("document.delete", {"doc_id": document_id})
+
+
+@action(
+    "research.source.create",
+    ResearchSourceCreateParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_source_to_delete,
+)
+def _action_research_source_create(
+    db: Database, params: ResearchSourceCreateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    doc = Document(
+        name=params.title[:255] if params.title else params.url,
+        # A fetched web page is a file-type document. (#2507: the old value was
+        # a non-existent DocType member, so this save always raised
+        # AttributeError — silently swallowed, making "save as source" a no-op.)
+        doc_type=DocType.file,
+        path=params.url,
+        page_content=params.content[:50000],  # store truncated content
+        metadata={
+            "source_url": params.url,
+            "content_type": params.content_type,
+            "research_project_id": params.project_id,
+            "fetched_at": datetime.now().isoformat(),
+            **params.metadata,
+        },
+    )
+    db.save(doc)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        after={"document_id": doc.id},
+        emit_type="document.created",
+        document_ids=[doc.id],
+    )
+    return {"source_id": doc.id}, spec
+
+
+@action(
+    "research.browser_save",
+    ResearchBrowserSaveParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_source_to_delete,
+)
+def _action_research_browser_save(
+    db: Database, params: ResearchBrowserSaveParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    from pathlib import Path as _Path
+    from fichero.importers.ingest import ingest_file, IngestMode
+
+    package_path = _Path(db.path).parent
+    doc = ingest_file(
+        path=_Path(params.temp_path),
+        mode=IngestMode.COPY,
+        parent_id=params.parent_folder_id,
+        extract_metadata=True,
+        extract_text=True,
+        save=True,
+        db=db,
+        package_path=package_path,
+    )
+
+    # Fix display name (ingest derives from temp filename)
+    if doc.name != params.display_name:
+        doc.name = params.display_name
+        db.save(doc)
+
+    # Tag with research context
+    doc.metadata = {
+        **(doc.metadata or {}),
+        "source_url": params.url,
+        "research_project_id": params.project_id,
+        "content_type": params.content_type,
+        "saved_at": datetime.now().isoformat(),
+        **params.metadata,
+    }
+    db.save(doc)
+
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        after={"document_id": doc.id},
+        emit_type="document.created",
+        document_ids=[doc.id],
+    )
+    return doc.model_dump(mode="json"), spec
