@@ -12,7 +12,7 @@ import Testing
 /// the toolbar buttons, and every selection-scoped command. Two pieces of state
 /// for one idea.
 ///
-/// `canvasSelectedNodeId` is now a projection of the SAME `selection` set, and
+/// `canvasSelectedNodeIds` is now a projection of the SAME `selection` set, and
 /// these tests pin the translation in both directions.
 @Suite("Canvas selection is the library selection (#4192)")
 struct CanvasSelectionBridgeTests {
@@ -21,12 +21,12 @@ struct CanvasSelectionBridgeTests {
 
     @Test("a selected document becomes its spatial node id")
     func singleSelectionMapsToNode() {
-        #expect(LibraryView.canvasNodeId(forSelection: ["doc-1"]) == "doc:doc-1")
+        #expect(LibraryView.canvasNodeIds(forSelection: ["doc-1"]) == ["doc:doc-1"])
     }
 
     @Test("no selection means no selected node")
     func emptySelectionMapsToNil() {
-        #expect(LibraryView.canvasNodeId(forSelection: []) == nil)
+        #expect(LibraryView.canvasNodeIds(forSelection: []).isEmpty)
     }
 
     /// The canvas model is ONE node. Showing an arbitrary member of a five-row
@@ -34,29 +34,32 @@ struct CanvasSelectionBridgeTests {
     /// still there when the user switches back to a list mode.
     @Test("a multi-selection selects no single node rather than an arbitrary one")
     func multiSelectionMapsToNil() {
-        #expect(LibraryView.canvasNodeId(forSelection: ["doc-1", "doc-2"]) == nil)
-        #expect(LibraryView.canvasNodeId(forSelection: ["a", "b", "c"]) == nil)
+        // #4409: these ASSERTED the defect. A multi-selection mapped to nil,
+        // so the canvas showed nothing selected when several rows were. The
+        // bridge now carries every member.
+        #expect(LibraryView.canvasNodeIds(forSelection: ["doc-1", "doc-2"]).count == 2)
+        #expect(LibraryView.canvasNodeIds(forSelection: ["a", "b", "c"]).count == 3)
     }
 
     // MARK: - Canvas node → library selection
 
     @Test("clicking a document card selects that document")
     func nodeMapsToSelection() {
-        #expect(LibraryView.librarySelection(forCanvasNodeId: "doc:doc-1") == ["doc-1"])
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: ["doc:doc-1"]) == ["doc-1"])
     }
 
     @Test("clicking the background clears the selection")
     func nilNodeClearsSelection() {
-        #expect(LibraryView.librarySelection(forCanvasNodeId: nil).isEmpty)
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: []).isEmpty)
     }
 
     /// Entity orbs and standalone canvas items have no row in any list mode, so
     /// they select no document — they must not be coerced into one.
     @Test("a non-document node selects no document")
     func nonDocumentNodesSelectNothing() {
-        #expect(LibraryView.librarySelection(forCanvasNodeId: "entity:e-1").isEmpty)
-        #expect(LibraryView.librarySelection(forCanvasNodeId: "item-42").isEmpty)
-        #expect(LibraryView.librarySelection(forCanvasNodeId: "").isEmpty)
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: ["entity:e-1"]).isEmpty)
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: ["item-42"]).isEmpty)
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: [""]).isEmpty)
     }
 
     // MARK: - Round trips
@@ -64,8 +67,8 @@ struct CanvasSelectionBridgeTests {
     @Test("document → node → document is the identity")
     func documentRoundTrip() {
         for documentId in ["doc-1", "abc-123", "a", "doc:weird"] {
-            let nodeId = LibraryView.canvasNodeId(forSelection: [documentId])
-            #expect(LibraryView.librarySelection(forCanvasNodeId: nodeId) == [documentId])
+            let nodeIds = LibraryView.canvasNodeIds(forSelection: [documentId])
+            #expect(LibraryView.librarySelection(forCanvasNodeIds: nodeIds) == [documentId])
         }
     }
 
@@ -75,15 +78,15 @@ struct CanvasSelectionBridgeTests {
     @Test("the bridge uses the projector's own node ids")
     func agreesWithTheProjector() {
         let projected = SpatialLibraryProjector.nodeId(forDocument: "doc-9")
-        #expect(LibraryView.canvasNodeId(forSelection: ["doc-9"]) == projected)
-        #expect(LibraryView.librarySelection(forCanvasNodeId: projected) == ["doc-9"])
+        #expect(LibraryView.canvasNodeIds(forSelection: ["doc-9"]) == [projected])
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: [projected]) == ["doc-9"])
     }
 
     /// Clearing on the canvas must not be mistaken for "keep the old selection".
     @Test("clearing on the canvas clears the library selection")
     func clearingPropagates() {
-        let selection = LibraryView.librarySelection(forCanvasNodeId: nil)
+        let selection = LibraryView.librarySelection(forCanvasNodeIds: [])
         #expect(selection == Set<String>())
-        #expect(LibraryView.canvasNodeId(forSelection: selection) == nil)
+        #expect(LibraryView.canvasNodeIds(forSelection: selection).isEmpty)
     }
 }

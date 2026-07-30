@@ -149,7 +149,7 @@ struct LibraryView: View {
 
     @State var entities: [Components.Schemas.KnowledgeEntity] = []
     // Canvas/spatial selection is NOT separate state: it is `selection`,
-    // translated through `canvasSelectedNodeId` (#4192).
+    // translated through `canvasSelectedNodeIds` (#4192, widened by #4409).
     @State private var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
 
     @State var isLoadingEntities = false

@@ -18,7 +18,15 @@ struct CanvasSpaceView: View {
     let nodes: [SpatialNode]
     let connections: [SpatialConnection]
     var links: [SpatialLink] = []
-    @Binding var selectedNodeId: String?
+    @Binding var selectedNodeIds: Set<String>
+
+    /// The one selected node, or nil when the selection is not exactly one.
+    /// COMPUTED from the set and never assigned to (#4409): single-item
+    /// operations need a sole subject, and `.first` of a multi-selection
+    /// would reintroduce the arbitrary-member lie one layer down.
+    private var soleSelectedNodeId: String? {
+        selectedNodeIds.count == 1 ? selectedNodeIds.first : nil
+    }
     var layoutStore: CanvasLayoutStore?
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
@@ -64,7 +72,7 @@ struct CanvasSpaceView: View {
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
         }
-        state.selection = selectedNodeId.map { [$0] } ?? []
+        state.selection = selectedNodeIds
         return state
     }
 
@@ -117,7 +125,7 @@ struct CanvasSpaceView: View {
     // MARK: - CRUD + z toolbar (#3090)
 
     private var selectedIsItem: Bool {
-        guard let id = selectedNodeId else { return false }
+        guard let id = soleSelectedNodeId else { return false }
         return (itemStore?.items(for: scopeKey) ?? []).contains { $0.id == id }
     }
 
@@ -137,7 +145,7 @@ struct CanvasSpaceView: View {
             .accessibilityLabel("Add canvas item")
             .help("Add a canvas item at the camera focus")
 
-            if let id = selectedNodeId {
+            if let id = soleSelectedNodeId {
                 Button { adjustZ(of: id, by: 0.25) } label: { Image(systemName: "arrow.up.forward") }
                     .accessibilityLabel("Push canvas item away")
                     .help("Push away (−z toward the camera axis)")
@@ -145,7 +153,7 @@ struct CanvasSpaceView: View {
                     .accessibilityLabel("Pull canvas item forward")
                     .help("Pull forward along z")
             }
-            if selectedIsItem, let id = selectedNodeId {
+            if selectedIsItem, let id = soleSelectedNodeId {
                 Button(role: .destructive) { controller?.dispatch(.deleteItem(id: id)) } label: {
                     Image(systemName: "trash")
                 }
@@ -189,7 +197,7 @@ struct CanvasSpaceView: View {
             layoutStore: layoutStore,
             itemStore: itemStore,
             scopeId: scopeKey,
-            selection: $selectedNodeId
+            selection: $selectedNodeIds
         )
         renderer.onIntent = { controller.dispatch($0) }
         renderer.isDragSuppressed = { controller.isDragging($0) }

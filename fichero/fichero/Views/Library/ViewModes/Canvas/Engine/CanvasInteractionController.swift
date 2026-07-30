@@ -69,7 +69,7 @@ final class CanvasInteractionController {
     private let layoutStore: any CanvasLayoutPersisting
     private let itemStore: any CanvasItemMutating
     private let scopeId: String
-    private let selection: Binding<String?>
+    private let selection: Binding<Set<String>>
 
     /// `.moveInto` drops route here — #3086 wires this to the audited
     /// `document.move` action + the layout-row-leaves-scope. A hook so this
@@ -85,15 +85,19 @@ final class CanvasInteractionController {
     private var dragOriginPosition: SIMD3<Double>?
     private var dragCurrentPosition: SIMD3<Double>?
 
-    /// The live selection set (marquee-capable). The single `selectedNodeId`
-    /// binding mirrors the primary member for renderers that only track one.
+    /// The live selection set (marquee-capable).
+    ///
+    /// This was always a set; the binding beside it used to be `String?`, so
+    /// every renderer saw one id (#4409). No renderer is entitled to a narrower
+    /// view of selection than the controller has, so the binding is now the
+    /// same type and this stays in step with it.
     private(set) var selectionSet: Set<String> = []
 
     init(
         layoutStore: any CanvasLayoutPersisting,
         itemStore: any CanvasItemMutating,
         scopeId: String,
-        selection: Binding<String?>
+        selection: Binding<Set<String>>
     ) {
         self.layoutStore = layoutStore
         self.itemStore = itemStore
@@ -139,12 +143,14 @@ final class CanvasInteractionController {
 
     func select(_ id: String?) {
         selectionSet = id.map { [$0] } ?? []
-        selection.wrappedValue = id
+        selection.wrappedValue = selectionSet
     }
 
     func selectMany(_ ids: Set<String>) {
         selectionSet = ids
-        selection.wrappedValue = ids.first
+        // Was `ids.first` — a marquee over five cards published ONE of them,
+        // chosen arbitrarily by Set ordering (#4409).
+        selection.wrappedValue = ids
     }
 
     // MARK: Drag machine

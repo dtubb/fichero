@@ -17,7 +17,15 @@ struct CanvasSceneView: View {
     let nodes: [SpatialNode]
     let connections: [SpatialConnection]
     var links: [SpatialLink] = []
-    @Binding var selectedNodeId: String?
+    @Binding var selectedNodeIds: Set<String>
+
+    /// The one selected node, or nil when the selection is not exactly one.
+    /// COMPUTED from the set and never assigned to (#4409): single-item
+    /// operations need a sole subject, and `.first` of a multi-selection
+    /// would reintroduce the arbitrary-member lie one layer down.
+    private var soleSelectedNodeId: String? {
+        selectedNodeIds.count == 1 ? selectedNodeIds.first : nil
+    }
     var layoutStore: CanvasLayoutStore?
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
@@ -69,7 +77,7 @@ struct CanvasSceneView: View {
             items: itemStore?.items(for: scopeKey) ?? [],
             defaultPlacement: .grid(columns: gridColumns(in: viewportSize))
         )
-        state.selection = selectedNodeId.map { [$0] } ?? []
+        state.selection = selectedNodeIds
         return state
     }
 
@@ -141,7 +149,7 @@ struct CanvasSceneView: View {
             layoutStore: layoutStore,
             itemStore: itemStore,
             scopeId: scopeKey,
-            selection: $selectedNodeId
+            selection: $selectedNodeIds
         )
         renderer.onIntent = { controller.dispatch($0) }
         renderer.isDragSuppressed = { controller.isDragging($0) }

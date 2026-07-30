@@ -33,7 +33,20 @@ struct SpaceSceneView: View {
     var onNodePositionChanged: (String, SIMD3<Double>) -> Void = { _, _ in }
     var onNodeMoveEnded: (String, SIMD3<Double>) -> Void = { _, _ in }
     var onViewportChanged: (SIMD3<Double>, Double) -> Void = { _, _ in }
-    @Binding var selectedNodeId: String?
+    @Binding var selectedNodeIds: Set<String>
+
+    /// A single-selection PROJECTION for the legacy `Spatial2DCanvas`, which
+    /// still takes one id (#4409).
+    ///
+    /// Computed from the set and written straight back to it — no parallel
+    /// stored selection. Reads as nil unless exactly one node is selected, so a
+    /// multi-selection is never misreported as one arbitrary member.
+    private var legacySingleSelection: Binding<String?> {
+        Binding(
+            get: { selectedNodeIds.count == 1 ? selectedNodeIds.first : nil },
+            set: { selectedNodeIds = $0.map { [$0] } ?? [] }
+        )
+    }
 
     /// Observable layout store (#2293) — the SAME instance the 2D canvas uses.
     /// When non-nil together with `folderScopeId`, the 3D scene becomes a second
@@ -183,7 +196,7 @@ struct SpaceSceneView: View {
                 .onEnded { value in
                     let nodeId = value.entity.name
                     guard !nodeId.isEmpty else { return }
-                    selectedNodeId = nodeId
+                    selectedNodeIds = [nodeId]
                 }
         )
         .simultaneousGesture(cameraDragGesture)
@@ -200,8 +213,8 @@ struct SpaceSceneView: View {
         .onChange(of: initialViewport) { _, _ in
             applyInitialViewportIfNeeded()
         }
-        .onChange(of: selectedNodeId) { _, newValue in
-            focusCamera(onNodeId: newValue)
+        .onChange(of: selectedNodeIds) { _, newValue in
+            focusCamera(onNodeId: newValue.count == 1 ? newValue.first : nil)
         }
         // Load the shared store's persisted layout for this scope; the entities
         // then reflect `store.layout` via the `update` pass below.
@@ -257,7 +270,7 @@ struct SpaceSceneView: View {
         }
         #else
         Spatial2DCanvas(
-            nodes: nodes, connections: connections, selectedNodeId: $selectedNodeId,
+            nodes: nodes, connections: connections, selectedNodeId: legacySingleSelection,
             storageService: storageService
         )
         #endif
@@ -363,7 +376,7 @@ private extension SpaceSceneView {
                     // row if any, else backend default) so a saved position
                     // isn't lost on the first grab.
                     nodeDragOrigins[nodeId] = effectivePosition(for: node)
-                    selectedNodeId = nodeId
+                    selectedNodeIds = [nodeId]
                 }
                 guard let origin = nodeDragOrigins[nodeId] else { return }
                 let normalized = normalize()

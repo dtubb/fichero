@@ -17,37 +17,35 @@ extension LibraryView {
     ///
     /// This is the one binding both halves share: the canvas reads and writes
     /// the SAME `selection` the list, table, icon and column modes use.
-    var canvasSelectedNodeId: Binding<String?> {
+    var canvasSelectedNodeIds: Binding<Set<String>> {
         Binding(
-            get: { Self.canvasNodeId(forSelection: selection) },
-            set: { selection = Self.librarySelection(forCanvasNodeId: $0) }
+            get: { Self.canvasNodeIds(forSelection: selection) },
+            set: { selection = Self.librarySelection(forCanvasNodeIds: $0) }
         )
     }
 
-    /// The node the canvas should show as selected for a library selection.
+    /// The nodes the canvas should show as selected for a library selection.
     ///
-    /// A multi-selection maps to nil: the canvas's model is a single node, and
-    /// silently showing one arbitrary member of a five-row selection would be a
-    /// lie about what is selected. Nothing is lost — switching back to a list
-    /// mode still has the full set.
+    /// This used to return `String?` and map any multi-selection to nil, on the
+    /// stated grounds that "the canvas's model is a single node" (#4409). That
+    /// premise was false: `LibraryView.selection` is a `Set<String>` and
+    /// `CanvasInteractionController.selectionSet` is a `Set<String>` — this
+    /// bridge was the ONLY single-valued link in the chain, and it discarded
+    /// the rest. Both ends were right and the adapter threw the answer away.
     ///
     /// `nonisolated` is LOAD-BEARING: a static on a `View` inherits the type's
     /// MainActor isolation under the macOS 26 SDK, and the Swift Testing suite
     /// that calls this runs on a cooperative thread — the off-main call SIGTRAPs
     /// the whole test process (#4201).
-    nonisolated static func canvasNodeId(forSelection selection: Set<String>) -> String? {
-        guard selection.count == 1, let documentId = selection.first else { return nil }
-        return SpatialLibraryProjector.nodeId(forDocument: documentId)
+    nonisolated static func canvasNodeIds(forSelection selection: Set<String>) -> Set<String> {
+        Set(selection.map { SpatialLibraryProjector.nodeId(forDocument: $0) })
     }
 
     /// The library selection for a node the user clicked on the canvas. A
     /// non-document node (an entity orb, a standalone canvas item) selects no
     /// document — it has no row in any list mode to select.
-    nonisolated static func librarySelection(forCanvasNodeId nodeId: String?) -> Set<String> {
-        guard let nodeId, let documentId = SpatialLibraryProjector.documentId(fromNodeId: nodeId) else {
-            return []
-        }
-        return [documentId]
+    nonisolated static func librarySelection(forCanvasNodeIds nodeIds: Set<String>) -> Set<String> {
+        Set(nodeIds.compactMap { SpatialLibraryProjector.documentId(fromNodeId: $0) })
     }
 
     // MARK: - Tap Handling

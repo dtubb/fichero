@@ -98,7 +98,7 @@ struct CanvasResolveTests {
     /// The canvas used to hold its own `spatialSelectedNodeId` that nothing
     /// read back, so a row selected in List was not selected after switching to
     /// Canvas, and a card clicked on the Canvas never reached the inspector.
-    /// `LibraryView.canvasSelectedNodeId` translates between the two, and what
+    /// `LibraryView.canvasSelectedNodeIds` translates between the two, and what
     /// lands in the scene must be a placeable that actually exists.
     @Test("a library selection resolves to a placeable in the scene")
     func librarySelectionAddressesARealPlaceable() {
@@ -109,7 +109,7 @@ struct CanvasResolveTests {
             ],
             connections: [], links: [], layoutRows: [], items: []
         )
-        let nodeId = LibraryView.canvasNodeId(forSelection: ["doc-2"])
+        let nodeId = LibraryView.canvasNodeIds(forSelection: ["doc-2"]).first
         state.selection = nodeId.map { [$0] } ?? []
 
         #expect(state.selection == ["doc:doc-2"])
@@ -119,8 +119,8 @@ struct CanvasResolveTests {
     /// The full round trip: click a card, get the same document back.
     @Test("selecting a card round-trips to the same document id")
     func selectionRoundTrips() {
-        let nodeId = LibraryView.canvasNodeId(forSelection: ["doc-7"])
-        #expect(LibraryView.librarySelection(forCanvasNodeId: nodeId) == ["doc-7"])
+        let nodeId = LibraryView.canvasNodeIds(forSelection: ["doc-7"]).first
+        #expect(LibraryView.librarySelection(forCanvasNodeIds: Set([nodeId].compactMap { $0 })) == ["doc-7"])
     }
 
     /// `resolve` never invents a selection — it stays controller-owned and is

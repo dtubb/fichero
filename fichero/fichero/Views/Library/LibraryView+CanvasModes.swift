@@ -31,7 +31,7 @@ extension LibraryView {
             CanvasSpaceView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: canvasSelectedNodeId,
+                selectedNodeIds: canvasSelectedNodeIds,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -42,7 +42,7 @@ extension LibraryView {
             SpaceSceneView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: canvasSelectedNodeId,
+                selectedNodeIds: canvasSelectedNodeIds,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -65,7 +65,7 @@ extension LibraryView {
             CanvasSceneView(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: canvasSelectedNodeId,
+                selectedNodeIds: canvasSelectedNodeIds,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
@@ -76,7 +76,7 @@ extension LibraryView {
             Spatial2DCanvas(
                 nodes: libraryProjection.nodes,
                 connections: [],
-                selectedNodeId: canvasSelectedNodeId,
+                selectedNodeIds: canvasSelectedNodeIds,
                 layoutStore: canvasLayoutStore,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
