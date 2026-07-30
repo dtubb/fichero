@@ -72,12 +72,30 @@ class TestUndo:
 
         # Confirm gone, then undo.
         assert db.get(KnowledgeEntity, entity.id) is None
-        result = asyncio.run(kg_mutations.undo_mutation(log.id, db=db))
+        result = asyncio.run(kg_mutations.undo_mutation(log.id, db=db, actor="test-undo-actor"))
 
         restored = db.get(KnowledgeEntity, entity.id)
         assert restored is not None
         assert restored.canonical_name == "Test"
         assert result.restored_entity_id == entity.id
+
+        # #4415: the reversal names WHO undid it. An undo is itself an edit,
+        # and a reversal recorded as an anonymous default "human" is the
+        # attribution hole that lets a re-run treat curated work as
+        # disposable.
+        reversal = next(
+            (
+                m
+                for m in db.all(MutationLog)
+                if m.reversal_id == log.id
+            ),
+            None,
+        )
+        assert reversal is not None, "the undo wrote no reversal record"
+        assert reversal.created_by == "test-undo-actor", (
+            f"the reversal recorded created_by={reversal.created_by!r} rather "
+            "than the actor who performed it"
+        )
 
         # The original log is marked reversed.
         reloaded = db.get(MutationLog, log.id)
@@ -108,9 +126,9 @@ class TestUndo:
         )
         db.save(log)
         db.delete(entity)
-        asyncio.run(kg_mutations.undo_mutation(log.id, db=db))
+        asyncio.run(kg_mutations.undo_mutation(log.id, db=db, actor="test-undo-actor"))
         try:
-            asyncio.run(kg_mutations.undo_mutation(log.id, db=db))
+            asyncio.run(kg_mutations.undo_mutation(log.id, db=db, actor="test-undo-actor"))
             raise AssertionError("expected 409")
         except HTTPException as exc:
             assert exc.status_code == 409
@@ -133,7 +151,7 @@ class TestUndo:
         db.save(log)
         db.delete(claim)
 
-        asyncio.run(kg_mutations.undo_mutation(log.id, db=db))
+        asyncio.run(kg_mutations.undo_mutation(log.id, db=db, actor="test-undo-actor"))
         restored = db.get(KnowledgeClaim, claim.id)
         assert restored is not None
         assert restored.text == "Original text."
