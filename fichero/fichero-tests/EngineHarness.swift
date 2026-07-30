@@ -177,8 +177,10 @@ enum EngineHarness {
         } catch {
             throw HarnessError.seedFailed("could not launch seeder: \(error)")
         }
-        proc.waitUntilExit()
+        // Drain BEFORE waiting: reading after waitUntilExit deadlocks the
+        // moment the child outgrows the 64KB pipe buffer.
         let data = out.fileHandleForReading.readDataToEndOfFile()
+        proc.waitUntilExit()
         guard proc.terminationStatus == 0,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let expected = json["expected"] as? [String: Int],
@@ -247,8 +249,12 @@ enum EngineHarness {
         // collides with the next app/test launch. This is the robust backstop.
         env["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
         proc.environment = env
-        proc.standardOutput = Pipe()
-        proc.standardError = Pipe()
+        // NEVER hand this process a Pipe nobody drains: uvicorn logs every
+        // request, the 64KB pipe buffer fills mid-run, and the engine blocks
+        // on a write — freezing every remaining contract test until the
+        // watchdog kills the host. Uvicorn keeps its own logging; discard.
+        proc.standardOutput = FileHandle.nullDevice
+        proc.standardError = FileHandle.nullDevice
         do {
             try proc.run()
         } catch {
