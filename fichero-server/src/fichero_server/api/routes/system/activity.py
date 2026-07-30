@@ -3,7 +3,8 @@ Activity Tracking API Routes.
 
 Endpoints for monitoring workflow and batch activity:
 - Query historical activities
-- Real-time activity streaming via SSE
+- Real-time activity streaming via SSE (the ONE live transport — see the
+  tombstone where /ws used to be)
 - Activity statistics and metrics
 
 NOTE: All activity data is stored per-library in the library's database file.
@@ -13,7 +14,6 @@ Routes require the X-Fichero-Library-Path header.
 import asyncio
 import json
 import logging
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -24,18 +24,15 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
-    WebSocket,
-    WebSocketDisconnect,
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from fichero_server.api.library_header import require_library_path
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import ChangeEvent, _change_hub
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
-from fichero_server.db import Database, db_manager
+from fichero_server.db import Database
 from fichero_server.workflows.activity import (
     Activity,
     ActivityFilter,
@@ -379,65 +376,13 @@ async def stream_activities(
     )
 
 
-@router.websocket("/ws")
-async def websocket_activity_stream(
-    websocket: WebSocket,
-    x_fichero_library_path: str = Depends(require_library_path),
-):
-    """
-    WebSocket endpoint for real-time activity streaming.
-
-    Clients can send filter updates and receive activity events.
-    """
-    # WebSockets do not run the HTTP auth middleware in TestClient in the same
-    # shape as normal routes, so gate before attaching to a library stream.
-    from fichero_server.security import authz
-
-    try:
-        authz.assert_can_read(
-            getattr(websocket.state, "user", None),
-            x_fichero_library_path,
-        )
-    except authz.AuthorizationError:
-        await websocket.close(code=1008)
-        return
-
-    await websocket.accept()
-
-    # Get database for library
-    db = db_manager.get_database(x_fichero_library_path)
-    tracker = get_activity_tracker(str(db.path))
-    sub_id = tracker.subscribe()
-
-    try:
-        # Start streaming in background
-        async def send_activities():
-            async for activity in tracker.stream(sub_id):
-                response = ActivityResponse.from_activity(activity)
-                await websocket.send_json(response.model_dump())
-
-        send_task = asyncio.create_task(send_activities())
-
-        # Listen for client messages (filter updates, ping, etc.)
-        while True:
-            try:
-                message = await websocket.receive_json()
-                if message.get("type") == "ping":
-                    await websocket.send_json({"type": "pong"})
-                elif message.get("type") == "filter":
-                    # Client wants to update filter - for now just acknowledge
-                    await websocket.send_json({"type": "filter_updated"})
-            except WebSocketDisconnect:
-                break
-
-        send_task.cancel()
-
-    except WebSocketDisconnect:
-        logger.info("WebSocket client disconnected")
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-    finally:
-        tracker.unsubscribe(sub_id)
+# /ws (a second, parallel live transport duplicating GET /activity/stream) was
+# deleted in the verify-then-prune pass (#3235, 2026-07-30). One live transport
+# — SSE, which folds change frames (#3159) and carries the client's
+# reconnect/backoff semantics — is the invariant worth protecting; the
+# WebSocket path had no callers (app, CLI, MCP, docs all verified) and did not
+# fold change events, so any client using it would silently miss remote
+# mutations.
 
 
 @router.get("/workflow/{workflow_id}", response_model=ActivityListResponse)
@@ -524,67 +469,17 @@ def _action_cleanup_old_activities(
 
 
 # =============================================================================
-# Enhanced Activity Stream Endpoints (Issue #425)
+# Enhanced Activity Metrics (Issue #425)
 # =============================================================================
-
-
-class ActivityFeedGroup(BaseModel):
-    """Activity grouped by entity type and ID."""
-
-    entity_type: str  # "workflow", "batch", "node", "system"
-    entity_id: str | None
-    entity_name: str | None
-    count: int
-    last_activity: str
-    activities: list[ActivityResponse]
-
-
-class ActivityFeedResponse(BaseModel):
-    """Response for activity feed with grouping."""
-
-    activities: list[ActivityResponse]
-    groups: list[ActivityFeedGroup]
-    total: int
-    has_more: bool
-
-
-class TrendPoint(BaseModel):
-    """Single point in a trend series."""
-
-    timestamp: str
-    count: int
-    error_count: int
-    workflow_count: int
-    batch_count: int
-
-
-class ActivityTrendsResponse(BaseModel):
-    """Time-based activity trends."""
-
-    period: str  # "hourly", "daily", "weekly"
-    points: list[TrendPoint]
-    total_activities: int
-    total_errors: int
-
-
-class TopEntity(BaseModel):
-    """Entity with activity metrics."""
-
-    entity_type: str
-    entity_id: str
-    entity_name: str | None
-    activity_count: int
-    error_count: int
-    last_activity: str
-    success_rate: float
-
-
-class TopEntitiesResponse(BaseModel):
-    """Response for top entities by activity."""
-
-    workflows: list[TopEntity]
-    batches: list[TopEntity]
-    time_range_hours: int
+#
+# /feed, /trends, /top and their response models (~420 lines of #425
+# dashboard-shaped aggregation) were deleted in the verify-then-prune pass
+# (#3235, 2026-07-30): no UI was ever built on them and no non-app caller
+# existed (app, CLI, MCP, docs all verified — the CLI's `top_entities` reads
+# /api/entities/top, not /activity/top). If an activity dashboard becomes
+# real, rebuild the aggregations against the need it actually has, next to
+# /metrics/summary below. (/entity-types — a hardcoded 4-element literal
+# served over HTTP — went earlier, in the 2026-07-27 endpoint cleanup.)
 
 
 class ActivityMetricsSummary(BaseModel):
@@ -601,339 +496,6 @@ class ActivityMetricsSummary(BaseModel):
     busiest_hour: int | None
     period_start: str
     period_end: str
-
-
-# -----------------------------------------------------------------------------
-# Enhanced Feed Endpoint
-# -----------------------------------------------------------------------------
-
-
-@router.get("/feed", response_model=ActivityFeedResponse)
-async def get_activity_feed(
-    db: Database = Depends(get_library_database),
-    entity_type: str | None = Query(
-        None,
-        description="Filter by entity type: workflow, batch, node, system",
-    ),
-    entity_id: str | None = Query(None, description="Filter by specific entity ID"),
-    types: str | None = Query(None, description="Comma-separated activity types"),
-    levels: str | None = Query(None, description="Comma-separated levels"),
-    since: str | None = Query(None, description="ISO datetime string"),
-    until: str | None = Query(None, description="ISO datetime string"),
-    group_by_entity: bool = Query(
-        True, description="Group results by entity in response"
-    ),
-    limit: int = Query(100, ge=1, le=1000),
-    offset: int = Query(0, ge=0),
-) -> ActivityFeedResponse:
-    """
-    Get enriched activity feed with optional grouping.
-
-    Supports filtering by entity type (workflow, batch, node, system)
-    and grouping results for dashboard views.
-    """
-    tracker = get_activity_tracker(str(db.path))
-
-    # Parse types
-    type_list = None
-    if types:
-        try:
-            type_list = [ActivityType(t.strip()) for t in types.split(",")]
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid activity type: {e}")
-
-    # Parse levels
-    level_list = None
-    if levels:
-        try:
-            level_list = [ActivityLevel(lvl.strip()) for lvl in levels.split(",")]
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid activity level: {e}")
-
-    # Parse timestamps
-    since_dt = None
-    until_dt = None
-    if since:
-        try:
-            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
-        except ValueError:
-            raise HTTPException(
-                status_code=400, detail="Invalid 'since' datetime format"
-            )
-    if until:
-        try:
-            until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
-        except ValueError:
-            raise HTTPException(
-                status_code=400, detail="Invalid 'until' datetime format"
-            )
-
-    # Build filter
-    filter = ActivityFilter(
-        types=type_list,
-        levels=level_list,
-        since=since_dt,
-        until=until_dt,
-        limit=limit + 1,  # Fetch one extra to check for more
-        offset=offset,
-    )
-
-    # If entity type and ID specified, add to filter
-    if entity_type == "workflow" and entity_id:
-        filter.workflow_id = entity_id
-    elif entity_type == "batch" and entity_id:
-        filter.batch_id = entity_id
-
-    activities = await tracker.query(filter)
-    has_more = len(activities) > limit
-    activities = activities[:limit]  # Trim the extra
-
-    response_activities = [ActivityResponse.from_activity(a) for a in activities]
-
-    # Build groups if requested
-    groups = []
-    if group_by_entity and activities:
-        entity_groups: dict[str, list[ActivityResponse]] = {}
-
-        for act in response_activities:
-            # Determine entity type and ID
-            if act.workflow_id:
-                key = f"workflow:{act.workflow_id}"
-            elif act.batch_id:
-                key = f"batch:{act.batch_id}"
-            elif act.node_id:
-                key = f"node:{act.node_id}"
-            else:
-                key = "system:system"
-
-            if key not in entity_groups:
-                entity_groups[key] = []
-            entity_groups[key].append(act)
-
-        for key, acts in entity_groups.items():
-            entity_type_str, entity_id_str = key.split(":", 1)
-            entity_name = None
-
-            # Try to get entity name from metadata
-            if acts:
-                metadata = acts[0].metadata
-                if entity_type_str == "workflow":
-                    entity_name = metadata.get("workflow_name")
-                elif entity_type_str == "batch":
-                    entity_name = metadata.get("batch_name")
-                elif entity_type_str == "node":
-                    entity_name = metadata.get("node_name")
-
-            groups.append(
-                ActivityFeedGroup(
-                    entity_type=entity_type_str,
-                    entity_id=entity_id_str if entity_id_str != "system" else None,
-                    entity_name=entity_name,
-                    count=len(acts),
-                    last_activity=acts[0].timestamp,  # Already sorted by time desc
-                    activities=acts[:10],  # Include up to 10 per group
-                )
-            )
-
-        # Sort groups by last_activity
-        groups.sort(key=lambda g: g.last_activity, reverse=True)
-
-    return ActivityFeedResponse(
-        activities=response_activities,
-        groups=groups,
-        total=len(response_activities),
-        has_more=has_more,
-    )
-
-
-# -----------------------------------------------------------------------------
-# Trends Endpoint
-# -----------------------------------------------------------------------------
-
-
-@router.get("/trends", response_model=ActivityTrendsResponse)
-async def get_activity_trends(
-    db: Database = Depends(get_library_database),
-    period: str = Query("hourly", description="hourly, daily, or weekly"),
-    hours: int = Query(24, ge=1, le=720),
-) -> ActivityTrendsResponse:
-    """
-    Get time-based activity trends.
-
-    Returns aggregated counts over time periods for visualization.
-    """
-    tracker = get_activity_tracker(str(db.path))
-
-    until = datetime.now()
-    since = until - timedelta(hours=hours)
-
-    # Get all activities in range
-    filter = ActivityFilter(since=since, until=until, limit=10000)
-    activities = await tracker.query(filter)
-
-    # Group by time buckets
-    buckets: dict[str, dict] = defaultdict(
-        lambda: {"count": 0, "error_count": 0, "workflow_count": 0, "batch_count": 0}
-    )
-
-    for act in activities:
-        ts = act.timestamp
-
-        if period == "hourly":
-            bucket_key = ts.strftime("%Y-%m-%dT%H:00:00")
-        elif period == "daily":
-            bucket_key = ts.strftime("%Y-%m-%d")
-        else:  # weekly
-            bucket_key = ts.strftime("%Y-%W")
-
-        buckets[bucket_key]["count"] += 1
-        if act.level == ActivityLevel.ERROR:
-            buckets[bucket_key]["error_count"] += 1
-        if act.type.value.startswith("workflow"):
-            buckets[bucket_key]["workflow_count"] += 1
-        if act.type.value.startswith("batch"):
-            buckets[bucket_key]["batch_count"] += 1
-
-    # Convert to sorted trend points
-    sorted_buckets = sorted(buckets.items())
-    points = [
-        TrendPoint(
-            timestamp=bucket,
-            count=data["count"],
-            error_count=data["error_count"],
-            workflow_count=data["workflow_count"],
-            batch_count=data["batch_count"],
-        )
-        for bucket, data in sorted_buckets
-    ]
-
-    total_errors = sum(p.error_count for p in points)
-
-    return ActivityTrendsResponse(
-        period=period,
-        points=points,
-        total_activities=len(activities),
-        total_errors=total_errors,
-    )
-
-
-# -----------------------------------------------------------------------------
-# Top Entities Endpoint
-# -----------------------------------------------------------------------------
-
-
-@router.get("/top", response_model=TopEntitiesResponse)
-async def get_top_entities(
-    db: Database = Depends(get_library_database),
-    hours: int = Query(24, ge=1, le=720, description="Time range in hours"),
-    limit: int = Query(10, ge=1, le=50, description="Number of top entities per type"),
-) -> TopEntitiesResponse:
-    """
-    Get top active workflows and batches by activity count.
-
-    Useful for identifying most active or problematic entities.
-    """
-    tracker = get_activity_tracker(str(db.path))
-
-    until = datetime.now()
-    since = until - timedelta(hours=hours)
-
-    filter = ActivityFilter(since=since, until=until, limit=10000)
-    activities = await tracker.query(filter)
-
-    # Aggregate by entity
-    workflow_stats: dict[str, dict] = {}
-    batch_stats: dict[str, dict] = {}
-
-    for act in activities:
-        if act.workflow_id:
-            if act.workflow_id not in workflow_stats:
-                workflow_stats[act.workflow_id] = {
-                    "count": 0,
-                    "errors": 0,
-                    "name": act.metadata.get("workflow_name", "Unknown"),
-                    "last_activity": act.timestamp,
-                    "completed": 0,
-                    "failed": 0,
-                }
-            stats = workflow_stats[act.workflow_id]
-            stats["count"] += 1
-            if act.level == ActivityLevel.ERROR:
-                stats["errors"] += 1
-            if act.type == ActivityType.WORKFLOW_COMPLETED:
-                stats["completed"] += 1
-            if act.type == ActivityType.WORKFLOW_FAILED:
-                stats["failed"] += 1
-            if act.timestamp > stats["last_activity"]:
-                stats["last_activity"] = act.timestamp
-
-        if act.batch_id:
-            if act.batch_id not in batch_stats:
-                batch_stats[act.batch_id] = {
-                    "count": 0,
-                    "errors": 0,
-                    "name": act.metadata.get("batch_name", "Unknown"),
-                    "last_activity": act.timestamp,
-                    "completed": 0,
-                    "failed": 0,
-                }
-            stats = batch_stats[act.batch_id]
-            stats["count"] += 1
-            if act.level == ActivityLevel.ERROR:
-                stats["errors"] += 1
-            if act.type == ActivityType.BATCH_COMPLETED:
-                stats["completed"] += 1
-            if act.type == ActivityType.BATCH_FAILED:
-                stats["failed"] += 1
-            if act.timestamp > stats["last_activity"]:
-                stats["last_activity"] = act.timestamp
-
-    # Build top entities
-    def calc_success_rate(completed: int, failed: int) -> float:
-        total = completed + failed
-        if total == 0:
-            return 100.0
-        return (completed / total) * 100
-
-    top_workflows = [
-        TopEntity(
-            entity_type="workflow",
-            entity_id=wid,
-            entity_name=data["name"],
-            activity_count=data["count"],
-            error_count=data["errors"],
-            last_activity=data["last_activity"].isoformat(),
-            success_rate=calc_success_rate(data["completed"], data["failed"]),
-        )
-        for wid, data in sorted(
-            workflow_stats.items(), key=lambda x: x[1]["count"], reverse=True
-        )[:limit]
-    ]
-
-    top_batches = [
-        TopEntity(
-            entity_type="batch",
-            entity_id=bid,
-            entity_name=data["name"],
-            activity_count=data["count"],
-            error_count=data["errors"],
-            last_activity=data["last_activity"].isoformat(),
-            success_rate=calc_success_rate(data["completed"], data["failed"]),
-        )
-        for bid, data in sorted(
-            batch_stats.items(), key=lambda x: x[1]["count"], reverse=True
-        )[:limit]
-    ]
-
-    return TopEntitiesResponse(
-        workflows=top_workflows,
-        batches=top_batches,
-        time_range_hours=hours,
-    )
-
-
-# /entity-types (a hardcoded 4-element literal served over HTTP) was deleted
-# in the endpoint cleanup (2026-07-27) — a client-side constant, not an API.
 
 
 # -----------------------------------------------------------------------------

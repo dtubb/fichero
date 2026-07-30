@@ -2,10 +2,7 @@
   "_doc": "Backend endpoints intentionally not (yet) wired into the swiftui surface. Each key is an openapi path; value is the reason. This file IS the swiftui wiring backlog — drop an entry once it's called. CI-enforced.",
   "paths": {
     "/api/actions/registry": "#1848 action layer - cli-only, store/UI deferred",
-    "/api/activity/feed": "baseline: not yet wired",
     "/api/activity/metrics/summary": "baseline: not yet wired",
-    "/api/activity/top": "baseline: not yet wired",
-    "/api/activity/trends": "baseline: not yet wired",
     "/api/agent-memory": "#2152 agent memory - UI deferred",
     "/api/agent-memory/{note_id}": "#2152 agent memory - UI deferred",
     "/api/agents/write": "baseline: not yet wired",

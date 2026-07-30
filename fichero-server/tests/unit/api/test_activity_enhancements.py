@@ -1,176 +1,63 @@
-"""Unit tests for activity stream enhancements (Issue #425)."""
+"""Unit tests for the activity routes that survived the #3235 prune.
+
+The #425 dashboard endpoints (/feed, /trends, /top) and the /ws duplicate
+live transport were verified caller-less and deleted (#3235). These tests
+cover what remains — the metrics summary model, the ActivityResponse
+conversion — and pin the prune so the dead surface cannot quietly return.
+"""
 
 from datetime import datetime
 
 from fichero_server.api.routes.activity import (
-    ActivityFeedResponse,
-    ActivityFeedGroup,
-    ActivityTrendsResponse,
-    TrendPoint,
-    TopEntitiesResponse,
-    TopEntity,
     ActivityMetricsSummary,
     ActivityResponse,
+    router,
 )
 from fichero_server.workflows.activity import Activity, ActivityType, ActivityLevel
-class TestActivityFeedResponse:
-    """Test activity feed response models."""
 
-    def test_feed_response_basic(self):
-        """Test basic feed response creation."""
-        activity = Activity(
-            id="act-1",
-            type=ActivityType.WORKFLOW_STARTED,
-            level=ActivityLevel.INFO,
-            timestamp=datetime.now(),
-            message="Workflow started",
-            workflow_id="wf-1",
-        )
-        response = ActivityResponse.from_activity(activity)
 
-        feed = ActivityFeedResponse(
-            activities=[response],
-            groups=[],
-            total=1,
-            has_more=False,
-        )
-        assert feed.total == 1
-        assert not feed.has_more
+class TestPrunedEndpointsStayGone:
+    """#3235: the orphaned endpoints must not reappear."""
 
-    def test_feed_group_creation(self):
-        """Test feed group creation."""
-        now = datetime.now()
-        activity = Activity(
-            id="act-1",
-            type=ActivityType.WORKFLOW_STARTED,
-            level=ActivityLevel.INFO,
-            timestamp=now,
-            message="Workflow started",
-            workflow_id="wf-1",
-            metadata={"workflow_name": "Test Workflow"},
-        )
-        response = ActivityResponse.from_activity(activity)
+    def test_pruned_paths_absent_from_router(self):
+        paths = {route.path for route in router.routes}
+        for gone in ("/ws", "/feed", "/trends", "/top", "/entity-types"):
+            assert f"{router.prefix}{gone}" not in paths and gone not in paths, (
+                f"{gone} was pruned in #3235 (no callers: app uses SSE "
+                "/activity/stream; CLI top_entities uses /api/entities/top). "
+                "Re-adding it needs a real client and a fresh decision."
+            )
 
-        group = ActivityFeedGroup(
-            entity_type="workflow",
-            entity_id="wf-1",
-            entity_name="Test Workflow",
-            count=1,
-            last_activity=now.isoformat(),
-            activities=[response],
-        )
-        assert group.entity_type == "workflow"
-        assert group.entity_id == "wf-1"
-        assert group.entity_name == "Test Workflow"
-        assert group.count == 1
-class TestActivityTrendsResponse:
-    """Test activity trends response models."""
+    def test_surviving_paths_still_present(self):
+        # The read surface the app actually consumes must survive the prune.
+        paths = {route.path for route in router.routes}
+        for kept in (
+            "/activity",
+            "/activity/recent",
+            "/activity/stats",
+            "/activity/stream",
+            "/activity/workflow/{workflow_id}",
+            "/activity/batch/{batch_id}",
+            "/activity/cleanup",
+            "/activity/metrics/summary",
+        ):
+            assert kept in paths, f"{kept} unexpectedly missing from activity router"
 
-    def test_trends_response_creation(self):
-        """Test trends response creation."""
-        points = [
-            TrendPoint(
-                timestamp="2024-01-15T10:00:00",
-                count=5,
-                error_count=0,
-                workflow_count=2,
-                batch_count=3,
-            ),
-            TrendPoint(
-                timestamp="2024-01-15T11:00:00",
-                count=8,
-                error_count=1,
-                workflow_count=3,
-                batch_count=4,
-            ),
-        ]
+    def test_pruned_models_are_gone(self):
+        import fichero_server.api.routes.system.activity as module
 
-        trends = ActivityTrendsResponse(
-            period="hourly",
-            points=points,
-            total_activities=13,
-            total_errors=1,
-        )
-        assert trends.period == "hourly"
-        assert len(trends.points) == 2
-        assert trends.total_activities == 13
-        assert trends.total_errors == 1
+        for name in (
+            "ActivityFeedResponse",
+            "ActivityFeedGroup",
+            "ActivityTrendsResponse",
+            "TrendPoint",
+            "TopEntitiesResponse",
+            "TopEntity",
+            "websocket_activity_stream",
+        ):
+            assert not hasattr(module, name), f"{name} should have been pruned (#3235)"
 
-    def test_trend_point_validation(self):
-        """Test trend point field types."""
-        point = TrendPoint(
-            timestamp="2024-01-15T10:00:00",
-            count=10,
-            error_count=2,
-            workflow_count=3,
-            batch_count=5,
-        )
-        assert point.count == 10
-        assert point.error_count == 2
-        assert point.workflow_count == 3
-        assert point.batch_count == 5
-class TestTopEntitiesResponse:
-    """Test top entities response models."""
 
-    def test_top_entities_response(self):
-        """Test top entities response creation."""
-        now = datetime.now().isoformat()
-        workflows = [
-            TopEntity(
-                entity_type="workflow",
-                entity_id="wf-1",
-                entity_name="Import Workflow",
-                activity_count=50,
-                error_count=2,
-                last_activity=now,
-                success_rate=96.0,
-            ),
-            TopEntity(
-                entity_type="workflow",
-                entity_id="wf-2",
-                entity_name="Analysis Workflow",
-                activity_count=30,
-                error_count=0,
-                last_activity=now,
-                success_rate=100.0,
-            ),
-        ]
-        batches = [
-            TopEntity(
-                entity_type="batch",
-                entity_id="batch-1",
-                entity_name="Document Batch",
-                activity_count=100,
-                error_count=5,
-                last_activity=now,
-                success_rate=95.0,
-            ),
-        ]
-
-        response = TopEntitiesResponse(
-            workflows=workflows,
-            batches=batches,
-            time_range_hours=24,
-        )
-        assert len(response.workflows) == 2
-        assert len(response.batches) == 1
-        assert response.time_range_hours == 24
-
-    def test_top_entity_fields(self):
-        """Test top entity field values."""
-        now = datetime.now().isoformat()
-        entity = TopEntity(
-            entity_type="workflow",
-            entity_id="wf-1",
-            entity_name="Test Workflow",
-            activity_count=25,
-            error_count=1,
-            last_activity=now,
-            success_rate=95.0,
-        )
-        assert entity.entity_type == "workflow"
-        assert entity.activity_count == 25
-        assert entity.success_rate == 95.0
 class TestActivityMetricsSummary:
     """Test activity metrics summary model."""
 
@@ -218,6 +105,8 @@ class TestActivityMetricsSummary:
         assert metrics.avg_workflow_duration_ms is None
         assert metrics.avg_batch_duration_ms is None
         assert metrics.busiest_hour is None
+
+
 class TestActivityResponse:
     """Test activity response conversion."""
 
