@@ -254,6 +254,21 @@ Three failure modes that bite *silently*, with no exception and no test failure,
 
 When seed-data shape changes, the shape change and every filter that reads it ship together.
 
+4. **A closed set of values is an enum in the schema, never a bare `str`.** A `str`
+   field generates a Swift `String`, so both sides write literals into it and nothing
+   in the toolchain can object. `artifact_type` was declared `artifact_type: str`; the
+   server wrote `"text_geometry"`, the client queried `"transcription"`, and two green
+   commits produced one dead feature (#4418). Declared as an enum, the generated client
+   turns that mismatch into a **compile error**. The same applies to any status, kind,
+   mode, or event-type vocabulary — including `ChangeEvent.type` (#4427).
+5. **A structured payload is a typed field, never `dict[str, Any]`.**
+   `ExecuteWorkflowRequest` has no selection field: `selected_doc_ids` rides untyped
+   inside `inputs`, which is why nothing could reject a client that sent a whole folder
+   when the user picked one file (#4396). If it has a shape, declare the shape.
+
+Prefer *impossible* over *checked* over *documented*. A generated type cannot drift; a
+guardrail can fail open (#4382); a convention can be forgotten.
+
 **Timestamps are aware UTC.** Write `fichero_server.core.timeutil.utc_now()`, never
 `datetime.now()` / `datetime.utcnow()` — a naive local value serializes without an
 offset and every ISO-8601 decoder reads it as UTC, which rendered a just-finished
@@ -288,6 +303,31 @@ SwiftUI app · fichero CLI · fichero-mcp
 The Swift app is a rendering layer: storage, ingest, search, workflows, the KG and
 all validation live in the engine. `litellm` is metadata only — `get_model_info()`
 and `cost_per_token()`. It never routes a call.
+
+**Why the split is load-bearing, not stylistic.** Other clients exist (CLI, MCP, and
+later web and other people's machines), and they must agree. The moment a client
+*decides* an outcome, every other client is wrong until it recomputes the same way.
+Two clients with the same logic drift; two clients rendering the same server state
+cannot. Both halves of today's scope bug were this: the client resolved a workflow's
+target set from `documentStore.currentDocuments` and sent the result — once too wide
+(#4396), once collapsed to a single item (#4419). **Clients send what the user pointed
+at; the server resolves what that means.**
+
+The corollary is real-time propagation: a change in one client reaches the others
+without a refresh. `api/change_stream.py` already carries a domain-typed vocabulary
+(`entity.updated`, `claim.updated`, `document.updated`, plus `stream.gap` /
+`stream.resync_required`), and stores observe it. What is missing is coverage — a
+mutation that does not emit is invisible to every other client, which is how the
+Knowledge Graph inspector stopped updating (#4392). **Emit at the write, not at each
+caller**, or the next caller forgets. See #4427.
+
+**Where things live.** Pydantic models in `fichero-server/src/fichero_server/models/`;
+the OpenAPI schema generated from them; the Swift client generated from that schema;
+Swift **services** in `fichero/fichero/Services/` wrapping the generated client; Swift
+**stores** (`@Observable`) as the only endpoint accessors, with views observing stores
+rather than fetching. `fichero-cli` and `fichero-mcp` are thin — every command or tool
+is one or two HTTP calls through `FicheroClient`, and **no backend logic lives in
+either**. If a client needs logic, the logic belongs in the engine.
 
 - **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `dev`, default `release`) in
   `api/main.py`. On current `main` the dev tier gates exactly one route group:
