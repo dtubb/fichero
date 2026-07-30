@@ -346,7 +346,9 @@ def test_snapshot_export_uses_read_only_duckdb_connection(
     _use_snapshot_state(monkeypatch, tmp_path)
     library_path = tmp_path / "ReadOnlyExport.fichero"
     _create_library_with_document(library_path)
-    real_connect = storage_snapshots.duckdb.connect
+    # Connections go through connect_utc (#4347), which pins the session
+    # timezone; the read-only invariant this test guards is unchanged.
+    real_connect = storage_snapshots.connect_utc
     read_only_flags: list[bool] = []
 
     def connect_spy(path, *args, **kwargs):
@@ -356,7 +358,7 @@ def test_snapshot_export_uses_read_only_duckdb_connection(
             raise AssertionError("snapshot opened DuckDB read-write")
         return real_connect(path, *args, **kwargs)
 
-    monkeypatch.setattr(storage_snapshots.duckdb, "connect", connect_spy)
+    monkeypatch.setattr(storage_snapshots, "connect_utc", connect_spy)
 
     storage_snapshots.snapshot_library(
         str(library_path),
