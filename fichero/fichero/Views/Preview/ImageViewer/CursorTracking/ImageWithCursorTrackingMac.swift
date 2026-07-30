@@ -189,66 +189,12 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
 
         if let imageView = context.coordinator.imageView as? TrackingImageView {
-            // Update loupe enabled state
-            imageView.loupeEnabled = loupeEnabled
-
-            // Auto-show loupe at center when enabled and no position exists
-            // Use slight delay to let view settle before drawing
-            if loupeEnabled && imageView.loupePosition == nil {
-                Task { @MainActor [weak imageView] in
-                    try? await Task.sleep(for: .milliseconds(50))
-                    guard let imageView = imageView,
-                          imageView.loupeEnabled,
-                          imageView.loupePosition == nil else { return }
-                    imageView.showLoupeAtCenter()
-                }
-            }
-
-            imageView.loupeLocked = loupeLocked
-            imageView.loupeMagnification = loupeMagnification
-            imageView.loupeSize = loupeSize
-
-            // Detect image change: either a new overrideImage or a new URL.
-            let overrideChanged = overrideImage !== context.coordinator.currentOverrideImage
-            let urlChanged = context.coordinator.currentURL != url
-            let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
-
-            if needsImageUpdate {
-                if let overrideImage {
-                    // Already-decoded override: apply synchronously, fit in the same
-                    // frame so the new image never renders at the old magnification
-                    // for a frame (#773/#777).
-                    imageView.image = overrideImage
-                    imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
-                    imageView.loupePosition = nil  // Reset loupe on image change
-                    context.coordinator.currentURL = url
-                    context.coordinator.currentOverrideImage = overrideImage
-                    // A different item is on screen — auto-fit owns the zoom
-                    // again until the user zooms this one manually (#4279).
-                    // Deliberately no `noteAutoFitApplied()` here: this branch
-                    // runs *after* this pass's magnification↔scale sync, so
-                    // leaving the recorded pane size cleared makes the next
-                    // pass re-assert the fit if the (one-turn-late) binding
-                    // write hasn't landed yet.
-                    context.coordinator.resetZoomOwnershipForNewItem()
-                    Task { @MainActor in
-                        self.imageSize = overrideImage.size
-                    }
-                    if let fitScale = context.coordinator.calculateFitScale() {
-                        scrollView.magnification = fitScale
-                        Task { @MainActor in
-                            self.scale = fitScale
-                        }
-                    }
-                    centerImage(scrollView: scrollView, imageView: imageView)
-                    if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
-                } else if let url {
-                    // Decode the new page OFF the main thread (#3864). The previous
-                    // page stays visible until the ready image swaps in fitted, in one
-                    // turn — no main-thread block, no wrong-magnification flash.
-                    loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: context.coordinator)
-                }
-            }
+            syncLoupeState(on: imageView)
+            applyImageChangeIfNeeded(
+                imageView: imageView,
+                scrollView: scrollView,
+                coordinator: context.coordinator
+            )
         }
 
         // Keep content centered when the viewport size changes.
@@ -356,6 +302,86 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.contentInsets = NSEdgeInsets()
     }
 
+}
+
+// Same-file extension: these helpers left `updateNSView` for
+// function_body_length, and holding them here keeps the struct body
+// under type_body_length too. Private stays file-scoped and reachable.
+extension ImageWithCursorTracking {
+    /// Push the current loupe bindings onto the view, and open the loupe at
+    /// centre the first time it is enabled — after a short settle, because
+    /// drawing it before the view has bounds puts it in the wrong place.
+    private func syncLoupeState(on imageView: TrackingImageView) {
+        // Update loupe enabled state
+        imageView.loupeEnabled = loupeEnabled
+
+        // Auto-show loupe at center when enabled and no position exists
+        // Use slight delay to let view settle before drawing
+        if loupeEnabled && imageView.loupePosition == nil {
+            Task { @MainActor [weak imageView] in
+                try? await Task.sleep(for: .milliseconds(50))
+                guard let imageView = imageView,
+                      imageView.loupeEnabled,
+                      imageView.loupePosition == nil else { return }
+                imageView.showLoupeAtCenter()
+            }
+        }
+
+        imageView.loupeLocked = loupeLocked
+        imageView.loupeMagnification = loupeMagnification
+        imageView.loupeSize = loupeSize
+    }
+
+    /// Swap in a new page when the override image or the URL changed. An
+    /// already-decoded override applies synchronously and fits in the same
+    /// frame; a URL decodes off the main thread (#3864) with the previous page
+    /// left on screen until the new one can swap in already fitted.
+    private func applyImageChangeIfNeeded(
+        imageView: TrackingImageView,
+        scrollView: NSScrollView,
+        coordinator: Coordinator
+    ) {
+        // Detect image change: either a new overrideImage or a new URL.
+        let overrideChanged = overrideImage !== coordinator.currentOverrideImage
+        let urlChanged = coordinator.currentURL != url
+        let needsImageUpdate = overrideImage != nil ? overrideChanged : urlChanged
+        guard needsImageUpdate else { return }
+
+        if let overrideImage {
+            // Already-decoded override: apply synchronously, fit in the same
+            // frame so the new image never renders at the old magnification
+            // for a frame (#773/#777).
+            imageView.image = overrideImage
+            imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
+            imageView.loupePosition = nil  // Reset loupe on image change
+            coordinator.currentURL = url
+            coordinator.currentOverrideImage = overrideImage
+            // A different item is on screen — auto-fit owns the zoom
+            // again until the user zooms this one manually (#4279).
+            // Deliberately no `noteAutoFitApplied()` here: this branch
+            // runs *after* this pass's magnification↔scale sync, so
+            // leaving the recorded pane size cleared makes the next
+            // pass re-assert the fit if the (one-turn-late) binding
+            // write hasn't landed yet.
+            coordinator.resetZoomOwnershipForNewItem()
+            Task { @MainActor in
+                self.imageSize = overrideImage.size
+            }
+            if let fitScale = coordinator.calculateFitScale() {
+                scrollView.magnification = fitScale
+                Task { @MainActor in
+                    self.scale = fitScale
+                }
+            }
+            centerImage(scrollView: scrollView, imageView: imageView)
+            if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
+        } else if let url {
+            // Decode the new page OFF the main thread (#3864). The previous
+            // page stays visible until the ready image swaps in fitted, in one
+            // turn — no main-thread block, no wrong-magnification flash.
+            loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: coordinator)
+        }
+    }
 }
 
 // MARK: - Automatic Fit (#4279)
