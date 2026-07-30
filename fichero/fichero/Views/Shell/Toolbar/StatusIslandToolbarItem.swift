@@ -75,7 +75,17 @@ struct StatusIslandToolbarItem: View {
     private var message: some View {
         let status = StatusIslandMessage.resolve(
             enginePhase: appState.engine.phase,
-            engineDiagnosis: appState.engine.diagnosis,
+            // The MAPPED short title, never the engine's raw diagnosis (#4366):
+            // the debug-external diagnosis is a multi-line
+            // `PYTHONPATH=src python -m fichero_server.api` invocation, and the
+            // island rendered it truncated to a fragment of a shell command.
+            // Detail belongs in the popover; the line carries the short form.
+            engineStatusTitle: ConnectionPresentation.status(
+                phase: appState.engine.phase,
+                ownership: ConnectionPresentation.EngineOwnership.current(),
+                accessError: appState.backendAccessError,
+                authBroken: appState.authBroken
+            ).title,
             importError: importError,
             isImporting: isImporting,
             importProgress: importProgress,
@@ -111,9 +121,13 @@ struct StatusIslandMessage: Equatable {
     /// outrank progress because a stalled connection explains why the progress
     /// stopped; engine state outranks import state because an import cannot
     /// proceed without the engine at all.
+    /// - Parameter engineStatusTitle: the SHORT title from
+    ///   `ConnectionPresentation.status(…)` — the same words the engine popover
+    ///   puts at the top of the same failure. Never a raw diagnosis or a
+    ///   transport error string (#4366/#4269/#4380).
     static func resolve(
         enginePhase: EngineSession.Phase,
-        engineDiagnosis: String?,
+        engineStatusTitle: String,
         importError: String?,
         isImporting: Bool,
         importProgress: String?,
@@ -122,9 +136,9 @@ struct StatusIslandMessage: Equatable {
     ) -> StatusIslandMessage {
         switch enginePhase {
         case .portConflict, .authRejected, .unreachable, .failed:
-            return .init(text: engineDiagnosis ?? "Engine connection problem", isError: true)
+            return .init(text: engineStatusTitle, isError: true)
         case .starting:
-            return .init(text: "Starting engine…", isError: false)
+            return .init(text: engineStatusTitle, isError: false)
         case .setupNeeded, .ready:
             break
         }

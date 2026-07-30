@@ -278,19 +278,60 @@ extension LibraryView {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// ONE honest line, derived from the actual phase (#4372).
+    ///
+    /// This used to stack "Loading Documents…" over "Connecting to library
+    /// data" — two different states asserted simultaneously, so at launch the
+    /// pane claimed to be fetching a tree from an engine it had not connected
+    /// to yet. Connecting and loading are different answers; the pane now gives
+    /// whichever one is true.
     var loadingState: some View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.large)
 
-            Text(isShowingEntitiesCollection ? "Loading Entities..." : "Loading Documents...")
+            Text(loadingMessage)
                 .font(.headline)
-
-            Text(isShowingEntitiesCollection ? "Reading knowledge graph entities" : "Connecting to library data")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The honest sentence for the current engine phase. Single source: the
+    /// engine popover renders the very same string for the very same failure,
+    /// so the two surfaces cannot describe one outage two ways (#4380).
+    var engineStatusDetail: String {
+        ConnectionPresentation.status(
+            phase: appState.engine.phase,
+            ownership: ConnectionPresentation.EngineOwnership.current(),
+            accessError: appState.backendAccessError,
+            authBroken: appState.authBroken
+        ).detail
+    }
+
+    /// The current load phase for this collection, read from the single
+    /// connection-state source plus this view's own fetch state.
+    var libraryLoadPhase: LibraryLoadPhase {
+        LibraryLoadPhase.resolve(
+            enginePhase: appState.engine.phase,
+            ownership: ConnectionPresentation.EngineOwnership.current(),
+            hasLoadedSuccessfully: isConnected,
+            isFetching: isCollectionLoading,
+            isEmpty: isCollectionEmpty,
+            engineDetail: engineStatusDetail,
+            loadErrorMessage: activeErrorMessage
+        )
+    }
+
+    /// Short enough to read at a glance (#4366); the detail, when there is any,
+    /// belongs in the connection popover.
+    var loadingMessage: String {
+        let phase = libraryLoadPhase
+        if phase == .loadingDocuments, isShowingEntitiesCollection {
+            return "Loading entities…"
+        }
+        // `.empty`/`.loaded`/`.failed` have their own views and never reach the
+        // spinner branch; "Loading…" is the honest last resort if one ever does.
+        return phase.message ?? "Loading…"
     }
 
     func errorState(message: String) -> some View {

@@ -264,7 +264,14 @@ struct LibraryView: View {
     // See memory: librarywindow-body-typecheck-timeout.
     @ViewBuilder
     private var libraryContent: some View {
-        if isCollectionLoading || isAwaitingFirstLoad {
+        // #4372: a failed engine is an error affordance, never a spinner. This
+        // branch has to come FIRST, because `isAwaitingFirstLoad` is true
+        // whenever no load has succeeded AND no load has failed — which is
+        // exactly the shape of "the engine never answered, so nothing was ever
+        // asked for". Without it the pane spins forever over a dead engine.
+        if let engineFailure = engineFailureDetail {
+            connectionErrorState(message: engineFailure)
+        } else if isCollectionLoading || isAwaitingFirstLoad {
             loadingState
         } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
             // Never a silent 403 / blank pane (F6): a denied library read lands on
@@ -279,7 +286,7 @@ struct LibraryView: View {
                 onResetPin: { RemoteCertificatePinning.clearPersistedSPKIPin(hostString: EngineConfig.hostString) }
             )
         } else if !isShowingEntitiesCollection, Self.isEngineOutage(documentStore.error) {
-            connectionErrorState
+            connectionErrorState(message: engineUnreachableDetail)
         } else if let activeErrorMessage {
             errorState(message: activeErrorMessage)
         } else if isCollectionEmpty {
@@ -627,14 +634,18 @@ extension LibraryView {
         Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
     }
 
-    /// Shown only for a load that failed because the engine was unreachable
-    /// (`isEngineOutage`) — never for a library that simply hasn't loaded yet.
-    /// The engine is started and managed by the app, so the copy never asks the
-    /// user to go check a service or a port they don't run.
-    private var connectionErrorState: some View {
+    /// Shown for a load that failed because the engine was unreachable
+    /// (`isEngineOutage`) or because the engine itself is in a failure phase —
+    /// never for a library that simply hasn't loaded yet.
+    ///
+    /// The sentence comes from `ConnectionPresentation` (#4380), the same
+    /// mapping the engine popover reads, so the two surfaces cannot describe
+    /// one failure two different ways. A raw transport error never reaches
+    /// this pane (#4269); it lives in the engine log.
+    private func connectionErrorState(message: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 48))
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
 
             Text("Can't Reach the Server")
@@ -644,7 +655,7 @@ extension LibraryView {
                 // has to be able to catch it claiming one on a healthy engine.
                 .accessibilityIdentifier("library.outage")
 
-            Text("Fichero can't reach its server right now, so this library can't load. Try again in a moment.")
+            Text(message)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -656,6 +667,28 @@ extension LibraryView {
             .keyboardShortcut("r", modifiers: .command)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The honest sentence for the CURRENT engine phase, or nil when the engine
+    /// is not in a failure phase at all (#4372). Non-nil is what promotes the
+    /// pane from "loading" to "the error affordance".
+    private var engineFailureDetail: String? {
+        switch appState.engine.phase {
+        case .portConflict, .authRejected, .unreachable, .failed:
+            return engineStatusDetail
+        case .setupNeeded, .starting, .ready:
+            return nil
+        }
+    }
+
+    /// The sentence for a store load that failed with `engineUnreachable` while
+    /// the session itself has not (yet) flipped to a failure phase.
+    private var engineUnreachableDetail: String {
+        ConnectionPresentation.failureDetail(
+            accessError: .engineUnreachable,
+            authBroken: false,
+            ownership: ConnectionPresentation.EngineOwnership.current()
+        )
     }
 
     /// Filter bar + bottom action bar stacked at the bottom of every library view mode.

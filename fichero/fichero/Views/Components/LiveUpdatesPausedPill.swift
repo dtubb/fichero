@@ -27,7 +27,10 @@ struct LiveUpdatesPausedPill: View {
             Text(message)
                 .font(.callout)
             if let onReconnect {
-                Button("Reconnect", action: onReconnect)
+                // The SAME word the engine popover's primary action uses
+                // (#4380): the pill and the popover must not offer the user two
+                // differently-named ways to do one thing.
+                Button(ConnectionPresentation.Action.reconnect.title, action: onReconnect)
                     .buttonStyle(.borderless)
                     .font(.callout.weight(.medium))
             }

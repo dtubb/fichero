@@ -22,7 +22,7 @@ struct StatusIslandToolbarTests {
 
     private func resolve(
         enginePhase: EngineSession.Phase = .ready,
-        engineDiagnosis: String? = nil,
+        engineStatusTitle: String = "Connected",
         importError: String? = nil,
         isImporting: Bool = false,
         importProgress: String? = nil,
@@ -31,7 +31,7 @@ struct StatusIslandToolbarTests {
     ) -> StatusIslandMessage {
         StatusIslandMessage.resolve(
             enginePhase: enginePhase,
-            engineDiagnosis: engineDiagnosis,
+            engineStatusTitle: engineStatusTitle,
             importError: importError,
             isImporting: isImporting,
             importProgress: importProgress,
@@ -47,10 +47,12 @@ struct StatusIslandToolbarTests {
         #expect(resolve() == StatusIslandMessage(text: "Ready", isError: false))
     }
 
-    /// The engine's own diagnosis is what the popover shows; the island must
-    /// echo it rather than inventing a vaguer summary.
-    @Test("every engine failure surfaces its diagnosis as an error")
-    func engineFailuresSurfaceDiagnosis() {
+    /// The island shows the SAME short title the popover puts on the same
+    /// failure (#4380) — not the engine's raw diagnosis, which on the
+    /// debug-external path is a multi-line shell command the island rendered as
+    /// a truncated fragment (#4366).
+    @Test("every engine failure surfaces the mapped short title as an error")
+    func engineFailuresSurfaceMappedTitle() {
         let failures: [EngineSession.Phase] = [
             .portConflict(pid: 4242),
             .authRejected(diagnosis: "Token rejected"),
@@ -58,23 +60,54 @@ struct StatusIslandToolbarTests {
             .failed(diagnosis: "Engine exited"),
         ]
         for phase in failures {
-            let status = resolve(enginePhase: phase, engineDiagnosis: "Port 8765 in use")
+            let status = resolve(enginePhase: phase, engineStatusTitle: "Can't Connect to Server")
             #expect(status.isError, "\(phase) must read as an error")
-            #expect(status.text == "Port 8765 in use")
+            #expect(status.text == "Can't Connect to Server")
         }
     }
 
-    /// A failure with no diagnosis still says something actionable — never an
-    /// empty island, which reads as "fine".
-    @Test("an undiagnosed failure still reads as a problem")
-    func undiagnosedFailureStillReadsAsProblem() {
-        let status = resolve(enginePhase: .failed(diagnosis: ""), engineDiagnosis: nil)
-        #expect(status == StatusIslandMessage(text: "Engine connection problem", isError: true))
+    /// The island can never render a shell command: it renders whatever
+    /// `ConnectionPresentation` produced, and that table contains none.
+    @Test("no mapped engine status is a shell command")
+    func noMappedEngineStatusIsAShellCommand() {
+        let phases: [EngineSession.Phase] = [
+            .setupNeeded,
+            .starting,
+            .ready,
+            .portConflict(pid: 4242),
+            .portConflict(pid: nil),
+            .authRejected(diagnosis: "Token rejected"),
+            .unreachable(diagnosis: "No response"),
+            .failed(diagnosis: "Engine exited"),
+        ]
+        let ownerships: [ConnectionPresentation.EngineOwnership] = [.appManaged, .externalLocal, .remote]
+        for phase in phases {
+            for ownership in ownerships {
+                let mapped = ConnectionPresentation.status(
+                    phase: phase,
+                    ownership: ownership,
+                    accessError: nil,
+                    authBroken: false
+                )
+                let status = resolve(enginePhase: phase, engineStatusTitle: mapped.title)
+                #expect(!status.text.contains("PYTHONPATH"))
+                #expect(!status.text.contains("python -m"))
+                #expect(!status.text.isEmpty)
+            }
+        }
     }
 
-    @Test("a booting engine says so")
+    @Test("a booting engine says so, in the words the popover uses")
     func bootingEngineSaysSo() {
-        #expect(resolve(enginePhase: .starting) == StatusIslandMessage(text: "Starting engine…", isError: false))
+        let title = ConnectionPresentation.status(
+            phase: .starting,
+            ownership: .appManaged,
+            accessError: nil,
+            authBroken: false
+        ).title
+        #expect(title == "Starting engine…")
+        #expect(resolve(enginePhase: .starting, engineStatusTitle: title)
+            == StatusIslandMessage(text: "Starting engine…", isError: false))
     }
 
     /// The load-bearing precedence: an engine problem must not be masked by an
