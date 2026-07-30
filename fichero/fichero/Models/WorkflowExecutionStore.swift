@@ -142,8 +142,10 @@ final class WorkflowExecutionStore {
                 try await applyRefreshedThreadStatus(threadId: threadId)
                 return
             } catch {
+                let reason = error.localizedDescription
+                let attemptNumber = attempt + 1
                 log.warning(
-                    "reconcileAfterStreamEnd: status fetch failed for \(threadId, privacy: .public) (attempt \(attempt + 1)): \(error.localizedDescription, privacy: .public)"
+                    "reconcileAfterStreamEnd: \(threadId, privacy: .public) attempt \(attemptNumber) failed: \(reason, privacy: .public)"
                 )
             }
         }

@@ -71,7 +71,10 @@ final class StorageResourceAVAssetDelegate: NSObject, AVAssetResourceLoaderDeleg
                 let data = try await self.bufferedData(for: url)
                 self.fulfil(transfer.value, with: data)
             } catch {
-                logger.error("fichero-res media load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                let reason = error.localizedDescription
+                logger.error(
+                    "fichero-res media load failed for \(url.absoluteString, privacy: .public): \(reason, privacy: .public)"
+                )
                 transfer.value.finishLoading(with: error)
             }
         }

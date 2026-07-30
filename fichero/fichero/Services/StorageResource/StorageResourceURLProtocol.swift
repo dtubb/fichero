@@ -95,7 +95,10 @@ final class StorageResourceURLProtocol: URLProtocol, @unchecked Sendable {
                 // stopLoading already tore the request down; nothing to report.
                 return
             }
-            logger.error("fichero-res load failed for \(url.absoluteString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            let reason = error.localizedDescription
+            logger.error(
+                "fichero-res load failed for \(url.absoluteString, privacy: .public): \(reason, privacy: .public)"
+            )
             client?.urlProtocol(self, didFailWithError: error)
         }
     }

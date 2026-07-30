@@ -261,8 +261,10 @@ struct ChatView: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
+            let replies = summary.repliesWithKnowledge
+            let plural = replies == 1 ? "y" : "ies"
             VStack(alignment: .leading, spacing: 12) {
-                Text("This conversation drew on library knowledge across \(summary.repliesWithKnowledge) repl\(summary.repliesWithKnowledge == 1 ? "y" : "ies").")
+                Text("This conversation drew on library knowledge across \(replies) repl\(plural).")
                     .font(.callout)
                 HStack(spacing: 16) {
                     knowledgeStat(summary.entityReferences, "Entity", "point.3.connected.trianglepath.dotted")
@@ -335,7 +337,8 @@ struct ChatView: View {
             return researchProject == nil ? "Not a workspace yet" : "Plan"
         case .knowledge:
             let summary = ConversationKnowledgeSummary.summarize(currentConversation)
-            return summary.isEmpty ? "No knowledge used" : "\(summary.entityReferences) entity · \(summary.claimReferences) claim references"
+            if summary.isEmpty { return "No knowledge used" }
+            return "\(summary.entityReferences) entity · \(summary.claimReferences) claim references"
         case .compare:
             return "Compare agents / models"
         }

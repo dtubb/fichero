@@ -136,7 +136,8 @@ struct ZoomTileGridPreview: View {
 
     private var summaryLine: some View {
         let rowLabel = rows > 0 ? "\(tiles.count) rows" : "Auto (\(tiles.count) rows)"
-        return Text("\(rowLabel) · \(Int((min(0.3, max(0, overlap)) * 100).rounded()))% overlap · each strip enlarged ×\(scale, specifier: "%.1f")")
+        let overlapPercent = Int((min(0.3, max(0, overlap)) * 100).rounded())
+        return Text("\(rowLabel) · \(overlapPercent)% overlap · each strip enlarged ×\(scale, specifier: "%.1f")")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .monospacedDigit()
