@@ -177,6 +177,19 @@ extension SidebarItemRow {
                 // See above (#4371): the List tint is a fill colour, not an
                 // accent, so progress restates its own.
                 .tint(.accentColor)
+        } else if let progress = containerActivity.progress {
+            // The container's CONTENTS are being worked on (#4417). A
+            // determinate ring, deliberately unlike the leaf spinner: a
+            // container is not being processed, and this is the one row where
+            // a summary of the children makes sense.
+            ProgressView(value: progress)
+                .progressViewStyle(.circular)
+                .controlSize(.small)
+                .scaleEffect(0.8)
+                .frame(width: 16, alignment: .center)
+                .tint(.secondary)
+                .help(containerActivity.summary ?? "")
+                .accessibilityLabel(containerActivity.summary ?? "")
         } else if case .document(let doc) = item.itemType,
                   let badge = ingestBadge(for: doc) {
             // #603: visible per-mode badges driven by metadata.ingest_mode
