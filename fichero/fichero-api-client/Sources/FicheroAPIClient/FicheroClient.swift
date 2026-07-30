@@ -271,7 +271,12 @@ public final class FicheroClient: ObservableObject {
     /// transport underneath. Lets callers (and the transport-selection tests)
     /// reason about which transport was actually selected without caring that
     /// it is wrapped for pressure accounting.
-    static func underlyingTransport(_ transport: any ClientTransport) -> any ClientTransport {
+    /// `nonisolated` because this touches no isolated state — it is a cast plus
+    /// a read of `PoolMonitoringTransport.wrapped`, an immutable `let`. Without
+    /// it the declaration inherits the type's `@MainActor`, every caller becomes
+    /// implicitly async, and the transport tests that call it synchronously stop
+    /// compiling — for no safety gained.
+    nonisolated static func underlyingTransport(_ transport: any ClientTransport) -> any ClientTransport {
         (transport as? PoolMonitoringTransport)?.wrapped ?? transport
     }
 
@@ -279,7 +284,7 @@ public final class FicheroClient: ObservableObject {
     /// per-instance state — so concurrent `FicheroClient`s can use different
     /// transports. `internal` (not `private`) so the transport-selection unit
     /// tests can assert the chosen concrete type.
-    static func makeTransport(
+    nonisolated static func makeTransport(
         session: URLSession? = nil,
         transportMode: TransportMode = .https,
         usage: TransportUsage = .request

@@ -114,7 +114,11 @@ enum ConnectionPresentation {
 
     /// One honest status: a short title, one sentence of detail, one small
     /// symbol, and at most one primary action.
-    struct Status: Equatable {
+    /// Renamed from `Status` (#4380 follow-up): the generated client already
+    /// declares `Components.Schemas.Status`, and two types one word apart —
+    /// one an API payload, one a presentation model — cannot be told apart at
+    /// a call site. `check_openapi_shadow_types` flags exactly that collision.
+    struct Display: Equatable {
         /// Popover headline. Never narrates a step the app is not observing.
         let title: String
         /// The SAME state, written for the status island's ~260pt line
@@ -170,10 +174,10 @@ enum ConnectionPresentation {
         ownership: EngineOwnership,
         accessError: AccessError?,
         authBroken: Bool
-    ) -> Status {
+    ) -> Display {
         switch phase {
         case .setupNeeded:
-            return Status(
+            return Display(
                 title: "Not Connected Yet",
                 shortTitle: "Not connected",
                 detail: "Choose a Fichero server to connect to.",
@@ -187,7 +191,7 @@ enum ConnectionPresentation {
             // The app knows it is connecting. It does NOT know whether the
             // engine is importing libraries or opening its database, so it says
             // neither (#4380).
-            return Status(
+            return Display(
                 title: ownership == .appManaged ? "Starting engine…" : "Connecting…",
                 shortTitle: ownership == .appManaged ? "Starting engine…" : "Connecting…",
                 detail: "",
@@ -198,7 +202,7 @@ enum ConnectionPresentation {
             )
 
         case .ready:
-            return Status(
+            return Display(
                 title: "Connected",
                 shortTitle: "Connected",
                 detail: "",
@@ -218,7 +222,7 @@ enum ConnectionPresentation {
             } else {
                 who = "Another process"
             }
-            return Status(
+            return Display(
                 title: "Port 8765 Is In Use",
                 shortTitle: "Port 8765 in use",
                 detail: "\(who) is already using port 8765.",
@@ -243,13 +247,13 @@ enum ConnectionPresentation {
         accessError: AccessError?,
         authBroken: Bool,
         ownership: EngineOwnership
-    ) -> Status {
+    ) -> Display {
         let title = failureTitle(
             accessError: accessError,
             authBroken: authBroken,
             ownership: ownership
         )
-        return Status(
+        return Display(
             title: title,
             shortTitle: failureShortTitle(
                 accessError: accessError,

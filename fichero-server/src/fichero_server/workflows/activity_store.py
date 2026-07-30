@@ -55,6 +55,7 @@ _WORKFLOW_RUNS_COLUMNS = (
     "node_name_map",
     "progress_timeline",
     "diagram_mermaid",
+    "resolved_scope",
 )
 
 # Secondary indexes on workflow_runs that must be recreated after a rebuild.
@@ -635,6 +636,18 @@ class ActivityStore:
                 pass  # Column already exists
 
             try:
+                # #4384/#4396: what the run was ACTUALLY scoped to, resolved by
+                # the server. Without it a run records what workflow ran but
+                # never what it ran ON, so Activity cannot report scope and an
+                # over-scoped run is invisible until its effects show up in the
+                # data — which is how #4396 was found.
+                conn.execute(
+                    "ALTER TABLE workflow_runs ADD COLUMN resolved_scope JSON"
+                )
+            except Exception:
+                pass  # Column already exists
+
+            try:
                 conn.execute(
                     "ALTER TABLE workflow_runs ADD COLUMN diagram_mermaid TEXT"
                 )
@@ -941,8 +954,16 @@ class ActivityStore:
         diagram_mermaid: Optional[str] = None,
         started_at: Optional[datetime] = None,
         status: str = "running",
+        resolved_scope: Optional[dict] = None,
     ) -> None:
-        """Save a new workflow run record."""
+        """Save a new workflow run record.
+
+        ``resolved_scope`` is what the SERVER resolved the run to operate on —
+        not what the client asked for (#4384/#4396). Recording the client's
+        request would hide exactly the defect worth catching: #4396 was a
+        client sending a whole folder for a one-file selection, and only the
+        resolved set shows that.
+        """
 
         def _save():
             conn = connect_utc(self.db_path)
@@ -957,14 +978,17 @@ class ActivityStore:
                 progress_timeline_json = (
                     json.dumps(progress_timeline) if progress_timeline else None
                 )
+                resolved_scope_json = (
+                    json.dumps(resolved_scope) if resolved_scope else None
+                )
 
                 conn.execute(
                     """
                     INSERT INTO workflow_runs
                     (thread_id, workflow_id, workflow_name, python_code, execution_log,
                      workflow_snapshot, node_name_map, progress_timeline,
-                     diagram_mermaid, status, started_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     diagram_mermaid, status, started_at, resolved_scope)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (thread_id) DO UPDATE SET
                         python_code = COALESCE(EXCLUDED.python_code, workflow_runs.python_code),
                         execution_log = COALESCE(EXCLUDED.execution_log, workflow_runs.execution_log),
@@ -972,6 +996,7 @@ class ActivityStore:
                         node_name_map = COALESCE(EXCLUDED.node_name_map, workflow_runs.node_name_map),
                         progress_timeline = COALESCE(EXCLUDED.progress_timeline, workflow_runs.progress_timeline),
                         diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, workflow_runs.diagram_mermaid),
+                        resolved_scope = COALESCE(EXCLUDED.resolved_scope, workflow_runs.resolved_scope),
                         status = EXCLUDED.status,
                         workflow_name = EXCLUDED.workflow_name
                 """,
@@ -987,6 +1012,7 @@ class ActivityStore:
                         diagram_mermaid,
                         status,
                         started_at or datetime.now(timezone.utc),
+                        resolved_scope_json,
                     ],
                 )
             finally:
@@ -1095,6 +1121,9 @@ class ActivityStore:
             node_name_map=node_name_map,
             progress_timeline=progress_timeline,
             diagram_mermaid=row[13],
+            # #4384: what the run was scoped to. Index 14 — the SELECTs
+            # feeding this mapping all list resolved_scope last.
+            resolved_scope=json.loads(row[14]) if len(row) > 14 and row[14] else None,
         )
 
     async def get_workflow_run(self, thread_id: str) -> Optional[WorkflowRun]:
@@ -1108,7 +1137,7 @@ class ActivityStore:
                     SELECT thread_id, workflow_id, workflow_name, python_code,
                            execution_log, status, started_at, completed_at,
                            duration_ms, error, workflow_snapshot, node_name_map,
-                           progress_timeline, diagram_mermaid
+                           progress_timeline, diagram_mermaid, resolved_scope
                     FROM workflow_runs
                     WHERE thread_id = ?
                 """,
@@ -1162,7 +1191,7 @@ class ActivityStore:
                         SELECT thread_id, workflow_id, workflow_name, python_code,
                                execution_log, status, started_at, completed_at,
                                duration_ms, error, workflow_snapshot, node_name_map,
-                               progress_timeline, diagram_mermaid
+                               progress_timeline, diagram_mermaid, resolved_scope
                         FROM workflow_runs
                         WHERE workflow_id = ?
                         ORDER BY started_at DESC
@@ -1176,7 +1205,7 @@ class ActivityStore:
                         SELECT thread_id, workflow_id, workflow_name, python_code,
                                execution_log, status, started_at, completed_at,
                                duration_ms, error, workflow_snapshot, node_name_map,
-                               progress_timeline, diagram_mermaid
+                               progress_timeline, diagram_mermaid, resolved_scope
                         FROM workflow_runs
                         ORDER BY started_at DESC
                         LIMIT ?

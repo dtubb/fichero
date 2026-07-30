@@ -273,11 +273,22 @@ extension ContentView {
                 }
             }
 
-            // Xcode-style status island to the RIGHT of the breadcrumb path:
-            // engine button + what's-going-on message + activity button.
-            // Declared unconditionally within this zone (#3163: content
-            // varies, the item never appears/disappears).
-            ToolbarItem(id: ContentToolbarID.statusIsland, placement: .principal) {
+            // Xcode-style status island: engine button + what's-going-on
+            // message + activity button. Declared unconditionally within this
+            // zone (#3163: content varies, the item never appears/disappears).
+            //
+            // `.automatic`, NOT `.principal` (#4378). Two items claiming
+            // `.principal` is the #3163 duplicate-identifier crash class, not a
+            // layout preference — so this is a correctness fix. The breadcrumb
+            // wins the zone because `.principal` is the window's IDENTITY slot:
+            // it is what makes the proxy icon, ⌘-click-to-parent and proxy-drag
+            // work at all. Status is chrome about a transient condition, and a
+            // user navigates by identity while only glancing at status.
+            //
+            // `.automatic` keeps the island adjacent to the centre rather than
+            // exiling it to an explicit trailing group, and its message-length
+            // contract (#4366) is unchanged by the move.
+            ToolbarItem(id: ContentToolbarID.statusIsland, placement: .automatic) {
                 StatusIslandToolbarItem(
                     isImporting: isImporting,
                     importProgress: importProgress,

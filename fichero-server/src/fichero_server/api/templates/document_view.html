@@ -183,6 +183,11 @@
                resolves to content width and the pane scrolls — the exact
                failure being fixed. */
             overflow-wrap: anywhere;
+            /* Belt as well as braces (#4385): `overflow-wrap` stops a long
+               token forcing the width; this stops the BODY box itself
+               resolving wider than its page. The wrap rule governs the text,
+               this governs the element. */
+            max-width: 100%;
         }
 
         /* An untranscribed page is a PAGE, not a gap (#4356): it keeps its

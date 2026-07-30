@@ -29,8 +29,12 @@ struct ConfidenceBandTests {
     func noBandRendersANumber() {
         for band in ConfidenceBand.allCases {
             for text in [band.badgeText, band.label, band.short, band.help] {
-                #expect(!text.contains("."), Comment(rawValue: text))
-                #expect(!text.contains(where: \.isNumber), Comment(rawValue: text))
+                // `contains(".")` on a String resolves to the RegexComponent
+                // overload, which is throwing — inside a non-throwing @Test the
+                // macro expansion then fails to compile. Compare Characters so
+                // the plain Sequence overload is chosen and no `try` is needed.
+                #expect(!text.contains(Character(".")), Comment(rawValue: text))
+                #expect(!text.contains(where: { $0.isNumber }), Comment(rawValue: text))
             }
         }
     }

@@ -136,44 +136,6 @@ struct PDFPageView: NSViewRepresentable {
         return view
     }
 
-    /// Route manual-zoom signals — a trackpad pinch and the toolbar's zoom
-    /// commands — into the coordinator, so the automatic fit knows when to stop
-    /// re-fitting the page to the pane (#4279).
-    private func wireZoomOwnership(_ coordinator: Coordinator, on view: PDFView) {
-        (view as? PinchOwningPDFView)?.onUserMagnify = { [weak coordinator] in
-            coordinator?.userHasZoomedManually = true
-        }
-        zoomController?.onManualZoomChanged = { [weak coordinator] isManual in
-            coordinator?.userHasZoomedManually = isManual
-        }
-    }
-
-    /// PDFKit page/scale + claim-source navigation observers. Extracted from
-    /// makeNSView to keep that builder within the function-length budget.
-    private func registerObservers(_ coordinator: Coordinator, on view: PDFView) {
-        NotificationCenter.default.addObserver(
-            coordinator,
-            selector: #selector(Coordinator.pageDidChange(_:)),
-            name: .PDFViewPageChanged,
-            object: view
-        )
-        NotificationCenter.default.addObserver(
-            coordinator,
-            selector: #selector(Coordinator.scaleDidChange(_:)),
-            name: .PDFViewScaleChanged,
-            object: view
-        )
-        // Claim-card source navigations forwarded by ContentView. Not filtered
-        // by `object:` — the userInfo carries the documentId the coordinator
-        // double-checks before scrolling (#978/#979/#982).
-        NotificationCenter.default.addObserver(
-            coordinator,
-            selector: #selector(Coordinator.handleNavigateToPage(_:)),
-            name: .ficheroNavigateToPage,
-            object: nil
-        )
-    }
-
     func updateNSView(_ view: PDFView, context: Context) {
         context.coordinator.owner = self
         // Apply the page-layout mode (#2090); idempotent-guarded so switching
@@ -539,71 +501,60 @@ extension PDFPageView {
     }
 }
 
-@MainActor
-private func applyHighlightSpan(
-    on page: PDFPage,
-    in view: PDFView,
-    info: [AnyHashable: Any]
-) {
-    guard let doc = view.document else { return }
+// MARK: - View wiring
 
-    for existing in page.annotations where existing.userName == "fichero.claim-source" {
-        page.removeAnnotation(existing)
+/// Zoom ownership and KVO/notification registration, lifted out of the
+/// `PDFPageView` body (#4353).
+///
+/// The struct sat at 345 of the 350-line type-body ERROR — five lines. That
+/// violation was INVISIBLE while the file was at 986/1000: the file-length
+/// warning was the reported problem, and this one only surfaced once the
+/// `applyHighlightSpan` collapse cleared it. Risk that moves as other risk is
+/// removed is the argument for measuring headroom continuously.
+///
+/// A same-file `extension` costs no access change, no import and no new file —
+/// these are `private` and stay `private`, reachable because the extension is
+/// in the same file.
+private extension PDFPageView {
+    /// Route manual-zoom signals — a trackpad pinch and the toolbar's zoom
+    /// commands — into the coordinator, so the automatic fit knows when to stop
+    /// re-fitting the page to the pane (#4279).
+    func wireZoomOwnership(_ coordinator: Coordinator, on view: PDFView) {
+        (view as? PinchOwningPDFView)?.onUserMagnify = { [weak coordinator] in
+            coordinator?.userHasZoomedManually = true
+        }
+        zoomController?.onManualZoomChanged = { [weak coordinator] isManual in
+            coordinator?.userHasZoomedManually = isManual
+        }
     }
 
-    // Most precise anchor: a normalized [x, y, w, h] bbox (engine convention,
-    // top-left origin — the same array crop_pdf_page uses). Draw the region
-    // highlight directly, flipping y into PDFKit's bottom-left page space so the
-    // highlight lands exactly where the crop was taken (#2105/#3449).
-    if let bbox = info["bbox"] as? [Double], bbox.count == 4 {
-        let cropBounds = page.bounds(for: .cropBox)
-        let rect = CGRect(
-            x: cropBounds.minX + bbox[0] * cropBounds.width,
-            y: cropBounds.minY + (1 - bbox[1] - bbox[3]) * cropBounds.height,
-            width: bbox[2] * cropBounds.width,
-            height: bbox[3] * cropBounds.height
+    /// PDFKit page/scale + claim-source navigation observers. Extracted from
+    /// makeNSView to keep that builder within the function-length budget.
+    func registerObservers(_ coordinator: Coordinator, on view: PDFView) {
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.pageDidChange(_:)),
+            name: .PDFViewPageChanged,
+            object: view
         )
-        let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        #if canImport(AppKit)
-        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
-        #else
-        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
-        #endif
-        annotation.userName = "fichero.claim-source"
-        page.addAnnotation(annotation)
-        return
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.scaleDidChange(_:)),
+            name: .PDFViewScaleChanged,
+            object: view
+        )
+        // Claim-card source navigations forwarded by ContentView. Not filtered
+        // by `object:` — the userInfo carries the documentId the coordinator
+        // double-checks before scrolling (#978/#979/#982).
+        NotificationCenter.default.addObserver(
+            coordinator,
+            selector: #selector(Coordinator.handleNavigateToPage(_:)),
+            name: .ficheroNavigateToPage,
+            object: nil
+        )
     }
-
-    var selection: PDFSelection?
-
-    if let excerpt = info["excerpt"] as? String, !excerpt.isEmpty {
-        if let found = doc.findString(excerpt, withOptions: .caseInsensitive).first {
-            selection = found
-        }
-    }
-
-    if selection == nil,
-       let start = info["charStart"] as? Int,
-       let end = info["charEnd"] as? Int,
-       end > start,
-       let pageStr = page.string {
-        let range = NSRange(location: start, length: end - start)
-        if range.upperBound <= pageStr.utf16.count {
-            selection = page.selection(for: range)
-        }
-    }
-
-    guard let sel = selection else { return }
-
-    for rect in sel.selectionsByLine().map({ $0.bounds(for: page) }) {
-        let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
-        annotation.userName = "fichero.claim-source"
-        page.addAnnotation(annotation)
-    }
-
-    view.go(to: sel)
 }
+
 #elseif canImport(UIKit)
 
 /// Interactive PDF preview using PDFKit's `PDFView` on iOS.
@@ -917,7 +868,22 @@ struct PDFPageView: UIViewRepresentable {
     }
 }
 
-@MainActor
+
+#endif
+
+// MARK: - Highlight span (shared)
+
+/// ONE implementation for both platforms (#4353).
+///
+/// This existed twice — 64 lines each, in the mutually exclusive AppKit and
+/// UIKit branches, identical apart from one colour reference. Each copy even
+/// carried its OWN `#if` for that colour, which was already redundant inside a
+/// branch that had decided the platform.
+///
+/// `PlatformColor` (PlatformAliases.swift) covers the whole difference, so the
+/// conditional disappears rather than wrapping the same body twice. That takes
+/// this file from 986 to well under the 1000-line error, so it no longer needs
+/// the split that was being planned for it.
 private func applyHighlightSpan(
     on page: PDFPage,
     in view: PDFView,
@@ -942,11 +908,7 @@ private func applyHighlightSpan(
             height: bbox[3] * cropBounds.height
         )
         let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        #if canImport(AppKit)
-        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
-        #else
-        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
-        #endif
+        annotation.color = PlatformColor.systemYellow.withAlphaComponent(0.35)
         annotation.userName = "fichero.claim-source"
         page.addAnnotation(annotation)
         return
@@ -975,12 +937,10 @@ private func applyHighlightSpan(
 
     for rect in sel.selectionsByLine().map({ $0.bounds(for: page) }) {
         let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
+        annotation.color = PlatformColor.systemYellow.withAlphaComponent(0.35)
         annotation.userName = "fichero.claim-source"
         page.addAnnotation(annotation)
     }
 
     view.go(to: sel)
 }
-
-#endif

@@ -48,7 +48,7 @@ struct ConnectionPresentationTests {
         _ ownership: Ownership,
         accessError: AccessError? = nil,
         authBroken: Bool = false
-    ) -> ConnectionPresentation.Status {
+    ) -> ConnectionPresentation.Display {
         ConnectionPresentation.status(
             phase: phase,
             ownership: ownership,
