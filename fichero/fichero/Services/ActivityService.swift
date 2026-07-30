@@ -323,7 +323,7 @@ extension ActivityService {
             workflowName: response.workflowName,
             pythonCode: response.pythonCode,
             executionLog: response.executionLog,
-            status: response.status,
+            status: response.status.rawValue,
             startedAt: response.startedAt,
             completedAt: response.completedAt,
             durationMs: response.durationMs,
