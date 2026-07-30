@@ -72,12 +72,26 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         for operation in ops { applyOne(operation) }
     }
 
+    /// Set by the host when a scope opens: the FIRST reconcile that produces any
+    /// content fits the camera to it, once, then clears the flag.
+    ///
+    /// The default grid (#4290) is anchored at the world origin and marches right
+    /// and down, so without this the camera — parked at `(0, 0)` — showed one
+    /// quadrant of the board and the rest sat off-screen. Consumed inside
+    /// `reconcile` rather than driven from the view so it cannot fire before the
+    /// placeables it is meant to frame exist.
+    var needsFitOnNextContent = false
+
     /// Reconcile the live scene to `newState` via the minimal diff against the
     /// last applied state — the view calls this whenever the resolved scene
     /// changes (a store patch, a selection change). Never rebuilds.
     func reconcile(to newState: CanvasSceneState) {
         apply(CanvasSceneDiff.compute(from: appliedState, to: newState))
         appliedState = newState
+        if needsFitOnNextContent, !placeablesById.isEmpty {
+            needsFitOnNextContent = false
+            fit()
+        }
     }
 
     /// Drag-onto-item target picking lands in #3086 (needs a scene raycast); tap
@@ -103,7 +117,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
             (yValues.min()! + yValues.max()!) / 2,
             camera.position.z
         )
-        let span = max(xValues.max()! - xValues.min()!, yValues.max()! - yValues.min()!, 1)
+        // Spans are CENTRE-to-centre, so add a cell of margin — otherwise the
+        // outermost cards are half off-screen, and a single-card scope frames a
+        // span of 0 (#4290).
+        let margin = Float(CanvasGridPlacement.cellWidth)
+        let span = max(xValues.max()! - xValues.min()!, yValues.max()! - yValues.min()!) + margin
         setOrthoScale(span * 0.6)
     }
 

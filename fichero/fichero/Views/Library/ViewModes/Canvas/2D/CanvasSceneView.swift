@@ -42,9 +42,11 @@ struct CanvasSceneView: View {
     @State private var dragStartScene: SIMD3<Float>?
     @State private var dragOriginWorld: SIMD3<Double>?
 
-    // Modifier state: ⇧ = marquee, ⌥ = force-link on drag-onto.
-    @State private var shiftHeld = false
+    // Modifier state: ⌥ = force-link on drag-onto, Space = pan the view (#4290 —
+    // the plain drag belongs to the ITEM). ⇧ is no longer tracked: a background
+    // drag marquees whether or not it's held, so there is nothing to consult.
     @State private var optionHeld = false
+    @State private var spaceHeld = false
     @State private var marqueeRect: CGRect?
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
@@ -52,16 +54,35 @@ struct CanvasSceneView: View {
     /// The current scene resolved from the shared stores (canonical world space),
     /// with the single selection mirrored into the scene's selection set. Reading
     /// the stores here ties re-render (→ reconcile) to their change stream.
-    private var resolvedState: CanvasSceneState {
+    ///
+    /// Row-less placeables are laid into a spaced GRID rather than taking their
+    /// backend default (#4290): the projector's defaults sit on the XZ plane, and
+    /// this renderer drops z, so every card in a folder collapsed onto the line
+    /// `y = 0` — one row, cards on top of each other, and drops resolving as
+    /// links against their own neighbours instead of as moves.
+    private func resolvedState(in viewportSize: CGSize) -> CanvasSceneState {
         var state = CanvasSceneState.resolve(
             nodes: nodes,
             connections: connections,
             links: links,
             layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
-            items: itemStore?.items(for: scopeKey) ?? []
+            items: itemStore?.items(for: scopeKey) ?? [],
+            defaultPlacement: .grid(columns: gridColumns(in: viewportSize))
         )
         state.selection = selectedNodeId.map { [$0] } ?? []
         return state
+    }
+
+    /// Columns for the default grid, measured at the camera's FIT scale — not its
+    /// live one, so zooming never re-flows the board under the pointer.
+    private func gridColumns(in viewportSize: CGSize) -> Int {
+        CanvasGridPlacement.columnCount(
+            viewportSize: viewportSize,
+            worldPerPoint: Canvas2DProjection.worldPerPoint(
+                orthoScale: CanvasOrtho2DRenderer.defaultOrthoScale,
+                viewHeight: viewportSize.height
+            )
+        )
     }
 
     var body: some View {
@@ -69,21 +90,30 @@ struct CanvasSceneView: View {
             RealityView { content in
                 content.add(renderer.camera)
                 content.add(renderer.root)
-                renderer.reconcile(to: resolvedState)
+                renderer.reconcile(to: resolvedState(in: geo.size))
             } update: { _ in
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
-                renderer.reconcile(to: resolvedState)
+                renderer.reconcile(to: resolvedState(in: geo.size))
             }
-            .highPriorityGesture(nodeDrag(in: geo.size))
+            // Plain drag on a card MOVES the card (#4290). It is disabled only
+            // while Space is held, which is the deliberate "move the view"
+            // gesture — so the two can never contend for the same drag.
+            .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
             .gesture(panOrMarquee(in: geo.size))
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
             .onTapGesture { controller?.dispatch(.tap(id: nil)) }   // background → clear
             .overlay { marqueeOverlay }
-            .modifier(CanvasModifierTracker(shiftHeld: $shiftHeld, optionHeld: $optionHeld))
+            .focusable()
+            .focusEffectDisabled()
+            .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
+            .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }
             .task(id: folderScopeId) {
                 configureController()
+                // Frame the board once this scope has content — the default grid
+                // is origin-anchored, so an unfitted camera shows a corner of it.
+                renderer.needsFitOnNextContent = true
                 guard let folderId = folderScopeId else { return }
                 await layoutStore?.loadLayout(folderId: folderId)
                 await itemStore?.loadItems(folderId: folderId)
@@ -198,39 +228,67 @@ struct CanvasSceneView: View {
         )
     }
 
-    /// Background drag: shift-held → rubber-band marquee multi-select; otherwise
-    /// pan the ortho camera across its plane.
+    /// Background drag. The policy this encodes (#4290), and it is the INVERSE of
+    /// what shipped: a plain drag never pans. Space held → pan the ortho camera;
+    /// otherwise → rubber-band marquee multi-select (⇧ or not, so the old
+    /// ⇧-marquee habit still works). Panning is the deliberate act because on a
+    /// Tinderbox-style canvas the plain drag has to belong to the card under the
+    /// pointer, and a camera pan competing for it is why moving items didn't work.
+    ///
+    /// `minimumDistance` is deliberately LOOSER than `nodeDrag`'s 2pt: the card
+    /// drag therefore activates first and sets `draggingNodeId`, so the guard
+    /// below is decided rather than racing whichever handler SwiftUI runs first.
     private func panOrMarquee(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 2)
+        DragGesture(minimumDistance: 6)
             .onChanged { value in
-                if shiftHeld {
+                guard draggingNodeId == nil else { marqueeRect = nil; return }
+                if spaceHeld {
+                    panCamera(by: value.translation, in: size)
+                } else {
                     marqueeRect = Canvas2DProjection.marqueeRect(
                         from: value.startLocation, to: value.location
-                    )
-                } else {
-                    let delta = CGSize(
-                        width: value.translation.width - panBaseline.width,
-                        height: value.translation.height - panBaseline.height
-                    )
-                    panBaseline = value.translation
-                    // ponytail: shares Canvas2DProjection.worldPerPoint with drag +
-                    // marquee — the ONE calibration knob to tune against the built app.
-                    renderer.panCamera(
-                        worldDelta: Canvas2DProjection.cameraPanDelta(
-                            screenTranslation: delta,
-                            orthoScale: renderer.orthoScale,
-                            viewHeight: size.height
-                        )
                     )
                 }
             }
             .onEnded { _ in
-                if shiftHeld, let rect = marqueeRect {
+                if draggingNodeId == nil, !spaceHeld, let rect = marqueeRect {
                     controller?.dispatch(.marquee(ids: renderer.placeableIds(inScreenRect: rect, viewSize: size)))
                 }
                 marqueeRect = nil
                 panBaseline = .zero
             }
+    }
+
+    /// Advance the camera by the delta since the last pan event — `translation`
+    /// is cumulative, so the baseline turns it into a per-event step.
+    private func panCamera(by translation: CGSize, in size: CGSize) {
+        let delta = CGSize(
+            width: translation.width - panBaseline.width,
+            height: translation.height - panBaseline.height
+        )
+        panBaseline = translation
+        // ponytail: shares Canvas2DProjection.worldPerPoint with drag +
+        // marquee — the ONE calibration knob to tune against the built app.
+        renderer.panCamera(
+            worldDelta: Canvas2DProjection.cameraPanDelta(
+                screenTranslation: delta,
+                orthoScale: renderer.orthoScale,
+                viewHeight: size.height
+            )
+        )
+    }
+
+    /// Visible affordance for pan mode: an open hand while Space is held, so the
+    /// modifier is discoverable rather than folklore (#4290). Mirrors the divider
+    /// cursor idiom in `ContentViewHelperViews`.
+    private func applyPanCursor(_ held: Bool) {
+        #if canImport(AppKit)
+        if held {
+            NSCursor.openHand.set()
+        } else {
+            NSCursor.arrow.set()
+        }
+        #endif
     }
 
     /// Pinch zooms the ortho camera: magnify > 1 → zoom IN → smaller ortho scale.
