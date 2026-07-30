@@ -16,6 +16,8 @@ struct WorkflowToolbar: View {
     var onPreviewDiagram: (() -> Void)?
     var onRunOnDocuments: (() -> Void)?
     var onCompareModels: (() -> Void)?
+    /// Lays the graph out left-to-right by execution order (#4323).
+    var onTidy: (() -> Void)?
 
     // Feature flags gate which buttons the bar composes (#3205). Injected as
     // plain values — default to the shared FeatureManager, but visible at the
@@ -86,6 +88,15 @@ struct WorkflowToolbar: View {
     @ViewBuilder
     private var secondaryButtons: some View {
         HStack(spacing: 8) {
+            if let onTidy {
+                Button(action: onTidy) {
+                    Image(systemName: "square.grid.3x1.below.line.grid.1x2")
+                }
+                .buttonStyle(.plain)
+                .help("Tidy Layout")
+                .accessibilityLabel("Tidy Layout")
+            }
+
             if showLangGraphPreview, let onPreview = onPreviewDiagram {
                 Button(action: onPreview) {
                     Image(systemName: "flowchart")

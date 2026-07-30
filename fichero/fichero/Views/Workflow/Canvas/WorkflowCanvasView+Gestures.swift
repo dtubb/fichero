@@ -66,11 +66,12 @@ extension WorkflowCanvasView {
                 newY = snapToGridValue(newY)
             }
 
+            // Move ONLY the dragged node (#4323). Neighbour-push collision
+            // resolution used to shove other nodes around on every drag tick
+            // and the drift was then autosaved — repositioning one node could
+            // silently rearrange (and persist) the whole graph.
             workflow.nodes[index].positionX = newX
             workflow.nodes[index].positionY = newY
-
-            // Push other nodes out of the way if they would overlap
-            resolveCollisions(for: index)
         }
     }
 
@@ -83,36 +84,6 @@ extension WorkflowCanvasView {
             return value - remainder  // Snap to grid
         } else {
             return value  // Keep original position
-        }
-    }
-
-    /// Push nodes apart to avoid overlap (with smooth animation)
-    func resolveCollisions(for draggedIndex: Int) {
-        let draggedNode = workflow.nodes[draggedIndex]
-        let minDistance: CGFloat = nodeWidth + 20  // Minimum space between node centers
-
-        for index in workflow.nodes.indices where index != draggedIndex {
-            let otherNode = workflow.nodes[index]
-            let deltaX = otherNode.positionX - draggedNode.positionX
-            let deltaY = otherNode.positionY - draggedNode.positionY
-            let distance = hypot(deltaX, deltaY)
-
-            // If nodes are too close, push the other node away with animation
-            if distance < minDistance && distance > 0 {
-                let overlap = minDistance - distance
-                let pushX = (deltaX / distance) * overlap
-                let pushY = (deltaY / distance) * overlap
-
-                withAnimation(.spring(response: 0.15, dampingFraction: 0.8)) {
-                    workflow.nodes[index].positionX += pushX
-                    workflow.nodes[index].positionY += pushY
-                }
-            } else if distance == 0 {
-                // Exactly same position - push right
-                withAnimation(.spring(response: 0.15, dampingFraction: 0.8)) {
-                    workflow.nodes[index].positionX += minDistance
-                }
-            }
         }
     }
 

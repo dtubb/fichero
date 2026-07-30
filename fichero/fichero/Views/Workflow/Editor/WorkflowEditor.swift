@@ -34,6 +34,10 @@ struct WorkflowEditor: View {
     @State var showDocumentPicker: Bool = false
     @State var showModelComparison: Bool = false
 
+    // Undo support for toolbar-level workflow mutations (Tidy, #4323).
+    @State private var editorUndoProxy = WorkflowUndoProxy()
+    @Environment(\.undoManager) private var undoManager
+
     @Environment(WorkflowStore.self) var workflowStore
     @Environment(WorkflowService.self) var workflowService
     @Environment(WorkflowStreamService.self) var workflowStreamService
@@ -138,6 +142,7 @@ struct WorkflowEditor: View {
                 onCompareModels: {
                     showModelComparison = true
                 },
+                onTidy: tidyLayout,
                 showImportExport: featureManager.isWorkflowImportExportEnabled,
                 showLangGraphPreview: featureManager.isWorkflowLangGraphPreviewEnabled,
                 showFilesToolbarButton: featureManager.isWorkflowFilesToolbarButtonEnabled
@@ -187,6 +192,12 @@ struct WorkflowEditor: View {
         .task(id: editingWorkflow.id) {
             // Reset debounce when the user switches to a different workflow.
         }
+        .onAppear {
+            let binding = $editingWorkflow
+            editorUndoProxy.apply = { restored in
+                binding.wrappedValue = restored
+            }
+        }
         .onChange(of: editingWorkflow) { _, newValue in
             let firstNode = newValue.nodes.first
             actionsLogger.info("""
@@ -203,5 +214,32 @@ struct WorkflowEditor: View {
                 await saveWorkflow()
             }
         }
+    }
+
+    /// Re-lay the graph left-to-right by execution order (#4323).
+    /// Pure layout math in WorkflowTidyLayout; this applies it with undo.
+    private func tidyLayout() {
+        let previousWorkflow = editingWorkflow
+        let targets = WorkflowTidyLayout.positions(
+            nodes: editingWorkflow.nodes,
+            edges: editingWorkflow.edges
+        )
+        guard !targets.isEmpty else { return }
+
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            for index in editingWorkflow.nodes.indices {
+                guard let target = targets[editingWorkflow.nodes[index].id] else { continue }
+                editingWorkflow.nodes[index].positionX = target.x
+                editingWorkflow.nodes[index].positionY = target.y
+            }
+        }
+
+        guard previousWorkflow != editingWorkflow else { return }
+        editorUndoProxy.registerTransition(
+            from: editingWorkflow,
+            to: previousWorkflow,
+            actionName: "Tidy Layout",
+            undoManager: undoManager
+        )
     }
 }
