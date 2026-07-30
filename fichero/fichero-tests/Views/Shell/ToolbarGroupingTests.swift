@@ -133,11 +133,36 @@ struct ToolbarGroupingTests {
 
     /// The `.principal` zone is a separate problem (#4378): breadcrumb and
     /// status island both claim it, and that needs settling before either
+    /// #4378 / #3163: `.principal` is a SINGLE slot. Two items claiming it is
+    /// a duplicate-identifier crash, not a layout that resolves badly — and it
+    /// is invisible in review because each declaration reads fine alone.
+    ///
+    /// Counts the whole toolbar rather than naming the two known items, so a
+    /// third claimant added later fails here instead of at runtime.
+    @Test("exactly one toolbar item claims .principal")
+    func exactlyOnePrincipalItem() throws {
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        let principals = source.components(separatedBy: "placement: .principal").count - 1
+        #expect(principals == 1, Comment(rawValue: "\(principals) items claim .principal"))
+    }
+
+    /// The breadcrumb is the one that keeps it: `.principal` is the window's
+    /// identity slot, which is what makes the proxy icon and ⌘-click-to-parent
+    /// possible at all. Status is chrome about a transient condition.
+    @Test("the breadcrumb owns the identity slot")
+    func breadcrumbOwnsTheIdentitySlot() throws {
+        let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        #expect(source.contains("ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal)"))
+    }
+
     /// moves. Recorded so the next reader knows it is known.
     @Test("the principal zone is still contested and untouched")
     func principalZoneIsUntouched() throws {
         let source = try Self.toolbarSource
         #expect(source.contains("ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal)"))
-        #expect(source.contains("ToolbarItem(id: ContentToolbarID.statusIsland, placement: .principal)"))
+        // #4378: the island moved OFF `.principal` — the breadcrumb owns the
+        // identity slot, and two principal items is the #3163 crash class.
+        #expect(source.contains("ToolbarItem(id: ContentToolbarID.statusIsland, placement: .automatic)"))
+        #expect(!source.contains("ToolbarItem(id: ContentToolbarID.statusIsland, placement: .principal)"))
     }
 }

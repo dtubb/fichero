@@ -222,6 +222,14 @@ struct EntityDigestContent: View {
     let entity: Components.Schemas.KnowledgeEntity
     let entityService: EntityService
 
+    /// The SHARED source cursor (#4393 part 2) — the same one the annotations
+    /// list, the artifacts pane, the source outline and the KG web pane write
+    /// to. Claims were the only inspector surface that could not get back to
+    /// the page; this makes them a producer on the existing seam rather than a
+    /// second addressing scheme.
+    @Environment(ClaimSourceNavigationState.self)
+    private var claimSourceNavigationState: ClaimSourceNavigationState?
+
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
     @State private var selectedClaimRowId: String?
     @State private var isLoading = false
@@ -330,6 +338,18 @@ struct EntityDigestContent: View {
                 .listStyle(.inset)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 160, maxHeight: 520)
+                // Selecting a claim reveals its source (#4393 part 2), through
+                // the SAME cursor the outline, annotations and artifacts use —
+                // mirroring `SourceOutlineView`'s shape exactly. A claim with
+                // no recorded span still navigates to its page; it just does
+                // not draw a highlight, because a confidently wrong one over a
+                // manuscript is worse than none.
+                .onChange(of: selectedClaimRowId) { _, newSelection in
+                    guard let newSelection,
+                          let claim = claims.first(where: { $0.id == newSelection }),
+                          let request = ClaimSourceRequest.request(for: claim) else { return }
+                    claimSourceNavigationState?.request(request)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -363,15 +383,24 @@ struct EntityDigestContent: View {
     private func docName(for docId: String) -> String {
         guard let store = LibraryManager.shared.globalLibrary?.documentStore else { return docId }
         let all = store.currentDocuments + store.collections + store.sidebarDocuments
-        return all.first(where: { $0.id == docId })?.name ?? docId
+        guard let doc = all.first(where: { $0.id == docId }) else { return docId }
+        // Not `doc.name` (#4416 sibling, found in passing): a page child's name
+        // is the engine's upload temp file, so this header read
+        // `fichero_upload_…pdf` for a document the sidebar called `18590129.pdf`.
+        return DocumentTitle.displayName(for: doc, parent: doc.parentId.flatMap { parentId in
+            all.first(where: { $0.id == parentId })
+        })
     }
 
     /// The entity this digest is showing, which every claim below is grouped
     /// under — so its name is redundant on each row (#4393).
-    private var groupSubject: String? {
-        guard let selectedEntityId else { return nil }
-        return entities.first(where: { $0.id == selectedEntityId })?.canonicalName
-    }
+    ///
+    /// Read from `entity`, this view's own input. The first attempt reached for
+    /// `selectedEntityId` / `entities`, which are `@State` on
+    /// `EntityDigestView` — a DIFFERENT type in the same file. One file, two
+    /// views, and the properties looked ambient because they were a few
+    /// hundred lines up.
+    private var groupSubject: String? { entity.canonicalName }
 
     private func provenanceSummary(for claim: Components.Schemas.KnowledgeClaim) -> String {
         let svo = ClaimSummaryCard.svoTriple(for: claim)
@@ -420,11 +449,13 @@ struct EntityDigestContent: View {
 
             if verb.isEmpty && object.isEmpty { continue }
 
-            let docName = LibraryManager.shared.globalLibrary?.documentStore.currentDocuments.first(
-                where: { $0.id == claim.sourceDocumentId }
-            )?.name
-            let citation = docName.map { " [\($0)]" } ?? ""
-            let sentence = "\(subject) \(verb) \(object)\(citation)."
+            // No bracketed citation (#4393). It was built from the STORAGE
+            // filename and looked up only in `currentDocuments`, so it printed
+            // an internal identifier AND vanished non-deterministically when
+            // that document was not loaded — a citation that changes depending
+            // on what else is on screen is worse than none. Provenance belongs
+            // on the row, where it can be navigated to.
+            let sentence = "\(subject) \(verb) \(object)."
             sentences.append(sentence)
         }
 

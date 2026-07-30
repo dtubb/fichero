@@ -37,8 +37,14 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     private var distance: Float = 6
     private var lookAt = SIMD3<Float>(0, 0, 0)
     static let defaultDistance: Float = 6
-    private static let minDistance: Float = 2.2
-    private static let maxDistance: Float = 16
+    /// Extent of one placeable in scene units — the basis for how close the
+    /// camera may get before an item is legible (#4411).
+    private static let itemExtent: Float = 1
+
+    /// Span of the current arrangement, refreshed whenever placeables change.
+    /// The zoom-out bound derives from THIS rather than a constant, so "as far
+    /// out as it goes" and "everything fits" are the same place.
+    private var arrangementSpan: Float = 1
 
     var detailTier: CanvasDetailTier = .thumbnail
     var onIntent: ((CanvasIntent) -> Void)?
@@ -79,6 +85,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         let points = placeablesById.values.map { Canvas3DProjection.scenePosition($0.position) }
         guard !points.isEmpty else {
             lookAt = .zero
+            arrangementSpan = Self.itemExtent
             distance = Self.defaultDistance
             updateCamera()
             return
@@ -90,6 +97,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
             (zValues.min()! + zValues.max()!) / 2
         )
         let span = max(xValues.max()! - xValues.min()!, yValues.max()! - yValues.min()!, zValues.max()! - zValues.min()!, 1)
+        arrangementSpan = span
         setDistance(span * 1.4)
     }
 
@@ -111,7 +119,12 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     }
 
     func setDistance(_ value: Float) {
-        distance = min(max(value, Self.minDistance), Self.maxDistance)
+        // #4411: was clamped to a fixed 2.2…16 — about 7x, which is neither
+        // enough to read a page nor enough to see a whole arrangement. The
+        // bounds now come from the content.
+        distance = CanvasZoomRange.clamp(
+            value, arrangementSpan: arrangementSpan, itemExtent: Self.itemExtent
+        )
         updateCamera()
     }
 
