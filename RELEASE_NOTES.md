@@ -6,9 +6,42 @@
 
 ### Dev build
 
-Second cut of the day: the overnight bug sweep on top of the morning's
-2026.07.29 release. Internal TestFlight + DMG dev prerelease from green
-`integration`.
+The overnight build: 122 commits on top of the morning's 2026.07.29
+release — the workflow-trust overhaul, the iPhone launch fix, and a
+night-long bug sweep. Internal TestFlight + DMG dev prerelease from
+green `integration` (1,990 XCTests + 1,927 Swift Testing + 8,500+
+Python tests, 0 failures).
+
+### Workflows you can trust
+
+**Every run tells you what it did.** Artifacts now record which run and
+step produced them; the artifact browser groups results by run in
+pipeline order with "Produced by → View Run" navigation; and a new
+Trace tab on every run shows the executed graph — each node colored by
+what happened, with the provider and model actually used, timings, and
+per-step outputs one click away.
+
+**Results land where you're looking.** Transcriptions appear in the
+content pane the moment a workflow writes them — no reselecting, from
+any window, even runs launched from the CLI.
+
+**Honest lifecycle.** Cancel stops multi-file steps within one file;
+paused runs can be resumed, cancelled, or deleted; failed runs release
+their documents instead of spinning forever; Cancelled shows as
+Cancelled; and Pause/Resume/Stop buttons visibly do what they say.
+
+**A node editor that explains itself.** Ports and connection types are
+finally visible with distinct parallel edges, fan-out badges reflect
+real behavior, execution order is numbered on the canvas, a Tidy
+command lays the graph out, drops land under the cursor, and the
+palette only offers tools that actually run. Zoom nodes show a live
+tile-grid preview.
+
+**Works out of the box.** A fresh install with no API keys runs every
+default workflow on-device; a workflow that needs a missing key says so
+before running, naming the provider. Default presets cleaned up
+(internal components hidden from Run menus, explicit routing, real
+source nodes).
 
 ### Fixed
 
