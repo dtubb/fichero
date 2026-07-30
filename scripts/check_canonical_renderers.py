@@ -67,6 +67,15 @@ RENDERER_MARKERS = ("row", "card", "cell", "item")
 # Each entry: (filename_substring, symbol_pattern_substring, reason_and_issue)
 # Symbol pattern is matched case-insensitively against the detected name.
 KNOWN_EXTENSIONS: list[tuple[str, str, str]] = [
+    # iOS List refactor (#2501): shared row builder wrapping the canonical
+    # EntityRow in LibrarySelectableRow selection chrome — renders nothing
+    # domain-specific itself; trips the `*Row` heuristic only.
+    (
+        "LibraryView+ListView.swift",
+        "entityListRow",
+        "Selection-chrome wrapper delegating to the canonical EntityRow "
+        "(#2501 iOS List container split).",
+    ),
     # KG section claim row: a call-site wrapper that forwards straight to the
     # canonical EntityKindRow (it only binds the section's many bindings once
     # instead of at every ForEach site). No local rendering — it trips the

@@ -8,7 +8,7 @@ This guide walks you through the final setup steps to enable the embedded Python
 
 The following has been implemented:
 
-- ✅ Backend entry point (`fichero-server/src/server/__init__.py`)
+- ✅ Backend entry point (`fichero-server/src/fichero_server/__main__.py`)
 - ✅ Briefcase configuration in `pyproject.toml`
 - ✅ Build script (`fichero-server/scripts/build_backend_bundle.sh`)
 - ✅ Xcode copy script (`fichero-server/scripts/xcode_copy_backend.sh`)

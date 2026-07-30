@@ -295,5 +295,5 @@ Still in progress or pending:
   chat-scope folding should still be described as in progress until more code
   lands.
 - F5 retirement of the `/api/mind-palace/rooms*` endpoints is still pending.
-  Those routes have been REMOVED; `fichero-server/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
+  Those routes have been REMOVED; `fichero-server/tests/unit/api/test_mind_palace_route_guard.py` asserts they stay removed
   and currently depend on the room <-> room-node bridge for behavior parity.

@@ -59,6 +59,7 @@ extension ReaderToolbar {
         } label: {
             Image(systemName: "text.viewfinder")
         }
+        .accessibilityLabel("Text Boxes")
         .buttonStyle(.plain)
         .foregroundColor(binding.wrappedValue ? .accentColor : .primary)
         .disabled(textBoxesEnabled == nil)
@@ -67,7 +68,6 @@ extension ReaderToolbar {
                 ? "Text boxes (not available for this document)"
                 : "Show recognized text boxes"
         )
-        .accessibilityLabel("Text Boxes")
     }
 
     /// Trailing '…' menu holding the secondary tools when the bar is too narrow

@@ -157,7 +157,7 @@ call the async route functions directly, which means FastAPI never resolves
 
 Grounded examples:
 
-- `fichero-server/tests/unit/test_canonical_knowledge_routes.py` calls
+- `fichero-server/tests/unit/db/test_canonical_knowledge_routes.py` calls
   `await upsert_entity(request, db)` directly
 - the same file calls `await create_claim(request, db)` and
   `await patch_claim(claim.id, patch_request, db)` directly
@@ -178,7 +178,7 @@ Grounded guardrails:
 
 - `scripts/check_duplicate_paths.py` scans for duplicate HTTP handlers and
   duplicate KG write concerns such as `kg_write:KnowledgeEntity`
-- `fichero-server/tests/unit/test_check_duplicate_paths.py` fails if an
+- `fichero-server/tests/unit/scripts/test_check_duplicate_paths.py` fails if an
   unallowlisted duplicate remains
 
 Before landing a second writer or route, either:
@@ -194,10 +194,10 @@ Do not leave two parallel write paths for the same mutation concern by accident.
 These follow-ups are still live on `main` and should be documented as open work,
 not treated as solved:
 
-- **Mind-palace room routes are REMOVED**, and `fichero-server/tests/unit/test_mind_palace_route_guard.py` asserts they stay removed
+- **Mind-palace room routes are REMOVED**, and `fichero-server/tests/unit/api/test_mind_palace_route_guard.py` asserts they stay removed
   still carries strict `xfail` coverage showing create/update/delete bypass
   `registry.invoke(...)` and `emit_change(...)` (`#2820`, in progress)
-- **Request-model tightening**: `fichero-server/tests/unit/test_fold_endpoints_validation.py`
+- **Request-model tightening**: `fichero-server/tests/unit/models/test_fold_endpoints_validation.py`
   still carries strict `xfail` coverage for request models that accept extra
   fields or other lax input; many of the current request models have not yet
   been tightened to `extra="forbid"` (`#2822`)

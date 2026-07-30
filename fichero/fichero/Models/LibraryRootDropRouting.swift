@@ -1,13 +1,6 @@
 import Foundation
 
 // MARK: - Library-root drop routing (#4274)
-//
-// Dropping onto a library's TOP LEVEL (the header row, or the content pane
-// while browsing root) used to route EVERYTHING into Inbox — the rationale
-// being that bare files at root are invisible in the sidebar. Correct for
-// files, wrong for FOLDERS: a folder is a first-class sidebar row at root, so
-// redirecting a dropped folder into Inbox buries it where the user isn't
-// looking — which reads as "the drop didn't import at all" (#4274).
 
 /// One import batch: the URLs and the parent they should land under.
 struct LibraryRootImportBatch: Equatable {

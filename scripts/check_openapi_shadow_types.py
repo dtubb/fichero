@@ -57,6 +57,7 @@ _TYPE_RE = re.compile(
 # Current backlog of Swift types that shadow a Components.Schemas.* name.
 # Keys are `relpath::TypeName`. Generated baseline (§6b).
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Models/OCRGeometry.swift::OCRGeometryBox": "#4309 display model — adds CGRect conversion + char-span helpers for the overlay; sits beside the Artifact shadow it hangs off",
     "Models/Artifact.swift::Artifact": "§6b baseline — struct shadows Components.Schemas.Artifact",
     "Models/ComparisonTypes.swift::ComparisonHistoryResponse": "§6b baseline — struct shadows Components.Schemas.ComparisonHistoryResponse",
     "Models/Document.swift::DocType": "§6b baseline — enum shadows Components.Schemas.DocType",

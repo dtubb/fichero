@@ -14,7 +14,7 @@ The shipped backend is a Briefcase-packaged macOS app, not an iOS target.
 - The current bundle assumes a nested macOS backend app (`docs/contributor/bundling-backend.md`).
 - The frontend currently pins iOS/iPadOS as a remote-client surface, not an embedded-engine surface:
   - `fichero/fichero/Services/EngineConfig.swift`: “iOS/iPadOS never runs a local engine.”
-  - `fichero-server/tests/unit/test_check_ios_remote_client_target.py` guards that posture.
+  - `fichero-server/tests/unit/scripts/test_check_ios_remote_client_target.py` guards that posture.
 
 So the starting point is not “port the existing embedded backend to iPad.” The starting point is “decide whether an iPad should embed any subset of this engine at all.”
 

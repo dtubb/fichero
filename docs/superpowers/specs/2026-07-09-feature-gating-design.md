@@ -152,13 +152,13 @@ each now carrying `FICHERO_EMBED_ENGINE` alongside `FICHERO_FEATURE_TIER`;
 | owner    | files                                                                                |
 |----------|--------------------------------------------------------------------------------------|
 | manager  | `project.pbxproj`, `*.xcscheme`, `Info.plist`                                         |
-| worker   | `features.yaml` (new), `scripts/gen_feature_tiers.py` (new), `scripts/promote_feature.py` (new, optional), `fichero/fichero/Models/FeatureTiers.generated.swift` (new, generated — **manager adds to target**), `fichero/fichero/Models/FeatureManager.swift` (extend), `fichero-server/src/fichero_server/api/main.py` (extend tier fns), `fichero-server/src/fichero_server/api/feature_tiers_generated.py` (new, generated), `docs/user/features.md` (regenerate), `docs/contributor/feature-tiers.md` (new), `fichero-server/tests/unit/test_feature_tier_routing.py` (extend), `fichero/fichero/Services/EmbeddedBackendService.swift` (extend env passthrough), `.github/workflows/ci.yml` + `scripts/verify_python.sh` (freshness gate) |
+| worker   | `features.yaml` (new), `scripts/gen_feature_tiers.py` (new), `scripts/promote_feature.py` (new, optional), `fichero/fichero/Models/FeatureTiers.generated.swift` (new, generated — **manager adds to target**), `fichero/fichero/Models/FeatureManager.swift` (extend), `fichero-server/src/fichero_server/api/main.py` (extend tier fns), `fichero-server/src/fichero_server/api/feature_tiers_generated.py` (new, generated), `docs/user/features.md` (regenerate), `docs/contributor/feature-tiers.md` (new), `fichero-server/tests/unit/api/test_feature_tier_routing.py` (extend), `fichero/fichero/Services/EmbeddedBackendService.swift` (extend env passthrough), `.github/workflows/ci.yml` + `scripts/verify_python.sh` (freshness gate) |
 
 ## Gate criteria (worker lane, before push)
 
 - `python scripts/gen_feature_tiers.py` runs clean; regenerated outputs match committed.
 - Freshness gate exits 0 after regen; exits 1 if `features.yaml` changed without regen.
-- Backend: `PYTHONPATH=<integrate>/fichero-server/src pytest fichero-server/tests/unit/test_feature_tier_routing.py` green; extend it to cover all 4 tiers + cumulative route sets + unknown-tier→release.
+- Backend: `PYTHONPATH=<integrate>/fichero-server/src pytest fichero-server/tests/unit/api/test_feature_tier_routing.py` green; extend it to cover all 4 tiers + cumulative route sets + unknown-tier→release.
 - `test_integration_security.py::TestFeatureTierSecurity` still green (dev routes 404 in release; now also alpha/beta routes 404 in release+beta respectively).
 - Swift: `swiftlint` clean; `FeatureTiers.generated.swift` compiles; `FeatureManager` changes compile.
 - No `xcodebuild test` on Daniel's machine — compile-only gate only.

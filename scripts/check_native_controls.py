@@ -30,7 +30,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/ViewModes/LibraryView+ListView.swift#829700cdee": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by #4191 Mail-style selection + density cap, collection unchanged)",
+    "Library/ViewModes/LibraryView+ListView.swift#bfcf9a9a01": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by the #2501 iOS List container split — the macOS branch keeps the ScrollView, iOS got a native List)",
     # Miller columns (#4160 step 4): List is NSTableView-backed and consumes
     # arrow keys before .onKeyPress — the browser's whole keyboard model
     # (up/down in the active column, left/right BETWEEN columns, one shared
