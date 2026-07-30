@@ -66,11 +66,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         coordinator.doubleClickGesture = doubleClickGesture
     }
 
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = makeScrollView()
-        attachGestures(to: scrollView, coordinator: context.coordinator)
-
-        // Create tracking image view with loupe
+    /// The image view and the three callbacks that write cursor and loupe
+    /// state back up. Each hops to the main actor before touching a binding,
+    /// exactly as before — the closures capture `self` the same way they did
+    /// inline, since a method's `self` is the same value.
+    private func makeImageView() -> TrackingImageView {
         let imageView = TrackingImageView()
         imageView.imageScaling = .scaleNone  // We'll handle sizing
         // iPhone HEIC photos carry an HDR gain map. NSImageView defaults to
@@ -102,6 +102,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         }
         imageView.loupeMagnification = loupeMagnification
         imageView.loupeSize = loupeSize
+        return imageView
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = makeScrollView()
+        attachGestures(to: scrollView, coordinator: context.coordinator)
+
+        let imageView = makeImageView()
 
         scrollView.documentView = imageView
         context.coordinator.scrollView = scrollView
