@@ -152,8 +152,43 @@ def test_syntax_error_does_not_crash_the_scan() -> None:
     assert _scan("from datetime import datetime\ndef broken(:\n") == []
 
 
-def test_self_test_passes() -> None:
-    check_naive_datetimes._self_test()
+def test_self_test_corpus_covers_both_directions() -> None:
+    """``--self-test`` must exercise a naive case AND an aware case.
+
+    A self-test that only checked one direction would pass with a rule that
+    fires on everything (or on nothing), so assert the corpus itself.
+    """
+    fires = dict(check_naive_datetimes._FIRES)
+    passes = dict(check_naive_datetimes._PASSES)
+    assert any("datetime.now()" in src for src in fires.values())
+    assert any("datetime.utcnow()" in src for src in fires.values())
+    assert any("timezone.utc" in src for src in passes.values())
+    assert any("utc_now" in src for src in passes.values())
+
+
+def test_self_test_passes_on_the_real_rule() -> None:
+    assert check_naive_datetimes._self_test() is None
+
+
+def test_self_test_fails_when_the_rule_stops_firing(monkeypatch) -> None:
+    """A rule that never fires must not be able to pass its own self-test."""
+    monkeypatch.setattr(
+        check_naive_datetimes, "_scan_source", lambda path, source: []
+    )
+    with pytest.raises(AssertionError, match="FAILED to fire"):
+        check_naive_datetimes._self_test()
+
+
+def test_self_test_fails_when_the_rule_fires_on_everything(monkeypatch) -> None:
+    """A rule that flags aware datetimes too must not pass its own self-test."""
+    offender = check_naive_datetimes._scan_source(
+        "probe.py", "from datetime import datetime\nx = datetime.now()\n"
+    )[0]
+    monkeypatch.setattr(
+        check_naive_datetimes, "_scan_source", lambda path, source: [offender]
+    )
+    with pytest.raises(AssertionError, match="wrongly fired"):
+        check_naive_datetimes._self_test()
 
 
 def test_script_entrypoint_is_green_on_the_real_tree() -> None:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 import importlib
 
 from fastapi.testclient import TestClient
@@ -62,12 +62,7 @@ def test_session_sliding_expiry_extends_within_refresh_window(client, app_db, mo
     frozen_now = session.expires_at - timedelta(seconds=60)
     app_db.touch_session(token_hash, when=frozen_now - timedelta(minutes=5))
 
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return frozen_now if tz is None else tz.fromutc(frozen_now.replace(tzinfo=tz))
-
-    monkeypatch.setattr(api_auth, "datetime", FrozenDateTime)
+    monkeypatch.setattr(api_auth, "utc_now", lambda: frozen_now)
 
     response = client.get("/api/auth/me", headers=_bearer(raw_token))
     updated = app_db.get_session_by_token_hash(token_hash)
@@ -97,12 +92,7 @@ def test_session_sliding_expiry_respects_last_seen_throttle(client, app_db, monk
     frozen_now = session.expires_at - timedelta(seconds=60)
     app_db.touch_session(token_hash, when=frozen_now - timedelta(seconds=30))
 
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return frozen_now if tz is None else tz.fromutc(frozen_now.replace(tzinfo=tz))
-
-    monkeypatch.setattr(api_auth, "datetime", FrozenDateTime)
+    monkeypatch.setattr(api_auth, "utc_now", lambda: frozen_now)
 
     response = client.get("/api/auth/me", headers=_bearer(raw_token))
     updated = app_db.get_session_by_token_hash(token_hash)
@@ -132,12 +122,7 @@ def test_session_sliding_expiry_does_not_extend_outside_refresh_window(client, a
     frozen_now = session.expires_at - timedelta(minutes=10)
     app_db.touch_session(token_hash, when=frozen_now - timedelta(minutes=5))
 
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return frozen_now if tz is None else tz.fromutc(frozen_now.replace(tzinfo=tz))
-
-    monkeypatch.setattr(api_auth, "datetime", FrozenDateTime)
+    monkeypatch.setattr(api_auth, "utc_now", lambda: frozen_now)
 
     response = client.get("/api/auth/me", headers=_bearer(raw_token))
     updated = app_db.get_session_by_token_hash(token_hash)

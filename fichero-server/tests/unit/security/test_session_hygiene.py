@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 import importlib
 
 import pytest
@@ -9,6 +9,11 @@ from fastapi.testclient import TestClient
 
 from fichero_server.security import accounts
 from fichero_server.api.auth import initialize_token
+
+
+def _iso_z(value: datetime) -> str:
+    """Serialize the way the API does: aware UTC with a ``Z`` offset (#4347)."""
+    return value.isoformat().replace("+00:00", "Z")
 
 
 def _bearer(token: str) -> dict[str, str]:
@@ -135,8 +140,8 @@ def test_list_sessions_as_user_sees_only_own_rows(app_db, monkeypatch):
                     "display_name": "Alice",
                 },
                 "device_label": "Alice Mac",
-                "created": alice_sessions[0].created_at.isoformat(),
-                "last_seen": alice_sessions[0].last_seen_at.isoformat(),
+                "created": _iso_z(alice_sessions[0].created_at),
+                "last_seen": _iso_z(alice_sessions[0].last_seen_at),
             }
         ],
         "count": 1,

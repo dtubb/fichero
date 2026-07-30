@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import importlib
 from types import SimpleNamespace
 
@@ -8,6 +8,7 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 
+from fichero_server.core.timeutil import utc_now
 from fichero_server.security import accounts
 from fichero_server.api.auth import attach_auth_middleware
 from fichero_server.api.routes.auth import pairing
@@ -15,6 +16,16 @@ from fichero_server.api.routes.auth import pairing
 
 def _bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _freeze_clock(monkeypatch, now: datetime) -> None:
+    """Pin the pairing module's clock.
+
+    The clock seam is ``pairing.utc_now`` (#4347); patching ``pairing.datetime``
+    no longer intercepts anything, which is how these tests silently started
+    running against the real wall clock.
+    """
+    monkeypatch.setattr(pairing, "utc_now", lambda: now)
 
 
 @pytest.fixture(autouse=True)
@@ -142,19 +153,14 @@ def test_pairing_rejects_code_at_exact_expiry_boundary(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
     owner = _create_owner(app_db)
-    now = datetime(2026, 7, 4, 12, 0, 0)
-
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
+    now = datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)
 
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
         user_id=owner.id,
         expires_at=now,
     )
-    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+    _freeze_clock(monkeypatch, now)
 
     with pytest.raises(HTTPException, match="invalid or expired pairing code") as exc:
         pairing.pair_device(
@@ -169,14 +175,9 @@ def test_pairing_rejects_code_at_exact_expiry_boundary(app_db, monkeypatch):
 def test_pairing_code_ttl_is_exactly_sixty_seconds(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     owner = _create_owner(app_db)
-    now = datetime(2026, 7, 4, 12, 0, 0)
+    now = datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)
 
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
-
-    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+    _freeze_clock(monkeypatch, now)
     monkeypatch.setattr(pairing, "_new_pairing_code", lambda: "TTL-0001")
 
     response = pairing.create_pairing_code(_owner_request(owner), app_db)
@@ -191,8 +192,8 @@ def test_pairing_rejects_code_after_ttl_prune(pairing_client, app_db):
         "/api/pair/code",
         headers=_bearer(session_token),
     ).json()["code"]
-    pairing._PAIRING_CODES[code].expires_at = datetime.now() - timedelta(seconds=1)
-    pairing._prune_pairing_codes(datetime.now())
+    pairing._PAIRING_CODES[code].expires_at = utc_now() - timedelta(seconds=1)
+    pairing._prune_pairing_codes(utc_now())
 
     response = pairing_client.post(
         "/api/pair",
@@ -236,14 +237,9 @@ def test_successful_pairings_do_not_consume_pairing_rate_limit(pairing_client, a
 def test_pairing_rate_limit_isolated_per_host_and_prunes_window(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
-    now = datetime(2026, 7, 4, 12, 0, 0)
+    now = datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)
 
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
-
-    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+    _freeze_clock(monkeypatch, now)
     host_a = _owner_request(None, host="198.51.100.10")
     host_b = _owner_request(None, host="198.51.100.11")
 
@@ -282,14 +278,9 @@ def test_pairing_rate_limit_isolated_per_tailscale_identity_on_loopback_proxy(
 ):
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     monkeypatch.setenv("FICHERO_TLS_SPKI_HASH", "c3BraS1waW4=")
-    now = datetime(2026, 7, 4, 12, 0, 0)
+    now = datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)
 
-    class FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now
-
-    monkeypatch.setattr(pairing, "datetime", FrozenDateTime)
+    _freeze_clock(monkeypatch, now)
     proxied_a = _owner_request(
         None,
         host="127.0.0.1",
@@ -333,7 +324,7 @@ def test_pairing_rejects_code_for_deactivated_user(pairing_client, app_db):
     pairing._PAIRING_CODES[code] = pairing._PairingCode(
         code=code,
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=60),
+        expires_at=utc_now() + timedelta(seconds=60),
     )
     app_db.set_active(owner.id, False)
 
@@ -379,12 +370,12 @@ def test_create_pairing_code_prunes_stale_entries_before_minting(app_db, monkeyp
     stale_expired = pairing._PairingCode(
         code="EXPR-1111",
         user_id=owner.id,
-        expires_at=datetime.now() - timedelta(seconds=1),
+        expires_at=utc_now() - timedelta(seconds=1),
     )
     stale_used = pairing._PairingCode(
         code="USED-1111",
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=30),
+        expires_at=utc_now() + timedelta(seconds=30),
         used=True,
     )
     pairing._PAIRING_CODES[stale_expired.code] = stale_expired
@@ -406,7 +397,7 @@ def test_pair_device_normalizes_code_and_device_name_and_consumes_code(app_db, m
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=30),
+        expires_at=utc_now() + timedelta(seconds=30),
     )
     monkeypatch.setattr(accounts, "new_session_token", lambda: "device-token")
 
@@ -432,7 +423,7 @@ def test_pair_device_rejects_blank_device_name_after_strip_without_consuming_cod
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=30),
+        expires_at=utc_now() + timedelta(seconds=30),
     )
 
     with pytest.raises(HTTPException, match="device_name is required") as exc:
@@ -453,7 +444,7 @@ def test_pair_device_rejects_remote_plaintext_transport_without_consuming_code(a
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=30),
+        expires_at=utc_now() + timedelta(seconds=30),
     )
     request = _owner_request(None, host="198.51.100.26", scheme="http")
 
@@ -475,7 +466,7 @@ def test_pair_device_treats_tailscale_proxied_loopback_as_remote(app_db, monkeyp
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=30),
+        expires_at=utc_now() + timedelta(seconds=30),
     )
     request = _owner_request(
         None,
@@ -515,7 +506,7 @@ def test_pair_device_rejects_remote_https_without_configured_spki_pin(app_db, mo
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=30),
+        expires_at=utc_now() + timedelta(seconds=30),
     )
     request = _owner_request(None, host="198.51.100.27", scheme="https")
 
@@ -560,7 +551,7 @@ def test_pair_device_allows_remote_https_with_configured_spki_pin(app_db, monkey
     pairing._PAIRING_CODES["ABCD-EFGH"] = pairing._PairingCode(
         code="ABCD-EFGH",
         user_id=owner.id,
-        expires_at=datetime.now() + timedelta(seconds=30),
+        expires_at=utc_now() + timedelta(seconds=30),
     )
     monkeypatch.setattr(accounts, "new_session_token", lambda: "device-token")
     request = _owner_request(None, host="198.51.100.28", scheme="https")
@@ -795,7 +786,7 @@ def test_pairing_device_renew_rejects_expired_at_boundary(pairing_client, app_db
         token_hash=accounts.hash_token(token),
         ttl=timedelta(days=1),
     )
-    device.expires_at = datetime.now()
+    device.expires_at = utc_now()
     app_db.renew_device(
         device.id,
         token_hash=device.token_hash,

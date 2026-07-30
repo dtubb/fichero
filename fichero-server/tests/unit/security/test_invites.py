@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import importlib
 
 import pytest
@@ -19,6 +19,33 @@ def _bearer(token: str) -> dict[str, str]:
 
 def _enable_multiuser(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+
+
+class _Clock:
+    """A movable stand-in for ``utc_now`` — always aware UTC.
+
+    The clock seam is ``utc_now`` in each module (#4347); patching
+    ``<module>.datetime`` no longer intercepts anything, which is how these
+    tests silently started running against the real wall clock.
+    """
+
+    def __init__(self, current: datetime) -> None:
+        self.current = current
+
+    def __call__(self) -> datetime:
+        return self.current
+
+
+def _freeze_clock(monkeypatch: pytest.MonkeyPatch, current: datetime) -> _Clock:
+    clock = _Clock(current)
+    monkeypatch.setattr(auth_accounts, "utc_now", clock)
+    monkeypatch.setattr("fichero_server.db.app.utc_now", clock)
+    return clock
+
+
+def _iso_z(value: datetime) -> str:
+    """Serialize the way the API does: aware UTC with a ``Z`` offset."""
+    return value.isoformat().replace("+00:00", "Z")
 
 
 @pytest.fixture(autouse=True)
@@ -159,17 +186,8 @@ def test_invite_is_one_time_only(app_db, monkeypatch):
 
 def test_invites_keep_short_qr_ttl_but_email_lives_for_a_day(app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
-    base_now = datetime(2026, 7, 5, 12, 0, 0)
-
-    class FrozenDateTime(datetime):
-        current = base_now
-
-        @classmethod
-        def now(cls, tz=None):
-            return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
-
-    monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
-    monkeypatch.setattr("fichero_server.db.app.datetime", FrozenDateTime)
+    base_now = datetime(2026, 7, 5, 12, 0, 0, tzinfo=timezone.utc)
+    _freeze_clock(monkeypatch, base_now)
 
     with _client(app_db, monkeypatch) as client:
         qr = client.post(
@@ -195,11 +213,11 @@ def test_invites_keep_short_qr_ttl_but_email_lives_for_a_day(app_db, monkeypatch
     assert qr.status_code == 200
     assert messages.status_code == 200
     assert email.status_code == 200
-    assert qr.json()["invite"]["expires_at"] == (base_now + timedelta(minutes=15)).isoformat()
-    assert messages.json()["invite"]["expires_at"] == (
+    assert qr.json()["invite"]["expires_at"] == _iso_z(base_now + timedelta(minutes=15))
+    assert messages.json()["invite"]["expires_at"] == _iso_z(
         base_now + timedelta(minutes=15)
-    ).isoformat()
-    assert email.json()["invite"]["expires_at"] == (base_now + timedelta(days=1)).isoformat()
+    )
+    assert email.json()["invite"]["expires_at"] == _iso_z(base_now + timedelta(days=1))
     assert qr.json()["invite"]["channel"] == "qr"
     assert messages.json()["invite"]["channel"] == "messages"
     assert email.json()["invite"]["channel"] == "email"
@@ -231,17 +249,8 @@ def test_invite_redemption_records_a_durable_notice(app_db, monkeypatch):
 
 def test_expired_invite_fails(app_db, monkeypatch):
     _enable_multiuser(monkeypatch)
-    base_now = datetime(2026, 7, 5, 12, 0, 0)
-
-    class FrozenDateTime(datetime):
-        current = base_now
-
-        @classmethod
-        def now(cls, tz=None):
-            return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
-
-    monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
-    monkeypatch.setattr("fichero_server.db.app.datetime", FrozenDateTime)
+    base_now = datetime(2026, 7, 5, 12, 0, 0, tzinfo=timezone.utc)
+    clock = _freeze_clock(monkeypatch, base_now)
 
     with _client(app_db, monkeypatch) as client:
         invite = client.post(
@@ -250,7 +259,7 @@ def test_expired_invite_fails(app_db, monkeypatch):
             json={"username": "invitee", "display_name": "Invitee"},
         )
         token = invite.json()["invite_token"]
-        FrozenDateTime.current = base_now + auth_accounts.INVITE_TTL + timedelta(seconds=1)
+        clock.current = base_now + auth_accounts.INVITE_TTL + timedelta(seconds=1)
         expired = client.post(
             "/api/auth/invites/redeem",
             json={"invite_token": token, "new_password": "password-1"},

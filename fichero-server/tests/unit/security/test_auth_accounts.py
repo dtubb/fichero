@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import importlib
 
 import pytest
 from fastapi.testclient import TestClient
 
+from fichero_server.core.timeutil import utc_now
 from fichero_server.security import accounts
 from fichero_server.actions import registry
 from fichero_server.api.auth import initialize_token
@@ -316,16 +317,18 @@ def test_login_rate_limit_window_expiry_frees_account(client, app_db, monkeypatc
         password_hash=accounts.hash_password("password"),
         is_owner=True,
     )
-    base_now = datetime(2026, 1, 1, 12, 0, 0)
+    base_now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 
-    class FrozenDateTime(datetime):
+    class _Clock:
+        """Movable stand-in for ``utc_now`` — the real clock seam (#4347)."""
+
         current = base_now
 
-        @classmethod
-        def now(cls, tz=None):
-            return cls.current if tz is None else tz.fromutc(cls.current.replace(tzinfo=tz))
+        def __call__(self) -> datetime:
+            return self.current
 
-    monkeypatch.setattr(auth_accounts, "datetime", FrozenDateTime)
+    clock = _Clock()
+    monkeypatch.setattr(auth_accounts, "utc_now", clock)
 
     for _ in range(auth_accounts.LOGIN_RATE_LIMIT):
         response = client.post(
@@ -340,7 +343,7 @@ def test_login_rate_limit_window_expiry_frees_account(client, app_db, monkeypatc
     )
     assert locked.status_code == 429
 
-    FrozenDateTime.current = base_now + auth_accounts.LOGIN_RATE_WINDOW + timedelta(seconds=1)
+    clock.current = base_now + auth_accounts.LOGIN_RATE_WINDOW + timedelta(seconds=1)
     freed = client.post(
         "/api/auth/login",
         json={"username": "alice", "password": "wrong-password"},
@@ -385,7 +388,7 @@ def test_session_last_seen_touch_is_throttled(client, app_db, monkeypatch):
         device_label="test-device",
         ttl=timedelta(days=1),
     )
-    app_db.touch_session(token_hash, when=datetime.now() - timedelta(minutes=5))
+    app_db.touch_session(token_hash, when=utc_now() - timedelta(minutes=5))
     original_touch = app_db.touch_session
     touches = []
 
@@ -399,7 +402,7 @@ def test_session_last_seen_touch_is_throttled(client, app_db, monkeypatch):
     after_first = app_db.get_session_by_token_hash(token_hash).last_seen_at
     second = client.get("/api/auth/me", headers=_bearer(raw_token))
     after_second = app_db.get_session_by_token_hash(token_hash).last_seen_at
-    original_touch(token_hash, when=datetime.now() - timedelta(minutes=5))
+    original_touch(token_hash, when=utc_now() - timedelta(minutes=5))
     third = client.get("/api/auth/me", headers=_bearer(raw_token))
 
     assert first.status_code == 200
@@ -1022,7 +1025,7 @@ def test_device_last_seen_touch_is_throttled(client, app_db, monkeypatch):
         token_hash=token_hash,
         ttl=timedelta(days=1),
     )
-    app_db.touch_device(token_hash, when=datetime.now() - timedelta(minutes=5))
+    app_db.touch_device(token_hash, when=utc_now() - timedelta(minutes=5))
     original_touch = app_db.touch_device
     touches = []
 
@@ -1036,7 +1039,7 @@ def test_device_last_seen_touch_is_throttled(client, app_db, monkeypatch):
     after_first = app_db.get_device_by_token_hash(token_hash).last_seen
     second = client.get("/api/auth/me", headers=_bearer(raw_token))
     after_second = app_db.get_device_by_token_hash(token_hash).last_seen
-    original_touch(token_hash, when=datetime.now() - timedelta(minutes=5))
+    original_touch(token_hash, when=utc_now() - timedelta(minutes=5))
     third = client.get("/api/auth/me", headers=_bearer(raw_token))
 
     assert first.status_code == 200
@@ -1074,7 +1077,7 @@ def test_pairing_rejects_reused_and_expired_codes(client, app_db, monkeypatch):
         "/api/pair/code",
         headers=_bearer(session_token),
     ).json()["code"]
-    pairing._PAIRING_CODES[expired_code].expires_at = datetime.now() - timedelta(
+    pairing._PAIRING_CODES[expired_code].expires_at = utc_now() - timedelta(
         seconds=1
     )
     expired = client.post(
@@ -1135,7 +1138,7 @@ def test_login_rate_limit_isolated_per_tailscale_identity_on_loopback_proxy(app_
 
 
 def test_pairing_attempt_pruning_removes_stale_hosts():
-    now = datetime.now()
+    now = utc_now()
     stale = now - pairing.PAIRING_RATE_WINDOW - timedelta(seconds=1)
     current = now - timedelta(seconds=1)
     pairing._PAIRING_ATTEMPTS.update(
