@@ -34,7 +34,7 @@ def pairing_client(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_DISABLE_AUTH", "0")
     import fichero_server.api.main as api_main
     from fichero_server.api.routes.auth import accounts as auth_accounts
-    from fichero_server.api.routes.providers import get_app_database as providers_app_db
+    from fichero_server.api.routes.ai.providers import get_app_database as providers_app_db
 
     api_main = importlib.reload(api_main)
     api_main.app.dependency_overrides[auth_accounts.get_app_database] = lambda: app_db

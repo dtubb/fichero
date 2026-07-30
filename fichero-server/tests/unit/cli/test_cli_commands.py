@@ -26,7 +26,7 @@ from fichero_server.api.routes.entity.entities import (
     TopEntityRow,
 )
 from fichero_server.api.routes.kg_search import KGSearchResponse
-from fichero_server.api.routes.provider_models import ProviderResponse
+from fichero_server.api.routes.ai.provider_models import ProviderResponse
 from fichero_server.api.routes.workflow_execution.schemas import (
     ExecuteAcceptedResponse,
     ExecutionStatusResponse,

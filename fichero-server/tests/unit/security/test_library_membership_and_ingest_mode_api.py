@@ -59,7 +59,7 @@ def multiuser_client(app_db, test_package, monkeypatch):
     import fichero_server.api.main as api_main
 
     api_main = __import__("importlib").reload(api_main)
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main.app.dependency_overrides[get_app_database] = lambda: app_db
     client = TestClient(api_main.app)

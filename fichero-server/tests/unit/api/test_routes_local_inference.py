@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from fichero_server.api.routes import local_inference as routes
+from fichero_server.api.routes.ai import local_inference as routes
 from fichero_server.llm.local_inference import LocalInferenceServiceManager, ManagedLocalInferenceProcess
 
 

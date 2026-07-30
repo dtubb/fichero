@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Passthrough wrappers, NOT deferred imports at the call sites (#3950).
 #
 # These names are part of this module's TEST SURFACE — tests patch
-# `fichero_server.api.routes.providers.<name>`. Two things must both hold:
+# `fichero_server.api.routes.ai.providers.<name>`. Two things must both hold:
 #   1. the name exists as a module attribute, or mock.patch raises
 #      AttributeError ("module has no attribute ...");
 #   2. the call site resolves it as a module GLOBAL, so the patch takes effect.

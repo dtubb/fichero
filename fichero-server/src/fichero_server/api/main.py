@@ -44,7 +44,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
-from fichero_server.api.routes.local_inference import shutdown_managed_local_inference_services
+from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
 from fichero_server.security.discovery import start_bonjour_advertiser
 from fichero_server.models import (

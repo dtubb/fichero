@@ -27,8 +27,8 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 # Importing the route modules registers the provider.* actions via @action.
-import fichero_server.api.routes.providers  # noqa: F401
-import fichero_server.api.routes.provider_keys  # noqa: F401
+import fichero_server.api.routes.ai.providers  # noqa: F401
+import fichero_server.api.routes.ai.provider_keys  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit, Model, Provider, ProviderRef, ProviderType
 
@@ -150,7 +150,7 @@ class TestProviderCreateAction:
         # Cloud provider WITH a key: the keychain write is stubbed, and the audit
         # must NOT contain the api_key.
         monkeypatch.setattr(
-            "fichero_server.api.routes.providers.set_api_key", lambda pt, k: True
+            "fichero_server.api.routes.ai.providers.set_api_key", lambda pt, k: True
         )
         result = registry.invoke(
             db,
@@ -391,10 +391,10 @@ class TestApiKeyActions:
         stored: list[tuple] = []
         emitted: list[tuple] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.provider_keys.keychain_available", lambda: True
+            "fichero_server.api.routes.ai.provider_keys.keychain_available", lambda: True
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.provider_keys.set_api_key",
+            "fichero_server.api.routes.ai.provider_keys.set_api_key",
             lambda pt, k: stored.append((pt, k)) or True,
         )
         monkeypatch.setattr(
@@ -426,7 +426,7 @@ class TestApiKeyActions:
     def test_set_api_key_rejects_bad_format(self, db, app_db, monkeypatch):
         # openai keys must start with sk- — the validator raises -> HTTPException.
         monkeypatch.setattr(
-            "fichero_server.api.routes.provider_keys.keychain_available", lambda: True
+            "fichero_server.api.routes.ai.provider_keys.keychain_available", lambda: True
         )
         with pytest.raises(HTTPException) as exc:
             registry.invoke(
@@ -446,10 +446,10 @@ class TestApiKeyActions:
     def test_delete_api_key(self, db, app_db, monkeypatch):
         deleted: list[str] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.provider_keys.keychain_available", lambda: True
+            "fichero_server.api.routes.ai.provider_keys.keychain_available", lambda: True
         )
         monkeypatch.setattr(
-            "fichero_server.api.routes.provider_keys.delete_api_key",
+            "fichero_server.api.routes.ai.provider_keys.delete_api_key",
             lambda pt: deleted.append(pt) or True,
         )
         result = registry.invoke(

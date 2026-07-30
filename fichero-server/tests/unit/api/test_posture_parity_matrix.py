@@ -61,7 +61,7 @@ def _main_client(app_db, monkeypatch, client_addr: tuple[str, int] = ("testclien
     api_main = importlib.reload(api_main)
     from fichero_server.api.routes.auth import accounts as auth_accounts
     from fichero_server.api.routes.auth import pairing
-    from fichero_server.api.routes.providers import get_app_database
+    from fichero_server.api.routes.ai.providers import get_app_database
 
     api_main.app.dependency_overrides[auth_accounts.get_app_database] = lambda: app_db
     api_main.app.dependency_overrides[pairing.get_app_database] = lambda: app_db

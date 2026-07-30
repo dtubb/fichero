@@ -55,7 +55,7 @@ HF_SAMPLE_TASKS = [
 @pytest.fixture(autouse=True)
 def clear_model_cache():
     """Clear the HF model cache between tests."""
-    from fichero_server.api.routes import models as models_module
+    from fichero_server.api.routes.ai import models as models_module
     models_module._cache.clear()
     yield
     models_module._cache.clear()

@@ -48,8 +48,8 @@ from fichero_server.api.routes.entity.inspector import EntityInspectorResponse
 from fichero_server.api.routes.kg_graph import NeighborhoodResponse
 from fichero_server.api.routes.kg_rebuild import KGResetResponse, RebuildResponse
 from fichero_server.api.routes.kg_search import KGSearchResponse
-from fichero_server.api.routes.model_comparison import ComparisonResultResponse
-from fichero_server.api.routes.provider_models import ProviderResponse
+from fichero_server.api.routes.ai.model_comparison import ComparisonResultResponse
+from fichero_server.api.routes.ai.provider_models import ProviderResponse
 from fichero_server.models.hermeneutics import Interpretation
 from fichero_server.api.routes.search import SearchResponse
 from fichero_server.api.routes.settings import AIDefaults

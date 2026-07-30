@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from fichero_server.api.routes import provider_models as routes
+from fichero_server.api.routes.ai import provider_models as routes
 
 
 def test_generate_model_description_lists_capabilities_and_context():
