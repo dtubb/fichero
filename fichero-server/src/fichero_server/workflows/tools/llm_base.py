@@ -589,6 +589,34 @@ def _save_artifact_sync(
             return None
         resolved_doc_id = doc.id
 
+        # Provenance (#4313): the live runner puts the run's thread_id into
+        # state as task_id, so run_id ties the artifact to its workflow run;
+        # the builder's node wrappers stamp the executing node into the
+        # node-context contextvar (copied into this asyncio.to_thread worker),
+        # so step_name/workflow_id survive the parallel fan-out; sequence is a
+        # per-run monotonic counter (DB-seeded so resume keeps numbering).
+        from fichero_server.workflows.node_context import (
+            get_current_node,
+            next_artifact_sequence,
+        )
+
+        node_ctx = get_current_node()
+        step_name = node_ctx.node_id if node_ctx else None
+        artifact_workflow_id = (node_ctx.workflow_id or None) if node_ctx else None
+        sequence: int | None = None
+        if task_id:
+
+            def _seed_from_db() -> int:
+                try:
+                    return max(
+                        (a.sequence or 0 for a in db.query(Artifact, run_id=task_id)),
+                        default=0,
+                    )
+                except Exception:
+                    return 0
+
+            sequence = next_artifact_sequence(task_id, seed_fn=_seed_from_db)
+
         # Create Artifact
         artifact = Artifact(
             document_id=resolved_doc_id,
@@ -600,6 +628,9 @@ def _save_artifact_sync(
             provider=llm_config.provider if hasattr(llm_config, "provider") else None,
             model=llm_config.model if hasattr(llm_config, "model") else None,
             run_id=task_id,
+            step_name=step_name,
+            workflow_id=artifact_workflow_id,
+            sequence=sequence,
         )
         db.save(artifact)
         artifact_id = artifact.id

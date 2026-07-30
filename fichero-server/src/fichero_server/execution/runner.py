@@ -926,6 +926,11 @@ async def _run_workflow_in_background(
             library_path=str(db.path.parent) if hasattr(db, "path") else "",
         )
         initial_state["workflow_id"] = request.workflow_id
+        # #4313: the run's thread_id IS the run id. Tools read task_id from
+        # state when saving artifacts (Artifact.run_id), and the fan-out Send
+        # payloads already propagate it — so every artifact a live run
+        # produces is traceable via GET /threads/{id}/run.run_artifacts.
+        initial_state["task_id"] = thread_id
 
         # Identify exit nodes (nodes with no outgoing edges). Workflow edges
         # use raw node IDs, but LangGraph events use the display label when one

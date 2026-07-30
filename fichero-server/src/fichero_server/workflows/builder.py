@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero_server.workflows.types import State, WorkflowDef, NodeDef
+from fichero_server.workflows.node_context import set_current_node
 from fichero_server.workflows.registry import get_tool, get_tool_def
 from fichero_server.workflows.resolver import resolve_inputs, evaluate_condition
 from fichero_server.workflows.cache import (
@@ -681,6 +682,10 @@ def _make_node_function(
         node_id = node_def.id
         node_label = node_def.label or node_def.tool
 
+        # Stamp node identity for artifact provenance (#4313): save_artifact
+        # reads it via workflows.node_context to fill step_name/workflow_id.
+        set_current_node(node_id, node_label, workflow_id)
+
         completed_nodes = state.get("completed_nodes") or []
         if node_id in completed_nodes:
             logger.info("Skipping already-completed node: %s", node_id)
@@ -1252,6 +1257,11 @@ def _make_parallel_node_function(
     async def parallel_node_function(state: State) -> dict:
         """Process a single file in parallel."""
         node_id = node_def.id
+
+        # Stamp node identity for artifact provenance (#4313). Each Send runs
+        # in its own asyncio task (own context copy), so parallel branches
+        # can't clobber each other.
+        set_current_node(node_id, node_def.label or node_def.tool, workflow_id)
 
         # Get single file info from state (set by Send)
         file_path = state.get("parallel_file", "")

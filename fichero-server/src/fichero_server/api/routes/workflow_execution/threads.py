@@ -125,6 +125,7 @@ class WorkflowRunArtifactResponse(BaseModel):
     run_id: str | None = None
     step_name: str | None = None
     node_name: str | None = None
+    sequence: int | None = None
     created_at: str | None = None
 
 
@@ -250,7 +251,16 @@ def _run_artifacts_for_thread(
     }
     documents = {doc.id: doc for doc in db.query(Document) if doc.id in doc_ids}
     artifact_rows: list[WorkflowRunArtifactResponse] = []
-    for artifact in sorted(artifacts, key=lambda item: item.created_at or "", reverse=True):
+    # Pipeline order when sequence is populated (#4313); created_at fallback
+    # for artifacts persisted before the sequence field existed.
+    ordered = sorted(
+        artifacts,
+        key=lambda item: (
+            item.sequence if item.sequence is not None else 0,
+            str(item.created_at or ""),
+        ),
+    )
+    for artifact in ordered:
         step_name = artifact.step_name
         artifact_rows.append(
             WorkflowRunArtifactResponse(
@@ -265,6 +275,7 @@ def _run_artifacts_for_thread(
                 run_id=artifact.run_id,
                 step_name=step_name,
                 node_name=node_name_map.get(step_name) if step_name else None,
+                sequence=artifact.sequence,
                 created_at=_iso(artifact.created_at),
             )
         )
