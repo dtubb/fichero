@@ -21,11 +21,14 @@ final class RepresentationTests: XCTestCase {
         XCTAssertEqual(Representation.allCases.count, 7)
     }
 
-    func testOnlyImageAndMarkdownAreRenderable() {
-        XCTAssertTrue(Representation.image.isRenderable)
-        XCTAssertTrue(Representation.markdown.isRenderable)
-        for representation in [Representation.html, .svg, .table, .worldMap, .globe] {
-            XCTAssertFalse(representation.isRenderable, "\(representation) should not be renderable yet")
+    func testRenderableRepresentations() {
+        // image + markdown natively; html/svg via the scripting-disabled
+        // WebContentCanvas since the LLM renditions work (#4329).
+        for representation in [Representation.image, .markdown, .html, .svg] {
+            XCTAssertTrue(representation.isRenderable, "\(representation) must render")
+        }
+        for representation in [Representation.table, .worldMap, .globe] {
+            XCTAssertFalse(representation.isRenderable, "\(representation) has no renderer yet")
         }
     }
 
