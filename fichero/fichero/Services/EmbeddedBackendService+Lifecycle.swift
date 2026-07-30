@@ -14,6 +14,65 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Embedde
 /// Pinned by `EmbeddedBackendDebugReadinessBudgetTests`.
 private let debugExternalReadinessTimeout: TimeInterval = 15
 
+/// The pure deadline/escalation decision for shutting the engine child down
+/// (#4291). Quit must feel instant, so the teardown is bounded by a short clock
+/// rather than by however long the engine feels like taking: SIGTERM, wait a
+/// couple of seconds, SIGKILL, then stop caring. Waiting longer buys nothing —
+/// the engine's own `FICHERO_PARENT_PID` watchdog self-terminates any child that
+/// outlives the app, so an unreaped straggler is not an orphan.
+///
+/// Pure and clock-injected so every boundary (deadline edge, already-exited
+/// child, escalation order, a clock that goes backwards) is unit-testable
+/// without a real subprocess — `TerminationDeadlineTests`.
+struct TerminationDeadlinePolicy: Equatable {
+    /// What the teardown loop should do next.
+    enum Action: Equatable {
+        /// The child may still exit on its own — sleep `pollInterval` and re-ask.
+        case waitMore
+        /// The graceful window is spent: SIGKILL the child, then keep polling
+        /// (bounded by `killGrace`) so the common case still reports a reap.
+        case escalateToSIGKILL
+        /// Stop waiting and let the app finish terminating.
+        case replyNow
+    }
+
+    /// How long the child gets to honour SIGTERM before we escalate.
+    let gracefulDeadline: TimeInterval
+    /// How long we keep polling after SIGKILL before replying regardless.
+    let killGrace: TimeInterval
+    /// Gap between liveness checks.
+    let pollInterval: TimeInterval
+
+    /// Negative inputs are meaningless as durations and would invert the
+    /// comparisons below, so they clamp to zero (= escalate/reply immediately).
+    init(gracefulDeadline: TimeInterval, killGrace: TimeInterval, pollInterval: TimeInterval) {
+        self.gracefulDeadline = max(0, gracefulDeadline)
+        self.killGrace = max(0, killGrace)
+        self.pollInterval = max(0, pollInterval)
+    }
+
+    /// The quit-path budget: ~2s of grace, half a second to observe the kill.
+    static let quit = TerminationDeadlinePolicy(gracefulDeadline: 2, killGrace: 0.5, pollInterval: 0.05)
+
+    /// Total wall-clock ceiling on a teardown — grace plus kill observation.
+    var totalDeadline: TimeInterval { gracefulDeadline + killGrace }
+
+    /// - Parameters:
+    ///   - elapsed: seconds since SIGTERM was sent. Clamped at 0, so a
+    ///     backwards/zero clock reads as "just started", never as "overdue".
+    ///   - childHasExited: `kill(pid, 0) != 0` — the child is gone/reaped.
+    ///   - hasEscalated: SIGKILL has already been sent for this teardown.
+    func action(elapsed: TimeInterval, childHasExited: Bool, hasEscalated: Bool) -> Action {
+        // A dead child ends the wait immediately, whatever the clock says.
+        if childHasExited { return .replyNow }
+        let waited = max(0, elapsed)
+        if hasEscalated {
+            return waited >= totalDeadline ? .replyNow : .waitMore
+        }
+        return waited >= gracefulDeadline ? .escalateToSIGKILL : .waitMore
+    }
+}
+
 extension EmbeddedBackendService {
     /// Whether a `connectBackend` trigger should ATTACH to the already-established
     /// app-level connection instead of re-running the connect+auth sequence
@@ -199,19 +258,25 @@ extension EmbeddedBackendService {
     }
     #endif
 
-    /// Stop the embedded backend
-    func stop() {
+    /// The non-blocking half of a stop: flip the observable state and ask the
+    /// child to exit. Returns the pid we signalled, or nil when there is nothing
+    /// to reap (external/user-managed engine, or we never spawned one).
+    ///
+    /// Split out of `stop()` for #4291 so the quit path can send SIGTERM on the
+    /// main actor — cheap, no wait — and then do the reaping off-main.
+    @discardableResult
+    func beginStop() -> pid_t? {
         // Don't stop external backends (user-managed)
         if isExternalBackend {
             logger.info("Using external backend - leaving it running (user-managed)")
             status = .stopped
-            return
+            return nil
         }
 
         guard let pid = backendPID else {
             logger.info("ℹ️  No embedded backend PID tracked (may not have launched yet or using external)")
             status = .stopped
-            return
+            return nil
         }
 
         logger.info("Stopping embedded backend (PID: \(pid))...")
@@ -225,33 +290,104 @@ extension EmbeddedBackendService {
 
         // Graceful shutdown - send SIGTERM
         kill(pid, SIGTERM)
+        return pid
+    }
 
-        // Wait up to 5 seconds for graceful shutdown (synchronous)
-        // This must be synchronous so applicationWillTerminate waits for it
-        for attempt in 0..<50 {
-            // Check if process is still running
-            if kill(pid, 0) != 0 {
-                // Process no longer exists
-                logger.info("Backend stopped gracefully after \(attempt * 100)ms")
+    /// Stop the embedded backend and wait — without blocking a thread — until the
+    /// child is gone or the deadline is spent (#4291). This is the quit path and
+    /// the respawn path: both need the port released before they continue, but
+    /// neither may beachball the main thread doing it. The waits are
+    /// `Task.sleep`, so the main run loop keeps servicing events throughout.
+    func stopAndAwaitExit(policy: TerminationDeadlinePolicy = .quit) async {
+        guard let pid = beginStop() else { return }
+        await Self.reapChild(pid: pid, policy: policy)
+    }
+
+    /// Stop the embedded backend, bounded by `TerminationDeadlinePolicy.quit`.
+    ///
+    /// Kept synchronous for the Settings/Sharing restart callers that stop and
+    /// immediately `start()` again — they need the port released before the
+    /// respawn. It DOES block the caller for up to the policy's total deadline,
+    /// so anything that can await should call `stopAndAwaitExit()` instead; the
+    /// quit path does (#4291).
+    func stop(policy: TerminationDeadlinePolicy = .quit) {
+        guard let pid = beginStop() else { return }
+        let start = Date()
+        var hasEscalated = false
+        while true {
+            let action = policy.action(
+                elapsed: Date().timeIntervalSince(start),
+                childHasExited: Self.childHasExited(pid: pid),
+                hasEscalated: hasEscalated
+            )
+            switch action {
+            case .replyNow:
+                Self.logTeardownOutcome(pid: pid, hasEscalated: hasEscalated)
                 return
+            case .escalateToSIGKILL:
+                hasEscalated = true
+                logger.warning("Backend didn't exit within \(policy.gracefulDeadline)s, force killing (PID: \(pid))")
+                kill(pid, SIGKILL)
+            case .waitMore:
+                Thread.sleep(forTimeInterval: policy.pollInterval)
             }
-            // Sleep for 100ms
-            Thread.sleep(forTimeInterval: 0.1)
         }
+    }
 
-        // Force kill if still running after 5 seconds
-        if kill(pid, 0) == 0 {
-            logger.warning("Backend didn't shut down gracefully after 5s, force killing...")
-            kill(pid, SIGKILL)
+    /// Whether the child is gone. `kill(pid, 0)` failing means no such live
+    /// process we can signal.
+    nonisolated static func childHasExited(pid: pid_t) -> Bool {
+        kill(pid, 0) != 0
+    }
 
-            // Give it one more second to die
-            Thread.sleep(forTimeInterval: 1.0)
-
-            if kill(pid, 0) == 0 {
-                logger.error("Failed to kill backend process (PID: \(pid))")
-            } else {
-                logger.info("Backend force-killed successfully")
+    /// The bounded reap loop, driven entirely by `TerminationDeadlinePolicy`.
+    /// `nonisolated` so it runs off the main actor: nothing here touches
+    /// main-actor state, only `kill()` and the clock.
+    nonisolated static func reapChild(pid: pid_t, policy: TerminationDeadlinePolicy) async {
+        let start = Date()
+        var hasEscalated = false
+        while true {
+            let action = policy.action(
+                elapsed: Date().timeIntervalSince(start),
+                childHasExited: childHasExited(pid: pid),
+                hasEscalated: hasEscalated
+            )
+            switch action {
+            case .replyNow:
+                logTeardownOutcome(pid: pid, hasEscalated: hasEscalated)
+                return
+            case .escalateToSIGKILL:
+                hasEscalated = true
+                logger.warning(
+                    "Backend didn't exit within \(policy.gracefulDeadline)s of SIGTERM — SIGKILL (PID: \(pid)) (#4291)"
+                )
+                kill(pid, SIGKILL)
+            case .waitMore:
+                // Yields the thread instead of parking it — the whole point of
+                // #4291. `try?`: a cancelled sleep just means "stop waiting",
+                // and the next loop turn re-asks the policy.
+                do {
+                    try await Task.sleep(for: .seconds(policy.pollInterval))
+                } catch {
+                    // Cancelled mid-teardown: the child already has SIGTERM (and
+                    // the parent-pid watchdog backstops it), so stop waiting.
+                    logTeardownOutcome(pid: pid, hasEscalated: hasEscalated)
+                    return
+                }
             }
+        }
+    }
+
+    /// One honest log line for how the teardown ended — reaped, killed, or still
+    /// alive past the deadline (left to the engine's parent-pid watchdog).
+    nonisolated private static func logTeardownOutcome(pid: pid_t, hasEscalated: Bool) {
+        if childHasExited(pid: pid) {
+            logger.info("Backend \(hasEscalated ? "force-killed" : "stopped gracefully") (PID: \(pid))")
+        } else {
+            logger.error(
+                "Backend (PID: \(pid)) still alive past the termination deadline — "
+                    + "leaving it to the engine's FICHERO_PARENT_PID watchdog"
+            )
         }
     }
 }
