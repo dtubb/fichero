@@ -25,7 +25,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     @Binding var loupeSize: CGFloat
     @Binding var coordinator: Coordinator?  // Exposed for external scroll control
 
-    func makeNSView(context: Context) -> NSScrollView {
+    /// The scroll view's own configuration — zoom limits, Preview.app-style
+    /// overlay scrollers, and the initial hidden state that prevents a flash
+    /// before the first centring pass.
+    private func makeScrollView() -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
@@ -39,25 +42,33 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.alphaValue = 0  // Hidden until first center to prevent flash
         scrollView.postsBoundsChangedNotifications = true
         scrollView.contentView.postsBoundsChangedNotifications = true
+        return scrollView
+    }
 
-        // Add magnification gesture recognizer for loupe pinch-to-zoom
-        // This works alongside NSScrollView's built-in magnification
+    /// Pinch-to-zoom for the loupe (alongside NSScrollView's own magnification)
+    /// and double-click to zoom. The coordinator keeps a reference to each so it
+    /// can enable and disable them.
+    private func attachGestures(to scrollView: NSScrollView, coordinator: Coordinator) {
         let magnifyGesture = NSMagnificationGestureRecognizer(
-            target: context.coordinator,
+            target: coordinator,
             action: #selector(Coordinator.handleMagnify(_:))
         )
-        magnifyGesture.delegate = context.coordinator
+        magnifyGesture.delegate = coordinator
         scrollView.addGestureRecognizer(magnifyGesture)
-        context.coordinator.magnifyGesture = magnifyGesture
+        coordinator.magnifyGesture = magnifyGesture
 
-        // Add double-click gesture for zoom
         let doubleClickGesture = NSClickGestureRecognizer(
-            target: context.coordinator,
+            target: coordinator,
             action: #selector(Coordinator.handleDoubleClick(_:))
         )
         doubleClickGesture.numberOfClicksRequired = 2
         scrollView.addGestureRecognizer(doubleClickGesture)
-        context.coordinator.doubleClickGesture = doubleClickGesture
+        coordinator.doubleClickGesture = doubleClickGesture
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = makeScrollView()
+        attachGestures(to: scrollView, coordinator: context.coordinator)
 
         // Create tracking image view with loupe
         let imageView = TrackingImageView()
