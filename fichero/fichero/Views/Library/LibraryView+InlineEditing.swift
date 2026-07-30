@@ -99,7 +99,8 @@ struct EditableDocumentName: View {
                     // Focus happens automatically via TextField
                 }
         } else {
-            Text(document.name)
+            // #4416: a page's `name` is the engine's upload temp file.
+            Text(DocumentTitle.displayName(for: document))
                 .font(font)
                 .lineLimit(lineLimit)
                 .multilineTextAlignment(alignment)

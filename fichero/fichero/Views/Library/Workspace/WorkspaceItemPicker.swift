@@ -196,7 +196,8 @@ struct WorkspaceItemPicker: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Add to Workspace")
                     .font(.headline)
-                Text(document.name)
+                // #4416: a page's `name` is the engine's upload temp file.
+                Text(DocumentTitle.displayName(for: document))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

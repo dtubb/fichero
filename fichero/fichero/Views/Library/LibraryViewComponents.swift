@@ -148,7 +148,8 @@ struct MailStyleRow: View {
                             onCancel: onCancelRename
                         )
                     } else {
-                        Text(document.pageThumbnailLabel ?? document.name)
+                        // Same fall-through as the thumbnail grid (#4416).
+                        Text(DocumentTitle.displayName(for: document))
                             .font(.headline)
                             .foregroundStyle(titleColor)
                             // Uniform rows (#4191 density cap): the title

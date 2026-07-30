@@ -81,7 +81,8 @@ extension ChatInspector {
                         HStack {
                             Image(systemName: doc.fileType?.icon ?? "doc")
                                 .foregroundColor(.secondary)
-                            Text(doc.name)
+                            // #4416: a page's `name` is the engine's upload temp file.
+                            Text(DocumentTitle.displayName(for: doc))
                                 .lineLimit(1)
                             Spacer()
                             if selectedDocuments.contains(doc.id) {

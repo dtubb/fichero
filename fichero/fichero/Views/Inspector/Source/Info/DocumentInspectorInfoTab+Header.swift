@@ -16,7 +16,8 @@ extension DocumentInspectorInfoTab {
             .frame(width: 80, height: 100)
             .clipShape(RoundedRectangle(cornerRadius: 12))
 
-            Text(document.name)
+            // Never `document.name`: a page's is a storage artifact (#4416).
+            Text(DocumentTitle.displayName(for: document))
                 .font(.headline)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)

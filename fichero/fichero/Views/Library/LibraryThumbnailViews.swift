@@ -123,7 +123,9 @@ struct DocumentThumbnailView: View {
                     onCancel: onCancelRename
                 )
             } else {
-                Text(document.pageThumbnailLabel ?? document.name)
+                // `pageThumbnailLabel ?? name` still fell through to the
+                // storage name for a page with no sequence (#4416).
+                Text(DocumentTitle.displayName(for: document))
                     .font(.caption)
                     // Fixed two-line label (#4191 density cap): short and
                     // long names produce identical tile heights, so the grid

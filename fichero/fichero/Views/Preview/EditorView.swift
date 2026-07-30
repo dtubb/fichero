@@ -77,7 +77,8 @@ struct EditorView: View {
             Image(systemName: doc.fileType?.icon ?? doc.docType.icon)
                 .foregroundColor(.accentColor)
 
-            Text(doc.name)
+            // #4416: the editor header is a document-name surface too.
+            Text(DocumentTitle.displayName(for: doc))
                 .font(.headline)
                 .lineLimit(1)
 

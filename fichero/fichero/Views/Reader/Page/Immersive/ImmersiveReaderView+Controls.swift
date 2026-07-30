@@ -81,7 +81,9 @@ extension ImmersiveReaderView {
                 .disabled(siblingIndex == nil || siblingIndex == 0)
                 .accessibilityLabel("Previous page")
 
-                Text(document.name)
+                // The reader shows PAGES, whose `name` is the engine's
+                // upload temp file — the surface #4416 was reported on.
+                Text(DocumentTitle.displayName(for: document))
                     .font(.callout)
                     .foregroundStyle(.white)
                     .lineLimit(1)

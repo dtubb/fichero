@@ -155,7 +155,8 @@ struct ScopedDocumentRow: View {
                 .frame(width: 16)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(document.name)
+                // #4416: a page's `name` is the engine's upload temp file.
+                Text(DocumentTitle.displayName(for: document))
                     .font(.subheadline)
                     .lineLimit(1)
 
