@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLIST="$ROOT/fichero/fichero/Info.plist"
-PROJECT="$ROOT/fichero/fichero.xcodeproj/project.pbxproj"
+XCCONFIG="$ROOT/fichero/Configs/Version.xcconfig"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
@@ -12,9 +12,9 @@ Usage:
   scripts/check_version_date.sh --help
 
 Checks the resolved Fichero app version. It reads CFBundleShortVersionString
-from fichero/fichero/Info.plist when present, then falls back to the app target's
-MARKETING_VERSION in fichero.xcodeproj because this project generates plist keys
-at build time.
+from fichero/fichero/Info.plist when present, then falls back to
+MARKETING_VERSION in fichero/Configs/Version.xcconfig — the single source of
+the version (#3234) — because this project generates plist keys at build time.
 EOF
   exit 0
 fi
@@ -29,18 +29,11 @@ if [[ -f "$PLIST" ]]; then
   fi
 fi
 
-if [[ -z "$version" && -f "$PROJECT" ]]; then
-  version="$(awk '
-    /PRODUCT_BUNDLE_IDENTIFIER = app\.fichero\.fichero;/ { in_app = 1 }
-    in_app && /MARKETING_VERSION = / {
-      value = $3
-      gsub(/;/, "", value)
-      print value
-      exit
-    }
-  ' "$PROJECT")"
+if [[ -z "$version" && -f "$XCCONFIG" ]]; then
+  # #3234: the version lives ONLY in Version.xcconfig (pbxproj has no literals).
+  version="$(awk -F' = ' '$1 == "MARKETING_VERSION" { print $2; exit }' "$XCCONFIG")"
   if [[ -n "$version" ]]; then
-    source="MARKETING_VERSION for app.fichero.fichero in fichero.xcodeproj"
+    source="MARKETING_VERSION in fichero/Configs/Version.xcconfig"
   fi
 fi
 

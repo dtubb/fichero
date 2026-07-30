@@ -10,6 +10,8 @@
 #
 #   Frontend (Xcode):   MARKETING_VERSION       = <date>[.N][-beta]   (Apple display string)
 #                       CURRENT_PROJECT_VERSION = <YYYYMMDD><NN>       (Sparkle build int, monotonic)
+#                       Both live ONLY in fichero/Configs/Version.xcconfig (#3234);
+#                       project.pbxproj carries no version literals.
 #   Backend (pyproject): version = "<PEP440>"   (e.g. 2026.6.27, 2026.6.27.2, 2026.6.27b1)
 #
 # Same-day sub-number N is derived from how many release tags already exist for
@@ -42,6 +44,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PBX="$ROOT/fichero/fichero.xcodeproj/project.pbxproj"
+XCCONFIG="$ROOT/fichero/Configs/Version.xcconfig"
 PY="$ROOT/fichero-server/pyproject.toml"
 NOTES="$ROOT/RELEASE_NOTES.md"
 
@@ -235,17 +238,24 @@ if [ "$DRY_RUN" = true ]; then
   exit 0
 fi
 
-# ── frontend: CURRENT_PROJECT_VERSION via agvtool (sanctioned tool, works) ───
-( cd "$ROOT/fichero" && xcrun agvtool new-version -all "$BUILD_INT" >/dev/null )
-
-# ── frontend: MARKETING_VERSION via value-only sed (sanctioned-tool-blocked) ─
-# agvtool new-marketing-version is broken on this project (it looks for a
-# literal "YES" path) and the xcodeproj gem 1.27.0 can't parse the project (a
-# PBXShellScriptBuildPhase stores shellScript as an Array). Value-only flat
-# substitution makes no structural change; integrity is re-checked below via
-# `agvtool what-version -terse` (if the project were broken, agvtool would not parse it).
-# Project rule #10 sanctions agvtool/xcodeproj; this is the documented fallback.
-sed -i '' -E "s/^([[:space:]]*)MARKETING_VERSION = .*;/\1MARKETING_VERSION = $APP_VERSION;/" "$PBX"
+# ── frontend: both values via Version.xcconfig (single source, #3234) ────────
+# The pbxproj carries NO version literals — every target inherits
+# MARKETING_VERSION / CURRENT_PROJECT_VERSION from the project-level
+# baseConfigurationReference on fichero/Configs/Version.xcconfig. Values stay
+# UNQUOTED (xcconfig tokens are raw; quotes would leak into
+# CFBundleShortVersionString). Guard first so a regressed pbxproj (a target
+# literal would silently override the xcconfig) fails the stamp loudly.
+[ -f "$XCCONFIG" ] || { echo "error: $XCCONFIG not found" >&2; exit 1; }
+if grep -qE '^[[:space:]]*(MARKETING_VERSION|CURRENT_PROJECT_VERSION) = ' "$PBX"; then
+  echo "error: project.pbxproj carries MARKETING_VERSION/CURRENT_PROJECT_VERSION literals." >&2
+  echo "       Version.xcconfig is the single source (#3234); remove the pbxproj values." >&2
+  exit 1
+fi
+sed -i '' -E "s/^MARKETING_VERSION = .*/MARKETING_VERSION = $APP_VERSION/" "$XCCONFIG"
+sed -i '' -E "s/^CURRENT_PROJECT_VERSION = .*/CURRENT_PROJECT_VERSION = $BUILD_INT/" "$XCCONFIG"
+grep -q "^MARKETING_VERSION = $APP_VERSION\$" "$XCCONFIG" \
+  && grep -q "^CURRENT_PROJECT_VERSION = $BUILD_INT\$" "$XCCONFIG" \
+  || { echo "error: Version.xcconfig stamp did not land (missing setting lines?)" >&2; exit 1; }
 
 # ── backend: both [tool.briefcase] and [project] version lines ───────────────
 # Anchored to a digit so a hypothetical `version = "<string>"` dep key is untouched.
@@ -254,7 +264,7 @@ sed -i '' -E "s/^version = \"[0-9].*\"/version = \"$ENGINE_VERSION\"/" "$PY"
 # ── verify ───────────────────────────────────────────────────────────────────
 echo
 echo "verify:"
-echo -n "  MARKETING_VERSION configs: "; grep -cE "MARKETING_VERSION = $APP_VERSION;" "$PBX"
-echo -n "  CURRENT_PROJECT_VERSION:   "; ( cd "$ROOT/fichero" && xcrun agvtool what-version -terse )
+echo -n "  MARKETING_VERSION:         "; sed -nE 's/^MARKETING_VERSION = (.*)$/\1/p' "$XCCONFIG"
+echo -n "  CURRENT_PROJECT_VERSION:   "; sed -nE 's/^CURRENT_PROJECT_VERSION = (.*)$/\1/p' "$XCCONFIG"
 echo "  engine version:"; grep -nE '^version = ' "$PY" | sed 's/^/    /'
 pep440_check "$ENGINE_VERSION"

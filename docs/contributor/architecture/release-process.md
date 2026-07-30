@@ -1,11 +1,13 @@
-<!-- Verified against project.pbxproj (MARKETING_VERSION), scripts/{check_version_date,set-release-version}.sh, fichero/.swiftlint.yml (2026-07-18). -->
+<!-- Verified against fichero/Configs/Version.xcconfig (MARKETING_VERSION), scripts/{check_version_date,set-release-version}.sh, fichero/.swiftlint.yml (2026-07-30). -->
 
 # Fichero Release Process
 
 Each release ships one testable feature end-to-end. Releases are **dated**:
-`MARKETING_VERSION` is `YYYY.MM.DD[.N]` (e.g. `2026.07.17.2`), set via
-`scripts/set-release-version.sh` and enforced by `scripts/check_version_date.sh`
-(which also rejects a quoted value). The process is the same whether the work is
+`MARKETING_VERSION` is `YYYY.MM.DD[.N]` (e.g. `2026.07.17.2`), lives ONLY in
+`fichero/Configs/Version.xcconfig` (#3234 — `project.pbxproj` carries no
+version literals), is set via `scripts/set-release-version.sh`, and is
+enforced by `scripts/check_version_date.sh` (which also rejects a quoted
+value). The process is the same whether the work is
 new code or enabling an existing feature gate.
 
 ---
