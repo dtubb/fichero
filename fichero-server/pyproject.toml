@@ -51,30 +51,46 @@ sources = [
 ]
 requires = [
     # Core — 0.0.1 release surface (keep slim for bundle size)
+    # Floors below are security/resolution floors only (#4337). Never `==` —
+    # these deps float upward; a floor just forbids a known-bad version.
     "fastapi",
+    # `from starlette.concurrency import run_in_threadpool` is a direct import
+    # (workflow_execution/threads.py), and fastapi only asks for >=0.46, so the
+    # floor has to live here. 1.3.1 fixes PYSEC-2026-248/249.
+    "starlette>=1.3.1",
     "uvicorn[standard]",
     # Server launch sets ws="websockets-sansio", so the modern websockets
     # stack can float with LangGraph instead of pinning to legacy ws support.
     "websockets",
-    "python-multipart",
+    # 0.0.31 fixes the multipart-parser DoS trio PYSEC-2026-3036/3037/3040 —
+    # reachable from every unauthenticated upload endpoint.
+    "python-multipart>=0.0.31",
     "python-dotenv",
     "aiofiles",
-    "aiohttp",
+    # 3.14.1 closes 11 advisories (PYSEC-2026-237, 2104-2113).
+    "aiohttp>=3.14.1",
     "httpx",
     "defusedxml",
-    "cryptography",
+    # 48.0.1 fixes GHSA-537c-gmf6-5ccf.
+    "cryptography>=48.0.1",
     "zeroconf",
     # Data Layer
-    "pydantic",
-    "pydantic-settings",
+    # >=2.13 is a resolution floor, not a security one: openrouter 0.11.x caps
+    # pydantic<2.13, so a fresh install silently resolves *below* the 2.13.4 we
+    # actually ship. The floor forces pip to pick an openrouter that agrees.
+    "pydantic>=2.13",
+    # 2.14.2 fixes GHSA-4xgf-cpjx-pc3j.
+    "pydantic-settings>=2.14.2",
     "duckdb",
     "lancedb",
     "pylance",  # provides the `lance` module — required for LanceDB full-text (FTS) search
     # AI/LLM — Ollama (local) + LiteLLM (provider routing)
-    "langchain",
+    # 1.3.9 fixes PYSEC-2026-2192.
+    "langchain>=1.3.9",
     "langchain-core",
     "langchain-openai",
-    "langchain-anthropic",
+    # 1.4.6 fixes PYSEC-2026-2556.
+    "langchain-anthropic>=1.4.6",
     "langchain-google-genai",
     "langchain-aws",
     "langchain-cohere",
@@ -82,7 +98,11 @@ requires = [
     "langchain-openrouter",
     "langchain-community",
     "langchain-mcp-adapters",
-    "mcp",
+    # Floor: 1.28.1 fixes PYSEC-2026-3483. Ceiling: mcp 2.0 deleted
+    # `mcp.server.fastmcp`, which every fichero-mcp tool module imports — a
+    # fresh unbounded install resolves 2.0 and the MCP product stops importing
+    # at all. Lifting the cap is a migration to `mcp.server.mcpserver` (#4337).
+    "mcp>=1.28.1,<2",
     "langgraph",
     "langchain-ollama",
     "litellm",
@@ -101,7 +121,9 @@ requires = [
     # "opencv-python-headless",
     # Document Processing
     "PyMuPDF",
-    "Pillow>=12.2.0",
+    # 12.3.0 fixes 22 image-decoder advisories (PYSEC-2026-2253..2257,
+    # 3451..3454, 3493..3496) — all reachable from imported user files.
+    "Pillow>=12.3.0",
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
@@ -164,28 +186,31 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # Core — these ship in the Briefcase bundle
+    # Floors mirror [tool.briefcase.app.fichero_server].requires; see the
+    # reason comments there. Security/resolution floors only, never `==`.
     "python-dotenv",
     "aiofiles",
-    "aiohttp",
+    "aiohttp>=3.14.1",  # PYSEC-2026-237, 2104-2113
     "httpx",
     "defusedxml",
-    "cryptography",
+    "cryptography>=48.0.1",  # GHSA-537c-gmf6-5ccf
     "zeroconf",
     "fastapi",
+    "starlette>=1.3.1",  # PYSEC-2026-248/249; direct import, fastapi only asks >=0.46
     "uvicorn[standard]",
     # Server launch sets ws="websockets-sansio", so the modern websockets
     # stack can float with LangGraph instead of pinning to legacy ws support.
     "websockets",
-    "python-multipart",
-    "pydantic",
-    "pydantic-settings",
+    "python-multipart>=0.0.31",  # PYSEC-2026-3036/3037/3040 multipart DoS
+    "pydantic>=2.13",  # openrouter 0.11.x caps <2.13 and downgrades what we ship
+    "pydantic-settings>=2.14.2",  # GHSA-4xgf-cpjx-pc3j
     "duckdb",
     "lancedb",
     "pylance",  # provides the `lance` module — required for LanceDB full-text (FTS) search
-    "langchain",
+    "langchain>=1.3.9",  # PYSEC-2026-2192
     "langchain-core",
     "langchain-openai",
-    "langchain-anthropic",
+    "langchain-anthropic>=1.4.6",  # PYSEC-2026-2556
     "langchain-google-genai",
     "langchain-aws",
     "langchain-cohere",
@@ -193,7 +218,9 @@ dependencies = [
     "langchain-openrouter",
     "langchain-community",
     "langchain-mcp-adapters",
-    "mcp",
+    # Floor: PYSEC-2026-3483. Ceiling: mcp 2.0 removed `mcp.server.fastmcp`,
+    # which fichero-mcp imports everywhere — see the briefcase block comment.
+    "mcp>=1.28.1,<2",
     "langgraph",
     "langchain-ollama",
     "litellm",
@@ -208,7 +235,7 @@ dependencies = [
     # "spacy",
     # "opencv-python-headless",
     "PyMuPDF",
-    "Pillow>=12.2.0",
+    "Pillow>=12.3.0",  # 22 image-decoder advisories fixed in 12.3.0
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
     # default, and without it an imported photo becomes a record with no
     # thumbnail and no error — the wrong-but-silent shape.
@@ -241,6 +268,14 @@ dev = [
     "cryptography",
     "ruamel.yaml",
     "openapi-python-client",
+    # #4337: the unit suite imports these at module scope (kg/ and knowledge/
+    # tests, test_kg_untested_symbols.py), so a clean `pip install -e .[dev]`
+    # could not even *collect* the suite — it only worked because the long-lived
+    # venv had them via the kg extra's pykeen/rdflib. Declared here so the test
+    # environment is reproducible without dragging torch in.
+    "networkx",
+    "rdflib",
+    "pandas",
 ]
 
 # #4227: console entry points moved with their code — `fichero` is declared by

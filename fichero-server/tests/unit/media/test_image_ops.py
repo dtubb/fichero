@@ -47,7 +47,36 @@ def test_crop_missing_dimensions_raises_instead_of_using_full_image():
         apply_operation(image, {"op": "crop", "params": {"left": 0, "top": 0}})
 
 
+def _pixels(image: Image.Image) -> list:
+    """Pixel list without Pillow's deprecated getdata (#4337)."""
+    width, height = image.size
+    return [image.getpixel((x, y)) for y in range(height) for x in range(width)]
+
+
 def test_adaptive_binarize_returns_bilevel_image():
     image = Image.new("L", (2, 1))
     image.putdata([20, 200])
-    assert set(apply_operation(image, {"op": "adaptive_binarize", "params": {}}).getdata()) == {(0, 0, 0), (255, 255, 255)}
+    assert set(_pixels(apply_operation(image, {"op": "adaptive_binarize", "params": {}}))) == {(0, 0, 0), (255, 255, 255)}
+
+
+def test_adaptive_binarize_splits_on_the_mean_not_a_fixed_midpoint():
+    """The threshold is the image's own mean, so a dark page still separates.
+
+    Every pixel here is below 128, so a hardcoded midpoint would return an
+    all-black image and silently destroy the page. Also pins the behaviour
+    across the switch from sum(getdata()) to ImageStat, which must compute the
+    same mean rather than an approximation.
+    """
+    image = Image.new("L", (4, 1))
+    image.putdata([10, 20, 30, 100])  # mean 40
+
+    result = _pixels(apply_operation(image, {"op": "adaptive_binarize", "params": {}}))
+
+    assert result == [(0, 0, 0), (0, 0, 0), (0, 0, 0), (255, 255, 255)], result
+
+
+def test_adaptive_binarize_on_a_flat_image_is_all_white():
+    """A uniform image has mean == its value, and the split is `>=`."""
+    image = Image.new("L", (3, 2), 77)
+
+    assert set(_pixels(apply_operation(image, {"op": "adaptive_binarize", "params": {}}))) == {(255, 255, 255)}

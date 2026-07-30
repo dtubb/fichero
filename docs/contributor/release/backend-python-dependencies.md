@@ -2,7 +2,7 @@
 
 # Backend Python Dependencies
 
-Last updated: 2026-06-27
+Last updated: 2026-07-30
 
 This file records the current dependency policy for the embedded Briefcase
 engine and the release-app bundle size audit.
@@ -11,8 +11,32 @@ engine and the release-app bundle size audit.
 
 The embedded Mac engine is built from `fichero-server/pyproject.toml`.
 Dependencies are mostly floating so a clean Briefcase create resolves the newest
-mutually compatible package set. The only ordinary version floor in the core
-manifest is `Pillow>=12.2.0`.
+mutually compatible package set.
+
+Floating does **not** mean unbounded. The 2026-07-30 refresh (#4337) added
+security floors and one ceiling; each carries its reason as a comment in the
+manifest, and `fichero-server/tests/unit/test_dependency_floors.py` fails if one
+is dropped, loosened, or added to only one of the two dependency lists
+(`[tool.briefcase.app.fichero_server].requires` and `[project].dependencies`
+carry the same set and must agree).
+
+| constraint | why |
+|---|---|
+| `aiohttp>=3.14.1` | PYSEC-2026-237, 2104–2113 |
+| `cryptography>=48.0.1` | GHSA-537c-gmf6-5ccf |
+| `starlette>=1.3.1` | PYSEC-2026-248/249; a direct import, and `fastapi` only asks `>=0.46` |
+| `python-multipart>=0.0.31` | PYSEC-2026-3036/3037/3040 — multipart parser DoS on the upload path |
+| `pydantic>=2.13` | not security: `openrouter` 0.11.x caps `pydantic<2.13`, so an unbounded resolve silently downgrades below the shipped 2.13.4 |
+| `pydantic-settings>=2.14.2` | GHSA-4xgf-cpjx-pc3j |
+| `langchain>=1.3.9` | PYSEC-2026-2192 |
+| `langchain-anthropic>=1.4.6` | PYSEC-2026-2556 |
+| `mcp>=1.28.1,<2` | floor: PYSEC-2026-3483. **Ceiling**: `mcp` 2.0 removed `mcp.server.fastmcp`, which every `fichero-mcp` tool module imports; lifting the cap is a port to `mcp.server.mcpserver`, not a bump |
+| `Pillow>=12.3.0` | 22 image-decoder advisories, all reachable from an imported photo |
+
+No core dependency is exact-pinned (`==`); floors only, so the set still floats
+upward. `pip-audit` over the resolved set on 2026-07-30 reported no known
+vulnerabilities. Full before/after table and the storage-format compatibility
+evidence: `agent-work/status/deps-refresh-2026-07-30.md`.
 
 The previous `websockets<14` / LangGraph cap has been removed. The server now
 launches Uvicorn with the modern sans-IO websocket protocol:
