@@ -369,7 +369,7 @@ def main() -> int:
     # that would persist a disposable token over the user's real one.
     token_file = Path.home() / "Library" / "Application Support" / "Fichero" / ".api-key"
     server = subprocess.Popen(
-        [python, "-m", "uvicorn", "fichero_server.api.main:app",
+        [python, "-m", "uvicorn", "fichero_server.api.tcp_transport:app",
          "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
     )
