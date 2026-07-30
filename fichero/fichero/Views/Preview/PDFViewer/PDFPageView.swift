@@ -538,70 +538,6 @@ struct PDFPageView: NSViewRepresentable {
 }
 
 @MainActor
-private func applyHighlightSpan(
-    on page: PDFPage,
-    in view: PDFView,
-    info: [AnyHashable: Any]
-) {
-    guard let doc = view.document else { return }
-
-    for existing in page.annotations where existing.userName == "fichero.claim-source" {
-        page.removeAnnotation(existing)
-    }
-
-    // Most precise anchor: a normalized [x, y, w, h] bbox (engine convention,
-    // top-left origin — the same array crop_pdf_page uses). Draw the region
-    // highlight directly, flipping y into PDFKit's bottom-left page space so the
-    // highlight lands exactly where the crop was taken (#2105/#3449).
-    if let bbox = info["bbox"] as? [Double], bbox.count == 4 {
-        let cropBounds = page.bounds(for: .cropBox)
-        let rect = CGRect(
-            x: cropBounds.minX + bbox[0] * cropBounds.width,
-            y: cropBounds.minY + (1 - bbox[1] - bbox[3]) * cropBounds.height,
-            width: bbox[2] * cropBounds.width,
-            height: bbox[3] * cropBounds.height
-        )
-        let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        #if canImport(AppKit)
-        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
-        #else
-        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
-        #endif
-        annotation.userName = "fichero.claim-source"
-        page.addAnnotation(annotation)
-        return
-    }
-
-    var selection: PDFSelection?
-
-    if let excerpt = info["excerpt"] as? String, !excerpt.isEmpty {
-        if let found = doc.findString(excerpt, withOptions: .caseInsensitive).first {
-            selection = found
-        }
-    }
-
-    if selection == nil,
-       let start = info["charStart"] as? Int,
-       let end = info["charEnd"] as? Int,
-       end > start,
-       let pageStr = page.string {
-        let range = NSRange(location: start, length: end - start)
-        if range.upperBound <= pageStr.utf16.count {
-            selection = page.selection(for: range)
-        }
-    }
-
-    guard let sel = selection else { return }
-
-    for rect in sel.selectionsByLine().map({ $0.bounds(for: page) }) {
-        let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
-        annotation.userName = "fichero.claim-source"
-        page.addAnnotation(annotation)
-    }
-
-    view.go(to: sel)
-}
 #elseif canImport(UIKit)
 
 /// Interactive PDF preview using PDFKit's `PDFView` on iOS.
@@ -916,6 +852,22 @@ struct PDFPageView: UIViewRepresentable {
 }
 
 @MainActor
+
+#endif
+
+// MARK: - Highlight span (shared)
+
+/// ONE implementation for both platforms (#4353).
+///
+/// This existed twice — 64 lines each, in the mutually exclusive AppKit and
+/// UIKit branches, identical apart from one colour reference. Each copy even
+/// carried its OWN `#if` for that colour, which was already redundant inside a
+/// branch that had decided the platform.
+///
+/// `PlatformColor` (PlatformAliases.swift) covers the whole difference, so the
+/// conditional disappears rather than wrapping the same body twice. That takes
+/// this file from 986 to well under the 1000-line error, so it no longer needs
+/// the split that was being planned for it.
 private func applyHighlightSpan(
     on page: PDFPage,
     in view: PDFView,
@@ -940,11 +892,7 @@ private func applyHighlightSpan(
             height: bbox[3] * cropBounds.height
         )
         let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        #if canImport(AppKit)
-        annotation.color = NSColor.systemYellow.withAlphaComponent(0.35)
-        #else
-        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
-        #endif
+        annotation.color = PlatformColor.systemYellow.withAlphaComponent(0.35)
         annotation.userName = "fichero.claim-source"
         page.addAnnotation(annotation)
         return
@@ -973,12 +921,10 @@ private func applyHighlightSpan(
 
     for rect in sel.selectionsByLine().map({ $0.bounds(for: page) }) {
         let annotation = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-        annotation.color = UIColor.systemYellow.withAlphaComponent(0.35)
+        annotation.color = PlatformColor.systemYellow.withAlphaComponent(0.35)
         annotation.userName = "fichero.claim-source"
         page.addAnnotation(annotation)
     }
 
     view.go(to: sel)
 }
-
-#endif
