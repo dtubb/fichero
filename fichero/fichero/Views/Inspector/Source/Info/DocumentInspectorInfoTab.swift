@@ -288,7 +288,8 @@ struct DocumentInspectorInfoTab: View {
             isSelected: selectedAttribute == attribute,
             detail: detail
         )
-        .contentShape(Rectangle())
+        // #4386: full-width row target, not the label's intrinsic width.
+        .inspectorListRowTarget()
         .onTapGesture {
             selectedAttribute = (selectedAttribute == attribute) ? nil : attribute
         }

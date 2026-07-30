@@ -99,7 +99,8 @@ extension ChatInspector {
                                 .help("Add this document to the chat scope")
                             }
                         }
-                        .contentShape(Rectangle())
+                        // #4386: full-width row target, not the label's width.
+                        .inspectorListRowTarget()
                         .onTapGesture {
                             if !selectedDocuments.contains(doc.id) {
                                 selectedDocuments = ChatDocumentScope.attaching([doc.id], to: selectedDocuments)
