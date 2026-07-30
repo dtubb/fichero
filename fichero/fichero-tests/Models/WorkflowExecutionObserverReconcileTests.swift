@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import XCTest
 
