@@ -45,6 +45,21 @@ def mock_chat_response(prompt: str) -> str:
     return MOCK_NARRATIVE
 
 
+def mock_vision_response(prompt: str, image_count: int) -> str:
+    """Deterministic stand-in for ``vision()`` under ``provider="mock"``.
+
+    ``chat()`` and ``structured_output()`` both had a mock branch; ``vision()``
+    did not, so any vision node in a mock run died with "Unknown LLM provider:
+    'mock'" (#4345). Varies with the prompt prefix and image count the same way
+    the other mock responders do, so distinct pages stay distinguishable while
+    the run remains reproducible.
+    """
+    return (
+        f"Mock vision response for {image_count} image(s). "
+        f"Prompt: {_prefix(prompt)}"
+    )
+
+
 def mock_structured_response(schema: type[BaseModel], prompt: str) -> BaseModel:
     """Deterministic structured output for ``LLMConfig(provider="mock")``.
 

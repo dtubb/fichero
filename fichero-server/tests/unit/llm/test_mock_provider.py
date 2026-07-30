@@ -195,3 +195,39 @@ async def test_extract_all_mock_emits_workflow_change_events(
         assert set(claim_event["claim_ids"]).issubset(claim_ids)
     finally:
         db_manager.close_database(package)
+
+
+@pytest.mark.asyncio
+async def test_mock_provider_serves_vision_calls(caplog):
+    """#4345: chat() and structured_output() had a mock branch, vision() did
+    not — every vision node in a mock run died with "Unknown LLM provider:
+    'mock'". The mock is the production path here; no internals are patched."""
+    from fichero_server.llm import vision
+
+    one_by_one_png = (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+
+    text = await vision(
+        images=[one_by_one_png],
+        prompt="Describe this image.",
+        config=LLMConfig(provider="mock", model="mock"),
+    )
+
+    assert isinstance(text, str) and text.strip()
+    assert "1 image" in text
+    # Deterministic: same inputs, same answer.
+    again = await vision(
+        images=[one_by_one_png],
+        prompt="Describe this image.",
+        config=LLMConfig(provider="mock", model="mock"),
+    )
+    assert again == text
+    # ...and prompt-sensitive, so distinct pages stay distinguishable.
+    other = await vision(
+        images=[one_by_one_png],
+        prompt="Transcribe the text.",
+        config=LLMConfig(provider="mock", model="mock"),
+    )
+    assert other != text

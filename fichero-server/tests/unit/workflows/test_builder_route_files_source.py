@@ -116,3 +116,39 @@ def test_auto_detect_preset_declares_its_fan_out_source(caplog):
     assert app is not None
     assert any("Route-map fan-out declared" in rec.message for rec in caplog.records)
     assert not any("fan-out detected" in rec.message for rec in caplog.records)
+
+
+def test_routed_parallel_target_is_wired_to_its_aggregate():
+    """#4345: the routed branch's _process node must reach its _aggregate.
+
+    Direct SOURCE→PARALLEL edges always paired the two; the route_map fan-out
+    only ever added the _process node, so the selected branch ran and then
+    dead-ended — no aggregate, no outputs, no exit-node completion, and the
+    run died with "stream ended before exit node(s) completed".
+    """
+    workflow = _routed_workflow(declare=True)
+    app = build_graph(workflow, enable_parallel=True)
+
+    graph = app.get_graph()
+    edges = {(edge.source, edge.target) for edge in graph.edges}
+    assert ("Transcribe TS_process", "Transcribe TS_aggregate") in edges
+    # ...and the aggregate is what terminates the branch.
+    assert ("Transcribe TS_aggregate", "__end__") in edges
+
+
+def test_every_routed_branch_of_the_shipped_preset_reaches_its_aggregate():
+    workflow = _load_preset("transcribe_auto_detect.json")
+    app = build_graph(workflow, enable_parallel=True)
+
+    graph = app.get_graph()
+    edges = {(edge.source, edge.target) for edge in graph.edges}
+    route_targets = {
+        target
+        for edge in workflow.edges
+        if edge.route_map
+        for target in edge.route_map.values()
+    }
+    labels = {node.id: (node.label or node.id) for node in workflow.nodes}
+    for target in route_targets:
+        name = labels[target]
+        assert (f"{name}_process", f"{name}_aggregate") in edges, target

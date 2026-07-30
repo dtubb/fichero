@@ -16,7 +16,12 @@ from langgraph.types import Send
 
 from fichero_server.api.routes.workflow_execution.core import get_thread_status
 from fichero_server.api.routes.workflow_execution.schemas import SSEEvent, format_sse
-from fichero_server.execution.runner import _missing_exit_nodes
+from fichero_server.execution.runner import (
+    _exit_node_expectations,
+    _missing_exit_nodes,
+    _unrouted_exit_nodes,
+    _unsatisfied_exit_nodes,
+)
 from fichero_server.models import Artifact, Document, DocType, FileType, Status, Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.activity_types import WorkflowRun
@@ -90,6 +95,117 @@ class TestWorkflowCompletionGuards:
 
     def test_missing_exit_nodes_allows_graphs_without_exit_detection(self):
         assert _missing_exit_nodes(set(), set()) == set()
+
+
+class TestRouteBranchExitSemantics:
+    """#4345: a classify route picks ONE branch; the others legitimately
+    produce nothing and must not stall the run short of a terminal state."""
+
+    # Transcribe (Auto-Detect) in miniature: classify routes to one of two
+    # branches, one of which is two nodes long.
+    NODES = [
+        {"id": "files-source", "label": "Files"},
+        {"id": "classify", "label": "Classify Script Type"},
+        {"id": "transcribe-ts", "label": "Transcribe (typescript)"},
+        {"id": "transcribe-htr", "label": "HTR Pass 1"},
+        {"id": "review-htr", "label": "HTR Pass 2 (Review)"},
+    ]
+    EDGES = [
+        {"source": "files-source", "target": "classify"},
+        {
+            "source": "classify",
+            "target": "",
+            "route_map": {
+                "typescript": "transcribe-ts",
+                "htr": "transcribe-htr",
+            },
+        },
+        {"source": "transcribe-htr", "target": "review-htr"},
+    ]
+
+    def test_route_branch_exits_are_grouped_not_individually_required(self):
+        unconditional, groups = _exit_node_expectations(self.NODES, self.EDGES)
+
+        assert unconditional == set()
+        assert groups == [
+            {"Transcribe (typescript)", "HTR Pass 2 (Review)"}
+        ]
+
+    def test_one_completed_branch_satisfies_the_group(self):
+        unconditional, groups = _exit_node_expectations(self.NODES, self.EDGES)
+
+        assert _unsatisfied_exit_nodes(
+            unconditional, groups, {"Transcribe (typescript)"}
+        ) == set()
+        # Deep branch: the LAST node of the branch is the exit, not the first.
+        assert _unsatisfied_exit_nodes(
+            unconditional, groups, {"HTR Pass 2 (Review)"}
+        ) == set()
+
+    def test_a_route_that_selected_nothing_still_fails_loud(self):
+        unconditional, groups = _exit_node_expectations(self.NODES, self.EDGES)
+
+        assert _unsatisfied_exit_nodes(unconditional, groups, set()) == {
+            "Transcribe (typescript)",
+            "HTR Pass 2 (Review)",
+        }
+
+    def test_unrouted_branch_is_recorded_not_merely_tolerated(self):
+        _unconditional, groups = _exit_node_expectations(self.NODES, self.EDGES)
+
+        assert _unrouted_exit_nodes(groups, {"Transcribe (typescript)"}) == {
+            "HTR Pass 2 (Review)"
+        }
+        # Nothing selected → nothing to report as skipped; that path fails above.
+        assert _unrouted_exit_nodes(groups, set()) == set()
+
+    def test_exits_off_the_route_stay_unconditional(self):
+        nodes = self.NODES + [{"id": "export", "label": "Export"}]
+        edges = self.EDGES + [{"source": "files-source", "target": "export"}]
+
+        unconditional, groups = _exit_node_expectations(nodes, edges)
+
+        assert unconditional == {"Export"}
+        assert _unsatisfied_exit_nodes(
+            unconditional, groups, {"Transcribe (typescript)"}
+        ) == {"Export"}
+
+    def test_graph_without_routes_keeps_all_exits_required(self):
+        nodes = [
+            {"id": "a", "label": "A"},
+            {"id": "b", "label": "B"},
+            {"id": "c", "label": "C"},
+        ]
+        edges = [{"source": "a", "target": "b"}, {"source": "a", "target": "c"}]
+
+        unconditional, groups = _exit_node_expectations(nodes, edges)
+
+        assert unconditional == {"B", "C"}
+        assert groups == []
+        assert _unsatisfied_exit_nodes(unconditional, groups, {"B"}) == {"C"}
+
+    def test_shipped_transcribe_auto_detect_preset_needs_only_one_branch(self):
+        from fichero_server.workflows.default_workflows import _load_preset_files
+
+        preset = next(
+            p for p in _load_preset_files() if p["name"] == "Transcribe (Auto-Detect)"
+        )
+        unconditional, groups = _exit_node_expectations(
+            preset["nodes"], preset["edges"]
+        )
+
+        assert unconditional == set()
+        assert len(groups) == 1
+        assert groups[0] == {
+            "Transcribe (typescript)",
+            "Transcribe (manuscript)",
+            "Transcribe — HTR Pass 2 (Review)",
+            "Transcribe — Paleography Pass 2 (Review)",
+        }
+        # The live #4345 failure: only the manuscript branch ran.
+        assert _unsatisfied_exit_nodes(
+            unconditional, groups, {"Transcribe (manuscript)"}
+        ) == set()
 
 
 class TestListThreads:

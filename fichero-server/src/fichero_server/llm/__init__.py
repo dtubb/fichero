@@ -1973,6 +1973,23 @@ def _raise_from_bridge_stderr(stderr_bytes: bytes, returncode: int) -> None:
     raise RuntimeError(f"Apple Intelligence ({kind}): {message}")
 
 
+def is_recognition_only_vision_model(provider: str, model: str) -> bool:
+    """True when this provider/model does RECOGNITION, not generation (#4345).
+
+    Apple Vision is an OCR pass, not a generative model: ``_apple_vision_dispatch``
+    below ignores the caller's prompt entirely and returns the recognized text.
+    That is fine for a tool that just wants text out, and useless for a tool
+    whose contract is "answer this prompt as JSON" — the response is page text,
+    so the parse fails on every run.
+
+    Mirrors ``_apple_vision_dispatch``'s OCR route exactly (empty/``default``
+    model means apple-vision, the only dispatchable on-device vision route).
+    """
+    if (provider or "").strip().lower() != "apple":
+        return False
+    return (model or "").strip().lower() in ("", "default", "apple-vision")
+
+
 async def _apple_vision_dispatch(
     images: list[str],
     prompt: str,
@@ -2347,6 +2364,14 @@ async def vision(
     # single Catalogue preset that uses provider=apple by default).
     if config.provider == "apple":
         return await _apple_vision_dispatch(images, prompt, config)
+
+    # Built-in deterministic debug provider (#1566), same as chat()'s branch:
+    # without it a mock run's vision node reached LangChain and died with
+    # "Unknown LLM provider: 'mock'" (#4345).
+    if config.provider == "mock":
+        from fichero_server.llm.mock import mock_vision_response
+
+        return mock_vision_response(prompt, len(images))
 
     # Content-addressed cache (#2224) — skip remote call for identical inputs.
     _cache_key = _vision_cache_key(config, prompt, images)
@@ -4160,6 +4185,7 @@ __all__ = [
     # Vision
     "vision",
     "vision_batch",
+    "is_recognition_only_vision_model",
     # Embeddings
     "embed",
     "aembed",

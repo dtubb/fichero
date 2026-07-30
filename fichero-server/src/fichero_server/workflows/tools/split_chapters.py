@@ -314,7 +314,23 @@ def split_pdf_into_chapter_documents(
     if not source_doc.path:
         raise ValueError("source_doc must have a PDF path")
 
-    pdf_path = Path(source_doc.path)
+    # Stored paths are library-relative for COPY ingests (``files/<hash>_<name>.pdf``,
+    # #1663), so opening ``source_doc.path`` directly only worked when the engine's
+    # CWD happened to be the library root — the #4345 lane hit
+    # "no such file: 'files/test-doc-fixture-pdf.pdf'". ``resolve_source`` is the
+    # one seam every other file tool uses (bookmark → absolute → library-relative,
+    # confined by path_security); a miss raises rather than falling back to the
+    # unresolvable stored path.
+    from fichero_server.db.storage import resolve_source
+
+    resolved = resolve_source(source_doc, library_root=db.path.parent)
+    if resolved is None:
+        raise FileNotFoundError(
+            f"split_chapters could not resolve the source PDF for document "
+            f"{source_doc.id} (stored path {source_doc.path!r}) under library "
+            f"{db.path.parent}"
+        )
+    pdf_path = Path(resolved)
     ranges = detect_chapter_ranges(pdf_path)
     pages = _page_texts_from_children(db, source_doc, pdf_path)
     page_text_by_sequence = {page.sequence: page.text for page in pages}

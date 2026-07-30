@@ -14,8 +14,8 @@ from fichero_server.models.knowledge import KnowledgeClaim
 from fichero_server.models import Artifact, DocType, Document, FileType, Workflow
 from fichero_server.workflows.default_workflows import _load_preset_files
 
-from tests.unit.workflows.test_default_workflow_e2e_harness import (
 from tests.fixture_paths import sample_file
+from tests.unit.workflows.test_default_workflow_e2e_harness import (
     _install_deterministic_workflow_stubs,
 )
 

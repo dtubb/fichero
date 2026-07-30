@@ -216,3 +216,62 @@ def _write_pdf(
         doc.set_toc(toc)
     doc.save(path)
     doc.close()
+
+
+def test_split_chapters_resolves_a_library_relative_path(tmp_path: Path):
+    """#4345: COPY-ingested docs store ``files/<name>.pdf``, not an absolute
+    path. Opening the stored path directly only worked when the engine's CWD
+    happened to be the library root — the live lane hit
+    "no such file: 'files/test-doc-fixture-pdf.pdf'"."""
+    package_path = tmp_path / "book.fichero"
+    (package_path / "lance").mkdir(parents=True)
+    (package_path / "storage").mkdir()
+    (package_path / "files").mkdir()
+    db = db_manager.get_database(package_path)
+
+    _write_pdf(
+        package_path / "files" / "book.pdf",
+        pages=[("Chapter 1", "A"), ("Chapter 2", "B")],
+        toc=[[1, "Chapter 1", 1], [1, "Chapter 2", 2]],
+    )
+    source_doc = Document(
+        id="relative-book-doc",
+        name="book.pdf",
+        path="files/book.pdf",
+        doc_type=DocType.file,
+        file_type=FileType.pdf,
+    )
+    db.save(source_doc)
+
+    chapters = split_pdf_into_chapter_documents(db, source_doc)
+
+    assert [doc.metadata["chapter_title"] for doc in chapters] == [
+        "Chapter 1",
+        "Chapter 2",
+    ]
+
+
+def test_split_chapters_raises_when_the_source_pdf_cannot_be_resolved(tmp_path: Path):
+    """An unresolvable path fails loudly instead of falling back to the raw
+    stored string and surfacing as an opaque PyMuPDF error."""
+    import pytest
+
+    package_path = tmp_path / "book.fichero"
+    (package_path / "lance").mkdir(parents=True)
+    (package_path / "storage").mkdir()
+    db = db_manager.get_database(package_path)
+
+    source_doc = Document(
+        id="missing-book-doc",
+        name="gone.pdf",
+        path="files/gone.pdf",
+        doc_type=DocType.file,
+        file_type=FileType.pdf,
+    )
+    db.save(source_doc)
+
+    with pytest.raises(FileNotFoundError) as excinfo:
+        split_pdf_into_chapter_documents(db, source_doc)
+
+    assert "files/gone.pdf" in str(excinfo.value)
+    assert "missing-book-doc" in str(excinfo.value)

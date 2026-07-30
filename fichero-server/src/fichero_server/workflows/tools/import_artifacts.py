@@ -20,6 +20,7 @@ from fichero_server.importers.manifest_import import (
     _import_receipt_data,
 )
 from fichero_server.models import Artifact, Document
+from fichero_server.workflows.node_context import artifact_provenance
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.progress import emit_progress_event
 from fichero_server.workflows.tools.sources import files_tool
@@ -168,6 +169,23 @@ async def import_artifacts(
         if artifact.document_id in doc_ids and artifact.artifact_type in _ARTIFACT_TYPES
     }
 
+    # Provenance (#4313/#4345): these artifacts are built here rather than
+    # through llm_base's save path, so the run/step/workflow trio has to be
+    # stamped explicitly — without it `workflow_id` shipped NULL and no
+    # import receipt could be traced back to the workflow that wrote it.
+    run_id = state.get("task_id")
+
+    def _seed_sequence_from_db() -> int:
+        return max(
+            (a.sequence or 0 for a in db.query(Artifact, run_id=run_id)),
+            default=0,
+        )
+
+    def _provenance() -> dict[str, Any]:
+        fields = artifact_provenance(run_id, seed_fn=_seed_sequence_from_db)
+        fields["step_name"] = fields["step_name"] or "import_artifacts"
+        return fields
+
     progress_callback = inputs.get("__progress_callback")
     created = 0
     skipped = 0
@@ -197,9 +215,9 @@ async def import_artifacts(
                 data=_import_receipt_data(receipt_node),
                 provider="manifest-importer",
                 model=CANONICAL_VERSION,
-                step_name="import_artifacts",
-                run_id=state.get("task_id"),
+                run_id=run_id,
                 confidence=1.0,
+                **_provenance(),
             )
             db.save(artifact)
             created_artifact_ids.append(artifact.id)
@@ -225,9 +243,9 @@ async def import_artifacts(
                         },
                         provider="manifest-importer",
                         model=CANONICAL_VERSION,
-                        step_name="import_artifacts",
-                        run_id=state.get("task_id"),
+                        run_id=run_id,
                         confidence=1.0,
+                        **_provenance(),
                     )
                 )
                 created_artifact_ids.append(artifact.id)

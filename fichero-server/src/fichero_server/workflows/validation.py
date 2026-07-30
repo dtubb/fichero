@@ -251,6 +251,43 @@ def _require_provider_credentials(provider: str) -> None:
     )
 
 
+def _require_generative_model(tool_def: ToolDef, node: NodeDef, llm_config: LLMConfig) -> None:
+    """Raise when a parse-the-answer tool resolves to a recognition-only model (#4345).
+
+    Extends the #4325 credential preflight rather than adding a second gate:
+    both answer "can this node's RESOLVED model actually do the job?" before
+    the run starts. Apple Vision OCR returns page text and ignores the prompt,
+    so a tool that json-parses its answer (``similarity``) failed on every run
+    for anyone on factory defaults, mid-run, as an opaque JSON parse error.
+
+    Resolution goes through the BUILDER's resolver, not the branch ladder
+    above: the ladder stops at the category default, while the builder falls
+    further back (generic default, then first enabled provider). That gap is
+    why the preset passed preflight and then ran on apple-vision anyway. Using
+    the one seam the run itself uses is what keeps the two from drifting.
+
+    The wording deliberately says "not configured" — the workflow E2E lane and
+    the app both read a preflight refusal naming an unconfigured capability as
+    "this HOST lacks it", not "this preset is broken".
+    """
+    if not tool_def.requires_generative_model:
+        return
+    from fichero_server.llm import is_recognition_only_vision_model
+    from fichero_server.workflows.builder import _resolve_node_llm_config_inner
+
+    effective = _resolve_node_llm_config_inner(node, llm_config)
+    provider, model = effective.provider, effective.model
+    if not is_recognition_only_vision_model(provider, model):
+        return
+    raise ValueError(
+        f"'{tool_def.display_name}' needs a generation-capable vision model, "
+        f"which is not configured — the current vision model ({provider}/"
+        f"{model or 'apple-vision'}) is on-device OCR, which returns recognized "
+        "text and cannot answer a prompt. Configure a vision-capable LLM as the "
+        "Vision default in Settings, or set one on this node."
+    )
+
+
 def validate_workflow_llm_preflight(
     workflow: WorkflowDef,
     workflow_llm_config: LLMConfig | None = None,
@@ -273,6 +310,11 @@ def validate_workflow_llm_preflight(
         kind = "vision" if capability == "vision" else "llm"
 
         try:
+            # Runs first and for EVERY resolution shape (#4345): a tool that
+            # parses the model's answer is unusable on a recognition-only
+            # model no matter which branch below would have resolved it.
+            _require_generative_model(tool_def, node, llm_config)
+
             if profile_ref:
                 from fichero_server.llm import (
                     enforce_local_only_provider,

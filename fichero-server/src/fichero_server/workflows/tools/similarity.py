@@ -246,6 +246,9 @@ def _map_clusters(
     uses_llm=True,
     supports_batch=False,  # Processes all files together
     supports_structured_output=True,
+    # #4345: the tool json-parses the vision response to build clusters, so an
+    # OCR-only vision model (the keyless factory default) can never satisfy it.
+    requires_generative_model=True,
     input_ports=VISION_INPUT_PORTS,
     output_ports=_SIMILARITY_OUTPUT_PORTS,
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, SIMILARITY_CONFIG),

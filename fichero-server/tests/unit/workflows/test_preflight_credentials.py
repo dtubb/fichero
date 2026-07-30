@@ -145,9 +145,24 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
     for tier in ("small", "medium", "large", "vision_small", "vision_medium", "vision_large"):
         monkeypatch.delenv(f"FICHERO_{tier.upper()}_PROVIDER", raising=False)
         monkeypatch.delenv(f"FICHERO_{tier.upper()}_MODEL", raising=False)
+    # Faithful to a real fresh install: the factory defaults DO answer the
+    # category lookup (default_vision_* → apple/apple-vision). Stubbing this
+    # to None is what let #4345's Group Same Documents look green here while
+    # the live run resolved to OCR and died mid-run.
+    _category_prefix = {"vision": "vision", "llm": "text", "audio": "audio"}
+
+    def _fresh_category_default(category):
+        prefix = _category_prefix.get(category)
+        if not prefix:
+            return None
+        provider = FACTORY_AI_DEFAULTS.get(f"default_{prefix}_provider")
+        model = FACTORY_AI_DEFAULTS.get(f"default_{prefix}_model")
+        return (provider, model) if provider and model else None
+
     fresh_db = SimpleNamespace(
         get_setting=lambda key: FACTORY_AI_DEFAULTS.get(key),
-        get_default_model_for_category=lambda category: None,
+        get_default_model_for_category=_fresh_category_default,
+        get_default_model=lambda: None,
         list_providers=lambda: [_provider("apple")],
         list_models=lambda provider_id: [
             _model("apple-intelligence", ["text"]),
@@ -163,6 +178,13 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
     # AT PREFLIGHT with the provider named (the second #4325 acceptance
     # criterion), not mid-run.
     keyed_presets = {"Translate (DeepL)"}
+
+    # #4345: the second class of honest keyless refusal. Group Same Documents
+    # json-parses a VISION answer, and the keyless vision default is Apple
+    # Vision OCR — a recognition pass that ignores the prompt. It used to pass
+    # preflight and then die mid-run on "Expecting value: line 1 column 1";
+    # now it refuses up front, naming the capability to configure.
+    generative_vision_presets = {"Group Same Documents"}
 
     failures: dict[str, list[str]] = {}
     for preset in _load_preset_files():
@@ -181,6 +203,12 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
         if preset["name"] in keyed_presets:
             assert errors, f"{preset['name']}: expected keyless preflight failure"
             assert any("DeepL" in e and "API key" in e for e in errors), errors
+        elif preset["name"] in generative_vision_presets:
+            assert errors, f"{preset['name']}: expected keyless preflight failure"
+            assert any(
+                "generation-capable vision model" in e and "not configured" in e
+                for e in errors
+            ), errors
         elif errors:
             failures[preset["name"]] = errors
 
@@ -198,3 +226,75 @@ def test_workflow_level_cloud_default_is_gated_too(monkeypatch):
 
     assert len(errors) == 1
     assert "OpenAI" in errors[0]
+
+
+# ---------------------------------------------------------------------------
+# #4345 — generation-capable model requirement (same preflight, second axis)
+# ---------------------------------------------------------------------------
+
+
+def test_recognition_only_model_predicate_matches_apple_vision_ocr_route():
+    """The predicate must track _apple_vision_dispatch's OCR route exactly."""
+    from fichero_server.llm import is_recognition_only_vision_model
+
+    assert is_recognition_only_vision_model("apple", "apple-vision")
+    assert is_recognition_only_vision_model("apple", "")
+    assert is_recognition_only_vision_model("apple", "default")
+    assert is_recognition_only_vision_model("Apple", " Apple-Vision ")
+    # Generative on-device/cloud vision is fine.
+    assert not is_recognition_only_vision_model("apple", "apple-intelligence")
+    assert not is_recognition_only_vision_model("openai", "gpt-5")
+    assert not is_recognition_only_vision_model("ollama", "llava")
+
+
+def test_similarity_refuses_ocr_only_vision_model(monkeypatch):
+    """similarity json-parses the answer, so OCR can never satisfy it."""
+    _common_env(monkeypatch, api_key=None)
+    node = NodeDef(
+        id="cluster",
+        tool="similarity",
+        provider_name="apple",
+        model_name="apple-vision",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="", model="")
+    )
+
+    assert len(errors) == 1
+    assert "generation-capable vision model" in errors[0]
+    assert "not configured" in errors[0]
+    assert "cluster" in errors[0]
+
+
+def test_similarity_accepts_a_generative_vision_model(monkeypatch):
+    _common_env(monkeypatch, api_key="sk-test")
+    node = NodeDef(
+        id="cluster",
+        tool="similarity",
+        provider_name="openai",
+        model_name="gpt-5",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="", model="")
+    )
+
+    assert errors == []
+
+
+def test_ocr_only_model_is_fine_for_a_tool_that_does_not_parse(monkeypatch):
+    """The gate is per-tool: transcribe WANTS OCR text and stays ungated."""
+    _common_env(monkeypatch, api_key=None)
+    node = NodeDef(
+        id="transcribe",
+        tool="transcribe",
+        provider_name="apple",
+        model_name="apple-vision",
+    )
+
+    errors = validate_workflow_llm_preflight(
+        _workflow_for(node), LLMConfig(provider="", model="")
+    )
+
+    assert errors == []
