@@ -64,7 +64,7 @@ _CTOR_OPEN = re.compile(r"\bFicheroClient\s*\(")
 REMOTE_ALLOWLIST: dict[str, str] = {
     # Failover probe of a DIFFERENT paired host (not the local engine); the
     # default pinned session resolves that host's SPKI trust over HTTPS.
-    "App/AppState+Heartbeat.swift:187": "remote failover-candidate probe (HTTPS pinned)",
+    "App/AppState+Heartbeat.swift:190": "remote failover-candidate probe (HTTPS pinned)",
 }
 
 

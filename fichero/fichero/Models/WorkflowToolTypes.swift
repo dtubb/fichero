@@ -34,6 +34,11 @@ struct ToolInfo: Codable, Identifiable {
     let supportsStructuredOutput: Bool
     let sortOrder: Int
     let tested: Bool  // false = UNTESTED; only the HTR chain is tested today
+    /// A HARD requirement, not a preference (#4345): the tool parses the
+    /// model's answer, so a recognition-only model (Apple Vision OCR returns
+    /// page text and ignores the prompt) can never satisfy it. Preflight
+    /// refuses such a node before the run starts.
+    let requiresGenerativeModel: Bool
 
     var id: String { name }
 
@@ -51,6 +56,7 @@ struct ToolInfo: Codable, Identifiable {
         case supportsStreaming = "supports_streaming"
         case supportsStructuredOutput = "supports_structured_output"
         case sortOrder = "sort_order"
+        case requiresGenerativeModel = "requires_generative_model"
     }
 
     init(from decoder: Decoder) throws {
@@ -74,6 +80,8 @@ struct ToolInfo: Codable, Identifiable {
         sortOrder = try container.decode(Int.self, forKey: .sortOrder)
         // Default to UNTESTED when the backend omits the field (older engines).
         tested = try container.decodeIfPresent(Bool.self, forKey: .tested) ?? false
+        requiresGenerativeModel = try container.decodeIfPresent(
+            Bool.self, forKey: .requiresGenerativeModel) ?? false
     }
 
     /// Memberwise initializer for creating ToolInfo from code
@@ -95,7 +103,8 @@ struct ToolInfo: Codable, Identifiable {
         supportsStreaming: Bool,
         supportsStructuredOutput: Bool,
         sortOrder: Int,
-        tested: Bool = false
+        tested: Bool = false,
+        requiresGenerativeModel: Bool = false
     ) {
         self.name = name
         self.displayName = displayName
@@ -110,6 +119,7 @@ struct ToolInfo: Codable, Identifiable {
         self.defaultOutputSchema = defaultOutputSchema
         self.defaultPrompt = defaultPrompt
         self.usesLLM = usesLLM
+        self.requiresGenerativeModel = requiresGenerativeModel
         self.supportsBatch = supportsBatch
         self.supportsStreaming = supportsStreaming
         self.supportsStructuredOutput = supportsStructuredOutput

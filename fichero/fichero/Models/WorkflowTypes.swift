@@ -255,6 +255,11 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
     // route_map maps resolved values to target node IDs.
     let routeKey: String?
     let routeMap: [String: String]?
+    /// Explicit SOURCE node whose files drive per-file fan-out for
+    /// `routeMap` targets (#4324). When nil the builder infers the files
+    /// source by walking one hop upstream of the routing node — which is a
+    /// guess, and this field is how a workflow states the answer instead.
+    let routeFilesSource: String?
 
     // Backend expects source/target/source_port/target_port, UI uses different names
     private enum CodingKeys: String, CodingKey {
@@ -263,6 +268,7 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         case targetPort = "target_port"
         case routeKey = "route_key"
         case routeMap = "route_map"
+        case routeFilesSource = "route_files_source"
     }
 
     // Strict decoder (#4322): node ids and port ids are REQUIRED. The old
@@ -286,6 +292,7 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         animated = try container.decodeIfPresent(Bool.self, forKey: .animated) ?? false
         routeKey = try container.decodeIfPresent(String.self, forKey: .routeKey)
         routeMap = try container.decodeIfPresent([String: String].self, forKey: .routeMap)
+        routeFilesSource = try container.decodeIfPresent(String.self, forKey: .routeFilesSource)
     }
 
     // Custom encoder to always write backend format (source/target)
@@ -301,6 +308,7 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         try container.encode(animated, forKey: .animated)
         try container.encodeIfPresent(routeKey, forKey: .routeKey)
         try container.encodeIfPresent(routeMap, forKey: .routeMap)
+        try container.encodeIfPresent(routeFilesSource, forKey: .routeFilesSource)
     }
 
     init(
@@ -313,7 +321,8 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         label: String? = nil,
         animated: Bool = false,
         routeKey: String? = nil,
-        routeMap: [String: String]? = nil
+        routeMap: [String: String]? = nil,
+        routeFilesSource: String? = nil
     ) {
         self.id = id
         self.sourceNodeId = sourceNodeId
@@ -325,6 +334,7 @@ struct WorkflowEdge: Codable, Identifiable, Equatable {
         self.animated = animated
         self.routeKey = routeKey
         self.routeMap = routeMap
+        self.routeFilesSource = routeFilesSource
     }
 }
 

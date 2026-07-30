@@ -134,6 +134,12 @@ class TestItTouchesNothingElse:
         conn = duckdb.connect(str(tmp_path / "empty.duckdb"))
         try:
             migrate_catalogue_chunk_artifact_type(conn)
+            # Assert what "does not raise" is actually worth: the migration
+            # left the empty database empty. Surviving the call is not the
+            # claim — a migration that swallowed an error and created a stray
+            # table would also survive it.
+            tables = {row[0] for row in conn.execute("SHOW TABLES").fetchall()}
+            assert tables == set(), f"migration created tables on an empty db: {tables}"
         finally:
             conn.close()
 
