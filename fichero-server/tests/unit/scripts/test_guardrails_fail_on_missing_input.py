@@ -25,9 +25,14 @@ code. Every scan root it depends on is now genuinely absent. A guardrail that
 still exits 0 has demonstrated — not been suspected of — being unable to fail.
 
 Each parametrised failure is one guardrail that is currently a no-op whenever
-its subject tree is missing or has moved. They are reported, not fixed: the
-fix belongs in each script (assert the scan root exists and exit non-zero if
-it does not), which is product code this lane does not touch.
+its subject tree is missing or has moved; the aggregate test names the whole
+set in a single message. They are reported, not fixed: the fix belongs in each
+script (assert the scan root exists and exit non-zero if it does not), which
+is product code this lane does not touch.
+
+This module is the standing rule that replaces the one-off audit (#4382). A
+guardrail added next month inherits it automatically — the inventory is a
+glob, so nobody has to remember to sweep again.
 
 No test here skips. If a guardrail cannot even be executed that FAILS, which
 is the correct outcome — an unrunnable guardrail is a guardrail that is not
@@ -64,22 +69,56 @@ def test_the_guardrail_inventory_is_not_empty():
     )
 
 
+def _run_in_empty_tree(script_name: str, root: Path) -> subprocess.CompletedProcess:
+    """Run one guardrail alone in ``root`` so its own ROOT resolves there.
+
+    Every ``scripts/check_*.py`` computes
+    ``ROOT = Path(__file__).resolve().parent.parent``, so copying the script
+    to ``root/scripts/`` and nothing else makes every scan root it derives
+    genuinely absent — without touching the real tree.
+    """
+    sandbox_scripts = root / "scripts"
+    sandbox_scripts.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(SCRIPTS_DIR / script_name, sandbox_scripts / script_name)
+    return subprocess.run(
+        [sys.executable, str(sandbox_scripts / script_name)],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def test_no_guardrail_reports_success_against_an_empty_tree(tmp_path_factory):
+    """The whole inventory in one verdict, naming every offender at once.
+
+    The parametrised test below makes each guardrail individually
+    addressable; this one answers "how bad is it right now" in a single
+    message, which is the number that decides whether #4382 is a tidy-up or
+    a latent P0.
+    """
+    assert GUARDRAILS, "no guardrails discovered — this sweep would be vacuous"
+
+    offenders: list[str] = []
+    for script_name in GUARDRAILS:
+        root = tmp_path_factory.mktemp("empty-tree")
+        if _run_in_empty_tree(script_name, root).returncode == 0:
+            offenders.append(script_name)
+
+    assert offenders == [], (
+        f"{len(offenders)} of {len(GUARDRAILS)} guardrails exited 0 against an "
+        "EMPTY tree — they scanned no files and reported success, so a moved "
+        "or renamed directory silently disables them while the gate stays "
+        "green (#4382):\n  " + "\n  ".join(offenders)
+    )
+
+
 @pytest.mark.parametrize("script_name", GUARDRAILS)
 def test_guardrail_fails_when_its_scan_roots_are_absent(
     script_name: str, tmp_path: Path
 ):
     """Run the guardrail against an empty tree; it must not report success."""
-    sandbox_scripts = tmp_path / "scripts"
-    sandbox_scripts.mkdir(parents=True)
-    shutil.copy2(SCRIPTS_DIR / script_name, sandbox_scripts / script_name)
-
-    completed = subprocess.run(
-        [sys.executable, str(sandbox_scripts / script_name)],
-        cwd=tmp_path,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    completed = _run_in_empty_tree(script_name, tmp_path)
 
     assert completed.returncode != 0, (
         f"{script_name} exited 0 against an EMPTY tree: it scanned no files "
