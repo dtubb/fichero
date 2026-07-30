@@ -1,6 +1,9 @@
 import FicheroAPIClient
 import OSLog
 import SwiftUI
+// `UTType` came free while this lived in LibraryView.swift; a split file
+// inherits symbols, not imports (#4353).
+import UniformTypeIdentifiers
 
 // The library's bottom action bar (#2313).
 //

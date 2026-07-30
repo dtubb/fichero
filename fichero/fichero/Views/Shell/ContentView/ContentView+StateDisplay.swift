@@ -24,20 +24,25 @@ extension ContentView {
             // is in context. The parent PDF comes from `document` (the sidebar-
             // selected item). Page count shows when the browser selection has
             // more than one page document.
+            // The title is the LEAF; the path is `breadcrumbSubtitle` (#4416).
+            // Composing "<page> — <document>" here while the breadcrumb also
+            // appended a page label is what put "Page 1" on screen twice, with
+            // two different separators. And `document.name` for a page row is
+            // the engine's upload temp name, so it read `fichero_upload_…pdf`
+            // where the sidebar read `18590129.pdf`.
             if let page = activeLocationDocument, page.docType == .page {
                 let selectedPageCount = browserSelection.filter { id in
                     documentStore.currentDocuments.first(where: { $0.id == id })?.docType == .page
                 }.count
-                if selectedPageCount > 1 {
-                    let parentName = document?.name
-                    viewName = parentName.map { "\(selectedPageCount) pages — \($0)" }
-                        ?? "\(selectedPageCount) pages"
-                } else {
-                    let pageLabel = page.sequence.map { "Page \($0)" } ?? page.name
-                    viewName = document.map { "\(pageLabel) — \($0.name)" } ?? pageLabel
-                }
+                viewName = DocumentTitle.windowTitle(
+                    leaf: page,
+                    parent: document,
+                    selectedPageCount: selectedPageCount
+                )
+            } else if let document {
+                viewName = DocumentTitle.displayName(for: document)
             } else {
-                viewName = document?.name ?? "Library"
+                viewName = "Library"
             }
         case .chat(let conversation):
             viewName = conversation?.title ?? "Chat"

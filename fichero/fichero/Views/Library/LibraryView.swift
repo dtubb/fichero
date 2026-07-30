@@ -586,8 +586,10 @@ extension LibraryView {
     /// Canvas stores are shared per library (#3082), but must never silently
     /// swap to another library's client/scope while this window's library is
     /// still loading or unavailable (#3198).
-    private var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
-    private var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
+    /// Promoted `private` → internal: read from `LibraryView+CanvasModes.swift`
+    /// after the #4353 file split, and `private` is file-scoped.
+    var canvasLayoutStore: CanvasLayoutStore? { scopedLibraryReference?.canvasLayoutStore }
+    var canvasItemStore: CanvasItemStore? { scopedLibraryReference?.canvasItemStore }
 
     /// Extracted from `.focusedSceneValue` so the Swift type-checker doesn't
     /// time out on the inline ternary-with-closure expression. Wrapped in
@@ -749,7 +751,9 @@ private extension LibraryView {
 
     /// Spatial node ids of container documents (folder / workspace) — drag-onto
     /// move-into targets (#3086). Dropping onto one moves the dragged doc inside.
-    private var canvasContainerIds: Set<String> {
+    /// Promoted `private` → internal: read from `LibraryView+CanvasModes.swift`
+    /// after the #4353 file split, and `private` is file-scoped.
+    var canvasContainerIds: Set<String> {
         Set(
             documentStore.collections
                 .filter { $0.docType == .folder || $0.isWorkspace }
