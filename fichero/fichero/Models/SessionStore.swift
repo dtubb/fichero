@@ -32,7 +32,8 @@ import OSLog
 @Observable
 final class SessionStore {
     enum Phase: Equatable {
-        /// Still probing on launch — show a spinner, not the library.
+        /// Still probing (or the probes FAILED — unknown is not signed-out,
+        /// #4348 class). The window shows its normal shell; no auth chrome.
         case checking
         /// Multi-user auth is disabled on the backend; no login gate.
         case disabled
@@ -70,14 +71,6 @@ final class SessionStore {
     /// off `baseURL.absoluteString`, so keying off the same string here makes
     /// persist and read resolve to the same account after normalization.
     private var hostString: String { client.baseURL.absoluteString }
-
-    /// True once the gate has resolved and the library should be shown.
-    var allowsLibraryAccess: Bool {
-        switch phase {
-        case .disabled, .authenticated: return true
-        case .checking, .needsLogin, .needsOwnerSetup: return false
-        }
-    }
 
     /// True only when the gate RESOLVED to a state that needs the sign-in /
     /// owner-setup UI. `.checking` is deliberately excluded: an undetermined
