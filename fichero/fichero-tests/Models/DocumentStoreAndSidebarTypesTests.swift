@@ -382,7 +382,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let contentSource = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
 
         XCTAssertTrue(contentSource.contains("ViewMenuCommands()"))
-        XCTAssertTrue(contentSource.contains("Label(\"View\", systemImage: \"rectangle.split.3x1\")"))
+        // #4360: the glyph now comes from the ToolbarSymbols uniqueness policy.
+        XCTAssertTrue(contentSource.contains("Label(\"View\", systemImage: ToolbarSymbols.viewMenu)"))
     }
 
     func testEngineLaunchSequenceIsOwnedByLifecycleController() throws {

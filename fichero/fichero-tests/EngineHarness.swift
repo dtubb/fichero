@@ -286,7 +286,7 @@ enum EngineHarness {
         process.arguments = [
             "-c",
             """
-            from fichero_server.remote_access_tls import material_manifest_json, prepare_remote_access_tls
+            from fichero_server.security.remote_access_tls import material_manifest_json, prepare_remote_access_tls
             print(material_manifest_json(prepare_remote_access_tls("\(baseURL.absoluteString)", allow_loopback=True)))
             """
         ]

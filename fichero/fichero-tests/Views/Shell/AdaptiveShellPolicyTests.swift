@@ -415,8 +415,11 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(toolbarSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(buildersSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(toolbarSource.contains("viewDisplayModeMenu"))
-        XCTAssertTrue(toolbarSource.contains("setCanvasPaneVisible(!showDocumentCanvas)"))
-        XCTAssertTrue(toolbarSource.contains("setReadingPaneVisible(!showReadingPane)"))
+        // #4360: these became native Toggles, so the call is a binding setter
+        // rather than an inverted-boolean button action. Same invariant: the
+        // pane controls live in the toolbar and drive the pane-visibility API.
+        XCTAssertTrue(toolbarSource.contains("setCanvasPaneVisible("))
+        XCTAssertTrue(toolbarSource.contains("setReadingPaneVisible("))
         XCTAssertFalse(buildersSource.contains("viewSettings.previewMode = .none"))
     }
 
