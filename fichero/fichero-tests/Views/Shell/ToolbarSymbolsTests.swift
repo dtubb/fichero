@@ -98,7 +98,9 @@ struct ToolbarSymbolsTests {
     func lozengeButtonIsNative() throws {
         let source = try Self.appSource("Views/Components/MiniToolbar.swift")
         #expect(source.contains(".accessoryBar"))
-        #expect(!source.contains("strokeBorder"))
+        // Assert on CODE, not prose: the doc comment above LozengeButton names
+        // the strokeBorder it replaced, so a bare word match trips on itself.
+        #expect(!source.contains(".strokeBorder("))
     }
 
     // MARK: - #4361 search placeholder

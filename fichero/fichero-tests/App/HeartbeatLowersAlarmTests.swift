@@ -80,9 +80,11 @@ struct HeartbeatLowersAlarmTests {
     @Test("the heartbeat's ready branch lowers the alarm from any phase")
     func heartbeatReadyBranchLowersAlarm() throws {
         let source = try Self.appSource("App/AppState+Heartbeat.swift")
-        // `if !isBackendRunning { engine.markReady() … }` — markReady must be
-        // reachable from every non-ready phase (isBackendRunning is
-        // phase == .ready), i.e. the success path clears failure phases.
-        #expect(source.contains("engine.markReady()"))
+        // The success path must clear failure phases from every non-ready
+        // phase. Since #4359 the recovery branches route through
+        // warmContextThenMarkReady(), which resolves the session BEFORE
+        // marking ready — a bare markReady() there is what produced the
+        // sign-in wall, so this now pins the resolved path.
+        #expect(source.contains("warmContextThenMarkReady()"))
     }
 }
