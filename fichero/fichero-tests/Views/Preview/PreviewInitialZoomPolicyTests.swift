@@ -125,8 +125,8 @@ struct PreviewInitialZoomPolicyTests {
             (.zero, .zero),
             (CGSize(width: -800, height: 600), CGSize(width: 800, height: 600)),
             (CGSize(width: 800, height: 600), CGSize(width: 800, height: -600)),
-            (CGSize(width: .nan, height: 600), CGSize(width: 800, height: 600)),
-            (CGSize(width: 800, height: 600), CGSize(width: .infinity, height: 600))
+            (CGSize(width: CGFloat.nan, height: 600), CGSize(width: 800, height: 600)),
+            (CGSize(width: 800, height: 600), CGSize(width: CGFloat.infinity, height: 600))
         ]
         for (content, pane) in cases {
             for kind in [PreviewContentKind.raster, .vector] {
