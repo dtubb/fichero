@@ -86,6 +86,20 @@ public final class FicheroClient: ObservableObject {
     /// reach it.
     let transport: any ClientTransport
 
+    /// The transport long-lived SSE subscriptions dial with (#4349).
+    ///
+    /// SEPARATE from ``transport`` on purpose: streams and requests have
+    /// opposite lifetimes (a request holds a connection for milliseconds, a
+    /// stream for as long as the library is open) and stream count grows with
+    /// the number of open libraries. Sharing one connection pool between them
+    /// meant that past a handful of open libraries the streams pinned every
+    /// connection and ordinary request traffic queued until it timed out. With
+    /// two pools, streams can never starve request traffic no matter how many
+    /// libraries are open. See ``LocalTransportPool``.
+    ///
+    /// `internal` so the streaming extension can reach it.
+    let streamTransport: any ClientTransport
+
     /// The auth + library-path middleware stack the generated `Client` runs.
     /// Both middlewares read their state LIVE per request, so a single instance
     /// stays correct across library-path / baseURL changes and can be reused by
@@ -133,6 +147,9 @@ public final class FicheroClient: ObservableObject {
             libraryPathProvider.createMiddleware()
         ]
         self.transport = transport
+        self.streamTransport = Self.makeTransport(
+            session: session, transportMode: transportMode, usage: .stream
+        )
         self.middlewares = middlewares
         self.api = Client(
             serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
@@ -169,6 +186,9 @@ public final class FicheroClient: ObservableObject {
             libraryPathProvider.createMiddleware()
         ]
         self.transport = transport
+        self.streamTransport = Self.makeTransport(
+            session: session, transportMode: .https, usage: .stream
+        )
         self.middlewares = middlewares
         self.api = Client(
             serverURL: baseURL,
@@ -204,20 +224,82 @@ public final class FicheroClient: ObservableObject {
     /// launch (the readiness-gate hang this fixes). `MultiThreadedEventLoopGroup`'s
     /// process-lifetime `.singleton` means this client never needs an explicit
     /// shutdown. `internal` so `TransportModeTests` can assert the loop is NIOPosix.
+    /// Explicit connection-pool ceiling (#4349): AsyncHTTPClient's inherited
+    /// default of 8 per host is a remote-HTTP politeness number that makes no
+    /// sense for a local AF_UNIX socket to our own single-tenant engine. See
+    /// ``LocalTransportPool`` for the sizing rationale and the measured
+    /// server-side ceiling.
     static let udsHTTPClient = HTTPClient(
-        eventLoopGroupProvider: .shared(MultiThreadedEventLoopGroup.singleton)
+        eventLoopGroupProvider: .shared(MultiThreadedEventLoopGroup.singleton),
+        configuration: LocalTransportPool.configuration(
+            softLimit: LocalTransportPool.requestConnectionCeiling
+        )
     )
 
-    /// Build the transport for a given mode. Pure helper — no static/global
-    /// state — so concurrent `FicheroClient`s can use different transports.
-    /// `internal` (not `private`) so the transport-selection unit tests can
-    /// assert the chosen concrete type.
-    static func makeTransport(session: URLSession? = nil, transportMode: TransportMode = .https) -> any ClientTransport {
+    /// The SEPARATE process-wide `HTTPClient` that long-lived SSE subscriptions
+    /// dial over `.uds` (#4349). Same NIOPosix event-loop group (same reasons as
+    /// ``udsHTTPClient``), but its OWN connection pool — which is the whole
+    /// point: a stream parked on a connection for the lifetime of an open
+    /// library can no longer consume request capacity.
+    static let udsStreamHTTPClient = HTTPClient(
+        eventLoopGroupProvider: .shared(MultiThreadedEventLoopGroup.singleton),
+        configuration: LocalTransportPool.configuration(
+            softLimit: LocalTransportPool.streamConnectionCeiling
+        )
+    )
+
+    /// Which population of traffic a transport serves. The two have opposite
+    /// lifetimes and therefore get separate connection pools (#4349).
+    enum TransportUsage: Sendable {
+        /// Short request/response calls (the generated client, `requestData`).
+        case request
+        /// Long-lived SSE subscriptions (`streamLines`).
+        case stream
+    }
+
+    /// The URLSession backing `.https` streams. Separate from the request
+    /// session so a long-lived SSE body cannot consume URLSession's per-host
+    /// connection budget either (`httpMaximumConnectionsPerHost` defaults to 6
+    /// on macOS — the same shape of bug as the AsyncHTTPClient pool).
+    private static let httpsStreamSession: URLSession = RemoteCertificatePinning.configuredSession(
+        configuration: LocalTransportPool.urlSessionConfiguration(
+            maximumConnectionsPerHost: LocalTransportPool.streamConnectionCeiling
+        )
+    )
+
+    /// Unwrap the pool-accounting decorator, if present, to reach the concrete
+    /// transport underneath. Lets callers (and the transport-selection tests)
+    /// reason about which transport was actually selected without caring that
+    /// it is wrapped for pressure accounting.
+    static func underlyingTransport(_ transport: any ClientTransport) -> any ClientTransport {
+        (transport as? PoolMonitoringTransport)?.wrapped ?? transport
+    }
+
+    /// Build the transport for a given mode and usage. Pure helper — no
+    /// per-instance state — so concurrent `FicheroClient`s can use different
+    /// transports. `internal` (not `private`) so the transport-selection unit
+    /// tests can assert the chosen concrete type.
+    static func makeTransport(
+        session: URLSession? = nil,
+        transportMode: TransportMode = .https,
+        usage: TransportUsage = .request
+    ) -> any ClientTransport {
         switch transportMode {
         case .https:
             // Unchanged behavior: HTTPS over URLSession (pinned where configured).
-            let configuration = URLSessionConfiguration.default
-            let session = session ?? RemoteCertificatePinning.configuredSession(configuration: configuration)
+            // An explicitly-injected session (mock / certificate-pinned pairing
+            // probe) is honoured for BOTH usages — segmenting it would silently
+            // drop the injection, which is exactly the #4024 bug.
+            if let session {
+                return URLSessionTransport(configuration: .init(session: session))
+            }
+            let session = usage == .stream
+                ? httpsStreamSession
+                : RemoteCertificatePinning.configuredSession(
+                    configuration: LocalTransportPool.urlSessionConfiguration(
+                        maximumConnectionsPerHost: LocalTransportPool.requestConnectionCeiling
+                    )
+                )
             return URLSessionTransport(configuration: .init(session: session))
         case .uds:
             // Plain HTTP/1.1 over the AF_UNIX socket (path carried in the
@@ -229,7 +311,17 @@ public final class FicheroClient: ObservableObject {
             // injection + contended startup) — "nw_endpoint_flow_failed … / no local
             // endpoint" — which hangs the readiness gate. NIOPosix does a plain POSIX
             // connect(), identical to `curl --unix-socket` and the Python engine.
-            return AsyncHTTPClientTransport(configuration: .init(client: udsHTTPClient))
+            //
+            // #4349: streams dial a SECOND client with its own pool, and both are
+            // wrapped in pool-pressure accounting so a connection leak announces
+            // itself with a warning long before the pool runs dry.
+            let client = usage == .stream ? udsStreamHTTPClient : udsHTTPClient
+            return PoolMonitoringTransport(
+                wrapped: AsyncHTTPClientTransport(configuration: .init(client: client)),
+                pressure: usage == .stream
+                    ? LocalTransportPool.streamPressure
+                    : LocalTransportPool.requestPressure
+            )
         #if os(macOS)
         case .inMemory:
             // Drive the engine's ASGI app in-process. `InMemoryEngineApp.shared()`

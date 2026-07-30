@@ -33,8 +33,10 @@ final class TransportModeTests: XCTestCase {
             session: nil,
             transportMode: .uds(path: "/tmp/fichero-test.sock")
         )
+        // #4349 wraps the concrete transport in pool-pressure accounting; unwrap
+        // before asserting which transport was actually selected.
         XCTAssertTrue(
-            transport is AsyncHTTPClientTransport,
+            FicheroClient.underlyingTransport(transport) is AsyncHTTPClientTransport,
             "`.uds` must select the AsyncHTTPClient transport"
         )
     }

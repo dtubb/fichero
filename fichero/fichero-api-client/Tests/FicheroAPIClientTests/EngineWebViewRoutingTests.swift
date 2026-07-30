@@ -47,7 +47,7 @@ final class EngineWebViewRoutingTests: XCTestCase {
 
         XCTAssertEqual(client.transportMode, .uds(path: socket))
         XCTAssertTrue(
-            client.transport is AsyncHTTPClientTransport,
+            FicheroClient.underlyingTransport(client.transport) is AsyncHTTPClientTransport,
             "The KG pane's UDS client must dial AsyncHTTPClient (the AF_UNIX socket), "
                 + "not URLSession — a URLSession would try the absent HTTP listener"
         )

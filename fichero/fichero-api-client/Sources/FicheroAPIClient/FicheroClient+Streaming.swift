@@ -61,7 +61,13 @@ extension FicheroClient {
         // Fold the middleware stack around the transport exactly as the generated
         // `Client` does, so the streaming request gets identical auth + library
         // headers. Captured values are all Sendable.
-        let transport = self.transport
+        //
+        // #4349: `streamTransport`, NOT `transport`. Every long-lived SSE
+        // consumer in the app (activity stream, library change stream, workflow
+        // execution stream) funnels through this one function, so routing it at
+        // the seam segments all of them at once: a stream parked for the
+        // lifetime of an open library can never consume request capacity.
+        let transport = self.streamTransport
         var next: @Sendable (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?) = {
             request, body, url in
             try await transport.send(request, body: body, baseURL: url, operationID: operationID)
