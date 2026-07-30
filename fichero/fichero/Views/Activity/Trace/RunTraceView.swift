@@ -50,7 +50,11 @@ struct RunTraceView: View {
                     description: Text("This run predates workflow snapshots, so its graph wasn't recorded.")
                 )
             } else {
-                Color.clear
+                // Before `.task` has produced anything (including a run whose
+                // load task was cancelled mid-flight): a spinner, not a blank
+                // pane. An empty sheet reads as "the control did nothing" (#4358).
+                ProgressView("Loading run trace…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .task(id: threadId) {

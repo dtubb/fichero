@@ -1,5 +1,8 @@
 """Tests for the hosted document knowledge-surface HTML route (#1228)."""
 
+import json
+import re
+
 from fichero_server.models.knowledge import EntityType, KnowledgeClaim, KnowledgeEntity
 from fichero_server.db import Database
 from fichero_server.models import Document, DocType, FileType, Status
@@ -244,6 +247,100 @@ class TestDocumentViewRoute:
         assert '"date_values": [{"id":' in response.text
         assert '"id": "place-1"' in response.text
         assert '"place_values": [{"id":' in response.text
+
+    def test_page_payload_carries_every_page_including_untranscribed(self, client, db):
+        """The reader's page list is the page CHILDREN, gaps included (#4356)."""
+        doc = _make_document(
+            doc_id="pdf-gaps",
+            name="Gappy.pdf",
+            doc_type=DocType.file,
+            file_type=FileType.pdf,
+        )
+        db.save(doc)
+        db.save(
+            _make_document(
+                doc_id="gap-page-1",
+                name="Page 1",
+                doc_type=DocType.page,
+                page_content="First page transcript",
+                parent_id=doc.id,
+                sequence=1,
+            )
+        )
+        # Page 2 has NO transcription — it must still appear, in position.
+        db.save(
+            _make_document(
+                doc_id="gap-page-2",
+                name="Page 2",
+                doc_type=DocType.page,
+                parent_id=doc.id,
+                sequence=2,
+            )
+        )
+        db.save(
+            _make_document(
+                doc_id="gap-page-3",
+                name="Page 3",
+                doc_type=DocType.page,
+                page_content="Third page transcript",
+                parent_id=doc.id,
+                sequence=3,
+            )
+        )
+
+        response = client.get(f"/view/document/{doc.id}")
+        assert response.status_code == 200
+        payload = json.loads(
+            re.search(r"const documentData = (\{.*?\});\n", response.text, re.S).group(1)
+        )
+        pages = payload["pages"]
+        assert [page["number"] for page in pages] == [1, 2, 3]
+        assert [page["has_content"] for page in pages] == [True, False, True]
+        assert pages[1]["content"] == ""
+        # The flat transcript keeps carrying only pages WITH content: claim
+        # char offsets index into it, so empty pages must not shift them.
+        assert "Page 2\n" not in payload["page_content"]
+
+    def test_transcript_pages_is_pure_over_loaded_documents(self):
+        """Ordering + the empty-page rule are testable without a database."""
+        from fichero_server.api.routes.system.views import transcript_pages, transcript_text
+
+        parent = _make_document(doc_id="p", name="Deed.pdf", doc_type=DocType.file)
+        children = [
+            _make_document(
+                doc_id="c2", name="Page 2", doc_type=DocType.page, sequence=2, parent_id="p"
+            ),
+            _make_document(
+                doc_id="c1",
+                name="Page 1",
+                doc_type=DocType.page,
+                sequence=1,
+                parent_id="p",
+                page_content="only text",
+            ),
+        ]
+        # Callers hand pages in sequence; the payload preserves that order.
+        pages = transcript_pages(parent, sorted(children, key=lambda d: d.sequence or 0))
+        assert [page["number"] for page in pages] == [1, 2]
+        assert pages[1]["has_content"] is False
+        assert transcript_text(pages) == "Page 1\nonly text"
+
+    def test_transcript_pages_of_leaf_document_is_its_own_page(self):
+        from fichero_server.api.routes.system.views import transcript_pages
+
+        leaf = _make_document(
+            doc_id="leaf",
+            name="Note.txt",
+            doc_type=DocType.file,
+            page_content="body text",
+        )
+        pages = transcript_pages(leaf, [])
+        assert len(pages) == 1
+        assert pages[0]["has_content"] is True
+        # A leaf with no content at all yields no pages — the reader then shows
+        # its own "nothing here yet" state rather than a fake page 1.
+        empty = _make_document(doc_id="leaf2", name="Empty.txt", doc_type=DocType.file)
+        assert transcript_pages(empty, []) == []
 
     def test_missing_document_returns_404(self, client):
         response = client.get("/view/document/no-such-document")

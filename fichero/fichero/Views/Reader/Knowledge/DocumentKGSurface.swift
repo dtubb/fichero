@@ -178,6 +178,11 @@ struct DocumentKGSurface: View {
     var searchQuery: String = ""
     var searchSelectionIndex: Int = -1
     var onSearchMatchCount: (@MainActor @Sendable (Int) -> Void)?
+    /// Pages a run is writing, and their live text (#4357). Forwarded to the
+    /// WebKit pane, which patches them in place. Defaults keep every existing
+    /// call site working with no run in flight.
+    var busyPageNumbers: Set<Int> = []
+    var pageContentPatches: [Int: String] = [:]
 
     @State private var internalActiveTab: KGSurfaceTab = .transcript
     private var activeTab: KGSurfaceTab { externalActiveTab ?? internalActiveTab }
@@ -273,7 +278,9 @@ struct DocumentKGSurface: View {
                     zoom: zoom,
                     searchQuery: searchQuery,
                     searchSelectionIndex: searchSelectionIndex,
-                    onSearchMatchCount: onSearchMatchCount
+                    onSearchMatchCount: onSearchMatchCount,
+                    busyPageNumbers: busyPageNumbers,
+                    pageContentPatches: pageContentPatches
                 )
                 .opacity(activeTab.usesWebKit ? 1 : 0)
                 .allowsHitTesting(activeTab.usesWebKit)

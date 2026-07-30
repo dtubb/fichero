@@ -50,21 +50,77 @@ def _page_number(page_label: str | None) -> int | None:
     return int(digits) if digits else None
 
 
-def _transcript_for_document(db: Database, document: Document) -> str:
-    from fichero_server.loaders.document_loader import _strip_rtf
-
-    if document.page_content:
-        return _strip_rtf(document.page_content)
-
+def _page_children(db: Database, document: Document) -> list[Document]:
+    """This document's page children in their real sequence."""
     child_pages = db.query(Document, parent_id=document.id, doc_type=DocType.page)
     child_pages.sort(key=lambda doc: (doc.sequence or 0, doc.name))
+    return child_pages
 
-    chunks: list[str] = []
-    for page in child_pages:
-        if page.page_content:
-            label = page.sequence or "?"
-            chunks.append(f"Page {label}\n{_strip_rtf(page.page_content)}")
-    return "\n\n".join(chunks)
+
+def transcript_pages(document: Document, child_pages: list[Document]) -> list[dict[str, object]]:
+    """Every page of the document, in order — including pages with NO content.
+
+    The reader used to be built from the assembled transcript text, which only
+    carried pages that had `page_content`. Untranscribed pages vanished, so
+    "page 5" in the reader was a different page than "page 5" in the preview and
+    every cross-pane action (find match, transcribe this page, jump to page)
+    pointed at the wrong sheet (#4356). The page list is now the document's page
+    CHILDREN: an empty page is a page with empty content, never a gap.
+
+    Pure over the loaded documents so the ordering + empty-page rule are
+    unit-testable without a database.
+    """
+    from fichero_server.loaders.document_loader import _strip_rtf
+
+    if not child_pages:
+        # A leaf document (or a single page) is its own one-page transcript.
+        content = _strip_rtf(document.page_content) if document.page_content else ""
+        if not content.strip():
+            return []
+        return [
+            {
+                "id": document.id,
+                "number": document.sequence or 1,
+                "label": document.name,
+                "content": content,
+                "has_content": True,
+            }
+        ]
+
+    pages: list[dict[str, object]] = []
+    for index, page in enumerate(child_pages, start=1):
+        content = _strip_rtf(page.page_content) if page.page_content else ""
+        pages.append(
+            {
+                "id": page.id,
+                "number": page.sequence or index,
+                "label": page.name,
+                "content": content,
+                "has_content": bool(content.strip()),
+            }
+        )
+    return pages
+
+
+def transcript_text(pages: list[dict[str, object]]) -> str:
+    """The flat "Page N\\n…" transcript, carrying only pages WITH content.
+
+    Deliberately unchanged by #4356: claim `source_char_start`/`source_char_end`
+    offsets index into this string, so inserting empty pages here would shift
+    every stored offset. The reader renders from the structured page list; this
+    text stays the offset-stable reading of the same document.
+    """
+    return "\n\n".join(
+        f"Page {page['number']}\n{page['content']}"
+        for page in pages
+        if page["has_content"]
+    )
+
+
+def _strip_document_rtf(content: str) -> str:
+    from fichero_server.loaders.document_loader import _strip_rtf
+
+    return _strip_rtf(content)
 
 
 def _claim_payload(
@@ -171,7 +227,12 @@ async def document_view(
     entities = _document_scoped_entities(db, doc_scope, claims)
     entities_by_id = {entity.id: entity for entity in entities}
 
-    transcript = _transcript_for_document(db, document)
+    pages = transcript_pages(document, _page_children(db, document))
+    transcript = (
+        _strip_document_rtf(document.page_content)
+        if document.page_content
+        else transcript_text(pages)
+    )
 
     document_payload = {
         "id": document.id,
@@ -179,6 +240,9 @@ async def document_view(
         "doc_type": document.doc_type.value,
         "file_type": document.file_type.value if document.file_type else None,
         "page_content": transcript,
+        # Every page in sequence, empty ones included (#4356) — the reader
+        # renders this list, so reader page N is preview page N.
+        "pages": pages,
     }
     entity_payload = [
         {
@@ -254,6 +318,7 @@ async def global_kg_view(
         "doc_type": "kg",
         "file_type": None,
         "page_content": "",
+        "pages": [],
         "graph_summary": {
             "shown_entities": len(entities),
             "total_entities": entity_count,

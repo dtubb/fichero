@@ -28,6 +28,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     var cachedBootstrapLibraryPath: String?
     /// In-reader find sync (#4338) — shared query/index dedupe.
     let findSync = WebPaneFindSync()
+    /// Per-page run progress + live page writes (#4357) — see the macOS coordinator.
+    let progressSync = WebPaneProgressSync()
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -46,6 +48,7 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         lastSelectedClaimCharEnd = nil
         lastActivePageNumber = nil
         findSync.reset()
+        progressSync.reset()
         guard let parent, let request = DocumentKGPaneRoute.request(
             documentId: parent.documentId,
             libraryPath: parent.libraryPath
@@ -95,6 +98,12 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
             query: parent.searchQuery,
             selectionIndex: parent.searchSelectionIndex,
             onMatchCount: parent.onSearchMatchCount
+        )
+        // Per-page run progress + live page writes (#4357).
+        progressSync.sync(
+            into: webView,
+            busyPages: parent.busyPageNumbers,
+            pageContent: parent.pageContentPatches
         )
     }
 
@@ -183,6 +192,8 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         injectContext(into: webView)
         webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
         webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent?.pageCount))
+        // Fresh DOM: drop the progress dedupe so the spinner/live text re-apply.
+        progressSync.reset()
         syncSelection(into: webView)
         applyZoom(to: webView, zoom: parent?.zoom ?? 1.0)
     }
@@ -254,6 +265,11 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
         }
     }
 
+}
+
+// Bridge-message routing, in an extension so the coordinator's own body stays
+// under the SwiftLint type-body threshold.
+extension DocumentKGWebPaneCoordinatoriOS {
     func focusKGSource(
         documentId: String?,
         entityId: String?,

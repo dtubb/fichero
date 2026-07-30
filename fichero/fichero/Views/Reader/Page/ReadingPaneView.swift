@@ -17,6 +17,10 @@ struct ReadingPaneView: View {
     var onClose: (() -> Void)?
 
     @Environment(APIClient.self) var apiClient
+    /// The existing busy-state source for per-page run progress (#4357): the
+    /// store's run target record (#4295) plus the live page content it splices
+    /// in mid-run (#4318). No second notion of "this document is working".
+    @Environment(DocumentStore.self) var documentStore: DocumentStore
     @Environment(KGFocusState.self) var kgFocusState
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(AnnotationStore.self) var annotationStore
@@ -53,6 +57,10 @@ struct ReadingPaneView: View {
     @State private var pinnedActivePageNumber: Int?
     @State private var pinnedPageCount: Int?
     @State var webZoom: Double = 1.0
+    /// Pages a run has touched since this document loaded (#4357). A page stays
+    /// tracked after its run finishes so the FINAL write — the one that actually
+    /// lands the transcription — still reaches the reader.
+    @State var trackedRunPages: Set<Int> = []
     // The KG surface sub-mode. Defaults to Entities — the entities WITH the
     // statements made about them, i.e. the "what we know" reading, NOT the graph
     // visualisation (2026-07-14, #3765 Q6).
@@ -205,6 +213,15 @@ struct ReadingPaneView: View {
         .onChange(of: claimSourceNavigationState?.requestID) { _, newID in
             if newID != nil { revealInTranscript() }
         }
+        // Per-page run progress (#4357): remember every page a run touches so
+        // its live text keeps flowing to the reader after the run ends.
+        .onChange(of: busyReaderPageNumbers) { _, busy in
+            trackedRunPages = ReaderPageProgress.trackedPages(
+                alreadyTracked: trackedRunPages,
+                busy: busy
+            )
+        }
+        .onChange(of: effectiveDocument?.id) { _, _ in trackedRunPages = [] }
     }
 
     /// True when this pane instance is the window's active surface (#3579).

@@ -226,8 +226,10 @@ struct ArtifactsInspectorPane: View {
     }
 
     private func openSelectedArtifactRun() {
-        guard let runId = selectedArtifact?.runId, !runId.isEmpty else { return }
-        traceRun = TraceRunSelection(threadId: runId)
+        // Same resolver the control's enablement uses (#4358), so this can never
+        // be reached as a silent no-op.
+        guard let threadId = RunTraceLink.threadId(selectedArtifact?.runId) else { return }
+        traceRun = TraceRunSelection(threadId: threadId)
     }
 
     private var artifactsToolbarStatusText: String {

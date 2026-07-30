@@ -150,6 +150,60 @@ extension ReadingPaneView {
         Spacer(minLength: 0)
     }
 
+    /// The page children of the document this reader shows, live from the store.
+    /// Page children live in `childrenCache` (the sidebar's cache) and, when the
+    /// parent folder is the selection, in `currentDocuments` — read both so the
+    /// per-page progress works from either surface (#4357).
+    var readerPageChildren: [Document] {
+        guard let doc = effectiveDocument else { return [] }
+        let parentId = (doc.docType == .page ? doc.parentId : doc.id) ?? doc.id
+        let cached = documentStore.childrenCache[parentId] ?? []
+        let selected = documentStore.currentDocuments.filter { $0.parentId == parentId }
+        var seen = Set<String>()
+        return (cached + selected).filter { seen.insert($0.id).inserted }
+    }
+
+    /// Pages a run is writing right now — the run's target set via the store's
+    /// existing busy state (#4295), not a second notion of "working" (#4357).
+    var busyReaderPageNumbers: Set<Int> {
+        ReaderPageProgress.busyPageNumbers(children: readerPageChildren) { pageId in
+            documentStore.isDocumentBusy(pageId)
+        }
+    }
+
+    /// Live text for the pages a run has touched, patched into the reader in
+    /// place — never a reload (#4357).
+    var readerPageContentPatches: [Int: String] {
+        ReaderPageProgress.livePageContent(
+            children: readerPageChildren,
+            pages: ReaderPageProgress.trackedPages(
+                alreadyTracked: trackedRunPages,
+                busy: busyReaderPageNumbers
+            )
+        )
+    }
+
+    /// What this reader currently shows, for the highlight-layer precedence
+    /// (#4355). `showsPageImage` is the Preview pane's business and is not yet
+    /// plumbed across panes, so the geometry-mirroring arm stays dormant here.
+    var readerVisibleSplit: ReaderVisibleSplit {
+        ReaderVisibleSplit(
+            showsTranscript: readerTab == .page,
+            showsKnowledge: readerTab == .knowledge,
+            isFinding: !searchState.query.isEmpty
+        )
+    }
+
+    /// The claim to tint, or nil when another layer owns the surface. While find
+    /// is running, the knowledge tint stands down: the same visual surface must
+    /// not mean "match" and "claim" at once (#4355).
+    var highlightedClaimId: String? {
+        guard ReaderHighlightPrecedence.isVisible(.entityClaim, in: readerVisibleSplit) else {
+            return nil
+        }
+        return kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId
+    }
+
     /// The shared WebKit surface, driven by an explicit tab. The Page tab passes
     /// `.transcript` (the assembled multi-page transcript) and the Knowledge tab
     /// passes its viz sub-mode — one WKWebView, two readings of the same document.
@@ -163,7 +217,7 @@ extension ReadingPaneView {
                 documentScope: doc.docType == .page ? .page : .folder,
                 libraryPath: libraryPath,
                 selectedEntityId: kgFocusState.focusedEntityId,
-                selectedClaimId: kgFocusState.focusedClaimId ?? claimFocusState.selectedClaimId,
+                selectedClaimId: highlightedClaimId,
                 activePageNumber: effectivePageNumber,
                 pageCount: effectivePageCount,
                 onPageSelected: isPinned ? { _ in } : onPageSelected,
@@ -179,7 +233,11 @@ extension ReadingPaneView {
                 // In-reader find (#4338): 0-based select index for the JS side.
                 searchQuery: searchState.query,
                 searchSelectionIndex: searchState.currentIndex - 1,
-                onSearchMatchCount: { count in searchState.recordMatches(count) }
+                onSearchMatchCount: { count in searchState.recordMatches(count) },
+                // Per-document work shown in place (#4357): the run's pages get
+                // a spinner, and their text lands live.
+                busyPageNumbers: busyReaderPageNumbers,
+                pageContentPatches: readerPageContentPatches
             )
         } else {
             readerEmptyState
