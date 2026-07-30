@@ -136,14 +136,26 @@ extension LibraryView {
     /// Select all visible rows. In table mode that is the VISIBLE outline
     /// rows — expanded pages/artifacts/entities/claims included, exactly
     /// like ⌘A in Finder's list view (#4198). Other modes keep the flat
-    /// document set.
+    /// document set. "All" always means all *shown*, so a filtered list
+    /// selects what the filter left (#4376).
+    ///
+    /// Goes through `SelectionGrammar.selectAll` rather than assigning the set
+    /// directly, because ⌘A also has to leave a usable ANCHOR behind: it used
+    /// to set only `selection`, so the following ⇧-click extended from
+    /// whatever row was last clicked — often one the user could no longer see
+    /// — instead of narrowing from the top the way Finder does (#4377).
     func selectAll() {
+        apply(SelectionGrammar.selectAll(in: selectAllIds))
+    }
+
+    /// The ordered ids ⌘A covers, per view mode.
+    var selectAllIds: [String] {
         if isShowingEntitiesCollection {
-            selection = Set(filteredEntities.map { entitySelectionId(for: $0) })
-        } else if displayMode == .table {
-            selection = Set(LibraryOutlineNode.visibleIds(of: outlineNodes, expanded: outlineExpanded))
-        } else {
-            selection = Set(filteredDocuments.map(\.id))
+            return filteredEntities.map { entitySelectionId(for: $0) }
         }
+        if displayMode == .table {
+            return LibraryOutlineNode.visibleIds(of: outlineNodes, expanded: outlineExpanded)
+        }
+        return filteredDocuments.map(\.id)
     }
 }
