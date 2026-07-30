@@ -65,28 +65,37 @@ def test_geometry_preserves_line_and_word_boxes_with_page_index():
 
     result = _vision_geometry_from_results([observation], page_index=2)
 
+    # Bboxes are flipped from Vision's bottom-left origin to the shared
+    # top-left contract (y_top = 1 - y - h), and every box carries its char
+    # span into the page text (#4309).
     assert result == VisionOCRResult(
         text="Hello world",
         line_boxes=[
             VisionOCRBox(
                 text="Hello world",
-                bbox=[0.05, 0.18, 0.70, 0.16],
+                bbox=[0.05, 1.0 - 0.18 - 0.16, 0.70, 0.16],
                 confidence=0.91,
                 page_index=2,
+                char_start=0,
+                char_end=11,
             )
         ],
         word_boxes=[
             VisionOCRBox(
                 text="Hello",
-                bbox=[0.10, 0.20, 0.30, 0.10],
+                bbox=[0.10, 1.0 - 0.20 - 0.10, 0.30, 0.10],
                 confidence=0.91,
                 page_index=2,
+                char_start=0,
+                char_end=5,
             ),
             VisionOCRBox(
                 text="world",
-                bbox=[0.45, 0.20, 0.25, 0.10],
+                bbox=[0.45, 1.0 - 0.20 - 0.10, 0.25, 0.10],
                 confidence=0.91,
                 page_index=2,
+                char_start=6,
+                char_end=11,
             ),
         ],
     )
@@ -102,9 +111,11 @@ def test_geometry_retains_text_when_confidence_and_word_boxes_are_missing():
     assert result.line_boxes == [
         VisionOCRBox(
             text="No geometry",
-            bbox=[0.2, 0.3, 0.4, 0.5],
+            bbox=[0.2, 1.0 - 0.3 - 0.5, 0.4, 0.5],
             confidence=None,
             page_index=None,
+            char_start=0,
+            char_end=11,
         )
     ]
     assert result.word_boxes == []

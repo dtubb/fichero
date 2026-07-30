@@ -2,6 +2,32 @@
 import SwiftUI
 
 extension ZoomableImagePreview {
+    // MARK: - Persisted per-document zoom scale
+    // (Moved from the main struct body to stay under type-body-length.)
+
+    func loadSavedScale(for key: String) -> CGFloat? {
+        guard let data = zoomScalesByDocumentJSON.data(using: .utf8),
+              let values = try? JSONDecoder().decode([String: Double].self, from: data),
+              let saved = values[key],
+              saved > 0 else {
+            return nil
+        }
+        return CGFloat(saved)
+    }
+
+    func saveScale(_ newScale: CGFloat, for key: String) {
+        var values: [String: Double] = [:]
+        if let data = zoomScalesByDocumentJSON.data(using: .utf8),
+           let decoded = try? JSONDecoder().decode([String: Double].self, from: data) {
+            values = decoded
+        }
+        values[key] = Double(newScale)
+        if let encoded = try? JSONEncoder().encode(values),
+           let json = String(data: encoded, encoding: .utf8) {
+            zoomScalesByDocumentJSON = json
+        }
+    }
+
     // MARK: - Zoom Actions
 
     func zoomIn() {

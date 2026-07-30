@@ -120,11 +120,20 @@ struct ZoomableImagePreview: View {
 
     @Environment(StorageService.self) var storageService
     @Environment(AnnotationStore.self) var annotationStore: AnnotationStore
+    /// Optional so previews / hosts without the service stay safe; the text-box
+    /// toggle simply loads nothing without it.
+    @Environment(ArtifactService.self) var artifactService: ArtifactService?
 
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
     // drag; `pendingAnnotationTool` carries the tool kind into the saved box.
     @State var isDrawingRegion = false
     @State var pendingAnnotationTool: ReaderAnnotationTool = .highlight
+
+    // OCR text-box overlay (#4309): the transcription pass's word/line boxes
+    // rendered over the page image, fetched from the artifact API on demand.
+    // The loader lives in OCRGeometryOverlay.swift to keep this body lean.
+    @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = false
+    @State var ocrGeometry: OCRGeometry?
 
     @State var scale: CGFloat = 1.0
     @State var minScale: CGFloat = 0.01
@@ -139,28 +148,8 @@ struct ZoomableImagePreview: View {
     @State var highResImage: NSImage?
     @State var isLoadingHighRes = false
 
-    func loadSavedScale(for key: String) -> CGFloat? {
-        guard let data = zoomScalesByDocumentJSON.data(using: .utf8),
-              let values = try? JSONDecoder().decode([String: Double].self, from: data),
-              let saved = values[key],
-              saved > 0 else {
-            return nil
-        }
-        return CGFloat(saved)
-    }
-
-    func saveScale(_ newScale: CGFloat, for key: String) {
-        var values: [String: Double] = [:]
-        if let data = zoomScalesByDocumentJSON.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([String: Double].self, from: data) {
-            values = decoded
-        }
-        values[key] = Double(newScale)
-        if let encoded = try? JSONEncoder().encode(values),
-           let json = String(data: encoded, encoding: .utf8) {
-            zoomScalesByDocumentJSON = json
-        }
-    }
+    // loadSavedScale/saveScale live in ZoomableImagePreviewMac+ZoomActions.swift
+    // (moved to keep this body under the type-body-length budget).
 
     /// The position to use for magnifier (locked or cursor)
     var magnifierPosition: CGPoint {
@@ -207,6 +196,14 @@ struct ZoomableImagePreview: View {
                                     visible: visibleRect == .zero ? CGRect(x: 0, y: 0, width: 1, height: 1) : visibleRect,
                                     isDrawing: isDrawingRegion,
                                     onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
+                                )
+                            }
+                            // OCR text boxes from the transcription pass (#4309),
+                            // toggled from the reader toolbar.
+                            if ocrBoxesEnabled, let ocrGeometry {
+                                OCRGeometryOverlay(
+                                    geometry: ocrGeometry,
+                                    visible: visibleRect == .zero ? CGRect(x: 0, y: 0, width: 1, height: 1) : visibleRect
                                 )
                             }
                         }
@@ -271,6 +268,7 @@ struct ZoomableImagePreview: View {
             readerToolbar
         }
         .task(id: url) { await handleImageURLChanged() }
+        .task(id: "\(documentId ?? "")|\(ocrBoxesEnabled)") { await loadOCRGeometry() }
         .onAppear { handleViewAppeared() }
         .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
         .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
@@ -312,6 +310,7 @@ struct ZoomableImagePreview: View {
             fitToWindow: fitToWindow,
             actualSize: actualSize,
             magnifierEnabled: $magnifierEnabled,
+            textBoxesEnabled: $ocrBoxesEnabled,
             loupeEnabled: $loupeEnabled,
             loupeLocked: $loupeLocked,
             loupeMagnification: $loupeMagnification,

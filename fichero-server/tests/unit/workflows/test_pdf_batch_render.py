@@ -24,11 +24,14 @@ def test_apple_ocr_opens_pdf_exactly_once(num_pages: int):
     CGPDFDocumentCreateWithURL parse per page). After the fix the batch helper
     is called once; its output is iterated in-process without re-opening the doc.
     """
+    from fichero_server.workflows.tools.vision_base import VisionOCRResult
+
     fake_images = [MagicMock(name=f"cg_image_{i}") for i in range(num_pages)]
 
-    def fake_ocr(cg_image, language):
+    # #4309: the per-page OCR core is the geometry-preserving call.
+    def fake_ocr(cg_image, language, *, page_index=None):
         idx = fake_images.index(cg_image)
-        return f"page {idx} text"
+        return VisionOCRResult(text=f"page {idx} text", line_boxes=[], word_boxes=[])
 
     with (
         patch(
@@ -36,7 +39,7 @@ def test_apple_ocr_opens_pdf_exactly_once(num_pages: int):
             return_value=(fake_images, num_pages),
         ) as mock_batch,
         patch(
-            "fichero_server.workflows.tools.vision_base._vision_ocr_cgimage",
+            "fichero_server.workflows.tools.vision_base._vision_ocr_cgimage_with_geometry",
             side_effect=fake_ocr,
         ),
     ):
@@ -59,13 +62,15 @@ def test_apple_ocr_opens_pdf_exactly_once(num_pages: int):
 
 def test_apple_ocr_none_image_returns_empty_string():
     """#2247: a None CGImage (failed render for one page) must yield '' not crash."""
+    from fichero_server.workflows.tools.vision_base import VisionOCRResult
+
     images = [MagicMock(name="good"), None, MagicMock(name="good2")]
 
     call_log: list[str] = []
 
-    def fake_ocr(cg_image, language):
+    def fake_ocr(cg_image, language, *, page_index=None):
         call_log.append("called")
-        return "text"
+        return VisionOCRResult(text="text", line_boxes=[], word_boxes=[])
 
     with (
         patch(
@@ -73,7 +78,7 @@ def test_apple_ocr_none_image_returns_empty_string():
             return_value=(images, 3),
         ),
         patch(
-            "fichero_server.workflows.tools.vision_base._vision_ocr_cgimage",
+            "fichero_server.workflows.tools.vision_base._vision_ocr_cgimage_with_geometry",
             side_effect=fake_ocr,
         ),
     ):

@@ -1498,7 +1498,11 @@ class TestProcessVisionSave:
         self, mock_llm_config, tmp_path
     ):
         """Per-page propagation should tolerate absolute file paths for parent PDFs."""
-        from fichero_server.workflows.tools.vision_base import process_vision, VisionToolConfig
+        from fichero_server.workflows.tools.vision_base import (
+            VisionOCRResult,
+            VisionToolConfig,
+            process_vision,
+        )
 
         library_path = tmp_path / "ICANH-Andagoya.fichero"
         pdf_path = library_path / "files" / "fi" / "hash_doc.pdf"
@@ -1521,8 +1525,13 @@ class TestProcessVisionSave:
             'fichero_server.workflows.tools.vision_base._try_pdf_text_layer',
             return_value=None,
         ), patch(
-            'fichero_server.workflows.tools.vision_base.apple_vision_ocr_pages_async',
-            new=AsyncMock(return_value=["Page one", "Page two"]),
+            # #4309: the whole-PDF apple path now fetches text + geometry in one
+            # pass via the geometry-preserving API.
+            'fichero_server.workflows.tools.vision_base.apple_vision_ocr_pages_geometry_async',
+            new=AsyncMock(return_value=[
+                VisionOCRResult(text="Page one", line_boxes=[], word_boxes=[]),
+                VisionOCRResult(text="Page two", line_boxes=[], word_boxes=[]),
+            ]),
         ), patch(
             'fichero_server.workflows.tools.vision_base.save_artifact',
             new=AsyncMock(return_value="artifact_123"),
@@ -1564,7 +1573,10 @@ class TestProcessVisionSave:
                 str(library_path),
                 artifact_type="transcription",
                 llm_config=ANY,
-                page_geometries=None,
+                # #4309: the apple path now carries one geometry slot per page
+                # (None here — the stubbed pages had no boxes).
+                page_geometries=[None, None],
+                artifact_data=None,
             )
 
     @pytest.mark.asyncio

@@ -24,6 +24,18 @@ extension ImmersiveReaderView {
                             }
                         }
                     }
+                    // Model-generated renditions of this page (#4329) —
+                    // Markdown / HTML / SVG, rendered in place.
+                    if !renditions.isEmpty {
+                        Divider()
+                        Section("Renditions") {
+                            ForEach(renditions) { rendition in
+                                Button(Self.renditionTitle(forFormat: renditionFormat(rendition))) {
+                                    representationKey = "rendition:\(rendition.id)"
+                                }
+                            }
+                        }
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "character.book.closed")

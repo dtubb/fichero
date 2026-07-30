@@ -31,7 +31,11 @@ from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from fichero_server.llm import LLMConfig
 
-from fichero_server.media.ocr_geometry import OCRGeometryResult, parse_vlm_geometry
+from fichero_server.media.ocr_geometry import (
+    OCRGeometryResult,
+    from_apple_vision_result,
+    parse_vlm_geometry,
+)
 from fichero_server.workflows.types import PortDef, DataType
 
 # Pre-import macOS Vision/Quartz framework symbols at module load on the
@@ -232,12 +236,16 @@ class VisionToolConfig(LLMToolConfig):
 
 @dataclass(slots=True)
 class VisionOCRBox:
-    """Normalized OCR geometry record."""
+    """Normalized OCR geometry record (top-left-origin normalized bbox)."""
 
     text: str
     bbox: list[float]
     confidence: float | None = None
     page_index: int | None = None
+    # Character span of this box's text inside the page's full OCR text —
+    # the box↔text link that keeps geometry editable later (#4309).
+    char_start: int | None = None
+    char_end: int | None = None
 
 
 @dataclass(slots=True)
@@ -350,13 +358,34 @@ def _vision_text_range(start: int, length: int) -> Any:
         return (start, length)
 
 
+def _vision_flip_bbox_to_top_left(bbox: list[float]) -> list[float]:
+    """Convert a Vision normalized bbox (bottom-left origin) to top-left origin.
+
+    Vision's `boundingBox` uses Quartz image space (y grows upward). The shared
+    OCR geometry contract — and every other provider parser in
+    ``media/ocr_geometry.py`` — uses top-left-origin image/W3C space, so flip
+    at this boundary: ``y_top = 1 - y_bottom - height``. Values are clamped to
+    0..1 so a float-epsilon overhang never fails the contract validator.
+    """
+    x, y, w, h = bbox
+    flipped_y = 1.0 - y - h
+    clamp = lambda v: max(0.0, min(1.0, v))  # noqa: E731 — tiny local helper
+    x, flipped_y = clamp(x), clamp(flipped_y)
+    return [x, flipped_y, min(w, 1.0 - x), min(h, 1.0 - flipped_y)]
+
+
 def _vision_word_boxes(
     candidate: Any,
     text: str,
     *,
     page_index: int | None = None,
+    char_offset: int | None = None,
 ) -> list[VisionOCRBox]:
-    """Build per-word geometry from a recognized text candidate."""
+    """Build per-word geometry from a recognized text candidate.
+
+    ``char_offset`` is the line's starting offset inside the page's full OCR
+    text; word spans are recorded relative to that full text (#4309).
+    """
     boxes: list[VisionOCRBox] = []
     confidence = _vision_candidate_confidence(candidate)
     for match in re.finditer(r"\S+", text):
@@ -370,9 +399,15 @@ def _vision_word_boxes(
         boxes.append(
             VisionOCRBox(
                 text=match.group(0),
-                bbox=bbox_list,
+                bbox=_vision_flip_bbox_to_top_left(bbox_list),
                 confidence=confidence,
                 page_index=page_index,
+                char_start=(
+                    char_offset + match.start() if char_offset is not None else None
+                ),
+                char_end=(
+                    char_offset + match.end() if char_offset is not None else None
+                ),
             )
         )
     return boxes
@@ -387,6 +422,9 @@ def _vision_geometry_from_results(
     line_boxes: list[VisionOCRBox] = []
     word_boxes: list[VisionOCRBox] = []
     text_lines: list[str] = []
+    # Running char offset into "\n".join(text_lines) — the page text that the
+    # transcription artifact stores — so every box carries its text span.
+    char_cursor = 0
 
     for observation in results:
         candidates = observation.topCandidates_(1) if hasattr(observation, "topCandidates_") else []
@@ -394,14 +432,21 @@ def _vision_geometry_from_results(
         line_text = _vision_candidate_text(candidate) if candidate else ""
         line_bbox = _vision_bbox_from_rect(_vision_value(observation, "boundingBox"))
         confidence = _vision_candidate_confidence(candidate)
+        line_offset = char_cursor if line_text else None
 
         if line_bbox is not None:
             line_boxes.append(
                 VisionOCRBox(
                     text=line_text,
-                    bbox=line_bbox,
+                    bbox=_vision_flip_bbox_to_top_left(line_bbox),
                     confidence=confidence,
                     page_index=page_index,
+                    char_start=line_offset,
+                    char_end=(
+                        line_offset + len(line_text)
+                        if line_offset is not None
+                        else None
+                    ),
                 )
             )
 
@@ -413,8 +458,10 @@ def _vision_geometry_from_results(
                         candidate,
                         line_text,
                         page_index=page_index,
+                        char_offset=line_offset,
                     )
                 )
+            char_cursor += len(line_text) + 1  # +1 for the joining "\n"
 
     return VisionOCRResult(
         text="\n".join(text_lines),
@@ -613,6 +660,117 @@ def _try_pdf_text_layer(
         # text, some scanned). Bail to OCR for uniformity.
         return None
     return per_page
+
+
+@lru_cache(maxsize=8)
+def _pdf_text_layer_geometry_cached(
+    pdf_path: str,
+) -> tuple[OCRGeometryResult | None, ...] | None:
+    """Per-PDF cache over :func:`_pdf_text_layer_geometry` for page fan-out.
+
+    A per-page fan-out calls into the same parent PDF once per page; without
+    this the word extraction would be re-run O(N) times per document.
+    """
+    result = _pdf_text_layer_geometry(pdf_path)
+    return tuple(result) if result is not None else None
+
+
+def _pdf_text_layer_geometry(pdf_path: str) -> list[OCRGeometryResult | None] | None:
+    """Per-page word geometry from a born-digital PDF's text layer (#4309).
+
+    PyMuPDF localizes every word it extracts, so the boxes are captured on the
+    SAME pass that supplies the text — never re-derived later. Returns one
+    entry per page (``None`` for pages without extractable words), or ``None``
+    when PyMuPDF/geometry is unavailable; callers degrade to text-only.
+    """
+    try:
+        import fitz  # PyMuPDF  # noqa: PLC0415
+    except ImportError:
+        return None
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as exc:
+        logger.warning("PDF text-layer geometry: cannot open %s: %s", pdf_path, exc)
+        return None
+
+    from fichero_server.media.ocr_geometry import (  # noqa: PLC0415
+        OCRGeometryBox,
+        OCRGeometryLevel,
+    )
+
+    def _clamp(value: float) -> float:
+        return max(0.0, min(1.0, value))
+
+    results: list[OCRGeometryResult | None] = []
+    try:
+        for page_index, page in enumerate(doc):
+            try:
+                rect = page.rect
+                width, height = float(rect.width), float(rect.height)
+                page_text = page.get_text("text") or ""
+                words = page.get_text("words") or []
+            except Exception as page_exc:
+                logger.warning(
+                    "PDF text-layer geometry: page %d of %s failed: %s",
+                    page_index,
+                    Path(pdf_path).name,
+                    page_exc,
+                )
+                results.append(None)
+                continue
+            if width <= 0 or height <= 0 or not words:
+                results.append(None)
+                continue
+            boxes: list[OCRGeometryBox] = []
+            span_cursor = 0
+            for word in words:
+                try:
+                    x0, y0, x1, y1 = (float(v) for v in word[:4])
+                    token = str(word[4])
+                except (IndexError, TypeError, ValueError):
+                    continue
+                if not token:
+                    continue
+                x = _clamp(x0 / width)
+                y = _clamp(y0 / height)
+                w = _clamp(x1 / width) - x
+                h = _clamp(y1 / height) - y
+                if w < 0 or h < 0:
+                    continue
+                # Best-effort span link into the page's own text (#4309):
+                # words come back in reading order, so a forward find keeps
+                # box↔text segments paired without re-tokenizing the layer.
+                char_start = page_text.find(token, span_cursor)
+                char_end = char_start + len(token) if char_start >= 0 else None
+                if char_start >= 0:
+                    span_cursor = char_end
+                boxes.append(
+                    OCRGeometryBox(
+                        text=token,
+                        bbox=[x, y, w, h],
+                        level=OCRGeometryLevel.WORD,
+                        page_index=page_index,
+                        char_start=char_start if char_start >= 0 else None,
+                        char_end=char_end,
+                        provider="pymupdf",
+                        model="pdf-text-layer",
+                    )
+                )
+            if not boxes:
+                results.append(None)
+                continue
+            results.append(
+                OCRGeometryResult(
+                    text=page_text,
+                    provider="pymupdf",
+                    model="pdf-text-layer",
+                    boxes=boxes,
+                    metadata={"format": "pymupdf_words"},
+                )
+            )
+    finally:
+        doc.close()
+    return results
 
 
 def apple_vision_ocr(image_path: str, language: str = "en") -> str:
@@ -901,54 +1059,83 @@ def _batch_render_pdf_pages_to_cgimages(pdf_path: str, dpi: int = 300):
     return tuple(cg_images), num_pages
 
 
-def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
-    """OCR a PDF page by page, returning one text string per page (0-indexed).
+def _apple_ocr_pdf_pages_geometry(
+    pdf_path: str, language: str = "en"
+) -> list[VisionOCRResult]:
+    """OCR a PDF page by page, returning text + geometry per page (0-indexed).
 
     Used to propagate per-page content to page child documents after
-    transcribing a PDF at the file level.
+    transcribing a PDF at the file level. Geometry is captured on this first
+    pass so it is never re-derived later (#4309).
 
     Opens the PDF document exactly once via _batch_render_pdf_pages_to_cgimages
     to avoid O(N) parses for an N-page document. (#2247)
     """
+    empty = lambda: VisionOCRResult(text="", line_boxes=[], word_boxes=[])  # noqa: E731
     try:
         cg_images, num_pages = _batch_render_pdf_pages_to_cgimages(pdf_path)
     except Exception as e:
         logger.error(f"PDF page OCR failed: {e}")
         return []
 
-    pages: list[str] = []
+    pages: list[VisionOCRResult] = []
     for page_idx, cg_image in enumerate(cg_images):
         try:
             if cg_image is None:
-                pages.append("")
+                pages.append(empty())
                 continue
-            pages.append(_vision_ocr_cgimage(cg_image, language) or "")
+            pages.append(
+                _vision_ocr_cgimage_with_geometry(
+                    cg_image, language, page_index=page_idx
+                )
+            )
         except Exception as e:
             msg = f"Page {page_idx} OCR failed: {e}"
             logger.warning(msg)
             _log_vision_warning(msg)
-            pages.append("")
+            pages.append(empty())
     return pages
 
 
-def _apple_ocr_pdf_page(pdf_path: str, page_index: int, language: str = "en") -> str:
-    """OCR one PDF page by zero-based page index."""
+def _apple_ocr_pdf_pages(pdf_path: str, language: str = "en") -> list[str]:
+    """Text-only wrapper over :func:`_apple_ocr_pdf_pages_geometry`."""
+    return [page.text for page in _apple_ocr_pdf_pages_geometry(pdf_path, language)]
+
+
+def _apple_ocr_pdf_page_geometry(
+    pdf_path: str, page_index: int, language: str = "en"
+) -> VisionOCRResult:
+    """OCR one PDF page by zero-based page index, keeping geometry (#4309)."""
     try:
         cg_images, _ = _batch_render_pdf_pages_to_cgimages(pdf_path)
         cg_image = cg_images[page_index]
         if cg_image is None:
             raise ValueError(f"PDF page {page_index + 1} not found in: {pdf_path}")
-        return _vision_ocr_cgimage(cg_image, language) or ""
+        return _vision_ocr_cgimage_with_geometry(
+            cg_image, language, page_index=page_index
+        )
     except Exception as e:
         msg = f"Page {page_index + 1} OCR failed: {e}"
         logger.warning(msg)
         _log_vision_warning(msg)
-        return ""
+        return VisionOCRResult(text="", line_boxes=[], word_boxes=[])
+
+
+def _apple_ocr_pdf_page(pdf_path: str, page_index: int, language: str = "en") -> str:
+    """Text-only wrapper over :func:`_apple_ocr_pdf_page_geometry`."""
+    return _apple_ocr_pdf_page_geometry(pdf_path, page_index, language).text
 
 
 async def apple_vision_ocr_pages_async(pdf_path: str, language: str = "en") -> list[str]:
     """Async per-page OCR for PDFs. Returns list[str] (one entry per page)."""
     return await asyncio.to_thread(_apple_ocr_pdf_pages, pdf_path, language)
+
+
+async def apple_vision_ocr_pages_geometry_async(
+    pdf_path: str, language: str = "en"
+) -> list[VisionOCRResult]:
+    """Async per-page OCR for PDFs, keeping geometry (#4309)."""
+    return await asyncio.to_thread(_apple_ocr_pdf_pages_geometry, pdf_path, language)
 
 
 async def apple_vision_ocr_pdf_page_async(
@@ -963,6 +1150,38 @@ async def apple_vision_ocr_pdf_page_async(
         page_index,
         language,
     )
+
+
+async def apple_vision_ocr_pdf_page_geometry_async(
+    pdf_path: str,
+    page_index: int,
+    language: str = "en",
+) -> VisionOCRResult:
+    """Async OCR for one PDF page, keeping geometry (#4309)."""
+    return await asyncio.to_thread(
+        _apple_ocr_pdf_page_geometry,
+        pdf_path,
+        page_index,
+        language,
+    )
+
+
+async def apple_vision_ocr_with_geometry_async(
+    image_path: str, language: str = "en"
+) -> VisionOCRResult:
+    """Async wrapper for Apple Vision OCR that keeps geometry (#4309)."""
+    return await asyncio.to_thread(apple_vision_ocr_with_geometry, image_path, language)
+
+
+def _apple_geometry_result(result: VisionOCRResult) -> OCRGeometryResult | None:
+    """Map a Vision OCR result into the shared geometry contract.
+
+    Returns ``None`` when the engine produced no boxes (blank page) so callers
+    keep the "no geometry" state distinct from an empty typed record.
+    """
+    if not (result.line_boxes or result.word_boxes):
+        return None
+    return from_apple_vision_result(result)
 
 
 def normalize_vision_language(language: str | None) -> str:
@@ -1092,6 +1311,7 @@ async def _propagate_to_page_children(
     artifact_type: str | None = None,
     llm_config: LLMConfig | None = None,
     page_geometries: list[OCRGeometryResult | None] | None = None,
+    artifact_data: dict | None = None,
 ) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
 
@@ -1170,11 +1390,14 @@ async def _propagate_to_page_children(
                             if page_geometries and page_idx < len(page_geometries)
                             else None
                         )
+                        if artifact_data is not None:
+                            art.data = artifact_data
                     else:
                         art = Artifact(
                             document_id=page_doc.id,
                             artifact_type=artifact_type,
                             content=artifact_content,
+                            data=artifact_data,
                             ocr_geometry=(
                                 page_geometries[page_idx]
                                 if page_geometries and page_idx < len(page_geometries)
@@ -1400,6 +1623,13 @@ async def process_vision(
     return_boxes: bool = False,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
+    # Applied to the final LLM text BEFORE any save (#4329). Lets a markup
+    # tool (convert) sanitize/validate model output; raising inside it fails
+    # the file loudly instead of persisting a bad artifact.
+    postprocess_text: Any | None = None,
+    # Structured payload stamped onto every saved artifact's `data` (#4329) —
+    # e.g. {"target_format": "svg"} so renderers pick the right surface.
+    artifact_data: dict | None = None,
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -1736,6 +1966,29 @@ async def process_vision(
                     f"Pre-extracted text passthrough: {Path(file_path).name} "
                     f"({len(existing_text)} chars, doc_id={doc_id_for_file})"
                 )
+                # #4309: even the passthrough must not drop geometry the
+                # engine can provide — for a PDF, the text layer's word boxes
+                # come from PyMuPDF on the same pass. Best-effort: text-only
+                # (None) when the layer has no usable boxes.
+                _passthrough_geometry: OCRGeometryResult | None = None
+                if file_path.lower().endswith(".pdf"):
+                    try:
+                        _pt_geoms = _pdf_text_layer_geometry_cached(file_path)
+                    except Exception as _pt_exc:
+                        logger.warning(
+                            "Passthrough geometry unavailable for %s: %s",
+                            Path(file_path).name,
+                            _pt_exc,
+                        )
+                        _pt_geoms = None
+                    if _pt_geoms:
+                        _pt_idx = (
+                            requested_page_index
+                            if requested_page_index is not None
+                            else (0 if len(_pt_geoms) == 1 else None)
+                        )
+                        if _pt_idx is not None and 0 <= _pt_idx < len(_pt_geoms):
+                            _passthrough_geometry = _pt_geoms[_pt_idx]
                 results.append(
                     {"file": file_path, "text": existing_text, "value": existing_text}
                 )
@@ -1758,6 +2011,8 @@ async def process_vision(
                         llm_config=effective_config,
                         task_id=task_id,
                         tool_config=tool_config,
+                        ocr_geometry=_passthrough_geometry,
+                        data=artifact_data,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
@@ -1806,6 +2061,7 @@ async def process_vision(
                         llm_config=effective_config,
                         task_id=task_id,
                         tool_config=tool_config,
+                        data=artifact_data,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
@@ -1846,6 +2102,17 @@ async def process_vision(
                     else:
                         per_page_texts = layer
                     pdf_layer_used = True
+                    # #4309: the text layer's word boxes ride along with the
+                    # text — PyMuPDF localizes every word it extracts, so
+                    # geometry is captured on this first pass too. Degrades to
+                    # text-only (None) when the layer has no usable boxes.
+                    _layer_geoms = _pdf_text_layer_geometry(file_path)
+                    if _layer_geoms:
+                        if requested_page_index is not None:
+                            if 0 <= requested_page_index < len(_layer_geoms):
+                                page_geometry = _layer_geoms[requested_page_index]
+                        else:
+                            per_page_geometries = _layer_geoms
                     logger.info(
                         "PDF text layer present — skipped vision OCR "
                         "for %s (%s)",
@@ -1939,22 +2206,31 @@ async def process_vision(
                 save_config = LLMConfig(provider="pdf_text", model="pdf-text-layer")
             elif vision_mode == "apple" and tool_config.supports_apple_vision:
                 logger.info(f"Apple Vision: {Path(file_path).name}")
+                # Geometry is captured on the SAME pass as the text (#4309):
+                # Apple Vision always localizes what it recognizes, so the
+                # boxes ride along instead of being thrown away.
                 if file_path.lower().endswith(".pdf"):
                     # No usable text layer (checked above) → OCR
                     # page-by-page so we can propagate per-page content
                     # to page child documents after saving the parent.
                     if requested_page_index is not None:
-                        text = await apple_vision_ocr_pdf_page_async(
+                        _page_result = await apple_vision_ocr_pdf_page_geometry_async(
                             file_path,
                             requested_page_index,
                             language,
                         )
+                        text = _page_result.text
                         per_page_texts = [text]
+                        page_geometry = _apple_geometry_result(_page_result)
                     else:
-                        per_page_texts = await apple_vision_ocr_pages_async(
+                        _page_results = await apple_vision_ocr_pages_geometry_async(
                             file_path,
                             language,
                         )
+                        per_page_texts = [r.text for r in _page_results]
+                        per_page_geometries = [
+                            _apple_geometry_result(r) for r in _page_results
+                        ]
                         parts = []
                         for i, t in enumerate(per_page_texts):
                             if t:
@@ -1963,7 +2239,11 @@ async def process_vision(
                                 parts.append(t)
                         text = "\n\n".join(parts)
                 else:
-                    text = await apple_vision_ocr_async(file_path, language)
+                    _vision_result = await apple_vision_ocr_with_geometry_async(
+                        file_path, language
+                    )
+                    text = _vision_result.text
+                    page_geometry = _apple_geometry_result(_vision_result)
                 # Apple Vision doesn't use LLM params, parse as text
                 parsed = text
             else:
@@ -2055,6 +2335,14 @@ async def process_vision(
                             )
                             _llm_page_texts.append("")
                             _llm_page_geometries.append(None)
+                    if postprocess_text is not None:
+                        # #4329: sanitize per PAGE (the per-page artifacts are
+                        # what render); the combined text below is only the
+                        # node's text port.
+                        _llm_page_texts = [
+                            postprocess_text(t) if (t or "").strip() else t
+                            for t in _llm_page_texts
+                        ]
                     per_page_texts = _llm_page_texts
                     per_page_geometries = _llm_page_geometries
                     _parts: list[str] = []
@@ -2177,6 +2465,19 @@ async def process_vision(
                         f"Retry failed for {Path(file_path).name}: {retry_exc}"
                     )
 
+            # #4329: markup tools sanitize/validate the model output BEFORE
+            # anything is saved or rendered. A postprocess raise fails this
+            # file loudly (recorded per-file below) — never a bad artifact.
+            if (
+                postprocess_text is not None
+                and not _llm_multipage  # multipage already sanitized per page
+                and (text or "").strip()
+            ):
+                text = postprocess_text(text)
+                parsed = parse_output(text, output_format, output_options)
+                if reference_values:
+                    parsed = apply_reference_matching(parsed, reference_values)
+
             if not (text or "").strip():
                 msg = (
                     f"Vision LLM returned empty response for "
@@ -2264,6 +2565,7 @@ async def process_vision(
                         artifact_type=tool_config.artifact_type,
                         llm_config=save_config,
                         page_geometries=per_page_geometries,
+                        artifact_data=artifact_data,
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
@@ -2295,6 +2597,7 @@ async def process_vision(
                             artifact_type=tool_config.artifact_type,
                             llm_config=save_config,
                             page_geometries=per_page_geometries,
+                            artifact_data=artifact_data,
                         )
                         if page_artifact_ids is None:
                             # Still unsplittable. FAIL LOUD rather than write a
@@ -2320,7 +2623,13 @@ async def process_vision(
                             llm_config=save_config,
                             task_id=task_id,
                             tool_config=tool_config,
-                            ocr_geometry=page_geometry,
+                            ocr_geometry=page_geometry
+                            or (
+                                per_page_geometries[0]
+                                if per_page_geometries
+                                else None
+                            ),
+                            data=artifact_data,
                             metadata_field=metadata_field,
                             custom_metadata=custom_metadata,
                             document=_preloaded_doc,
@@ -2342,6 +2651,7 @@ async def process_vision(
                         task_id=task_id,
                         tool_config=tool_config,
                         ocr_geometry=page_geometry,
+                        data=artifact_data,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,

@@ -234,6 +234,9 @@ class ArtifactService {
             artifactType: generated.artifactType,
             content: generated.content,
             data: data,
+            // Present only on the single-artifact GET (#4309); list payloads
+            // omit geometry to stay lean.
+            ocrGeometry: generated.ocrGeometry.map { OCRGeometry(generated: $0) },
             provider: generated.provider,
             model: generated.model,
             reviewed: generated.reviewed,

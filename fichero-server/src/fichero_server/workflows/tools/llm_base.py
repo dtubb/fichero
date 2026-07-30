@@ -727,6 +727,7 @@ async def save_file_artifact(
     tool_config: LLMToolConfig,
     *,
     ocr_geometry: OCRGeometryResult | None = None,
+    data: dict | None = None,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     document: object | None = None,
@@ -742,15 +743,17 @@ async def save_file_artifact(
     (``save_artifact`` above) and is never re-derived per family.
 
     The only family-specific convention it encodes is that file/media artifacts
-    carry no structured ``data`` (hardcoded ``data=None``); everything else is a
-    straight pass-through. ``file_path`` is listed first because callers key on
-    the source path, but every call site uses keyword arguments.
+    carry no structured ``data`` by default (``data=None``); markup tools may
+    stamp a small typed payload (e.g. ``{"target_format": "svg"}``, #4329).
+    Everything else is a straight pass-through. ``file_path`` is listed first
+    because callers key on the source path, but every call site uses keyword
+    arguments.
     """
     return await save_artifact(
         document_id=document_id,
         file_path=file_path,
         content=content,
-        data=None,
+        data=data,
         ocr_geometry=ocr_geometry,
         library_path=library_path,
         llm_config=llm_config,

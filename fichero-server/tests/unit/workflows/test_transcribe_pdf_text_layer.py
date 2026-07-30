@@ -259,8 +259,15 @@ async def test_image_only_pdf_page_child_routes_to_apple_vision_page(
         "page_content": None,
     }]
 
+    from fichero_server.workflows.tools.vision_base import VisionOCRResult
+
     save_mock = AsyncMock(return_value="artifact-page-2")
-    page_ocr_mock = AsyncMock(return_value="OCR text from page 2")
+    # #4309: the per-page apple branch fetches text + geometry in one pass.
+    page_ocr_mock = AsyncMock(
+        return_value=VisionOCRResult(
+            text="OCR text from page 2", line_boxes=[], word_boxes=[]
+        )
+    )
     all_pages_mock = AsyncMock(
         side_effect=AssertionError("page-child branch must not OCR whole PDF")
     )
@@ -269,11 +276,11 @@ async def test_image_only_pdf_page_child_routes_to_apple_vision_page(
         patch("fichero_server.workflows.tools.vision_base.save_artifact", new=save_mock),
         patch("fichero_server.workflows.tools.vision_base._try_pdf_text_layer", return_value=None),
         patch(
-            "fichero_server.workflows.tools.vision_base.apple_vision_ocr_pdf_page_async",
+            "fichero_server.workflows.tools.vision_base.apple_vision_ocr_pdf_page_geometry_async",
             new=page_ocr_mock,
         ),
         patch(
-            "fichero_server.workflows.tools.vision_base.apple_vision_ocr_pages_async",
+            "fichero_server.workflows.tools.vision_base.apple_vision_ocr_pages_geometry_async",
             new=all_pages_mock,
         ),
     ):

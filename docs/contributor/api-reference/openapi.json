@@ -34641,6 +34641,10 @@
             "nullable": true,
             "title": "Data"
           },
+          "ocr_geometry": {
+            "$ref": "#/components/schemas/OCRGeometryResult",
+            "nullable": true
+          },
           "version": {
             "type": "integer",
             "title": "Version"
@@ -51432,7 +51436,7 @@
             },
             "type": "array",
             "title": "Bbox",
-            "description": "Normalized [x, y, width, height] values in the range 0..1."
+            "description": "Normalized [x, y, width, height] values in the range 0..1, top-left origin (y grows downward, matching image/W3C space)."
           },
           "level": {
             "$ref": "#/components/schemas/OCRGeometryLevel",
@@ -51444,6 +51448,18 @@
             "minimum": 0.0,
             "nullable": true,
             "title": "Confidence"
+          },
+          "char_start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Char End"
           },
           "page_index": {
             "type": "integer",

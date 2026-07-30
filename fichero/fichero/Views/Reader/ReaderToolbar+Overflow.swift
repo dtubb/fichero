@@ -41,11 +41,33 @@ extension ReaderToolbar {
     var inlineSecondaryTools: some View {
         HStack(spacing: 12) {
             magnifierButton
+            textBoxesButton
             loupeSection
             editButton
             annotationSection
         }
         .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// Toggle for the OCR text-box overlay (#4309). Greyed when the host
+    /// passes no binding (e.g. a surface without page geometry).
+    @ViewBuilder
+    var textBoxesButton: some View {
+        let binding = textBoxesEnabled ?? .constant(false)
+        Button {
+            binding.wrappedValue.toggle()
+        } label: {
+            Image(systemName: "text.viewfinder")
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(binding.wrappedValue ? .accentColor : .primary)
+        .disabled(textBoxesEnabled == nil)
+        .help(
+            textBoxesEnabled == nil
+                ? "Text boxes (not available for this document)"
+                : "Show recognized text boxes"
+        )
+        .accessibilityLabel("Text Boxes")
     }
 
     /// Trailing '…' menu holding the secondary tools when the bar is too narrow
@@ -55,6 +77,9 @@ extension ReaderToolbar {
         Menu {
             Toggle("Magnifier Panel", isOn: magnifierEnabled ?? .constant(false))
                 .disabled(magnifierEnabled == nil)
+
+            Toggle("Text Boxes", isOn: textBoxesEnabled ?? .constant(false))
+                .disabled(textBoxesEnabled == nil)
 
             Toggle("Loupe", isOn: loupeEnabled ?? .constant(false))
                 .disabled(loupeEnabled == nil)
