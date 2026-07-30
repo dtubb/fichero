@@ -21,7 +21,10 @@ import SwiftUI
 struct Spatial2DCanvas: View {
     let nodes: [SpatialNode]
     let connections: [SpatialConnection]
-    @Binding var selectedNodeId: String?
+    /// The SAME selection set every other view mode holds (#4409). This was a
+    /// single optional, so a marquee over five cards published one of them —
+    /// whichever `Set` ordering happened to yield first.
+    @Binding var selectedNodeIds: Set<String>
 
     /// Observable layout store. When non-nil (together with `folderScopeId`)
     /// the canvas becomes interactive and persists positions through it.
@@ -237,7 +240,7 @@ struct Spatial2DCanvas: View {
         let chipView = nodeChip(node, loadThumbnail: loadThumbnail)
             .position(point)
             .zIndex(dragItemId == node.id ? 1 : 0)
-            .onTapGesture { selectedNodeId = node.id }
+            .onTapGesture { selectedNodeIds = [node.id] }
         if isInteractive {
             chipView.gesture(dragGesture(for: node, base: base, in: size))
         } else {
@@ -263,7 +266,7 @@ struct Spatial2DCanvas: View {
     }
 
     func nodeChip(_ node: SpatialNode, loadThumbnail: Bool) -> some View {
-        let isSelected = node.id == selectedNodeId || marqueeSelection.contains(node.id)
+        let isSelected = selectedNodeIds.contains(node.id) || marqueeSelection.contains(node.id)
         return HStack(spacing: 5) {
             // Image / PDF-page nodes render their actual thumbnail (#1744);
             // non-source nodes keep the kind-coloured icon glyph. When zoomed
@@ -309,10 +312,10 @@ struct Spatial2DCanvas: View {
     @ViewBuilder
     func itemChip(for item: CanvasItemDisplay, at point: CGPoint, base: CGPoint) -> some View {
         let size = itemSize(for: item)
-        let showHandle = isInteractive && item.id == selectedNodeId && item.kind != .link
+        let showHandle = isInteractive && selectedNodeIds.contains(item.id) && item.kind != .link
         let card = CanvasItemView(
             item: item,
-            isSelected: item.id == selectedNodeId,
+            isSelected: selectedNodeIds.contains(item.id),
             width: size.width,
             height: size.height
         )
@@ -321,7 +324,7 @@ struct Spatial2DCanvas: View {
         }
         .position(point)
         .zIndex(dragItemId == item.id ? 2 : 1)
-        .onTapGesture { selectedNodeId = item.id }
+        .onTapGesture { selectedNodeIds = [item.id] }
         if isInteractive {
             card.gesture(itemDragGesture(for: item, base: base))
         } else {

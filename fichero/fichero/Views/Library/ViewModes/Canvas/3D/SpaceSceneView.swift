@@ -35,19 +35,6 @@ struct SpaceSceneView: View {
     var onViewportChanged: (SIMD3<Double>, Double) -> Void = { _, _ in }
     @Binding var selectedNodeIds: Set<String>
 
-    /// A single-selection PROJECTION for the legacy `Spatial2DCanvas`, which
-    /// still takes one id (#4409).
-    ///
-    /// Computed from the set and written straight back to it — no parallel
-    /// stored selection. Reads as nil unless exactly one node is selected, so a
-    /// multi-selection is never misreported as one arbitrary member.
-    private var legacySingleSelection: Binding<String?> {
-        Binding(
-            get: { selectedNodeIds.count == 1 ? selectedNodeIds.first : nil },
-            set: { selectedNodeIds = $0.map { [$0] } ?? [] }
-        )
-    }
-
     /// Observable layout store (#2293) — the SAME instance the 2D canvas uses.
     /// When non-nil together with `folderScopeId`, the 3D scene becomes a second
     /// renderer on the shared model: it loads persisted positions on appear,
@@ -270,7 +257,7 @@ struct SpaceSceneView: View {
         }
         #else
         Spatial2DCanvas(
-            nodes: nodes, connections: connections, selectedNodeId: legacySingleSelection,
+            nodes: nodes, connections: connections, selectedNodeIds: selectedNodeIds,
             storageService: storageService
         )
         #endif

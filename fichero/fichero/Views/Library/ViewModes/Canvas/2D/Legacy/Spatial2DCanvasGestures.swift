@@ -48,7 +48,7 @@ extension Spatial2DCanvas {
                 if resizeOrigin == nil {
                     resizeOrigin = persistedItemSize(for: item)
                     resizeItemId = item.id
-                    selectedNodeId = item.id
+                    selectedNodeIds = [item.id]
                 }
                 guard let origin = resizeOrigin else { return }
                 let scale = effectiveZoom
@@ -124,7 +124,7 @@ extension Spatial2DCanvas {
                 case .marquee:
                     let box = rect(from: value.startLocation, to: value.location)
                     marqueeSelection = nodesIntersecting(box, layout: layout, in: size)
-                    selectedNodeId = marqueeSelection.first
+                    selectedNodeIds = marqueeSelection
                     marqueeRect = nil
                 }
             }
