@@ -31,6 +31,30 @@ extension ResearchTasksPane {
         }
     }
 
+    /// Open the AI plan composer with a sensible default name (#1729).
+    func presentPlanComposer() {
+        newPlanName = "Plan \(researchStore.plans.count + 1)"
+        newPlanTerm = ""
+        isPlanComposerPresented = true
+    }
+
+    /// Create a plan WITH a research term, so the backend runs its plan agent
+    /// and returns archives / locations / multilingual terms / summary (#1729).
+    func generatePlanWithAI() async {
+        let term = newPlanTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty else { return }
+        let name = newPlanName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let plan = await researchStore.createPlan(
+            projectId: project.id,
+            name: name.isEmpty ? term : name,
+            term: term
+        ) {
+            isPlanComposerPresented = false
+            selectedPlanId = plan.id
+            await researchStore.reloadTasks(planId: plan.id, projectId: project.id)
+        }
+    }
+
     func ensurePlanId() async -> String? {
         if let id = selectedPlanId { return id }
         let id = await researchStore.ensurePlanId(projectId: project.id)

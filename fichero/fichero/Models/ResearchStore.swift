@@ -29,6 +29,10 @@ final class ResearchStore: ObservableDomainStore {
     private(set) var notes: [ResearchNote] = []
     private(set) var isLoading = false
     private(set) var loadedProjectId: String?
+    /// True while the backend's research plan agent is running (#1729).
+    private(set) var isGeneratingPlan = false
+    /// Last plan-create failure, shown as an icon + detail affordance.
+    private(set) var planFailure: String?
 
     /// Monotonic counter bumped on every applied `research.*` change event.
     private(set) var changeToken: Int = 0
@@ -72,13 +76,29 @@ final class ResearchStore: ObservableDomainStore {
 
     // MARK: - Plan actions
 
+    /// Create a plan. A non-empty `term` asks the backend to run its research
+    /// plan agent (archives / locations / multilingual terms / summary) and
+    /// store the result on the plan's metadata (#1729) — that call takes a few
+    /// seconds, so `isGeneratingPlan` drives the progress affordance.
     @discardableResult
-    func createPlan(projectId: String, name: String) async -> ResearchPlan? {
-        guard let plan = try? await researchService.createPlan(projectId: projectId, name: name) else {
+    func createPlan(projectId: String, name: String, term: String? = nil) async -> ResearchPlan? {
+        let wantsAgent = term?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        if wantsAgent { isGeneratingPlan = true }
+        defer { isGeneratingPlan = false }
+        do {
+            let plan = try await researchService.createPlan(
+                projectId: projectId, name: name, term: term
+            )
+            plans.append(plan)
+            planFailure = nil
+            return plan
+        } catch {
+            // Surface, never swallow (#3302): the view shows an icon whose
+            // detail is this message.
+            planFailure = error.localizedDescription
+            log.error("Plan create failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
-        plans.append(plan)
-        return plan
     }
 
     func refreshPlan(_ id: String) async -> ResearchPlan? {

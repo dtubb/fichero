@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		65767DE12584B0DAD362E215 /* UndoRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4413D6231FC68943536CBE /* UndoRouting.swift */; };
+		7342CB17F398A9E7E144FCA0 /* UndoRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4413D6231FC68943536CBE /* UndoRouting.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
@@ -56,8 +58,9 @@
 		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero.xctestplan; sourceTree = "<group>"; };
 		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-embedded.xctestplan"; sourceTree = "<group>"; };
 		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-ipad.xctestplan"; sourceTree = "<group>"; };
-		FEED00000000000000000262 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
+		DF4413D6231FC68943536CBE /* UndoRouting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UndoRouting.swift; sourceTree = "<group>"; };
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FEED00000000000000000262 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -132,6 +135,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		05D1417BAC84690B29760DCB /* App */ = {
+			isa = PBXGroup;
+			children = (
+				2B98F407D7139DCFB37AF7C9 /* Menus */,
+			);
+			name = App;
+			path = App;
+			sourceTree = "<group>";
+		};
+		2B98F407D7139DCFB37AF7C9 /* Menus */ = {
+			isa = PBXGroup;
+			children = (
+				DF4413D6231FC68943536CBE /* UndoRouting.swift */,
+			);
+			name = Menus;
+			path = Menus;
+			sourceTree = "<group>";
+		};
 		400 = {
 			isa = PBXGroup;
 			children = (
@@ -216,6 +237,7 @@
 			children = (
 				51FC61283AC8DE6AC310A5C9 /* Models */,
 				53D07D551F2839C847FFDBAD /* Views */,
+				05D1417BAC84690B29760DCB /* App */,
 			);
 			name = fichero;
 			path = fichero;
@@ -955,6 +977,7 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				7342CB17F398A9E7E144FCA0 /* UndoRouting.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -970,6 +993,7 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				65767DE12584B0DAD362E215 /* UndoRouting.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

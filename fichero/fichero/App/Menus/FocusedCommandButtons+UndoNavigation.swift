@@ -47,6 +47,7 @@ struct NavigateForwardButton: View {
     }
 }
 
+@MainActor
 struct UndoLastActionButton: View {
     /// The active library's audited-action holder (#3444 — per library, not a
     /// process-global singleton). Reading `.actionName`/`.auditId` in the body
@@ -75,11 +76,29 @@ struct UndoLastActionButton: View {
         .disabled(!isEnabled)
     }
 
+    /// Where this ⌘Z should land right now (#4354). The menu item is a key
+    /// equivalent, so it matches ahead of the responder chain; the route puts
+    /// the focused text editor back in front of the app-level undo.
+    ///
+    /// Recomputed on every body evaluation, which is when AppKit rebuilds the
+    /// menu (menu validation runs before display and before a key equivalent
+    /// fires), so the focus probe is read at the moment it matters.
+    private var route: UndoRoute {
+        UndoRoutingPolicy.route(
+            isTextEditing: FocusedTextResponder.isEditing,
+            textUndoAvailable: FocusedTextResponder.canUndo,
+            navigationUndoEnabled: navigationUndoAction?.isEnabled == true,
+            hasAuditedUndo: auditStore?.nextUndoableEntry != nil || lastAction?.auditId != nil
+        )
+    }
+
     /// "Undo Merge" when the next undoable action is known, plain "Undo"
     /// otherwise. Prefers the audit log's next target (multi-level, #3444);
     /// falls back to the last-recorded action before the log has loaded.
     private var undoTitle: String {
-        if navigationUndoAction != nil {
+        // While typing, the menu item names the typing — never a library action
+        // the user is not looking at.
+        if route == .focusedTextEditor || navigationUndoAction != nil {
             return "Undo"
         }
         let name = auditStore?.nextUndoableEntry?.actionName ?? lastAction?.actionName
@@ -88,9 +107,7 @@ struct UndoLastActionButton: View {
     }
 
     private var isEnabled: Bool {
-        navigationUndoAction?.isEnabled == true
-            || auditStore?.nextUndoableEntry != nil
-            || lastAction?.auditId != nil
+        route != .none
     }
 
     /// `"entity.merge"` → `"Merge"`. Falls back to the raw name if unverbed.
@@ -101,9 +118,20 @@ struct UndoLastActionButton: View {
     }
 
     private func performUndo() {
-        if let navigationUndoAction, navigationUndoAction.isEnabled {
-            navigationUndoAction.run()
+        switch route {
+        case .none:
             return
+        case .focusedTextEditor:
+            // Hand it back to the editor that has focus — the shape the
+            // responder chain would have produced if a key equivalent did not
+            // match first (#4354).
+            FocusedTextResponder.undo()
+            return
+        case .navigation:
+            navigationUndoAction?.run()
+            return
+        case .auditedAction:
+            break
         }
         guard let auditStore else { return }
         Task {

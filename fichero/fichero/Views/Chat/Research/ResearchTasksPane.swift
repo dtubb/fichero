@@ -16,6 +16,12 @@ struct ResearchTasksPane: View {
     @State var editingNoteId: String?
     @State var editingNoteText = ""
 
+    // "Start research with AI" composer (#1729) — name + term, POSTed with the
+    // term so the backend runs its research plan agent.
+    @State var isPlanComposerPresented = false
+    @State var newPlanName = ""
+    @State var newPlanTerm = ""
+
     var body: some View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
@@ -42,5 +48,6 @@ struct ResearchTasksPane: View {
             }
         }
         .task(id: project.id) { await reload() }
+        .sheet(isPresented: $isPlanComposerPresented) { planComposerSheet }
     }
 }
