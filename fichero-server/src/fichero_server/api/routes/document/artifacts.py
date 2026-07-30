@@ -46,6 +46,8 @@ class ArtifactResponse(BaseModel):
     source_document_id: Optional[str] = None
     run_id: Optional[str] = None
     step_name: Optional[str] = None
+    workflow_id: Optional[str] = None
+    sequence: Optional[int] = None
     created_at: str
 
 
@@ -115,6 +117,8 @@ def _artifact_response(
         source_document_id=artifact.source_document_id,
         run_id=artifact.run_id,
         step_name=artifact.step_name,
+        workflow_id=artifact.workflow_id,
+        sequence=artifact.sequence,
         created_at=artifact.created_at.isoformat() if artifact.created_at else "",
     )
 
@@ -260,6 +264,12 @@ async def create_artifact(
 @router.get("/")
 async def list_all_artifacts(
     artifact_type: Optional[str] = Query(None, description="Filter by artifact type"),
+    run_id: Optional[str] = Query(
+        None, description="Filter by producing workflow run (thread id, #4313)"
+    ),
+    step_name: Optional[str] = Query(
+        None, description="Filter by producing workflow node id (#4313)"
+    ),
     limit: int = Query(100, ge=1, le=500, description="Max results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     db: Database = Depends(get_library_database),
@@ -271,6 +281,10 @@ async def list_all_artifacts(
     query_kwargs = {}
     if artifact_type:
         query_kwargs["artifact_type"] = artifact_type
+    if run_id:
+        query_kwargs["run_id"] = run_id
+    if step_name:
+        query_kwargs["step_name"] = step_name
 
     artifacts = (
         db.query(Artifact, **query_kwargs) if query_kwargs else db.query(Artifact)

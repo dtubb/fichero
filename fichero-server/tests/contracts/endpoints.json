@@ -869,6 +869,16 @@
             "name": "offset",
             "required": false,
             "type": "integer"
+          },
+          {
+            "name": "run_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "step_name",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,

@@ -15,6 +15,10 @@ from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 from fichero_server.db import Database
+from fichero_server.execution.cancellation import (
+    cancellation_requested,
+    clear_cancellation,
+)
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.registry import get_tool_def
@@ -583,6 +587,9 @@ async def _run_workflow_in_background(
     workflow: Workflow,
     request: ExecuteWorkflowRequest,
     db: Database,
+    *,
+    resume_input: Any = None,
+    is_resume: bool = False,
 ) -> None:
     """
     Run a workflow in the background, publishing events to the event hub.
@@ -592,6 +599,13 @@ async def _run_workflow_in_background(
     ``_running_workflows[thread_id]["events"]`` — a thread-safe
     :class:`WorkflowEventHub` that fans them out to every SSE subscriber
     (#2546). The producer interface is unchanged: ``.put(event)``.
+
+    #4317: resume runs on this SAME path. With ``is_resume=True`` the stream
+    input is ``resume_input`` (``None`` to continue the checkpoint, new
+    inputs, or ``Command(resume=answer)`` for an interrupt() answer) instead
+    of a fresh initial state — so a resumed run streams SSE, honors
+    pause/cancel, and hits the completion/finalize document boundary exactly
+    like a live run, instead of blocking the FastAPI loop with ``ainvoke``.
     """
     # SystemicErrorDetected is caught below; an `except` clause is a global
     # lookup, so it must be bound in this scope. The runtime entry points are
@@ -643,19 +657,99 @@ async def _run_workflow_in_background(
             )
         )
 
+    # Predeclared so the terminal-path document finalizer (#4315) can reach the
+    # checkpointer/config even when the failure happened before graph build.
+    checkpointer = None
+    config: dict[str, Any] = {
+        "configurable": {
+            "thread_id": thread_id,
+            "checkpoint_ns": request.checkpoint_ns,
+        }
+    }
+
+    async def _finalize_documents(final_status: str, **result_extra: Any) -> None:
+        """Settle this run's documents on a non-success terminal path (#4315).
+
+        Cancelled/failed runs used to skip complete_run_documents entirely,
+        stranding every touched document at Status.processing forever.
+        Best-effort: a finalize failure must never mask the terminal outcome.
+        """
+        try:
+            from fichero_server.workflows.completion import (  # noqa: PLC0415
+                collect_processed_document_ids,
+                finalize_run_documents,
+            )
+
+            terminal_state: dict[str, Any] = {}
+            if checkpointer is not None:
+                try:
+                    tup = await checkpointer.aget_tuple(config)
+                    if tup:
+                        terminal_state = (
+                            tup.checkpoint.get("channel_values") or {}
+                        )
+                except Exception as ckpt_exc:
+                    logger.warning(
+                        "finalize(%s): checkpoint read failed for %s: %s",
+                        final_status,
+                        thread_id,
+                        ckpt_exc,
+                    )
+            doc_ids = collect_processed_document_ids(terminal_state)
+            settled = finalize_run_documents(
+                db,
+                doc_ids,
+                final_status,
+                workflow_run={
+                    "thread_id": thread_id,
+                    "workflow_id": workflow_id,
+                    "workflow_name": workflow.name,
+                    "provider": workflow.provider,
+                    "model": workflow.model,
+                    "result": {"status": final_status, **result_extra},
+                    "started_at": start_time,
+                    "completed_at": datetime.now(timezone.utc),
+                },
+            )
+            if settled:
+                logger.info(
+                    "Run %s %s: settled %d document(s) out of processing",
+                    thread_id,
+                    final_status,
+                    settled,
+                )
+        except Exception as finalize_exc:  # pragma: no cover - defensive
+            logger.warning(
+                "Terminal document finalize (%s) failed for %s: %s",
+                final_status,
+                thread_id,
+                finalize_exc,
+            )
+
     try:
         # Mark as running
         state["status"] = "running"
 
-        await log_execution(f"Starting workflow '{workflow.name}'")
-
-        # Log activity: workflow started
-        activity_tracker.workflow_started(
-            workflow_id=workflow_id,
-            thread_id=thread_id,
-            workflow_name=workflow.name,
-            input_count=len(request.inputs),
+        await log_execution(
+            f"Resuming workflow '{workflow.name}' from checkpoint"
+            if is_resume
+            else f"Starting workflow '{workflow.name}'"
         )
+
+        # Log activity: workflow started / resumed
+        if is_resume:
+            activity_tracker.workflow_resumed(
+                workflow_id=workflow_id,
+                thread_id=thread_id,
+                workflow_name=workflow.name,
+            )
+        else:
+            activity_tracker.workflow_started(
+                workflow_id=workflow_id,
+                thread_id=thread_id,
+                workflow_name=workflow.name,
+                input_count=len(request.inputs),
+            )
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="running",
@@ -696,9 +790,26 @@ async def _run_workflow_in_background(
 
         # Create workflow snapshot for historical visualization (even if workflow is deleted)
         await log_execution("Creating workflow snapshot")
+        # #4314: persist the FULL node shape, not a trimmed {id, tool, label}
+        # projection. This snapshot upserts over the one /execute saved (via
+        # COALESCE), and it is the only durable record of the per-node
+        # config/prompt and the provider/model actually used (run-level
+        # overrides were applied to workflow.nodes above, so these are the
+        # effective values) — editing the live Workflow later must not change
+        # what the run record reports.
         workflow_snapshot = {
             "nodes": [
-                {"id": n["id"], "tool": n["tool"], "label": n.get("label", "")}
+                {
+                    "id": n["id"],
+                    "tool": n["tool"],
+                    "label": n.get("label", ""),
+                    "config": n.get("config", {}) or {},
+                    "inputs": n.get("inputs", {}) or {},
+                    "provider_name": (
+                        n.get("provider_name") or n.get("providerName") or ""
+                    ),
+                    "model_name": n.get("model_name") or n.get("modelName") or "",
+                }
                 for n in workflow.nodes
             ],
             "edges": [
@@ -926,6 +1037,11 @@ async def _run_workflow_in_background(
             library_path=str(db.path.parent) if hasattr(db, "path") else "",
         )
         initial_state["workflow_id"] = request.workflow_id
+        # #4313: the run's thread_id IS the run id. Tools read task_id from
+        # state when saving artifacts (Artifact.run_id), and the fan-out Send
+        # payloads already propagate it — so every artifact a live run
+        # produces is traceable via GET /threads/{id}/run.run_artifacts.
+        initial_state["task_id"] = thread_id
 
         # Identify exit nodes (nodes with no outgoing edges). Workflow edges
         # use raw node IDs, but LangGraph events use the display label when one
@@ -951,9 +1067,36 @@ async def _run_workflow_in_background(
         logger.debug(f"Exit nodes for completion: {exit_node_event_names}")
         completed_exit_nodes = set()
 
+        # #4317: a resumed run only replays the REMAINING nodes — exit nodes
+        # that completed before the pause never fire on_chain_end again, so
+        # seed them from the checkpoint or the missing-exit-node guard would
+        # fail an honestly-completed resume.
+        if is_resume:
+            try:
+                pre_tuple = await checkpointer.aget_tuple(config)
+                pre_state = (
+                    pre_tuple.checkpoint.get("channel_values") if pre_tuple else {}
+                ) or {}
+                id_to_event_name = {
+                    n.get("id"): (n.get("label") or n.get("id"))
+                    for n in workflow.nodes
+                }
+                for done_node_id in pre_state.get("completed_nodes") or []:
+                    event_name = id_to_event_name.get(done_node_id, done_node_id)
+                    if event_name in exit_node_event_names:
+                        completed_exit_nodes.add(event_name)
+            except Exception as seed_exc:
+                logger.warning(
+                    "Resume: could not seed completed exit nodes for %s: %s",
+                    thread_id,
+                    seed_exc,
+                )
+
+        stream_input = resume_input if is_resume else initial_state
+
         # Stream execution events
         async for event in app.astream_events(
-            initial_state,
+            stream_input,
             config=config,
             version="v2",
         ):
@@ -992,7 +1135,10 @@ async def _run_workflow_in_background(
             # results (per the issue invariant: "partial results are
             # NOT rolled back"), and the activity tracker emits a
             # workflow_cancelled event in the surrounding finally.
-            if state.get("cancel_requested"):
+            # #4317: also honor the shared cancellation event — the one
+            # primitive the cancel endpoint, DELETE, and batch cancel all set,
+            # reachable even after this run's registry entry was evicted.
+            if state.get("cancel_requested") or cancellation_requested(thread_id):
                 state["status"] = "cancelled"
                 await log_execution(
                     f"Workflow '{workflow.name}' cancelled by user "
@@ -1029,6 +1175,9 @@ async def _run_workflow_in_background(
                     * 1000,
                     completed_at=datetime.now(timezone.utc),
                 )
+                # #4315: cancelled runs must not strand documents at
+                # Status.processing — revert them to pending with provenance.
+                await _finalize_documents("cancelled", reason="user_requested")
                 return
 
             event_kind = event.get("event", "")
@@ -1256,6 +1405,24 @@ async def _run_workflow_in_background(
                         )
                     )
 
+                    # #4314: flush the timeline at every node boundary, not
+                    # only at terminal transitions — a crash/kill mid-run used
+                    # to lose the WHOLE timeline. Best-effort: a flush failure
+                    # must never fail the run.
+                    try:
+                        await activity_tracker.store.update_workflow_run(
+                            thread_id=thread_id,
+                            progress_timeline=progress_timeline,
+                            execution_log="\n".join(execution_log_lines),
+                        )
+                    except Exception as flush_exc:
+                        logger.warning(
+                            "progress_timeline node-boundary flush failed for "
+                            "%s: %s",
+                            thread_id,
+                            flush_exc,
+                        )
+
                     # Track exit node completion (using normalized ID)
                     if original_id in exit_node_event_names:
                         completed_exit_nodes.add(original_id)
@@ -1476,6 +1643,8 @@ async def _run_workflow_in_background(
             error=failure_message,
             completed_at=datetime.now(timezone.utc),
         )
+        # #4315: failed runs revert their processing documents to pending.
+        await _finalize_documents("failed", error=str(e)[:500])
 
     except Exception as e:
         logger.exception(f"Background workflow error for {workflow_id}")
@@ -1521,8 +1690,16 @@ async def _run_workflow_in_background(
             error=str(e),
             completed_at=datetime.now(timezone.utc),
         )
+        # #4315: failed runs revert their processing documents to pending.
+        await _finalize_documents("failed", error=str(e)[:500])
 
     finally:
+        # Drop the shared cancellation event — but ONLY when the run actually
+        # ended. A pause returns through here too, and a paused run must stay
+        # cancellable via the same primitive (#4316/#4317).
+        if state.get("status") != "paused":
+            clear_cancellation(thread_id)
+
         # Signal end of stream
         event_queue.put(None)  # Sentinel to signal stream end
 

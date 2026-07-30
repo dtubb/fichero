@@ -662,14 +662,28 @@ async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> No
     library-open.
 
     ``max_age_hours=0`` carries #2223 across from the deleted startup sweep
-    (#3920): the tracker is created ONCE per library per process, so at this
-    moment no run in THIS process can be in flight — every ``running`` row
-    belongs to a process that is already gone, regardless of how recently it
-    started. The default of 2 hours would silently skip a run that died five
-    minutes ago, which is the exact bug #2223 fixed.
+    (#3920): a run that died five minutes ago is still stale. The "nothing in
+    this process can be in flight" assumption of #2223 broke when a library is
+    CLOSED and REOPENED mid-run (close_activity_tracker + reopen recreates the
+    tracker while the worker thread is alive) — that flipped LIVE runs to
+    'failed' then back to 'completed' (F5/#4316). The fix keeps the zero
+    cutoff but EXCLUDES every run this process is actively tracking in the
+    runner registry; #4316 also widened the sweep to every non-terminal
+    status ('running', 'accepted', 'paused').
     """
     try:
-        recovered = await tracker.store.recover_stale_runs(max_age_hours=0)
+        # Runs alive in THIS process must never be flipped by the sweep.
+        from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
+        from fichero_server.workflows.run_status import is_terminal  # noqa: PLC0415
+
+        live_thread_ids = tuple(
+            tid
+            for tid, state in list(_running_workflows.items())
+            if not is_terminal(state.get("status"))
+        )
+        recovered = await tracker.store.recover_stale_runs(
+            max_age_hours=0, exclude_thread_ids=live_thread_ids
+        )
         if recovered:
             logger.info(
                 "recover_stale_runs: recovered %d stale run(s) for library %s",

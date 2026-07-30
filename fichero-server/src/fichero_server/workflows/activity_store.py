@@ -66,6 +66,12 @@ _STALE_RUN_ERROR = (
     "(recovered on startup)."
 )
 
+# Recovery sweeps EVERY non-terminal status (#4316): 'running' rows whose
+# worker died, 'accepted' rows whose worker never started, and 'paused' rows
+# with no process left to resume them. Inlined as SQL fragments below.
+_SWEEPABLE_STATUSES = ("running", "accepted", "paused")
+_SWEEPABLE_STATUS_SQL = ", ".join(f"'{s}'" for s in _SWEEPABLE_STATUSES)
+
 _PROGRESS_EVENT_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("node_id", ("node_id", "node")),
     ("file_path", ("file_path",)),
@@ -312,10 +318,16 @@ def _hydrate_progress_timeline(
     return hydrated
 
 
+def _sql_quote(value: str) -> str:
+    """Safely embed a string literal in the rebuild's generated SQL."""
+    return "'" + value.replace("'", "''") + "'"
+
+
 def _rebuild_workflow_runs_flipping_stale(
     db_path: str,
     *,
     started_before: Optional[datetime] = None,
+    exclude_thread_ids: tuple[str, ...] = (),
 ) -> int:
     """Crash-safe recovery: rebuild ``workflow_runs`` with stale 'running' rows
     flipped to 'failed', WITHOUT any in-place index-backed DELETE/UPDATE.
@@ -350,15 +362,18 @@ def _rebuild_workflow_runs_flipping_stale(
     # by the FatalException that sent us down this path.
     conn = duckdb.connect(db_path)
     try:
-        # Build the status-flip CASE. Only 'running' rows (optionally older than
-        # the cutoff) become 'failed'; everything else is copied verbatim.
+        # Build the status-flip CASE. Only non-terminal rows (optionally older
+        # than the cutoff, and never a live run this process is tracking)
+        # become 'failed'; everything else is copied verbatim. (#4316)
+        flip_predicate = f"status IN ({_SWEEPABLE_STATUS_SQL})"
         if started_before is not None:
-            flip_predicate = (
-                "status = 'running' AND started_at < TIMESTAMP '"
+            flip_predicate += (
+                " AND started_at < TIMESTAMP '"
                 f"{started_before.strftime('%Y-%m-%d %H:%M:%S')}'"
             )
-        else:
-            flip_predicate = "status = 'running'"
+        if exclude_thread_ids:
+            excluded = ", ".join(_sql_quote(t) for t in exclude_thread_ids)
+            flip_predicate += f" AND thread_id NOT IN ({excluded})"
 
         status_expr = f"CASE WHEN {flip_predicate} THEN 'failed' ELSE status END"
         error_expr = (
@@ -458,6 +473,7 @@ def _recover_stale_workflow_runs(
     db_path: str,
     *,
     started_before: Optional[datetime] = None,
+    exclude_thread_ids: tuple[str, ...] = (),
 ) -> int:
     """Flip stale 'running' workflow_runs to 'failed' without ever leaving the
     connection (or the DB) in a poisoned state.
@@ -477,9 +493,12 @@ def _recover_stale_workflow_runs(
         Number of rows flipped, or ``-1`` if even the rebuild failed (degraded).
     """
     params: list = [_STALE_RUN_ERROR]
-    where = "status = 'running'"
+    where = f"status IN ({_SWEEPABLE_STATUS_SQL})"
     if started_before is not None:
         where += " AND started_at < ?"
+    if exclude_thread_ids:
+        placeholders = ", ".join("?" * len(exclude_thread_ids))
+        where += f" AND thread_id NOT IN ({placeholders})"
 
     sql = f"""
         UPDATE workflow_runs
@@ -491,6 +510,7 @@ def _recover_stale_workflow_runs(
     """
     if started_before is not None:
         params.append(started_before)
+    params.extend(exclude_thread_ids)
 
     try:
         # Pre-count is cheap and lets us report even though RETURNING also works.
@@ -516,7 +536,9 @@ def _recover_stale_workflow_runs(
             db_path,
         )
         return _rebuild_workflow_runs_flipping_stale(
-            db_path, started_before=started_before
+            db_path,
+            started_before=started_before,
+            exclude_thread_ids=exclude_thread_ids,
         )
 
 
@@ -635,17 +657,14 @@ class ActivityStore:
                 ON workflow_runs(started_at DESC)
             """)
 
-            # --- #1362 startup zombie recovery (crash-safe) ---
-            # Flip ANY leftover status='running' rows to 'failed'. On a DB
-            # opened after a crash + WAL replay, an in-place UPDATE can hit the
-            # DuckDB ART-index delete bug ("Failed to delete all rows from
-            # index. Only deleted 0 out of N rows"), which FATALLY invalidates
-            # the whole library DB. _recover_stale_workflow_runs degrades to a
-            # full table rebuild (CREATE TABLE AS SELECT) on a fresh connection
-            # if the in-place UPDATE poisons `conn`, so startup can never brick
-            # the library. This is the LAST statement on `conn` precisely
-            # because the fast-path UPDATE may poison it.
-            _recover_stale_workflow_runs(conn, self.db_path, started_before=None)
+            # NOTE (#4316): the cutoff-less zombie sweep that used to run here
+            # on EVERY ActivityStore construction is gone — reopening a library
+            # mid-run constructed a fresh store and flipped LIVE runs to
+            # 'failed' (F5). Recovery now happens only via
+            # ActivityTracker/_recover_stale_runs_bg (activity.py), which
+            # excludes the runs this process is actively tracking; the
+            # crash-safe rebuild path (#1362) is preserved inside
+            # _recover_stale_workflow_runs.
         finally:
             try:
                 conn.close()
@@ -1153,13 +1172,20 @@ class ActivityStore:
 
         return await asyncio.to_thread(_list)
 
-    async def recover_stale_runs(self, max_age_hours: int = 2) -> int:
-        """Transition stale 'running' workflow_run rows to 'failed'.
+    async def recover_stale_runs(
+        self,
+        max_age_hours: int = 2,
+        exclude_thread_ids: tuple[str, ...] = (),
+    ) -> int:
+        """Transition stale non-terminal workflow_run rows to 'failed'.
 
-        Called at app startup to clean up runs whose worker thread died
-        without reaching a terminal state (crash, OOM, app restart).
-        Only rows older than ``max_age_hours`` are touched — very recent
-        'running' rows may still be live (#1347).
+        Sweeps EVERY non-terminal status — 'running', 'accepted', 'paused'
+        (#4316) — for runs whose worker died without reaching a terminal
+        state (crash, OOM, app restart). Only rows older than
+        ``max_age_hours`` are touched, and runs named in
+        ``exclude_thread_ids`` (the ones THIS process is actively tracking)
+        are never flipped, so reopening a library mid-run can't fail a live
+        run (F5).
 
         Returns the number of rows updated.
         """
@@ -1171,7 +1197,10 @@ class ActivityStore:
             conn = duckdb.connect(self.db_path)
             try:
                 recovered = _recover_stale_workflow_runs(
-                    conn, self.db_path, started_before=cutoff
+                    conn,
+                    self.db_path,
+                    started_before=cutoff,
+                    exclude_thread_ids=tuple(exclude_thread_ids),
                 )
             finally:
                 try:

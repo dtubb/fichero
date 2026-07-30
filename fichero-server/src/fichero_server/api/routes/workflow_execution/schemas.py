@@ -7,6 +7,8 @@ from typing import Any
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from fichero_server.workflows.run_status import RunStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,7 +39,10 @@ class ExecutionStatusResponse(BaseModel):
     thread_id: str
     workflow_id: str
     workflow_name: str
-    status: str  # "running", "paused", "completed", "failed"
+    # One vocabulary (#4316): accepted|running|paused|completed|failed|
+    # cancelled (+ the soft-delete marker). Exported through OpenAPI so the
+    # app can replace its hand-rolled status enums with this generated one.
+    status: RunStatus
     checkpoint_id: str | None = None
     current_state: dict[str, Any] | None = None
     error: str | None = None
@@ -72,7 +77,7 @@ class ExecuteAcceptedResponse(BaseModel):
     thread_id: str
     workflow_id: str
     workflow_name: str
-    status: str = "accepted"  # Will transition to "running"
+    status: RunStatus = RunStatus.accepted  # Will transition to "running"
     stream_url: str  # URL to subscribe for SSE events
 
 

@@ -121,17 +121,26 @@ class TestStartupRecoveryIsCrashSafe:
     """The happy path: recovery on a real indexed table with zombie rows must
     flip them and leave the connection usable (no fatal)."""
 
-    def test_init_database_flips_indexed_zombies_and_stays_usable(
+    def test_construction_does_not_flip_and_sweep_recovers(
         self, tmp_path: Path
     ) -> None:
+        """#4316: constructing ActivityStore must NOT flip rows — reopening a
+        library mid-run used to fail LIVE runs (F5). The explicit sweep
+        (recover_stale_runs) is what recovers zombies, crash-safe."""
+        import asyncio
+
         db_path = str(tmp_path / "lib.duckdb")
         _seed_indexed_zombies(db_path, n=4)
 
-        # Constructing ActivityStore runs _init_database, which now calls the
-        # crash-safe recovery as its final statement.
-        ActivityStore(db_path)
+        store = ActivityStore(db_path)
 
-        # (c) zombie rows are now 'failed'
+        # (a) construction alone leaves the rows untouched (F5 regression)
+        counts = _status_counts(db_path)
+        assert counts.get("running") == 4, f"construction flipped rows: {counts}"
+
+        # (c) the explicit sweep flips them, crash-safe
+        recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
+        assert recovered == 4
         counts = _status_counts(db_path)
         assert counts.get("failed") == 4, f"expected 4 failed, got {counts}"
         assert "running" not in counts

@@ -12,6 +12,7 @@ Provides batch processing capabilities using LangGraph threads with:
 import asyncio
 import json
 import logging
+import threading
 import uuid
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -203,7 +204,10 @@ class BatchManager:
         self.activity_tracker = get_activity_tracker(str(db_path))
         self._batches: OrderedDict[str, BatchExecution] = OrderedDict()
         self._semaphores: dict[str, asyncio.Semaphore] = {}
-        self._cancel_events: dict[str, asyncio.Event] = {}
+        # #4317: batch cancel shares the ONE cancellation primitive with
+        # single runs (execution.cancellation, threading.Event) — this dict
+        # holds references into that registry, keyed by batch_id.
+        self._cancel_events: dict[str, threading.Event] = {}
         self._pause_events: dict[str, asyncio.Event] = {}
         self._init_database()
 
@@ -513,8 +517,15 @@ class BatchManager:
                 f"Batch {batch_id} cannot be started (status: {batch.status})"
             )
 
-        # Initialize control events
-        self._cancel_events[batch_id] = asyncio.Event()
+        # Initialize control events. Cancel comes from the shared registry
+        # (#4317) — cleared first so a re-executed batch id starts unset.
+        from fichero_server.execution.cancellation import (
+            cancellation_event,
+            clear_cancellation,
+        )
+
+        clear_cancellation(batch_id)
+        self._cancel_events[batch_id] = cancellation_event(batch_id)
         self._pause_events[batch_id] = asyncio.Event()
         self._semaphores[batch_id] = asyncio.Semaphore(batch.max_concurrent)
 
@@ -560,6 +571,50 @@ class BatchManager:
 
         async def execute_item(item: BatchItem):
             """Execute a single batch item."""
+
+            async def _settle_item_documents(final_status: str, **extra) -> None:
+                """#4315: failed/cancelled items must not strand their
+                documents at Status.processing — revert to pending with a
+                provenance entry. Best-effort."""
+                try:
+                    from fichero_server.db.manager import db_manager
+                    from fichero_server.workflows.completion import (
+                        collect_processed_document_ids,
+                        finalize_run_documents,
+                    )
+
+                    snapshot = await compiled_graph.aget_state(
+                        {"configurable": {"thread_id": item.thread_id}}
+                    )
+                    item_db = db_manager.get_database(
+                        str(Path(self.db_path).parent)
+                    )
+                    finalize_run_documents(
+                        item_db,
+                        collect_processed_document_ids(
+                            getattr(snapshot, "values", None)
+                        ),
+                        final_status,
+                        workflow_run={
+                            "thread_id": item.thread_id,
+                            "batch_id": batch_id,
+                            "item_index": item.item_index,
+                            "workflow_id": batch.workflow_id,
+                            "workflow_name": workflow_def.name,
+                            "result": {"status": final_status, **extra},
+                            "started_at": item.started_at,
+                            "completed_at": datetime.now(timezone.utc),
+                        },
+                    )
+                except Exception as settle_exc:
+                    logger.warning(
+                        "Batch %s item %s document finalize (%s) failed: %s",
+                        batch_id,
+                        item.item_index,
+                        final_status,
+                        settle_exc,
+                    )
+
             # Check for cancellation
             if self._cancel_events[batch_id].is_set():
                 item.status = BatchItemStatus.CANCELLED
@@ -584,12 +639,19 @@ class BatchManager:
                         library_path=str(Path(self.db_path).parent),
                         metadata={"batch_id": batch_id, "item_index": item.item_index},
                     )
+                    # #4313/#4317: the item's thread_id is its run id — tools
+                    # stamp it onto artifacts, and the per-file fan-out checks
+                    # it against the shared cancellation registry.
+                    initial_state["task_id"] = item.thread_id
 
                     # Run the graph
                     async for _ in compiled_graph.astream(initial_state, config):
                         # Check for pause/cancel during execution
                         if self._cancel_events[batch_id].is_set():
                             item.status = BatchItemStatus.CANCELLED
+                            item.completed_at = datetime.now(timezone.utc)
+                            # #4315: settle docs this item left processing.
+                            await _settle_item_documents("cancelled")
                             return
 
                     item.status = BatchItemStatus.COMPLETED
@@ -645,6 +707,8 @@ class BatchManager:
                     item.error = str(e)
                     item.completed_at = datetime.now(timezone.utc)
                     logger.error(f"Batch {batch_id} item {item.item_index} failed: {e}")
+                    # #4315: settle docs this item left processing.
+                    await _settle_item_documents("failed", error=str(e)[:500])
 
         # Execute items with progress tracking
         event_queue: asyncio.Queue[BatchEvent] = asyncio.Queue()
@@ -778,10 +842,16 @@ class BatchManager:
                 status=batch.status.value,
             )
 
-        # Cleanup
+        # Cleanup — drop the shared cancellation events for the batch and its
+        # items now that everything reached a terminal state (#4317).
+        from fichero_server.execution.cancellation import clear_cancellation
+
         del self._cancel_events[batch_id]
         del self._pause_events[batch_id]
         del self._semaphores[batch_id]
+        clear_cancellation(batch_id)
+        for item in batch.items:
+            clear_cancellation(item.thread_id)
 
         yield BatchEvent(
             batch_id=batch_id,
@@ -852,8 +922,15 @@ class BatchManager:
         ]:
             raise ValueError(f"Cannot cancel batch with status {batch.status}")
 
-        if batch_id in self._cancel_events:
-            self._cancel_events[batch_id].set()
+        # One primitive (#4317): set the batch-level event AND each
+        # non-terminal item's run event so per-file fan-out branches inside a
+        # long node stop at their next file boundary.
+        from fichero_server.execution.cancellation import request_cancellation
+
+        request_cancellation(batch_id)
+        for item in batch.items:
+            if item.status in (BatchItemStatus.PENDING, BatchItemStatus.RUNNING):
+                request_cancellation(item.thread_id)
 
         # Mark pending items as cancelled
         for item in batch.items:

@@ -586,10 +586,12 @@ class Artifact(BaseModel):
 
     # Provenance
     source_document_id: str | None = None  # Source document this was extracted from (for page docs, parent PDF)
-    run_id: str | None = None
+    run_id: str | None = None  # Workflow run thread_id (live path, #4313)
     provider: str | None = None  # "qwen", "openai", "kreuzberg", "human"
     model: str | None = None  # "gpt-4o", "qwen-vl-max"
-    step_name: str | None = None
+    step_name: str | None = None  # Producing workflow node id (#4313)
+    workflow_id: str | None = None  # Workflow definition that produced this (#4313)
+    sequence: int | None = None  # Per-run monotonic save order (#4313)
 
     # Quality
     confidence: float | None = None

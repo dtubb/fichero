@@ -18,9 +18,14 @@ from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.activity_types import WorkflowRun
 from fichero_server.workflows.types import EdgeDef, NodeDef, WorkflowDef
 from fichero_server.workflows.run_status import (
-    DELETABLE_TERMINAL_STATUSES,
+    DELETABLE_STATUSES,
+    DELETED_STATUS,
+    NON_TERMINAL_STATUSES,
+    RunStatus,
     is_terminal,
+    normalize_status,
 )
+from fichero_server.execution.cancellation import request_cancellation
 
 
 from .schemas import ThreadListResponse, workflow_internal_error
@@ -88,7 +93,9 @@ class WorkflowRunResponse(BaseModel):
     workflow_name: str
     python_code: str | None = None
     execution_log: str | None = None
-    status: str
+    # One generated enum for the app to adopt (#4316) — legacy synonyms are
+    # normalized server-side before construction.
+    status: RunStatus
     started_at: str | None = None
     completed_at: str | None = None
     duration_ms: float | None = None
@@ -125,6 +132,7 @@ class WorkflowRunArtifactResponse(BaseModel):
     run_id: str | None = None
     step_name: str | None = None
     node_name: str | None = None
+    sequence: int | None = None
     created_at: str | None = None
 
 
@@ -250,7 +258,16 @@ def _run_artifacts_for_thread(
     }
     documents = {doc.id: doc for doc in db.query(Document) if doc.id in doc_ids}
     artifact_rows: list[WorkflowRunArtifactResponse] = []
-    for artifact in sorted(artifacts, key=lambda item: item.created_at or "", reverse=True):
+    # Pipeline order when sequence is populated (#4313); created_at fallback
+    # for artifacts persisted before the sequence field existed.
+    ordered = sorted(
+        artifacts,
+        key=lambda item: (
+            item.sequence if item.sequence is not None else 0,
+            str(item.created_at or ""),
+        ),
+    )
+    for artifact in ordered:
         step_name = artifact.step_name
         artifact_rows.append(
             WorkflowRunArtifactResponse(
@@ -265,6 +282,7 @@ def _run_artifacts_for_thread(
                 run_id=artifact.run_id,
                 step_name=step_name,
                 node_name=node_name_map.get(step_name) if step_name else None,
+                sequence=artifact.sequence,
                 created_at=_iso(artifact.created_at),
             )
         )
@@ -597,8 +615,11 @@ async def delete_thread(
                 status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
             )
 
-        # #2624: one canonical terminal set (delete also accepts soft-deleted).
-        if run and run.status not in DELETABLE_TERMINAL_STATUSES:
+        # #2624/#4316: one canonical deletable set — terminal states, the
+        # soft-delete marker, and paused/accepted (previously dead ends that
+        # 409'd forever, e.g. a run paused before its first checkpoint).
+        run_status = normalize_status(run.status) if run else None
+        if run and run_status not in DELETABLE_STATUSES:
             raise HTTPException(
                 status_code=409,
                 detail=(
@@ -606,6 +627,12 @@ async def delete_thread(
                     f"with status '{run.status}'"
                 ),
             )
+
+        # Deleting a paused/accepted run: signal cancellation first so a
+        # late-starting or evicted worker aborts instead of resurrecting the
+        # row it is about to lose (#4316/#4317).
+        if run_status in NON_TERMINAL_STATUSES:
+            request_cancellation(thread_id)
 
         deleted = await checkpointer.adelete_thread(thread_id) if checkpoint_tuple else 0
         if run:
@@ -656,33 +683,111 @@ class PauseResponse(BaseModel):
     message: str = ""
 
 
+async def _cancel_settled_run(
+    db: Database,
+    thread_id: str,
+    run: WorkflowRun | None,
+    state: dict | None,
+) -> None:
+    """Directly settle a run whose worker coroutine is gone (paused, or
+    accepted with a dead worker): mark it cancelled and free its documents.
+
+    A paused run's worker returned at the pause boundary, so no flag/event can
+    ever reach it — cancel must finish the job itself (#4316).
+    """
+    now_status = "cancelled"
+    if state is not None:
+        state["status"] = now_status
+    tracker = get_activity_tracker(str(db.path))
+    if run:
+        tracker.workflow_cancelled(
+            workflow_id=run.workflow_id,
+            thread_id=thread_id,
+            workflow_name=run.workflow_name,
+            partial_results_preserved=True,
+        )
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    await tracker.store.update_workflow_run(
+        thread_id=thread_id,
+        status=now_status,
+        completed_at=datetime.now(timezone.utc),
+    )
+
+    # #4315: settle any documents the run left at Status.processing.
+    try:
+        from fichero_server.workflows.checkpointer import (  # noqa: PLC0415
+            AsyncDuckDBCheckpointer,
+        )
+        from fichero_server.workflows.completion import (  # noqa: PLC0415
+            collect_processed_document_ids,
+            finalize_run_documents,
+        )
+
+        checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
+        tup = await checkpointer.aget_tuple(
+            {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
+        )
+        channel_values = tup.checkpoint.get("channel_values") if tup else {}
+        finalize_run_documents(
+            db,
+            collect_processed_document_ids(channel_values or {}),
+            "cancelled",
+            workflow_run={
+                "thread_id": thread_id,
+                "workflow_id": run.workflow_id if run else None,
+                "workflow_name": run.workflow_name if run else None,
+                "result": {"status": "cancelled", "reason": "cancelled_while_paused"},
+                "completed_at": datetime.now(timezone.utc),
+            },
+        )
+    except Exception as finalize_exc:  # pragma: no cover - defensive
+        logger.warning(
+            "cancel_workflow: document finalize failed for %s: %s",
+            thread_id,
+            finalize_exc,
+        )
+
+
 @router.post("/threads/{thread_id}/cancel", response_model=CancelResponse)
 async def cancel_workflow(
     thread_id: str,
+    db: Database = Depends(get_library_database_for_write),
 ) -> CancelResponse:
-    """Signal a running workflow to stop at the next astream_events
-    tick (#1127).
+    """Cancel a workflow run in ANY non-terminal state (#1127, #4316, #4317).
 
-    The runner's astream_events loop checks ``state["cancel_requested"]``
-    on every event; setting it here causes the loop to break,
-    a ``workflow_cancelled`` SSE event to fire, and an activity-log
-    entry to record the cancellation. Partial results (artifacts,
-    entities, claims already written) are intentionally preserved so
-    a comparison loop can inspect what got done before the user
-    interrupted.
+    - A running (or about-to-run ``accepted``) worker is signalled through
+      BOTH the registry flag and the shared cancellation event
+      (execution.cancellation), which the runner's event loop AND the
+      per-file fan-out check — so cancel reaches a run even after registry
+      eviction, and stops multi-file nodes at the next file boundary.
+    - A ``paused`` run has no live coroutine to signal — its worker returned
+      at the pause boundary — so cancel settles it directly: run row →
+      cancelled, processing documents → pending (#4315).
 
-    Idempotent: cancelling a thread that's already cancelled /
-    completed / failed returns ``status="already_terminal"`` and a
-    descriptive message instead of raising. Cancelling a thread that
-    isn't in the running registry at all returns
-    ``status="not_running"``.
+    Partial results (artifacts, entities, claims already written) are
+    intentionally preserved. Idempotent: terminal runs return
+    ``status="already_terminal"``; unknown threads ``status="not_running"``.
     """
     # Import lazily to keep test isolation tight — the runner module
     # imports a lot of LangChain machinery; we only need its registry.
     from .runner import _get_workflow_state
 
     state = _get_workflow_state(thread_id)
-    if state is None:
+    run: WorkflowRun | None = None
+    try:
+        run = await get_activity_tracker(str(db.path)).store.get_workflow_run(
+            thread_id
+        )
+    except Exception as run_exc:  # pragma: no cover - defensive
+        logger.debug("cancel_workflow: run lookup failed for %s: %s", thread_id, run_exc)
+
+    current = (
+        state.get("status") if state is not None else normalize_status(run.status)
+        if run
+        else None
+    )
+    if current is None:
         return CancelResponse(
             thread_id=thread_id,
             status="not_running",
@@ -693,8 +798,7 @@ async def cancel_workflow(
             ),
         )
 
-    current = state.get("status")
-    if is_terminal(current):
+    if is_terminal(current) or current == DELETED_STATUS:
         return CancelResponse(
             thread_id=thread_id,
             status="already_terminal",
@@ -705,9 +809,46 @@ async def cancel_workflow(
             ),
         )
 
-    # The astream loop in runner picks this flag up on the next event
-    # tick. No need to await anything here — the runner handles the
-    # graceful exit, SSE event emission, and activity logging.
+    # Reaches the runner loop, the per-file fan-out, and evicted-but-live
+    # workers alike (#4317).
+    request_cancellation(thread_id)
+
+    if current == RunStatus.paused.value or state is None:
+        # Paused: the worker coroutine already returned — settle directly.
+        # No registry state: the worker is either dead (accepted/paused row)
+        # or evicted; for an evicted RUNNING worker the event above will make
+        # it settle itself, so only settle non-running rows here.
+        if current == RunStatus.running.value:
+            logger.info(
+                "cancel_workflow: thread %s not in registry but recorded "
+                "running — cancellation event set for an evicted worker",
+                thread_id,
+            )
+            return CancelResponse(
+                thread_id=thread_id,
+                status="cancel_requested",
+                partial_results_preserved=True,
+                message=(
+                    "Cancellation requested. The run is no longer tracked in "
+                    "memory; a live worker will stop at its next boundary, "
+                    "otherwise recovery will settle it."
+                ),
+            )
+        await _cancel_settled_run(db, thread_id, run, state)
+        logger.info(
+            "cancel_workflow: settled %s run %s as cancelled", current, thread_id
+        )
+        return CancelResponse(
+            thread_id=thread_id,
+            status="cancelled",
+            partial_results_preserved=True,
+            message=(
+                f"Workflow was {current}; it has been cancelled and its "
+                "documents released."
+            ),
+        )
+
+    # Running / accepted with a live worker: flag + event, worker settles.
     state["cancel_requested"] = True
     logger.info(
         "cancel_workflow: marked thread %s for cancellation", thread_id,
@@ -794,7 +935,9 @@ async def get_workflow_run(
             workflow_name=run.workflow_name,
             python_code=run.python_code,
             execution_log=run.execution_log,
-            status=run.status or "unknown",
+            # normalize legacy synonyms; None falls back to the column default
+            # ('running'). An unknown string raises — never silently rebadged.
+            status=RunStatus(normalize_status(run.status) or "running"),
             started_at=_iso(run.started_at),
             completed_at=_iso(run.completed_at),
             duration_ms=run.duration_ms,

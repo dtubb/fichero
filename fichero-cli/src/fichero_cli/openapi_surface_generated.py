@@ -1218,6 +1218,8 @@ def register_generated_openapi_commands(
         artifact_type: Optional[str] = typer.Option(None, "--artifact-type", help="Query parameter: artifact_type."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
+        run_id: Optional[str] = typer.Option(None, "--run-id", help="Query parameter: run_id."),
+        step_name: Optional[str] = typer.Option(None, "--step-name", help="Query parameter: step_name."),
     ) -> None:
         """List All Artifacts (GET /api/artifacts/)."""
         def op_call(client: FicheroClient) -> Any:
@@ -1226,6 +1228,8 @@ def register_generated_openapi_commands(
                 "artifact_type": artifact_type,
                 "limit": limit,
                 "offset": offset,
+                "run_id": run_id,
+                "step_name": step_name,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
