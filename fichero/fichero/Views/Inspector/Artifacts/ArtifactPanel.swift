@@ -111,6 +111,10 @@ struct ArtifactPanel: View {
     /// forever; a new keystroke / blur / flush always retries regardless.
     @State var saveRetryAttempts: Int = 0
     @FocusState var isEditorFocused: Bool
+    /// The window undo manager the content editor registers its typing into —
+    /// cleared on reseed so an editing session can't undo into the previous
+    /// document's edits (#4354).
+    @Environment(\.undoManager) var undoManager
 
     /// Page Content is primary content and renders always-expanded with no
     /// collapse chrome; generated artifacts stay collapsable (#1245).

@@ -70,6 +70,10 @@ extension ArtifactPanel {
             // watermark (#2478). Seeding also resets lastSavedEncoded so the
             // programmatic write below doesn't read as a user edit.
             guard watermarks.shouldReseed(from: rawArtifactContent) else { return }
+            // A reseed IS a new editing session (document switch, workflow
+            // re-run, remote edit). Drop the undo stack so ⌘Z cannot walk back
+            // into the previous document's typing (#4354).
+            undoManager?.removeAllActions()
             let decoded = ArtifactRichTextCodec.decodeAttributed(rawArtifactContent)
             draftText = decoded
             watermarks.seed(
