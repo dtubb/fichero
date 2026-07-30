@@ -12,9 +12,10 @@ or later KG graph stages. Those belong to follow-up stages under #1757.
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import os
-from typing import Any
+from typing import Any, Iterator
 
 from fichero_server.db import db_manager
 from fichero_server.models.knowledge import KnowledgeEntity
@@ -80,21 +81,53 @@ def _transcription_text(document: Document, db) -> str:
     return ""
 
 
-def _records_for_documents(documents: list[Document], db) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
+def _iter_records(documents: list[Document], db) -> Iterator[dict[str, Any]]:
+    """Yield one extraction record at a time, reading each document's text
+    only when the extraction loop is ready for it (#4379).
+
+    This used to build a list: it walked EVERY selected document, pulled the
+    full transcription (page_content, metadata, or the transcription
+    artifact), and returned one list of records — and only then started
+    extracting, one record at a time under a semaphore. Concurrency was
+    bounded; input residency was not. Peak memory was the whole corpus's text
+    held for the entire run, no matter how carefully the calls were paced,
+    which is the shape that gets a process shed under memory pressure on a
+    machine that is already swapping. A named-entity run over a real corpus
+    could not survive its own duration.
+
+    A generator makes the resident text a bounded prefix instead of the whole
+    selection, so peak no longer scales with corpus size.
+
+    ponytail: the upstream source node still hands this tool fully-hydrated
+    `Document` rows, so the selection's own `page_content` is resident before
+    the tool starts — this bounds the extraction copy, not the source
+    hydration. Bounding that too means teaching the source/files node to emit
+    document ids and hydrate lazily, which is a cross-tool change to the
+    workflow source contract and is deliberately not in this fix.
+    """
     for index, document in enumerate(documents):
         text = _transcription_text(document, db)
         if not text:
             continue
-        records.append(
-            {
-                "index": index,
-                "doc_id": document.id,
-                "doc_name": document.name,
-                "text": text,
-            }
-        )
-    return records
+        yield {
+            "index": index,
+            "doc_id": document.id,
+            "doc_name": document.name,
+            "text": text,
+        }
+
+
+def _records_for_documents(documents: list[Document], db) -> list[dict[str, Any]]:
+    """Materialise every record up front.
+
+    Only for callers that must traverse the record set more than once —
+    ``extract_svo_only`` cross-references entities by document, computes the
+    selected-id set, and only then extracts, so a single-pass generator does
+    not fit it. Prefer :func:`_iter_records` everywhere else: this holds the
+    whole selection's text resident for the life of the call, which is the
+    memory shape #4379 was about.
+    """
+    return list(_iter_records(documents, db))
 
 
 @register_tool(
@@ -181,8 +214,11 @@ async def extract_entities_only(
         fallback_documents = _normalize_raw_documents(fallback.get("documents"))
         if fallback_documents != raw_documents:
             documents = _coerce_documents(fallback_documents, db, library_path)
-    records = _records_for_documents(documents, db)
-    if not records:
+    # Bounded lookahead of exactly ONE record, so "did anything have text?"
+    # can be answered without reading the whole selection (#4379).
+    records = _iter_records(documents, db)
+    first_record = next(records, None)
+    if first_record is None:
         return {
             "summary": {
                 "documents_processed": 0,
@@ -193,6 +229,7 @@ async def extract_entities_only(
             },
             "count": 0,
         }
+    records = itertools.chain([first_record], records)
 
     instructions = _build_entity_only_instructions(inputs.get("output_language", "auto"))
     progress_callback = inputs.get("__progress_callback")
@@ -204,16 +241,23 @@ async def extract_entities_only(
     created = 0
     reused = 0
     suppressed = 0
+    # Progress totals the SELECTION, not the record count: streaming means the
+    # number of documents that turn out to have text is unknown until the run
+    # ends, and the selection size is the honest denominator for a progress
+    # bar anyway. `documents_processed` below still counts only real work.
+    total = len(documents)
+    processed = 0
 
     for index, record in enumerate(records):
+        processed += 1
         doc_name = record.get("doc_name") or record.get("doc_id") or f"document-{index + 1}"
         await emit_progress_event(
             progress_callback,
             "file_start",
             "",
             f"Extract Entities {doc_name}",
-            index + 1,
-            len(records),
+            processed,
+            total,
             message=f"Extracting step-2 entities for {doc_name}",
         )
 
@@ -270,16 +314,16 @@ async def extract_entities_only(
             "file_complete",
             "",
             f"Extract Entities {doc_name}",
-            index + 1,
-            len(records),
+            processed,
+            total,
             message=f"Extracted step-2 entities for {doc_name}",
         )
 
     summary = {
-        "documents_processed": len(records),
+        "documents_processed": processed,
         "entity_mentions_processed": mentions_processed,
         "entities_created": created,
         "entities_reused": reused,
         "entities_suppressed": suppressed,
     }
-    return {"summary": summary, "count": len(records)}
+    return {"summary": summary, "count": processed}

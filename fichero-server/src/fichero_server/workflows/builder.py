@@ -987,12 +987,31 @@ def _make_node_function(
 
             print(f"[STEP] ✓ Completed: {node_label}")
 
-            return {
+            update = {
                 "outputs": outputs,
                 "output_files": output_files,
                 "completed_nodes": completed,
                 "current_node": node_id,
             }
+
+            # #4283/#4379: publish a SOURCE node's resolved file list at run
+            # level. `state["files"]` was only ever set on the per-file fan-out
+            # path (the `Send` sub-states), so a preset that fans out per
+            # DOCUMENT instead — every entity-extraction preset — finished with
+            # no `files` in its terminal state at all. The run-level
+            # empty-output detector short-circuits to "not empty" the moment
+            # `files` is falsy (the deliberate no-input-workflow exemption from
+            # #2244/#2245), so it could never fire on a named-entity run: a NER
+            # run that extracted NOTHING reported a green `completed`. #4283
+            # was fixed for the vision/transcription surface and silently open
+            # for the entity surface. A source node already resolves this list;
+            # this only makes it visible to the run boundary.
+            if node_def.tool in SOURCE_TOOLS and isinstance(result, dict):
+                source_files = result.get("files")
+                if source_files:
+                    update["files"] = list(source_files)
+
+            return update
 
         except SystemicErrorDetected:
             # Hard-abort signal — must propagate, not be reduced to a dict.

@@ -294,6 +294,20 @@ class State(TypedDict):
 
     # File tracking
     input_files: list[str]  # Input file paths
+    # The source node's RESOLVED file list, published at run level (#4283/#4379).
+    # This key was read in three places — `_detect_empty_text_output`, the
+    # builder's per-file branch, and the runner — and written by the fan-out
+    # `Send` sub-states, but it was never a declared channel, so LangGraph
+    # dropped every top-level write to it and the terminal state never carried
+    # it. The run-level empty-output guard therefore short-circuited to "not
+    # empty" on every workflow whose source fans out per DOCUMENT rather than
+    # per file, which is every entity-extraction preset: a NER run that
+    # extracted nothing reported a green `completed`. Declaring the channel is
+    # what makes the existing contract actually hold.
+    # `_last_value` (not a merge): the source node resolves this once, and a
+    # parallel branch receives its own single-file view through `Send` rather
+    # than writing back.
+    files: Annotated[list[str], _last_value]
     output_files: Annotated[
         list[str], _merge_output_files
     ]  # Generated output file paths
