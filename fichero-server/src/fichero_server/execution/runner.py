@@ -696,9 +696,26 @@ async def _run_workflow_in_background(
 
         # Create workflow snapshot for historical visualization (even if workflow is deleted)
         await log_execution("Creating workflow snapshot")
+        # #4314: persist the FULL node shape, not a trimmed {id, tool, label}
+        # projection. This snapshot upserts over the one /execute saved (via
+        # COALESCE), and it is the only durable record of the per-node
+        # config/prompt and the provider/model actually used (run-level
+        # overrides were applied to workflow.nodes above, so these are the
+        # effective values) — editing the live Workflow later must not change
+        # what the run record reports.
         workflow_snapshot = {
             "nodes": [
-                {"id": n["id"], "tool": n["tool"], "label": n.get("label", "")}
+                {
+                    "id": n["id"],
+                    "tool": n["tool"],
+                    "label": n.get("label", ""),
+                    "config": n.get("config", {}) or {},
+                    "inputs": n.get("inputs", {}) or {},
+                    "provider_name": (
+                        n.get("provider_name") or n.get("providerName") or ""
+                    ),
+                    "model_name": n.get("model_name") or n.get("modelName") or "",
+                }
                 for n in workflow.nodes
             ],
             "edges": [
@@ -1260,6 +1277,24 @@ async def _run_workflow_in_background(
                             data=node_end_data,
                         )
                     )
+
+                    # #4314: flush the timeline at every node boundary, not
+                    # only at terminal transitions — a crash/kill mid-run used
+                    # to lose the WHOLE timeline. Best-effort: a flush failure
+                    # must never fail the run.
+                    try:
+                        await activity_tracker.store.update_workflow_run(
+                            thread_id=thread_id,
+                            progress_timeline=progress_timeline,
+                            execution_log="\n".join(execution_log_lines),
+                        )
+                    except Exception as flush_exc:
+                        logger.warning(
+                            "progress_timeline node-boundary flush failed for "
+                            "%s: %s",
+                            thread_id,
+                            flush_exc,
+                        )
 
                     # Track exit node completion (using normalized ID)
                     if original_id in exit_node_event_names:
