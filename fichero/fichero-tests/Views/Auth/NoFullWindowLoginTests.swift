@@ -65,18 +65,20 @@ struct NoFullWindowLoginTests {
 
     @Test("auth UI mounts only as presentation chrome, from ContentView")
     func authMountsOnlyAsChrome() throws {
-        let referencingFiles = try Self.appSources()
+        let sources = try Self.appSources()
+        let declaringFiles = sources
+            .filter { $0.source.contains("struct AuthSheetView") }
+            .map(\.path)
+        #expect(declaringFiles == ["Views/Auth/AuthSheetView.swift"])
+        // The single chrome mount in ContentView is the only instantiation.
+        // Any new reference must go through the same reviewed presentation
+        // decision — never a bare full-window mount somewhere else.
+        let instantiatingFiles = sources
             .filter { $0.source.contains("AuthSheetView(") }
             .map(\.path)
-            .sorted()
-        // Its own declaration + the single chrome mount in ContentView. Any new
-        // reference must go through the same reviewed presentation decision.
         #expect(
-            referencingFiles == [
-                "Views/Auth/AuthSheetView.swift",
-                "Views/Shell/ContentView/ContentView.swift"
-            ],
-            "AuthSheetView referenced from unexpected files: \(referencingFiles)"
+            instantiatingFiles == ["Views/Shell/ContentView/ContentView.swift"],
+            "AuthSheetView instantiated from unexpected files: \(instantiatingFiles)"
         )
         let contentView = try #require(
             try Self.appSources().first { $0.path.hasSuffix("ContentView/ContentView.swift") }
