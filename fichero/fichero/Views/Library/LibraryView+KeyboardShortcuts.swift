@@ -9,13 +9,49 @@ private let libraryKeysLogger = Logger(
 // MARK: - Keyboard Shortcuts Extension
 
 extension LibraryView {
-    // Applies keyboard shortcut handlers to the LibraryView content
+    /// Whether `mode` can service the ROW keyboard grammar — arrows, type-ahead,
+    /// Return-to-open, Space-to-preview (#4412).
+    ///
+    /// These handlers used to be applied to every mode, because they wrap
+    /// `libraryContent` as a whole. On the canvas and in 3D that meant an arrow
+    /// key moved the LIST selection while the user was looking at a spatial
+    /// arrangement: the app changed state behind their back, with no visible
+    /// cause, and they found out later. That is worse than the feature being
+    /// absent — a missing key does nothing and says so.
+    ///
+    /// Spatial modes do nothing here for now. If they should get their own
+    /// arrow behaviour (move the selected node? pan the camera?) that is a real
+    /// design question and its own issue, not a default inherited by accident.
+    ///
+    /// Exhaustive switch on purpose: a new mode must decide, rather than
+    /// silently inheriting row semantics the way canvas and space did.
+    static func servicesRowKeyboardGrammar(_ mode: ViewDisplayMode) -> Bool {
+        switch mode {
+        case .icon, .list, .table, .columns: return true
+        case .canvas, .space: return false
+        // Not changed here: `.workspace` keeps today's behaviour because I could
+        // not establish what it renders without running it, and removing a key
+        // that DOES work is its own regression (#4412).
+        case .workspace: return true
+        }
+    }
+
+    /// Applies the row keyboard grammar — but only to modes that can service it.
+    @ViewBuilder
     func withKeyboardShortcuts(_ content: some View) -> some View {
-        applyDeleteConfirmation(
-            to: applyFocusedActions(
-                to: applyArrowKeyHandlers(to: applyPrimaryKeyHandlers(to: content))
+        if Self.servicesRowKeyboardGrammar(displayMode) {
+            applyDeleteConfirmation(
+                to: applyFocusedActions(
+                    to: applyArrowKeyHandlers(to: applyPrimaryKeyHandlers(to: content))
+                )
             )
-        )
+        } else {
+            // Delete + focused actions still apply: ⌫ and the menu commands act
+            // on the selection, which is shared across modes and meaningful on a
+            // canvas. It is the ROW-ordinal handlers (arrows, type-ahead) that
+            // have no meaning in a spatial arrangement.
+            applyDeleteConfirmation(to: applyFocusedActions(to: content))
+        }
     }
 
     @ViewBuilder
