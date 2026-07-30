@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from fichero_server.models import Artifact, Workflow
 from dataclasses import dataclass, field
 from datetime import datetime
+from fichero_server.core.timeutil import ensure_utc, utc_now
 import difflib
 import math
 import json
@@ -58,6 +59,7 @@ import threading
 import time
 import unicodedata
 import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefinedType
 from fichero_server.db.embeddings import (
@@ -653,7 +655,7 @@ class Database(DatabaseEmbeddingMixin):
     def _connect(self) -> duckdb.DuckDBPyConnection:
         """Open a DuckDB connection for this library path."""
         try:
-            return duckdb.connect(str(self.path))
+            return connect_utc(str(self.path))
         except duckdb.Error as exc:
             if self._is_lock_error(exc):
                 raise RuntimeError(
@@ -1610,7 +1612,7 @@ class Database(DatabaseEmbeddingMixin):
                 value.is_builtin = True
                 changed = True
             if changed:
-                value.updated_at = datetime.now()
+                value.updated_at = utc_now()
                 self.save(value)
 
     def _seed_builtin_node_classes(self) -> None:
@@ -4904,6 +4906,15 @@ class Database(DatabaseEmbeddingMixin):
                     result[name] = value
             else:
                 result[name] = value
+
+        # #4347: DuckDB TIMESTAMP columns are naive. Writes now go in as aware
+        # UTC (connections are pinned to TimeZone='UTC'), so a naive value read
+        # back IS UTC — re-attach the offset here, at the one typed-read seam,
+        # so models never mix aware defaults with naive stored values and the
+        # serialized ISO string carries +00:00.
+        for name, value in result.items():
+            if isinstance(value, datetime) and value.tzinfo is None:
+                result[name] = ensure_utc(value)
 
         return result
 

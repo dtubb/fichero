@@ -1,6 +1,7 @@
 """Hermeneutics models for 0.0.2 Layer 5 — interpretation, patterns, meaning."""
 
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from uuid import uuid4
 
@@ -70,8 +71,8 @@ class InterpretiveFramework(BaseModel):
     language: str | None = None
     metadata: dict = Field(default_factory=dict)
     is_active: bool = True
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class Interpretation(BaseModel):
@@ -102,8 +103,8 @@ class Interpretation(BaseModel):
     )  # Links to other interpretations
     metadata: dict = Field(default_factory=dict)
     created_by: str = "human"
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class PatternInstance(BaseModel):
@@ -128,8 +129,8 @@ class PatternInstance(BaseModel):
     framework_id: str | None = None  # If recognized via a specific framework
     supporting_passages: list[str] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class HermeneuticCircleState(BaseModel):
@@ -153,8 +154,8 @@ class HermeneuticCircleState(BaseModel):
     navigation_log: list[str] = Field(default_factory=list)  # History of moves
     interpretation_id: str | None = None  # Resulting interpretation
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class HermesSuggestionRequest(BaseModel):

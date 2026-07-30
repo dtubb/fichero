@@ -19,7 +19,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -201,7 +201,7 @@ async def patch_epistemic_status(
 
     for field, val in request.model_dump(exclude_unset=True).items():
         setattr(value, field, val)
-    value.updated_at = datetime.now()
+    value.updated_at = utc_now()
     db.save(value)
     return value
 
@@ -332,7 +332,7 @@ async def patch_claim_kind(
 
     for field, val in request.model_dump(exclude_unset=True).items():
         setattr(value, field, val)
-    value.updated_at = datetime.now()
+    value.updated_at = utc_now()
     db.save(value)
     return value
 

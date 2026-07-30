@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -158,7 +158,7 @@ def _attach_record_impl(
 
     before = doc.source_metadata
     doc.source_metadata = entries[0]
-    doc.updated_at = datetime.now()
+    doc.updated_at = utc_now()
     db.save(doc)
     return doc, before
 
@@ -176,7 +176,7 @@ def _patch_metadata_impl(
         raise HTTPException(404, f"Document not found: {document_id}")
     before = doc.source_metadata
     doc.source_metadata = metadata
-    doc.updated_at = datetime.now()
+    doc.updated_at = utc_now()
     db.save(doc)
     return doc, before
 
@@ -516,7 +516,10 @@ def _bulk_import_impl(
     else:
         # Create a new collection to hold the imported entries
         parent = Document(
-            name=f"Bibliography Import {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            # UTC in the folder name (#4347). The server may be remote, so its
+            # local clock is not the viewer's either — a stamp that is explicitly
+            # UTC at least sorts and reads consistently for every client.
+            name=f"Bibliography Import {utc_now().strftime('%Y-%m-%d %H:%M')} UTC",
             doc_type=DocType.folder,
             parent_id=None,
         )

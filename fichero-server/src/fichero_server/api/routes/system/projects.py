@@ -8,7 +8,7 @@ entity referenced by Chapter 3 and the JLAR review both).
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
@@ -119,7 +119,7 @@ async def patch_project(
         raise HTTPException(404, f"Project not found: {project_id}")
     for field, value in request.model_dump(exclude_unset=True).items():
         setattr(project, field, value)
-    project.updated_at = datetime.now()
+    project.updated_at = utc_now()
     db.save(project)
     emit_change(
         x_fichero_library_path,

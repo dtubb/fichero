@@ -6,7 +6,7 @@ providing a clean separation from the broader knowledge graph functionality.
 
 from __future__ import annotations
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 import re
 from typing import Annotated, Any
 
@@ -356,7 +356,7 @@ def _apply_claim_patch(claim: KnowledgeClaim, data: dict[str, Any]) -> None:
 
     for key, value in data.items():
         setattr(claim, key, value)
-    claim.updated_at = datetime.now()
+    claim.updated_at = utc_now()
 
 
 def _delete_claim_links_for_claim(db: Database, claim_id: str) -> list[dict[str, Any]]:
@@ -429,7 +429,7 @@ def create_claim_impl(db: Database, request: ClaimCreateRequest) -> KnowledgeCla
     )
     source_language = request.source_language or request.language
 
-    now = datetime.now()
+    now = utc_now()
     claim = KnowledgeClaim(
         text=request.text.strip(),
         source_document_id=request.source_document_id,
@@ -605,7 +605,7 @@ def assign_time_period_impl(
         claim.time_start = request.time_start
         claim.time_end = request.time_end or request.time_start
         claim.time_precision = request.time_precision
-        claim.updated_at = datetime.now()
+        claim.updated_at = utc_now()
         db.save(claim)
         updated += 1
         updated_ids.append(claim.id)
@@ -663,7 +663,7 @@ def assign_time_period_from_metadata_impl(
         claim.time_start = date_value
         claim.time_end = date_value
         claim.time_precision = "metadata"
-        claim.updated_at = datetime.now()
+        claim.updated_at = utc_now()
         db.save(claim)
         updated += 1
         updated_ids.append(claim.id)

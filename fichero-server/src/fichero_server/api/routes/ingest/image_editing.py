@@ -10,6 +10,7 @@ import hashlib
 import io
 import tempfile
 from datetime import datetime, timezone
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -610,7 +611,7 @@ def _append_operation(
     chain = _get_chain(db, document_id)
     if chain:
         chain.operations.append(operation)
-        chain.updated_at = datetime.now()
+        chain.updated_at = utc_now()
     else:
         chain = ImageEditChain(document_id=document_id, operations=[operation])
     db.save(chain)
@@ -734,7 +735,7 @@ def unsplit_image_impl(db: Database, source_id: str) -> list[Document]:
     children = _split_children(db, source_id)
     if not children:
         raise HTTPException(status_code=404, detail="Source image has no split children")
-    deleted_at = datetime.now()
+    deleted_at = utc_now()
     for child in children:
         child.deleted_at = deleted_at
         child.updated_at = deleted_at
@@ -817,7 +818,7 @@ def set_operations_impl(
     chain = _get_chain(db, document_id)
     if chain:
         chain.operations = operations
-        chain.updated_at = datetime.now()
+        chain.updated_at = utc_now()
     else:
         chain = ImageEditChain(document_id=document_id, operations=operations)
     db.save(chain)
@@ -848,7 +849,7 @@ def _render_and_append(
     base = _load_source_image(source_path, page=page)
     derived = _apply_operation(base, op)
     op["derived_path"] = _write_derived_image(document_id, page, derived)
-    op["created_at"] = datetime.now().isoformat()
+    op["created_at"] = utc_now().isoformat()
     return _append_operation(db, document_id, op)
 
 
@@ -898,7 +899,7 @@ def straighten_image_impl(
     }
     derived = _apply_operation(base, op)
     op["derived_path"] = _write_derived_image(document_id, request.page, derived)
-    op["created_at"] = datetime.now().isoformat()
+    op["created_at"] = utc_now().isoformat()
     return _append_operation(db, document_id, op)
 
 
@@ -959,7 +960,7 @@ def segment_image_impl(
         "child_document_ids": child_ids,
     }
     op["derived_path"] = _write_derived_image(document_id, request.page, base)
-    op["created_at"] = datetime.now().isoformat()
+    op["created_at"] = utc_now().isoformat()
     chain = _append_operation(db, document_id, op)
     return chain, child_ids
 
@@ -972,7 +973,7 @@ async def get_edit_chain(
     chain = _get_chain(db, document_id)
     if not chain:
         return ImageEditChainResponse(
-            document_id=document_id, operations=[], updated_at=datetime.now()
+            document_id=document_id, operations=[], updated_at=utc_now()
         )
     return ImageEditChainResponse(
         document_id=document_id,

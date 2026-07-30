@@ -26,6 +26,7 @@ import os
 import shutil
 from collections import defaultdict
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from urllib.parse import unquote
 from uuid import uuid4
@@ -309,7 +310,7 @@ def _copy_file_between_libraries(
 
 
 def _unique_premerge_path(loser: Path) -> Path:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = utc_now().strftime("%Y%m%d_%H%M%S")
     base = loser.with_name(f"{loser.name}.premerge-{ts}")
     candidate = base
     counter = 1
@@ -336,7 +337,7 @@ def _write_merge_journal(
 ) -> str:
     journal_dir = winner_path / "storage" / "merge-journals"
     journal_dir.mkdir(parents=True, exist_ok=True)
-    journal_path = journal_dir / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}-{uuid4().hex[:8]}.json"
+    journal_path = journal_dir / f"{utc_now().strftime('%Y%m%d_%H%M%S')}-{uuid4().hex[:8]}.json"
     journal_path.write_text(
         json.dumps(
             {
@@ -880,7 +881,7 @@ def list_known_libraries(
         # Sort by last_accessed descending (most recent first)
         libraries = sorted(
             libraries,
-            key=lambda lib: lib.last_accessed or datetime.now(),
+            key=lambda lib: lib.last_accessed or utc_now(),
             reverse=True,
         )
         return LibraryRegistryResponse(libraries=libraries, count=len(libraries))
@@ -977,7 +978,7 @@ def add_known_library(
         if existing:
             # Update last_accessed
             lib = existing[0]
-            lib.last_accessed = datetime.now()
+            lib.last_accessed = utc_now()
             db.save(lib)
             library = lib
         else:
@@ -988,8 +989,8 @@ def add_known_library(
             library = KnownLibrary(
                 path=stored_path,
                 name=nfc_path(name),
-                added_at=datetime.now(),
-                last_accessed=datetime.now(),
+                added_at=utc_now(),
+                last_accessed=utc_now(),
             )
             db.save(library)
 
@@ -1041,7 +1042,7 @@ def update_library_access(
             )
 
         library = existing[0]
-        library.last_accessed = datetime.now()
+        library.last_accessed = utc_now()
         db.save(library)
         return library
     except HTTPException:

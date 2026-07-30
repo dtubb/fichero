@@ -7,7 +7,7 @@ CRUD operations for Document model.
 import asyncio
 import logging
 import tempfile
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, Optional
 
@@ -779,7 +779,7 @@ def put_document_note_impl(
     if notes:
         note = notes[0]
         note.content = request.content
-        note.updated_at = datetime.now()
+        note.updated_at = utc_now()
     else:
         note = DocumentNote(document_id=normalized_id, content=request.content)
 
@@ -1084,7 +1084,7 @@ def assign_document_prototype_impl(
             if request.page_end is not None and candidate.sequence > request.page_end:
                 continue
         candidate.prototype_key = request.prototype_key
-        candidate.updated_at = datetime.now()
+        candidate.updated_at = utc_now()
         db.save(candidate)
         updated += 1
 
@@ -1139,7 +1139,7 @@ def upsert_page_ranges_impl(
         row["id"] = row.get("id") or f"range-{idx + 1}"
         normalized.append(row)
     doc.structure = normalized
-    doc.updated_at = datetime.now()
+    doc.updated_at = utc_now()
     db.save(doc)
     return PageRangeListResponse(
         items=[PageRangeItem(**row) for row in normalized],
@@ -1872,14 +1872,14 @@ def update_document_impl(
             merged_metadata = {**existing_metadata, **incoming_metadata}
         else:
             merged_metadata = dict(existing_metadata)
-        merged_metadata["page_content_user_edited_at"] = datetime.now().isoformat()
+        merged_metadata["page_content_user_edited_at"] = utc_now().isoformat()
         update_data["metadata"] = merged_metadata
 
     for field, value in update_data.items():
         setattr(doc, field, value)
 
     # Update timestamp
-    doc.updated_at = datetime.now()
+    doc.updated_at = utc_now()
 
     db.save(doc)
 
@@ -1966,7 +1966,7 @@ def move_document_impl(
 
     before = doc.model_dump(mode="json")
     doc.parent_id = parent_id
-    doc.updated_at = datetime.now()
+    doc.updated_at = utc_now()
     db.save(doc)
     return doc, before
 
@@ -2032,7 +2032,7 @@ def duplicate_document_impl(
         dup.parent_id = parent_id
         if name is not None:
             dup.name = name
-        now = datetime.now()
+        now = utc_now()
         dup.created_at = now
         dup.updated_at = now
         db.save(dup)
@@ -2091,7 +2091,7 @@ def patch_workspace_items_impl(
     for remove_id in request.remove_ids:
         by_id.pop(remove_id, None)
 
-    now_iso = datetime.now().isoformat()
+    now_iso = utc_now().isoformat()
     for incoming in request.add:
         payload = incoming.model_dump()
         payload["added_at"] = payload.get("added_at") or now_iso
@@ -2122,7 +2122,7 @@ def patch_workspace_items_impl(
 
     doc.is_workspace = True
     doc.curated_items = [by_id[item_id] for item_id in ordered_ids]
-    doc.updated_at = datetime.now()
+    doc.updated_at = utc_now()
     db.save(doc)
     return doc, before
 
@@ -2150,7 +2150,7 @@ def batch_exclude_documents_impl(
         before = doc.model_dump(mode="json")
         before_snapshots.append(before)
         doc.exclude_from_processing = request.excluded
-        doc.updated_at = datetime.now()
+        doc.updated_at = utc_now()
         db.save(doc)
         db.save(
             MutationLog(
@@ -2178,7 +2178,7 @@ def delete_document_impl(
     _reject_if_document_read_only(doc, "deleted")
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
-    deleted_at = datetime.now()
+    deleted_at = utc_now()
     before_snapshots: list[dict[str, Any]] = []
     for current_id in to_delete_ids:
         current_doc = _get_document_row(db, current_id, include_deleted=True)
@@ -2275,7 +2275,7 @@ def restore_documents_impl(
             continue
         doc.deleted_at = None
         doc.deleted_by = None
-        doc.updated_at = datetime.now()
+        doc.updated_at = utc_now()
         db.save(doc)
         restored_ids.append(doc.id)
         seen_doc_ids.add(doc.id)

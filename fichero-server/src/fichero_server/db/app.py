@@ -17,9 +17,10 @@ This is separate from library databases which store:
 import json
 import logging
 from datetime import datetime, timedelta
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from pathlib import Path
 
-import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 from pydantic import BaseModel
 from fichero_server.db.storage import settings
 from fichero_server.models import (
@@ -122,7 +123,7 @@ class AppDatabase:
 
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path = path
-        self.conn = duckdb.connect(str(path))
+        self.conn = connect_utc(str(path))
         # DuckDB connections are not thread-safe and the Python binding leaves a
         # "pending query result" on the connection if a prior `.execute()`
         # didn't have its `.fetchone()` consumed. Under FastAPI's threadpool,
@@ -463,7 +464,7 @@ class AppDatabase:
                     provider.api_base,
                     provider.enabled,
                     provider.sort_order,
-                    datetime.now(),
+                    utc_now(),
                 ],
             )
             self.conn.commit()
@@ -488,8 +489,8 @@ class AppDatabase:
             api_base=result[3],
             enabled=result[4],
             sort_order=result[5],
-            created_at=result[6],
-            updated_at=result[7],
+            created_at=ensure_utc(result[6]),
+            updated_at=ensure_utc(result[7]),
         )
 
     def list_providers(self) -> list[Provider]:
@@ -509,8 +510,8 @@ class AppDatabase:
                 api_base=row[3],
                 enabled=row[4],
                 sort_order=row[5],
-                created_at=row[6],
-                updated_at=row[7],
+                created_at=ensure_utc(row[6]),
+                updated_at=ensure_utc(row[7]),
             )
             for row in results
         ]
@@ -549,8 +550,8 @@ class AppDatabase:
             sort_order=result[7],
             input_cost=result[8],
             output_cost=result[9],
-            created_at=result[10],
-            updated_at=result[11],
+            created_at=ensure_utc(result[10]),
+            updated_at=ensure_utc(result[11]),
         )
 
     def reparent_model(self, model_id: str, new_provider_id: str) -> Model | None:
@@ -643,7 +644,7 @@ class AppDatabase:
                     model.sort_order,
                     model.input_cost,
                     model.output_cost,
-                    datetime.now(),
+                    utc_now(),
                 ],
             )
             self.conn.commit()
@@ -674,8 +675,8 @@ class AppDatabase:
                 sort_order=row[7],
                 input_cost=row[8],
                 output_cost=row[9],
-                created_at=row[10],
-                updated_at=row[11],
+                created_at=ensure_utc(row[10]),
+                updated_at=ensure_utc(row[11]),
             )
             for row in results
         ]
@@ -725,7 +726,7 @@ class AppDatabase:
         """Set a setting value (upsert)."""
 
 
-        now = datetime.now()
+        now = utc_now()
         with self._lock:
             self.conn.execute(
                 """
@@ -745,7 +746,7 @@ class AppDatabase:
         if value is None:
             return
         self._delete_typed(
-            AppSetting(key=key, value=value, updated_at=datetime.now()),
+            AppSetting(key=key, value=value, updated_at=utc_now()),
             key_field="key",
             table_name="settings",
         )
@@ -888,13 +889,13 @@ class AppDatabase:
             params=params,
             api_base=row[11],
             extra=extra,
-            created_at=row[13],
-            updated_at=row[14],
+            created_at=ensure_utc(row[13]),
+            updated_at=ensure_utc(row[14]),
         )
 
     def save_model_profile(self, profile: ModelProfile) -> ModelProfile:
         """Save or update a named model/provider profile."""
-        now = datetime.now()
+        now = utc_now()
         with self._lock:
             self.conn.execute(
                 """
@@ -1024,7 +1025,7 @@ class AppDatabase:
             password_hash=row[3],
             is_owner=row[4],
             active=row[5],
-            created_at=row[6],
+            created_at=ensure_utc(row[6]),
         )
 
     def get_user_by_username(self, username: str) -> AccountUser | None:
@@ -1187,8 +1188,8 @@ class AppDatabase:
             user_id=row[1],
             library_path=row[2],
             role=row[3],
-            created_at=row[4],
-            updated_at=row[5],
+            created_at=ensure_utc(row[4]),
+            updated_at=ensure_utc(row[5]),
         )
 
     def _row_to_library_acl_override(self, row) -> LibraryAclOverride:
@@ -1198,8 +1199,8 @@ class AppDatabase:
             library_path=row[2],
             target_id=row[3],
             effect=row[4],
-            created_at=row[5],
-            updated_at=row[6],
+            created_at=ensure_utc(row[5]),
+            updated_at=ensure_utc(row[6]),
         )
 
     def set_library_role(
@@ -1210,7 +1211,7 @@ class AppDatabase:
         role: str,
     ) -> LibraryRole:
         """Create or update a user's role for one library."""
-        now = datetime.now()
+        now = utc_now()
         existing = self.get_library_role(user_id, library_path)
         row = LibraryRole(
             user_id=user_id,
@@ -1305,7 +1306,7 @@ class AppDatabase:
         effect: str,
     ) -> LibraryAclOverride:
         """Create or update a grant/deny override for one target subtree."""
-        now = datetime.now()
+        now = utc_now()
         existing = self.get_library_acl_override(user_id, library_path, target_id)
         row = LibraryAclOverride(
             user_id=user_id,
@@ -1380,7 +1381,7 @@ class AppDatabase:
         ttl: timedelta,
     ) -> AccountSession:
         """Insert a new session row and return the typed record."""
-        now = datetime.now()
+        now = utc_now()
         session = AccountSession(
             user_id=user_id,
             token_hash=token_hash,
@@ -1418,9 +1419,9 @@ class AppDatabase:
             user_id=row[1],
             token_hash=row[2],
             device_label=row[3] or "",
-            created_at=row[4],
-            last_seen_at=row[5],
-            expires_at=row[6],
+            created_at=ensure_utc(row[4]),
+            last_seen_at=ensure_utc(row[5]),
+            expires_at=ensure_utc(row[6]),
             revoked=row[7],
         )
 
@@ -1454,7 +1455,7 @@ class AppDatabase:
 
     def list_sessions(self, user_id: str | None = None) -> list[AccountSession]:
         """List active sessions, optionally scoped to one user."""
-        now = datetime.now()
+        now = utc_now()
         with self._lock:
             if user_id is None:
                 rows = self.conn.execute(
@@ -1487,7 +1488,7 @@ class AppDatabase:
         expires_at: datetime | None = None,
     ) -> None:
         """Update the last-seen timestamp for a session."""
-        now = when or datetime.now()
+        now = when or utc_now()
         with self._lock:
             if expires_at is None:
                 self.conn.execute(
@@ -1554,7 +1555,7 @@ class AppDatabase:
         ttl: timedelta,
     ) -> AccountInvite:
         """Insert a new invite row and return the typed record."""
-        now = datetime.now()
+        now = utc_now()
         invite = AccountInvite(
             username=username.strip(),
             display_name=display_name.strip(),
@@ -1593,10 +1594,10 @@ class AppDatabase:
             username=row[1],
             display_name=row[2],
             token_hash=row[3],
-            created_at=row[4],
-            expires_at=row[5],
+            created_at=ensure_utc(row[4]),
+            expires_at=ensure_utc(row[5]),
             channel=row[6],
-            consumed_at=row[7],
+            consumed_at=ensure_utc(row[7]),
             revoked=row[8],
         )
 
@@ -1630,7 +1631,7 @@ class AppDatabase:
 
     def list_pending_invites(self) -> list[AccountInvite]:
         """List invites that are still redeemable."""
-        now = datetime.now()
+        now = utc_now()
         with self._lock:
             rows = self.conn.execute(
                 """
@@ -1646,7 +1647,7 @@ class AppDatabase:
 
     def get_pending_invite_for_username(self, username: str) -> AccountInvite | None:
         """Get the latest redeemable invite for one username, if any."""
-        now = datetime.now()
+        now = utc_now()
         with self._lock:
             result = self.conn.execute(
                 """
@@ -1673,7 +1674,7 @@ class AppDatabase:
 
     def consume_invite(self, invite_id: str, *, when: datetime | None = None) -> AccountInvite | None:
         """Mark one invite as consumed."""
-        consumed_at = when or datetime.now()
+        consumed_at = when or utc_now()
         with self._lock:
             self.conn.execute(
                 "UPDATE invites SET consumed_at = ? WHERE id = ?",
@@ -1714,7 +1715,11 @@ class AppDatabase:
         if row is None:
             return None
         return EnrollmentSecret(
-            id=row[0], user_id=row[1], token_hash=row[2], created_at=row[3], revoked=row[4]
+            id=row[0],
+            user_id=row[1],
+            token_hash=row[2],
+            created_at=ensure_utc(row[3]),
+            revoked=row[4],
         )
 
     # =========================================================================
@@ -1730,7 +1735,7 @@ class AppDatabase:
         ttl: timedelta = timedelta(days=90),
     ) -> Device:
         """Insert a paired device credential and return the typed record."""
-        now = datetime.now()
+        now = utc_now()
         device = Device(
             name=name.strip(),
             user_id=user_id,
@@ -1768,9 +1773,9 @@ class AppDatabase:
             name=row[1],
             user_id=row[2],
             token_hash=row[3],
-            created_at=row[4],
-            last_seen=row[5],
-            expires_at=row[6],
+            created_at=ensure_utc(row[4]),
+            last_seen=ensure_utc(row[5]),
+            expires_at=ensure_utc(row[6]),
             revoked=row[7],
         )
 
@@ -1821,7 +1826,7 @@ class AppDatabase:
         when: datetime | None = None,
     ) -> None:
         """Update the last-seen timestamp for a device token."""
-        now = when or datetime.now()
+        now = when or utc_now()
         with self._lock:
             self.conn.execute(
                 "UPDATE devices SET last_seen = ? WHERE token_hash = ?",
@@ -1849,7 +1854,7 @@ class AppDatabase:
         ttl: timedelta = timedelta(days=90),
     ) -> Device | None:
         """Rotate one paired device token and extend its expiry."""
-        now = when or datetime.now()
+        now = when or utc_now()
         expires_at = now + ttl
         with self._lock:
             self.conn.execute(
@@ -1908,7 +1913,7 @@ class AppDatabase:
                     json.dumps(server.headers),
                     server.tool_name_prefix,
                     server.enabled,
-                    datetime.now(),
+                    utc_now(),
                 ],
             )
             self.conn.commit()
@@ -1939,8 +1944,8 @@ class AppDatabase:
             headers=json.loads(result[8]) if result[8] else {},
             tool_name_prefix=result[9],
             enabled=result[10],
-            created_at=result[11],
-            updated_at=result[12],
+            created_at=ensure_utc(result[11]),
+            updated_at=ensure_utc(result[12]),
         )
 
     def query_mcp_servers(self, **filters):
@@ -1977,8 +1982,8 @@ class AppDatabase:
                     headers=json.loads(row[8]) if row[8] else {},
                     tool_name_prefix=row[9],
                     enabled=row[10],
-                    created_at=row[11],
-                    updated_at=row[12],
+                    created_at=ensure_utc(row[11]),
+                    updated_at=ensure_utc(row[12]),
                 )
             )
 
@@ -2058,7 +2063,7 @@ class AppDatabase:
                 before=json.loads(row[5]) if row[5] else None,
                 after=json.loads(row[6]) if row[6] else None,
                 run_id=row[7],
-                created_at=row[8],
+                created_at=ensure_utc(row[8]),
                 chain_seq=row[9],
                 undone=row[10],
                 inverse_of=row[11],

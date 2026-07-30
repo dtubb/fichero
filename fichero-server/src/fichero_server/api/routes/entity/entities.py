@@ -10,6 +10,7 @@ import logging
 import re
 import json
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from collections import defaultdict
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -453,7 +454,7 @@ def create_entity_impl(db: Database, request: "EntityUpsertRequest") -> Knowledg
                 "and cannot be stored as an entity name"
             ),
         )
-    now = datetime.now()
+    now = utc_now()
     entity = KnowledgeEntity(
         canonical_name=request.canonical_name.strip(),
         entity_type=request.entity_type,
@@ -481,7 +482,7 @@ def update_entity_impl(
             detail=f"entity {entity_id!r} not found",
         )
 
-    now = datetime.now()
+    now = utc_now()
     entity.canonical_name = request.canonical_name.strip()
     entity.entity_type = request.entity_type
     entity.aliases = sorted(set(a.strip() for a in request.aliases if a.strip()))
@@ -581,7 +582,7 @@ def delete_entity_impl(
             claim.entity_ids = [
                 eid for eid in (claim.entity_ids or []) if eid != entity_id
             ]
-            claim.updated_at = datetime.now()
+            claim.updated_at = utc_now()
             db.save(claim)
 
     try:
@@ -687,7 +688,7 @@ def _action_restore_entity(
     existing = db.get(KnowledgeEntity, entity_id) if entity_id else None
     before = existing.model_dump(mode="json") if existing is not None else None
     entity = KnowledgeEntity.model_validate(params.snapshot)
-    entity.updated_at = datetime.now()
+    entity.updated_at = utc_now()
     db.save(entity)
     for claim_snapshot in params.claim_snapshots:
         db.save(KnowledgeClaim.model_validate(claim_snapshot))
@@ -1421,7 +1422,7 @@ async def add_entity_aliases(
     merged = set(entity.aliases)
     merged.update(a.strip() for a in request.aliases if a.strip())
     entity.aliases = sorted(merged)
-    entity.updated_at = datetime.now()
+    entity.updated_at = utc_now()
     db.save(entity)
 
     emit_change(

@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -580,7 +581,7 @@ def transition_claim_impl(
     target_state = _validate_curation_state(request.to_state)
 
     from_state = claim.curation_state
-    transitioned_at = datetime.now()
+    transitioned_at = utc_now()
 
     claim.curation_state = target_state
     claim.updated_at = transitioned_at
@@ -617,7 +618,7 @@ def batch_transition_claims_impl(
     results = []
     succeeded = 0
     failed = 0
-    transitioned_at = datetime.now()
+    transitioned_at = utc_now()
     transitioned_ids: list[str] = []
 
     for claim_id in request.claim_ids:
@@ -691,7 +692,7 @@ def batch_set_claim_curation_state_impl(
             raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
         claims.append(claim)
 
-    now = datetime.now()
+    now = utc_now()
     updated_ids: list[str] = []
     for claim in claims:
         if claim.curation_state == request.curation_state:
@@ -754,7 +755,7 @@ def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeA
             )
         absorbed_claims.append(claim)
 
-    now = datetime.now()
+    now = utc_now()
     survivor_before = survivor.model_dump(mode="json")
     absorbed_before = {
         claim.id: claim.model_dump(mode="json") for claim in absorbed_claims
@@ -829,7 +830,7 @@ def unmerge_claims_impl(
     for snapshot in link_snapshots.values():
         _restore_link_snapshot(db, snapshot)
 
-    now = datetime.now()
+    now = utc_now()
     undo = ClaimMergeAudit(
         operation_type=ClaimMergeOperationType.unmerge,
         source_claim_ids=audit.source_claim_ids,
@@ -858,7 +859,7 @@ def prune_trivial_claims_impl(
         if is_trivial_claim(claim):
             identified.append(claim)
 
-    now = datetime.now()
+    now = utc_now()
     suppressed_ids: list[str] = []
     for claim in identified:
         next_confidence = min(claim.confidence, 0.2)

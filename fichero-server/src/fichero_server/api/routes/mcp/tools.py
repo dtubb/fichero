@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -250,8 +250,8 @@ async def mcp_knowledge_entity_upsert(
         description=request.description,
         language=request.language,
         metadata=request.metadata,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=utc_now(),
+        updated_at=utc_now(),
     )
 
     db.save(entity)
@@ -316,8 +316,8 @@ async def mcp_knowledge_claim_create(
         language=request.language,
         metadata=request.metadata,
         created_by=request.created_by,
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
+        created_at=utc_now(),
+        updated_at=utc_now(),
     )
 
     db.save(claim)

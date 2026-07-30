@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -166,7 +166,7 @@ async def generate_entity_bio(
     metadata["biography_provenance"] = {
         "provider": llm_config.provider,
         "model": llm_config.model,
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": utc_now().isoformat(),
         "claim_ids": [claim.id for claim in entity_claims],
     }
     description = biography if entity.description is None or ai_owned else entity.description

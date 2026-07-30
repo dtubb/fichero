@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from typing import Any, Optional
 
@@ -49,7 +50,7 @@ class TaskProgress:
     total: int = 0
     percent: float = 0.0
     message: str = ""
-    updated_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=utc_now)
 
     def to_dict(self) -> dict:
         return {
@@ -90,7 +91,7 @@ class BackgroundTask:
     config: TaskConfig
     progress: TaskProgress = field(default_factory=TaskProgress)
     result: Optional[TaskResult] = None
-    created_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=utc_now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None

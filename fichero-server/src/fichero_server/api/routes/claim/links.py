@@ -7,6 +7,7 @@ providing a clean separation from the broader knowledge graph functionality.
 from __future__ import annotations
 
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -103,7 +104,7 @@ def create_claim_link_impl(
         link_quality=request.link_quality,
         evidence=request.evidence,
         metadata=request.metadata,
-        created_at=datetime.now(),
+        created_at=utc_now(),
     )
     db.save(link)
     return link

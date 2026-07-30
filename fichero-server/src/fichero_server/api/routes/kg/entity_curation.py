@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -128,7 +129,7 @@ async def _fetch_wikidata_snapshots(query: str, limit: int) -> list[AuthoritySna
         {"action": "wbsearchentities", "search": query, "language": "en", "format": "json", "limit": limit},
     )
 
-    now = datetime.now()
+    now = utc_now()
     return [
         AuthoritySnapshot(
             authority="wikidata",
@@ -164,7 +165,7 @@ async def _fetch_viaf_snapshots(query: str, limit: int) -> list[AuthoritySnapsho
     payload = await _authority_json(
         "VIAF", "https://viaf.org/viaf/AutoSuggest", {"query": query}
     )
-    now = datetime.now()
+    now = utc_now()
     return [
         AuthoritySnapshot(
             authority="viaf",
@@ -183,7 +184,7 @@ async def _fetch_loc_snapshots(query: str, limit: int) -> list[AuthoritySnapshot
     payload = await _authority_json(
         "LoC", "https://id.loc.gov/authorities/suggest2/", {"q": query}
     )
-    now = datetime.now()
+    now = utc_now()
     return [
         AuthoritySnapshot(
             authority="loc",
@@ -350,7 +351,7 @@ def merge_entities_impl(
 
     alias_changes: dict[str, Any] = {"added": [], "removed": [], "moved_to": {}}
     absorber_aliases = set(absorber.aliases)
-    now = datetime.now()
+    now = utc_now()
     for ent in absorbed:
         for alias in ent.aliases:
             if alias not in absorber_aliases:
@@ -439,7 +440,7 @@ async def batch_set_entity_curation_state(
             )
         entities.append(entity)
 
-    now = datetime.now()
+    now = utc_now()
     updated_ids: list[str] = []
     for entity in entities:
         if entity.curation_state == request.curation_state:
@@ -478,7 +479,7 @@ async def split_entity(
         "moved_to": {},
     }
     primary.aliases = [a for a in primary.aliases if a not in moved]
-    now = datetime.now()
+    now = utc_now()
     primary.updated_at = now
 
     split_ids: list[str] = []
@@ -536,7 +537,7 @@ def undo_entity_operation_impl(db: Database, audit_id: str) -> EntityMergeAudit:
             detail="This operation was already undone or is not directly reversible",
         )
 
-    now = datetime.now()
+    now = utc_now()
     if audit.operation_type == EntityMergeOperationType.merge:
         absorber = db.get(KnowledgeEntity, audit.target_entity_id)
         if absorber is None:
@@ -989,7 +990,7 @@ async def link_external_authority(
     if link not in links:
         links.append(link)
         entity.metadata["authority_links"] = links
-        entity.updated_at = datetime.now()
+        entity.updated_at = utc_now()
         db.save(entity)
     audit = EntityMergeAudit(
         operation_type=EntityMergeOperationType.authority_link,

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fichero_server.workflows.types import State, PortDef, DataType
@@ -730,7 +730,7 @@ async def catalogue(
 
             # Folder's page_content shows the narrative (the headline)
             container.page_content = markdown
-            container.updated_at = datetime.now()
+            container.updated_at = utc_now()
             db.save(container)
 
             logger.info(

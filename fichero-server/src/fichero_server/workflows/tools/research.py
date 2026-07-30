@@ -18,7 +18,7 @@ import asyncio
 import logging
 import re
 import time
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 from urllib.parse import urljoin
 
@@ -742,7 +742,7 @@ async def research_document_fetch(
                         "source_url": url,
                         "content_type": content_type,
                         "research_project_id": project_id,
-                        "fetched_at": datetime.now().isoformat(),
+                        "fetched_at": utc_now().isoformat(),
                     },
                 )
                 db.save(doc)

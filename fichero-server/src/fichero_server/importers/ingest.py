@@ -41,6 +41,7 @@ import mimetypes
 import os
 import shutil
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
@@ -1406,7 +1407,7 @@ def _touch_ancestor_documents(db: "Database", parent_id: str | None) -> None:
         parent = db.get(Document, current_parent_id)
         if not parent:
             break
-        parent.updated_at = datetime.now()
+        parent.updated_at = utc_now()
         db.save(parent)
         next_parent_id = getattr(parent, "parent_id", None)
         current_parent_id = next_parent_id if isinstance(next_parent_id, str) else None

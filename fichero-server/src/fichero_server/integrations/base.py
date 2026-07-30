@@ -9,6 +9,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
@@ -114,7 +115,7 @@ class AppIntegration(ABC):
                     version=version,
                     path=Path(app_path),
                     status=IntegrationStatus.AVAILABLE,
-                    last_checked=datetime.now(),
+                    last_checked=utc_now(),
                 )
                 logger.info(f"{self.name} found at {app_path} (version {version})")
                 return True
@@ -123,7 +124,7 @@ class AppIntegration(ABC):
                     name=self.name,
                     bundle_id=self.bundle_id,
                     status=IntegrationStatus.UNAVAILABLE,
-                    last_checked=datetime.now(),
+                    last_checked=utc_now(),
                 )
                 logger.info(f"{self.name} not found")
                 return False
@@ -134,7 +135,7 @@ class AppIntegration(ABC):
                 bundle_id=self.bundle_id,
                 status=IntegrationStatus.ERROR,
                 error_message="Timeout checking app availability",
-                last_checked=datetime.now(),
+                last_checked=utc_now(),
             )
             return False
         except Exception as e:
@@ -143,7 +144,7 @@ class AppIntegration(ABC):
                 bundle_id=self.bundle_id,
                 status=IntegrationStatus.ERROR,
                 error_message=str(e),
-                last_checked=datetime.now(),
+                last_checked=utc_now(),
             )
             logger.error(f"Error checking {self.name} availability: {e}")
             return False

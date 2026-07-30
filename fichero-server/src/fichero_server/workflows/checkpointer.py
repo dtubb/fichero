@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.base import (
     BaseCheckpointSaver,
@@ -136,7 +137,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         db_path = Path(db_path).expanduser()
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        conn = duckdb.connect(str(db_path))
+        conn = connect_utc(str(db_path))
         return cls(conn)
 
     def _setup(self) -> None:

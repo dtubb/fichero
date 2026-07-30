@@ -12,6 +12,7 @@ import logging
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, Iterable, Literal
 from xml.sax.saxutils import escape
@@ -901,7 +902,7 @@ def _render_eleventy_index(
         "",
         f"# {title}",
         "",
-        f"Exported: {datetime.now().isoformat(timespec='seconds')}",
+        f"Exported: {utc_now().isoformat(timespec='seconds')}",
         "",
         f"{len(documents)} item(s) across {len(collections)} collection(s).",
         "",
@@ -1614,7 +1615,7 @@ def _render_index(root: Document | None, links: list[tuple[str, str]]) -> str:
     lines = [
         f"# {title}",
         "",
-        f"Exported: {datetime.now().isoformat(timespec='seconds')}",
+        f"Exported: {utc_now().isoformat(timespec='seconds')}",
         "",
         "## Documents",
         "",
@@ -1928,7 +1929,7 @@ def _docx_styles() -> str:
 
 
 def _core_props() -> str:
-    now = datetime.now().isoformat(timespec="seconds")
+    now = utc_now().isoformat(timespec="seconds")
     return f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
     xmlns:dc="http://purl.org/dc/elements/1.1/"

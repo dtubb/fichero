@@ -439,6 +439,7 @@ BatchListResponse.model_rebuild(_types_namespace={"BatchResponse": BatchResponse
 
 import asyncio as _asyncio  # noqa: E402
 from datetime import datetime as _datetime  # noqa: E402
+from fichero_server.core.timeutil import utc_now  # noqa: E402
 
 from pydantic import BaseModel as _BaseModel, Field as _Field  # noqa: E402
 
@@ -492,7 +493,7 @@ def _batch_from_snapshot(snap: dict) -> BatchExecution:
         workflow_id=snap["workflow_id"],
         status=BatchStatus(snap["status"]),
         items=items,
-        created_at=_parse_dt(snap["created_at"]) or _datetime.now(),
+        created_at=_parse_dt(snap["created_at"]) or utc_now(),
         started_at=_parse_dt(snap.get("started_at")),
         completed_at=_parse_dt(snap.get("completed_at")),
         error_message=snap.get("error_message"),

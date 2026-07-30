@@ -11,9 +11,11 @@ import json
 import logging
 import threading
 from datetime import datetime, timedelta, timezone
+from fichero_server.core.timeutil import ensure_utc, utc_now
 from typing import Any, Optional
 
 import duckdb
+from fichero_server.core.duckdb_session import connect_utc
 
 from fichero_server.workflows.activity_types import (
     Activity,
@@ -360,7 +362,7 @@ def _rebuild_workflow_runs_flipping_stale(
     """
     # Use a FRESH connection: the caller's connection may already be poisoned
     # by the FatalException that sent us down this path.
-    conn = duckdb.connect(db_path)
+    conn = connect_utc(db_path)
     try:
         # Build the status-flip CASE. Only non-terminal rows (optionally older
         # than the cutoff, and never a live run this process is tracking)
@@ -564,7 +566,7 @@ class ActivityStore:
 
     def _init_database(self) -> None:
         """Initialize database tables for activity tracking."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_utc(self.db_path)
         try:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS activities (
@@ -677,7 +679,7 @@ class ActivityStore:
         def _save():
             logger.info(f"ActivityStore.save: connecting to {self.db_path}")
             with duckdb_connection_lock(self.db_path):
-                conn = duckdb.connect(self.db_path)
+                conn = connect_utc(self.db_path)
                 try:
                     conn.execute(
                     """
@@ -714,7 +716,7 @@ class ActivityStore:
         """Query activities with filtering."""
 
         def _query():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conditions = []
                 params = []
@@ -774,7 +776,8 @@ class ActivityStore:
                             id=row[0],
                             type=ActivityType(row[1]),
                             level=ActivityLevel(row[2]),
-                            timestamp=row[3],
+                            # naive stored value IS UTC (#4347) — re-attach offset
+                            timestamp=ensure_utc(row[3]),
                             message=row[4],
                             workflow_id=row[5],
                             batch_id=row[6],
@@ -798,12 +801,12 @@ class ActivityStore:
     ) -> ActivityStats:
         """Get aggregated activity statistics."""
         if not since:
-            since = datetime.now() - timedelta(hours=24)
+            since = utc_now() - timedelta(hours=24)
         if not until:
-            until = datetime.now()
+            until = utc_now()
 
         def _get_stats():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 # Count by type
                 type_counts = conn.execute(
@@ -892,7 +895,7 @@ class ActivityStore:
 
     def delete_old_sync(self, older_than: datetime) -> int:
         """Delete activities older than specified date (sync, for use inside registry.invoke)."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_utc(self.db_path)
         try:
             result = conn.execute(
                 """
@@ -930,7 +933,7 @@ class ActivityStore:
         """Save a new workflow run record."""
 
         def _save():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 # Convert dicts to JSON strings
                 workflow_snapshot_json = (
@@ -992,7 +995,7 @@ class ActivityStore:
         """Update an existing workflow run record."""
 
         def _update():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 updates = []
                 params = []
@@ -1035,7 +1038,7 @@ class ActivityStore:
         """Append a line to the execution log."""
 
         def _append():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 conn.execute(
                     """
@@ -1069,8 +1072,11 @@ class ActivityStore:
             python_code=row[3],
             execution_log=row[4],
             status=row[5],
-            started_at=row[6],
-            completed_at=row[7],
+            # DuckDB TIMESTAMP columns are naive; by the #4347 contract a stored
+            # naive value IS UTC, so re-attach the offset on the way out rather
+            # than letting an offset-less ISO string reach the client.
+            started_at=ensure_utc(row[6]),
+            completed_at=ensure_utc(row[7]),
             duration_ms=row[8],
             error=row[9],
             workflow_snapshot=workflow_snapshot,
@@ -1083,7 +1089,7 @@ class ActivityStore:
         """Get a workflow run by thread_id."""
 
         def _get():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 result = conn.execute(
                     """
@@ -1109,7 +1115,7 @@ class ActivityStore:
         """Mark a persisted workflow run as deleted."""
 
         def _delete():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 rows = conn.execute(
                     """
@@ -1136,7 +1142,7 @@ class ActivityStore:
         """List workflow runs, optionally filtered by workflow_id."""
 
         def _list():
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 if workflow_id:
                     result = conn.execute(
@@ -1194,7 +1200,7 @@ class ActivityStore:
         def _recover():
             # Crash-safe: in-place UPDATE first, table rebuild on ART-index
             # FATAL (#1362). Never poisons the live library connection.
-            conn = duckdb.connect(self.db_path)
+            conn = connect_utc(self.db_path)
             try:
                 recovered = _recover_stale_workflow_runs(
                     conn,

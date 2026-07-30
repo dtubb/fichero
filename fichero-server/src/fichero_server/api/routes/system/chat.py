@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, Optional
 from uuid import uuid4
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 def _safe_isoformat(value) -> str:
     """Return ISO string when value behaves like datetime, else now."""
     return (
-        value.isoformat() if hasattr(value, "isoformat") else datetime.now().isoformat()
+        value.isoformat() if hasattr(value, "isoformat") else utc_now().isoformat()
     )
 
 
@@ -793,7 +793,7 @@ async def chat(
 
     # Add user message
     conv.messages.append({"role": "user", "content": request.message})
-    conv.updated_at = datetime.now()
+    conv.updated_at = utc_now()
 
     # Search for relevant docs + KG neighborhood context
     sources = []
@@ -884,7 +884,7 @@ async def chat(
 
     # Add assistant message
     conv.messages.append({"role": "assistant", "content": response_text})
-    conv.updated_at = datetime.now()
+    conv.updated_at = utc_now()
 
     # Save conversation to database
     db.save(conv)
@@ -1154,7 +1154,7 @@ def update_conversation_impl(
     if request.folder_path is not None:
         conv.folder_path = request.folder_path
 
-    conv.updated_at = datetime.now()
+    conv.updated_at = utc_now()
     db.save(conv)
     return conv
 
@@ -1267,7 +1267,7 @@ async def reorder_conversations(
             )
 
         conv.sort_order = index
-        conv.updated_at = datetime.now()
+        conv.updated_at = utc_now()
         db.save(conv)
 
     return ConversationReorderResponse(

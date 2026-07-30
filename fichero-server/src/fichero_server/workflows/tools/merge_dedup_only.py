@@ -14,7 +14,7 @@ reuses the shared conservative detector.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fichero_server.db import db_manager
@@ -205,7 +205,7 @@ async def merge_dedup_only(
         if resolved is None:
             if entity.curation_state != _REJECTED_ENTITY_STATE:
                 entity.curation_state = _REJECTED_ENTITY_STATE
-                entity.updated_at = datetime.now()
+                entity.updated_at = utc_now()
                 db.save(entity)
                 touched_entity_ids.append(entity.id)
                 summary["entities_suppressed"] += 1
@@ -287,7 +287,7 @@ async def merge_dedup_only(
             ):
                 claim.curation_state = next_state
                 claim.confidence = next_confidence
-                claim.updated_at = datetime.now()
+                claim.updated_at = utc_now()
                 db.save(claim)
                 touched_claim_ids.append(claim.id)
                 summary["claims_suppressed"] += 1
@@ -300,7 +300,7 @@ async def merge_dedup_only(
             ):
                 claim.curation_state = ClaimCurationState.rejected
                 claim.confidence = next_confidence
-                claim.updated_at = datetime.now()
+                claim.updated_at = utc_now()
                 db.save(claim)
                 touched_claim_ids.append(claim.id)
                 summary["claims_pruned_trivial"] += 1

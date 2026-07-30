@@ -30,6 +30,7 @@ Usage:
 
 from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import uuid4
@@ -310,8 +311,8 @@ class Document(BaseModel):
     )
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     deleted_at: datetime | None = None
     deleted_by: str | None = None
 
@@ -598,7 +599,7 @@ class Artifact(BaseModel):
     reviewed: bool = False
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
     # =========================================================================
     # Typed accessors for structured data
@@ -665,7 +666,7 @@ class ContentRepresentation(BaseModel):
     producer_tool: str | None = None
     producer_model: str | None = None
     review_state: ContentReviewState = ContentReviewState.source
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ContentRepresentationRevision(BaseModel):
@@ -678,7 +679,7 @@ class ContentRepresentationRevision(BaseModel):
     content: str
     reviewer: str = "human"
     decision: str | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class ContentRepresentationListResponse(BaseModel):
@@ -756,8 +757,8 @@ class Workflow(BaseModel):
     model: str = ""
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     @field_validator("nodes", mode="before")
     @classmethod
@@ -886,7 +887,7 @@ class Run(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
     # Timing
-    queued_at: datetime = Field(default_factory=datetime.now)
+    queued_at: datetime = Field(default_factory=utc_now)
     started_at: datetime | None = None
     completed_at: datetime | None = None
 
@@ -931,7 +932,7 @@ class Trace(BaseModel):
     outputs: dict[str, Any] | None = None
 
     # Timing
-    started_at: datetime = Field(default_factory=datetime.now)
+    started_at: datetime = Field(default_factory=utc_now)
     ended_at: datetime | None = None
     latency_ms: int | None = None
 
@@ -974,8 +975,8 @@ class Note(BaseModel):
     bbox: tuple[int, int, int, int] | None = None
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class DocumentNote(BaseModel):
@@ -986,8 +987,8 @@ class DocumentNote(BaseModel):
     id: str = Field(default_factory=_new_id)
     document_id: str
     content: str = ""
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class AgentNoteSourceAnchor(BaseModel):
@@ -1024,8 +1025,8 @@ class AgentNote(BaseModel):
     actor: AgentNoteActor
     kind: str | None = None
     tags: list[str] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ImageEditChain(BaseModel):
@@ -1036,8 +1037,8 @@ class ImageEditChain(BaseModel):
     id: str = Field(default_factory=_new_id)
     document_id: str
     operations: list[dict[str, Any]] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1056,7 +1057,7 @@ class Event(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str = Field(default_factory=_new_id)
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=utc_now)
 
     # What changed
     event_type: str  # "document.create", "document.update", "artifact.create", etc.
@@ -1090,7 +1091,7 @@ class AccountUser(BaseModel):
     password_hash: str
     is_owner: bool = False
     active: bool = True
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class AccountSession(BaseModel):
@@ -1102,8 +1103,8 @@ class AccountSession(BaseModel):
     user_id: str
     token_hash: str
     device_label: str = ""
-    created_at: datetime = Field(default_factory=datetime.now)
-    last_seen_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    last_seen_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime
     revoked: bool = False
 
@@ -1117,7 +1118,7 @@ class AccountInvite(BaseModel):
     username: str
     display_name: str
     token_hash: str
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime
     channel: Literal["qr", "messages", "email"] = "qr"
     consumed_at: datetime | None = None
@@ -1132,7 +1133,7 @@ class EnrollmentSecret(BaseModel):
     id: str = Field(default_factory=_new_id)
     user_id: str
     token_hash: str
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
     revoked: bool = False
 
 
@@ -1145,8 +1146,8 @@ class Device(BaseModel):
     name: str
     user_id: str
     token_hash: str
-    created_at: datetime = Field(default_factory=datetime.now)
-    last_seen: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    last_seen: datetime = Field(default_factory=utc_now)
     expires_at: datetime
     revoked: bool = False
 
@@ -1160,8 +1161,8 @@ class LibraryRole(BaseModel):
     user_id: str
     library_path: str
     role: str
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class LibraryAclOverride(BaseModel):
@@ -1174,8 +1175,8 @@ class LibraryAclOverride(BaseModel):
     library_path: str
     target_id: str
     effect: str
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1202,8 +1203,8 @@ class Provider(BaseModel):
     enabled: bool = True
     sort_order: int = 0
 
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1233,8 +1234,8 @@ class Model(BaseModel):
     input_cost: float | None = None
     output_cost: float | None = None
 
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1257,8 +1258,8 @@ class ProviderRef(BaseModel):
     enabled: bool = True  # Whether this provider is enabled for this library
     sort_order: int = 0  # Display order in this library
 
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1287,8 +1288,8 @@ class Tool(BaseModel):
     # Default configuration for this tool
     config: dict[str, Any] = Field(default_factory=dict)
 
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1318,8 +1319,8 @@ class SavedSearch(BaseModel):
     folder_path: str = "/"  # Unix-style path for organization
     sort_order: int = 0  # User-defined order within folder (position)
 
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1349,8 +1350,8 @@ class Conversation(BaseModel):
     folder_path: str = "/"  # Unix-style path for organization
     sort_order: int = 0  # User-defined order within folder
 
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1390,8 +1391,8 @@ class MCPServer(BaseModel):
     enabled: bool = True  # Server enabled/disabled
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # =============================================================================
@@ -1446,7 +1447,7 @@ class LibrarySnapshot(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
     expires_at: datetime | None = None  # Auto-delete after this time
 
 
@@ -1698,8 +1699,8 @@ class KnownLibrary(BaseModel):
     name: str | None = None  # Optional display name (defaults to basename)
 
     # Timestamps for CLI UX (sort by last_accessed for "recent" list)
-    added_at: datetime = Field(default_factory=datetime.now)
-    last_accessed: datetime = Field(default_factory=datetime.now)
+    added_at: datetime = Field(default_factory=utc_now)
+    last_accessed: datetime = Field(default_factory=utc_now)
 
     # Backup configuration. Interval <= 0 keeps scheduled snapshots disabled,
     # preserving current behavior until a library explicitly opts in.
@@ -2180,7 +2181,7 @@ class ActionAudit(BaseModel):
 
     Reuses the provenance/run-id conventions (#1832): ``run_id`` ties an action
     to the AI run that triggered it; ``created_at`` mirrors the other audit
-    models' ``default_factory=datetime.now``.
+    models' ``default_factory=utc_now``.
     """
 
     model_config = ConfigDict(from_attributes=True, extra="allow")
@@ -2208,7 +2209,7 @@ class ActionAudit(BaseModel):
         default=None,
         description="AI run id if this action ran as part of an agent batch (#1832).",
     )
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
     chain_seq: int | None = Field(
         default=None,
         description=(

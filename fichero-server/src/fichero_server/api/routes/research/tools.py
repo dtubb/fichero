@@ -34,7 +34,7 @@ import logging
 import re
 import socket
 import time
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urljoin, urlparse
 
@@ -493,7 +493,7 @@ async def execute_document_fetch(
                     "source_url": request.url,
                     "content_type": content_type,
                     "research_project_id": request.project_id,
-                    "fetched_at": datetime.now().isoformat(),
+                    "fetched_at": utc_now().isoformat(),
                     **request.metadata,
                 },
             )
@@ -631,7 +631,7 @@ async def browser_save(
             "source_url": request.url,
             "research_project_id": request.project_id,
             "content_type": content_type,
-            "saved_at": datetime.now().isoformat(),
+            "saved_at": utc_now().isoformat(),
             **request.metadata,
         }
         db.save(doc)

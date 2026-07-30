@@ -6,7 +6,7 @@ Works with Workflows, SavedSearches, and Conversations.
 """
 
 import logging
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -341,7 +341,7 @@ async def rename_folder(
             item.folder_path = (
                 request.new_path + item.folder_path[len(request.old_path) :]
             )
-            item.updated_at = datetime.now()
+            item.updated_at = utc_now()
             db.save(item)
             moved_count += 1
 
@@ -378,7 +378,7 @@ async def move_items(
         item = db.get(model, item_id)
         if item:
             item.folder_path = request.folder_path
-            item.updated_at = datetime.now()
+            item.updated_at = utc_now()
             db.save(item)
             moved_count += 1
 
@@ -415,7 +415,7 @@ async def delete_folder(
         parent_path = "/".join(folder_path.rstrip("/").split("/")[:-1]) or "/"
         for item in items:
             item.folder_path = parent_path
-            item.updated_at = datetime.now()
+            item.updated_at = utc_now()
             db.save(item)
         return FolderDeleteResponse(
             deleted_count=0,

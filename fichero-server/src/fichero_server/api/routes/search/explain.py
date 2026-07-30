@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from collections import Counter
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from typing import Any
 
@@ -430,7 +430,7 @@ async def get_search_metrics(
         top_sources=top_sources,
         popular_queries=[],
         rag_usage_by_mode={"conservative": 0, "balanced": 0, "speculative": 0},
-        timestamp=datetime.now().isoformat(),
+        timestamp=utc_now().isoformat(),
     )
 
 

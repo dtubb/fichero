@@ -1,6 +1,6 @@
 """Hermeneutics API routes (dev tier, backend-first 0.0.2 slice)."""
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -180,7 +180,7 @@ def create_framework_impl(
     route (UI path); ``registry.invoke`` emits the equivalent event on the
     /api/actions/invoke path.
     """
-    now = datetime.now()
+    now = utc_now()
     framework = InterpretiveFramework(
         name=request.name.strip(),
         framework_type=request.framework_type,
@@ -255,7 +255,7 @@ def update_framework_impl(
     updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(framework, key, value)
-    framework.updated_at = datetime.now()
+    framework.updated_at = utc_now()
     db.save(framework)
     return framework
 
@@ -289,7 +289,7 @@ def delete_framework_impl(db: Database, framework_id: str) -> InterpretiveFramew
         )
     # Soft-delete: deactivate
     framework.is_active = False
-    framework.updated_at = datetime.now()
+    framework.updated_at = utc_now()
     db.save(framework)
     return framework
 
@@ -337,7 +337,7 @@ def create_interpretation_impl(
             detail=f"Claim not found: {request.claim_id}",
         )
 
-    now = datetime.now()
+    now = utc_now()
     interpretation = Interpretation(
         framework_id=request.framework_id,
         claim_id=request.claim_id,
@@ -430,7 +430,7 @@ def update_interpretation_impl(
         )
     for key, value in updates.items():
         setattr(interpretation, key, value)
-    interpretation.updated_at = datetime.now()
+    interpretation.updated_at = utc_now()
     db.save(interpretation)
     return interpretation
 
@@ -461,7 +461,7 @@ async def update_interpretation(
 
 def create_pattern_impl(db: Database, request: PatternCreateRequest) -> PatternInstance:
     """Build + persist a pattern instance (no emit — caller emits). Shared path."""
-    now = datetime.now()
+    now = utc_now()
     pattern = PatternInstance(
         name=request.name.strip(),
         description=request.description.strip(),
@@ -535,7 +535,7 @@ def update_pattern_impl(
     updates = request.model_dump(exclude_unset=True, exclude_none=True)
     for key, value in updates.items():
         setattr(pattern, key, value)
-    pattern.updated_at = datetime.now()
+    pattern.updated_at = utc_now()
     db.save(pattern)
     return pattern
 
@@ -571,7 +571,7 @@ def add_claim_to_pattern_impl(
         return pattern, False
     pattern.claim_ids = pattern.claim_ids + [claim_id]
     pattern.frequency = len(pattern.claim_ids)
-    pattern.updated_at = datetime.now()
+    pattern.updated_at = utc_now()
     db.save(pattern)
     return pattern, True
 
@@ -600,7 +600,7 @@ async def add_claim_to_pattern(
 def create_circle_state_impl(
     db: Database, request: CircleStateCreateRequest
 ) -> HermeneuticCircleState:
-    now = datetime.now()
+    now = utc_now()
     state = HermeneuticCircleState(
         claim_id=request.claim_id,
         current_focus=request.current_focus,
@@ -679,7 +679,7 @@ def navigate_circle_impl(
     state.navigation_log = state.navigation_log + [
         f"Move {state.circle_level}: {prior_focus} → {request.focus_label} ({request.direction.value})"
     ]
-    state.updated_at = datetime.now()
+    state.updated_at = utc_now()
     db.save(state)
     return state
 
@@ -715,7 +715,7 @@ def backtrack_circle_impl(db: Database, state_id: str) -> HermeneuticCircleState
         state.navigation_log = state.navigation_log + [
             f"Backtrack to level {state.circle_level}"
         ]
-        state.updated_at = datetime.now()
+        state.updated_at = utc_now()
         db.save(state)
     return state
 

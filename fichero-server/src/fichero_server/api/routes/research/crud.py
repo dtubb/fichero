@@ -1,6 +1,6 @@
 """Research Agents CRUD routes — Projects, Plans, Tasks, Steps."""
 
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 import json
 import re
 from typing import Any
@@ -112,7 +112,7 @@ def update_project_impl(
         project.library_destination_folder_id = request.library_destination_folder_id
     if request.metadata is not None:
         project.metadata = request.metadata
-    project.updated_at = datetime.now()
+    project.updated_at = utc_now()
     db.save(project)
     return project
 
@@ -261,7 +261,7 @@ def update_plan_impl(
         plan.order_index = request.order_index
     if request.metadata is not None:
         plan.metadata = request.metadata
-    plan.updated_at = datetime.now()
+    plan.updated_at = utc_now()
     db.save(plan)
     return plan
 
@@ -504,14 +504,14 @@ def update_task_impl(
     if request.status is not None:
         task.status = request.status
         if request.status == TaskStatus.completed:
-            task.completed_at = datetime.now()
+            task.completed_at = utc_now()
     if request.priority is not None:
         task.priority = request.priority
     if request.assigned_to is not None:
         task.assigned_to = request.assigned_to
     if request.metadata is not None:
         task.metadata = request.metadata
-    task.updated_at = datetime.now()
+    task.updated_at = utc_now()
     db.save(task)
     return task
 
@@ -651,14 +651,14 @@ def update_step_impl(
     if request.status is not None:
         step.status = request.status
         if request.status == StepStatus.completed:
-            step.completed_at = datetime.now()
+            step.completed_at = utc_now()
     if request.result is not None:
         step.result = request.result
     if request.error is not None:
         step.error = request.error
     if request.order_index is not None:
         step.order_index = request.order_index
-    step.updated_at = datetime.now()
+    step.updated_at = utc_now()
     db.save(step)
     return step
 

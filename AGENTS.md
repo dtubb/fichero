@@ -254,6 +254,15 @@ Three failure modes that bite *silently*, with no exception and no test failure,
 
 When seed-data shape changes, the shape change and every filter that reads it ship together.
 
+**Timestamps are aware UTC.** Write `fichero_server.core.timeutil.utc_now()`, never
+`datetime.now()` / `datetime.utcnow()` — a naive local value serializes without an
+offset and every ISO-8601 decoder reads it as UTC, which rendered a just-finished
+run as "3 hours ago" (#4347). `scripts/check_naive_datetimes.py` fails the gate on
+the naive forms. DuckDB `TIMESTAMP` columns are naive and DuckDB shifts an aware
+value into the *session* timezone on bind, so open connections with
+`fichero_server.core.duckdb_session.connect_utc` (pins `TimeZone='UTC'`) and pass
+naive values read back out through `ensure_utc()` — a naive stored value **is** UTC.
+
 ---
 
 ## Two-Stack Rule

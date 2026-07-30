@@ -21,7 +21,7 @@ import asyncio
 import logging
 import time
 from collections import Counter
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -2047,7 +2047,7 @@ async def extract_all(
             # Artifact writes above are direct + already durable (serialized on
             # the single per-package connection lock, #2508/#2514) — no queue to
             # drain before downstream folder-cleanup nodes read them.
-            container.updated_at = datetime.now()
+            container.updated_at = utc_now()
             db.save(container)
             if persist_kg and (written_entity_ids or written_claim_ids):
                 emit_workflow_kg_changes(

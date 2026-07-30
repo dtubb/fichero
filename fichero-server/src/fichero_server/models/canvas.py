@@ -1,6 +1,7 @@
 """Canvas and retained spatial models."""
 
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from enum import Enum
 from uuid import uuid4
 
@@ -44,8 +45,8 @@ class SpatialRoom(BaseModel):
     room_type: RoomType = RoomType.research
     owner_id: str = "user"
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class SpatialNode(BaseModel):
@@ -76,8 +77,8 @@ class SpatialNode(BaseModel):
     style_data: dict = Field(default_factory=dict)
     created_by: str = "user"
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class SpatialConnection(BaseModel):
@@ -93,7 +94,7 @@ class SpatialConnection(BaseModel):
     link_subtype: str | None = None  # e.g., "supports", "derived_from", "interprets"
     created_by: str = "user"
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class SpatialViewport(BaseModel):
@@ -111,7 +112,7 @@ class SpatialViewport(BaseModel):
     zoom_level: float = 1.0
     bookmark_name: str | None = None
     metadata: dict = Field(default_factory=dict)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class CanvasLayout(BaseModel):
@@ -138,7 +139,7 @@ class CanvasLayout(BaseModel):
     angle: float = 0.0
     z_index: int = 0
     style: str | None = None  # opaque JSON text (color, shape, …)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     @staticmethod
     def make_id(folder_id: str, item_id: str) -> str:
@@ -184,5 +185,5 @@ class CanvasItem(BaseModel):
     source_item_id: str | None = None  # kind=link: the connection's start
     target_item_id: str | None = None  # kind=link: the connection's end
     payload: dict = Field(default_factory=dict)  # opaque kind-specific bits
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)

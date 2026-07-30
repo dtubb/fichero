@@ -15,6 +15,7 @@ import logging
 import uuid
 from collections import deque
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any, AsyncIterator, Optional
 
 from fichero_server.workflows.activity_types import (
@@ -96,7 +97,7 @@ class ActivityTracker:
             id=str(uuid.uuid4()),
             type=type,
             level=level,
-            timestamp=datetime.now(),
+            timestamp=utc_now(),
             message=message,
             workflow_id=workflow_id,
             batch_id=batch_id,

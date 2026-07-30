@@ -28,7 +28,7 @@ import dataclasses
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
@@ -663,7 +663,7 @@ def _save_artifact_sync(
                 # check no longer appears after just the first step (#1282). See
                 # fichero_server.workflows.completion.complete_run_documents.
                 doc.status = Status.processing
-                doc.updated_at = datetime.now()
+                doc.updated_at = utc_now()
                 db.save(doc)
 
                 # Broadcast the MID-RUN page_content write to the library
@@ -762,7 +762,7 @@ def _save_artifact_sync(
                 doc.metadata[final_metadata_field] = data if data else content[:1000]
             if custom_metadata:
                 doc.metadata.update(custom_metadata)
-            doc.updated_at = datetime.now()
+            doc.updated_at = utc_now()
             db.save(doc)
     except Exception as meta_e:
         logger.warning(f"Metadata decoration failed for artifact {artifact_id}: {meta_e}")

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -308,7 +309,7 @@ def patch_annotation_impl(
         updates.update(scope.model_dump())
     for field, value in updates.items():
         setattr(ann, field, value)
-    ann.updated_at = datetime.now()
+    ann.updated_at = utc_now()
     db.save(ann)
     return ann, before
 
@@ -558,7 +559,7 @@ def promote_to_claim_impl(
     linked = set(ann.linked_claim_ids or [])
     linked.add(claim.id)
     ann.linked_claim_ids = sorted(linked)
-    ann.updated_at = datetime.now()
+    ann.updated_at = utc_now()
     db.save(ann)
     return ann, claim, before
 
@@ -937,7 +938,7 @@ def merge_annotations_impl(
         set(target.linked_note_ids or []) | set(source.linked_note_ids or [])
     )
     target.tags = sorted(set(target.tags or []) | set(source.tags or []))
-    target.updated_at = datetime.now()
+    target.updated_at = utc_now()
     db.save(target)
     db.delete(source)
     return target, target_before, source_before
