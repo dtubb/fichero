@@ -47,6 +47,12 @@ struct DocumentKGWebPane: NSViewRepresentable {
     var searchQuery: String = ""
     var searchSelectionIndex: Int = -1
     var onSearchMatchCount: (@MainActor @Sendable (Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
+    /// Pages a running workflow is writing (#4357) — the run's target set via
+    /// `DocumentStore.isDocumentBusy`, NOT a second notion of "working".
+    var busyPageNumbers: Set<Int> = []
+    /// Live `page number -> content` for those pages, patched into the reader in
+    /// place so a mid-run write never reloads the WKWebView.
+    var pageContentPatches: [Int: String] = [:]
     /// Reader text font scale (#3681). Bound to the shared key so a change
     /// re-invokes `updateNSView`, which re-injects the scaled `--reader-base-size`
     /// live — no reload (systemThemeCSS reads the current scale).
@@ -169,6 +175,9 @@ struct DocumentKGWebPane: UIViewRepresentable {
     var searchQuery: String = ""
     var searchSelectionIndex: Int = -1
     var onSearchMatchCount: (@MainActor @Sendable (Int) -> Void)? = nil // swiftlint:disable:this implicit_optional_initialization
+    /// Per-page run progress + live page writes (#4357) — see the macOS pane.
+    var busyPageNumbers: Set<Int> = []
+    var pageContentPatches: [Int: String] = [:]
     /// Reader text font scale (#3681) — see the macOS pane. Re-injects the scaled
     /// `--reader-base-size` live on change.
     @AppStorage(ViewSettings.FontScale.readerKey)

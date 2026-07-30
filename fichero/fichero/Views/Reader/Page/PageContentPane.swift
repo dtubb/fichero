@@ -44,6 +44,29 @@ struct PageContentPane: View {
         ArtifactRichTextCodec.plainText(pageDoc?.pageContent ?? "")
     }
 
+    /// True while a running workflow targets this page (#4357). Reads the store's
+    /// existing busy state (#4295) — the run's own target record — so the content
+    /// view and the sidebar row agree about what is working.
+    var isPageBusy: Bool {
+        guard let id = pageDoc?.id else { return false }
+        return documentStore.isDocumentBusy(id)
+    }
+
+    /// Work in progress on this page: a spinner plus what is happening. Never a
+    /// raw status dump — the same quiet treatment the reader's page cards use.
+    @ViewBuilder
+    var workingState: some View {
+        VStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text("Transcribing this page…")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityLabel("Transcribing this page")
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if pageDoc != nil {
@@ -62,6 +85,12 @@ struct PageContentPane: View {
                         }
                 } else if !pageContent.isEmpty {
                     pageContentScroll(pageContent)
+                } else if isPageBusy {
+                    // A run is writing THIS page (#4357): say so, rather than
+                    // showing the same "No content" as an idle empty page. The
+                    // text appears here the moment the write lands, via the
+                    // read-through resolution above (#4318).
+                    workingState
                 } else {
                     emptyState(
                         title: "No content",
@@ -115,7 +144,9 @@ struct PageContentPane: View {
                     .foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 if pageDoc != nil {
-                    if isSaving {
+                    // A run writing this page shows progress in the bar too, so
+                    // the signal survives once text starts arriving (#4357).
+                    if isSaving || isPageBusy {
                         ProgressView()
                             .controlSize(.small)
                     }

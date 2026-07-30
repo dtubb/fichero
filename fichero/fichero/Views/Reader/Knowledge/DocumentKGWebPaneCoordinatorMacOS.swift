@@ -29,6 +29,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     var cachedBootstrapLibraryPath: String?
     /// In-reader find sync (#4338) — shared query/index dedupe.
     let findSync = WebPaneFindSync()
+    /// Per-page run progress + live page writes (#4357) — shared dedupe so only
+    /// changed pages are patched, and the view is never reloaded.
+    let progressSync = WebPaneProgressSync()
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -48,6 +51,7 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         lastSelectedClaimCharEnd = nil
         lastActivePageNumber = nil
         findSync.reset()
+        progressSync.reset()
         guard let parent, let request = DocumentKGPaneRoute.request(
             documentId: parent.documentId,
             libraryPath: parent.libraryPath
@@ -97,6 +101,12 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
             query: parent.searchQuery,
             selectionIndex: parent.searchSelectionIndex,
             onMatchCount: parent.onSearchMatchCount
+        )
+        // Per-page run progress + live page writes (#4357).
+        progressSync.sync(
+            into: webView,
+            busyPages: parent.busyPageNumbers,
+            pageContent: parent.pageContentPatches
         )
     }
 
@@ -193,6 +203,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         injectContext(into: webView)
         webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
         webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent?.pageCount))
+        // A finished navigation is a FRESH DOM: nothing has been patched into it,
+        // so drop the progress dedupe or the spinner/live text would be skipped.
+        progressSync.reset()
         syncSelection(into: webView)
     }
 
@@ -247,6 +260,11 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         }
     }
 
+}
+
+// Bridge-message routing, in an extension so the coordinator's own body stays
+// under the SwiftLint type-body threshold.
+extension DocumentKGWebPaneCoordinatorMacOS {
     func focusKGSource(
         documentId: String?,
         entityId: String?,
