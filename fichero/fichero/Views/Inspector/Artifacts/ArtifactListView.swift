@@ -45,32 +45,28 @@ struct ArtifactListView: View {
     @State private var artifactsToDelete: [Artifact] = []
     @State private var showingDeleteConfirmation = false
 
-    /// Sort: group raw + cleaned pairs together (people / people_clean) by base
-    /// type with the cleaned canonical entry first, then newest-first within a
-    /// type. Mirrors `DocumentInspectorContentV2.sortedArtifacts` so the list
-    /// order matches what the old stacked view showed.
-    private var sortedArtifacts: [Artifact] {
-        store.items.sorted {
-            let aBase = baseType(of: $0.artifactType)
-            let bBase = baseType(of: $1.artifactType)
-            if aBase != bBase { return aBase < bBase }
-            let aClean = $0.artifactType.hasSuffix("_clean")
-            let bClean = $1.artifactType.hasSuffix("_clean")
-            if aClean != bClean { return aClean }
-            return $0.createdAt > $1.createdAt
-        }
-    }
+    /// Resolve a workflow id to its display name for run-group headers.
+    /// `nil` (or an unresolved id) falls back to a generic "Workflow Run".
+    var workflowNameForId: ((String) -> String?)?
 
-    private func baseType(of artifactType: String) -> String {
-        artifactType.hasSuffix("_clean")
-            ? String(artifactType.dropLast("_clean".count))
-            : artifactType
+    /// Provenance-first grouping (#4319): artifacts group by producing RUN,
+    /// newest run first, ordered by pipeline `sequence` within a run. Legacy
+    /// artifacts without a `runId` collapse into a trailing "Earlier" section
+    /// that keeps the old type-grouped order — never hidden.
+    private var runGroups: [ArtifactRunGroup] {
+        ArtifactRunGrouping.groups(from: store.items)
     }
 
     var body: some View {
         List(selection: $selectedIDs) {
-            ForEach(sortedArtifacts) { artifact in
-                row(for: artifact)
+            ForEach(runGroups) { group in
+                Section {
+                    ForEach(group.artifacts) { artifact in
+                        row(for: artifact)
+                    }
+                } header: {
+                    groupHeader(for: group)
+                }
             }
         }
         .listStyle(.inset)
@@ -119,6 +115,36 @@ struct ArtifactListView: View {
         .onChange(of: store.items) { _, items in
             focused.resolve(in: items)
         }
+    }
+
+    /// Run-group header: workflow name (where known) + relative run time, or
+    /// "Earlier" for the legacy/ungrouped trailing section (#4319).
+    @ViewBuilder
+    private func groupHeader(for group: ArtifactRunGroup) -> some View {
+        if group.isEarlier {
+            Text("Earlier")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack(spacing: 6) {
+                Image(systemName: "play.circle")
+                Text(groupTitle(for: group))
+                Spacer(minLength: 4)
+                Text(group.latestCreatedAt, format: .relative(presentation: .named))
+                    .foregroundStyle(.tertiary)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func groupTitle(for group: ArtifactRunGroup) -> String {
+        if let workflowId = group.workflowId,
+           let name = workflowNameForId?(workflowId),
+           !name.isEmpty {
+            return name
+        }
+        return "Workflow Run"
     }
 
     /// One selectable row, tagged by artifact id, with an "Open in Window"

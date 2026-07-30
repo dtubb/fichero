@@ -35,6 +35,9 @@ struct Artifact: Identifiable, Codable, Hashable {
     var provider: String?
     var model: String?
     var stepName: String?
+    /// Producing workflow id and pipeline position within the run (#4313).
+    var workflowId: String?
+    var sequence: Int?
 
     // Quality
     var confidence: Double?
@@ -56,6 +59,8 @@ struct Artifact: Identifiable, Codable, Hashable {
         case provider
         case model
         case stepName = "step_name"
+        case workflowId = "workflow_id"
+        case sequence
         case confidence
         case reviewed
         case createdAt = "created_at"
@@ -74,6 +79,8 @@ struct Artifact: Identifiable, Codable, Hashable {
         provider: String? = nil,
         model: String? = nil,
         stepName: String? = nil,
+        workflowId: String? = nil,
+        sequence: Int? = nil,
         confidence: Double? = nil,
         reviewed: Bool = false,
         createdAt: Date = Date()
@@ -90,6 +97,8 @@ struct Artifact: Identifiable, Codable, Hashable {
         self.provider = provider
         self.model = model
         self.stepName = stepName
+        self.workflowId = workflowId
+        self.sequence = sequence
         self.confidence = confidence
         self.reviewed = reviewed
         self.createdAt = createdAt
