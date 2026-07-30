@@ -13,6 +13,8 @@
 		99745474B42FD3C0F886D2CB /* WebContentCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8A1821F134F46DF33D23A13 /* WebContentCanvas.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
+		A251E725F4151E49E308656C /* RevealOriginalMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508795DFAE9865404BE368CE /* RevealOriginalMenuItem.swift */; };
+		A3FA41C1B999EB7E4964A976 /* RevealOriginalMenuItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 508795DFAE9865404BE368CE /* RevealOriginalMenuItem.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
 		CDFC1960F296BEE9B1262949 /* OCRGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DD73262B8DFCA979150709 /* OCRGeometry.swift */; };
 		E3FF16236EAA457AA71F5FE4 /* OCRGeometryOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7CFD25965F5EBC79A0924FB /* OCRGeometryOverlay.swift */; };
@@ -57,6 +59,7 @@
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		18DD73262B8DFCA979150709 /* OCRGeometry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OCRGeometry.swift; sourceTree = "<group>"; };
+		508795DFAE9865404BE368CE /* RevealOriginalMenuItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RevealOriginalMenuItem.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
@@ -189,9 +192,19 @@
 			isa = PBXGroup;
 			children = (
 				4B16649A8158515BCFB1EB77 /* Preview */,
+				6607FA0EE8AF20FA763E4A9A /* Components */,
 			);
 			name = Views;
 			path = Views;
+			sourceTree = "<group>";
+		};
+		6607FA0EE8AF20FA763E4A9A /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				508795DFAE9865404BE368CE /* RevealOriginalMenuItem.swift */,
+			);
+			name = Components;
+			path = Components;
 			sourceTree = "<group>";
 		};
 		B32CF3D2AA65F664ECEFB82E /* ImageViewer */ = {
@@ -941,6 +954,7 @@
 				7D68A790FE4F69A65F5C7A1A /* OCRGeometry.swift in Sources */,
 				E3FF16236EAA457AA71F5FE4 /* OCRGeometryOverlay.swift in Sources */,
 				99745474B42FD3C0F886D2CB /* WebContentCanvas.swift in Sources */,
+				A3FA41C1B999EB7E4964A976 /* RevealOriginalMenuItem.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -959,6 +973,7 @@
 				CDFC1960F296BEE9B1262949 /* OCRGeometry.swift in Sources */,
 				550387714E0057553752CA78 /* OCRGeometryOverlay.swift in Sources */,
 				83EDB2CB0561AFE4BA93CD34 /* WebContentCanvas.swift in Sources */,
+				A251E725F4151E49E308656C /* RevealOriginalMenuItem.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

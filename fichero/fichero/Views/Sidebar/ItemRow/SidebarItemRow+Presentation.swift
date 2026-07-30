@@ -51,6 +51,13 @@ extension SidebarItemRow {
                 onMakeAlias: makeAliasAction
             )
 
+            // Show Original in Finder (#4305) — every document row, same
+            // shared policy as the grid menu: local engine + the path resolves
+            // on this machine; linked originals get the Finder-alias verb.
+            if case .document(let revealDoc) = item.itemType {
+                RevealOriginalMenuItem(document: revealDoc)
+            }
+
             // Grid-menu parity (#4121): the processing toggle the library
             // grid offers, for the same document, on its sidebar row.
             if case .document(let processDoc) = item.itemType, processDoc.docType != .folder {
@@ -86,12 +93,15 @@ extension SidebarItemRow {
             }
 
             let workflowTargetIDs = resolvedWorkflowTargetIDs
-            if let workflows = workflowStore?.workflows,
-               !workflows.isEmpty,
+            let availableWorkflows = Self.contextMenuWorkflows(
+                own: workflowStore?.workflows ?? [],
+                global: libraryManager.globalLibrary?.workflowStore.workflows ?? []
+            )
+            if !availableWorkflows.isEmpty,
                !workflowTargetIDs.isEmpty {
                 Divider()
                 Menu("Run Workflow") {
-                    RunWorkflowSubmenuItems(workflows: workflows) { workflowId, providerOverride, modelOverride in
+                    RunWorkflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
                         runWorkflowOnDocuments(
                             workflowId: workflowId,
                             docIds: workflowTargetIDs,
@@ -107,6 +117,22 @@ extension SidebarItemRow {
                 }
             }
         }
+    }
+
+    /// #4275 — the workflow list the Run Workflow submenu offers for this row.
+    ///
+    /// A row's own library store is authoritative (its list is what the run
+    /// executes against, #3820). But a non-global library whose store hasn't
+    /// loaded (or failed to load) used to make the submenu silently VANISH on
+    /// its folders. Fall back to the global library's list so the menu is
+    /// never silently empty; the run still targets this row's documents in
+    /// this row's library, and a genuinely unknown workflow id surfaces the
+    /// engine's error on the banner rather than nothing at all.
+    nonisolated static func contextMenuWorkflows(
+        own: [WorkflowSidebarItem],
+        global: [WorkflowSidebarItem]
+    ) -> [WorkflowSidebarItem] {
+        own.isEmpty ? global : own
     }
 
     /// Duplicate action for the kinds with a backend duplicate endpoint —
