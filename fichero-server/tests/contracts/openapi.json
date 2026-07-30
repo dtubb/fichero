@@ -3801,7 +3801,7 @@
           "artifacts"
         ],
         "summary": "List All Artifacts",
-        "description": "List all artifacts in the library.\n\nReturns artifacts sorted by creation date (newest first).",
+        "description": "List all artifacts in the library.\n\nSorted newest-first; a ``run_id``-scoped listing is instead ordered by\npipeline ``sequence`` (then creation date) so a run's passes read in\nexecution order. Filtering, ordering and pagination all run DB-side\n(#4319) \u2014 ``count`` is the total match count, not the page size.",
         "operationId": "list_all_artifacts_api_artifacts__get",
         "parameters": [
           {

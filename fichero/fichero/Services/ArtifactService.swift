@@ -230,6 +230,7 @@ class ArtifactService {
         return Artifact(
             id: generated.id,
             documentId: generated.documentId,
+            sourceArtifactId: generated.sourceArtifactId,
             version: generated.version,
             artifactType: generated.artifactType,
             content: generated.content,
@@ -237,8 +238,15 @@ class ArtifactService {
             // Present only on the single-artifact GET (#4309); list payloads
             // omit geometry to stay lean.
             ocrGeometry: generated.ocrGeometry.map { OCRGeometry(generated: $0) },
+            // Run provenance (#4313/#4319): the browser groups by run and
+            // orders by pipeline sequence, so these must survive conversion.
+            runId: generated.runId,
             provider: generated.provider,
             model: generated.model,
+            stepName: generated.stepName,
+            workflowId: generated.workflowId,
+            sequence: generated.sequence,
+            confidence: generated.confidence,
             reviewed: generated.reviewed,
             createdAt: createdAt
         )

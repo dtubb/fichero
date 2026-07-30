@@ -276,23 +276,18 @@ async def list_all_artifacts(
 ) -> ArtifactListResponse:
     """List all artifacts in the library.
 
-    Returns artifacts sorted by creation date (newest first).
+    Sorted newest-first; a ``run_id``-scoped listing is instead ordered by
+    pipeline ``sequence`` (then creation date) so a run's passes read in
+    execution order. Filtering, ordering and pagination all run DB-side
+    (#4319) — ``count`` is the total match count, not the page size.
     """
-    query_kwargs = {}
-    if artifact_type:
-        query_kwargs["artifact_type"] = artifact_type
-    if run_id:
-        query_kwargs["run_id"] = run_id
-    if step_name:
-        query_kwargs["step_name"] = step_name
-
-    artifacts = (
-        db.query(Artifact, **query_kwargs) if query_kwargs else db.query(Artifact)
+    artifacts, total = db.artifacts_page(
+        artifact_type=artifact_type or None,
+        run_id=run_id or None,
+        step_name=step_name or None,
+        limit=limit,
+        offset=offset,
     )
-    artifacts.sort(key=lambda a: a.created_at, reverse=True)
-
-    total = len(artifacts)
-    artifacts = artifacts[offset : offset + limit]
 
     response_artifacts = [_artifact_response(a) for a in artifacts]
     return ArtifactListResponse(items=response_artifacts, count=total)

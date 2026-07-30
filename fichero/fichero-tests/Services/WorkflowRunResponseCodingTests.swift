@@ -90,6 +90,41 @@ final class WorkflowRunResponseCodingTests: XCTestCase {
         XCTAssertNil(run.workflowSnapshot)
     }
 
+    // MARK: - Run artifacts (#4313 provenance)
+
+    func testDecodesRunArtifactsInPipelineOrder() throws {
+        let json = Data("""
+        {
+            "thread_id": "t-4",
+            "workflow_id": "wf-4",
+            "workflow_name": "Ensemble",
+            "status": "completed",
+            "run_artifacts": [
+                {"artifact_id": "a-1", "artifact_type": "transcription",
+                 "document_id": "d-1", "document_name": "diary.pdf",
+                 "run_id": "t-4", "step_name": "n-1", "node_name": "Transcribe 1",
+                 "sequence": 1, "created_at": "2026-05-10T10:00:00Z"},
+                {"artifact_id": "a-2", "artifact_type": "transcription",
+                 "document_id": "d-1", "step_name": "n-2", "sequence": 2}
+            ]
+        }
+        """.utf8)
+        let run = try JSONDecoder().decode(WorkflowRunResponse.self, from: json)
+        XCTAssertEqual(run.runArtifacts.map(\.artifactId), ["a-1", "a-2"])
+        XCTAssertEqual(run.runArtifacts[0].nodeName, "Transcribe 1")
+        XCTAssertEqual(run.runArtifacts[0].sequence, 1)
+        XCTAssertEqual(run.runArtifacts[1].documentName, nil)
+    }
+
+    func testMissingRunArtifactsDecodesToEmptyArray() throws {
+        let json = Data("""
+        {"thread_id": "t-5", "workflow_id": "wf-5",
+         "workflow_name": "Legacy", "status": "completed"}
+        """.utf8)
+        let run = try JSONDecoder().decode(WorkflowRunResponse.self, from: json)
+        XCTAssertEqual(run.runArtifacts, [])
+    }
+
     // MARK: - Encode
 
     func testEncodeEmitsSnakeCaseKeysAndSnapshot() throws {

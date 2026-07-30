@@ -88,6 +88,14 @@ struct ArtifactsInspectorPane: View {
     @State private var actionError: String?
     /// A translate action is in flight (#3325).
     @State private var isTranslating = false
+    /// The run whose trace is being shown from "Produced by" (#4319/#4320).
+    @State private var traceRun: TraceRunSelection?
+
+    /// Identifiable wrapper so `.sheet(item:)` can present a run trace.
+    private struct TraceRunSelection: Identifiable {
+        let threadId: String
+        var id: String { threadId }
+    }
 
     /// The artifact currently selected, resolved live from the store so inline
     /// edits and workflow re-runs flow through immediately.
@@ -127,13 +135,15 @@ struct ArtifactsInspectorPane: View {
                     documentsById: knownDocumentsById,
                     focused: focused,
                     onOpenInWindow: openDetailWindow,
-                    onTranslate: { translate(to: $0) }
+                    onTranslate: { translate(to: $0) },
+                    workflowNameForId: workflowName(forId:)
                 )
             } detail: {
                 ArtifactDetailView(
                     artifact: selectedArtifact,
                     provenance: selectedProvenance,
                     onOpenSource: openSelectedArtifactSource,
+                    onOpenRun: openSelectedArtifactRun,
                     onSave: { artifact, content in
                         await saveArtifact(artifact, content: content)
                     },
@@ -202,6 +212,22 @@ struct ArtifactsInspectorPane: View {
         .onChange(of: executionObserver.workflowCompletedCount) { _, _ in
             Task { await store.reload() }
         }
+        // "Produced by" → the run's trace (#4319/#4320).
+        .sheet(item: $traceRun) { selection in
+            RunTraceSheet(threadId: selection.threadId)
+        }
+    }
+
+    /// Resolve a workflow id to its name for the run-group headers (#4319).
+    private func workflowName(forId workflowId: String) -> String? {
+        libraryManager.globalLibrary?.workflowStore.workflows
+            .first { $0.id == workflowId }?
+            .name
+    }
+
+    private func openSelectedArtifactRun() {
+        guard let runId = selectedArtifact?.runId, !runId.isEmpty else { return }
+        traceRun = TraceRunSelection(threadId: runId)
     }
 
     private var artifactsToolbarStatusText: String {

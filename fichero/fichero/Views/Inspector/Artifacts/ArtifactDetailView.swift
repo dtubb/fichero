@@ -20,6 +20,10 @@ struct ArtifactDetailView: View {
     var provenance: ArtifactProvenanceDisplay? = nil
     var onOpenSource: (() -> Void)? = nil
 
+    /// Open the producing workflow run (its trace, #4319/#4320). Shown only
+    /// when the artifact carries a `runId`; `nil` hides the affordance.
+    var onOpenRun: (() -> Void)? = nil
+
     /// Persist edited content. `nil` → read-only (the `AttributedTextEditor`
     /// becomes non-editable, matching `ArtifactPanel`'s `onSave == nil` path).
     /// Returns nil on success or a user-facing error message on failure so
@@ -36,7 +40,10 @@ struct ArtifactDetailView: View {
                     if let provenance {
                         ArtifactProvenanceSection(
                             provenance: provenance,
-                            onOpenSource: onOpenSource
+                            onOpenSource: onOpenSource,
+                            // "Produced by" links to the run only when this
+                            // artifact records one (#4319).
+                            onOpenRun: artifact.runId == nil ? nil : onOpenRun
                         )
                         Divider()
                     }
@@ -91,6 +98,7 @@ struct ArtifactDetailView: View {
 private struct ArtifactProvenanceSection: View {
     let provenance: ArtifactProvenanceDisplay
     var onOpenSource: (() -> Void)?
+    var onOpenRun: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -124,6 +132,20 @@ private struct ArtifactProvenanceSection: View {
                 LabeledContent("Provider") {
                     Text(providerLabel)
                         .textSelection(.enabled)
+                }
+            }
+
+            if let onOpenRun {
+                LabeledContent("Produced by") {
+                    Button(action: onOpenRun) {
+                        Label("View Run", systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                    #if os(macOS)
+                    .buttonStyle(.link)
+                    #else
+                    .buttonStyle(.borderless)
+                    #endif
+                    .accessibilityLabel("Open the workflow run that produced this artifact")
                 }
             }
         }
