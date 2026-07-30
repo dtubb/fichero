@@ -423,12 +423,18 @@ def test_cli_help_does_not_open_app_duckdb(tmp_path):
     asserts a clean exit, and asserts no app.duckdb appeared — proving help
     never reached the backend DB even though it imports route response models.
     """
-    src = Path(__file__).resolve().parents[3] / "src"
+    server_src = Path(__file__).resolve().parents[3] / "src"
+    # The CLI is its own product since #4227, so putting only fichero-server/src
+    # on the path leaves `fichero_cli` to resolve from whatever is installed —
+    # which is a DIFFERENT checkout. This test then reports on that tree instead
+    # of this one. Both products come from the tree under test, or neither.
+    cli_src = server_src.parents[1] / "fichero-cli" / "src"
+    assert cli_src.is_dir(), f"fichero-cli/src moved; this test is now vacuous: {cli_src}"
     base = tmp_path / "fichero-base"
     base.mkdir()
 
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join([str(src), env.get("PYTHONPATH", "")])
+    env["PYTHONPATH"] = os.pathsep.join([str(server_src), str(cli_src), env.get("PYTHONPATH", "")])
     env["FICHERO_BASE_PATH"] = str(base)
     env.pop("FICHERO_DISABLE_AUTH", None)
 

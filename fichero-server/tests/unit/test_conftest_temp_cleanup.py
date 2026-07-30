@@ -134,16 +134,23 @@ class TestCleanupActuallyFiresEndToEnd:
         child_env = {k: v for k, v in os.environ.items() if k != "FICHERO_BASE_PATH"}
         child_env["PYTHONPATH"] = str(root / "fichero-server" / "src")
 
-        before = {p.name for p in TMP.glob(f"{PREFIX}*")}
-        completed = subprocess.run(
+        # Judge the CHILD's directories, not the whole temp dir. A plain
+        # before/after set diff calls any directory a concurrent pytest session
+        # happens to create in the window a leak by THIS child — which is a
+        # false failure whenever worker lanes run tests at the same time, and it
+        # is the shape that made this test fail during a parallel run. The
+        # conftest names each directory `fichero-tests-<pid>-*`, so the child's
+        # own pid is the precise filter.
+        child = subprocess.Popen(
             [sys.executable, "-m", "pytest", str(target), "-q", "-p", "no:cacheprovider"],
             cwd=root,
             env=child_env,
-            capture_output=True,
-            timeout=300,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
-        assert completed.returncode == 0, completed.stdout.decode()[-500:]
+        stdout, _ = child.communicate(timeout=300)
+        assert child.returncode == 0, stdout.decode()[-500:]
 
-        after = {p.name for p in TMP.glob(f"{PREFIX}*")}
+        leaked = sorted(p.name for p in TMP.glob(f"{PREFIX}{child.pid}-*"))
 
-        assert after <= before, f"session leaked: {sorted(after - before)}"
+        assert not leaked, f"session leaked: {leaked}"
