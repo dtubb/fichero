@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 # Importing the route module registers the ``canvas.arrange`` action.
-import fichero_server.api.routes.canvas  # noqa: F401
+import fichero_server.api.routes.interpretation.canvas  # noqa: F401
 from fichero_server.api.routes.actions_registry import undo_action
 from fichero_server.security import accounts
 from fichero_server.security import authz

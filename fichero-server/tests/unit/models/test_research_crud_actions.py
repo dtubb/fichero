@@ -8,7 +8,7 @@ the route path hits the right action name.
 
 from __future__ import annotations
 
-import fichero_server.api.routes.research_crud  # noqa: F401
+import fichero_server.api.routes.research.crud  # noqa: F401
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.models import ActionAudit
 from fichero_server.models.research import (

@@ -827,7 +827,7 @@ class TestResearchNoteMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.research_notes.emit_change",
+            "fichero_server.api.routes.research.notes.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -859,7 +859,7 @@ class TestResearchNoteMutationsEmitChange:
     ):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.research_notes.emit_change",
+            "fichero_server.api.routes.research.notes.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1055,7 +1055,7 @@ class TestResearchMutationsEmitChange:
     def test_create_project_emits_created(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.research_crud.emit_change",
+            "fichero_server.api.routes.research.crud.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1077,7 +1077,7 @@ class TestResearchMutationsEmitChange:
     def test_patch_project_emits_updated(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.research_crud.emit_change",
+            "fichero_server.api.routes.research.crud.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),
@@ -1103,7 +1103,7 @@ class TestResearchMutationsEmitChange:
     def test_delete_project_emits_deleted(self, client, db, test_package, monkeypatch):
         captured: list[dict] = []
         monkeypatch.setattr(
-            "fichero_server.api.routes.research_crud.emit_change",
+            "fichero_server.api.routes.research.crud.emit_change",
             lambda library_path, **kwargs: captured.append(
                 {"library_path": library_path, **kwargs}
             ),

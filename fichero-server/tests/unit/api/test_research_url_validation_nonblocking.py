@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from fichero_server.api.routes import research_tools as api_research_tools
+from fichero_server.api.routes.research import tools as api_research_tools
 from fichero_server.workflows.tools import research as workflow_research
 
 
