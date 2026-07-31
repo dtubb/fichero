@@ -25,8 +25,8 @@ import time
 
 import sys as _sys
 from pathlib import Path as _Path
-_sys.path.insert(0, str(_Path(__file__).resolve().parent))
-from _history import record  # noqa: E402
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
+from perf_ratchet import record  # noqa: E402
 from datetime import datetime
 
 from fichero_server.models.knowledge import (

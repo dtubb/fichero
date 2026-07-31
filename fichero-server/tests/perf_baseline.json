@@ -13,5 +13,10 @@
     "commit": "a2d1f70ae",
     "ms": 14.0,
     "note": "first recorded run"
+  },
+  "test::tests/unit/search/test_search_page_results.py::TestProjectPdfFileHitsToPages::test_returns_page_id_not_pdf_id": {
+    "commit": "3263d1d92",
+    "ms": 25.1,
+    "note": "first recorded run"
   }
 }

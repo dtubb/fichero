@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import subprocess
 from pathlib import Path
 
@@ -199,3 +200,126 @@ def record(name: str, ms: float) -> None:
 
     _append_history(name, ms, "ok")
     print(f"\n[perf] {name}: {ms:.1f} ms (best {baseline:.1f} ms)")
+
+
+class _Measurement:
+    """One timed block. `ms` is readable afterwards for an extra assertion."""
+
+    __slots__ = ("name", "ms", "_start")
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.ms = 0.0
+        self._start = 0.0
+
+    def __enter__(self) -> "_Measurement":
+        self._start = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        self.ms = (time.perf_counter() - self._start) * 1000
+        # A failing test's timing is meaningless — it may not have done the
+        # work. Record nothing and let the real failure through.
+        if exc_type is None:
+            record(self.name, self.ms)
+        return False
+
+
+def measure(name: str) -> _Measurement:
+    """Time a block and hold it to its best-ever result.
+
+    Perf is a property of a piece of behaviour, not a separate suite. Any test
+    anywhere can put its own slow part under the ratchet:
+
+        def test_listing_entities(perf, client):
+            with perf("entities.list.full"):
+                r = client.get("/api/entities?limit=500")
+            assert r.status_code == 200
+
+    The name is the measurement's identity across runs and must be stable —
+    rename it and its ratchet silently starts over at whatever today's machine
+    manages. Prefer `area.thing` so related measurements sort together.
+    """
+    return _Measurement(name)
+
+
+# ---------------------------------------------------------------------------
+# Every test, automatically
+# ---------------------------------------------------------------------------
+#
+# `measure()` above is for a named slice inside a test. This is the blunt
+# version Daniel asked for: EVERY test is timed and held to its best, so a
+# slowdown shows up in whatever suite you happen to be running rather than
+# waiting for the perf leg.
+#
+# Two things make that affordable:
+#
+#   * Only tests above the noise floor are kept. Most of ~7,500 tests run in
+#     single-digit milliseconds where scheduling noise dwarfs any real change,
+#     and recording them would be thousands of meaningless bars.
+#   * Everything is collected in memory and written ONCE at session end. The
+#     per-measurement path shells out to git and rewrites a JSON file; doing
+#     that per test would cost more than the tests.
+
+_session: dict[str, float] = {}
+
+
+def note_test_duration(nodeid: str, seconds: float) -> None:
+    """Remember one test's duration. Cheap: a dict write."""
+    ms = seconds * 1000
+    if ms < NOISE_FLOOR_MS:
+        return
+    # Keep the FASTEST observation within a session: a parametrised test or a
+    # retry should be judged on its best, same as across sessions.
+    key = f"test::{nodeid}"
+    if ms < _session.get(key, float("inf")):
+        _session[key] = ms
+
+
+def flush_session() -> list[str]:
+    """Compare everything collected, tighten what improved, write once.
+
+    Returns human-readable regression lines — empty when all is well. The
+    caller decides whether that fails the run, because "is a slow test a
+    failure?" is a policy question and this module only measures.
+    """
+    entries = dict(_session)
+    _session.clear()
+    if not entries or os.environ.get("FICHERO_PERF_NO_HISTORY") == "1":
+        return []
+    if _another_perf_run_is_active():
+        return []
+
+    baseline = _load_baseline()
+    commit = _commit()
+    regressions: list[str] = []
+    data: dict = {}
+    if BASELINE_PATH.exists():
+        try:
+            data = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = {}
+
+    changed = False
+    for name, ms in sorted(entries.items()):
+        best = baseline.get(name)
+        if best is None:
+            data[name] = {"ms": round(ms, 1), "commit": commit, "note": "first recorded run"}
+            changed = True
+        elif ms > best * TOLERANCE:
+            regressions.append(
+                f"{name}: {ms:.0f} ms vs best {best:.0f} ms ({ms / best:.1f}x)"
+            )
+        elif ms < best * TIGHTEN_MARGIN:
+            data[name] = {
+                "ms": round(ms, 1), "commit": commit,
+                "note": f"tightened from {best:.1f} ms",
+            }
+            changed = True
+
+    if changed:
+        tmp = BASELINE_PATH.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, BASELINE_PATH)
+
+    return regressions

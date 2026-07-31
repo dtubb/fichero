@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "perf"))
-import _history  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import perf_ratchet as _history  # noqa: E402
 
 
 @pytest.fixture
@@ -189,3 +189,62 @@ class TestConcurrentRuns:
         monkeypatch.setattr(_history.subprocess, "run", _boom)
         _history.record("claims.list", 100.0)
         assert _best(ratchet, "claims.list") == 100.0
+
+
+class TestEveryTestIsTimed:
+    """The automatic path: durations collected in memory, compared once."""
+
+    @pytest.fixture(autouse=True)
+    def _clear(self):
+        _history._session.clear()
+        yield
+        _history._session.clear()
+
+    def test_a_fast_test_is_not_recorded_at_all(self, ratchet):
+        """Most of ~7,500 tests run in single-digit ms where noise dwarfs any
+        real change. Recording them would be thousands of meaningless bars."""
+        _history.note_test_duration("tests/x.py::test_quick", 0.001)
+        assert _history.flush_session() == []
+        assert not ratchet.exists()
+
+    def test_a_slow_test_gets_a_bar_then_is_held_to_it(self, ratchet):
+        _history.note_test_duration("tests/x.py::test_slow", 0.500)
+        assert _history.flush_session() == []
+        assert _best(ratchet, "test::tests/x.py::test_slow") == 500.0
+
+        _history.note_test_duration("tests/x.py::test_slow", 5.000)
+        regressions = _history.flush_session()
+        assert len(regressions) == 1
+        assert "10.0x" in regressions[0]
+
+    def test_a_regression_does_not_overwrite_the_bar(self, ratchet):
+        _history.note_test_duration("tests/x.py::test_slow", 0.500)
+        _history.flush_session()
+        _history.note_test_duration("tests/x.py::test_slow", 5.000)
+        _history.flush_session()
+        assert _best(ratchet, "test::tests/x.py::test_slow") == 500.0
+
+    def test_getting_faster_tightens_the_bar(self, ratchet):
+        _history.note_test_duration("tests/x.py::test_slow", 1.000)
+        _history.flush_session()
+        _history.note_test_duration("tests/x.py::test_slow", 0.400)
+        assert _history.flush_session() == []
+        assert _best(ratchet, "test::tests/x.py::test_slow") == 400.0
+
+    def test_the_fastest_observation_in_a_session_wins(self, ratchet):
+        """A retry or a parametrised case is judged on its best, as across runs."""
+        _history.note_test_duration("tests/x.py::test_slow", 2.000)
+        _history.note_test_duration("tests/x.py::test_slow", 0.400)
+        _history.flush_session()
+        assert _best(ratchet, "test::tests/x.py::test_slow") == 400.0
+
+    def test_the_whole_session_is_written_once(self, ratchet, monkeypatch):
+        """Per-test writes would shell out to git thousands of times."""
+        calls = []
+        real = _history.os.replace
+        monkeypatch.setattr(_history.os, "replace",
+                            lambda a, b: (calls.append(1), real(a, b))[1])
+        for i in range(20):
+            _history.note_test_duration(f"tests/x.py::test_{i}", 0.100)
+        _history.flush_session()
+        assert len(calls) == 1, f"expected one atomic write, got {len(calls)}"

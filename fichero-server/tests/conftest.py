@@ -476,3 +476,65 @@ def _api_main_pollution_guard():
         return
     if count != _API_MAIN_BASELINE_MW[0]:
         _restore_api_main_defaults()
+
+
+# ---------------------------------------------------------------------------
+# Performance ratchet: every test is timed, held to its best (#4439)
+# ---------------------------------------------------------------------------
+#
+# Not a separate suite you remember to run — a property of whatever you already
+# ran. Slow down a query and the tests covering it say so on the next run,
+# rather than waiting for the perf leg.
+#
+# Off by default: opt in with FICHERO_PERF_RATCHET=1 (the gate sets it). A
+# developer running one test file on a laptop with a browser open should not be
+# writing bars that everyone else then has to meet.
+
+import os as _os  # noqa: E402
+import sys as _sys  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+
+
+def _ratchet_enabled() -> bool:
+    return _os.environ.get("FICHERO_PERF_RATCHET") == "1"
+
+
+def pytest_runtest_logreport(report):
+    """Record the call phase of each passing test."""
+    if not _ratchet_enabled() or report.when != "call" or not report.passed:
+        return
+    import perf_ratchet
+
+    perf_ratchet.note_test_duration(report.nodeid, report.duration)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Compare everything once, tighten what improved, report what regressed."""
+    if not _ratchet_enabled():
+        return
+    import perf_ratchet
+
+    regressions = perf_ratchet.flush_session()
+    if not regressions:
+        return
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is not None:
+        reporter.write_sep("=", "PERFORMANCE REGRESSIONS", red=True)
+        for line in regressions:
+            reporter.write_line(f"  {line}")
+        reporter.write_line("")
+        reporter.write_line(
+            "  Each is slower than its own best-ever time. Fichero is meant to get"
+        )
+        reporter.write_line(
+            "  faster, so a slower run is a decision: re-run on a quiet machine, or"
+        )
+        reporter.write_line(
+            "  raise the entry in tests/perf_baseline.json and say what bought the time."
+        )
+    # Exit code 3 = "tests passed, performance did not." Distinguishable from a
+    # test failure, because it needs a different response.
+    if exitstatus == 0:
+        session.exitstatus = 3

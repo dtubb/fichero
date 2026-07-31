@@ -11,6 +11,9 @@
 #                                    test-without-building (never stacked)
 #   gate engine [--area X|paths...]  backend pytest (default: unit + integration
 #                                    + contracts; NEVER tests/perf — see gate perf)
+#   gate part <area>                 ONE area, verified the way the release
+#                                    gate verifies everything: lint + build +
+#                                    tests + the perf ratchet (#4439)
 #   gate perf [paths...]             backend perf/scale suite (tests/perf, ~35-40
 #                                    min) — required for releases + nightly (#4271)
 #   gate ui <testplan>               hosted UI suite via a test plan
@@ -289,6 +292,61 @@ resolve_area() {
   done
 }
 
+# --------------------------- gate part --------------------------------------
+#
+# Verify ONE part of the app the way the release gate verifies all of it:
+# lint, build, tests, and the performance ratchet — scoped to an area (#4439).
+#
+# The point is that "does my change hold up?" should be answerable in minutes
+# against the part you touched, not only in an hour against everything. The
+# checks are the same ones the full gate runs; only the scope differs, so a
+# green `gate part` means the same thing here that it means there.
+cmd_part() {
+  local area="${1:-}"
+  [[ -n "$area" ]] || die "usage: gate part <area>   (see: gate areas)"
+  resolve_area "$area"
+
+  local failed=0
+  echo "=== gate part: $area ==="
+
+  # 1. Lint. Whole-tree: swiftlint and ruff are seconds, and a scoped lint that
+  #    misses a violation elsewhere in the same file is worse than useless.
+  run_leg "lint" run_gated "part-lint" 600 bash -c \
+    'swiftlint lint --quiet --config .swiftlint.yml fichero/fichero && ruff check fichero-server/src' \
+    || failed=1
+
+  # 2. Build. Swift tests cannot run without it, and a part that does not
+  #    compile is not verified whatever its tests say.
+  run_leg "build" cmd_build || failed=1
+
+  # 3. Swift unit tests for this area.
+  if [[ ${#AREA_ONLY_TESTING[@]} -gt 0 ]]; then
+    run_leg "swift-unit" cmd_unit --area "$area" || failed=1
+  else
+    echo "  (no Swift tests in area '$area')"
+  fi
+
+  # 4. Engine tests for this area, WITH the perf ratchet armed: every test is
+  #    timed and held to its best, so a slowdown in the part you touched shows
+  #    up here rather than waiting for the full perf leg.
+  if [[ ${#AREA_ENGINE_PATHS[@]} -gt 0 ]]; then
+    run_leg "engine+perf" env FICHERO_PERF_RATCHET=1 bash -c \
+      "cd '$REPO_ROOT' && scripts/gate engine --area '$area'" || failed=1
+  else
+    echo "  (no engine tests in area '$area')"
+  fi
+
+  echo
+  echo "==================== gate part '$area' summary ===================="
+  local i
+  for i in "${!LEG_NAMES[@]}"; do
+    local verdict="PASS"
+    [[ "${LEG_RCS[$i]}" -ne 0 ]] && verdict="FAIL(rc=${LEG_RCS[$i]})"
+    printf "%-14s %-8s %ss\n" "${LEG_NAMES[$i]}" "$verdict" "${LEG_SECS[$i]}"
+  done
+  return $failed
+}
+
 cmd_areas() {
   if [[ $# -eq 0 ]]; then
     echo "gate areas:"
@@ -408,6 +466,10 @@ cmd_unit() {
 }
 
 cmd_engine() {
+  # The ratchet is AUTOMATIC on the gate (#4445): every test is timed and
+  # held to its best. Laptops stay silent unless someone opts in — a run
+  # sharing a machine with a browser must not set bars others must meet.
+  export FICHERO_PERF_RATCHET="${FICHERO_PERF_RATCHET:-1}"
   local paths=() area=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -436,6 +498,7 @@ cmd_engine() {
 }
 
 cmd_perf() {
+  export FICHERO_PERF_RATCHET="${FICHERO_PERF_RATCHET:-1}"
   # The deliberate scale suite (seed 100-image libraries, thousands of
   # entities, budget assertions). ~35-40 min; SLOW, not hung — two tests print
   # nothing for ~25 min each under -q (#4039), so stream with -rf and no -q.
@@ -672,6 +735,8 @@ case "$SUBCMD" in
   unit)       cmd_unit "$@" ;;
   engine)     cmd_engine "$@" ;;
   perf)       cmd_perf "$@" ;;
+  part)       cmd_part "$@" ;;
+  areas)      cmd_areas "$@" ;;
   ui)         cmd_ui "$@" ;;
   embedded)   cmd_embedded "$@" ;;
   transport)  cmd_transport "$@" ;;
