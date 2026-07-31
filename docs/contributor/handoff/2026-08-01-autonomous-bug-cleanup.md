@@ -79,11 +79,28 @@ found by hand. His two examples are the shape to look for:
   surfaces as its own bug report. The review question is not "why did THIS
   import go to the wrong place" but **"how many ways can a root be resolved,
   and why is it more than one?"**
-- **A workflow runs in one library but not another.** That is not a workflow
-  bug. It means library scope is carried differently down two paths, so one
-  of them loses it. The review question is **"what carries library scope, and
-  where is it reconstructed rather than passed?"** — a reconstructed scope is
-  a guess, and a guess is wrong somewhere.
+- **A workflow runs in one library but not another.** Daniel's own second
+  thought is the important part: *"or maybe that makes sense, workflows, but
+  not for defaults."*
+
+  So do NOT unify this blindly. A workflow a user BUILT belongs to the library
+  they built it in — per-library is correct there, and flattening it would be a
+  worse bug than the one being fixed. But a **default workflow is part of the
+  app, not part of a library**, and must be available in every library on every
+  host. If defaults are stored per-library, then which presets you get depends
+  on which library you opened, and a fresh library silently has fewer
+  capabilities than an old one.
+
+  The review question is therefore **"where is the line between a default and a
+  user workflow, and does the storage respect it?"** — not "why is this
+  per-library". Check whether defaults are seeded per-library (wrong: they
+  diverge, and a preset update reaches only libraries opened since) or resolved
+  from the app (right).
+
+  If it turns out to be a scope-plumbing problem after all, the question
+  underneath is **"what carries library scope, and where is it reconstructed
+  rather than passed?"** — a reconstructed scope is a guess, and a guess is
+  wrong somewhere.
 
 How to tell the difference:
 
