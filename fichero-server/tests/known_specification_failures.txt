@@ -1,0 +1,73 @@
+# Tests that SPECIFY a filed, unfixed defect (#4382 #4395 #4420).
+#
+# Each was written alongside the finding and describes what the code should do,
+# not what it does. They are applied as xfail(strict=True) by conftest.py.
+#
+# WHY A LIST AND NOT A MARKER IN THE FILE
+#   Marking a whole module also marks the tests in it that PASS, and strict mode
+#   then fails those for passing — 54 of them, which is how this file came to
+#   exist. A test is listed individually or not at all.
+#
+# WHY STRICT
+#   When the defect is fixed the test starts passing, strict xfail turns that
+#   into a FAILURE, and the failure says: delete this line. A non-strict xfail
+#   would let the fix land and leave the line here forever, and a skip would
+#   make the whole thing invisible.
+#
+# ADDING A LINE HERE IS NOT A FIX. The defect stays open on its issue; this
+# only stops a known-red specification from masking a NEW regression.
+#
+
+# ---- #4382 (33) ----
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_accessibility.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_ai_model_metadata.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_app_intent_action_coverage.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_appkit_leaks.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_appsource_paths.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_canonical_renderers.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_comment_hygiene.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_coverage_ratchet.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_dead_files.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_docs_paths.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_duplicate_paths.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_folder_organization.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_localization.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_mainactor_view_statics.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_model_download_location.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_naive_datetimes.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_no_emoji_sf_symbols.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_no_raw_urlsession.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_observer_pattern.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_pydantic_persistence_writes.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_python_comment_hygiene.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_service_consistency.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_sidebar_items.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_silent_write_swallow.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_stacked_presentation_modifiers.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_swift_transport.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_test_assertions.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_test_userdefaults_isolation.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_tooltips.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_guardrail_fails_when_its_scan_roots_are_absent[check_view_endpoint_access.py]
+tests/unit/scripts/test_guardrails_fail_on_missing_input.py::test_no_guardrail_reports_success_against_an_empty_tree
+tests/unit/scripts/test_no_unrunnable_tests.py::test_no_test_body_is_an_unconditional_skip
+tests/unit/scripts/test_no_unrunnable_tests.py::test_no_test_is_disabled_with_an_unconditional_skip_marker
+
+# ---- #4395 (5) ----
+tests/unit/db/test_embed_outcome_contract.py::TestSkipIsDistinguishableFromFailure::test_model_unavailable_is_not_silently_falsy
+tests/unit/db/test_embed_outcome_contract.py::TestSkipIsDistinguishableFromFailure::test_no_text_and_model_unavailable_do_not_report_the_same_outcome
+tests/unit/db/test_embed_outcome_contract.py::TestSkipIsDistinguishableFromFailure::test_zero_vectors_written_is_not_silent
+tests/unit/importers/test_import_embedding_report_contract.py::TestImportReportsEmbeddingCounts::test_embed_call_sites_do_not_discard_the_result
+tests/unit/importers/test_import_embedding_report_contract.py::TestPageChildrenEmbeddingIsNotSilentlySkipped::test_page_children_default_to_being_embedded
+
+# ---- #4420 (10) ----
+tests/unit/api/test_security_headers_contract.py::test_api_responses_declare_nosniff[/api/entities]
+tests/unit/api/test_security_headers_contract.py::test_api_responses_declare_nosniff[/api/workflows]
+tests/unit/seams/test_change_event_seam.py::test_every_kg_writing_tool_emits_a_change_event
+tests/unit/seams/test_change_event_seam.py::test_kg_writer_emits_a_change_event
+tests/unit/seams/test_declared_port_seam.py::test_every_declared_input_port_is_fillable_by_some_tool_output
+tests/unit/seams/test_discarded_result_seam.py::test_embed_result_is_never_discarded
+tests/unit/seams/test_discarded_result_seam.py::test_no_success_status_is_discarded_at_its_call_site
+tests/unit/seams/test_optional_callback_seam.py::test_claim_source_navigation_is_supplied_everywhere
+tests/unit/seams/test_optional_callback_seam.py::test_every_control_gating_callback_is_supplied_by_every_host
+tests/unit/seams/test_state_channel_seam.py::test_every_key_read_from_graph_state_is_a_declared_channel

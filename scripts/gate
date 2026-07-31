@@ -582,14 +582,24 @@ cmd_verify_all() {
   # version-date + OpenAPI sync). FICHERO_GATE=1 stops it re-wrapping itself.
   run_leg "guardrails"  run_gated "guardrails" "${GATE_TIMEOUT_GUARDRAILS:-1800}" \
     env FICHERO_GATE=1 bash scripts/verify_all.sh --fast
-  run_leg "engine"        cmd_engine
-  # perf stays REQUIRED in verify-all (release gate); only the everyday
-  # `gate engine` leg dropped it (#4271).
-  run_leg "perf"          cmd_perf
+  # ORDER MATTERS: cheapest and most-likely-to-fail first, slowest last.
+  #
+  # perf used to run third, at ~51 minutes, ahead of the Swift legs — so a
+  # Swift compile error was reported an hour after it could have been. Nothing
+  # about a performance number is worth knowing while the code does not build
+  # or the logic is wrong, and a broken build makes the timings meaningless
+  # anyway.
+  #
+  # So: lint (in guardrails, seconds) -> does it build and are the unit tests
+  # right -> backend logic -> integration -> and only then, how fast is it.
   run_leg "swift-unit"    cmd_unit
-  run_leg "ui-hermetic"   cmd_ui fichero
+  run_leg "engine"        cmd_engine
   run_leg "transport"     cmd_transport
+  run_leg "ui-hermetic"   cmd_ui fichero
   run_leg "coverage"      cmd_coverage
+  # LAST, and REQUIRED in verify-all (release gate); only the everyday
+  # `gate engine` leg dropped it (#4271). ~51 min on its own.
+  run_leg "perf"          cmd_perf
 
   echo
   echo "==================== gate verify-all summary ===================="

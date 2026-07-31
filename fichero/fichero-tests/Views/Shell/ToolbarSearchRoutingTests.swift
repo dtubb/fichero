@@ -197,11 +197,20 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         let resultsSource = try Self.appSource(Self.resultsSource)
         let layoutSource = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
 
-        // #4117: the field's mode is a native search scope (Ask default /
-        // Keyword), not extra chrome; Ask gets an inviting prompt.
-        XCTAssertTrue(layoutSource.contains(".searchScopes($mode)"))
+        // #4117 asked for the mode to be a native `.searchScopes` scope.
+        // #4407 REVERSED that: applied to the whole NavigationSplitView it drew
+        // an Ask/Keyword bar across the library, the preview AND the reader.
+        // The field now lives in the library's own mini toolbar, and the mode is
+        // a menu on it.
         XCTAssertTrue(layoutSource.contains("enum SearchFieldMode"))
         XCTAssertTrue(layoutSource.contains("case ask"))
+        XCTAssertFalse(
+            layoutSource.contains(".searchScopes("),
+            "#4407: .searchScopes on the split view is what drew the full-width bar."
+        )
+        let miniToolbar = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
+        XCTAssertTrue(miniToolbar.contains("searchModeMenu"))
+        XCTAssertTrue(miniToolbar.contains("searchFieldMode.wrappedValue = .ask"))
         // Chat-the-search: the result set becomes the conversation's scope,
         // through the SAME router the sidebar chat entry uses.
         XCTAssertTrue(resultsSource.contains("func openChatWithSearchResults"))

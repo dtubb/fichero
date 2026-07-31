@@ -538,3 +538,76 @@ def pytest_sessionfinish(session, exitstatus):
     # test failure, because it needs a different response.
     if exitstatus == 0:
         session.exitstatus = 3
+
+
+# ---------------------------------------------------------------------------
+# Known specification failures (#4382 #4395 #4420)
+# ---------------------------------------------------------------------------
+
+_SPEC_FAILURES_PATH = _Path(__file__).resolve().parent / "known_specification_failures.txt"
+
+
+def _known_specification_failures() -> set[str]:
+    if not _SPEC_FAILURES_PATH.exists():
+        return set()
+    return {
+        line.strip()
+        for line in _SPEC_FAILURES_PATH.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+
+
+def pytest_collection_modifyitems(config, items):
+    """Apply xfail(strict=True) to the listed tests, and only those.
+
+    Marking a whole module also marks the tests in it that pass, and strict
+    mode then fails those FOR PASSING. So the unit is one test id.
+
+    Strict is the point: when the defect is fixed the test passes, this turns
+    that into a failure, and the failure says to delete the line. A skip would
+    hide it; a non-strict xfail would let the line outlive the defect.
+    """
+    known = _known_specification_failures()
+    if not known:
+        return
+    import pytest as _pytest
+
+    prefix = "fichero-server/"
+    for item in items:
+        nodeid = item.nodeid
+        if nodeid.startswith(prefix):
+            nodeid = nodeid[len(prefix):]
+        if nodeid in known:
+            item.add_marker(
+                _pytest.mark.xfail(
+                    strict=True,
+                    reason=f"specified, not yet implemented — see {_SPEC_FAILURES_PATH.name}",
+                )
+            )
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """Say it out loud, every run.
+
+    An xfail is silent by design — a dot in the output. That makes a known
+    defect indistinguishable from no defect, which is the failure mode this
+    project keeps hitting. So the count and its issues are printed at the end
+    of EVERY run, in red, whether or not anything failed.
+    """
+    known = _known_specification_failures()
+    if not known:
+        return
+    issues = sorted({
+        tok
+        for line in _SPEC_FAILURES_PATH.read_text(encoding="utf-8").splitlines()
+        if line.startswith("# ---- ")
+        for tok in line.split() if tok.startswith("#4")
+    })
+    terminalreporter.write_sep("=", "KNOWN BROKEN, SPECIFIED, NOT FIXED", red=True)
+    terminalreporter.write_line(
+        f"  {len(known)} tests describe behaviour the code does not have yet."
+    )
+    terminalreporter.write_line(f"  Open: {', '.join(issues)}")
+    terminalreporter.write_line(
+        f"  Listed in tests/{_SPEC_FAILURES_PATH.name} — this is debt, not a pass."
+    )
