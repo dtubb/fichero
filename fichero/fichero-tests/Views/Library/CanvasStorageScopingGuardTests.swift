@@ -6,6 +6,30 @@ import XCTest
 /// page thumbnails, and a sourceId-only texture cache let two libraries'
 /// images collide. Source-surface, mirroring `ShellLayoutGuardTests`.
 final class CanvasStorageScopingGuardTests: XCTestCase {
+    /// Every Swift file under a directory, concatenated.
+    ///
+    /// A guard that names ONE file breaks the moment that file is split, and
+    /// reports a broken INVARIANT when all that moved was a declaration: the
+    /// #4353 split moved both storage injections from `LibraryView.swift` to
+    /// `LibraryView+CanvasModes.swift` and this suite failed while the app was
+    /// correct. Scanning the directory asks the question that actually matters
+    /// — does the app do this anywhere — and survives the next split.
+    private static func appSources(inDirectory relativePath: String) throws -> String {
+        let dir = appRoot().appendingPathComponent(relativePath)
+        let files = try FileManager.default.subpathsOfDirectory(atPath: dir.path)
+            .filter { $0.hasSuffix(".swift") }
+        return try files
+            .map { try String(contentsOf: dir.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
+    }
+
+    private static func appRoot() -> URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -43,7 +67,7 @@ final class CanvasStorageScopingGuardTests: XCTestCase {
     }
 
     func testLibraryViewInjectsActiveLibraryStorage() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let source = try Self.appSources(inDirectory: "Views/Library")
         XCTAssertEqual(
             source.components(separatedBy: "storageService: activeLibraryReference?.storageService").count - 1,
             2,

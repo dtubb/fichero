@@ -231,6 +231,45 @@ One gate, tiered. Run from the repo root:
 
 Backend pytest needs `PYTHONPATH=fichero-server/src`; write-suites need their `FICHERO_RUN_*` flag. Parse the summary — merge only on **0 failed**. The macOS/UI leg needs a live window server (screen unlocked + `caffeinate -d`); a locked screen makes XCUITest time out. The iOS leg is compile-only and device-less: `bash scripts/verify_all.sh --standard --ios` uses `-destination 'generic/platform=iOS Simulator'` and isolated generated DerivedData/output directories (named `verify-all-derived` and `ios-simulator`) under the build output area, so CI/manager gates iOS compilation without booting or naming a simulator.
 
+## Verify the part you touched (`gate part`) — do this AS YOU WORK
+
+**Before you say an issue is done, run `scripts/gate part <area>`.** Not at the
+end of the day, not before a release — while the work is in your hands and you
+still remember what you changed.
+
+```bash
+scripts/gate areas              # what areas exist
+scripts/gate part sidebar       # lint + build + Swift tests + engine tests + perf ratchet
+```
+
+It runs the SAME checks the release gate runs, scoped to one area, so green
+here means what green means there. Minutes instead of ninety.
+
+### It measures performance and memory too, automatically
+
+Every test is timed and held to its **best-ever** result (#4439, milestone
+#268). You do not opt in and there is nothing to remember:
+
+- **Faster** → the bar tightens itself, permanently. Free.
+- **Slower** → it FAILS, and tells you to re-run on a quiet machine or raise the
+  entry in `fichero-server/tests/perf_baseline.json` **saying what bought the
+  time**.
+
+Comparison is against the best ever, never against last week — otherwise the
+window absorbs each regression and the bar drifts up with the thing it was
+meant to catch. Fifty accepted 5% slips are a 12x slowdown.
+
+### Why this is a working habit, not a release step
+
+A slowdown found before a release is attributable: one person, one change, one
+afternoon. Found at release time it belongs to nobody — whoever did the work has
+long since moved on, and the answer becomes "raise the budget". That is how a
+project gets slower every version while every individual change looked fine.
+
+So: **the issue you are working on is the unit of performance, not the release.**
+If your area has no entry in `area_table()` in `scripts/gate`, add one — a
+prefix and a test path, two minutes — rather than skipping the check.
+
 ## Releasing
 
 The app ships as a notarized DMG (Sparkle/GitHub) and, separately, to TestFlight. Wrapper: `scripts/release-all.sh --help`; lane doc: `docs/contributor/release/release-lane.md`.
@@ -544,6 +583,11 @@ Pure crud or superseded material is `git rm`-ed, not parked at the root.
 ---
 
 ## Rules I Don't Break
+
+- **An issue is not done until `scripts/gate part <area>` is green.** It runs
+  the release gate's checks on your area — lint, build, tests, and the perf
+  ratchet — in minutes. Performance is the property of the change that caused
+  it, not of the release that happens to ship it.
 
 0. **Fail loudly; never fall back silently.** A rename or move is atomic: new path only, every caller repointed in the SAME commit, nothing left at the old location. No compatibility shims, no legacy-path aliases, no "try the new name, then the old name" resolution chains, no `except ImportError` bridges, no default that quietly substitutes a different id, value, model, or file. If something can't be resolved, raise/throw with what was expected and what was found.
    Why this is rule zero: a shim lets a stale caller keep working, so nobody finds it — and the failure surfaces weeks later, far from the change that caused it. #2566 left "identity-preserving shims" when moving the security modules; the shims were dropped later, and a caller hidden inside a Python string embedded in a Swift file (`EngineHarness`) turned into a **silently skipped** test suite that no gate could see (#4365). A hard cutover would have broken it immediately, in the commit that moved the module, with an obvious cause.

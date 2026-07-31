@@ -7,6 +7,29 @@ import XCTest
 /// actions, while keeping the existing glass chrome + touch-target metrics.
 /// Mirrors `WorkflowImportExportSurfaceTests` (deterministic, token-free).
 final class LibraryBottomActionBarSurfaceTests: XCTestCase {
+    /// Every Swift file under a directory, concatenated.
+    ///
+    /// Naming ONE file makes a guard fail on a file SPLIT while the app is
+    /// correct — the #4353 split moved the bottom bar out of LibraryView.swift
+    /// into LibraryView+BottomActionBar.swift and all nine of these failed
+    /// against working code. The invariant is "the app does this", not "this
+    /// file does this".
+    private static func appSources(inDirectory relativePath: String) throws -> String {
+        let dir = appRoot().appendingPathComponent(relativePath)
+        let files = try FileManager.default.subpathsOfDirectory(atPath: dir.path)
+            .filter { $0.hasSuffix(".swift") }
+        return try files
+            .map { try String(contentsOf: dir.appendingPathComponent($0), encoding: .utf8) }
+            .joined(separator: "\n")
+    }
+
+    private static func appRoot() -> URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+    }
+
     private static func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -17,7 +40,7 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
     }
 
     func testBottomBarRoutesThroughAdaptiveMiniToolbarRow() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let source = try Self.appSources(inDirectory: "Views/Library")
         // The bar is rewrapped on the shared component, not a hand-rolled HStack.
         XCTAssertTrue(source.contains("AdaptiveMiniToolbarRow {"))
         XCTAssertTrue(source.contains("overflowMenu: {"))
@@ -28,7 +51,7 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
     }
 
     func testOverflowMenuMirrorsSecondaryActions() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let source = try Self.appSources(inDirectory: "Views/Library")
         // The overflow menu carries the secondary verbs as Labels with the SAME
         // underlying actions as the inline buttons.
         XCTAssertTrue(source.contains("Label(\"Export BibTeX\", systemImage: \"square.and.arrow.up\")"))
@@ -108,7 +131,7 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
     }
 
     func testEssentialTierHoldsPrimaryVerbs() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let source = try Self.appSources(inDirectory: "Views/Library")
         let start = try XCTUnwrap(source.range(of: "private var essentialBarButtons: some View"))
         let end = try XCTUnwrap(source.range(of: "private var secondaryBarButtons: some View"))
         let block = String(source[start.upperBound..<end.lowerBound])
@@ -119,7 +142,7 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
     }
 
     func testLiveUpdatesPillUsesTopInsetInsteadOfOverlayingRows() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let source = try Self.appSources(inDirectory: "Views/Library")
 
         XCTAssertTrue(source.contains("private var liveUpdatesPausedInset: some View"))
         XCTAssertTrue(source.contains(".safeAreaInset(edge: .top, spacing: 0)"))

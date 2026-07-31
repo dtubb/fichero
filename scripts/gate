@@ -84,6 +84,15 @@ ingest    | ImportService                    | fichero-server/tests/unit/importe
 search    | Search                           | fichero-server/tests/unit/search/
 inspector | Inspector                        |
 transport | Transport,Connection             | fichero-server/tests/integration/test_transport_matrix.py fichero-server/tests/integration/test_transport_round_trips.py
+canvas    | Canvas,Spatial,Space             |
+library   | Library,Document                 | fichero-server/tests/unit/api/
+reader    | Reader,PDF,Preview,Image         |
+workflow  | Workflow,Tool                    | fichero-server/tests/unit/workflows/
+kg        | Entity,Claim,Knowledge,Citation  | fichero-server/tests/unit/kg/
+chat      | Chat,Agent,Research              | fichero-server/tests/unit/api/routes/
+toolbar   | Toolbar,ContentView,Shell        |
+db        | Library,Storage                  | fichero-server/tests/unit/db/
+auth      | Auth,Account,Pairing             | fichero-server/tests/unit/security/
 EOF
 }
 
