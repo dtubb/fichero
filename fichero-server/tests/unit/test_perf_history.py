@@ -172,3 +172,20 @@ class TestConcurrentRuns:
         _history.record("a.thing", 100.0)
         leftovers = list(ratchet.parent.glob("*.tmp"))
         assert not leftovers, f"atomic write leaked temp files: {leftovers}"
+
+    def test_a_contended_run_records_nothing(self, ratchet, monkeypatch):
+        """A number measured while another perf run competes is unreliable, and
+        a ratchet keeps its numbers forever — so it must not keep this one."""
+        _seed(ratchet, "claims.list", 100.0)
+        monkeypatch.setattr(_history, "_another_perf_run_is_active", lambda: True)
+        _history.record("claims.list", 9999.0)   # would fail if it were judged
+        _history.record("claims.list", 1.0)      # would tighten if it were kept
+        assert _best(ratchet, "claims.list") == 100.0
+
+    def test_being_unable_to_tell_does_not_block_the_suite(self, ratchet, monkeypatch):
+        """pgrep missing or failing must not stop perf from running at all."""
+        def _boom(*_args, **_kwargs):
+            raise OSError("pgrep unavailable")
+        monkeypatch.setattr(_history.subprocess, "run", _boom)
+        _history.record("claims.list", 100.0)
+        assert _best(ratchet, "claims.list") == 100.0

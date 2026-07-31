@@ -116,12 +116,45 @@ def _append_history(name: str, ms: float, verdict: str) -> None:
         fh.write(json.dumps(row, sort_keys=True) + "\n")
 
 
+def _another_perf_run_is_active() -> bool:
+    """Is a second perf suite running right now?
+
+    `gate` serialises its legs under a global lock, so the gate's own perf run
+    has the machine. A run started OUTSIDE that lock does not — and one was,
+    while this was being built: two pytest processes on tests/perf at ~140% CPU
+    each, both writing the same baseline.
+
+    Numbers measured under that contention are wrong in the sticky direction. A
+    ratchet keeps the best time forever, so one bad baseline is a bar nobody can
+    meet and one lucky baseline is a bar that hides real regressions.
+    """
+    try:
+        out = subprocess.run(
+            ["pgrep", "-f", "pytest.*tests/perf"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False  # cannot tell -> do not block the suite
+    pids = {p for p in out.stdout.split() if p.strip() and p.strip() != str(os.getpid())}
+    return len(pids) > 1
+
+
 def record(name: str, ms: float) -> None:
     """Hold `name` to its best-ever time, and tighten when it beats it.
 
     `name` is the stable identity of a measurement. Rename it and its ratchet
     resets to whatever the next run happens to manage — so don't.
     """
+    if _another_perf_run_is_active():
+        # Measure, report, record NOTHING. A contended number must not become
+        # the bar in either direction.
+        print(
+            f"\n[perf] {name}: {ms:.1f} ms — NOT recorded: another perf run is "
+            f"active, so this machine was shared and the number is unreliable. "
+            f"Run `gate perf` (which takes the gate lock) to record."
+        )
+        return
+
     if os.environ.get("FICHERO_PERF_NO_HISTORY") == "1":
         # For a machine already known to be thrashing. Records nothing: a bad
         # number must never become the baseline, and a lucky one must not
