@@ -124,6 +124,52 @@ Filed on 2026-07-30, roughly by cost:
   the user's work (Rogue Amoeba's change). Deferred deliberately.
 - **`#4017`** the launch prompt screen is still there. Confirmed tonight.
 
+
+### 3b. When a bug points at a system, review the system
+
+Daniel, explicitly: *"bugs, and if bugs suggest system review do the system
+review. like why are there different ingest roots? why can I run workflow in
+one library but not the other."*
+
+Most of these bugs are not one-off defects. They are a coherence problem
+showing through at one spot, and patching the spot leaves the next four to be
+found by hand. His two examples are the shape to look for:
+
+- **Different ingest roots.** If ingest resolves its root more than one way,
+  every importer disagrees about where things live and each disagreement
+  surfaces as its own bug report. The review question is not "why did THIS
+  import go to the wrong place" but **"how many ways can a root be resolved,
+  and why is it more than one?"**
+- **A workflow runs in one library but not another.** That is not a workflow
+  bug. It means library scope is carried differently down two paths, so one
+  of them loses it. The review question is **"what carries library scope, and
+  where is it reconstructed rather than passed?"** — a reconstructed scope is
+  a guess, and a guess is wrong somewhere.
+
+How to tell the difference:
+
+- **One-off** — the code meant to do X and had a typo. Fix it, add a test, move on.
+- **System** — the code does X in two places that were never made to agree.
+  Fixing one instance is how the class survives. Do the review.
+
+When it is a system problem:
+
+1. **Count the implementations.** Grep by capability-noun, not by symptom. Say
+   how many exist and how they differ. Tonight's #4436 is the template: four
+   selection implementations all writing the same `Set<String>` and disagreeing
+   on every rule that produces it, with #4377 and #4409 as consequences rather
+   than independent bugs.
+2. **Say which one is right**, and why.
+3. **Make the others impossible**, not merely fixed. `impossible > checked >
+   documented`. A folder selection that cannot name two containers (#4414) is
+   worth more than a check that it does not.
+4. **File the finding even if you do not do the work.** A named, counted
+   incoherence is worth more than a closed symptom.
+
+Do not let a system review become the whole two days. Timebox the review, land
+the fix for the reported bug, file the program, keep moving. The build on
+Tuesday is the commitment.
+
 ### 4. Two things I shipped past — check these first if Daniel reports oddness
 
 - **`ui-hermetic` failed and I did not diagnose it.** Daniel said ship; I
