@@ -1,0 +1,174 @@
+"""The performance ratchet must actually fire, and must actually tighten (#4439).
+
+The rule it enforces: Fichero may not get slower, and it gets faster over time.
+A guardrail nobody has watched fail is a guess, so these drive both directions —
+a slower run fails, a faster run permanently lowers the bar — plus the edges
+that would otherwise make it useless (never fires) or infuriating (fires on a
+busy laptop).
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "perf"))
+import _history  # noqa: E402
+
+
+@pytest.fixture
+def ratchet(tmp_path, monkeypatch):
+    """Point the ratchet at throwaway files."""
+    baseline = tmp_path / "perf_baseline.json"
+    monkeypatch.setattr(_history, "BASELINE_PATH", baseline)
+    monkeypatch.setattr(_history, "HISTORY_PATH", tmp_path / "history.jsonl")
+    monkeypatch.delenv("FICHERO_PERF_NO_HISTORY", raising=False)
+    return baseline
+
+
+def _seed(path: Path, name: str, ms: float) -> None:
+    path.write_text(
+        json.dumps({name: {"ms": ms, "commit": "seed", "note": "seed"}}), encoding="utf-8"
+    )
+
+
+def _best(path: Path, name: str) -> float:
+    return json.loads(path.read_text(encoding="utf-8"))[name]["ms"]
+
+
+class TestItMayNotGetSlower:
+    def test_a_slower_run_fails_even_though_it_is_inside_the_budget(self, ratchet):
+        """The #4439 defect: 0.4s -> 3.9s, under the 4s budget, must still fail."""
+        _seed(ratchet, "entities.list.full", 400.0)
+        with pytest.raises(AssertionError) as excinfo:
+            _history.record("entities.list.full", 3900.0)
+        message = str(excinfo.value)
+        assert "RATCHET, not a budget" in message
+        assert "400.0 ms" in message
+
+    def test_the_failure_says_how_to_accept_a_real_slowdown(self, ratchet):
+        """A guardrail with no stated way out gets bypassed by deleting it."""
+        _seed(ratchet, "claims.list", 100.0)
+        with pytest.raises(AssertionError) as excinfo:
+            _history.record("claims.list", 1000.0)
+        message = str(excinfo.value)
+        assert "perf_baseline.json" in message
+        assert "what bought the time" in message
+
+    def test_a_regression_does_not_become_the_new_baseline(self, ratchet):
+        """The whole point: the bar must never drift upward on its own."""
+        _seed(ratchet, "claims.list", 100.0)
+        with pytest.raises(AssertionError):
+            _history.record("claims.list", 5000.0)
+        assert _best(ratchet, "claims.list") == 100.0
+
+    def test_many_small_slowdowns_cannot_creep_past_it(self, ratchet):
+        """Fifty accepted 5% slips are a 12x slowdown. Measured against BEST,
+        not against last run, so the creep has nowhere to hide."""
+        _seed(ratchet, "claims.list", 100.0)
+        for _ in range(20):
+            _history.record("claims.list", 120.0)  # inside jitter, never tightens
+        assert _best(ratchet, "claims.list") == 100.0
+        with pytest.raises(AssertionError):
+            _history.record("claims.list", 140.0)
+
+
+class TestItGetsFasterOverTime:
+    def test_a_faster_run_tightens_the_bar(self, ratchet):
+        _seed(ratchet, "documents.list", 1000.0)
+        _history.record("documents.list", 400.0)
+        assert _best(ratchet, "documents.list") == 400.0
+
+    def test_the_tightened_bar_is_then_enforced(self, ratchet):
+        _seed(ratchet, "documents.list", 1000.0)
+        _history.record("documents.list", 400.0)
+        with pytest.raises(AssertionError):
+            _history.record("documents.list", 900.0)  # was fine before, not now
+
+    def test_a_marginal_improvement_does_not_chase_the_luckiest_sample(self, ratchet):
+        """Chasing every 1% win would make every other machine fail forever."""
+        _seed(ratchet, "documents.list", 1000.0)
+        _history.record("documents.list", 990.0)
+        assert _best(ratchet, "documents.list") == 1000.0
+
+
+class TestItDoesNotCryWolf:
+    def test_ordinary_jitter_passes(self, ratchet):
+        _seed(ratchet, "documents.list", 200.0)
+        _history.record("documents.list", 260.0)  # 1.3x — a busy machine
+
+    def test_a_tiny_measurement_is_never_a_regression(self, ratchet):
+        _seed(ratchet, "batch_cache_key", 2.0)
+        _history.record("batch_cache_key", 20.0)  # 10x, but 20 ms — meaningless
+
+    def test_the_jitter_allowance_does_not_accumulate(self, ratchet):
+        """Tolerance is measured against BEST forever, not against last run."""
+        _seed(ratchet, "claims.list", 100.0)
+        _history.record("claims.list", 130.0)
+        _history.record("claims.list", 130.0)
+        assert _best(ratchet, "claims.list") == 100.0
+
+
+class TestItSurvivesItsOwnFiles:
+    def test_a_first_run_sets_the_baseline(self, ratchet):
+        _history.record("brand.new", 1234.0)
+        assert _best(ratchet, "brand.new") == 1234.0
+
+    def test_each_measurement_keeps_its_own_bar(self, ratchet):
+        _history.record("a.thing", 100.0)
+        _history.record("b.thing", 5000.0)
+        assert _best(ratchet, "a.thing") == 100.0
+        assert _best(ratchet, "b.thing") == 5000.0
+
+    def test_a_corrupt_baseline_fails_loudly_rather_than_silently_resetting(self, ratchet):
+        """A ratchet that quietly starts over is not a ratchet."""
+        ratchet.write_text("{ not json", encoding="utf-8")
+        with pytest.raises(AssertionError) as excinfo:
+            _history.record("claims.list", 100.0)
+        assert "restore it from git" in str(excinfo.value)
+
+    def test_every_run_is_logged_including_the_failures(self, ratchet):
+        _seed(ratchet, "claims.list", 100.0)
+        _history.record("claims.list", 110.0)
+        with pytest.raises(AssertionError):
+            _history.record("claims.list", 900.0)
+        rows = [
+            json.loads(line)
+            for line in _history.HISTORY_PATH.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert [r["verdict"] for r in rows] == ["ok", "REGRESSION"]
+
+
+class TestTheEscapeHatch:
+    def test_a_thrashing_machine_records_nothing_at_all(self, ratchet, monkeypatch):
+        """Neither a bad number nor a lucky one may reach the baseline."""
+        _seed(ratchet, "claims.list", 100.0)
+        monkeypatch.setenv("FICHERO_PERF_NO_HISTORY", "1")
+        _history.record("claims.list", 99999.0)
+        _history.record("claims.list", 1.0)
+        assert _best(ratchet, "claims.list") == 100.0
+
+
+class TestConcurrentRuns:
+    """The gate's perf leg and a direct run can execute at the same time."""
+
+    def test_a_second_writer_cannot_corrupt_the_ratchet(self, ratchet):
+        """Observed live: two pytest processes on the same baseline file.
+
+        A plain write can interleave and truncate. os.replace is atomic, so a
+        reader sees the old file or the new one — never a half-written one, and
+        never a silently absent guardrail.
+        """
+        _history.record("a.thing", 100.0)
+        _history.record("b.thing", 200.0)
+        data = json.loads(ratchet.read_text(encoding="utf-8"))
+        assert set(data) == {"a.thing", "b.thing"}, "a write dropped another entry"
+
+    def test_no_temp_files_are_left_behind(self, ratchet):
+        _history.record("a.thing", 100.0)
+        leftovers = list(ratchet.parent.glob("*.tmp"))
+        assert not leftovers, f"atomic write leaked temp files: {leftovers}"

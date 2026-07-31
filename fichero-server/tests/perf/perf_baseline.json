@@ -1,0 +1,17 @@
+{
+  "batch_cache_key": {
+    "commit": "a2d1f70ae",
+    "ms": 30.0,
+    "note": "first recorded run"
+  },
+  "claims.list": {
+    "commit": "a2d1f70ae",
+    "ms": 381.9,
+    "note": "first recorded run"
+  },
+  "documents.list": {
+    "commit": "a2d1f70ae",
+    "ms": 14.0,
+    "note": "first recorded run"
+  }
+}

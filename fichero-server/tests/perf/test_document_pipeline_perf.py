@@ -22,6 +22,11 @@ from __future__ import annotations
 
 import inspect
 import time
+
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from _history import record  # noqa: E402
 from datetime import datetime
 
 from fichero_server.models.knowledge import (
@@ -110,6 +115,7 @@ def test_document_list_100_images(client, db):
         f"\n[perf] GET /api/documents (100-image library, {N_DOCS} docs): "
         f"{elapsed * 1000:.1f} ms  ({len(items)} docs returned)"
     )
+    record("documents.list", elapsed * 1000)
     assert elapsed < DOCUMENT_LIST_BUDGET_S, (
         f"Document list took {elapsed:.2f}s > {DOCUMENT_LIST_BUDGET_S}s budget — "
         "check for N+1 queries or missing index on documents table."
@@ -127,6 +133,7 @@ def test_claims_list_scale(client, db):
         f"\n[perf] GET /api/claims ({N_CLAIMS} claims): "
         f"{elapsed * 1000:.1f} ms"
     )
+    record("claims.list", elapsed * 1000)
     assert elapsed < CLAIMS_LIST_BUDGET_S, (
         f"Claims list took {elapsed:.2f}s > {CLAIMS_LIST_BUDGET_S}s budget — "
         "check for full-table scan or Pydantic serialisation regression."
@@ -182,6 +189,7 @@ def test_batch_cache_key_throughput():
         f"\n[perf] compute_batch_cache_key (50 files, {CACHE_KEY_ITERS} iters): "
         f"{elapsed * 1000:.1f} ms total  ({per_call_ms:.3f} ms/call)"
     )
+    record("batch_cache_key", elapsed * 1000)
     assert elapsed < CACHE_KEY_BUDGET_S, (
         f"Cache-key computation took {elapsed:.2f}s for {CACHE_KEY_ITERS} iters "
         f"({per_call_ms:.2f} ms/call) > {CACHE_KEY_BUDGET_S}s budget — "

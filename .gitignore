@@ -125,3 +125,7 @@ HISTORY*.md
 # agent worker briefs (internal, per-worktree)
 .inspector-worker-brief.md
 .worker-brief.md
+
+# Perf run log — every measurement, appended. The RATCHET
+# (tests/perf/perf_baseline.json) is committed; this is local evidence.
+fichero-server/tests/perf/history.jsonl

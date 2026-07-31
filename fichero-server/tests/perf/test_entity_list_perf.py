@@ -15,6 +15,11 @@ baseline + a generous regression ceiling so "feels slow" becomes a number.
 from __future__ import annotations
 
 import time
+
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+from _history import record  # noqa: E402
 from datetime import datetime
 
 from fichero_server.models.knowledge import (
@@ -88,6 +93,7 @@ def test_list_entities_full_scale(client, db):
         f"\n[perf] list_entities (full, {N_ENTITIES} ent / {N_CLAIMS} claims): "
         f"{elapsed * 1000:.1f} ms"
     )
+    record("entities.list.full", elapsed * 1000)
     assert elapsed < FULL_LIST_BUDGET_S, (
         f"list_entities full-list took {elapsed:.2f}s > {FULL_LIST_BUDGET_S}s "
         "budget — likely an algorithmic regression."
@@ -104,6 +110,7 @@ def test_list_entities_doc_scoped_scale(client, db):
         f"\n[perf] list_entities (document_id-scoped, full claim scan): "
         f"{elapsed * 1000:.1f} ms"
     )
+    record("entities.list.doc_scoped", elapsed * 1000)
     assert elapsed < DOC_SCOPED_BUDGET_S, (
         f"list_entities doc-scoped took {elapsed:.2f}s > {DOC_SCOPED_BUDGET_S}s "
         "budget — the claim-scan union is the suspect; profile it."
