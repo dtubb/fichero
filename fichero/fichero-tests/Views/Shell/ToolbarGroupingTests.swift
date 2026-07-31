@@ -12,7 +12,12 @@ import Testing
 /// missing structure was the bug; the spacing was its symptom.
 struct ToolbarGroupingTests {
     private static func appSource(_ relativePath: String) throws -> String {
+        // FOUR components: this file sits at fichero-tests/Views/Shell/, so
+        // stripping three lands on `fichero-tests` and every read resolved to
+        // fichero-tests/fichero/... — a path that cannot exist. Every test here
+        // failed with NSCocoaErrorDomain "no such file" while the app was fine.
         let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
