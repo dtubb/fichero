@@ -43205,6 +43205,10 @@
             "type": "string",
             "nullable": true,
             "title": "Model Override"
+          },
+          "selection": {
+            "$ref": "#/components/schemas/WorkflowSelection",
+            "nullable": true
           }
         },
         "type": "object",
@@ -57262,6 +57266,16 @@
         "type": "object",
         "title": "SegmentOperationRequest"
       },
+      "SelectionKind": {
+        "type": "string",
+        "enum": [
+          "documents",
+          "folder",
+          "collection"
+        ],
+        "title": "SelectionKind",
+        "description": "What sort of thing the user selected.\n\nAn enum, not a string, for the same reason `artifact_type` is being made\none (#4426): the generated Swift client gets a compile error instead of a\nsilent mismatch. A vocabulary the client can misspell is a vocabulary that\nwill eventually be misspelled."
+      },
       "SessionListResponse": {
         "properties": {
           "items": {
@@ -61282,6 +61296,26 @@
         ],
         "title": "WorkflowRunResponse",
         "description": "Response with workflow run data (code, logs, etc.)."
+      },
+      "WorkflowSelection": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SelectionKind"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "WorkflowSelection",
+        "description": "The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say \"that request does not describe a coherent selection\" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data."
       },
       "WorkflowToolListResponse": {
         "properties": {

@@ -16,8 +16,14 @@
 
 [tool.briefcase]
 project_name = "Fichero"
-bundle = "com.fichero.fichero"
-version = "2026.7.29"
+# MUST be a prefix of the host app id (app.fichero.fichero). App Store Connect
+# rejects an embedded helper whose CFBundleIdentifier is not a child of the
+# app's: error 90277, "Invalid Bundle Identifier", which is what stopped the
+# 2026.07.30 Mac TestFlight upload. The engine ships INSIDE Fichero.app at
+# Contents/Helpers/Fichero Server.app, so `com.fichero.*` was never a valid
+# identity for it — the DMG path never checks, only App Store Connect does.
+bundle = "app.fichero.fichero"
+version = "2026.7.30"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "Daniel Tubb"
@@ -181,7 +187,7 @@ fichero = [
 
 [project]
 name = "fichero-server"
-version = "2026.7.29"
+version = "2026.7.30"
 description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
 requires-python = ">=3.10"
