@@ -64,7 +64,21 @@ accepted 5% slips are a 12x slowdown. There is a test for exactly that
 (`test_many_small_slowdowns_cannot_creep_past_it`) — write its equivalent for
 every new dimension.
 
-### 3. Bugs filed today, roughly by cost
+### 3. Bugs — work BACKWARDS from the newest issue number
+
+Daniel's most recent issues are the ones he hit while using the app, so they
+are the live defects. Older ones are often aspirational, superseded, or
+already fixed without being closed (34 were closed that way on 2026-07-30).
+
+```bash
+gh issue list --state open --limit 60 --json number,title \\
+  --jq 'sort_by(.number) | reverse | .[] | "#\\(.number) \\(.title)"'
+```
+
+Exceptions that jump the queue at any number: anything that CRASHES or loses
+data, and anything blocking the Tuesday build.
+
+Filed on 2026-07-30, roughly by cost:
 
 - **`#4434`** the engine suite leaks a multi-GB temp dir per run — 77 GB
   accumulated and took the machine to 100%. Hypothesis: the memory watchdog

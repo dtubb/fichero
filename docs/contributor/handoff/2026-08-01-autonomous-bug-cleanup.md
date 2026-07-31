@@ -41,6 +41,28 @@ Daniel's words on what is broken:
 He has flagged many more as issues. Go find them; don't work only from this
 list.
 
+
+## Order: work BACKWARDS from the newest issues
+
+Start at the highest issue number and work down. Daniel's most recent issues are
+the ones he hit while actually using the app, so they are the live defects — the
+ones standing between him and using it on Tuesday.
+
+```bash
+gh issue list --state open --limit 60 --json number,title,createdAt \
+  --jq 'sort_by(.number) | reverse | .[] | "#\(.number) \(.title)"'
+```
+
+Older issues are not less real, but many are aspirational, superseded, or
+already fixed without being closed — tonight's sweep closed 34 that way. Newest
+first means every hour is spent on something that is definitely still broken.
+
+Two exceptions that jump the queue regardless of number:
+
+1. **Anything that crashes or loses data.** The sidebar delete crash outranks
+   every cosmetic issue no matter how recently filed.
+2. **Anything blocking Tuesday's build.**
+
 ## Workers — three, each choosing its own issues
 
 - one **Swift/frontend** lane
