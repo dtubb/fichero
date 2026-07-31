@@ -27,7 +27,20 @@ and will have tested the DMG/TestFlight build by the time you read this.
 Do not take it on trust. `ls build/releases/`, check the GitHub release, check
 both TestFlight tracks. If notarization stalled, poll and staple by hand.
 
-### 2. The ratchets milestone (#268) — this is the priority
+### 2. BUGS FIRST — Daniel needs a build he can test on Tuesday
+
+This supersedes the ratchet ordering below. Daniel's instruction on the night
+of the 30th, as he left to go camping: two days of autonomous bug cleanup,
+then a build cut Monday evening.
+
+Go to section 3 and work backwards from the newest issue number. Come back to
+the ratchets AFTER Tuesday's build is in his hands.
+
+The ratchets matter and he asked for them repeatedly — but a ratchet he cannot
+see is worth less this week than a sidebar that does not crash when he deletes
+something.
+
+### 2b. The ratchets milestone (#268) — after the build
 
 Daniel asked for this explicitly and repeatedly. The rule: **it may not get
 slower, bigger, or heavier, and it gets better over time.**
