@@ -44,9 +44,29 @@ struct DocumentTabView: View {
     @Environment(ResearchService.self) var researchService
     @Environment(WindowState.self) var windowState
 
-    // @Observable objects injected by LibraryWindow — must be forwarded explicitly
-    // when ContentView() is constructed below (SwiftUI does not re-propagate
-    // @Environment(T.self) values across an explicit .environment() chain).
+    // @Observable objects injected by LibraryWindow and re-forwarded to
+    // ContentView() below.
+    //
+    // This block used to claim "SwiftUI does not re-propagate
+    // @Environment(T.self) values across an explicit .environment() chain".
+    // **That is almost certainly false and the claim is withdrawn** (#4455).
+    // `.environment(x)` ADDS a value; it does not clear the others, and values
+    // inherit down a view tree. The evidence against it is direct: fourteen
+    // library-scoped types were NOT forwarded here — AnnotationStore with 8
+    // readers, ProviderAPIService and WorkflowService with 6 each — and none of
+    // them was crashing. Under that claim they would trap routinely.
+    //
+    // What IS real is that some boundary exists, because #4448 was a genuine
+    // crash. The two candidates, neither of which this chain addresses:
+    // separate `Scene`s (which `ArtifactServiceInjectionTests` documents and
+    // which explains #3350), and window-hosted toolbar content (which fits
+    // #4448, whose backtrace trapped in `HostPreferencesCombiner` for types
+    // read by `StatusIslandToolbarItem`/`ActivityStatusToolbarItem`).
+    //
+    // So this list is very likely a wrong generalisation of two narrower rules.
+    // It is kept for now because removing it needs a runtime check nobody has
+    // run — do NOT add to it on the strength of the old claim, and see #4455
+    // before treating a missing entry here as the cause of anything.
     @Environment(ArtifactService.self) var artifactService
     @Environment(EntityService.self) var entityService
     @Environment(KGCurationService.self) var kgCurationService
