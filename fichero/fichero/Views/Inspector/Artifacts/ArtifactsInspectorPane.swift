@@ -301,8 +301,22 @@ struct ArtifactsInspectorPane: View {
         }
     }
 
+    /// The library whose services this pane was environment-injected with,
+    /// resolved by SERVICE IDENTITY so an action runs against the library that
+    /// owns `document`. Reaching for `globalLibrary` here was #4306: translate
+    /// invoked `artifact.translate` against the GLOBAL library's database,
+    /// where the inspected document does not exist, so every translate from a
+    /// non-global library errored. Two things nothing forced to agree — the
+    /// document's library and the service the action ran on — now agree by
+    /// construction. The global fallback remains only for the global library
+    /// itself, where it is the same object.
+    private var owningLibrary: LibraryManager.LibraryReference? {
+        libraryManager.openLibraries.first { $0.artifactService === artifactService }
+            ?? libraryManager.globalLibrary
+    }
+
     private func translate(to language: TranslationLanguage) {
-        guard let actionsService = libraryManager.globalLibrary?.actionsService else {
+        guard let actionsService = owningLibrary?.actionsService else {
             actionError = "No library available to translate."
             return
         }
