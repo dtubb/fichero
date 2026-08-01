@@ -98,7 +98,7 @@ enum ExternalFileDropLoader {
     /// before resolving — otherwise the import pipeline would race
     /// against the temp file being deleted. Callers should remove that
     /// directory once the import using it has completed (see
-    /// `sidebarTemporaryDropDirectories` for the matching filter).
+    /// `externalDropTemporaryDirectories` for the matching filter).
     static func loadFileRepresentation(
         from provider: NSItemProvider,
         typeIdentifier: String

@@ -2,10 +2,6 @@ import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
 
-func sidebarTemporaryDropDirectories(for urls: [URL]) -> [URL] {
-    externalDropTemporaryDirectories(for: urls)
-}
-
 extension SidebarItemRow {
     // MARK: - NSItemProvider-based file drop (preserves folder URLs, #587)
 
@@ -52,7 +48,13 @@ extension SidebarItemRow {
                 }
             }
             guard !stableURLs.isEmpty || !tempURLs.isEmpty else {
+                // #4459: the OS was already told the drop was accepted (sync
+                // return) — a silent `return` would vanish the file with no
+                // explanation. Say so where the user looks.
                 sidebarRowLogger.warning("  all URL loads failed — import won't fire")
+                await MainActor.run {
+                    sidebarState.dropErrorMessage = "Couldn't read the dropped item(s). Nothing was imported."
+                }
                 return
             }
             if !stableURLs.isEmpty {
@@ -105,7 +107,7 @@ extension SidebarItemRow {
             sidebarRowLogger.warning("External drop rejected: no file URLs")
             return false
         }
-        let temporaryDirectories = sidebarTemporaryDropDirectories(for: fileURLs)
+        let temporaryDirectories = externalDropTemporaryDirectories(for: fileURLs)
 
         let batches = externalDropBatches(fileURLs: fileURLs, targetFolder: targetFolder)
 
