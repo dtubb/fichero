@@ -97,12 +97,17 @@ class TestItGetsFasterOverTime:
 
 class TestItDoesNotCryWolf:
     def test_ordinary_jitter_passes(self, ratchet):
+        """Not raising IS the point — but a test with no visible assertion
+        looks identical to a dead one, so also confirm the baseline held
+        (neither treated as a regression nor accidentally tightened)."""
         _seed(ratchet, "documents.list", 200.0)
         _history.record("documents.list", 260.0)  # 1.3x — a busy machine
+        assert _best(ratchet, "documents.list") == 200.0
 
     def test_a_tiny_measurement_is_never_a_regression(self, ratchet):
         _seed(ratchet, "batch_cache_key", 2.0)
         _history.record("batch_cache_key", 20.0)  # 10x, but 20 ms — meaningless
+        assert _best(ratchet, "batch_cache_key") == 2.0
 
     def test_the_jitter_allowance_does_not_accumulate(self, ratchet):
         """Tolerance is measured against BEST forever, not against last run."""

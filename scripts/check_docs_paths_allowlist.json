@@ -6,6 +6,7 @@
     ".git/logs/refs/heads/main",
     "build/releases",
     "build/verify_all_needs_fixing.json",
+    "build/verify_all_report.json",
     "fichero-server/.../actions/chat_tools.py",
     "fichero-server/build/fichero-backend/macos/app/FicheroBackend.app",
     "fichero-server/tests/live/test_pairing_live_server.py",

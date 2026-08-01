@@ -42,6 +42,7 @@
     "contributor/qa/capture-smoke-matrix.md",
     "contributor/qa/device-pairing-smoke.md",
     "contributor/qa/full-book-catalogue-e2e.md",
+    "contributor/qa/known-launch-log-noise.md",
     "contributor/qa/remote-pairing-smoke-checklist.md",
     "contributor/release/backend-python-dependencies.md",
     "contributor/release/release-notes-0.0.2.md",

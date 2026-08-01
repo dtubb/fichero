@@ -205,4 +205,25 @@ struct SidebarDropPayloadTests {
         #expect(!untilNextCase.contains("handleProvidersDrop"))
         #expect(!untilNextCase.contains("importFiles"))
     }
+
+    // MARK: - #4459: a drop the OS was told was accepted must not vanish silently
+
+    /// `handleProvidersDrop`'s sync `Bool` return tells the OS the drop was
+    /// accepted before the async load even starts — the API gives no other
+    /// option. If every provider then fails to load, that must surface
+    /// somewhere the user is looking, not just a log line: an accepted drop
+    /// that produces nothing, with no explanation, is the exact "did it
+    /// work?" shape rule zero exists to close.
+    @Test("every provider failing to load reports to the user, not just the log")
+    func allLoadsFailingReportsToTheUser() throws {
+        let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+DropHandlers.swift")
+        let body = source.components(separatedBy: "func handleProvidersDrop(")[1]
+        let guardClause = body.components(
+            separatedBy: "guard !stableURLs.isEmpty || !tempURLs.isEmpty else {"
+        )[1].components(separatedBy: "\n            }")[0]
+        #expect(
+            guardClause.contains("sidebarState.dropErrorMessage ="),
+            "total load failure must set the same user-visible banner import failures use"
+        )
+    }
 }

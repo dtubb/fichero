@@ -36,7 +36,13 @@ enum ToolbarSymbols {
     static let breadcrumbSeparator = "chevron.compact.right"
 
     // MARK: Status island (principal zone)
-    static let engineReady = "bolt.horizontal.circle"
+    /// Filled, not outline (#4391): an unfilled glyph reads as inactive on
+    /// macOS, and ready is the ACTIVE state — the problem state below is
+    /// already `.fill` for the same reason, so ready was the one meaning
+    /// drawn in the platform's "unavailable" register. `EngineStatusToolbarItem`
+    /// pairs this with `.foregroundStyle(.green)` so colour carries the
+    /// meaning too, not just shape.
+    static let engineReady = "bolt.horizontal.circle.fill"
     static let engineProblem = "exclamationmark.triangle.fill"
     /// Matches `ItemCategory.activity` — the sidebar's Activity glyph — and is
     /// nothing like the filter's three-lines-in-a-circle (#4360).

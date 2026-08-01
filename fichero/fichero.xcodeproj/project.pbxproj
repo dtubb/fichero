@@ -8,8 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		4271D4B1059A30EF96150204 /* ExternalFileDropLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76131E9FCADAC70806A0896 /* ExternalFileDropLoader.swift */; };
+		50AFF14C79F2803125DA42A2 /* ContentDropTargetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D94150B92B3DFEFF6A2E08C /* ContentDropTargetView.swift */; };
 		65767DE12584B0DAD362E215 /* UndoRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4413D6231FC68943536CBE /* UndoRouting.swift */; };
 		7342CB17F398A9E7E144FCA0 /* UndoRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4413D6231FC68943536CBE /* UndoRouting.swift */; };
+		7660B341C05F8E6758CDD8C6 /* ContentDropTargetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D94150B92B3DFEFF6A2E08C /* ContentDropTargetView.swift */; };
 		9FDE96AC2A85B86499833FC5 /* ExternalFileDropLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76131E9FCADAC70806A0896 /* ExternalFileDropLoader.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
@@ -53,6 +55,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0D94150B92B3DFEFF6A2E08C /* ContentDropTargetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentDropTargetView.swift; sourceTree = "<group>"; };
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -211,6 +214,7 @@
 				4B16649A8158515BCFB1EB77 /* Preview */,
 				6607FA0EE8AF20FA763E4A9A /* Components */,
 				CFA6E682BB01487C35F3A519 /* Reader */,
+				918397659FEF5FAF00C3309C /* Shell */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -220,6 +224,15 @@
 			children = (
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		918397659FEF5FAF00C3309C /* Shell */ = {
+			isa = PBXGroup;
+			children = (
+				EE9A894389688F20F11C2A7B /* ContentView */,
+			);
+			name = Shell;
+			path = Shell;
 			sourceTree = "<group>";
 		};
 		B32CF3D2AA65F664ECEFB82E /* ImageViewer */ = {
@@ -253,6 +266,15 @@
 				B8B08C708E1D44DE42C16313 /* Knowledge */,
 			);
 			path = Reader;
+			sourceTree = "<group>";
+		};
+		EE9A894389688F20F11C2A7B /* ContentView */ = {
+			isa = PBXGroup;
+			children = (
+				0D94150B92B3DFEFF6A2E08C /* ContentDropTargetView.swift */,
+			);
+			name = ContentView;
+			path = ContentView;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -982,6 +1004,7 @@
 			files = (
 				7342CB17F398A9E7E144FCA0 /* UndoRouting.swift in Sources */,
 				4271D4B1059A30EF96150204 /* ExternalFileDropLoader.swift in Sources */,
+				50AFF14C79F2803125DA42A2 /* ContentDropTargetView.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -999,6 +1022,7 @@
 			files = (
 				65767DE12584B0DAD362E215 /* UndoRouting.swift in Sources */,
 				9FDE96AC2A85B86499833FC5 /* ExternalFileDropLoader.swift in Sources */,
+				7660B341C05F8E6758CDD8C6 /* ContentDropTargetView.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

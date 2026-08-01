@@ -282,7 +282,13 @@ final class EntityStoreTests: XCTestCase {
         )
     }
 
-    func testMergeReloadsCurrentInspectorScopeAfterBackendMerge() async throws {
+    /// #4389: merging used to throw the whole inspector list away and
+    /// re-fetch it to recover the survivor's post-merge state — losing
+    /// scroll position, selection, and any in-flight row state for every
+    /// OTHER row, to learn about the one row that actually changed. Fixed
+    /// to remove the absorbed rows in place and patch the survivor from a
+    /// single `GET /api/entities/{id}`, matching `rename`'s pattern.
+    func testMergeRemovesAbsorbedRowsAndPatchesTheSurvivorInPlaceWithoutReloading() async throws {
         MockFicheroURLProtocol.configure(
             responses: [
                 .init(
@@ -305,13 +311,9 @@ final class EntityStoreTests: XCTestCase {
                     )
                 ),
                 .init(
-                    method: "GET", path: "/api/documents/doc-1/inspector",
+                    method: "GET", path: "/api/entities/entity-1",
                     statusCode: 200,
-                    body: makeDocumentInspectorResponse(
-                        entities: [
-                            makeEntityJSON(id: "entity-1", name: "Alpha Prime")
-                        ]
-                    )
+                    body: makeEntityResponse(id: "entity-1", name: "Alpha Prime")
                 )
             ]
         )
@@ -321,14 +323,21 @@ final class EntityStoreTests: XCTestCase {
 
         try await store.merge(absorbedIds: ["entity-2", "entity-3"], into: "entity-1")
 
-        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1", "entity-2", "entity-3"])
-        XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha", "Alpha Alt", "Alpha Alias"])
+        // Absorbed rows gone, survivor's row PATCHED (canonical name from
+        // the fresh fetch) rather than the list being thrown away and
+        // re-fetched wholesale.
+        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1"])
+        XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha Prime"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/merge" })
-        XCTAssertGreaterThanOrEqual(
+        XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/entities/entity-1" })
+        // The load-bearing assertion: no second inspector fetch. Exactly one
+        // GET for the initial load, none after the merge.
+        XCTAssertEqual(
             requests.filter { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" }.count,
-            2
+            1,
+            "merge must not re-fetch the whole inspector list to recover one row"
         )
     }
 

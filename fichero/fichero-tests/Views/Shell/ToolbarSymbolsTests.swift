@@ -103,6 +103,28 @@ struct ToolbarSymbolsTests {
         #expect(!source.contains(".strokeBorder("))
     }
 
+    // MARK: - #4391 ready reads as ready
+
+    /// The reported defect: an outline glyph with no colour reads as
+    /// "disconnected", not "ready". Filled shape + a colour of its own fixes
+    /// the half of #4391 this fix scopes to (transport distinction is a
+    /// separate, undone half — see the issue).
+    @Test("engine ready is a filled glyph, not the bare outline")
+    func engineReadyIsFilled() {
+        #expect(ToolbarSymbols.engineReady == "bolt.horizontal.circle.fill")
+        #expect(ToolbarSymbols.engineReady != "bolt.horizontal.circle")
+    }
+
+    @Test("the ready state paints its own colour, not .secondary")
+    func engineReadyHasItsOwnColor() throws {
+        let source = try Self.appSource("Views/Shell/Toolbar/EngineStatusToolbarItem.swift")
+        let readySection = source
+            .components(separatedBy: "case .setupNeeded, .ready:")[1]
+            .components(separatedBy: "\n        }")[0]
+        #expect(readySection.contains(".foregroundStyle(.green)"))
+        #expect(!readySection.contains(".foregroundStyle(.secondary)"))
+    }
+
     // MARK: - #4361 search placeholder
 
     /// The placeholder names the control, not a capability: it must read
