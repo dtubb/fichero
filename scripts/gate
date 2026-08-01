@@ -343,23 +343,32 @@ cmd_part() {
     'swiftlint lint --quiet --config .swiftlint.yml fichero/fichero && ruff check fichero-server/src' \
     || failed=1
 
-  # 1b. Two fast guardrails (#4425): both exist, both work, and until now
-  #     neither ran anywhere a worker actually looks — `verify_all.sh --fast`
-  #     runs every `scripts/check_*.py` via a glob, but that's the FULL gate
-  #     the no-lane-builds rule took away from workers; `gate part`'s own
-  #     lint leg never called them, despite its doc comment's claim to run
-  #     "the same checks the full gate runs". NOT the full `check_*.py`
-  #     glob — three of those are currently red for unrelated reasons
-  #     (docs paths, docs publication, vacuous-test detection) and wiring
-  #     them in blind would turn every `gate part` red on landing, which is
-  #     the exact failure #4425 warns against. Named explicitly; widening to
-  #     the full sweep is its own issue once those three are triaged.
-  local part_py; part_py="$(find_python)"
-  run_leg "artifact-type-contract" run_gated "part-artifact-type-contract" 60 \
-    "$part_py" scripts/check_artifact_type_contract.py \
-    || failed=1
-  run_leg "closed-issues-landed" run_gated "part-closed-issues-landed" 60 \
-    "$part_py" scripts/check_closed_issues_landed.py \
+  # 1b. Every architecture/tooling guardrail (#4425): `verify_all.sh --fast`
+  #     already glob-runs every `scripts/check_*.py`, but that's the FULL
+  #     gate the no-lane-builds rule took away from workers; `gate part`'s
+  #     own lint leg never called any of them, despite its doc comment's
+  #     claim to run "the same checks the full gate runs". First landed
+  #     scoped to two named scripts while three others were red for
+  #     unrelated reasons (docs paths, docs publication, vacuous-test
+  #     detection) — all three triaged and fixed in the same pass as this
+  #     widening, so the full sweep is a one-line loop now, not a landmine.
+  #     Same two exclusions `verify_all.sh` uses: `check_unmerged_work.py`
+  #     is explicitly manager-only (dirty-worktree state, not a per-commit
+  #     gate, per its own docstring); `check_emit_change_coverage.py` just
+  #     runs in its own step rather than the loop, matching verify_all's
+  #     ordering exactly so the two never drift apart silently.
+  local part_py guardrail
+  part_py="$(find_python)"
+  for guardrail in scripts/check_*.py; do
+    case "$(basename "$guardrail")" in
+      check_unmerged_work.py|check_emit_change_coverage.py) continue ;;
+    esac
+    run_leg "$(basename "$guardrail" .py)" run_gated "part-$(basename "$guardrail" .py)" 90 \
+      "$part_py" "$guardrail" \
+      || failed=1
+  done
+  run_leg "check_emit_change_coverage" run_gated "part-check_emit_change_coverage" 90 \
+    "$part_py" scripts/check_emit_change_coverage.py \
     || failed=1
 
   # 2. Build. Swift tests cannot run without it, and a part that does not
@@ -712,17 +721,30 @@ cmd_self_test() {
   [[ "$out" == *"[perf-pytest]"* && "$out" == *"fichero-server/tests/perf/"* ]]
   check "perf leg runs tests/perf as its own bounded invocation (dry-run)" $?
 
-  # 2b2. `gate part` (#4425): the two named guardrails actually run, in
-  #      order, before the build leg — not just defined somewhere and never
-  #      called. DRYRUN prints every leg's command instead of running it
-  #      (confirmed: no `xcodebuild` line appears before these two), so this
-  #      is real coverage of the wiring, not a claim about it.
+  # 2b2. `gate part` (#4425): the FULL `scripts/check_*.py` sweep actually
+  #      runs, in order, before the build leg — not just two named scripts
+  #      (the initial, deliberately narrow landing, widened once the three
+  #      guardrails blocking it were triaged green) and not just defined
+  #      somewhere and never called. Checks a script from EACH end of the
+  #      alphabetical glob plus one wholly unrelated to the original two
+  #      named scripts, so this can't pass by coincidentally still matching
+  #      the old narrower assertion. DRYRUN prints every leg's command
+  #      instead of running it (confirmed: no `xcodebuild` line appears
+  #      before them), so this is real coverage of the wiring, not a claim
+  #      about it.
   out="$(GATE_DRYRUN=1 "$0" part sidebar 2>&1)"
-  [[ "$out" == *"check_artifact_type_contract.py"* && "$out" == *"check_closed_issues_landed.py"* ]]
-  check "gate part: both #4425 guardrails are invoked" $?
+  [[ "$out" == *"check_accessibility.py"* \
+     && "$out" == *"check_naive_datetimes.py"* \
+     && "$out" == *"check_xcode_registration.py"* \
+     && "$out" == *"check_emit_change_coverage.py"* ]]
+  check "gate part: the full check_*.py sweep is invoked, not two scripts" $?
+  # check_unmerged_work.py is explicitly excluded (manager-only, dirty-worktree
+  # state, not a per-commit gate) — the same exclusion verify_all.sh makes.
+  [[ "$out" != *"check_unmerged_work.py"* ]]
+  check "gate part: check_unmerged_work.py stays excluded, matching verify_all.sh" $?
   before_build="${out%%xcodebuild*}"
-  [[ "$before_build" == *"check_artifact_type_contract.py"* && "$before_build" == *"check_closed_issues_landed.py"* ]]
-  check "gate part: #4425 guardrails run before the build leg" $?
+  [[ "$before_build" == *"check_accessibility.py"* && "$before_build" == *"check_xcode_registration.py"* ]]
+  check "gate part: the guardrail sweep runs before the build leg" $?
 
   # 2c. `gate part` (#4451): a red leg must make the command exit nonzero,
   #     not just print FAIL and exit 0. Uses the GATE_FAKE_PART_LEG_FAIL seam
