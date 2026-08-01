@@ -343,6 +343,25 @@ cmd_part() {
     'swiftlint lint --quiet --config .swiftlint.yml fichero/fichero && ruff check fichero-server/src' \
     || failed=1
 
+  # 1b. Two fast guardrails (#4425): both exist, both work, and until now
+  #     neither ran anywhere a worker actually looks — `verify_all.sh --fast`
+  #     runs every `scripts/check_*.py` via a glob, but that's the FULL gate
+  #     the no-lane-builds rule took away from workers; `gate part`'s own
+  #     lint leg never called them, despite its doc comment's claim to run
+  #     "the same checks the full gate runs". NOT the full `check_*.py`
+  #     glob — three of those are currently red for unrelated reasons
+  #     (docs paths, docs publication, vacuous-test detection) and wiring
+  #     them in blind would turn every `gate part` red on landing, which is
+  #     the exact failure #4425 warns against. Named explicitly; widening to
+  #     the full sweep is its own issue once those three are triaged.
+  local part_py; part_py="$(find_python)"
+  run_leg "artifact-type-contract" run_gated "part-artifact-type-contract" 60 \
+    "$part_py" scripts/check_artifact_type_contract.py \
+    || failed=1
+  run_leg "closed-issues-landed" run_gated "part-closed-issues-landed" 60 \
+    "$part_py" scripts/check_closed_issues_landed.py \
+    || failed=1
+
   # 2. Build. Swift tests cannot run without it, and a part that does not
   #    compile is not verified whatever its tests say.
   run_leg "build" cmd_build || failed=1
@@ -692,6 +711,18 @@ cmd_self_test() {
   out="$(GATE_DRYRUN=1 "$0" perf 2>&1)"
   [[ "$out" == *"[perf-pytest]"* && "$out" == *"fichero-server/tests/perf/"* ]]
   check "perf leg runs tests/perf as its own bounded invocation (dry-run)" $?
+
+  # 2b2. `gate part` (#4425): the two named guardrails actually run, in
+  #      order, before the build leg — not just defined somewhere and never
+  #      called. DRYRUN prints every leg's command instead of running it
+  #      (confirmed: no `xcodebuild` line appears before these two), so this
+  #      is real coverage of the wiring, not a claim about it.
+  out="$(GATE_DRYRUN=1 "$0" part sidebar 2>&1)"
+  [[ "$out" == *"check_artifact_type_contract.py"* && "$out" == *"check_closed_issues_landed.py"* ]]
+  check "gate part: both #4425 guardrails are invoked" $?
+  before_build="${out%%xcodebuild*}"
+  [[ "$before_build" == *"check_artifact_type_contract.py"* && "$before_build" == *"check_closed_issues_landed.py"* ]]
+  check "gate part: #4425 guardrails run before the build leg" $?
 
   # 2c. `gate part` (#4451): a red leg must make the command exit nonzero,
   #     not just print FAIL and exit 0. Uses the GATE_FAKE_PART_LEG_FAIL seam
