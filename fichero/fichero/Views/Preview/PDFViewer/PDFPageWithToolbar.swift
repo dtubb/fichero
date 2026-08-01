@@ -81,14 +81,17 @@ struct PDFPageWithToolbar: View {
     // non-optional @Environment(ArtifactService.self) traps when the host does
     // not inject it, which is the #4448 crash class; the image preview declares
     // it optional for the same reason.
-    @Environment(ArtifactService.self) private var artifactService: ArtifactService?
-    @AppStorage("pdfPreview.ocrBoxesEnabled") private var ocrBoxesEnabled = false
-    @State private var ocrGeometry: OCRGeometry?
+    // Promoted `private` -> internal: read from PDFPageView+OCRBoxes.swift
+    // after the #4418 split, and `private` in Swift is FILE-scoped, not
+    // type-scoped — an extension in another file cannot see it.
+    @Environment(ArtifactService.self) var artifactService: ArtifactService?
+    @AppStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = false
+    @State var ocrGeometry: OCRGeometry?
     @State private var isDrawingRegion = false
     @State private var pendingTool: ReaderAnnotationTool = .highlight
 
     /// Document ID to actually render — pinned value when locked, live prop otherwise.
-    private var effectiveDocumentId: String {
+    var effectiveDocumentId: String {
         isPinned ? (pinnedDocumentId ?? documentId) : documentId
     }
 
