@@ -154,6 +154,66 @@ def test_uds_owner_trust_is_host_independent(monkeypatch):
     assert status_denied == 401
 
 
+# The scope the in-process bridge actually builds — see
+# fichero-api-client/Sources/FicheroAPIClient/InMemory/AsgiBridge.swift, which
+# sets server=("127.0.0.1", 8765) and client=None (ASGI's "no network peer").
+# _drive_asgi already hardcodes client=None, so this reproduces it exactly.
+_INMEMORY_HOST = "127.0.0.1"
+_INMEMORY_SERVER = ("127.0.0.1", 8765)
+
+
+def test_inmemory_marker_does_not_waive_the_bootstrap_token(monkeypatch):
+    """#4432: the ``inmemory`` transport marker makes a request loopback-ELIGIBLE.
+    It does not authenticate it.
+
+    ``_is_loopback_request`` treats ``"uds"`` and ``"inmemory"`` identically, and
+    the client-side doc comment claimed both "grant loopback-owner auth". They do
+    not: ``is_loopback`` decides 403-or-not and the bootstrap token decides
+    401-or-not, and the marker only satisfies the first. ``_expected_header()``
+    always resolves to ``f"Bearer {token_provider()}"``, so there is no
+    configuration in which a token-less in-memory request passes.
+
+    The UDS half of this contract is pinned by
+    ``test_uds_owner_trust_is_host_independent``; the in-memory half was not
+    pinned at all, which is how a comment could claim the opposite without
+    anything failing.
+    """
+    monkeypatch.setenv("FICHERO_MULTIUSER", "0")
+    app = _app_with_auth()
+
+    # With the bootstrap token -> owner-trusted, 200.
+    status_ok, _ = _drive_asgi(
+        app,
+        "/api/private",
+        host=_INMEMORY_HOST,
+        server=_INMEMORY_SERVER,
+        transport="inmemory",
+        headers=[("authorization", "Bearer test-token")],
+    )
+    assert status_ok == 200
+
+    # Without any token -> 401, NOT 200. The marker is not a credential.
+    status_denied, _ = _drive_asgi(
+        app,
+        "/api/private",
+        host=_INMEMORY_HOST,
+        server=_INMEMORY_SERVER,
+        transport="inmemory",
+    )
+    assert status_denied == 401
+
+    # And a wrong token is rejected too — the marker cannot rescue it.
+    status_wrong, _ = _drive_asgi(
+        app,
+        "/api/private",
+        host=_INMEMORY_HOST,
+        server=_INMEMORY_SERVER,
+        transport="inmemory",
+        headers=[("authorization", "Bearer not-the-token")],
+    )
+    assert status_wrong == 401
+
+
 def test_encoded_host_over_tcp_does_not_grant_unauth_private_path():
     """Security: the scope["path"] allowlist must not become a bypass on the TCP
     path. A non-UDS request (no transport marker, real network peer) to a private
