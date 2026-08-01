@@ -18,14 +18,34 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import perf_ratchet as _history  # noqa: E402
 
+# Captured before the `ratchet` fixture below stubs `_another_perf_run_is_active`
+# to False for every test — the one test that needs the REAL implementation
+# (to verify it degrades gracefully when pgrep itself fails) restores it via
+# this reference rather than relying on the module attribute being untouched.
+_REAL_ANOTHER_PERF_RUN_IS_ACTIVE = _history._another_perf_run_is_active
+
 
 @pytest.fixture
 def ratchet(tmp_path, monkeypatch):
-    """Point the ratchet at throwaway files."""
+    """Point the ratchet at throwaway files, and force it un-contended.
+
+    These tests drive `record()`'s decision logic (regress/tighten/pass),
+    not its process-awareness — `_another_perf_run_is_active()` shells out
+    to `pgrep` and answers based on whatever else happens to be running on
+    the machine. Left unstubbed, a real concurrent pytest process (another
+    lane's own perf run, observed in practice) makes `record()` skip
+    recording, which makes assertions expecting an AssertionError silently
+    not raise — a suite that fails because another pytest is running is a
+    broken suite, not a flaky one. Default it to False so every test
+    exercises the branch it actually means to; the one test that wants the
+    contended branch (TestConcurrentRuns::test_a_contended_run_records_nothing)
+    overrides it back to True deliberately.
+    """
     baseline = tmp_path / "perf_baseline.json"
     monkeypatch.setattr(_history, "BASELINE_PATH", baseline)
     monkeypatch.setattr(_history, "HISTORY_PATH", tmp_path / "history.jsonl")
     monkeypatch.delenv("FICHERO_PERF_NO_HISTORY", raising=False)
+    monkeypatch.setattr(_history, "_another_perf_run_is_active", lambda: False)
     return baseline
 
 
@@ -188,7 +208,16 @@ class TestConcurrentRuns:
         assert _best(ratchet, "claims.list") == 100.0
 
     def test_being_unable_to_tell_does_not_block_the_suite(self, ratchet, monkeypatch):
-        """pgrep missing or failing must not stop perf from running at all."""
+        """pgrep missing or failing must not stop perf from running at all.
+
+        Exercises the REAL `_another_perf_run_is_active`, not the `ratchet`
+        fixture's stub — this test's whole point is that function's own
+        OSError handling, so it must actually run.
+        """
+        monkeypatch.setattr(
+            _history, "_another_perf_run_is_active", _REAL_ANOTHER_PERF_RUN_IS_ACTIVE
+        )
+
         def _boom(*_args, **_kwargs):
             raise OSError("pgrep unavailable")
         monkeypatch.setattr(_history.subprocess, "run", _boom)
