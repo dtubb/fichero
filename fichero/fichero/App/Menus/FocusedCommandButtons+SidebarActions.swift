@@ -15,28 +15,37 @@ struct FocusedNewFolderButton: View {
     }
 }
 
-/// Button that calls the focused sidebar's importFiles action
+/// Button that calls whichever focused pane implements import — the
+/// sidebar's `sidebarActions.importFiles`, or (#4452) the library content
+/// pane's narrower `libraryImportAction` when IT has focus instead. Never
+/// falls back to a stub: if neither pane publishes one, `importAction` is
+/// nil and the menu stays disabled, per #4449/#4452's silent-no-op rule.
 struct FocusedImportFilesButton: View {
     @FocusedValue(\.sidebarActions) private var sidebarActions
+    @FocusedValue(\.libraryImportAction) private var libraryImportAction
+
+    private var importAction: ((IngestMode) -> Void)? {
+        sidebarActions?.importFiles ?? libraryImportAction
+    }
 
     var body: some View {
         Menu("Import") {
             Button("Link Files...") {
-                sidebarActions?.importFiles(.link)
+                importAction?(.link)
             }
             .keyboardShortcut("i", modifiers: [.command])
 
             Button("Copy Files...") {
-                sidebarActions?.importFiles(.copy)
+                importAction?(.copy)
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
 
             Button("Move Files...") {
-                sidebarActions?.importFiles(.move)
+                importAction?(.move)
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
         }
-        .disabled(sidebarActions == nil)
+        .disabled(importAction == nil)
     }
 }
 

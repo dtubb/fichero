@@ -73,6 +73,7 @@ extension LibraryView {
     private func importIntoFolderMenuItem(for document: Document) -> some View {
         if document.docType == .folder {
             Button {
+                fileImportMode = .link
                 fileImportTargetFolderId = document.id
                 showingFileImporter = true
             } label: {

@@ -80,6 +80,19 @@ struct SidebarActionsKey: FocusedValueKey {
     typealias Value = SidebarActions
 }
 
+/// FocusedValue key for the library content pane's own import action
+/// (#4452). Deliberately narrower than `SidebarActionsKey` — LibraryView
+/// only has a real implementation for import, and `SidebarActions`'
+/// other 10 closures (rename/delete/chat/workflow/schedule/trigger/…)
+/// have no honest LibraryView-scoped meaning. Stubbing them as no-ops to
+/// reuse `SidebarActionsKey` would silently enable Data-menu items that do
+/// nothing while the library pane has focus — the exact silent-failure
+/// class #4449 closed. `impossible > checked > documented`: a menu item
+/// this pane cannot honor stays disabled, never wired to a no-op.
+struct LibraryImportActionKey: FocusedValueKey {
+    typealias Value = (IngestMode) -> Void
+}
+
 /// FocusedValue key for sidebar selection info
 struct SidebarSelectionInfoKey: FocusedValueKey {
     typealias Value = SidebarSelectionInfo
@@ -161,6 +174,11 @@ extension FocusedValues {
     var sidebarActions: SidebarActionsKey.Value? {
         get { self[SidebarActionsKey.self] }
         set { self[SidebarActionsKey.self] = newValue }
+    }
+
+    var libraryImportAction: LibraryImportActionKey.Value? {
+        get { self[LibraryImportActionKey.self] }
+        set { self[LibraryImportActionKey.self] = newValue }
     }
 
     var sidebarSelectionInfo: SidebarSelectionInfoKey.Value? {

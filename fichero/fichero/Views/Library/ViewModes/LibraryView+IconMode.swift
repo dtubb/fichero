@@ -125,6 +125,7 @@ extension LibraryView {
                 // Targets `folderId` — this pane's own container, not root.
                 .contextMenu {
                     Button {
+                        fileImportMode = .link
                         fileImportTargetFolderId = folderId
                         showingFileImporter = true
                     } label: {

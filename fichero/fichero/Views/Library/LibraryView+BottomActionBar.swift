@@ -105,7 +105,10 @@ extension LibraryView {
         Button {
             // Targets the folder this pane is currently showing, never the
             // library root (#4449) — `folderId` is nil only when browsing
-            // the library's own top level, which IS the root.
+            // the library's own top level, which IS the root. Explicit
+            // `.link` (#4452 added Copy/Move via the Data menu) — this
+            // button has always meant "link in place".
+            fileImportMode = .link
             fileImportTargetFolderId = folderId
             showingFileImporter = true
         } label: {
@@ -235,19 +238,22 @@ extension LibraryView {
     }
 
     /// The ONE import handler every `showingFileImporter` presenter in this
-    /// view shares (#4449) — bottom bar and folder contextual menu alike.
-    /// Always imports into `fileImportTargetFolderId`, which each presenter
-    /// sets before flipping `showingFileImporter = true`; never a bare
-    /// `parentId: nil` that silently lands documents at the library root.
+    /// view shares (#4449, #4452) — bottom bar, folder contextual menu, and
+    /// the Data-menu Import submenu (via `libraryImportAction`) alike.
+    /// Always imports into `fileImportTargetFolderId` with
+    /// `fileImportMode`, both of which each presenter sets before flipping
+    /// `showingFileImporter = true`; never a bare `parentId: nil` that
+    /// silently lands documents at the library root.
     func handleFileImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             let targetFolderId = fileImportTargetFolderId
+            let mode = fileImportMode
             Task { @MainActor in
                 guard let library = libraryManager.getLibrary(id: windowState.libraryId)
                     ?? libraryManager.globalLibrary else { return }
                 do {
-                    _ = try await library.importService.importFiles(urls, mode: .link, parentId: targetFolderId)
+                    _ = try await library.importService.importFiles(urls, mode: mode, parentId: targetFolderId)
                     await library.documentStore.refresh()
                 } catch {
                     bottomBarLogger.error("Import failed: \(error.localizedDescription)")
