@@ -162,6 +162,16 @@ struct PDFPageWithToolbar: View {
             .compactMap(\.bbox)
     }
 
+    /// Regions to draw: words when the pass produced them, lines otherwise —
+    /// never both, the same reduction `OCRGeometryOverlay` makes for images,
+    /// via the same `wordBoxes`/`lineBoxes` helpers so the level strings live
+    /// in one place (#4418). Empty whenever the toggle is off.
+    private var drawableOCRBoxes: [OCRGeometryBox] {
+        guard ocrBoxesEnabled, let ocrGeometry else { return [] }
+        let words = ocrGeometry.wordBoxes
+        return words.isEmpty ? ocrGeometry.lineBoxes : words
+    }
+
     private func persistRegion(_ box: [Double]?, tool: ReaderAnnotationTool) {
         let kind: AnnotationKind = {
             switch tool {
@@ -259,7 +269,7 @@ struct PDFPageWithToolbar: View {
                 },
                 zoomController: zoom,
                 pageController: pageNav,
-                ocrBoxes: ocrBoxesEnabled ? (ocrGeometry?.boxes ?? []) : [],
+                ocrBoxes: drawableOCRBoxes,
                 onCursorMoved: { pos in loupePosition = pos },
                 regionBoxes: pageRegionBoxes,
                 isDrawingRegion: isDrawingRegion,

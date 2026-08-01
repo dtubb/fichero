@@ -42,12 +42,23 @@ extension PDFPageView.Coordinator {
         for existing in page.annotations where existing.userName == Self.ocrBoxAnnotationName {
             page.removeAnnotation(existing)
         }
+        // `ocrBoxes` arrives already reduced to ONE level by the owner (words
+        // when the pass produced them, lines otherwise). Drawing every level
+        // would nest a line box around each of its own word boxes, which reads
+        // as clutter rather than structure and carpets a dense page.
         guard !owner.ocrBoxes.isEmpty else { return }
-        let pageSize = page.bounds(for: .cropBox).size
+        let cropBounds = page.bounds(for: .cropBox)
         for box in owner.ocrBoxes {
-            guard let rect = PDFRegionGeometry.pageRect(normalized: box.bbox, pageSize: pageSize)
+            guard let rect = PDFRegionGeometry.pageRect(normalized: box.bbox, pageSize: cropBounds.size)
             else { continue }
-            let annotation = PDFAnnotation(bounds: rect, forType: .square, withProperties: nil)
+            // `pageRect` performs the flip but computes from the SIZE alone, so
+            // it assumes a zero origin. That holds for `applyRegions`, which
+            // uses the mediaBox, but a cropBox can be INSET — and then every
+            // box is displaced by the crop's offset. The claim-source highlight
+            // (#2105/#3449) re-adds `cropBounds.minX/minY` for exactly this
+            // reason; doing the same here keeps the two paths in agreement.
+            let placed = rect.offsetBy(dx: cropBounds.minX, dy: cropBounds.minY)
+            let annotation = PDFAnnotation(bounds: placed, forType: .square, withProperties: nil)
             // Outline only. A filled box would obscure the very glyphs it
             // is describing, and these exist to be read against.
             annotation.color = NSColor.systemTeal
@@ -57,7 +68,6 @@ extension PDFPageView.Coordinator {
     }
 
     static let ocrBoxAnnotationName = "fichero.ocr-box"
-}
 }
 
 // The loader lives here beside the renderer, and out of PDFPageWithToolbar,
