@@ -100,20 +100,22 @@ def _env_flag(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _is_briefcase_dev_bundle() -> bool:
-    """
-    Detect Briefcase dev runtime path.
+def _reload_enabled() -> bool:
+    """#4381: reload is OPT-IN (FICHERO_BACKEND_RELOAD=1), never inferred.
 
-    Briefcase dev installs into a path like:
-    .../.briefcase/<app>/dev.cpython-312-darwin/...
+    It used to default ON for any Briefcase dev bundle — and the dev engine's
+    source dir was the very tree the manager merges lane branches into, so
+    every merge tripped uvicorn's watcher and restarted the engine mid-session.
+    That surfaced to the user as sign-in failures and dropped SSE streams, and
+    masked #4379's real defect for an evening. Reload exists for
+    editing-the-engine-while-it-runs; a live-testing session is not that, so
+    the launch profile must ASK for it rather than inherit a developer default.
+    FICHERO_BACKEND_STABLE_MODE=1 still forces it off, overriding everything.
     """
-    candidates = [
-        os.path.abspath(__file__),
-        os.path.abspath(sys.executable),
-        os.path.abspath(os.environ.get("VIRTUAL_ENV", "")),
-        os.path.abspath(os.getcwd()),
-    ]
-    return any(".briefcase" in p and "dev.cpython" in p for p in candidates if p)
+    if _env_flag("FICHERO_BACKEND_STABLE_MODE", default=False):
+        return False
+    return _env_flag("FICHERO_BACKEND_RELOAD", default=False)
+
 
 
 def main(argv: list[str] | None = None):
@@ -184,13 +186,7 @@ def main(argv: list[str] | None = None):
     # Import uvicorn
     import uvicorn
 
-    reload_enabled = _env_flag(
-        "FICHERO_BACKEND_RELOAD",
-        default=_is_briefcase_dev_bundle(),
-    )
-    # Workflow bug testing is much more stable without reloader subprocess churn.
-    if _env_flag("FICHERO_BACKEND_STABLE_MODE", default=False):
-        reload_enabled = False
+    reload_enabled = _reload_enabled()
     src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
     # Enable traceback allocation context for ResourceWarning in dev mode.
