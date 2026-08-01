@@ -29,14 +29,18 @@ struct CanvasSelectionBridgeTests {
         #expect(LibraryView.canvasNodeIds(forSelection: []).isEmpty)
     }
 
-    /// The canvas model is ONE node. Showing an arbitrary member of a five-row
-    /// selection would be a lie about what is selected, and the full set is
-    /// still there when the user switches back to a list mode.
-    @Test("a multi-selection selects no single node rather than an arbitrary one")
-    func multiSelectionMapsToNil() {
-        // #4409: these ASSERTED the defect. A multi-selection mapped to nil,
-        // so the canvas showed nothing selected when several rows were. The
-        // bridge now carries every member.
+    /// The canvas carries every selected node, not an arbitrary one. Showing
+    /// a single member of a five-row selection would be a lie about what is
+    /// selected, and the full set is still there when the user switches back
+    /// to a list mode.
+    @Test("a multi-selection maps to every one of its nodes")
+    func multiSelectionMapsToAllNodes() {
+        // #4409: this test used to assert the DEFECT — a multi-selection
+        // mapped to nil/a single node, so the canvas showed nothing selected
+        // when several rows were. The bridge now carries every member; the
+        // name and title said the opposite of the body for a while (caught
+        // during the #4421 guardrail-fires audit — a test whose name asserts
+        // the fix's predecessor misleads the next reader).
         #expect(LibraryView.canvasNodeIds(forSelection: ["doc-1", "doc-2"]).count == 2)
         #expect(LibraryView.canvasNodeIds(forSelection: ["a", "b", "c"]).count == 3)
     }

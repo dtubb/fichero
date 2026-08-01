@@ -15,12 +15,15 @@ struct DisplayAttributesStrip: View {
     // tab uses (#721) — a page shows only its own artifacts.
     @Environment(ArtifactStore.self) var artifactStore
 
-    /// Which fixed attributes the user has *hidden*, comma-joined raw values.
-    /// Persisted as a global display preference (not per-window scene state) —
-    /// the visible set is user-editable, never hardcoded (MEMORY: don't
-    /// hardcode user-editable things). Default empty → every fixed attribute
-    /// shows, matching pre-#1229 behaviour.
-    @AppStorage("inspector.attributeStrip.hidden") var hiddenRaw: String = ""
+    /// Which fixed attributes the user has chosen to *show*, comma-joined raw
+    /// values. Persisted as a global display preference (not per-window scene
+    /// state) — the visible set is user-editable, never hardcoded (MEMORY:
+    /// don't hardcode user-editable things). Default empty → nothing shows
+    /// (#4422): filling the strip with bookkeeping nobody asked for is worse
+    /// than showing nothing, and every other row source here (KG summaries
+    /// aside, artifacts, metadata) is already opt-in — this key used to be
+    /// the one exception, defaulting every fixed attribute ON.
+    @AppStorage("inspector.attributeStrip.shown") var shownAttributesRaw: String = ""
     /// Artifact types the user has chosen to surface, comma-joined. Default
     /// empty → no artifacts shown; they are opt-in.
     @AppStorage("inspector.attributeStrip.artifacts") var shownArtifactsRaw: String = ""
@@ -83,7 +86,7 @@ struct DisplayAttributesStrip: View {
 
             // Normalize persisted CSV payloads so malformed/empty tokens from older
             // builds don't keep toggles in an inconsistent state across launches.
-            hiddenRaw = csvString(hiddenAttributes)
+            shownAttributesRaw = csvString(shownAttributes)
             shownArtifactsRaw = csvString(shownArtifactTypes)
             shownKGRaw = csvString(shownKGItems)
             shownMetadataRaw = csvString(shownMetadataKeys)

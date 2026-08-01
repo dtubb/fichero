@@ -2,16 +2,23 @@ import SwiftUI
 
 extension DisplayAttributesStrip {
     /// The fixed document attributes the strip can show. Case order is the
-    /// display order. `path` is additionally gated on the document having one.
+    /// display order.
+    ///
+    /// `ingest` and `path` are DELIBERATELY absent (#4422) — they described
+    /// how the app stored the file (an import-mode flag, an internal storage
+    /// location containing the generated upload filename), not a fact about
+    /// the document. Not "hidden by default", not available at all: the same
+    /// class of internal identifier #4416 (island title) and #4398 (list row)
+    /// fixed for other surfaces. If a diagnostic/developer view of storage
+    /// internals is ever wanted, it belongs behind its own disclosure, not in
+    /// the user-facing attribute set.
     enum DisplayAttribute: String, CaseIterable, Identifiable {
-        case status, kind, ingest, path, created, modified
+        case status, kind, created, modified
         var id: String { rawValue }
         var label: String {
             switch self {
             case .status: return "Status"
             case .kind: return "Kind"
-            case .ingest: return "Ingest"
-            case .path: return "Path"
             case .created: return "Created"
             case .modified: return "Modified"
             }
@@ -50,8 +57,8 @@ extension DisplayAttributesStrip {
         }
     }
 
-    var hiddenAttributes: Set<String> {
-        csvSet(hiddenRaw)
+    var shownAttributes: Set<String> {
+        csvSet(shownAttributesRaw)
     }
 
     var shownArtifactTypes: Set<String> {
