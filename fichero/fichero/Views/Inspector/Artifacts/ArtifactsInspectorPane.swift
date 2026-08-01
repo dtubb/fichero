@@ -72,11 +72,11 @@ private func inspectorArtifactTitle(_ artifact: Artifact) -> String {
 struct ArtifactsInspectorPane: View {
     let document: Document
 
-    @Environment(ArtifactStore.self) private var store
-    @Environment(ArtifactService.self) private var artifactService
+    @Environment(ArtifactStore.self) var store
+    @Environment(ArtifactService.self) var artifactService
     @Environment(DocumentService.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
-    @Environment(LibraryManager.self) private var libraryManager
+    @Environment(LibraryManager.self) var libraryManager
     @Environment(WorkflowExecutionObserver.self) private var executionObserver
     @Environment(\.openWindow) private var openWindow
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
@@ -85,9 +85,9 @@ struct ArtifactsInspectorPane: View {
 
     /// Shared selection — the same instance the detached window observes.
     @State private var focused = FocusedArtifact.shared
-    @State private var actionError: String?
+    @State var actionError: String?
     /// A translate action is in flight (#3325).
-    @State private var isTranslating = false
+    @State var isTranslating = false
     /// The run whose trace is being shown from "Produced by" (#4319/#4320).
     @State private var traceRun: TraceRunSelection?
 
@@ -298,34 +298,6 @@ struct ArtifactsInspectorPane: View {
             await store.reload()
         } catch {
             actionError = "Couldn't delete: \(error.localizedDescription)"
-        }
-    }
-
-    private func translate(to language: TranslationLanguage) {
-        guard let actionsService = libraryManager.globalLibrary?.actionsService else {
-            actionError = "No library available to translate."
-            return
-        }
-        isTranslating = true
-        Task { @MainActor in
-            defer { isTranslating = false }
-            do {
-                _ = try await actionsService.invokeAction(
-                    name: "artifact.translate",
-                    params: ArtifactTranslateActionParams(
-                        documentId: document.id,
-                        targetLang: language.code,
-                        sourceLang: "auto",
-                        provider: nil
-                    )
-                )
-                actionError = nil
-                // The new translation artifact also arrives via the change stream;
-                // reload so it shows immediately in the list.
-                await store.reload()
-            } catch {
-                actionError = "Couldn't translate: \(error.localizedDescription)"
-            }
         }
     }
 

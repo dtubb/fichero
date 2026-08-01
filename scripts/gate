@@ -20,6 +20,9 @@
 #   gate embedded                    embedded-launch UX check
 #   gate transport                   transport matrix (UDS/HTTPS/in-memory) #4245
 #   gate coverage                    test-coverage gap ratchet
+#   gate preflight                   free-space check only (no lock) — heavy
+#                                    subcommands run it pre-lock and refuse
+#                                    below GATE_MIN_FREE_GB (default 20) #4434
 #   gate verify-all                  every leg, one summary table (#4251)
 #   gate areas [name]                print the area table / one resolution
 #   gate wrap -- <cmd...>            run an arbitrary heavy command under the gate
@@ -105,6 +108,28 @@ find_python() {
     "$REPO_ROOT/scripts/find_project_python.sh" . 2>/dev/null && return
   fi
   command -v python3
+}
+
+# --------------------------- free-space preflight (#4434) --------------------
+# The 2026-07-30 session died at 100% disk: 77 GB of leaked pytest basetemps,
+# discovered only when a 20-minute leg failed with 116 ENOSPC-shaped "test
+# failures". Refuse to START a heavy run on a nearly-full volume instead — the
+# failure becomes one loud line at second zero, before the lock is taken.
+# GATE_MIN_FREE_GB overrides the threshold (also how the self-test drives it).
+preflight_free_space() {
+  local min_gb="${GATE_MIN_FREE_GB:-20}"
+  local target free_kb free_gb rc=0
+  for target in "$REPO_ROOT" "${TMPDIR:-/tmp}"; do
+    free_kb=$(df -k "$target" 2>/dev/null | awk 'NR==2 {print $4}')
+    [[ "$free_kb" =~ ^[0-9]+$ ]] || continue
+    free_gb=$((free_kb / 1024 / 1024))
+    if (( free_gb < min_gb )); then
+      echo "gate: PREFLIGHT REFUSED — ${free_gb} GB free on the volume of ${target} (< ${min_gb} GB; override with GATE_MIN_FREE_GB)." >&2
+      echo "gate: likely reclaim (#4434): \${TMPDIR}/pytest-of-$(whoami) leaked test basetemps — any engine-test run sweeps dead ones at startup, or remove dirs whose .lock names a dead pid." >&2
+      rc=1
+    fi
+  done
+  return $rc
 }
 
 # --------------------------- locking ---------------------------------------
@@ -765,6 +790,17 @@ cmd_self_test() {
   check "gate part: summary table names the failing leg" $?
   [[ $rc -ne 0 ]]; check "gate part: a red leg makes the command exit nonzero (#4451)" $?
 
+  # 2d. Free-space preflight (#4434): must FIRE when the volume is below the
+  #     threshold (driven via GATE_MIN_FREE_GB, both directions) and must fire
+  #     BEFORE the lock — a run that will die on a full disk must not queue.
+  GATE_MIN_FREE_GB=999999 "$0" preflight >/dev/null 2>&1
+  [[ $? -ne 0 ]]; check "preflight: refuses when free space is below the bar (#4434)" $?
+  GATE_MIN_FREE_GB=0 "$0" preflight >/dev/null 2>&1
+  check "preflight: passes when the bar is met" $?
+  out="$(env -u GATE_LOCK_HELD GATE_MIN_FREE_GB=999999 "$0" wrap -- true 2>&1)"; rc=$?
+  [[ $rc -ne 0 && "$out" == *"PREFLIGHT REFUSED"* && "$out" != *"waiting for lock"* ]]
+  check "preflight: a heavy subcommand refuses pre-lock on a full disk (#4434)" $?
+
   # 3. Lock contention: hold the lock with a trivial sleep, then a --no-wait
   #    caller must fail fast with 75, and a waiting caller must queue+succeed.
   #    (env -u GATE_LOCK_HELD: the self-test itself runs under the real gate
@@ -847,6 +883,17 @@ done
 
 # 'areas' is metadata-only: no lock, no watchdog — safe while a run is live.
 if [[ "$SUBCMD" == "areas" ]]; then cmd_areas "$@"; exit $?; fi
+# 'preflight' reports the free-space verdict and takes no lock — safe while a
+# run is live, and how the self-test drives both directions (#4434).
+if [[ "$SUBCMD" == "preflight" ]]; then preflight_free_space; exit $?; fi
+
+# Refuse BEFORE queueing on the lock: a run that will die on a full disk must
+# not hold every other lane hostage first (#4434). Top-level invocations only —
+# verify-all's nested legs inherit the parent's verdict. self-test exempt: it
+# exercises the preflight explicitly in both directions.
+if [[ -z "${GATE_LOCK_HELD:-}" && "$SUBCMD" != "self-test" ]]; then
+  preflight_free_space || die "free-space preflight failed — clear disk before running the gate (#4434)"
+fi
 
 if [[ -z "${GATE_LOCK_HELD:-}" ]]; then
   export GATE_NO_WAIT="$NO_WAIT"

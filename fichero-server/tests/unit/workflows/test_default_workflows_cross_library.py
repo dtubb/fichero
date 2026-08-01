@@ -22,11 +22,21 @@ from fichero_server.models import Workflow
 
 @pytest.fixture
 def global_db():
-    """The engine's global library database (created on first access)."""
     from fichero_server.db.manager import db_manager
     from fichero_server.db.storage import settings
 
-    return db_manager.get_database(str(settings.global_library_path))
+    db = db_manager.get_database(str(settings.global_library_path))
+    # The global library db is SHARED across the whole test session (one
+    # FICHERO_BASE_PATH per process). Rows this test saves there would merge
+    # into every later library workflow list (#4450 resolution) and turn
+    # "empty library" assertions order-dependent — so delete what we create.
+    from fichero_server.models import Workflow
+
+    before = {w.id for w in db.all(Workflow)}
+    yield db
+    for workflow in list(db.all(Workflow)):
+        if workflow.id not in before:
+            db.delete(workflow)
 
 
 def _make_default(global_db, name: str | None = None) -> Workflow:

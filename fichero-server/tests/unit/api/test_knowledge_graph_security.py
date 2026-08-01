@@ -129,29 +129,110 @@ class TestPyKEENSecurity:
 
 
 class TestEntityAccessControl:
-    """Test entity/claim access controls."""
+    """Cross-library isolation, tested as it is actually enforced (#4382).
 
-    def test_entity_access_requires_ownership_check(self, client):
-        """MEDIUM-1: Entity operations should verify library ownership.
+    These two were `pytest.skip("Multi-user isolation not implemented yet")`
+    for so long that the premise expired — the isolation these tests wanted
+    is not a filter that could be forgotten, it is STRUCTURAL: every library
+    is its own DuckDB package, resolved per-request from
+    ``X-Fichero-Library-Path``. Another library's entities are not excluded
+    from a query; they live in a database the request never opens. These
+    tests pin that structure through the real routes with two live library
+    packages, so a future "optimisation" that pools libraries into one
+    store cannot land without turning them red.
+    """
 
-        Currently no multi-user support, but design should allow
-        per-library isolation when added.
+    @pytest.fixture
+    def two_library_client(self, tmp_path, app_db):
+        """A client whose db dependency resolves PER-HEADER over two libraries,
+        the way production resolves it — not the single-package override the
+        shared ``client`` fixture uses."""
+        from urllib.parse import quote
 
-        Expected: Conditional (single-user OK, multi-user needs fix)
-        """
-        # This test documents the need for access control
-        # Currently entities are global to the library
-        # Future: should check claim.library_id == current_user.library_id
-        pytest.skip("Multi-user isolation not implemented yet")
+        from fastapi import Request
+        from fastapi.testclient import TestClient
 
-    def test_claim_linking_prevents_cross_library(self, client):
-        """MEDIUM-1: Claims from different libraries should not be linkable.
+        from fichero_server.api.library_header import optional_library_path
+        from fichero_server.api.main import (
+            app,
+            get_library_database,
+            get_library_database_for_write,
+        )
+        from fichero_server.db.manager import db_manager
 
-        If multi-user support added, prevent linking across libraries.
+        lib_a = tmp_path / "a.fichero"
+        lib_b = tmp_path / "b.fichero"
+        for lib in (lib_a, lib_b):
+            lib.mkdir()
+            db_manager.get_database(lib)
 
-        Expected: Conditional
-        """
-        pytest.skip("Multi-user isolation not implemented yet")
+        def _db_for_header(request: Request):
+            return db_manager.get_database(optional_library_path(request))
+
+        app.dependency_overrides[get_library_database] = _db_for_header
+        app.dependency_overrides[get_library_database_for_write] = _db_for_header
+
+        def _headers(lib):
+            return {"X-Fichero-Library-Path": quote(str(lib), safe="/")}
+
+        yield TestClient(app), _headers(lib_a), _headers(lib_b)
+
+        app.dependency_overrides.clear()
+        db_manager.close_all()
+
+    def test_entity_access_requires_ownership_check(self, two_library_client):
+        """An entity created in library A is unreachable through library B."""
+        client, headers_a, headers_b = two_library_client
+
+        created = client.post(
+            "/api/entities",
+            json={"canonical_name": "Isolation Probe", "entity_type": "person"},
+            headers=headers_a,
+        )
+        assert created.status_code == 200, created.text
+        entity_id = created.json()["id"]
+
+        # Reachable where it lives.
+        assert client.get(f"/api/entities/{entity_id}", headers=headers_a).status_code == 200
+
+        # Absent — not filtered, ABSENT — through the other library.
+        assert client.get(f"/api/entities/{entity_id}", headers=headers_b).status_code == 404
+        other = client.get("/api/entities", headers=headers_b)
+        assert other.status_code == 200
+        assert entity_id not in {e["id"] for e in other.json()["items"]}
+
+    def test_claim_linking_prevents_cross_library(self, two_library_client):
+        """Library B cannot link (update) an entity that lives in library A —
+        the id simply does not resolve there, so cross-library linking is
+        impossible rather than merely checked."""
+        client, headers_a, headers_b = two_library_client
+
+        created = client.post(
+            "/api/entities",
+            json={"canonical_name": "Linkable Only At Home", "entity_type": "location"},
+            headers=headers_a,
+        )
+        assert created.status_code == 200, created.text
+        entity_id = created.json()["id"]
+
+        cross = client.post(
+            "/api/entities",
+            json={
+                "id": entity_id,
+                "canonical_name": "Hijacked From B",
+                "entity_type": "location",
+            },
+            headers=headers_b,
+        )
+        assert cross.status_code >= 400, (
+            "library B updated an entity that lives in library A: "
+            f"{cross.status_code} {cross.text[:200]}"
+        )
+
+        # And A's copy is untouched.
+        home = client.get(f"/api/entities/{entity_id}", headers=headers_a)
+        assert home.status_code == 200
+        assert home.json()["canonical_name"] == "Linkable Only At Home"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

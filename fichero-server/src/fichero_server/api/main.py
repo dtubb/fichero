@@ -596,10 +596,29 @@ async def _watch_parent_process() -> None:
 
     parent_pid_str = os.environ.get("FICHERO_PARENT_PID")
     if not parent_pid_str:
+        # #4400: silently doing nothing here made an externally-started engine
+        # IMMORTAL — nothing ever took it down, it held the UDS socket, and it
+        # kept serving hours-old code while the user believed they had
+        # restarted. Refusing to run would break every terminal launch, so the
+        # honest middle is LOUD: say once, at startup, that nobody is watching.
+        # (start_backend.sh now sets FICHERO_PARENT_PID to its invoking shell,
+        # so the ordinary dev launch IS supervised; this fires for bare
+        # uvicorn/python launches only.)
+        logger.warning(
+            "UNSUPERVISED ENGINE: FICHERO_PARENT_PID is not set — this process "
+            "will outlive whatever started it, keep its socket, and keep "
+            "serving the code it loaded at start (#4400). Set "
+            "FICHERO_PARENT_PID=<owner pid> so it exits with its owner."
+        )
         return
     try:
         parent_pid = int(parent_pid_str)
     except ValueError:
+        logger.warning(
+            "UNSUPERVISED ENGINE: FICHERO_PARENT_PID=%r is not a pid — the "
+            "parent watchdog cannot run (#4400).",
+            parent_pid_str,
+        )
         return
 
     while True:
@@ -874,6 +893,22 @@ app.add_middleware(
     expose_headers=["X-Request-ID"],
     max_age=600,
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Every response declares nosniff (#4383).
+
+    ``x-content-type-options: nosniff`` stops a browser second-guessing the
+    declared content type — relevant because the engine serves rendered
+    artifacts and thumbnails to WebKit surfaces, where a sniffed
+    text/html-looking body would otherwise execute. Applied as middleware so
+    every route — including ones added later — carries it; the contract test
+    (test_security_headers_contract.py) FAILS when it is absent, never skips.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
 
 
 @app.middleware("http")
