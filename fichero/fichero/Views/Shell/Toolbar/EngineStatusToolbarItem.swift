@@ -65,8 +65,13 @@ struct EngineStatusToolbarItem: View {
                 Button {
                     showPopover = true
                 } label: {
+                    // #4391: `.secondary` (no colour) alongside an outline
+                    // glyph is what made a HEALTHY connection read as
+                    // disconnected — the problem state gets `.orange` and a
+                    // filled triangle; ready gets its own colour now instead
+                    // of a shrug.
                     Image(systemName: ToolbarSymbols.engineReady)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.green)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")
