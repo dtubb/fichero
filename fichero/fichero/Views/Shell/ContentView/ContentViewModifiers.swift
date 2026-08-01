@@ -1,6 +1,5 @@
 import OSLog
 import SwiftUI
-import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ContentViewModifiers")
 
@@ -108,41 +107,45 @@ struct DropTargetModifiers: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // NSItemProvider-based (#4184), not the Transferable
-            // `.dropDestination(for: URL.self)` this used to be: Transferable
-            // decodes URL via the SAME file-url promise `loadObject(URL.self)`
-            // uses, which Finder drags supply but Mail attachment / Safari
-            // image-or-PDF / in-progress Downloads drags often don't — those
-            // advertise a content UTI only, and only
-            // `loadFileRepresentation(forTypeIdentifier:)` reads them. The
-            // sidebar row drop target solved this for #587; content-pane drops
-            // quietly never had the fix. `ExternalFileDropLoader` is the ONE
-            // shared implementation now — a fix to one drag source lands on
-            // every drop surface, not just the one that happened to hit it.
+            // Transferable API, NOT `.onDrop(of:)` — DELIBERATE, tried and
+            // reverted during #4184 (see e66e1bce1's follow-up review).
+            //
+            // This modifier attaches where `decoratedNavigationSplitColumn`
+            // mounts it (`ContentView+RootLayout.swift`), which wraps the
+            // WHOLE `NavigationSplitView` — sidebar column AND detail column
+            // both, not the content pane alone. `.onDrop(of:)` at a container
+            // this wide risks stealing hit-testing from every nested
+            // clickable row underneath it (sidebar rows in particular,
+            // `SidebarItemRow`'s OWN `.onDrop` is scoped to a single leaf row
+            // and is NOT the same risk). `.dropDestination(for:)` does not
+            // have that history here. Nobody could click-test a live build
+            // when this was reviewed, so the swap was reverted rather than
+            // risk shipping a "fixed drag, broken click" regression — the
+            // exact shape of bug this project keeps a rule against shipping
+            // sight-unseen.
+            //
+            // Net effect: root-level content-pane drops are back to the
+            // narrower Transferable path — Finder drags work (the common
+            // case), but a drag whose provider offers only a content UTI
+            // (Mail attachment / Safari image-or-PDF / in-progress
+            // Downloads, no `public.file-url`) is missed here same as
+            // before #4184. `ExternalFileDropLoader` (the robust
+            // NSItemProvider fallback chain extracted for #4184) still
+            // fixed the SIDEBAR row drop target, which already used
+            // `.onDrop` safely at leaf scope — that part of #4184 stands.
+            // Follow-up: scope a content-pane-only `.onDrop` to
+            // `detailColumn` specifically (not the whole split view) and
+            // verify sidebar hit-testing live before landing it.
+            //
             // Root-level drops are classified in handleFileDrop: `.fichero`
             // packages open/focus a window, everything else still imports to
             // Inbox. The 400 error is readable via LocalizedError so the real
             // backend message surfaces (#598).
-            .onDrop(of: [.item], isTargeted: $isDropTargeted) { providers in
-                guard !providers.isEmpty else { return false }
-                Task {
-                    var urls: [URL] = []
-                    for provider in providers {
-                        if let url = try? await ExternalFileDropLoader.loadAnyFileURL(from: provider) {
-                            urls.append(url)
-                        }
-                    }
-                    guard !urls.isEmpty else { return }
-                    // ponytail: the stable fichero-drop-<uuid> temp copies
-                    // `loadFileRepresentation` produces for non-file-url
-                    // providers aren't swept here — `handleFileDrop`'s import
-                    // Task has no completion signal this closure can await,
-                    // and deleting on a fixed timer risks racing a slow copy.
-                    // The OS temp directory is purged periodically; add real
-                    // cleanup if that turns out not to be good enough.
-                    handleFileDrop(urls)
-                }
+            .dropDestination(for: URL.self) { urls, _ in
+                handleFileDrop(urls)
                 return true
+            } isTargeted: { isTargeted in
+                self.isDropTargeted = isTargeted
             }
             // No full-window import overlay — a folder-of-folders import runs
             // long and the dimmed spinner covered the sidebar so nothing

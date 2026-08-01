@@ -2,17 +2,28 @@
 import XCTest
 
 /// Source-surface tests for #4184 — "drag-and-drop of a PDF doesn't work
-/// from some locations". Root cause: the root content-pane drop target used
-/// SwiftUI's `Transferable`-based `.dropDestination(for: URL.self)`, which
-/// decodes a URL via the SAME `public.file-url` promise `loadObject(URL.self)`
-/// uses. Finder drags supply that promise; Mail attachment drags, Safari
-/// image/PDF drags, and in-progress Downloads items often advertise only a
-/// content UTI (`public.jpeg`, `com.adobe.pdf`) with no file-url promise —
-/// `Transferable` silently drops those. `ExternalFileDropLoader` (extracted
-/// from the sidebar row drop target's #587 fix) falls back to
+/// from some locations". Root cause: SwiftUI's `Transferable`-based
+/// `.dropDestination(for: URL.self)` decodes a URL via the SAME
+/// `public.file-url` promise `loadObject(URL.self)` uses. Finder drags
+/// supply that promise; Mail attachment drags, Safari image/PDF drags, and
+/// in-progress Downloads items often advertise only a content UTI
+/// (`public.jpeg`, `com.adobe.pdf`) with no file-url promise — and are
+/// silently missed. `ExternalFileDropLoader` (extracted from the sidebar
+/// row drop target's #587 fix) falls back to
 /// `loadFileRepresentation(forTypeIdentifier:)` against the provider's own
-/// advertised UTI, which reads them. This was a promise-type problem, not a
-/// drop-target problem — exactly as the issue predicted.
+/// advertised UTI, which reads them.
+///
+/// The root content-pane drop target keeps `.dropDestination(for: URL.self)`
+/// (NOT the robust loader) — DELIBERATELY. `.onDrop(of:)` was tried, but a
+/// review found `DropTargetModifiers` attaches where
+/// `decoratedNavigationSplitColumn` mounts it, wrapping the WHOLE
+/// `NavigationSplitView` (sidebar column included, not just the content
+/// pane) — `.onDrop` at that scope risks stealing hit-testing from every
+/// nested sidebar row. Nobody could click-test a live build to rule that
+/// out, so the swap was reverted. The sidebar row's OWN `.onDrop` (a single
+/// leaf view, not a container wrapping other clickable rows) is a
+/// different, already-safe case and is UNCHANGED — that's what these
+/// tests lock.
 final class ExternalDropPromiseTypeTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
@@ -33,20 +44,23 @@ final class ExternalDropPromiseTypeTests: XCTestCase {
         XCTAssertTrue(source.contains("for identifier in utis"))
     }
 
-    func testContentPaneDropUsesTheSharedLoaderNotTransferable() throws {
+    func testContentPaneDropStaysOnTransferableForHitTestingSafety() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentViewModifiers.swift")
-        // The weak Transferable path is gone from the root drop target.
-        XCTAssertFalse(source.contains(".dropDestination(for: URL.self)"))
-        // Replaced with the NSItemProvider path sharing the sidebar's fix.
-        XCTAssertTrue(source.contains(".onDrop(of: [.item], isTargeted: $isDropTargeted)"))
-        XCTAssertTrue(source.contains("ExternalFileDropLoader.loadAnyFileURL(from: provider)"))
+        // .onDrop at this container scope was tried and reverted — see the
+        // comment on DropTargetModifiers for why. Locks the revert so a
+        // future edit doesn't silently reintroduce the risk without the
+        // live click-test that would justify it.
+        XCTAssertTrue(source.contains(".dropDestination(for: URL.self)"))
+        XCTAssertFalse(source.contains(".onDrop(of: [.item]"))
+        // The reasoning must stay attached to the code, not just this test.
+        XCTAssertTrue(source.contains("hit-testing from every"))
     }
 
     func testSidebarRowDropDelegatesToTheSameSharedLoader() throws {
         // Locks the dedup: the sidebar row's own #587 fix now calls the
         // shared implementation instead of keeping a private copy that
-        // could drift from the content-pane's (#4184's root cause pattern —
-        // "three implementations of one action" — one step closer to zero).
+        // could drift. The row's `.onDrop` itself is unchanged — still a
+        // single leaf view's own drop target, the safe case.
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+DropHandlers.swift")
         XCTAssertTrue(source.contains("try await ExternalFileDropLoader.loadAnyFileURL(from: provider)"))
         XCTAssertFalse(source.contains("private static func loadFileRepresentation"))
