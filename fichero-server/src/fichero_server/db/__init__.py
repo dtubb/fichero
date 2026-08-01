@@ -313,12 +313,30 @@ def _is_content_marker_only(text: str) -> bool:
 
 
 def _fold_for_search(text: str) -> str:
-    """Normalise text for accent-insensitive substring search.
+    """Normalise text for accent/diacritic-insensitive substring MATCHING.
 
-    Decomposes via Unicode NFD, drops combining marks (category Mn), and
-    lowercases. Result: 'Quibdó' → 'quibdo', 'CAFÉ' → 'cafe', 'español'
-    → 'espanol'. Critical for the Spanish + Latin manuscript corpus where
-    queries are typed ASCII but the page_content is full diacritic.
+    The fold, stated explicitly (#4363): ``casefold`` → ``NFKD`` → drop
+    combining marks (category Mn). Applied symmetrically to the query and to
+    the content AT MATCH TIME ONLY — the stored text keeps every mark
+    exactly as transcribed (folding storage would destroy evidence of what
+    the document says; see the diplomatic/normalized split, #3312).
+
+    Why each step:
+    * ``casefold`` not ``lower`` — Greek final sigma (ς) folds to σ, German
+      ß to ss; ``lower`` does neither, so 'ΧΟΧΌΣ'-style queries missed.
+    * ``NFKD`` not ``NFD`` — compatibility decomposition also folds CJK
+      full-width forms (ａ→a), ligatures (ﬁ→fi) and Arabic presentation
+      forms toward their base letters; NFD left all of those unmatchable
+      from an ordinary keyboard. NFC-vs-NFD input differences vanish under
+      either, so normalization-form insensitivity is preserved.
+    * Mn-strip — 'Quibdó' → 'quibdo', 'CAFÉ' → 'cafe', typed-ASCII queries
+      match full-diacritic transcription, which is the corpus's daily case.
+
+    Declared limitation, decided rather than pretended away: Turkish dotless
+    ı folds to itself. Equating i/ı needs locale knowledge a corpus-wide
+    fold does not have, and folding them together would corrupt matching for
+    every other language. (İ does fold to i: casefold yields i+combining
+    dot, and the Mn-strip removes the dot.)
 
     Stable + fast (no compilation, no regex). Pure-string in/out so it
     composes with pandas `str.contains` and any other str path.
@@ -326,8 +344,10 @@ def _fold_for_search(text: str) -> str:
     if not text:
         return ""
     return "".join(
-        c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
-    ).lower()
+        c
+        for c in unicodedata.normalize("NFKD", text.casefold())
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 class SearchExecutionError(RuntimeError):
@@ -383,14 +403,21 @@ class SearchResult:
 
 
 def _fold_with_index(text: str) -> tuple[str, list[int]]:
-    """Fold text for accent-insensitive matching while keeping original offsets."""
+    """Fold text for accent-insensitive matching while keeping original offsets.
+
+    THE SAME fold as ``_fold_for_search`` (casefold → NFKD → Mn-strip), built
+    per original character so every folded char maps back to the index it
+    came from — a fold that shifted offsets would point highlights at the
+    wrong characters (#4363). One-to-many expansions (ß→ss, ﬁ→fi) map every
+    produced char to the one original index.
+    """
     folded_chars: list[str] = []
     index_map: list[int] = []
     for original_index, char in enumerate(text):
-        for folded_char in unicodedata.normalize("NFD", char):
+        for folded_char in unicodedata.normalize("NFKD", char.casefold()):
             if unicodedata.category(folded_char) == "Mn":
                 continue
-            folded_chars.append(folded_char.lower())
+            folded_chars.append(folded_char)
             index_map.append(original_index)
     return "".join(folded_chars), index_map
 
