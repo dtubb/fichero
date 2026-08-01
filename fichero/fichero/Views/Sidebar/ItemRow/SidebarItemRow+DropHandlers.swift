@@ -70,7 +70,12 @@ extension SidebarItemRow {
     /// for the provider's advertised UTIs (#4184: extracted to
     /// `ExternalFileDropLoader` so the root content-pane drop target
     /// shares the SAME fallback chain instead of a weaker one).
-    static func loadAnyFileURL(from provider: NSItemProvider) async throws -> URL {
+    /// `nonisolated` is load-bearing: `SidebarItemRow` is a View, so its
+    /// statics inherit @MainActor, while `ExternalFileDropLoader` is a plain
+    /// enum and is not isolated. Handing a non-Sendable `NSItemProvider`
+    /// across that boundary is a data race — and the boundary only appeared
+    /// when #4184 extracted the loader out of this type.
+    nonisolated static func loadAnyFileURL(from provider: NSItemProvider) async throws -> URL {
         try await ExternalFileDropLoader.loadAnyFileURL(from: provider)
     }
 
