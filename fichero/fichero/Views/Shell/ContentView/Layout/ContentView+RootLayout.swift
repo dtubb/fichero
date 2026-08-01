@@ -105,6 +105,23 @@ extension ContentView {
     private var detailColumn: some View {
         detailShellColumn
             .toolbar { detailToolbarContent }
+            // #4458: the content-pane-only supplementary drop path, scoped
+            // to `detailColumn` specifically — never the sidebar, which
+            // `DropTargetModifiers`'s `.dropDestination` (still applied at
+            // the whole-split-view level, see `ContentViewModifiers.swift`)
+            // continues to cover for the common Finder-drag case. `.background`
+            // (not `.overlay`): AppKit resolves an ambiguous drag destination
+            // front-to-back, so anything already registered in FRONT of this
+            // (a folder cell's own `.dropDestination`, #4124) keeps priority.
+            // See `ContentDropTargetView`'s own doc comment for the
+            // hit-test-safety argument.
+            #if os(macOS)
+            .background {
+                ContentDropTargetView { providers in
+                    handleContentPaneExternalDrop(providers)
+                }
+            }
+            #endif
             // The detail column carries only a MODEST hard floor — the
             // always-present library-list spine width — NOT the full
             // per-layout `paneAwareDetailMinWidth`. The full content

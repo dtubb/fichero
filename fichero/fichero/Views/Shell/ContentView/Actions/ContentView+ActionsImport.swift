@@ -70,6 +70,36 @@ extension ContentView {
 
     // MARK: - File Import
 
+    /// The content-pane's NSItemProvider path (#4458) — resolves providers
+    /// via the SAME `ExternalFileDropLoader` the sidebar row drop target
+    /// uses (#4184: one loader, not two), then hands the resolved URLs to
+    /// the SAME `handleFileDrop` the Finder-drag `.dropDestination` path
+    /// already calls. This is the supplementary path for content-UTI-only
+    /// providers (Mail attachments, Safari image/PDF drags, in-progress
+    /// Downloads) that `.dropDestination(for: URL.self)` misses — it does
+    /// not replace that path, which stays the proven-safe route for the
+    /// common Finder-drag case.
+    func handleContentPaneExternalDrop(_ providers: [NSItemProvider]) {
+        Task {
+            var urls: [URL] = []
+            for provider in providers {
+                if let url = try? await ExternalFileDropLoader.loadAnyFileURL(from: provider) {
+                    urls.append(url)
+                }
+            }
+            guard !urls.isEmpty else {
+                logger.warning("Content-pane drop: all provider loads failed — import won't fire")
+                await MainActor.run {
+                    importError = "Couldn't read the dropped item(s). Nothing was imported."
+                }
+                return
+            }
+            await MainActor.run {
+                handleFileDrop(urls: urls)
+            }
+        }
+    }
+
     func handleFileDrop(urls: [URL]) {
         logger.info("Files dropped: \(urls.map { $0.lastPathComponent })")
 
