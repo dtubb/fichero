@@ -153,9 +153,10 @@ def _sweep_abandoned_pytest_basetemps(
 
     * ``.lock`` naming a LIVE pid → never touched (a concurrent lane's run).
     * ``.lock`` naming a dead pid → removed NOW (killed run cannot leak).
-    * lockless (finished) → newest ``keep_lockless`` kept, older removed —
-      with ``tmp_path_retention_policy=failed`` the newest holds only failing
-      tests' dirs, which is exactly the ONE a failing run may keep.
+    * lockless (finished) → newest ``keep_lockless`` kept, older removed
+      (``tmp_path_retention_count=1`` bounds what pytest itself retains; the
+      retention POLICY stays "all" — see pyproject.toml for why "failed"
+      breaks path-keyed caches via tmp-dir name reuse).
     * lockless dirs younger than ``min_lockless_age_s`` are skipped: pytest
       creates the dir a moment before writing its lock, and a starting
       concurrent run must not lose that race.
@@ -675,9 +676,8 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     project keeps hitting. So the count and its issues are printed at the end
     of EVERY run, in red, whether or not anything failed.
     """
-    # #4434: a failing run retains its basetemp (tmp_path_retention_policy=
-    # failed) — say WHERE, so nobody has to hunt /var/folders under time
-    # pressure. The next run's startup sweep removes all but the newest.
+    # #4434: a failing run's basetemp survives until the next run's sweep —
+    # say WHERE, so nobody has to hunt /var/folders under time pressure.
     if exitstatus:
         try:
             basetemp = config._tmp_path_factory.getbasetemp()  # noqa: SLF001

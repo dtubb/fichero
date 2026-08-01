@@ -202,8 +202,8 @@ class TestPytestBasetempSweep:
         assert live.exists(), "the sweep deleted a LIVE run's basetemp"
 
     def test_lockless_dirs_keep_only_the_newest(self, tmp_path):
-        """Finished runs: ONE most-recent may stay (the retained failed run,
-        tmp_path_retention_policy=failed); everything older goes."""
+        """Finished runs: ONE most-recent may stay (the retained run,
+        tmp_path_retention_count=1); everything older goes."""
         conftest = _conftest_module()
         base = tmp_path / "pytest-of-user"
         oldest = _run_dir(base, "pytest-1", age_s=7200)

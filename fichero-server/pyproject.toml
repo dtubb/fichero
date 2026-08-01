@@ -290,11 +290,20 @@ dev = [
 # fichero-mcp/pyproject.toml. The server package ships no CLI.
 
 [tool.pytest.ini_options]
-# #4434: a passing run leaves nothing, a failing run keeps ONE basetemp.
-# tests/conftest.py's startup sweep covers the third case pytest cannot —
-# a SIGKILLed run (the gate watchdog) that never reaches session cleanup.
+# #4434: at most ONE retained basetemp; tests/conftest.py's startup sweep
+# covers the case pytest cannot — a SIGKILLed run (the gate watchdog) that
+# never reaches session cleanup.
+#
+# retention_policy stays "all" DELIBERATELY: "failed" deletes a passed test's
+# tmp dir at its own teardown, which frees the numbered dir name — the next
+# test (e.g. the next parametrize case) then gets the SAME absolute path, and
+# every path-keyed process cache (db_manager, get_activity_tracker) hands it
+# a stale handle to a deleted DuckDB ("Table workflow_runs does not exist").
+# Found the hard way: one flaky 500 in test_routes_workflow_execution under
+# the full run, green standalone. "A passing run leaves nothing" is enforced
+# ACROSS runs instead: retention_count=1 + the startup sweep keep steady
+# state at one directory.
 tmp_path_retention_count = "1"
-tmp_path_retention_policy = "failed"
 markers = [
     "asyncio: mark async tests that run with the asyncio event loop",
     "anyio: mark async tests compatible with anyio backends",
