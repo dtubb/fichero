@@ -236,6 +236,9 @@ def pytest_sessionstart(session):  # noqa: ARG001
     """Optionally arm faulthandler to dump all Python stacks on a hung suite."""
     global _deadlock_dump_armed
 
+    if _ratchet_enabled():
+        _verify_query_counting_wired()
+
     timeout = _deadlock_dump_timeout_seconds()
     if timeout is None:
         _deadlock_dump_armed = False
@@ -592,30 +595,112 @@ def pytest_runtest_logreport(report):
     perf_ratchet.note_test_duration(report.nodeid, report.duration)
 
 
+# ---------------------------------------------------------------------------
+# Query-count ratchet: every request is counted, held EXACTLY (#4443)
+# ---------------------------------------------------------------------------
+#
+# The same idea as the timing ratchet above, and the same opt-in
+# (FICHERO_PERF_RATCHET=1) — no test names itself, any test that exercises an
+# endpoint through `client`/TestClient contributes its count automatically.
+#
+# A rise IS the diagnosis, not a hint: a timing says "this got slower" and
+# leaves you to find out why; a count says "this endpoint went from 3 queries
+# to 47" — the answer, not a symptom. It is also held EXACTLY, with no
+# TOLERANCE and no NOISE_FLOOR (see perf_ratchet.flush_query_session): a query
+# count does not care that the machine was busy.
+
+_QUERY_RATCHET_BLIND_EXITCODE = 4
+
+
+@app.middleware("http")
+async def _count_queries_per_request(request, call_next):
+    """Hold each endpoint's SQL query count to its best-ever, exactly."""
+    if not _ratchet_enabled():
+        return await call_next(request)
+
+    from fichero_server.core.duckdb_session import get_query_count, reset_query_count
+
+    reset_query_count()
+    response = await call_next(request)
+    # Populated by Starlette's router once the request has been matched; None
+    # for a 404 with no matching route, which has nothing to ratchet.
+    route = request.scope.get("route")
+    if route is not None:
+        import perf_ratchet
+
+        perf_ratchet.note_query_count(
+            f"queries.{request.method}.{route.path}", get_query_count()
+        )
+    return response
+
+
+def _verify_query_counting_wired() -> None:
+    """The counter itself must work, or "0 regressions" this session is a lie.
+
+    A guardrail must know when it has gone blind (AGENTS.md rule 0): the
+    dangerous failure isn't a missing baseline, it's a counting mechanism that
+    silently stopped counting. Every request would then report 0 queries,
+    every endpoint would "tighten" to 0, and the ratchet would pass forever
+    while catching nothing — indistinguishable from a genuinely clean run. So
+    before trusting anything this session records, prove the wrap in
+    `duckdb_session.connect_utc` still counts one known query, and abort with
+    a DISTINCT exit code (not the regression one) if it does not.
+    """
+    from fichero_server.core.duckdb_session import self_test_counting
+
+    if self_test_counting() < 1:
+        pytest.exit(
+            "Query-count ratchet is BLIND: a known SELECT was not counted. "
+            "The wrap in fichero_server.core.duckdb_session.connect_utc is "
+            "broken — fix it before trusting any '0 regressions' from this "
+            "run. This is a distinct exit code because 'I could not count' "
+            "is not the same claim as 'no regression'.",
+            returncode=_QUERY_RATCHET_BLIND_EXITCODE,
+        )
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Compare everything once, tighten what improved, report what regressed."""
     if not _ratchet_enabled():
         return
     import perf_ratchet
 
-    regressions = perf_ratchet.flush_session()
-    if not regressions:
+    regressions = list(perf_ratchet.flush_session())
+    query_regressions = list(perf_ratchet.flush_query_session())
+    if not regressions and not query_regressions:
         return
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     if reporter is not None:
         reporter.write_sep("=", "PERFORMANCE REGRESSIONS", red=True)
         for line in regressions:
             reporter.write_line(f"  {line}")
-        reporter.write_line("")
-        reporter.write_line(
-            "  Each is slower than its own best-ever time. Fichero is meant to get"
-        )
-        reporter.write_line(
-            "  faster, so a slower run is a decision: re-run on a quiet machine, or"
-        )
-        reporter.write_line(
-            "  raise the entry in tests/perf_baseline.json and say what bought the time."
-        )
+        if regressions:
+            reporter.write_line("")
+            reporter.write_line(
+                "  Each is slower than its own best-ever time. Fichero is meant to get"
+            )
+            reporter.write_line(
+                "  faster, so a slower run is a decision: re-run on a quiet machine, or"
+            )
+            reporter.write_line(
+                "  raise the entry in tests/perf_baseline.json and say what bought the time."
+            )
+        for line in query_regressions:
+            reporter.write_line(f"  {line}")
+        if query_regressions:
+            reporter.write_line("")
+            reporter.write_line(
+                "  Each endpoint issued more SQL queries than its own best-ever run —"
+            )
+            reporter.write_line(
+                "  held EXACTLY, since a query count does not vary with machine load."
+            )
+            reporter.write_line(
+                "  Usually an N+1: a loop issuing one query per row instead of one total."
+            )
+            reporter.write_line(
+                "  If accepted, raise the entry in tests/perf_baseline.json and say why."
+            )
     # Exit code 3 = "tests passed, performance did not." Distinguishable from a
     # test failure, because it needs a different response.
     if exitstatus == 0:

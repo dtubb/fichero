@@ -253,3 +253,111 @@ class TestEveryTestIsTimed:
             _history.note_test_duration(f"tests/x.py::test_{i}", 0.100)
         _history.flush_session()
         assert len(calls) == 1, f"expected one atomic write, got {len(calls)}"
+
+
+def _best_count(path: Path, name: str) -> int:
+    return json.loads(path.read_text(encoding="utf-8"))[name]["count"]
+
+
+class TestTheQueryCountRatchet:
+    """#4443: a count, held to its best-ever EXACTLY — no TOLERANCE, no
+    NOISE_FLOOR. Everything here synthesises its own baseline via `ratchet`
+    (a throwaway tmp file), never borrows one from the real
+    perf_baseline.json."""
+
+    @pytest.fixture(autouse=True)
+    def _clear(self):
+        _history._query_session.clear()
+        yield
+        _history._query_session.clear()
+
+    def test_a_first_run_sets_the_baseline(self, ratchet):
+        _history.note_query_count("queries.GET./api/documents", 3)
+        assert _history.flush_query_session() == []
+        assert _best_count(ratchet, "queries.GET./api/documents") == 3
+
+    def test_a_higher_count_is_a_regression_even_by_one(self, ratchet):
+        """No jitter allowance: unlike a timing, one extra query is never
+        explained by a busy machine, so it must fail outright."""
+        _history.note_query_count("queries.GET./api/documents", 3)
+        _history.flush_query_session()
+        _history.note_query_count("queries.GET./api/documents", 4)
+        regressions = _history.flush_query_session()
+        assert len(regressions) == 1
+        assert "4 queries vs best 3" in regressions[0]
+        # And the regression must not become the new baseline.
+        assert _best_count(ratchet, "queries.GET./api/documents") == 3
+
+    def test_the_defect_this_catches_an_n_plus_one(self, ratchet):
+        """The motivating case: an endpoint that goes from a handful of
+        queries to one-per-row still returns 200 and passes every assertion —
+        only the count says what happened."""
+        _history.note_query_count("queries.GET./api/entities", 3)
+        _history.flush_query_session()
+        _history.note_query_count("queries.GET./api/entities", 47)
+        regressions = _history.flush_query_session()
+        assert "47 queries vs best 3" in regressions[0]
+
+    def test_a_lower_count_tightens_the_bar(self, ratchet):
+        _history.note_query_count("queries.GET./api/documents", 10)
+        _history.flush_query_session()
+        _history.note_query_count("queries.GET./api/documents", 4)
+        assert _history.flush_query_session() == []
+        assert _best_count(ratchet, "queries.GET./api/documents") == 4
+
+    def test_the_tightened_bar_is_then_enforced(self, ratchet):
+        _history.note_query_count("queries.GET./api/documents", 10)
+        _history.flush_query_session()
+        _history.note_query_count("queries.GET./api/documents", 4)
+        _history.flush_query_session()
+        _history.note_query_count("queries.GET./api/documents", 9)  # was fine before
+        regressions = _history.flush_query_session()
+        assert "9 queries vs best 4" in regressions[0]
+
+    def test_an_equal_count_is_not_a_regression_and_does_not_rewrite(self, ratchet):
+        _history.note_query_count("queries.GET./api/documents", 5)
+        _history.flush_query_session()
+        _history.note_query_count("queries.GET./api/documents", 5)
+        assert _history.flush_query_session() == []
+        assert _best_count(ratchet, "queries.GET./api/documents") == 5
+
+    def test_multiple_hits_in_one_session_are_judged_on_the_fewest(self, ratchet):
+        """Different tests hit the same endpoint with different fixtures —
+        judged on the fewest queries it was capable of, like the timing
+        ratchet's fastest-of-session rule."""
+        _history.note_query_count("queries.GET./api/documents", 8)
+        _history.note_query_count("queries.GET./api/documents", 3)
+        _history.note_query_count("queries.GET./api/documents", 6)
+        assert _history.flush_query_session() == []
+        assert _best_count(ratchet, "queries.GET./api/documents") == 3
+
+    def test_each_endpoint_keeps_its_own_bar(self, ratchet):
+        _history.note_query_count("queries.GET./api/documents", 3)
+        _history.note_query_count("queries.POST./api/documents", 20)
+        assert _history.flush_query_session() == []
+        assert _best_count(ratchet, "queries.GET./api/documents") == 3
+        assert _best_count(ratchet, "queries.POST./api/documents") == 20
+
+    def test_nothing_recorded_writes_nothing(self, ratchet):
+        assert _history.flush_query_session() == []
+        assert not ratchet.exists()
+
+    def test_the_no_history_escape_hatch_records_nothing(self, ratchet, monkeypatch):
+        _history.note_query_count("queries.GET./api/documents", 3)
+        _history.flush_query_session()
+        monkeypatch.setenv("FICHERO_PERF_NO_HISTORY", "1")
+        _history.note_query_count("queries.GET./api/documents", 99)
+        assert _history.flush_query_session() == []
+        assert _best_count(ratchet, "queries.GET./api/documents") == 3
+
+    def test_a_timing_entry_and_a_count_entry_share_the_baseline_file(self, ratchet):
+        """Same file, different value shapes ("ms" vs "count") — a timing
+        entry must not confuse the count loader, and vice versa."""
+        _seed(ratchet, "some.timing", 100.0)
+        _history.note_query_count("queries.GET./api/documents", 3)
+        assert _history.flush_query_session() == []
+        data = json.loads(ratchet.read_text(encoding="utf-8"))
+        assert data["some.timing"]["ms"] == 100.0
+        assert data["queries.GET./api/documents"]["count"] == 3
+        # The count loader must not see the timing entry as a count baseline.
+        assert "some.timing" not in _history._load_count_baseline()

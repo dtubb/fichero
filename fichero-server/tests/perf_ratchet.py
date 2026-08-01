@@ -323,3 +323,98 @@ def flush_session() -> list[str]:
         os.replace(tmp, BASELINE_PATH)
 
     return regressions
+
+
+# ---------------------------------------------------------------------------
+# Query-count ratchet: the same idea, held EXACTLY (#4443)
+# ---------------------------------------------------------------------------
+#
+# A timing needs TOLERANCE and a NOISE_FLOOR because a busy machine genuinely
+# produces a slower number for identical work. A SQL query count does not: the
+# same request against the same code issues the same number of queries
+# whether the machine is quiet or thrashing under an Xcode build. So this
+# ratchet has none of that — a count that rises by even one query is a
+# regression, full stop, because nothing about the environment can explain it
+# away. That is also why it needs no `measure()`-style timer: `count` is
+# supplied already-computed (see `fichero_server.core.duckdb_session`, which
+# counts `execute`/`executemany` calls on the one chokepoint every server
+# connection is created through).
+#
+# Same baseline file as the timing ratchet — the measurement name is the
+# identity either way, and a "count" entry can't collide with an "ms" entry
+# because each measurement name is used for only one kind of value.
+
+_query_session: dict[str, int] = {}
+
+
+def _load_count_baseline() -> dict[str, int]:
+    if not BASELINE_PATH.exists():
+        return {}
+    try:
+        data = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        raise AssertionError(
+            f"{BASELINE_PATH} is not valid JSON. The query-count ratchet cannot "
+            f"run without it — restore it from git rather than deleting it."
+        ) from None
+    return {k: int(v["count"]) for k, v in data.items() if isinstance(v, dict) and "count" in v}
+
+
+def note_query_count(name: str, count: int) -> None:
+    """Remember one request's SQL query count. Cheap: a dict write.
+
+    `name` is `queries.<method>.<route>` — the endpoint's stable identity.
+    Multiple hits to the same endpoint in one session (different tests,
+    different fixture sizes) are judged on the FEWEST queries it was capable
+    of, same "best-ever" semantics as the timing ratchet: correct, query-count
+    stable code issues the same count regardless of row count, so this only
+    ever picks up real variation when the count is not actually stable — e.g.
+    an N+1 whose count depends on how many rows a particular test seeded.
+    """
+    key = name
+    if count < _query_session.get(key, float("inf")):
+        _query_session[key] = count
+
+
+def flush_query_session() -> list[str]:
+    """Compare every recorded endpoint once, tighten what improved, write once.
+
+    Returns human-readable regression lines — empty when all is well. No
+    TOLERANCE, no NOISE_FLOOR: `count > best` is always a regression here.
+    """
+    entries = dict(_query_session)
+    _query_session.clear()
+    if not entries or os.environ.get("FICHERO_PERF_NO_HISTORY") == "1":
+        return []
+
+    baseline = _load_count_baseline()
+    commit = _commit()
+    regressions: list[str] = []
+    data: dict = {}
+    if BASELINE_PATH.exists():
+        try:
+            data = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = {}
+
+    changed = False
+    for name, count in sorted(entries.items()):
+        best = baseline.get(name)
+        if best is None:
+            data[name] = {"count": count, "commit": commit, "note": "first recorded run"}
+            changed = True
+        elif count > best:
+            regressions.append(f"{name}: {count} queries vs best {best}")
+        elif count < best:
+            data[name] = {
+                "count": count, "commit": commit,
+                "note": f"tightened from {best} queries",
+            }
+            changed = True
+
+    if changed:
+        tmp = BASELINE_PATH.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, BASELINE_PATH)
+
+    return regressions
