@@ -105,6 +105,32 @@ struct SidebarDragID: Transferable {
     }
 
     static var transferRepresentation: some TransferRepresentation {
+        // In-process id flavor — the sidebar move pipeline's payload
+        // (#623/#711). FIRST, and it must stay first (#4401).
+        //
+        // It used to be last, so that "external consumers prefer the real
+        // representations above instead of a doc:<uuid> clipping". That
+        // reasoning does not apply to THIS representation: `.ownProcess`
+        // visibility already hides it from every other application, so no
+        // external consumer can see it at any position. Ordering therefore only
+        // decides what OUR OWN reader gets — and it was deciding wrong.
+        //
+        // `handleRowDrop` identifies an internal drag positively, by asking each
+        // provider for a string (#4401). `loadObject(ofClass: NSString.self)`
+        // returns the FIRST representation an NSString can be made from, and the
+        // transcript below is also `utf8PlainText`. So for any document with a
+        // transcript — `exportsText` is `!transcript.isEmpty`, i.e. every
+        // transcribed document, which is the whole Marshall corpus — the reader
+        // got the TRANSCRIPT, never found an id, classified the drag
+        // `.unreadableInternal`, and refused the move.
+        //
+        // That failed safe: nothing was duplicated and the refusal was visible.
+        // But it meant transcribed documents could not be filed at all, which is
+        // the ordinary act of organising a library. Putting the id first makes
+        // the in-process read unambiguous while leaving the cross-app export
+        // below exactly as it was.
+        ProxyRepresentation(exporting: \.id)
+            .visibility(.ownProcess)
         // Cross-app, best-first: a real copy of the source file (fetched via
         // the storage HTTP endpoints — the engine may be remote, NEVER a
         // local path), then the transcript as RTF for text editors.
@@ -123,11 +149,6 @@ struct SidebarDragID: Transferable {
             Data(item.transcript.utf8)
         }
         .exportingCondition { $0.exportsText }
-        // In-process id flavor — the sidebar move pipeline's payload,
-        // unchanged (#623/#711). LAST so external consumers prefer the
-        // real representations above instead of a "doc:<uuid>" clipping.
-        ProxyRepresentation(exporting: \.id)
-            .visibility(.ownProcess)
     }
 
     /// Transcript → RTF bytes for rich-text pasteboard consumers.
