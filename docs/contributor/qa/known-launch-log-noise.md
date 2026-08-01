@@ -2,12 +2,12 @@
 
 Fichero embeds a WKWebView (the Knowledge Graph pane) and runs sandboxed on
 macOS, both of which produce a predictable set of system-level Console
-messages on launch and first reader/KG use. None of the four patterns below
+messages on launch and first reader/KG use. None of the five patterns below
 are app bugs — each is standard macOS/WebKit framework behavior that appears
 for effectively any sandboxed app in the same situation, not something
 Fichero's code path triggers or can silence from the app side.
 
-Filed as #3378–#3381 ("Log Errors" milestone) asking for exactly this
+Filed as #3378–#3381, #3383 ("Log Errors" milestone) asking for exactly this
 classification. Recorded here rather than left as four open "investigate"
 issues, so the next log sweep doesn't re-open the same question.
 
@@ -74,3 +74,22 @@ profile unless the hosting app explicitly opts in — Fichero's KG pane does
 not need clipboard or LaunchServices access from inside the renderer, so
 these are the sandbox correctly denying capabilities nothing asked for, the
 same chatter any app embedding `WKWebView` sees.
+
+## WebKit resource/network sandbox noise in reader views (#3383)
+
+```
+WebContent Unable to filter tracking query parameters (missing data)
+networkd_settings_read_from_file Sandbox is preventing this process from reading /Library/Preferences/com.apple.networkd.plist
+AudioComponentRegistrar connection invalidated: Operation not permitted
+Unable to hide query parameters from script (missing data)
+nw_path_necp_check_for_updates Failed to copy updated result (22)
+```
+
+Same family as #3381: the sandboxed `WebContent` process is denied reading
+system-wide `networkd`/audio-registrar preference files it has no
+entitlement for, and its built-in tracking-query-parameter filter (a WebKit
+privacy feature, not something the KG pane configures) has nothing to work
+with over the app's own local-engine scheme handler, which is what "missing
+data" reports. None of this reflects a request Fichero's code made — every
+line is WebKit's own subsystems probing capabilities the sandbox correctly
+withholds from a renderer process, the same for any WKWebView-embedding app.
