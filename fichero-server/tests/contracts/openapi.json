@@ -19828,7 +19828,7 @@
           "workflows"
         ],
         "summary": "List Workflows",
-        "description": "List saved workflows, optionally filtered by folder.\n\nWhen ``folder_path`` is omitted, all workflows are returned regardless\nof folder. Pass an explicit value (e.g. \"/Catalogue\") to filter.",
+        "description": "List saved workflows, optionally filtered by folder.\n\nWhen ``folder_path`` is omitted, all workflows are returned regardless\nof folder. Pass an explicit value (e.g. \"/Catalogue\") to filter.\n\n#4450: a non-global library's list additionally includes the shipped\nDEFAULT workflows resolved from the global library (#4102) \u2014 defaults\nare app-level and must be offered in every library, while user-authored\nworkflows stay scoped to the library that created them.",
         "operationId": "list_workflows_api_workflows_get",
         "parameters": [
           {
@@ -20034,7 +20034,7 @@
           "workflows"
         ],
         "summary": "Get Workflow",
-        "description": "Get a saved workflow by ID.",
+        "description": "Get a saved workflow by ID (falls back to global defaults, #4450).",
         "operationId": "get_workflow_api_workflows__workflow_id__get",
         "parameters": [
           {

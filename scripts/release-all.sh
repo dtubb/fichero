@@ -297,6 +297,27 @@ ENGINE_APP="$ROOT_DIR/fichero-server/build/fichero_server/macos/app/Fichero Serv
 
 if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   if [ -d "$ENGINE_APP" ]; then
+    # App Store Connect rejects an UNDERSCORE in a bundle identifier: only
+    # alphanumerics, hyphen and period are legal (error 90277, "not a valid
+    # bundle identifier"). Briefcase derives the helper id from its app KEY,
+    # `fichero_server`, giving app.fichero.fichero.fichero_server.
+    #
+    # Renaming that key would move build/fichero_server/ and break six scripts
+    # plus the Xcode project's embedded-engine build phase, so the id is
+    # rewritten here instead — AFTER briefcase builds, BEFORE any signing, so
+    # the signature covers the corrected identity.
+    #
+    # The DMG path never checks this; only App Store Connect does, which is why
+    # the wrong id shipped happily for as long as we only cut DMGs.
+    ENGINE_PLIST="$ENGINE_APP/Contents/Info.plist"
+    if [ -f "$ENGINE_PLIST" ]; then
+      CURRENT_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ENGINE_PLIST" 2>/dev/null || echo "")"
+      LEGAL_ID="$(printf '%s' "$CURRENT_ID" | tr '_' '-')"
+      if [ -n "$LEGAL_ID" ] && [ "$CURRENT_ID" != "$LEGAL_ID" ]; then
+        /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $LEGAL_ID" "$ENGINE_PLIST"
+        echo "  engine bundle id: $CURRENT_ID -> $LEGAL_ID (underscores are illegal in a bundle id)"
+      fi
+    fi
     echo "  Cleaning embedded engine bundle for App Store distribution"
     if [ "$RUN_MAC_TESTFLIGHT" = true ]; then
       FICHERO_CODESIGN_IDENTITY="$MAC_APP_STORE_SIGNING_CERT" \
