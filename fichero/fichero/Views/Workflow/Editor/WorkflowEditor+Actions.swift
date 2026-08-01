@@ -248,7 +248,7 @@ extension WorkflowEditor {
         Task { @MainActor in
             let settled = await workflowStreamService.settleAfterStreamEnd(threadId: threadId)
             completion.finish(
-                reconciled: settled.map { WorkflowExecutionStore.workflowStatus(from: $0.status) }
+                reconciled: settled.map { WorkflowExecution.workflowStatus(from: $0.status) }
             )
         }
     }
