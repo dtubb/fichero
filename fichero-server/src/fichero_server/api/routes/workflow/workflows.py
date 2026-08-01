@@ -549,6 +549,25 @@ def _workflow_rows_for_list(
     return db.workflow_rows_for_list(folder_path)
 
 
+def _get_workflow_or_default(db: Database, workflow_id: str) -> "Workflow | None":  # noqa: F821
+    """Resolve a workflow id in this library, else as a global DEFAULT.
+
+    #4450: defaults live only in the global library (#4102), so read paths
+    must fall back there or every default 404s in a non-global library.
+    Only ``is_system`` rows resolve cross-library — a user workflow belongs
+    to the library that created it. Mutating routes (update/patch/delete)
+    deliberately do NOT use this fallback: a default is read-only everywhere,
+    and a user workflow from another library must stay invisible.
+    """
+    from fichero_server.models import Workflow
+    from fichero_server.workflows.default_workflows import resolve_default_workflow
+
+    workflow = db.get(Workflow, workflow_id)
+    if workflow is not None:
+        return workflow
+    return resolve_default_workflow(workflow_id)
+
+
 @router.post("")
 async def create_workflow(
     workflow: WorkflowDef,
@@ -712,9 +731,7 @@ async def export_workflow(
 ) -> WorkflowExportResponse:
     """Export a workflow as JSON data for sharing/importing."""
     try:
-        from fichero_server.models import Workflow
-
-        workflow = db.get(Workflow, workflow_id)
+        workflow = _get_workflow_or_default(db, workflow_id)
         if not workflow:
             raise HTTPException(
                 status_code=404, detail=f"Workflow not found: {workflow_id}"
@@ -781,14 +798,32 @@ async def reinstall_default_workflows(
 async def list_workflows(
     folder_path: str | None = None,
     db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
 ) -> WorkflowListResponse:
     """List saved workflows, optionally filtered by folder.
 
     When ``folder_path`` is omitted, all workflows are returned regardless
     of folder. Pass an explicit value (e.g. "/Catalogue") to filter.
+
+    #4450: a non-global library's list additionally includes the shipped
+    DEFAULT workflows resolved from the global library (#4102) — defaults
+    are app-level and must be offered in every library, while user-authored
+    workflows stay scoped to the library that created them.
     """
     try:
+        from fichero_server.db.paths import is_global_library_package
+        from fichero_server.workflows.default_workflows import (
+            list_global_default_workflows,
+        )
+
         workflows = _workflow_rows_for_list(db, folder_path)
+        if not is_global_library_package(x_fichero_library_path):
+            present = {w.id for w in workflows}
+            workflows = workflows + [
+                w
+                for w in list_global_default_workflows(folder_path)
+                if w.id not in present
+            ]
         items = [
             _workflow_to_response(workflow)
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
@@ -804,11 +839,9 @@ async def get_workflow(
     workflow_id: str,
     db: Database = Depends(get_library_database),
 ) -> WorkflowResponse:
-    """Get a saved workflow by ID."""
+    """Get a saved workflow by ID (falls back to global defaults, #4450)."""
     try:
-        from fichero_server.models import Workflow
-
-        workflow = db.get(Workflow, workflow_id)
+        workflow = _get_workflow_or_default(db, workflow_id)
         if not workflow:
             raise HTTPException(
                 status_code=404, detail=f"Workflow not found: {workflow_id}"
@@ -831,9 +864,7 @@ async def estimate_workflow_cost(
     db: Database = Depends(get_library_database),
 ) -> WorkflowCostEstimateResponse:
     """Estimate run cost from file count and per-file token assumptions."""
-    from fichero_server.models import Workflow
-
-    workflow = db.get(Workflow, workflow_id)
+    workflow = _get_workflow_or_default(db, workflow_id)
     if not workflow:
         raise HTTPException(
             status_code=404, detail=f"Workflow not found: {workflow_id}"
@@ -1129,10 +1160,14 @@ def duplicate_workflow_impl(db: Database, workflow_id: str) -> "Workflow":  # no
     """Duplicate a workflow with a new id and "(Copy)" name (extracted from the
     ``POST /api/workflows/{id}/duplicate`` route so the route and the
     ``workflow.duplicate`` action share one implementation). Raises
-    ``HTTPException(404)`` for an unknown id."""
+    ``HTTPException(404)`` for an unknown id.
+
+    #4450: the original may be a global DEFAULT resolved cross-library; the
+    copy is saved into ``db`` (the current library) either way, which is
+    exactly the "duplicate a default to edit it here" gesture."""
     from fichero_server.models import Workflow
 
-    original = db.get(Workflow, workflow_id)
+    original = _get_workflow_or_default(db, workflow_id)
     if not original:
         raise HTTPException(
             status_code=404, detail=f"Workflow not found: {workflow_id}"

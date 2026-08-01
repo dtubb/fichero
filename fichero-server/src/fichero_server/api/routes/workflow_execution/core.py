@@ -273,9 +273,19 @@ async def execute_workflow(
         404: Workflow not found
     """
     try:
-        # Load workflow
+        # Load workflow. The recipe may live in this library, or be a shipped
+        # DEFAULT resolved from the global library (#4450/#4102): defaults are
+        # app-level and runnable in every library, while the run itself stays
+        # pinned to `db` — the target library's engine — so documents, events,
+        # and activity all land in the library the user is working in (#4277).
         store = WorkflowStore(db)
         workflow = store.get(request.workflow_id)
+        if not workflow:
+            from fichero_server.workflows.default_workflows import (
+                resolve_default_workflow,
+            )
+
+            workflow = resolve_default_workflow(request.workflow_id)
         if not workflow:
             raise HTTPException(
                 status_code=404,

@@ -348,3 +348,78 @@ def prune_default_workflows(db: "Database") -> int:
     if removed:
         logger.info(f"Pruned {removed} default workflow(s) from non-global library")
     return removed
+
+
+# ---------------------------------------------------------------------------
+# Cross-library resolution (#4450)
+# ---------------------------------------------------------------------------
+# Defaults are stored ONCE, in the global library (#4102), and RESOLVED from
+# there for every library. They are never copied per-library: copies drift —
+# a preset update reaches only libraries opened since, and a fresh library
+# silently has fewer capabilities than an old one. User-authored workflows
+# are the opposite: they belong to the library that created them and are
+# never resolved across libraries (#4277: recipes offered everywhere applies
+# to the shipped defaults; runs are always pinned to the target library).
+
+
+def get_global_defaults_database() -> "Database | None":
+    """Open the GLOBAL library database, where defaults live (#4102).
+
+    Created on first access by the DatabaseManager (same pattern as the
+    known-library registry). Returns None instead of raising so a broken
+    global package degrades to "no defaults offered", never a 500 on every
+    workflow route.
+    """
+    try:
+        from fichero_server.db.manager import db_manager
+        from fichero_server.db.storage import settings
+
+        return db_manager.get_database(str(settings.global_library_path))
+    except Exception as exc:
+        logger.warning(f"Cannot open global library database for defaults: {exc}")
+        return None
+
+
+def list_global_default_workflows(folder_path: str | None = None) -> list:
+    """Default workflow rows resolved from the global library.
+
+    Only ``is_system`` rows qualify: that flag is written exclusively by the
+    seeder (create/import/duplicate never set it, and editing demotes a
+    preset), so it IS the line between a shipped default and a user
+    workflow. A user workflow created while the global library was open is a
+    global-library workflow — not a default — and stays out of other
+    libraries' lists.
+    """
+    db = get_global_defaults_database()
+    if db is None:
+        return []
+    try:
+        rows = db.workflow_rows_for_list(folder_path)
+    except Exception as exc:
+        logger.warning(f"Cannot list global default workflows: {exc}")
+        return []
+    return [w for w in rows if getattr(w, "is_system", False)]
+
+
+def resolve_default_workflow(workflow_id: str):
+    """Look up a DEFAULT workflow by id in the global library.
+
+    Returns None both for unknown ids and for global USER workflows: a
+    workflow a user built belongs to the library they built it in and must
+    not leak into other libraries (#4450). Callers use this as the fallback
+    after the target library's own lookup misses, so a library workflow of
+    the same id always wins.
+    """
+    db = get_global_defaults_database()
+    if db is None:
+        return None
+    from fichero_server.models import Workflow
+
+    try:
+        workflow = db.get(Workflow, workflow_id)
+    except Exception as exc:
+        logger.warning(f"Cannot resolve default workflow {workflow_id}: {exc}")
+        return None
+    if workflow is not None and getattr(workflow, "is_system", False):
+        return workflow
+    return None
