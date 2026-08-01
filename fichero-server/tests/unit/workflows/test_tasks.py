@@ -7,9 +7,18 @@ Tests cover:
 - Reindex task execution
 - Metrics task execution
 - API endpoints
+
+Queue lifecycle note: this suite's async tests each run in their own event
+loop (conftest's ``pytest_pyfunc_call`` drives coroutine tests via
+``asyncio.run``), and ``TaskQueue.start()`` binds an AsyncIOScheduler to the
+RUNNING loop. So the queue must be started INSIDE the test's own loop — the
+``running_queue`` async context manager below. The previous ``async def``
+``@pytest.fixture`` was never supported by any installed plugin and became a
+hard setup error on pytest 9 (14 tests ERRORED, PytestRemovedIn9Warning).
 """
 
 import pytest
+from contextlib import asynccontextmanager
 from unittest.mock import Mock
 import asyncio
 
@@ -27,6 +36,23 @@ from fichero_server.workflows.tasks import (
 )
 
 
+@asynccontextmanager
+async def running_queue(db_path, database=None, *, paused=False):
+    """A started TaskQueue, stopped on exit — in the CALLER's event loop."""
+    queue = TaskQueue(db_path, database=database)
+    await queue.start()
+    if paused:
+        # Pause the scheduler so tasks aren't picked up before an
+        # ordering/pending assertion runs.
+        queue._scheduler.pause()
+    try:
+        yield queue
+    finally:
+        if paused:
+            queue._scheduler.resume()
+        await queue.stop()
+
+
 class TestTaskQueue:
     """Test suite for TaskQueue class."""
 
@@ -35,140 +61,146 @@ class TestTaskQueue:
         """Create temporary database path."""
         return str(tmp_path / "test_tasks.duckdb")
 
-    @pytest.fixture
-    async def task_queue(self, temp_db_path):
-        """Create and start a TaskQueue for testing."""
-        queue = TaskQueue(temp_db_path)
-        await queue.start()
-        yield queue
-        await queue.stop()
-
     @pytest.mark.asyncio
-    async def test_create_task(self, task_queue):
+    async def test_create_task(self, temp_db_path):
         """Test creating a background task."""
-        task = await task_queue.create_task(
-            task_type=TaskType.REINDEX,
-            name="Test Reindex",
-            options={"full": True},
-            priority=5,
-        )
+        async with running_queue(temp_db_path) as task_queue:
+            task = await task_queue.create_task(
+                task_type=TaskType.REINDEX,
+                name="Test Reindex",
+                options={"full": True},
+                priority=5,
+            )
 
-        assert task.task_id is not None
-        assert task.task_type == TaskType.REINDEX
-        assert task.name == "Test Reindex"
-        assert task.status == TaskStatus.PENDING
-        assert task.config.options == {"full": True}
-        assert task.config.priority == 5
+            assert task.task_id is not None
+            assert task.task_type == TaskType.REINDEX
+            assert task.name == "Test Reindex"
+            assert task.status == TaskStatus.PENDING
+            assert task.config.options == {"full": True}
+            assert task.config.priority == 5
 
     @pytest.mark.asyncio
-    async def test_get_task(self, task_queue):
+    async def test_get_task(self, temp_db_path):
         """Test retrieving a task by ID."""
-        created = await task_queue.create_task(
-            TaskType.METRICS,
-            "Test Metrics",
-        )
+        async with running_queue(temp_db_path) as task_queue:
+            created = await task_queue.create_task(
+                TaskType.METRICS,
+                "Test Metrics",
+            )
 
-        retrieved = await task_queue.get_task(created.task_id)
+            retrieved = await task_queue.get_task(created.task_id)
 
-        assert retrieved is not None
-        assert retrieved.task_id == created.task_id
-        assert retrieved.name == "Test Metrics"
+            assert retrieved is not None
+            assert retrieved.task_id == created.task_id
+            assert retrieved.name == "Test Metrics"
 
     @pytest.mark.asyncio
-    async def test_get_task_not_found(self, task_queue):
+    async def test_get_task_not_found(self, temp_db_path):
         """Test retrieving a non-existent task."""
-        task = await task_queue.get_task("nonexistent-id")
-        assert task is None
+        async with running_queue(temp_db_path) as task_queue:
+            task = await task_queue.get_task("nonexistent-id")
+            assert task is None
 
     @pytest.mark.asyncio
-    async def test_list_tasks(self, task_queue):
+    async def test_list_tasks(self, temp_db_path):
         """Test listing tasks."""
-        # Create multiple tasks
-        await task_queue.create_task(TaskType.REINDEX, "Task 1")
-        await task_queue.create_task(TaskType.METRICS, "Task 2")
-        await task_queue.create_task(TaskType.REPAIR, "Task 3")
+        async with running_queue(temp_db_path) as task_queue:
+            # Create multiple tasks
+            await task_queue.create_task(TaskType.REINDEX, "Task 1")
+            await task_queue.create_task(TaskType.METRICS, "Task 2")
+            await task_queue.create_task(TaskType.REPAIR, "Task 3")
 
-        tasks = await task_queue.list_tasks()
+            tasks = await task_queue.list_tasks()
 
-        assert len(tasks) == 3
+            assert len(tasks) == 3
 
     @pytest.mark.asyncio
-    async def test_list_tasks_with_filter(self, task_queue):
+    async def test_list_tasks_with_filter(self, temp_db_path):
         """Test listing tasks with status filter by creating finished and pending tasks."""
-        first_task = await task_queue.create_task(TaskType.REPAIR, "Quick Task")
+        async with running_queue(temp_db_path) as task_queue:
+            first_task = await task_queue.create_task(TaskType.REPAIR, "Quick Task")
 
-        # Poll until the first task is no longer PENDING or RUNNING (up to 3 seconds)
-        for _ in range(30):
-            await asyncio.sleep(0.1)
-            t = await task_queue.get_task(first_task.task_id)
-            if t and t.status not in (TaskStatus.PENDING, TaskStatus.RUNNING):
-                break
+            # Poll until the first task is no longer PENDING or RUNNING (up to 3 seconds)
+            for _ in range(30):
+                await asyncio.sleep(0.1)
+                t = await task_queue.get_task(first_task.task_id)
+                if t and t.status not in (TaskStatus.PENDING, TaskStatus.RUNNING):
+                    break
 
-        # Now create more tasks — these will be pending (queued after running one)
-        await task_queue.create_task(TaskType.REPAIR, "Pending Task 1")
-        await task_queue.create_task(TaskType.REPAIR, "Pending Task 2")
+            # Now create more tasks — these will be pending (queued after running one)
+            await task_queue.create_task(TaskType.REPAIR, "Pending Task 1")
+            await task_queue.create_task(TaskType.REPAIR, "Pending Task 2")
 
-        # Get all tasks
-        all_tasks = await task_queue.list_tasks()
+            # Get all tasks
+            all_tasks = await task_queue.list_tasks()
 
-        # First task should have finished (completed or failed — no DB in this fixture)
-        # The other two should still be pending (they were queued after the first ran)
-        finished = [t for t in all_tasks if t.status not in (TaskStatus.PENDING, TaskStatus.RUNNING)]
-        pending = [t for t in all_tasks if t.status == TaskStatus.PENDING]
+            # First task should have finished (completed or failed — no DB in this fixture)
+            # The other two should still be pending (they were queued after the first ran)
+            finished = [
+                t
+                for t in all_tasks
+                if t.status not in (TaskStatus.PENDING, TaskStatus.RUNNING)
+            ]
+            pending = [t for t in all_tasks if t.status == TaskStatus.PENDING]
 
-        assert len(finished) >= 1
-        assert len(pending) >= 1
+            assert len(finished) >= 1
+            assert len(pending) >= 1
 
     @pytest.mark.asyncio
-    async def test_list_tasks_by_type(self, task_queue):
+    async def test_list_tasks_by_type(self, temp_db_path):
         """Test listing tasks with type filter."""
-        await task_queue.create_task(TaskType.REINDEX, "Reindex Task")
-        await task_queue.create_task(TaskType.REINDEX, "Another Reindex")
-        await task_queue.create_task(TaskType.METRICS, "Metrics Task")
+        async with running_queue(temp_db_path) as task_queue:
+            await task_queue.create_task(TaskType.REINDEX, "Reindex Task")
+            await task_queue.create_task(TaskType.REINDEX, "Another Reindex")
+            await task_queue.create_task(TaskType.METRICS, "Metrics Task")
 
-        reindex_tasks = await task_queue.list_tasks(task_type=TaskType.REINDEX)
+            reindex_tasks = await task_queue.list_tasks(task_type=TaskType.REINDEX)
 
-        assert len(reindex_tasks) == 2
+            assert len(reindex_tasks) == 2
 
     @pytest.mark.asyncio
-    async def test_cancel_task(self, task_queue):
+    async def test_cancel_task(self, temp_db_path):
         """Test cancelling a pending task."""
-        task = await task_queue.create_task(TaskType.REINDEX, "To Cancel")
+        async with running_queue(temp_db_path) as task_queue:
+            task = await task_queue.create_task(TaskType.REINDEX, "To Cancel")
 
-        cancelled = await task_queue.cancel_task(task.task_id)
+            cancelled = await task_queue.cancel_task(task.task_id)
 
-        assert cancelled is not None
-        assert cancelled.status == TaskStatus.CANCELLED
+            assert cancelled is not None
+            assert cancelled.status == TaskStatus.CANCELLED
 
     @pytest.mark.asyncio
-    async def test_cancel_non_pending_task_fails(self, task_queue):
+    async def test_cancel_non_pending_task_fails(self, temp_db_path):
         """Test cancelling a non-pending task raises error."""
-        task = await task_queue.create_task(TaskType.REINDEX, "To Cancel")
-        await task_queue.cancel_task(task.task_id)
-
-        with pytest.raises(ValueError, match="Cannot cancel"):
+        async with running_queue(temp_db_path) as task_queue:
+            task = await task_queue.create_task(TaskType.REINDEX, "To Cancel")
             await task_queue.cancel_task(task.task_id)
 
+            with pytest.raises(ValueError, match="Cannot cancel"):
+                await task_queue.cancel_task(task.task_id)
+
     @pytest.mark.asyncio
-    async def test_delete_task(self, task_queue):
+    async def test_delete_task(self, temp_db_path):
         """Test deleting a completed task."""
-        task = await task_queue.create_task(TaskType.REINDEX, "To Delete")
-        await task_queue.cancel_task(task.task_id)
+        async with running_queue(temp_db_path) as task_queue:
+            task = await task_queue.create_task(TaskType.REINDEX, "To Delete")
+            await task_queue.cancel_task(task.task_id)
 
-        deleted = await task_queue.delete_task(task.task_id)
+            deleted = await task_queue.delete_task(task.task_id)
 
-        assert deleted is True
-        assert await task_queue.get_task(task.task_id) is None
+            assert deleted is True
+            assert await task_queue.get_task(task.task_id) is None
 
     @pytest.mark.asyncio
-    async def test_delete_running_task_fails(self, task_queue):
+    async def test_delete_running_task_fails(self, temp_db_path):
         """Test deleting a running task raises error."""
-        task = await task_queue.create_task(TaskType.REINDEX, "Running Task")
-        # Simulate running status
-        task.status = TaskStatus.RUNNING
+        async with running_queue(temp_db_path) as task_queue:
+            task = await task_queue.create_task(TaskType.REINDEX, "Running Task")
+            # Simulate running status
+            task.status = TaskStatus.RUNNING
 
-        with pytest.raises(ValueError, match="Cannot delete"):
-            await task_queue.delete_task(task.task_id)
+            with pytest.raises(ValueError, match="Cannot delete"):
+                await task_queue.delete_task(task.task_id)
 
 
 class TestTaskExecution:
@@ -206,50 +238,45 @@ class TestTaskExecution:
         )
         return db
 
-    @pytest.fixture
-    async def task_queue(self, temp_db_path, mock_database):
-        """Create TaskQueue with mock database."""
-        queue = TaskQueue(temp_db_path, database=mock_database)
-        await queue.start()
-        yield queue
-        await queue.stop()
-
     @pytest.mark.asyncio
-    async def test_reindex_task_with_no_documents(self, task_queue, mock_database):
+    async def test_reindex_task_with_no_documents(self, temp_db_path, mock_database):
         """Test reindex task when there are no documents."""
         mock_database.all.return_value = []
 
-        task = await task_queue.create_task(TaskType.REINDEX, "Empty Reindex")
+        async with running_queue(temp_db_path, mock_database) as task_queue:
+            task = await task_queue.create_task(TaskType.REINDEX, "Empty Reindex")
 
-        updated = await self.wait_for_completion(task_queue, task.task_id)
-        assert updated.status == TaskStatus.COMPLETED
-        assert updated.result is not None
-        assert updated.result.success is True
-        assert updated.result.details["indexed"] == 0
-        assert updated.result.details["total"] == 0
+            updated = await self.wait_for_completion(task_queue, task.task_id)
+            assert updated.status == TaskStatus.COMPLETED
+            assert updated.result is not None
+            assert updated.result.success is True
+            assert updated.result.details["indexed"] == 0
+            assert updated.result.details["total"] == 0
 
     @pytest.mark.asyncio
-    async def test_metrics_task_with_empty_database(self, task_queue, mock_database):
+    async def test_metrics_task_with_empty_database(self, temp_db_path, mock_database):
         """Test metrics task with empty database."""
         mock_database.all.return_value = []
         mock_database.embedding_stats.return_value = {"indexed": 0, "exists": False}
 
-        task = await task_queue.create_task(TaskType.METRICS, "Empty Metrics")
+        async with running_queue(temp_db_path, mock_database) as task_queue:
+            task = await task_queue.create_task(TaskType.METRICS, "Empty Metrics")
 
-        updated = await self.wait_for_completion(task_queue, task.task_id)
-        assert updated.status == TaskStatus.COMPLETED
-        assert updated.result is not None
-        assert updated.result.details["document_count"] == 0
+            updated = await self.wait_for_completion(task_queue, task.task_id)
+            assert updated.status == TaskStatus.COMPLETED
+            assert updated.result is not None
+            assert updated.result.details["document_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_repair_task_placeholder(self, task_queue):
+    async def test_repair_task_placeholder(self, temp_db_path, mock_database):
         """Test repair task completes successfully."""
-        task = await task_queue.create_task(TaskType.REPAIR, "Repair Task")
+        async with running_queue(temp_db_path, mock_database) as task_queue:
+            task = await task_queue.create_task(TaskType.REPAIR, "Repair Task")
 
-        updated = await self.wait_for_completion(task_queue, task.task_id)
-        assert updated.status == TaskStatus.COMPLETED
-        assert updated.result.success is True
-        assert updated.result.message  # any non-empty completion message
+            updated = await self.wait_for_completion(task_queue, task.task_id)
+            assert updated.status == TaskStatus.COMPLETED
+            assert updated.result.success is True
+            assert updated.result.message  # any non-empty completion message
 
 
 class TestGlobalFunctions:
@@ -335,34 +362,26 @@ class TestTaskPriority:
     def temp_db_path(self, tmp_path):
         return str(tmp_path / "test_priority.duckdb")
 
-    @pytest.fixture
-    async def task_queue(self, temp_db_path):
-        """Create TaskQueue for priority testing."""
-        queue = TaskQueue(temp_db_path)
-        await queue.start()
-        # Pause scheduler so tasks aren't picked up before the ordering assertion
-        queue._scheduler.pause()
-        yield queue
-        queue._scheduler.resume()
-        await queue.stop()
-
     @pytest.mark.asyncio
-    async def test_tasks_ordered_by_priority(self, task_queue):
+    async def test_tasks_ordered_by_priority(self, temp_db_path):
         """Test that tasks are processed in priority order."""
-        # Create tasks with different priorities
-        await task_queue.create_task(
-            TaskType.REINDEX, "Low Priority", priority=10
-        )
-        await task_queue.create_task(
-            TaskType.REINDEX, "High Priority", priority=1
-        )
-        await task_queue.create_task(
-            TaskType.REINDEX, "Medium Priority", priority=5
-        )
+        # paused=True: scheduler must not pick tasks up before the
+        # ordering assertion runs.
+        async with running_queue(temp_db_path, paused=True) as task_queue:
+            # Create tasks with different priorities
+            await task_queue.create_task(
+                TaskType.REINDEX, "Low Priority", priority=10
+            )
+            await task_queue.create_task(
+                TaskType.REINDEX, "High Priority", priority=1
+            )
+            await task_queue.create_task(
+                TaskType.REINDEX, "Medium Priority", priority=5
+            )
 
-        # List pending tasks and verify order
-        pending = await task_queue.list_tasks(status=TaskStatus.PENDING)
+            # List pending tasks and verify order
+            pending = await task_queue.list_tasks(status=TaskStatus.PENDING)
 
-        # Should be ordered by priority (lowest first)
-        priorities = [t.config.priority for t in pending]
-        assert priorities == sorted(priorities)
+            # Should be ordered by priority (lowest first)
+            priorities = [t.config.priority for t in pending]
+            assert priorities == sorted(priorities)
