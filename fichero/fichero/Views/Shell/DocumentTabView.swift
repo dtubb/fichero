@@ -108,11 +108,16 @@ struct DocumentTabView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if let apiClient = apiClient {
+        // Bind the LIBRARY, not just its apiClient. Every value forwarded below
+        // that is library-scoped is then read off one resolved reference, so a
+        // new forward cannot be added from a stale second lookup — and the two
+        // activity stores below have a source without DocumentTabView having to
+        // declare more non-optional @Environment reads of its own.
+        if let library {
             ContentView()
                 .environment(appState)
                 .environment(viewSettings)
-                .environment(apiClient)
+                .environment(library.apiClient)
                 .environment(documentStore)
                 .environment(savedSearchService)
                 .environment(searchService)
@@ -167,6 +172,18 @@ struct DocumentTabView: View {
                 // with "No Observable object of type WorkflowExecutionObserver found."
                 // (#1561). Single shared instance — no new object created here.
                 .environment(executionObserver)
+                // #4448: the two activity stores were the last library-scoped
+                // values a view under this host read non-optionally without
+                // being forwarded here. `StatusIslandToolbarItem` and
+                // `ActivityStatusToolbarItem` read ActivityStore, and
+                // `ActivityBrowserView` reads WorkflowExecutionStore; all three
+                // mount inside ContentView. They resolved only by inheritance
+                // past this explicit host — the same accident that produced
+                // #3350 and #1561 — and a toolbar item is the worst place to
+                // rely on it, because toolbar content is laid out by the window
+                // and can be updated after the content subtree has changed.
+                .environment(library.activityStore)
+                .environment(library.workflowExecutionStore)
         } else {
             Text("Library not found")
                 .font(.headline)
