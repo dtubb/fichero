@@ -107,6 +107,18 @@ def main() -> int:
         print(__doc__)
         return 0
 
+    # #4382: a guardrail must know when it has gone blind. No docs/ tree and
+    # none of the root docs means the tree moved -- exit 2, never a silent 0.
+    if not (ROOT / "docs").is_dir() and not any(
+        (ROOT / name).exists() for name in ROOT_DOCS
+    ):
+        print(
+            "check_docs_paths.py: BLIND -- neither docs/ nor any root doc "
+            "exists under " + str(ROOT) + " (the tree moved; update this guardrail)",
+            file=sys.stderr,
+        )
+        return 2
+
     if "--self-test" in argv:
         tops = {"docs", "scripts", "fichero"}
         t = "see `docs/real.md` and `scripts/x.py` and `api/routes/` and `~/Library/x`"

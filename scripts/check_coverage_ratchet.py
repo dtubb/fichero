@@ -26,6 +26,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import sys
 import json
 from pathlib import Path
 
@@ -83,6 +84,17 @@ def main() -> int:
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--update-baseline", action="store_true")
     args = parser.parse_args()
+
+    # #4382: the BASELINE is repo content -- unlike the coverage artifacts,
+    # which are optional runtime outputs (NOT-ARMED below stays a loud 0).
+    # A missing baseline means the tree moved: "I could not check" (exit 2).
+    if not args.baseline.is_file():
+        print(
+            f"check_coverage_ratchet.py: BLIND -- baseline missing at "
+            f"{args.baseline} (the tree moved; update this guardrail)",
+            file=sys.stderr,
+        )
+        return 2
 
     if not args.engine_json and not args.swift_json:
         # Argless mode (the all-guardrails sweep): arm only when the standard

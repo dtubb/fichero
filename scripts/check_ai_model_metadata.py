@@ -159,6 +159,17 @@ def main() -> int:
         print(__doc__)
         return 0
 
+    # #4382: a guardrail must know when it has gone blind. `scan()` silently
+    # skips missing files; if NONE of the targets exist the tree moved, and
+    # "I could not check" (exit 2) must never read as "all clear" (exit 0).
+    if not any((ROOT / rel).exists() for rel in TARGET_FILES):
+        print(
+            "check_ai_model_metadata.py: BLIND -- none of the target files "
+            "exist under " + str(ROOT) + " (the tree moved; update TARGET_FILES)",
+            file=sys.stderr,
+        )
+        return 2
+
     offenders = scan()
     allowlisted = set(ALLOWLIST)
 

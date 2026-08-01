@@ -147,5 +147,30 @@ def main() -> int:
     return 0
 
 
+def _require_scan_roots_4382(*roots):
+    """#4382: a guardrail must know when it has gone blind, and say so.
+
+    A missing scan root means "I could not check" (exit 2) -- never a silent
+    exit 0. Distinct from exit 1 ("I checked and found violations"), so a
+    moved or renamed directory can never disable this guardrail while the
+    gate stays green.
+    """
+    import sys as _sys
+
+    flat = []
+    for root in roots:
+        flat.extend(root if isinstance(root, (tuple, list)) else [root])
+    missing = [str(r) for r in flat if not r.exists()]
+    if missing:
+        print(
+            f"{__file__.rsplit('/', 1)[-1]}: BLIND -- scan root(s) missing: "
+            + ", ".join(missing)
+            + " (the tree moved; update this guardrail's paths)",
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+
+
 if __name__ == "__main__":
+    _require_scan_roots_4382(SWIFT_DIR)
     raise SystemExit(main())
