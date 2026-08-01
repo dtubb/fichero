@@ -48,11 +48,11 @@ final class WorkflowStreamEndReconciliationTests: XCTestCase {
     /// had — in particular a cancelled run must not arrive as `.failed`, the
     /// collapse #4321 removed.
     func testReconciledStatusMapsThroughTheExistingMapper() {
-        XCTAssertEqual(WorkflowExecutionStore.workflowStatus(from: .completed), .completed)
-        XCTAssertEqual(WorkflowExecutionStore.workflowStatus(from: .failed), .failed)
-        XCTAssertEqual(WorkflowExecutionStore.workflowStatus(from: .error), .failed)
-        XCTAssertEqual(WorkflowExecutionStore.workflowStatus(from: .cancelled), .cancelled)
-        XCTAssertEqual(WorkflowExecutionStore.workflowStatus(from: .stopped), .cancelled)
+        XCTAssertEqual(WorkflowExecution.workflowStatus(from: .completed), .completed)
+        XCTAssertEqual(WorkflowExecution.workflowStatus(from: .failed), .failed)
+        XCTAssertEqual(WorkflowExecution.workflowStatus(from: .error), .failed)
+        XCTAssertEqual(WorkflowExecution.workflowStatus(from: .cancelled), .cancelled)
+        XCTAssertEqual(WorkflowExecution.workflowStatus(from: .stopped), .cancelled)
     }
 
     // MARK: - The seam is actually wired

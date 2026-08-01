@@ -15,14 +15,32 @@ public enum TransportMode: Sendable, Equatable {
     /// Default: HTTPS over URLSession (certificate-pinned where configured).
     case https
     /// Plain HTTP/1.1 over an AF_UNIX socket at `path`. TLS is intentionally
-    /// absent — the engine exempts the UDS path and grants loopback-owner auth
-    /// via a transport marker on the socket (engine "Lane E").
+    /// absent — the engine stamps a `uds` transport marker on the socket
+    /// (engine "Lane E") which makes the request loopback-ELIGIBLE.
+    ///
+    /// The marker is NOT a credential: you must still send the bootstrap token.
+    /// See the note on `inMemory` below — the two markers behave identically.
     case uds(path: String)
     #if os(macOS)
     /// In-process: drive the Python engine's ASGI app directly via PythonKit —
     /// no subprocess, no socket, no HTTP server (macOS only; iOS can't embed
-    /// CPython). The engine grants loopback-owner auth via the `inmemory`
-    /// transport marker (mirrors `.uds`). See `Sources/.../InMemory`.
+    /// CPython). See `Sources/.../InMemory`.
+    ///
+    /// **The `inmemory` marker does not authenticate the request.** It is easy
+    /// to read "in-process, therefore trusted" and conclude no token is needed;
+    /// that is wrong, and this comment used to say so (#4432).
+    ///
+    /// The engine applies TWO independent gates:
+    ///   * `_is_loopback_request` decides **403 or not**. The marker satisfies
+    ///     this one, and only this one — it exists because an in-process call
+    ///     has no network peer (`scope["client"] is None`), which the engine
+    ///     deliberately refuses to treat as loopback on its own, for safety.
+    ///   * the bootstrap token decides **401 or not**, and `_expected_header()`
+    ///     always resolves to `Bearer <token>`. There is no configuration in
+    ///     which it is empty.
+    ///
+    /// So a token-less `.inMemory` request is rejected 100% of the time. Pinned
+    /// by `test_inmemory_marker_does_not_waive_the_bootstrap_token`.
     case inMemory
     #endif
 }

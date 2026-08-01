@@ -1,0 +1,37 @@
+# Known environment-forwarding gaps — DEBT, not a clean bill of health (#4455).
+#
+# Each line is `<host file>:<Type>`: a library-scoped value that
+# LibraryWorkspaceRoot injects, that this host does NOT forward to the subtree it
+# builds, and that at least one view reads as a NON-OPTIONAL
+# `@Environment(Type.self)`. Every one of these is a live
+# "No Observable object of type X found" trap — the #4448 crash — for any path
+# that reaches such a view without inheriting past the explicit host.
+#
+# They resolve TODAY only by ordinary environment inheritance. That is exactly
+# the accident that produced #1561, #3298, #3350 and #4448, each of which was
+# "fine" until one particular click reached one particular view.
+#
+# checked by: scripts/check_environment_forwarding.py
+# The check FAILS on anything not listed here, so this file only ever shrinks.
+# Deleting a line (after forwarding the value, or after making every reader
+# declare it optional) tightens the ratchet; the script prints entries that have
+# become stale so they do not linger.
+#
+# The real fix is #4455 — one shared `.ficheroLibraryEnvironment(library)`
+# modifier, so there is one list instead of four hand-synced ones. When that
+# lands, this whole file should go with it.
+
+DocumentTabView.swift:ActionStore
+DocumentTabView.swift:AnnotationStore
+DocumentTabView.swift:BatchStore
+DocumentTabView.swift:BookmarkService
+DocumentTabView.swift:ChainStore
+DocumentTabView.swift:CitationStore
+DocumentTabView.swift:InterpretationStore
+DocumentTabView.swift:ModelService
+DocumentTabView.swift:NoteStore
+DocumentTabView.swift:ProviderAPIService
+DocumentTabView.swift:ReferenceStore
+DocumentTabView.swift:ResearchStore
+DocumentTabView.swift:WorkflowService
+DocumentTabView.swift:WorkspaceStore
