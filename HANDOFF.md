@@ -52,11 +52,33 @@ dimension is a value alongside the timing, not a new system.
 
 Order:
 
-1. **`#4440` peak memory.** First, because it is the failure that stops work —
-   the disk filled mid-gate tonight, XCUITests have hit 56 GB, builds shed
-   under swap. Note: peak RSS is monotonic within a process, so naive per-test
-   attribution gives every later test the high-water mark of every earlier one.
-   Use deltas or accept session granularity and SAY so.
+1. **`#4440` peak memory — DONE.** `flush_session_memory` holds the run's peak
+   RSS to its best ever, in the same `perf_baseline.json`, under a `"mb"` key
+   beside the `"ms"` ones.
+
+   It is **session-level, and the name says so**: `mem::session::<paths pytest
+   was run on>`. Peak RSS is process-wide and monotonic, so a per-test number
+   would be the suite's memory wearing a test's name — it would look per-test,
+   sort per-test, and be wrong per-test, which is worse than not having it. The
+   scope is part of the name because one file and the whole suite have
+   genuinely different peaks, and a shared bar means the narrow run tightens it
+   below anything the full suite can meet. What IS per test is
+   `peak_test_hint()` — where the high-water mark last ADVANCED, printed with
+   that caveat attached, as a place to start looking.
+
+   **Exit codes: 3 = regression, 4 = the ratchet went blind.** `peak_rss_mb()`
+   returns `None` rather than a number it cannot stand behind — `getrusage`
+   refused in a sandbox, or a value under a megabyte, which means the unit is
+   wrong (`ru_maxrss` is BYTES on macOS and KILOBYTES on Linux, a 1024x error
+   in either direction). "I could not measure" reported as success is how a
+   guardrail stops existing without anyone noticing.
+
+   Tests: `fichero-server/tests/unit/test_memory_ratchet.py`, including
+   `test_many_small_growths_cannot_creep_past_it` (the memory equivalent of the
+   anti-creep test) and a live, unstubbed plausibility check on the real
+   measurement so a unit error on a new platform fails loudly. Every fixture
+   synthesises its own violation — nothing is borrowed from the committed
+   baseline, so none of it rots when those numbers change.
 2. **`#4443` query count per endpoint.** Cheapest real win. A count is exact —
    no noise floor, no jitter allowance — and 3 → 47 queries is the answer, not
    a hint. An N+1 is a correctness bug wearing a performance costume.

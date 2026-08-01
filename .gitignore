@@ -126,6 +126,9 @@ HISTORY*.md
 .inspector-worker-brief.md
 .worker-brief.md
 
-# Perf run log — every measurement, appended. The RATCHET
-# (tests/perf/perf_baseline.json) is committed; this is local evidence.
+# Perf/memory run log — every measurement, appended. The RATCHET
+# (tests/perf_baseline.json) is committed; this is local evidence.
+# Both paths: the module moved up a directory and the ignore rule did not, so
+# the log was landing in git status as an untracked file waiting to be added.
 fichero-server/tests/perf/history.jsonl
+fichero-server/tests/history.jsonl

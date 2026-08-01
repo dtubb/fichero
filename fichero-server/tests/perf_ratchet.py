@@ -1,4 +1,4 @@
-"""Performance ratchet: it may not get slower, and it tightens as it gets faster.
+"""Performance ratchet: it may not get slower or heavier, and it tightens.
 
 The absolute budgets in these tests (4 seconds for an entity list) only catch a
 single-step disaster. A run that drifts 0.4s -> 3.9s passes every one of them —
@@ -22,12 +22,18 @@ So this is a RATCHET, in the direction the project wants to move:
 
 Getting faster is free and automatic. Getting slower is a decision someone has
 to make on purpose and write down.
+
+Elapsed time was the first dimension (#4439). Peak memory is the second
+(#4440), and it is a VALUE ALONGSIDE the timing in the same baseline file — not
+a second system, which would drift from this one. See the "Peak memory" section
+below for why that measurement is session-level and says so.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 import subprocess
 from pathlib import Path
@@ -70,7 +76,13 @@ def _commit() -> str:
         return "unknown"
 
 
-def _load_baseline() -> dict[str, float]:
+def _load_baseline(unit: str = "ms") -> dict[str, float]:
+    """Every entry recorded in `unit`. One file, several dimensions.
+
+    An entry carries exactly one unit key, so asking for "mb" cannot
+    accidentally read a millisecond entry as megabytes — a mix-up that would
+    set a bar in the wrong scale and then hold everyone to it forever.
+    """
     if not BASELINE_PATH.exists():
         return {}
     try:
@@ -82,10 +94,14 @@ def _load_baseline() -> dict[str, float]:
             f"run without it — restore it from git rather than deleting it, or "
             f"every measurement starts over at whatever today's machine manages."
         ) from None
-    return {k: float(v["ms"]) for k, v in data.items() if isinstance(v, dict) and "ms" in v}
+    return {
+        k: float(v[unit])
+        for k, v in data.items()
+        if isinstance(v, dict) and unit in v
+    }
 
 
-def _write_baseline(name: str, ms: float, note: str) -> None:
+def _write_baseline(name: str, value: float, note: str, unit: str = "ms") -> None:
     """Read-modify-write the ratchet, atomically.
 
     Two pytest processes can run this suite at once — the gate's perf leg and
@@ -105,14 +121,14 @@ def _write_baseline(name: str, ms: float, note: str) -> None:
             data = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             data = {}
-    data[name] = {"ms": round(ms, 1), "commit": _commit(), "note": note}
+    data[name] = {unit: round(value, 1), "commit": _commit(), "note": note}
     tmp = BASELINE_PATH.with_suffix(f".{os.getpid()}.tmp")
     tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(tmp, BASELINE_PATH)
 
 
-def _append_history(name: str, ms: float, verdict: str) -> None:
-    row = {"name": name, "ms": round(ms, 2), "commit": _commit(), "verdict": verdict}
+def _append_history(name: str, value: float, verdict: str, unit: str = "ms") -> None:
+    row = {"name": name, unit: round(value, 2), "commit": _commit(), "verdict": verdict}
     with HISTORY_PATH.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row, sort_keys=True) + "\n")
 
@@ -323,3 +339,172 @@ def flush_session() -> list[str]:
         os.replace(tmp, BASELINE_PATH)
 
     return regressions
+
+
+# ---------------------------------------------------------------------------
+# Peak memory (#4440)
+# ---------------------------------------------------------------------------
+#
+# Memory is the failure that actually stops work here: the disk filled mid-gate
+# on 2026-07-30, XCUITests have hit 56 GB, and builds shed under swap pressure
+# and return exit 65 with green tests. So it gets the same treatment as elapsed
+# time — held to its best ever, tightening on its own — as a VALUE ALONGSIDE the
+# timing in the same baseline file, not a second system that can drift from it.
+#
+# WHY THIS IS SESSION-LEVEL, AND NOT PER TEST
+#
+# `ru_maxrss` is the high-water mark of the whole PROCESS, and a high-water mark
+# only ever goes up. Read it after each test and every later test inherits the
+# peak of every earlier one: test #4000 gets charged for the fixture that test
+# #12 allocated, and the resulting number is not that test's memory — it is the
+# suite's, wearing that test's name. It would look per-test, sort per-test, and
+# be wrong per-test, which is worse than not having it, because a wrong number
+# gets acted on.
+#
+# The honest measurement available without a per-test subprocess is therefore
+# the peak of the RUN. That is what this records, and the measurement is NAMED
+# `mem::session::<scope>` so the granularity is visible at every place the
+# number is read — baseline file, history log, failure message.
+#
+# `<scope>` is the set of paths pytest was invoked on. A run of one test file
+# and a run of the whole suite have genuinely different peaks, and sharing one
+# bar between them would mean the narrow run tightens to a number the full suite
+# can never meet. Different scope, different bar.
+#
+# What IS attributed per test is the point at which the high-water mark last
+# ADVANCED (`peak_test_hint`). That is a pointer to where to look, not a
+# measurement of that test, and it is reported as such.
+
+# RSS jitter is smaller than wall-clock jitter — no scheduler, no other
+# process's cache — but the allocator does not return pages predictably, so
+# some allowance is still needed. As with time, this does NOT accumulate: it is
+# measured against the best ever, not against last run.
+MEM_TOLERANCE = 1.20
+
+# A run must beat the bar by this much to tighten it.
+MEM_TIGHTEN_MARGIN = 0.95
+
+# A bare interpreter with pytest loaded is already tens of megabytes. Below
+# this, a "2x regression" is interpreter startup noise.
+MEM_NOISE_FLOOR_MB = 64.0
+
+# Set by note_test_memory; read for the report. Not a ratchet.
+_mem_peak_mb = 0.0
+_mem_peak_test = ""
+
+
+def peak_rss_mb() -> float | None:
+    """This process's peak RSS in MB, or None when it cannot be known.
+
+    None is the whole point of this function's shape. A guardrail that cannot
+    measure must not return a number that reads like a good one — "I could not
+    look" and "I looked and it was fine" have to be different answers, or the
+    day the instrument breaks is the day the ratchet silently stops existing.
+
+    Two ways it goes blind, both real:
+
+      * `resource` is POSIX-only, and `getrusage` can be refused inside a
+        sandbox. Then there is no number at all.
+      * `ru_maxrss` is BYTES on macOS and KILOBYTES on Linux. Getting that
+        backwards is a 1024x error in either direction — a bar nobody can meet,
+        or one nothing can fail. So the result is sanity-checked against a floor
+        no live Python process can be under, and a value below it is treated as
+        "the unit is wrong", not as a very lean run.
+    """
+    try:
+        import resource
+
+        raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    except (ImportError, OSError, ValueError, AttributeError):
+        return None
+    if raw <= 0:
+        return None
+    mb = raw / (1024 * 1024) if sys.platform == "darwin" else raw / 1024
+    # No process running pytest is under a megabyte. If this says so, the unit
+    # is wrong, and a wrong unit must read as blindness rather than as a record.
+    return mb if mb >= 1.0 else None
+
+
+def note_test_memory(nodeid: str) -> None:
+    """Remember which test the process high-water mark last advanced during.
+
+    NOT that test's memory footprint — the mark is process-wide and monotonic,
+    so this only ever names the FIRST test to reach a given level. It is a
+    pointer for a human deciding where to look, and it is reported with that
+    caveat attached. The ratcheted number is the session peak.
+
+    Cheap: one syscall.
+    """
+    global _mem_peak_mb, _mem_peak_test
+    mb = peak_rss_mb()
+    if mb is not None and mb > _mem_peak_mb:
+        _mem_peak_mb = mb
+        _mem_peak_test = nodeid
+
+
+def peak_test_hint() -> tuple[float, str]:
+    """(peak MB seen, the test it last advanced during). Empty if never noted."""
+    return _mem_peak_mb, _mem_peak_test
+
+
+def flush_session_memory(scope: str) -> tuple[list[str], str]:
+    """Hold this run's peak RSS to its best ever, and tighten when it beats it.
+
+    Returns `(regression lines, status)`. Status is one of:
+
+      * `"measured"`        — a real number was taken and judged.
+      * `"skipped: ..."`    — deliberately not recorded (a shared machine, or
+                              the ratchet switched off). Nothing was learned,
+                              and nothing was written in either direction.
+      * `"blind: ..."`      — the measurement could not be taken AT ALL.
+
+    The caller must give `blind` a different exit code from a regression.
+    "I could not measure" reported as success is how a guardrail stops existing
+    without anyone noticing: it keeps printing green from the day it breaks.
+    """
+    # The deliberate opt-outs come FIRST. Someone who switched the ratchet off,
+    # or who is sharing the machine, has already decided not to learn anything
+    # this run — reporting a broken instrument at them would be a false alarm on
+    # a run that was never going to record.
+    if os.environ.get("FICHERO_PERF_NO_HISTORY") == "1":
+        return [], "skipped: ratchet disabled (FICHERO_PERF_NO_HISTORY=1)"
+    if _another_perf_run_is_active():
+        return [], (
+            "skipped: another perf run is active, so this machine was shared "
+            "and the peak includes someone else's work"
+        )
+
+    mb = peak_rss_mb()
+    if mb is None:
+        return [], (
+            "blind: peak RSS could not be read on this platform "
+            f"({sys.platform}), or the value was outside any plausible range. "
+            "The memory ratchet measured NOTHING this run — this is not a pass."
+        )
+
+    name = f"mem::session::{scope}"
+    best = _load_baseline("mb").get(name)
+
+    if best is None:
+        _write_baseline(name, mb, "first recorded run", unit="mb")
+        _append_history(name, mb, "baseline", unit="mb")
+        return [], "measured"
+
+    if mb > best * MEM_TOLERANCE and mb > MEM_NOISE_FLOOR_MB:
+        _append_history(name, mb, "REGRESSION", unit="mb")
+        _, hint = peak_test_hint()
+        line = (
+            f"{name}: {mb:.0f} MB peak vs best {best:.0f} MB ({mb / best:.1f}x)"
+        )
+        if hint:
+            line += f"\n      high-water mark last advanced during {hint}"
+            line += "\n      (process-wide and monotonic — a place to start, not that test's cost)"
+        return [line], "measured"
+
+    if mb < best * MEM_TIGHTEN_MARGIN:
+        _write_baseline(name, mb, f"tightened from {best:.0f} MB", unit="mb")
+        _append_history(name, mb, "tightened", unit="mb")
+        return [], "measured"
+
+    _append_history(name, mb, "ok", unit="mb")
+    return [], "measured"
