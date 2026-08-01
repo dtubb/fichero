@@ -272,9 +272,9 @@ struct PDFPageWithToolbar: View {
                 },
                 zoomController: zoom,
                 pageController: pageNav,
-                ocrBoxes: drawableOCRBoxes,
                 onCursorMoved: { pos in loupePosition = pos },
                 regionBoxes: pageRegionBoxes,
+                ocrBoxes: drawableOCRBoxes,
                 isDrawingRegion: isDrawingRegion,
                 onCreateRegion: { box in persistRegion(box, tool: pendingTool) },
                 displayMode: pageLayout.pdfDisplayMode ?? .singlePage
