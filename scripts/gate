@@ -580,7 +580,18 @@ run_leg() {
   "$@"
   local rc=$?
   LEG_NAMES+=("$name"); LEG_RCS+=("$rc"); LEG_SECS+=($((SECONDS - t0)))
-  return 0   # keep going; the table + exit code aggregate at the end
+  # Return the LEG's status, not 0.
+  #
+  # This used to `return 0` so verify-all could keep going and aggregate at the
+  # end — which is right for verify-all, and it re-reads LEG_RCS itself. But
+  # cmd_part uses `|| failed=1`, and against an always-0 return every one of
+  # those handlers was dead code: a failing lint or build printed FAIL(rc=N) in
+  # the table while `gate part` exited 0.
+  #
+  # A gate that prints a failure and exits green is worse than one that crashes,
+  # because a crash gets noticed. Callers that want to continue past a failure
+  # say so explicitly with `|| true`.
+  return $rc
 }
 
 # --------------------------- verify-all (#4251) -----------------------------
