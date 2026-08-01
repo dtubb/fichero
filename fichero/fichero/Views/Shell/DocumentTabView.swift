@@ -184,6 +184,27 @@ struct DocumentTabView: View {
                 // and can be updated after the content subtree has changed.
                 .environment(library.activityStore)
                 .environment(library.workflowExecutionStore)
+                // #4455: the remaining library-scoped values a view under this
+                // host reads NON-OPTIONALLY. They resolved only by inheritance
+                // past this explicit host — the accident behind #1561, #3298,
+                // #3350 and #4448 — and each was one click away from the same
+                // "No Observable object of type X found" trap. Baselined as debt
+                // by scripts/check_environment_forwarding.py when #4448 shipped;
+                // paid off here, which empties that baseline.
+                .environment(library.bookmarkService)
+                .environment(library.workspaceStore)
+                .environment(library.batchStore)
+                .environment(library.workflowService)
+                .environment(library.providerService)
+                .environment(library.modelService)
+                .environment(library.noteStore)
+                .environment(library.annotationStore)
+                .environment(library.actionStore)
+                .environment(library.chainStore)
+                .environment(library.researchStore)
+                .environment(library.citationStore)
+                .environment(library.referenceStore)
+                .environment(library.interpretationStore)
         } else {
             Text("Library not found")
                 .font(.headline)

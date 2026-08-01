@@ -181,8 +181,8 @@ def self_test() -> int:
       1. the tree as it stands is clean;
       2. reverting #4448's own fix (dropping the `library.activityStore`
          forward) makes it fail, naming ActivityStore;
-      3. deleting a baseline line makes it fail, so the ratchet is load-bearing
-         and cannot be quietly widened;
+      3. removing a second, different forward is also caught, so the check is
+         not pinned to one lucky symbol;
       4. everything is restored afterwards.
 
     Every mutation is written to a temp copy and restored in a `finally`, so an
@@ -210,12 +210,15 @@ def self_test() -> int:
             expect("reverting the #4448 ActivityStore forward is caught", 1)
             host.write_text(host_original, encoding="utf-8")
 
-        trimmed = "\n".join(
-            line for line in baseline_original.splitlines() if "NoteStore" not in line
+        dropped_note = host_original.replace(
+            "                .environment(library.annotationStore)\n", ""
         )
-        BASELINE.write_text(trimmed + "\n", encoding="utf-8")
-        expect("removing a baseline entry is caught (ratchet holds)", 1)
-        BASELINE.write_text(baseline_original, encoding="utf-8")
+        if dropped_note == host_original:
+            failures.append("could not simulate the AnnotationStore regression")
+        else:
+            host.write_text(dropped_note, encoding="utf-8")
+            expect("removing the AnnotationStore forward is caught", 1)
+            host.write_text(host_original, encoding="utf-8")
 
         expect("everything restored", 0)
     finally:

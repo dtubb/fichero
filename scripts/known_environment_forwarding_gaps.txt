@@ -21,17 +21,6 @@
 # modifier, so there is one list instead of four hand-synced ones. When that
 # lands, this whole file should go with it.
 
-DocumentTabView.swift:ActionStore
-DocumentTabView.swift:AnnotationStore
-DocumentTabView.swift:BatchStore
-DocumentTabView.swift:BookmarkService
-DocumentTabView.swift:ChainStore
-DocumentTabView.swift:CitationStore
-DocumentTabView.swift:InterpretationStore
-DocumentTabView.swift:ModelService
-DocumentTabView.swift:NoteStore
-DocumentTabView.swift:ProviderAPIService
-DocumentTabView.swift:ReferenceStore
-DocumentTabView.swift:ResearchStore
-DocumentTabView.swift:WorkflowService
-DocumentTabView.swift:WorkspaceStore
+# EMPTY. All fourteen were forwarded (#4455). Any new entry here is a
+# REGRESSION being written down rather than fixed — prefer forwarding the
+# value, or making every reader declare it optional.
