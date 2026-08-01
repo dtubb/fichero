@@ -1,0 +1,14 @@
+{
+  "release.app_binary": {
+    "bytes": 58928,
+    "note": "seeded from the 2026.08.01 (build 2026080101) release, commit fc14c6365"
+  },
+  "release.app_bundle": {
+    "bytes": 1491729173,
+    "note": "seeded from the 2026.08.01 (build 2026080101) release, commit fc14c6365"
+  },
+  "release.dmg": {
+    "bytes": 539370129,
+    "note": "seeded from the 2026.08.01 (build 2026080101) release, commit fc14c6365"
+  }
+}

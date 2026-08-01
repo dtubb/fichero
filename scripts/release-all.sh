@@ -271,6 +271,37 @@ if [ "$SKIP_NOTARIZE" = false ]; then
   "$ROOT_DIR/scripts/notarize.sh" "$DMG_PATH"
 fi
 
+# ── Size ratchet: the app binary, .app bundle, and DMG may never grow (#4444) ──
+# Right here, and nowhere else: this is the one point the real, final,
+# stapled artifact exists, and it is BEFORE the TestFlight archive/upload
+# steps below — the expensive, slow part of a release (each is minutes of
+# xcodebuild + upload). A size blowup must abort HERE, not after burning that
+# time. Held EXACTLY, no tolerance — a byte count does not vary with machine
+# load, so any growth is real (same reasoning as the query-count ratchet,
+# #4443). Runs only when this invocation actually built+stapled a fresh DMG
+# (skipped release legs have nothing new to measure).
+if [ "$SKIP_DMG" = false ] && [ "$SKIP_NOTARIZE" = false ]; then
+  echo
+  echo "── DMG: size ratchet ──"
+  # build-release-dmg.sh's APP_NAME ("Fichero.app") is local to that script,
+  # not sourced here — matching the literal it stages into dmg-stage/.
+  STAGED_APP_PATH="$RELEASE_DIR/dmg-stage/Fichero.app"
+  set +e
+  "$ROOT_DIR/scripts/check_release_size_ratchet.py" --app "$STAGED_APP_PATH" --dmg "$DMG_PATH"
+  SIZE_RATCHET_RC=$?
+  set -e
+  if [ "$SIZE_RATCHET_RC" -ne 0 ]; then
+    if [ "$SIZE_RATCHET_RC" -eq 2 ]; then
+      echo "error: release-size ratchet is BLIND — could not measure the build. Fix the check before trusting this release; the release is stopped rather than shipped unmeasured." >&2
+    else
+      echo "error: release-size ratchet FAILED — see above for which artifact grew past its best-ever size." >&2
+      echo "       If accepted (new dependency, embedded model), say what it bought and rerun:" >&2
+      echo "         scripts/check_release_size_ratchet.py --app \"$STAGED_APP_PATH\" --dmg \"$DMG_PATH\" --update-baseline" >&2
+    fi
+    exit "$SIZE_RATCHET_RC"
+  fi
+fi
+
 if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   echo
   echo "── TestFlight: codesign keychain already preflighted above ──"
