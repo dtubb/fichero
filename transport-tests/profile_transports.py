@@ -6,7 +6,7 @@ diffable. Dependency-light: stdlib + httpx (from the dev venv).
 
 Metrics
 -------
-* Cold import       : wall time to `import fichero.api.main` in a FRESH
+* Cold import       : wall time to `import fichero_server.api.main` in a FRESH
                       interpreter (baseline for engine launch cost).
 * Per-request p50/p95: latency over N requests to /api/health for each transport
                       we can drive from Python:
@@ -22,9 +22,14 @@ on top of these numbers later.
 
 Usage
 -----
-    PYTHONPATH=/Users/danieltubb/code/fichero/fichero-engine/src \
-    /Users/danieltubb/code/fichero/.venv/bin/python \
-        transport-tests/profile_transports.py --n 200 --out results.json
+Run from the repo root, with the shared venv activated (`source .venv/bin/activate`):
+
+    PYTHONPATH=fichero-server/src \
+        python transport-tests/profile_transports.py --n 200 --out results.json
+
+`engine_src()` (see `_engine_harness.py`) defaults to `fichero-server/src`
+relative to this file's own location, so PYTHONPATH above is belt-and-braces
+for the parent process; the subprocess it launches gets it either way.
 """
 
 from __future__ import annotations
@@ -45,14 +50,17 @@ from _engine_harness import engine_src, start_engine  # noqa: E402
 
 HEALTH = "/api/health"
 # A candidate streaming endpoint; skipped gracefully if absent / needs a library.
-STREAM_CANDIDATES = ("/api/activity/stream",)
+# `/api/changes/stream` (#1863) is the real per-library change-event SSE route
+# as of the #4227 rename; the pre-rename harness guessed at a path that never
+# existed, which is why this always reported "none available".
+STREAM_CANDIDATES = ("/api/changes/stream",)
 
 
 def measure_cold_import(repeats: int = 1) -> dict:
-    """Time `import fichero.api.main` in a fresh interpreter (worst-case: cold)."""
+    """Time `import fichero_server.api.main` in a fresh interpreter (worst-case: cold)."""
     src = engine_src()
     snippet = (
-        "import time; t=time.perf_counter(); import fichero.api.main; "
+        "import time; t=time.perf_counter(); import fichero_server.api.main; "
         "print(time.perf_counter()-t)"
     )
     env = dict(os.environ)
@@ -137,7 +145,7 @@ def print_table(results: dict) -> None:
     print("\n" + "=" * 66)
     print("Fichero transport profile  —  " + results["timestamp"])
     print("=" * 66)
-    print(f"Cold import (import fichero.api.main): {ci['seconds']:.3f} s"
+    print(f"Cold import (import fichero_server.api.main): {ci['seconds']:.3f} s"
           f"  (samples: {ci['samples']})")
     print("-" * 66)
     print(f"{'transport':<10}{'n':>6}{'p50 ms':>12}{'p95 ms':>12}"

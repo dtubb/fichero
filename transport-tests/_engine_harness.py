@@ -1,10 +1,11 @@
 """Shared helpers to boot the Fichero engine on a plain-HTTP UDS (and TCP).
 
 The engine can bind a plaintext Unix-domain-socket ASGI server when
-``FICHERO_UDS_PATH`` is set — the ``fichero.api.uds_transport:app`` wrapper
-stamps ``scope["fichero.transport"] = "uds"`` so ``_is_loopback_request`` trusts
-the connection as loopback-owner (TLS is exempt on the UDS path; there is no
-network listener). This module knows how to launch that server headlessly.
+``FICHERO_UDS_PATH`` is set — the ``fichero_server.api.uds_transport:app``
+wrapper stamps ``scope["fichero.transport"] = "uds"`` so
+``_is_loopback_request`` trusts the connection as loopback-owner (TLS is
+exempt on the UDS path; there is no network listener). This module knows how
+to launch that server headlessly.
 
 Why the extra env:
   * ``FICHERO_BASE_PATH``      -> point app.duckdb / global.fichero at a fresh
@@ -17,8 +18,11 @@ Why the extra env:
                                   IS the owner credential.
 
 Engine source: the venv here is a STALE non-editable copy, so newer modules
-(``fichero.api.uds_transport``) are missing from site-packages. We prepend the
-real engine ``src`` onto ``PYTHONPATH`` for the subprocess. Override with
+(``fichero_server.api.uds_transport``) are missing from site-packages. We
+prepend the real engine ``src`` onto ``PYTHONPATH`` for the subprocess,
+derived from this file's own location so it works in ANY worktree — never a
+machine-specific absolute path (#4227 rename post-mortem: the pre-rename
+version of this harness hardcoded one checkout). Override with
 ``FICHERO_ENGINE_SRC`` if the engine lives elsewhere.
 """
 
@@ -33,7 +37,9 @@ import tempfile
 import time
 from pathlib import Path
 
-DEFAULT_ENGINE_SRC = "/Users/danieltubb/code/fichero/fichero-engine/src"
+# transport-tests/ sits at the repo root beside fichero-server/ in every
+# worktree — worktree-relative, not one machine's checkout path.
+DEFAULT_ENGINE_SRC = str(Path(__file__).resolve().parent.parent / "fichero-server" / "src")
 
 
 def engine_src() -> str:
@@ -125,7 +131,7 @@ def start_engine(*, transport: str = "uds", token: str | None = None,
         Path(uds_path).unlink(missing_ok=True)
         cmd = [
             sys.executable, "-m", "uvicorn",
-            "fichero.api.uds_transport:app",
+            "fichero_server.api.uds_transport:app",
             "--uds", uds_path,
             "--log-level", "warning",
         ]
@@ -136,7 +142,7 @@ def start_engine(*, transport: str = "uds", token: str | None = None,
         port = _free_tcp_port()
         cmd = [
             sys.executable, "-m", "uvicorn",
-            "fichero.api.main:app",
+            "fichero_server.api.main:app",
             "--host", "127.0.0.1",
             "--port", str(port),
             "--log-level", "warning",
