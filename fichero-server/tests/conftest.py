@@ -564,12 +564,16 @@ def _api_main_pollution_guard():
 
 
 # ---------------------------------------------------------------------------
-# Performance ratchet: every test is timed, held to its best (#4439)
+# Performance ratchet: every test is timed (#4439) and the run is weighed (#4440)
 # ---------------------------------------------------------------------------
 #
 # Not a separate suite you remember to run — a property of whatever you already
 # ran. Slow down a query and the tests covering it say so on the next run,
 # rather than waiting for the perf leg.
+#
+# Time is per test. Memory is per SESSION, because peak RSS is a property of the
+# process and charging it to whichever test happened to be running is a number
+# that means something else entirely — see perf_ratchet.py.
 #
 # Off by default: opt in with FICHERO_PERF_RATCHET=1 (the gate sets it). A
 # developer running one test file on a laptop with a browser open should not be
@@ -586,6 +590,25 @@ def _ratchet_enabled() -> bool:
     return _os.environ.get("FICHERO_PERF_RATCHET") == "1"
 
 
+def _ratchet_scope(session) -> str:
+    """The identity of WHAT was run, for the session-level memory bar (#4440).
+
+    One test file and the whole suite have genuinely different peaks. Sharing a
+    bar between them means the narrow run tightens it to a number the full suite
+    can never meet, and the ratchet becomes a thing people switch off. So the
+    invocation's paths ARE part of the measurement's name.
+    """
+    root = _Path(str(session.config.rootpath))
+    parts = []
+    for arg in session.config.args:
+        raw = _Path(str(arg).split("::")[0])
+        try:
+            parts.append(str(raw.resolve().relative_to(root)))
+        except (ValueError, OSError):
+            parts.append(raw.name or str(raw))
+    return ",".join(sorted(set(parts))) or "."
+
+
 def pytest_runtest_logreport(report):
     """Record the call phase of each passing test."""
     if not _ratchet_enabled() or report.when != "call" or not report.passed:
@@ -593,6 +616,7 @@ def pytest_runtest_logreport(report):
     import perf_ratchet
 
     perf_ratchet.note_test_duration(report.nodeid, report.duration)
+    perf_ratchet.note_test_memory(report.nodeid)
 
 
 # ---------------------------------------------------------------------------
@@ -667,24 +691,30 @@ def pytest_sessionfinish(session, exitstatus):
 
     regressions = list(perf_ratchet.flush_session())
     query_regressions = list(perf_ratchet.flush_query_session())
-    if not regressions and not query_regressions:
+    mem_regressions, mem_status = perf_ratchet.flush_session_memory(
+        _ratchet_scope(session)
+    )
+    regressions = regressions + list(mem_regressions)
+    blind = mem_status.startswith("blind:")
+    if not regressions and not query_regressions and not blind:
         return
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
-    if reporter is not None:
+    if reporter is not None and regressions:
         reporter.write_sep("=", "PERFORMANCE REGRESSIONS", red=True)
         for line in regressions:
             reporter.write_line(f"  {line}")
         if regressions:
             reporter.write_line("")
             reporter.write_line(
-                "  Each is slower than its own best-ever time. Fichero is meant to get"
+                "  Each is slower or heavier than its own best-ever result. Fichero is"
             )
             reporter.write_line(
-                "  faster, so a slower run is a decision: re-run on a quiet machine, or"
+                "  meant to get faster and lighter, so a worse run is a decision: re-run"
             )
             reporter.write_line(
-                "  raise the entry in tests/perf_baseline.json and say what bought the time."
+                "  on a quiet machine, or raise the entry in tests/perf_baseline.json and"
             )
+            reporter.write_line("  say what bought the time or the memory.")
         for line in query_regressions:
             reporter.write_line(f"  {line}")
         if query_regressions:
@@ -701,10 +731,25 @@ def pytest_sessionfinish(session, exitstatus):
             reporter.write_line(
                 "  If accepted, raise the entry in tests/perf_baseline.json and say why."
             )
-    # Exit code 3 = "tests passed, performance did not." Distinguishable from a
-    # test failure, because it needs a different response.
+    if reporter is not None and blind:
+        reporter.write_sep("=", "MEMORY RATCHET WENT BLIND", red=True)
+        reporter.write_line(f"  {mem_status}")
+        reporter.write_line("")
+        reporter.write_line(
+            "  This is NOT a pass. Nothing was measured, so nothing was checked, and"
+        )
+        reporter.write_line(
+            "  a guardrail that cannot measure keeps printing green from the day it"
+        )
+        reporter.write_line("  breaks. Fix the measurement before trusting the run.")
+
+    # Exit code 3 = "tests passed, performance did not."
+    # Exit code 4 = "tests passed, and the memory ratchet could not look at all."
+    # Three answers, three codes: a regression needs a fix, blindness needs the
+    # instrument repaired, and neither may be mistaken for the other or for a
+    # test failure.
     if exitstatus == 0:
-        session.exitstatus = 3
+        session.exitstatus = 3 if (regressions or query_regressions) else 4
 
 
 # ---------------------------------------------------------------------------

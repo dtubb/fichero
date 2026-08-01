@@ -18,14 +18,31 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import perf_ratchet as _history  # noqa: E402
 
+# Captured before any fixture stubs it out, so the one test that needs the REAL
+# contention guard can still reach it.
+_REAL_CONTENTION_GUARD = _history._another_perf_run_is_active
+
 
 @pytest.fixture
 def ratchet(tmp_path, monkeypatch):
-    """Point the ratchet at throwaway files."""
+    """Point the ratchet at throwaway files, on a machine it believes is quiet.
+
+    The contention guard must be stubbed or these tests are not deterministic:
+    it greps for any process matching `pytest.*tests/perf`, and this file's own
+    invocation can match, as can any other perf run in flight. When it fires,
+    `record` and `flush_session` correctly refuse to write anything — and every
+    assertion here about what got written then fails for a reason that has
+    nothing to do with the ratchet's logic. Observed live: 16 failures from a
+    full-suite run happening in another window.
+
+    The guard itself is exercised deliberately in TestConcurrentRuns, which
+    stubs it the other way.
+    """
     baseline = tmp_path / "perf_baseline.json"
     monkeypatch.setattr(_history, "BASELINE_PATH", baseline)
     monkeypatch.setattr(_history, "HISTORY_PATH", tmp_path / "history.jsonl")
     monkeypatch.delenv("FICHERO_PERF_NO_HISTORY", raising=False)
+    monkeypatch.setattr(_history, "_another_perf_run_is_active", lambda: False)
     return baseline
 
 
@@ -188,10 +205,19 @@ class TestConcurrentRuns:
         assert _best(ratchet, "claims.list") == 100.0
 
     def test_being_unable_to_tell_does_not_block_the_suite(self, ratchet, monkeypatch):
-        """pgrep missing or failing must not stop perf from running at all."""
+        """pgrep missing or failing must not stop perf from running at all.
+
+        Calls the guard DIRECTLY. Going through `record` would prove nothing:
+        the fixture stubs the guard out to keep these tests deterministic, so a
+        broken pgrep would never be reached and the test would pass while
+        checking nothing.
+        """
         def _boom(*_args, **_kwargs):
             raise OSError("pgrep unavailable")
         monkeypatch.setattr(_history.subprocess, "run", _boom)
+        assert _REAL_CONTENTION_GUARD() is False
+
+        # ...and the suite still records normally when it cannot tell.
         _history.record("claims.list", 100.0)
         assert _best(ratchet, "claims.list") == 100.0
 
