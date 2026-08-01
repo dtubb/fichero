@@ -180,11 +180,18 @@ extension SidebarItem.ItemType {
 
     var canBeDeleted: Bool {
         switch self {
-        case .document, .savedSearch, .conversation, .workflow, .folder:
+        case .document, .savedSearch, .conversation, .workflow:
             return true
         case .chain, .schedule, .trigger, .batch:
             return true
-        case .comparison, .activityRun, .libraryHeader:
+        // `.folder(folderPath:)` is a VIRTUAL row — "no data, just structure",
+        // per its declaration. It is a grouping in the tree, not a library
+        // folder: a real folder is a `Document` with `docType == .folder` and
+        // deletes through `.document` above. There is nothing behind a
+        // structural row to delete, so offering Delete could only ever no-op,
+        // which is what it did — confirmed destructive action, log line, no
+        // change (#4454).
+        case .comparison, .activityRun, .libraryHeader, .folder:
             return false
         }
     }
