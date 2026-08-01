@@ -272,6 +272,10 @@ def _on_chain_event(event: ChainProgressEvent) -> None:
 def _create_workflow_loader(library_path: str) -> Callable[[str], WorkflowDef | None]:
     """Create a workflow loader function for the given library.
 
+    Resolves the id in the library first, then as a global DEFAULT
+    (#4450/#4139) — a chain step referencing a shipped preset must run in
+    every library, while the run stays pinned to `library_path`.
+
     Args:
         library_path: Path to the .fichero library
 
@@ -280,19 +284,51 @@ def _create_workflow_loader(library_path: str) -> Callable[[str], WorkflowDef | 
     """
 
     def loader(workflow_id: str) -> WorkflowDef | None:
+        from fichero_server.workflows.default_workflows import (
+            resolve_default_workflow,
+        )
+        from fichero_server.workflows.runtime import to_workflow_def
+
         try:
             db = db_manager.get_database(library_path)
             store = WorkflowStore(db)
-            workflow = store.get(workflow_id)
-            if workflow and workflow.definition:
-                # Convert stored workflow to WorkflowDef
-                return WorkflowDef(**workflow.definition)
-            return None
+            workflow = store.get(workflow_id) or resolve_default_workflow(workflow_id)
+            if workflow is None:
+                return None
+            # #4139: this used to read `workflow.definition` — an attribute
+            # the Workflow model has never had — so the AttributeError was
+            # swallowed below and EVERY chain step resolved to None. The
+            # model's real shape is nodes/edges; to_workflow_def is the one
+            # shared normalizer (same one /execute validation uses).
+            return to_workflow_def(workflow)
         except Exception as e:
             logger.error(f"Failed to load workflow {workflow_id}: {e}")
             return None
 
     return loader
+
+
+def _chain_candidate_workflows(db, library_path: str) -> list[Any]:
+    """This library's workflows plus the app's DEFAULTS (#4450/#4139).
+
+    Defaults live only in the global library (#4102); building a chain from
+    ``store.list_all()`` alone meant a non-global library could never match
+    "Transcribe Paleography" and the scorer fell back to whatever generic
+    user workflow contained "transcribe" — the exact defect in #4139. The
+    library's own row wins on an id collision.
+    """
+    from fichero_server.db.paths import is_global_library_package
+    from fichero_server.workflows.default_workflows import (
+        list_global_default_workflows,
+    )
+
+    workflows = WorkflowStore(db).list_all()
+    if not is_global_library_package(library_path):
+        present = {w.id for w in workflows}
+        workflows += [
+            w for w in list_global_default_workflows() if w.id not in present
+        ]
+    return workflows
 
 
 def _best_workflow_match(
@@ -532,8 +568,9 @@ async def paleography_preset_preview(
     """Draft a stageable A/B/C paleography chain from current workflows."""
     assert_library_read_authorized(request, x_fichero_library_path)
     db = db_manager.get_database(x_fichero_library_path)
-    store = WorkflowStore(db)
-    chain, matched = _build_paleography_chain(store.list_all())
+    chain, matched = _build_paleography_chain(
+        _chain_candidate_workflows(db, x_fichero_library_path)
+    )
     return PaleographyPresetResponse(
         chain=_chain_to_response(chain),
         matched_workflows=matched,
@@ -548,8 +585,9 @@ async def paleography_preset_create(
     """Create and save the A/B/C paleography chain preset."""
     assert_library_read_authorized(request, x_fichero_library_path)
     db = db_manager.get_database(x_fichero_library_path)
-    store = WorkflowStore(db)
-    chain, matched = _build_paleography_chain(store.list_all())
+    chain, matched = _build_paleography_chain(
+        _chain_candidate_workflows(db, x_fichero_library_path)
+    )
     saved = chain_store.save(chain)
     return PaleographyPresetResponse(
         chain=_chain_to_response(saved),
