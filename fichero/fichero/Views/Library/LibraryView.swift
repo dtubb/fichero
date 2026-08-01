@@ -78,6 +78,11 @@ struct LibraryView: View {
     /// documents at the library root, which is the "+ on a folder imports to
     /// the root" bug this issue exists to close (#4449).
     @State var fileImportTargetFolderId: String?
+    /// Link/Copy/Move for the in-flight `showingFileImporter` picker (#4452)
+    /// — the Data-menu Import submenu offers all three; the bottom-bar and
+    /// contextual-menu affordances always want `.link` and set this
+    /// explicitly rather than relying on the default.
+    @State var fileImportMode: IngestMode = .link
     @FocusState var filterFieldFocused: Bool
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
     @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
@@ -470,6 +475,16 @@ struct LibraryView: View {
                 BookmarksView(document: document, onOpen: { openDocument($0) })
             }
             .focusedSceneValue(\.runWorkflowOnSelection, runWorkflowOnSelectionAction)
+            // Data-menu Import… while the LIBRARY pane (not the sidebar) has
+            // focus (#4452). Deliberately the narrow `libraryImportAction`
+            // key, not `sidebarActions` — see that key's doc comment for why
+            // stubbing the other 10 SidebarActions closures would be a new
+            // silent no-op bug of the exact shape #4449 just closed.
+            .focusedValue(\.libraryImportAction) { mode in
+                fileImportMode = mode
+                fileImportTargetFolderId = folderId
+                showingFileImporter = true
+            }
             .onAppear {
                 if outlineModel == nil {
                     outlineModel = LibraryOutlineModel(

@@ -319,6 +319,24 @@ cmd_part() {
   local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=()
   echo "=== gate part: $area ==="
 
+  # Self-test-only seam (#4451), mirroring GATE_FAKE_PRESSURE /
+  # GATE_FAKE_FOOTPRINT_MB below: injects one deliberately-failing leg and
+  # skips the real (slow) legs, so --self-test can prove a red leg actually
+  # makes `gate part` exit nonzero without paying for a real lint+build+test
+  # run. This is the exact path that silently exited 0 before this fix.
+  if [[ "${GATE_FAKE_PART_LEG_FAIL:-0}" = "1" ]]; then
+    run_leg "self-test-fake-fail" false || failed=1
+    echo
+    echo "==================== gate part '$area' summary ===================="
+    local i
+    for i in "${!LEG_NAMES[@]}"; do
+      local verdict="PASS"
+      [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]})"; failed=1; }
+      printf "%-14s %-8s %ss\n" "${LEG_NAMES[$i]}" "$verdict" "${LEG_SECS[$i]}"
+    done
+    return $failed
+  fi
+
   # 1. Lint. Whole-tree: swiftlint and ruff are seconds, and a scoped lint that
   #    misses a violation elsewhere in the same file is worse than useless.
   run_leg "lint" run_gated "part-lint" 600 bash -c \
@@ -351,7 +369,14 @@ cmd_part() {
   local i
   for i in "${!LEG_NAMES[@]}"; do
     local verdict="PASS"
-    [[ "${LEG_RCS[$i]}" -ne 0 ]] && verdict="FAIL(rc=${LEG_RCS[$i]})"
+    # run_leg always `return 0` (correct for cmd_verify_all, whose OWN summary
+    # loop below sets `fail=1` from LEG_RCS) — so the `|| failed=1` on every
+    # run_leg call above never fires; without setting `failed` HERE too, a
+    # failing leg prints FAIL in this table and `gate part` still exits 0
+    # (#4451, found right after #4451's own sibling fix landed run_leg at
+    # top level — a leg not firing and a leg firing-but-not-failing are two
+    # different bugs).
+    [[ "${LEG_RCS[$i]}" -ne 0 ]] && { verdict="FAIL(rc=${LEG_RCS[$i]})"; failed=1; }
     printf "%-14s %-8s %ss\n" "${LEG_NAMES[$i]}" "$verdict" "${LEG_SECS[$i]}"
   done
   return $failed
@@ -678,6 +703,14 @@ cmd_self_test() {
   out="$(GATE_DRYRUN=1 "$0" perf 2>&1)"
   [[ "$out" == *"[perf-pytest]"* && "$out" == *"fichero-server/tests/perf/"* ]]
   check "perf leg runs tests/perf as its own bounded invocation (dry-run)" $?
+
+  # 2c. `gate part` (#4451): a red leg must make the command exit nonzero,
+  #     not just print FAIL and exit 0. Uses the GATE_FAKE_PART_LEG_FAIL seam
+  #     so this stays fast — no real lint/build/test run.
+  out="$(GATE_DRYRUN=1 GATE_FAKE_PART_LEG_FAIL=1 "$0" part sidebar 2>&1)"; rc=$?
+  [[ "$out" == *"self-test-fake-fail"* && "$out" == *"FAIL(rc="* ]]
+  check "gate part: summary table names the failing leg" $?
+  [[ $rc -ne 0 ]]; check "gate part: a red leg makes the command exit nonzero (#4451)" $?
 
   # 3. Lock contention: hold the lock with a trivial sleep, then a --no-wait
   #    caller must fail fast with 75, and a waiting caller must queue+succeed.
