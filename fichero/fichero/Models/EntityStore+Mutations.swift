@@ -69,6 +69,17 @@ extension EntityStore {
     /// Merge `absorbedIds` into `survivorId`, then re-fetch the active
     /// document-scoped inspector list so every surface sees the canonical
     /// post-merge rows from the backend.
+    /// Merge `absorbedIds` into `survivorId`, remove the absorbed rows in
+    /// place, and patch the survivor row from a fresh fetch (#4389).
+    ///
+    /// `EntityAuditResponse` (the merge endpoint's return value) is an audit
+    /// LOG record — id/operation_type/source_entity_ids/alias_changes — not
+    /// the survivor's post-merge `KnowledgeEntity` state, so it can't patch
+    /// the row by itself. Rather than extend that response (a backend
+    /// schema + OpenAPI-regen change) or fall back to reloading the WHOLE
+    /// list to recover one row, fetch the ONE row that actually changed:
+    /// `getEntity(survivorId)` already exists for exactly this. Same
+    /// N-vs-1 trade the issue asks for, without a two-stack change.
     func merge(absorbedIds: [String], into survivorId: String) async throws {
         _ = try await entityService.mergeEntities(
             absorbingEntityId: survivorId,
@@ -78,17 +89,29 @@ extension EntityStore {
         libraryEntities.removeAll { entity in
             entity.id.map(absorbed.contains) ?? false
         }
-        if hasDocumentScope {
-            await reload()
-            return
-        }
-
         entities.removeAll { entity in
             entity.id.map(absorbed.contains) ?? false
         }
         for documentId in entitiesByDocumentId.keys {
             entitiesByDocumentId[documentId]?.removeAll { entity in
                 entity.id.map(absorbed.contains) ?? false
+            }
+        }
+
+        // The survivor gains aliases and its mention/claim counts change —
+        // patch it from the server's canonical post-merge state, the same
+        // way `rename` patches its row, rather than trusting a locally
+        // guessed diff.
+        let survivor = try await entityService.getEntity(survivorId)
+        if let index = libraryEntities.firstIndex(where: { $0.id == survivorId }) {
+            libraryEntities[index] = survivor
+        }
+        if let index = entities.firstIndex(where: { $0.id == survivorId }) {
+            entities[index] = survivor
+        }
+        for documentId in entitiesByDocumentId.keys {
+            if let index = entitiesByDocumentId[documentId]?.firstIndex(where: { $0.id == survivorId }) {
+                entitiesByDocumentId[documentId]?[index] = survivor
             }
         }
     }
