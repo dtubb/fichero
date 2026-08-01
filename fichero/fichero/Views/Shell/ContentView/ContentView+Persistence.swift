@@ -159,6 +159,28 @@ extension ContentView {
             )
             selectedSidebarItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
         }
+        // #4453: a persisted id can name something that no longer exists — the
+        // item was deleted (possibly in another window) since this state was
+        // written, or a WindowSeed carried it into a window that never saw the
+        // deletion. Validate HERE, at the restore boundary, because it is the
+        // one place both paths meet: `Duplicate Window` seeds the same
+        // `selectedSidebarItem` scene storage this reads, so a single check
+        // covers scene restore and seeding rather than making them two rules.
+        //
+        // `restoreViewMode` above already resolves per type and degrades to a
+        // nil payload when the target is gone, so that answer is REUSED rather
+        // than a second existence check written: if it could not find the item,
+        // a selection naming that same item is dangling.
+        //
+        // Selecting nothing is the correct outcome, not a fallback hiding an
+        // error — a window restoring after a deletion is a legitimate state.
+        if Self.viewModeLostItsItem(viewMode, storedItemId: storedViewModeItemId),
+           selectedSidebarItemId == Self.sidebarSelectionId(
+               for: storedViewModeType, itemId: storedViewModeItemId
+           ) {
+            logger.info("Dropping dangling restored selection: \(selectedSidebarItemId ?? "nil")")
+            selectedSidebarItemId = nil
+        }
         sidebarSelectionState.selectedItemId = selectedSidebarItemId
 
         logger.info("""
@@ -202,6 +224,26 @@ extension ContentView {
         storedViewModeType = type
         storedViewModeItemId = id
         selectedSidebarItemId = sidebarSelectionState.selectedItemId ?? Self.sidebarSelectionId(for: type, itemId: id)
+    }
+
+    /// Whether `restoreViewMode` was given an item id and could NOT resolve it
+    /// (#4453) — i.e. the stored target no longer exists.
+    ///
+    /// Only the modes that carry a resolved payload can answer this. A mode with
+    /// no item (`.automation`, `.batches`) never dangles, and a nil payload with
+    /// no stored id is simply "nothing was selected", not a loss.
+    static func viewModeLostItsItem(_ mode: AppViewMode, storedItemId: String?) -> Bool {
+        guard let storedItemId, !storedItemId.isEmpty else { return false }
+        switch mode {
+        case .library(let document):
+            return document == nil
+        case .chat(let conversation):
+            return conversation == nil
+        case .workflow(let workflow):
+            return workflow == nil
+        default:
+            return false
+        }
     }
 
     // MARK: - Sidebar Selection ID Mapping
