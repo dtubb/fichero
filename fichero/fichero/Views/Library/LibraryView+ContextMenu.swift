@@ -53,6 +53,7 @@ extension LibraryView {
         // Parity with the sidebar row menu (#4121): the same document gets
         // the same actions in every surface.
         addToChatMenuItem(for: document)
+        importIntoFolderMenuItem(for: document)
         openAndRenameMenuItems(for: document)
         duplicateAndAliasMenuItems(for: document)
         organizeMenuItems(for: document)
@@ -60,6 +61,25 @@ extension LibraryView {
         excludeFromProcessingMenuItem(excludeTargets: excludeTargets)
         deleteMenuItem(for: document)
         runWorkflowMenuItem(for: document)
+    }
+
+    /// Contextual-menu import (#4449) — one of the three affordances the
+    /// issue requires, alongside the Data-menu item and the bottom-bar
+    /// button. Only on a folder; a plain document has nothing to import
+    /// INTO. Shares `showingFileImporter`/`handleFileImport` with the
+    /// bottom bar (`LibraryView+BottomActionBar.swift`) — one picker, one
+    /// handler, every surface states its own target folder first.
+    @ViewBuilder
+    private func importIntoFolderMenuItem(for document: Document) -> some View {
+        if document.docType == .folder {
+            Button {
+                fileImportTargetFolderId = document.id
+                showingFileImporter = true
+            } label: {
+                Label("Import Files Here…", systemImage: "square.and.arrow.down")
+            }
+            Divider()
+        }
     }
 
     // MARK: - Sidebar-parity items (#4121)

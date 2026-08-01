@@ -316,6 +316,7 @@ cmd_part() {
   resolve_area "$area"
 
   local failed=0
+  local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=()
   echo "=== gate part: $area ==="
 
   # 1. Lint. Whole-tree: swiftlint and ruff are seconds, and a scoped lint that
@@ -564,19 +565,38 @@ cmd_wrap() {
   run_gated "wrap:$1" "${GATE_TIMEOUT_WRAP:-7200}" "$@"
 }
 
+# run_leg — shared by cmd_verify_all AND cmd_part (#4449 fix): both record a
+# leg's name/rc/elapsed into LEG_NAMES/LEG_RCS/LEG_SECS, which each caller
+# must declare `local -a` before its first run_leg call (bash's dynamic
+# scoping resolves run_leg's unqualified array names to the caller's
+# locals). Previously nested INSIDE cmd_verify_all, so `gate part <area>`
+# hit "run_leg: command not found" on every invocation — undetected because
+# nothing exercised `gate part` until a worker actually tried it.
+run_leg() {
+  local name="$1"; shift
+  local t0=$SECONDS
+  echo
+  echo "================ gate leg: $name ================"
+  "$@"
+  local rc=$?
+  LEG_NAMES+=("$name"); LEG_RCS+=("$rc"); LEG_SECS+=($((SECONDS - t0)))
+  # Return the LEG's status, not 0.
+  #
+  # This used to `return 0` so verify-all could keep going and aggregate at the
+  # end — which is right for verify-all, and it re-reads LEG_RCS itself. But
+  # cmd_part uses `|| failed=1`, and against an always-0 return every one of
+  # those handlers was dead code: a failing lint or build printed FAIL(rc=N) in
+  # the table while `gate part` exited 0.
+  #
+  # A gate that prints a failure and exits green is worse than one that crashes,
+  # because a crash gets noticed. Callers that want to continue past a failure
+  # say so explicitly with `|| true`.
+  return $rc
+}
+
 # --------------------------- verify-all (#4251) -----------------------------
 cmd_verify_all() {
   local -a LEG_NAMES=() LEG_RCS=() LEG_SECS=()
-  run_leg() {
-    local name="$1"; shift
-    local t0=$SECONDS
-    echo
-    echo "================ gate verify-all leg: $name ================"
-    "$@"
-    local rc=$?
-    LEG_NAMES+=("$name"); LEG_RCS+=("$rc"); LEG_SECS+=($((SECONDS - t0)))
-    return 0   # keep going; the table + exit code aggregate at the end
-  }
 
   # guardrails leg: verify_all.sh --fast (swiftlint + ruff + check_*.py +
   # version-date + OpenAPI sync). FICHERO_GATE=1 stops it re-wrapping itself.
