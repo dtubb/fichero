@@ -2,6 +2,9 @@ import FicheroAPIClient
 import Foundation
 import simd
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Renderer-agnostic interaction semantics (#3103)
 
@@ -9,7 +12,9 @@ import SwiftUI
 /// into these and dispatch them; the `CanvasInteractionController` owns what
 /// each one MEANS against the shared stores. Both renderers share this exactly.
 enum CanvasIntent {
-    case tap(id: String?)                         // nil clears selection
+    /// nil clears selection. `modifiers` carries ⌘/⇧ so this surface can use
+    /// the shared `SelectionGrammar` instead of its own rule (#4436).
+    case tap(id: String?, modifiers: SelectionGrammar.Modifiers)
     case marquee(ids: Set<String>)                // rubber-band multi-select
     case dragBegan(id: String)
     case dragMoved(id: String, position: SIMD3<Double>)
@@ -118,8 +123,8 @@ final class CanvasInteractionController {
     /// mutating intents run in a Task (the async methods are unit-tested directly).
     func dispatch(_ intent: CanvasIntent) {
         switch intent {
-        case .tap(let id):
-            select(id)
+        case .tap(let id, let modifiers):
+            select(id, modifiers: modifiers)
         case .marquee(let ids):
             selectMany(ids)
         case .dragBegan(let id):
@@ -141,9 +146,56 @@ final class CanvasInteractionController {
 
     // MARK: Selection
 
-    func select(_ id: String?) {
-        selectionSet = id.map { [$0] } ?? []
-        selection.wrappedValue = selectionSet
+    /// The anchor ⌘/⇧ extend from — the row you last ACTED on. Owned here
+    /// because `SelectionGrammar` is pure and keeps no state (#4436).
+    private(set) var selectionAnchor: String?
+
+    func select(_ id: String?, modifiers: SelectionGrammar.Modifiers = []) {
+        guard let id else {
+            selectionSet = []
+            selectionAnchor = nil
+            selection.wrappedValue = []
+            return
+        }
+        // ⇧ is deliberately NOT routed. Its branch builds a range by indexing an
+        // ORDERED list, and a spatial canvas has no inherent order — choosing one
+        // is a product decision, filed as #4460. Until it is made, ⇧ falls through
+        // to a plain replace, which is exactly what this surface did before.
+        //
+        // ⌘ has no such problem: that branch is a pure toggle and never indexes
+        // `in:`, which is why passing an empty array here is correct TODAY and
+        // would be silently wrong the moment ⇧ is added. Whoever wires #4460 must
+        // supply a real order here, not reuse this call.
+        let result = SelectionGrammar.click(
+            id: id,
+            in: [],
+            selection: selectionSet,
+            anchor: selectionAnchor,
+            modifiers: modifiers.contains(.command) ? .command : []
+        )
+        selectionSet = result.selection
+        selectionAnchor = result.anchor
+        selection.wrappedValue = result.selection
+    }
+
+    /// Live platform modifier state for a canvas tap.
+    ///
+    /// Translated HERE rather than inside `SelectionGrammar`, whose `Modifiers`
+    /// is deliberately not `NSEvent.ModifierFlags` so the grammar stays pure and
+    /// constructible in a test and on iOS. Mirrors
+    /// `LibraryView.currentSelectionModifiers`, including its note that
+    /// `NSEvent.modifierFlags` is still valid inside a tap callback.
+    @MainActor
+    static func liveSelectionModifiers() -> SelectionGrammar.Modifiers {
+        #if canImport(AppKit)
+        let flags = NSEvent.modifierFlags
+        var modifiers: SelectionGrammar.Modifiers = []
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.command) { modifiers.insert(.command) }
+        return modifiers
+        #else
+        return []
+        #endif
     }
 
     func selectMany(_ ids: Set<String>) {

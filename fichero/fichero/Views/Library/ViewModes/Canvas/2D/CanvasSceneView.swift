@@ -130,7 +130,7 @@ struct CanvasSceneView: View {
                 .allowsHitTesting(false)
             }
             #endif
-            .onTapGesture { controller?.dispatch(.tap(id: nil)) }   // background → clear
+            .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }   // background → clear
             .overlay { marqueeOverlay }
             .focusable()
             .focusEffectDisabled()
@@ -198,7 +198,10 @@ struct CanvasSceneView: View {
             .targetedToAnyEntity()
             .onEnded { value in
                 let id = value.entity.name
-                controller?.dispatch(.tap(id: id.isEmpty ? nil : id))
+                controller?.dispatch(.tap(
+                    id: id.isEmpty ? nil : id,
+                    modifiers: CanvasInteractionController.liveSelectionModifiers()
+                ))
             }
     }
 
