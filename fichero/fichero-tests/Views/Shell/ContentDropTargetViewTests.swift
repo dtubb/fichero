@@ -2,6 +2,8 @@
 import AppKit
 import XCTest
 
+@testable import Fichero
+
 /// #4458 — the content-pane external-drop bridge, provably safe by
 /// construction rather than inferred from a hierarchy read.
 ///
