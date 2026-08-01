@@ -27,10 +27,14 @@ extension ContentView {
         // The split-view column itself carries a very long chained-modifier
         // list (toolbar + ~16 .onChange/.onReceive handlers). To keep any single
         // `some View` expression inside the Swift type-checker's complexity
-        // budget, that chain is broken across two intermediate properties:
-        // `navigationSplitColumn` (NavigationSplitView + first half of modifiers)
-        // and `decoratedNavigationSplitColumn` (the remaining modifiers).
-        decoratedNavigationSplitColumn
+        // budget, that chain is broken across THREE intermediate properties:
+        // `navigationSplitColumn` (NavigationSplitView + first modifiers),
+        // `decoratedNavigationSplitColumn` (selection/visibility handlers), and
+        // `requestBusesAndAppleScript` (request buses + AppleScript receivers).
+        // The third split was forced by iOS, whose type-checker budget is
+        // tighter than macOS's: two segments compiled on Mac and timed out the
+        // iOS archive.
+        requestBusesAndAppleScript
             .adaptiveInspector(placement: inspectorPlacement, isPresented: inspectorIsPresented) {
                 inspectorContainerView
             }
@@ -276,6 +280,16 @@ extension ContentView {
                 }
             }
             #endif
+    }
+
+    /// The THIRD segment of the chain, split for the same reason as the second:
+    /// iOS's type-checker budget is tighter than macOS's, and the combined
+    /// chain compiled on macOS while timing out the iOS archive with
+    /// "unable to type-check this expression in reasonable time". Each split is
+    /// a compile-time bound, not a stylistic one — do not recombine them.
+    @ViewBuilder
+    private var requestBusesAndAppleScript: some View {
+        decoratedNavigationSplitColumn
             .onChange(of: entitySearchState.requestID) { _, _ in
                 handleEntitySearchRequested()
             }

@@ -249,7 +249,13 @@ struct PDFPageWithToolbar: View {
         // Keyed the same way the image preview keys its own load, so the two
         // surfaces refresh on the same events.
         .task(id: "\(effectiveDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)") {
+            // AppKit only: the PDF box renderer draws PDFAnnotations through
+            // PDFPageView+OCRBoxes, which is itself #if canImport(AppKit). iOS
+            // has no PDF overlay yet (#4418 shipped the Mac half), so there is
+            // nothing to load for.
+            #if canImport(AppKit)
             await loadOCRGeometry()
+            #endif
         }
     }
 
