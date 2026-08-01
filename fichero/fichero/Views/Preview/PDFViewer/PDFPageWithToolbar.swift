@@ -77,6 +77,13 @@ struct PDFPageWithToolbar: View {
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms a region
     // drag on the page; `pendingTool` carries the kind into the saved box.
     @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
+    // #4418: recognised text regions for this page. OPTIONAL on purpose — a
+    // non-optional @Environment(ArtifactService.self) traps when the host does
+    // not inject it, which is the #4448 crash class; the image preview declares
+    // it optional for the same reason.
+    @Environment(ArtifactService.self) private var artifactService: ArtifactService?
+    @AppStorage("pdfPreview.ocrBoxesEnabled") private var ocrBoxesEnabled = false
+    @State private var ocrGeometry: OCRGeometry?
     @State private var isDrawingRegion = false
     @State private var pendingTool: ReaderAnnotationTool = .highlight
 
@@ -225,6 +232,12 @@ struct PDFPageWithToolbar: View {
                 activeSurfaceState?.registerUnpinned(surfaceId)
             }
         }
+        // #4418: re-probe when the document, the page, or the toggle changes.
+        // Keyed the same way the image preview keys its own load, so the two
+        // surfaces refresh on the same events.
+        .task(id: "\(effectiveDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)") {
+            await loadOCRGeometry()
+        }
     }
 
     /// True when this pane instance is the window's active surface (#3579).
@@ -246,6 +259,7 @@ struct PDFPageWithToolbar: View {
                 },
                 zoomController: zoom,
                 pageController: pageNav,
+                ocrBoxes: ocrBoxesEnabled ? (ocrGeometry?.boxes ?? []) : [],
                 onCursorMoved: { pos in loupePosition = pos },
                 regionBoxes: pageRegionBoxes,
                 isDrawingRegion: isDrawingRegion,
@@ -329,6 +343,7 @@ struct PDFPageWithToolbar: View {
             fitToWindow: { zoom.fitToWindow() },
             actualSize: { zoom.actualSize() },
             magnifierEnabled: nil,
+            textBoxesEnabled: $ocrBoxesEnabled,
             loupeEnabled: $loupeEnabled,
             loupeLocked: loupeLockedBinding,
             loupeMagnification: $loupeMagnification,

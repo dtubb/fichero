@@ -74,21 +74,12 @@ extension ZoomableImagePreview {
         ocrGeometry = nil
         guard ocrBoxesEnabled, let documentId, let artifactService else { return }
         do {
-            var candidates: [Artifact] = []
-            for type in OCRGeometrySelection.geometryBearingTypes {
-                candidates += try await artifactService.getArtifacts(
-                    forDocumentId: documentId,
-                    type: type,
-                    includeDescendants: false
-                )
-            }
-            for candidate in OCRGeometrySelection.ranked(candidates) {
-                let full = try await artifactService.getArtifact(id: candidate.id)
-                if OCRGeometrySelection.carriesGeometry(full.ocrGeometry) {
-                    ocrGeometry = full.ocrGeometry
-                    return
-                }
-            }
+            // The probe itself lives on OCRGeometrySelection so the PDF surface
+            // shares this exact decision rather than reimplementing it (#4418).
+            ocrGeometry = try await OCRGeometrySelection.load(
+                documentId: documentId,
+                using: artifactService
+            )
         } catch {
             // Surface in the log, render nothing — the toggle stays honest
             // (no boxes ≠ silent success).
