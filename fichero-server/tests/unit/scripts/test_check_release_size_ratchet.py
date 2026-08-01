@@ -197,6 +197,27 @@ class TestUpdateBaseline:
         assert updated["release.app_binary"]["bytes"] == 9000
         assert updated["release.dmg"]["bytes"] == 50_000
 
+    def test_update_baseline_creates_the_default_baseline_from_scratch(
+        self, tmp_path, monkeypatch
+    ):
+        """The real bug this guards against: --update-baseline with no
+        --baseline flag is exactly how a fresh default baseline gets
+        created (this is how scripts/release_size_baseline.json itself was
+        seeded) — the "default baseline must exist" BLIND check must not
+        block its own creation mechanism."""
+        module = _import_script()
+        app = _make_app(tmp_path, "Fichero", executable_bytes=1234)
+        dmg = _make_dmg(tmp_path, 4321)
+        default_baseline = tmp_path / "does-not-exist-yet.json"
+        monkeypatch.setattr(module, "DEFAULT_APP_PATH", app)
+        monkeypatch.setattr(module, "DEFAULT_DMG_PATH", dmg)
+        monkeypatch.setattr(module, "DEFAULT_BASELINE", default_baseline)
+        rc = module.main(["--update-baseline"])
+        assert rc == 0
+        assert default_baseline.is_file()
+        data = json.loads(default_baseline.read_text())
+        assert data["release.app_binary"]["bytes"] == 1234
+
 
 class TestTheArglessGateSweep:
     """scripts/verify_all.sh's --fast tier runs EVERY scripts/check_*.py with
