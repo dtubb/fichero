@@ -81,7 +81,12 @@ class WorkflowStreamService {
         providerOverride: String? = nil,
         modelOverride: String? = nil,
         onAccepted: ((ExecuteAcceptedResponse) -> Void)? = nil,
-        onEvent: ((WorkflowStreamEvent) -> Void)? = nil
+        onEvent: ((WorkflowStreamEvent) -> Void)? = nil,
+        // #4457: `subscribe()` has always forwarded this to `startStream`;
+        // `execute()` silently dropped it. A caller that awaits a terminal
+        // frame therefore had no way to learn the stream had died, and waited
+        // forever. Defaulted, so the existing callers are unaffected.
+        onStreamEnd: (@MainActor () -> Void)? = nil
     ) async throws -> ExecuteAcceptedResponse {
         error = nil
         liveUpdatesUnavailable = false  // fresh stream — clear any prior paused state (F7)
@@ -101,7 +106,11 @@ class WorkflowStreamService {
         onAccepted?(acceptedResponse)
 
         // Step 2: Connect to the stream URL in a separate task
-        startStream(threadId: acceptedResponse.threadId, onEvent: onEvent)
+        startStream(
+            threadId: acceptedResponse.threadId,
+            onEvent: onEvent,
+            onStreamEnd: onStreamEnd
+        )
 
         return acceptedResponse
     }
@@ -137,6 +146,52 @@ class WorkflowStreamService {
     /// the persisted run record is the only truth left about the run's state.
     func fetchThreadStatus(threadId: String) async throws -> ExecutionThread {
         try await executionService.getThreadStatus(threadId: threadId)
+    }
+
+    /// Poll the persisted run record until it reports a terminal status, for a
+    /// run whose SSE stream ended without a terminal frame (#4457).
+    ///
+    /// When the transport dies mid-run no `complete`/`error`/`cancelled` frame
+    /// can ever arrive, so a caller awaiting one waits forever. The persisted
+    /// record is the only remaining truth about the run, and `fetchThreadStatus`
+    /// is the seam that reads it (#4346/#4349).
+    ///
+    /// Returns the terminal record, or `nil` if the run was still live when the
+    /// attempts ran out. **A `nil` means "unknown", not "still running"** — the
+    /// caller must settle its UI anyway rather than keep waiting, because the
+    /// whole point is that nothing else is coming.
+    ///
+    /// Bounded on the same 1s-then-5s / 12-attempt cadence as
+    /// `WorkflowExecutionStore.reconcileAfterStreamEnd`, so a dead engine cannot
+    /// be polled forever. Deliberately shared rather than reimplemented per
+    /// surface: a second copy of this loop is how the Activity and editor paths
+    /// came to disagree about the same run in the first place.
+    func settleAfterStreamEnd(threadId: String) async -> ExecutionThread? {
+        for attempt in 0..<12 {
+            try? await Task.sleep(for: .seconds(attempt == 0 ? 1 : 5))
+            if Task.isCancelled { return nil }
+            do {
+                let thread = try await fetchThreadStatus(threadId: threadId)
+                if thread.status.isTerminal { return thread }
+            } catch {
+                let attemptNumber = attempt + 1
+                logger.warning(
+                    """
+                    settleAfterStreamEnd: \(threadId, privacy: .public) \
+                    attempt \(attemptNumber) failed: \
+                    \(error.localizedDescription, privacy: .public)
+                    """
+                )
+            }
+        }
+        logger.error(
+            """
+            settleAfterStreamEnd: giving up on \(threadId, privacy: .public) — \
+            caller must settle its own UI rather than wait for a frame that \
+            cannot arrive
+            """
+        )
+        return nil
     }
 
     private func startStream(

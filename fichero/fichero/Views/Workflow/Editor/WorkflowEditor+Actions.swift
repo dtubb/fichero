@@ -6,10 +6,26 @@ let actionsLogger = Logger(subsystem: "app.fichero.fichero", category: "Workflow
 @MainActor
 private final class WorkflowRunCompletion {
     private var continuation: CheckedContinuation<Void, Never>?
-    private var isFinished = false
+    /// Readable from the run body so the stream-end reconciliation can skip
+    /// the network round-trip when a terminal frame already settled the run
+    /// (#4457) — `onStreamEnd` fires on EVERY stream end, healthy or not.
+    private(set) var isFinished = false
 
-    func finish() {
+    /// Status read back from the PERSISTED run record when the stream died
+    /// without a terminal frame (#4457). Carried here rather than in a captured
+    /// local `var`, because this object is a reference the callbacks already
+    /// hold — mutating a captured variable from the stream-end callback would
+    /// be a concurrent mutation.
+    ///
+    /// It exists because `computeFinalStatus` reads the OBSERVER, and on a dead
+    /// stream the observer never saw a terminal event: it would report the run
+    /// `.completed` on the "no error seen" branch, claiming a success that
+    /// never happened. When set, this is the authoritative answer.
+    private(set) var reconciledStatus: WorkflowStatus?
+
+    func finish(reconciled: WorkflowStatus? = nil) {
         guard !isFinished else { return }
+        if let reconciled { reconciledStatus = reconciled }
         isFinished = true
         continuation?.resume()
         continuation = nil
@@ -113,6 +129,12 @@ extension WorkflowEditor {
                     if event.isTerminal {
                         completion.finish()
                     }
+                },
+                // #4457: the run used to settle ONLY on a terminal frame, so a
+                // transport death mid-run left `completion.wait()` suspended
+                // forever. See `reconcileStreamEnd`.
+                onStreamEnd: {
+                    reconcileStreamEnd(completion: completion, threadId: executionThreadId)
                 }
             )
 
@@ -121,7 +143,12 @@ extension WorkflowEditor {
             await completion.wait()
 
             logFinalExecutionState(executionThreadId: executionThreadId, workflowId: workflowId)
-            let finalStatus = computeFinalStatus(executionThreadId: executionThreadId)
+            // #4457: the persisted record wins when the stream died without a
+            // terminal frame. `computeFinalStatus` reads the observer, which in
+            // that case never saw a terminal event and falls through to
+            // `.completed` — reporting a success the run never had.
+            let finalStatus = completion.reconciledStatus
+                ?? computeFinalStatus(executionThreadId: executionThreadId)
 
             // End tracking in global observer
             executionObserver.endExecution(threadId: executionThreadId, status: finalStatus)
@@ -201,6 +228,28 @@ extension WorkflowEditor {
             }
         } else {
             actionsLogger.warning("[SSE] No execution found for workflowId: \(workflowId)")
+        }
+    }
+
+    /// Settle a run whose SSE stream ended (#4457).
+    ///
+    /// Fires on EVERY stream end, healthy or not, so the already-finished case
+    /// returns immediately and the happy path costs nothing. When the stream
+    /// died without a terminal frame, no `complete`/`error`/`cancelled` event
+    /// can ever arrive — the run used to wait for one forever, leaking a
+    /// continuation and spinning the editor's run UI indefinitely while the
+    /// Activity surface reconciled the same run correctly (#4380/#4403 class).
+    ///
+    /// A `nil` settle means the bounded poll ran out, NOT that the run is still
+    /// going. Finish regardless: the whole point is that nothing else is
+    /// coming, so waiting longer only strands the UI.
+    private func reconcileStreamEnd(completion: WorkflowRunCompletion, threadId: String) {
+        guard !completion.isFinished else { return }
+        Task { @MainActor in
+            let settled = await workflowStreamService.settleAfterStreamEnd(threadId: threadId)
+            completion.finish(
+                reconciled: settled.map { WorkflowExecutionStore.workflowStatus(from: $0.status) }
+            )
         }
     }
 
