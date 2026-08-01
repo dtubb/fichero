@@ -175,55 +175,119 @@ def test_is_thinking_model_edge_cases():
 # vision_inference_api() Tests
 # =============================================================================
 
+
+# #4382: these seven were empty shells behind an unconditional @pytest.mark.skip
+# claiming "covered by integration tests" — no such integration tests run in
+# any gate leg. The "complex async mocking" is two tiny fakes: aiohttp's
+# session and response are both async context managers, nothing more.
+
+
+class _FakeHTTPResponse:
+    def __init__(self, status, json_data=None, text_data=""):
+        self.status = status
+        self._json = json_data
+        self._text = text_data
+
+    async def json(self):
+        return self._json
+
+    async def text(self):
+        return self._text
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+
+class _FakeHTTPSession:
+    """Stands in for aiohttp.ClientSession: post() returns the canned response,
+    or raises to model transport-level failures (timeout, ClientError)."""
+
+    def __init__(self, response=None, post_exc=None):
+        self._response = response
+        self._post_exc = post_exc
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    def post(self, *args, **kwargs):
+        if self._post_exc is not None:
+            raise self._post_exc
+        return self._response
+
+
+def _patch_vision_session(monkeypatch, session):
+    import aiohttp
+
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda *a, **k: session)
+
+
+async def _call_vision(**overrides):
+    kwargs = dict(
+        images=["data:image/jpeg;base64,aGVsbG8="],  # decodes; HTTP is faked
+        prompt="Transcribe",
+        model="test/vision-model",
+        api_key="hf_test",
+    )
+    kwargs.update(overrides)
+    return await vision_inference_api(**kwargs)
+
+
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
-async def test_vision_inference_api_success():
-    """Test successful API call to HF Inference API.
-
-    NOTE: Skipped due to async mocking complexity. Covered by integration tests.
-    """
-    pass
-
-
-@pytest.mark.asyncio
-@pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
-async def test_vision_inference_api_model_loading():
-    """Test handling of model loading state (503).
-
-    NOTE: This test is skipped due to complexity of mocking aiohttp async context managers.
-    Error handling will be validated through integration tests with real HF API.
-    """
-    pass
+async def test_vision_inference_api_success(monkeypatch):
+    """A 200 list-shaped response yields its generated_text."""
+    _patch_vision_session(
+        monkeypatch,
+        _FakeHTTPSession(
+            _FakeHTTPResponse(200, json_data=[{"generated_text": "the page text"}])
+        ),
+    )
+    assert await _call_vision() == "the page text"
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
-async def test_vision_inference_api_image_too_large():
-    """Test handling of image too large error (413).
-
-    NOTE: Skipped due to async mocking complexity. Covered by integration tests.
-    """
-    pass
-
-
-@pytest.mark.asyncio
-@pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
-async def test_vision_inference_api_rate_limit():
-    """Test handling of rate limit error (429).
-
-    NOTE: Skipped due to async mocking complexity. Covered by integration tests.
-    """
-    pass
+async def test_vision_inference_api_model_loading(monkeypatch):
+    """A 503 (model loading) surfaces the estimated wait, typed RuntimeError."""
+    _patch_vision_session(
+        monkeypatch,
+        _FakeHTTPSession(_FakeHTTPResponse(503, json_data={"estimated_time": 42})),
+    )
+    with pytest.raises(RuntimeError, match="Model is loading.*42"):
+        await _call_vision()
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
-async def test_vision_inference_api_bad_request():
-    """Test handling of bad request error (400).
+async def test_vision_inference_api_image_too_large(monkeypatch):
+    """A 413 becomes a ValueError naming the remedy (max_image_dimension)."""
+    _patch_vision_session(monkeypatch, _FakeHTTPSession(_FakeHTTPResponse(413)))
+    with pytest.raises(ValueError, match="Image too large.*max_image_dimension"):
+        await _call_vision()
 
-    NOTE: Skipped due to async mocking complexity. Covered by integration tests.
-    """
-    pass
+
+@pytest.mark.asyncio
+async def test_vision_inference_api_rate_limit(monkeypatch):
+    """A 429 is a typed RuntimeError that says rate limit, not a bare fail."""
+    _patch_vision_session(monkeypatch, _FakeHTTPSession(_FakeHTTPResponse(429)))
+    with pytest.raises(RuntimeError, match="rate limit"):
+        await _call_vision()
+
+
+@pytest.mark.asyncio
+async def test_vision_inference_api_bad_request(monkeypatch):
+    """A 400 surfaces the model's own error message as a ValueError."""
+    _patch_vision_session(
+        monkeypatch,
+        _FakeHTTPSession(
+            _FakeHTTPResponse(400, json_data={"error": "unsupported input shape"})
+        ),
+    )
+    with pytest.raises(ValueError, match="unsupported input shape"):
+        await _call_vision()
 
 
 @pytest.mark.asyncio
@@ -384,23 +448,23 @@ def test_build_langchain_model_uses_placeholder_key_for_keyless_local_providers(
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
-async def test_vision_inference_api_timeout():
-    """Test handling of timeout.
-
-    NOTE: Skipped due to async mocking complexity. Covered by integration tests.
-    """
-    pass
+async def test_vision_inference_api_timeout(monkeypatch):
+    """asyncio.TimeoutError maps to the builtin TimeoutError naming the budget."""
+    _patch_vision_session(
+        monkeypatch, _FakeHTTPSession(post_exc=asyncio.TimeoutError())
+    )
+    with pytest.raises(TimeoutError, match="timed out after"):
+        await _call_vision(timeout=7)
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="TODO: Complex async mocking - will be covered by integration tests")
-async def test_vision_inference_api_dict_response():
-    """Test handling of dict response format (some models).
-
-    NOTE: Skipped due to async mocking complexity. Covered by integration tests.
-    """
-    pass
+async def test_vision_inference_api_dict_response(monkeypatch):
+    """Some models return {"text": ...} instead of a list — both shapes work."""
+    _patch_vision_session(
+        monkeypatch,
+        _FakeHTTPSession(_FakeHTTPResponse(200, json_data={"text": "dict shaped"})),
+    )
+    assert await _call_vision() == "dict shaped"
 
 
 # =============================================================================

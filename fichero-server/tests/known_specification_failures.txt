@@ -1,4 +1,4 @@
-# Tests that SPECIFY a filed, unfixed defect (#4382 #4395 #4420).
+# Tests that SPECIFY a filed, unfixed defect (#4395 #4420).
 #
 # Each was written alongside the finding and describes what the code should do,
 # not what it does. They are applied as xfail(strict=True) by conftest.py.
@@ -17,10 +17,6 @@
 # ADDING A LINE HERE IS NOT A FIX. The defect stays open on its issue; this
 # only stops a known-red specification from masking a NEW regression.
 #
-
-# ---- #4382 (2) ----
-tests/unit/scripts/test_no_unrunnable_tests.py::test_no_test_body_is_an_unconditional_skip
-tests/unit/scripts/test_no_unrunnable_tests.py::test_no_test_is_disabled_with_an_unconditional_skip_marker
 
 # ---- #4395 (5) ----
 tests/unit/db/test_embed_outcome_contract.py::TestSkipIsDistinguishableFromFailure::test_model_unavailable_is_not_silently_falsy
