@@ -24,6 +24,12 @@ let externalDropLoaderLogger = Logger(subsystem: "app.fichero.fichero", category
 /// advertised UTI is the fallback that actually reads them. This is the
 /// promise-type asymmetry behind "drag-and-drop of a PDF doesn't work from
 /// some locations" — it was never about the drop TARGET.
+/// `@MainActor`: `NSItemProvider` is not Sendable and every caller is a
+/// SwiftUI drop handler already on the main actor. Isolating the loader to
+/// match means the provider never crosses an actor boundary at all — the
+/// alternative, marking callers `nonisolated`, only moves the crossing to
+/// the call site rather than removing it.
+@MainActor
 enum ExternalFileDropLoader {
     /// Returns the URL (copied into a stable location if the provider
     /// supplied a temp path) or throws if no representation yields
