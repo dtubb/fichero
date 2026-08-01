@@ -290,6 +290,11 @@ dev = [
 # fichero-mcp/pyproject.toml. The server package ships no CLI.
 
 [tool.pytest.ini_options]
+# #4434: a passing run leaves nothing, a failing run keeps ONE basetemp.
+# tests/conftest.py's startup sweep covers the third case pytest cannot —
+# a SIGKILLed run (the gate watchdog) that never reaches session cleanup.
+tmp_path_retention_count = "1"
+tmp_path_retention_policy = "failed"
 markers = [
     "asyncio: mark async tests that run with the asyncio event loop",
     "anyio: mark async tests compatible with anyio backends",

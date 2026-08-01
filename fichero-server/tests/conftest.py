@@ -110,6 +110,86 @@ def _sweep_abandoned_test_base_paths() -> int:
     return removed
 
 
+def _pytest_basetemp_root() -> _pathlib.Path:
+    """Where pytest keeps its numbered basetemps (``pytest-of-<user>``)."""
+    import getpass
+
+    try:
+        user = getpass.getuser()
+    except Exception:  # no passwd entry (some CI sandboxes)
+        user = os.environ.get("USER", "unknown")
+    return _pathlib.Path(_tempfile.gettempdir()) / f"pytest-of-{user}"
+
+
+def _safe_mtime(path: _pathlib.Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _sweep_abandoned_pytest_basetemps(
+    root: _pathlib.Path | None = None,
+    *,
+    keep_lockless: int = 1,
+    min_lockless_age_s: float = 60.0,
+) -> int:
+    """Remove leaked pytest basetemps (``pytest-of-<user>/pytest-N``) (#4434).
+
+    This is the OTHER temp tree — the #4228 sweep above covers only
+    ``fichero-tests-<pid>-*``. The 77 GB that filled the disk on 2026-07-30
+    was nineteen ~4 GB ``pytest-N`` run directories (seeded libraries, DuckDB
+    files, vectors) created by ``tmp_path``/``tmp_path_factory``, which this
+    conftest never swept and pytest's own retention could not save:
+
+    * A KILLED run (the gate watchdog escalates to SIGKILL after 1s) never
+      reaches session cleanup, so its dir survives WITH its ``.lock``, and
+      pytest's collector ignores locked dirs for a further hour — an intensive
+      session accumulates them faster than they age out.
+    * A FINISHED run removes its lock but the dir is retained by count.
+
+    Policy (Daniel, #4434): a passing run leaves nothing, a failing run may
+    keep ONE (most recent), a killed run cannot leak. Enforced here as:
+
+    * ``.lock`` naming a LIVE pid → never touched (a concurrent lane's run).
+    * ``.lock`` naming a dead pid → removed NOW (killed run cannot leak).
+    * lockless (finished) → newest ``keep_lockless`` kept, older removed —
+      with ``tmp_path_retention_policy=failed`` the newest holds only failing
+      tests' dirs, which is exactly the ONE a failing run may keep.
+    * lockless dirs younger than ``min_lockless_age_s`` are skipped: pytest
+      creates the dir a moment before writing its lock, and a starting
+      concurrent run must not lose that race.
+    """
+    removed = 0
+    base = root if root is not None else _pytest_basetemp_root()
+    if not base.is_dir():
+        return 0
+    import time as _time
+
+    now = _time.time()
+    lockless: list[_pathlib.Path] = []
+    for entry in base.glob("pytest-*"):
+        if entry.is_symlink() or not entry.is_dir():
+            continue  # the 'current' convenience symlink, stray files
+        lock = entry / ".lock"
+        if lock.exists():
+            try:
+                pid = int(lock.read_text().strip() or "0")
+            except (OSError, ValueError):
+                pid = 0
+            if pid and (pid == os.getpid() or _pid_is_alive(pid)):
+                continue  # live run — deleting it is the one outcome worse than leaking
+            _shutil.rmtree(entry, ignore_errors=True)
+            removed += 1
+        elif now - _safe_mtime(entry) >= min_lockless_age_s:
+            lockless.append(entry)
+    lockless.sort(key=_safe_mtime, reverse=True)
+    for entry in lockless[keep_lockless:]:
+        _shutil.rmtree(entry, ignore_errors=True)
+        removed += 1
+    return removed
+
+
 def _make_test_base_path() -> _pathlib.Path:
     """Create a per-process base path for test-only app storage.
 
@@ -123,6 +203,7 @@ def _make_test_base_path() -> _pathlib.Path:
 
 
 _sweep_abandoned_test_base_paths()
+_sweep_abandoned_pytest_basetemps()
 _test_base = _make_test_base_path()
 os.environ.setdefault("FICHERO_BASE_PATH", str(_test_base))
 # Normal-exit cleanup. Cannot fire on SIGKILL, which is why the startup sweep
@@ -594,6 +675,20 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     project keeps hitting. So the count and its issues are printed at the end
     of EVERY run, in red, whether or not anything failed.
     """
+    # #4434: a failing run retains its basetemp (tmp_path_retention_policy=
+    # failed) — say WHERE, so nobody has to hunt /var/folders under time
+    # pressure. The next run's startup sweep removes all but the newest.
+    if exitstatus:
+        try:
+            basetemp = config._tmp_path_factory.getbasetemp()  # noqa: SLF001
+        except Exception:
+            basetemp = None
+        if basetemp is not None:
+            terminalreporter.write_line(
+                f"retained failing-run temp dir (newest kept, older swept next "
+                f"run, #4434): {basetemp}"
+            )
+
     known = _known_specification_failures()
     if not known:
         return

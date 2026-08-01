@@ -154,3 +154,137 @@ class TestCleanupActuallyFiresEndToEnd:
         leaked = sorted(p.name for p in TMP.glob(f"{PREFIX}{child.pid}-*"))
 
         assert not leaked, f"session leaked: {leaked}"
+
+
+# ---------------------------------------------------------------------------
+# #4434 — the OTHER temp tree: pytest's own basetemps (pytest-of-<user>)
+# ---------------------------------------------------------------------------
+# 77 GB of `pytest-of-danieltubb/pytest-N` run dirs filled the disk on
+# 2026-07-30. They are created by tmp_path/tmp_path_factory — outside the
+# `fichero-tests-*` sweep above — and a SIGKILLed run (the gate watchdog)
+# leaves its dir WITH its .lock, which pytest's own collector then ignores
+# for an hour. `_sweep_abandoned_pytest_basetemps` is the counterpart sweep.
+
+import time  # noqa: E402 — file keeps narrative order; matches conftest's own style
+
+
+def _run_dir(base: Path, name: str, *, lock_pid=None, age_s: float = 3600) -> Path:
+    d = base / name
+    d.mkdir(parents=True)
+    (d / "payload.duckdb").write_bytes(b"x")
+    if lock_pid is not None:
+        (d / ".lock").write_text(str(lock_pid))
+    old = time.time() - age_s
+    os.utime(d, (old, old))
+    return d
+
+
+class TestPytestBasetempSweep:
+    def test_a_dead_pids_locked_dir_is_removed(self, tmp_path):
+        """A killed run cannot leak — its lock names a pid that is gone."""
+        conftest = _conftest_module()
+        base = tmp_path / "pytest-of-user"
+        dead = _run_dir(base, "pytest-3", lock_pid=999_999_999)
+
+        removed = conftest._sweep_abandoned_pytest_basetemps(base)
+
+        assert not dead.exists(), "a dead run's locked dir survived the sweep"
+        assert removed == 1
+
+    def test_a_live_pids_locked_dir_is_NEVER_removed(self, tmp_path):
+        """The safety property: a concurrent lane's run must not be touched."""
+        conftest = _conftest_module()
+        base = tmp_path / "pytest-of-user"
+        live = _run_dir(base, "pytest-4", lock_pid=os.getpid())
+
+        conftest._sweep_abandoned_pytest_basetemps(base)
+
+        assert live.exists(), "the sweep deleted a LIVE run's basetemp"
+
+    def test_lockless_dirs_keep_only_the_newest(self, tmp_path):
+        """Finished runs: ONE most-recent may stay (the retained failed run,
+        tmp_path_retention_policy=failed); everything older goes."""
+        conftest = _conftest_module()
+        base = tmp_path / "pytest-of-user"
+        oldest = _run_dir(base, "pytest-1", age_s=7200)
+        newer = _run_dir(base, "pytest-2", age_s=3600)
+
+        conftest._sweep_abandoned_pytest_basetemps(base)
+
+        assert newer.exists(), "the single retained run was deleted"
+        assert not oldest.exists(), "an older finished run survived"
+
+    def test_a_young_lockless_dir_survives_the_race_guard(self, tmp_path):
+        """pytest creates the dir a moment before writing its lock; a starting
+        concurrent run must not lose that race."""
+        conftest = _conftest_module()
+        base = tmp_path / "pytest-of-user"
+        _run_dir(base, "pytest-1", age_s=7200)  # the kept newest-lockless
+        fresh = _run_dir(base, "pytest-9", age_s=0)
+
+        conftest._sweep_abandoned_pytest_basetemps(base)
+
+        assert fresh.exists(), "a just-created (pre-lock) run dir was deleted"
+
+    def test_a_garbage_lock_counts_as_dead(self, tmp_path):
+        """An unreadable lock is a corpse, not a claim."""
+        conftest = _conftest_module()
+        base = tmp_path / "pytest-of-user"
+        corpse = _run_dir(base, "pytest-5")
+        (corpse / ".lock").write_text("not-a-pid")
+
+        conftest._sweep_abandoned_pytest_basetemps(base)
+
+        assert not corpse.exists()
+
+    def test_a_missing_root_is_a_noop(self, tmp_path):
+        assert _conftest_module()._sweep_abandoned_pytest_basetemps(
+            tmp_path / "does-not-exist"
+        ) == 0
+
+
+class TestBasetempSweepFiresOnAbnormalExit:
+    """The requirement (#4434, and today's recurring lesson): prove the guard
+    fires on the ABNORMAL path, not just the happy one. A real pytest child is
+    SIGKILLed mid-test — the exact thing the gate watchdog does — and must
+    leak its basetemp with a dead-pid lock; the sweep must then reclaim it."""
+
+    @pytest.mark.slow
+    def test_a_sigkilled_run_leaks_and_the_sweep_reclaims_it(self, tmp_path):
+        import signal
+
+        project = tmp_path / "proj"
+        project.mkdir()
+        (project / "test_probe.py").write_text(
+            "import os, signal\n"
+            "def test_kill_self(tmp_path):\n"
+            "    (tmp_path / 'big').write_bytes(b'x' * 1024)\n"
+            "    os.kill(os.getpid(), signal.SIGKILL)\n"
+        )
+        sandbox_tmp = tmp_path / "tmpdir"
+        sandbox_tmp.mkdir()
+        env = {k: v for k, v in os.environ.items() if k not in ("TMPDIR", "PYTEST_ADDOPTS")}
+        env["TMPDIR"] = str(sandbox_tmp)
+
+        child = subprocess.Popen(
+            [sys.executable, "-m", "pytest", "test_probe.py", "-q", "-p", "no:cacheprovider"],
+            cwd=project,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        child.communicate(timeout=120)
+        assert child.returncode == -signal.SIGKILL, "probe was supposed to die by SIGKILL"
+
+        roots = list(sandbox_tmp.glob("pytest-of-*"))
+        assert roots, "no basetemp was created — the probe proves nothing"
+        leaked = [d for d in roots[0].glob("pytest-*") if d.is_dir() and not d.is_symlink()]
+        assert leaked, "SIGKILL did not leak a basetemp — the premise changed; rewrite this test"
+        lock = leaked[0] / ".lock"
+        assert lock.exists(), "no .lock survived — the sweep's dead-pid path is untestable here"
+
+        conftest = _conftest_module()
+        removed = conftest._sweep_abandoned_pytest_basetemps(roots[0])
+
+        assert removed >= 1
+        assert not leaked[0].exists(), "the sweep did not reclaim a SIGKILLed run's basetemp"
