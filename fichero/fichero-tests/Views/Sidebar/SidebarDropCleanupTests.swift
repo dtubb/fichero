@@ -10,7 +10,7 @@ struct SidebarDropCleanupTests {
         let tempB = URL(fileURLWithPath: "/tmp/fichero-drop-b/file-2.pdf")
         let stable = URL(fileURLWithPath: "/Users/test/Documents/file-3.pdf")
 
-        let result = sidebarTemporaryDropDirectories(for: [tempA, tempB, stable])
+        let result = externalDropTemporaryDirectories(for: [tempA, tempB, stable])
 
         #expect(Set(result) == Set([tempA.deletingLastPathComponent(), tempB.deletingLastPathComponent()]))
     }
@@ -20,7 +20,7 @@ struct SidebarDropCleanupTests {
         let urlOne = URL(fileURLWithPath: "/tmp/fichero-drop-a/file-1.pdf")
         let urlTwo = URL(fileURLWithPath: "/tmp/fichero-drop-a/file-2.pdf")
 
-        let result = sidebarTemporaryDropDirectories(for: [urlOne, urlTwo])
+        let result = externalDropTemporaryDirectories(for: [urlOne, urlTwo])
 
         #expect(result == [urlOne.deletingLastPathComponent()])
     }
