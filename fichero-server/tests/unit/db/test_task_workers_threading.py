@@ -14,6 +14,7 @@ threading error.
 
 import asyncio
 import threading
+from contextlib import asynccontextmanager
 
 import pytest
 
@@ -23,13 +24,27 @@ from fichero_server.workflows.tasks import TaskQueue, TaskStatus, TaskType
 
 
 @pytest.fixture
-async def real_task_queue(test_package, tmp_path):
-    """A TaskQueue wired to a REAL package Database (main-thread owned)."""
-    database = db_manager.get_database(test_package)
-    queue = TaskQueue(str(tmp_path / "tasks.duckdb"), database=database)
-    await queue.start()
-    yield queue, test_package, database
-    await queue.stop()
+def real_task_queue(test_package, tmp_path):
+    """A factory for a started TaskQueue wired to a REAL package Database.
+
+    An async-contextmanager entered INSIDE each test, not an `async def`
+    fixture: no installed plugin supports async fixtures (they became hard
+    setup errors on pytest 9, same class as test_tasks.py), and
+    ``TaskQueue.start()`` binds its scheduler to the RUNNING loop — each test
+    runs in its own loop, so the queue must start there anyway.
+    """
+
+    @asynccontextmanager
+    async def running():
+        database = db_manager.get_database(test_package)
+        queue = TaskQueue(str(tmp_path / "tasks.duckdb"), database=database)
+        await queue.start()
+        try:
+            yield queue, test_package, database
+        finally:
+            await queue.stop()
+
+    return running
 
 
 @pytest.mark.asyncio
@@ -40,7 +55,11 @@ async def test_db_call_resolves_connection_inside_pool_thread(
     db_manager FROM the pool thread (#2509), not captured+shipped from the
     event-loop thread. Under #2508 it resolves to the one shared package
     Database."""
-    queue, package, _ = real_task_queue
+    async with real_task_queue() as (queue, package, _):
+        await _assert_pool_thread_resolution(queue, package, monkeypatch)
+
+
+async def _assert_pool_thread_resolution(queue, package, monkeypatch):
     package_str = str(package)
     event_loop_ident = threading.get_ident()
 
@@ -89,8 +108,11 @@ async def test_workers_under_concurrent_write_never_raise_threading_error(
     """Reindex + metrics running on pool threads concurrently with a
     separate writer thread (on its own keyed connection) must complete
     without raising a DuckDB cross-thread error."""
-    queue, package, _ = real_task_queue
+    async with real_task_queue() as (queue, package, _):
+        await _assert_no_threading_error(queue, package)
 
+
+async def _assert_no_threading_error(queue, package):
     main_db = db_manager.get_database(package)
     for i in range(5):
         main_db.save(Document(id=f"doc{i}", name=f"Doc {i}", page_content=None))
