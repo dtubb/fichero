@@ -27,6 +27,13 @@ import XCTest
 /// These source-reading assertions fail the moment either forward is deleted,
 /// catching the regression before it ships as a runtime fatalError — the same
 /// approach as `ArtifactServiceInjectionTests`.
+///
+/// NOTE: this file pins the two types that broke, which by construction cannot
+/// catch the FIFTH. The general check is
+/// `scripts/check_environment_forwarding.py`, which compares every mirror host
+/// against the canonical `LibraryWorkspaceRoot` list and fails on any new
+/// unforwarded type that some view reads non-optionally. That script is the one
+/// that ends this series; keep this file as the named regression pin for #4448.
 final class ToolbarActivityStoreInjectionTests: XCTestCase {
     func testDocumentTabViewForwardsActivityStore() throws {
         let source = try Self.appSource("Views/Shell/DocumentTabView.swift")
