@@ -20,14 +20,18 @@ times, each time fixed by appending one more line to the list:
     #4448  ActivityStore, WorkflowExecutionStore
 
 A test that names the type which broke cannot catch the fifth. This checks the
-SHAPE instead: `LibraryWorkspaceRoot` is the canonical, complete per-library
-list, and anything it injects that a mirror host does not forward — while some
-view reads it non-optionally — is a crash waiting for the right click.
+SHAPE instead — but only at a boundary that is REAL.
 
-Today's divergence is real and large, so it is recorded as a baseline in
-`scripts/known_environment_forwarding_gaps.txt` (tracked by #4455). This script
-fails on anything NEW. It is a ratchet, not a clean bill of health: the baseline
-is debt, and shrinking it is the point.
+The first version assumed every unforwarded type was a hazard. Measuring proved
+that wrong: 14 types were unforwarded and read by 39 in-tree views, and NONE of
+them ever crashed. Environment values inherit down the view tree. The one type
+that did crash, ActivityStore, is read by two TOOLBAR items — and toolbar content
+is laid out by the window, not by this tree, so it does not inherit. A Scene
+likewise never inherits from another Scene (#3350).
+
+So the property here is narrow and true: a type LibraryWorkspaceRoot injects,
+that a mirror host does not forward, AND that is read non-optionally from OUTSIDE
+the view tree. In-tree readers are not gaps and are not reported.
 
 Exit codes: 0 = no new gaps, 1 = a new gap, 2 = the file shapes moved.
 """
@@ -70,14 +74,42 @@ def library_property_types() -> dict[str, str]:
     return dict(PROPERTY_RE.findall(LIBRARY_MANAGER.read_text(encoding="utf-8")))
 
 
-def non_optional_env_reads() -> dict[str, set[str]]:
-    """Type -> files that read it as a NON-optional @Environment value.
+def is_hosted_outside_the_view_tree(path: Path, text: str) -> bool:
+    """Whether this view is laid out by something OTHER than the content tree.
 
-    An optional read (`var x: Foo?`) cannot trap, so it is not a hazard.
+    Toolbar content is laid out by the WINDOW, and a Scene never inherits from
+    another Scene. Those are the only two boundaries an environment value must
+    be carried across by hand (#4455); everything inside the tree inherits.
+    """
+    return (
+        "ToolbarItem" in path.name
+        or path.name.endswith("Window.swift")
+        or re.search(r":\s*ToolbarContent\b", text) is not None
+    )
+
+
+def non_optional_env_reads() -> dict[str, set[str]]:
+    """Type -> files that read it NON-optionally FROM OUTSIDE the view tree.
+
+    Two filters, and the second is the whole point of this check (#4455):
+
+    * an optional read (`var x: Foo?`) cannot trap, so it is not a hazard;
+    * an IN-TREE read inherits, so it is not a hazard either. The first version
+      of this script counted those, and reported 39 in-tree readers across 14
+      types as gaps. Every one was a non-problem. A guardrail that fires on a
+      non-problem costs time forever and trains people to add ceremony, which is
+      how the forwarding list it guards reached ~43 entries.
+
+    Measured basis: those 39 in-tree readers never crashed while unforwarded.
+    The one type that DID crash, ActivityStore (#4448), is read by two toolbar
+    items. 39 in-tree fine, 2 toolbar trapping — the boundary is the host, not
+    the forwarding chain.
     """
     found: dict[str, set[str]] = {}
     for path in APP.rglob("*.swift"):
         text = path.read_text(encoding="utf-8", errors="replace")
+        if not is_hosted_outside_the_view_tree(path, text):
+            continue
         for type_name, _var, optional in ENV_READ_RE.findall(text):
             if optional == "?":
                 continue
@@ -138,7 +170,7 @@ def main() -> int:
         forwarded = injected_types(host, prop_types)
         for type_name in sorted(canonical - forwarded):
             if type_name not in reads:
-                continue  # nothing reads it non-optionally; it cannot trap
+                continue  # in-tree or optional: it inherits and cannot trap
             key = f"{host.name}:{type_name}"
             all_gaps.append(key)
             if key not in baseline:
@@ -181,8 +213,9 @@ def self_test() -> int:
       1. the tree as it stands is clean;
       2. reverting #4448's own fix (dropping the `library.activityStore`
          forward) makes it fail, naming ActivityStore;
-      3. removing a second, different forward is also caught, so the check is
-         not pinned to one lucky symbol;
+      3. (there is only ONE real boundary case in the tree — ActivityStore —
+         so step 2 IS the synthesised violation; there is no baseline to
+         borrow one from, which is the point of the narrowing);
       4. everything is restored afterwards.
 
     Every mutation is written to a temp copy and restored in a `finally`, so an
@@ -208,16 +241,6 @@ def self_test() -> int:
         else:
             host.write_text(dropped, encoding="utf-8")
             expect("reverting the #4448 ActivityStore forward is caught", 1)
-            host.write_text(host_original, encoding="utf-8")
-
-        dropped_note = host_original.replace(
-            "                .environment(library.annotationStore)\n", ""
-        )
-        if dropped_note == host_original:
-            failures.append("could not simulate the AnnotationStore regression")
-        else:
-            host.write_text(dropped_note, encoding="utf-8")
-            expect("removing the AnnotationStore forward is caught", 1)
             host.write_text(host_original, encoding="utf-8")
 
         expect("everything restored", 0)

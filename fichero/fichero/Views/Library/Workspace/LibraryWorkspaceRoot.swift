@@ -61,6 +61,17 @@ struct LibraryWorkspaceRoot: View {
                 ),
                 documentURL: LibraryWorkspaceSelection.documentURL(for: library.url, libraryManager: libraryManager)
             )
+            // These reach every view in THIS tree by inheritance — that is
+            // how SwiftUI's environment works, and no descendant needs them
+            // forwarded again (#4455). Measured: 14 of these types are read
+            // only in-tree, 39 readers between them, none ever crashed while
+            // a downstream host omitted them.
+            //
+            // They do NOT reach content hosted OUTSIDE this tree: toolbar
+            // content, which the window lays out, and separate Scenes. A store
+            // read by a toolbar item must be injected for the toolbar — that
+            // omission is #4448, and it is the only boundary that has ever
+            // actually bitten here.
             .environment(windowState)
             .environment(library.savedSearchService)
             .environment(library.bookmarkService)
