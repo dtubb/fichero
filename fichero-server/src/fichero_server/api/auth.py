@@ -465,8 +465,10 @@ def _is_loopback_request(request: Request) -> bool:
     accepted only under pytest so auth middleware tests can exercise the path.
     """
     # A request delivered over the Unix-domain socket, or in-process via the
-    # in-memory ASGI transport, is trusted as loopback-owner. Only those
-    # server-side transports stamp this positive marker (see
+    # in-memory ASGI transport, counts as LOOPBACK. That is all this decides —
+    # it is not authentication, and callers must not read it as owner-trust:
+    # the bootstrap token is checked separately and is never waived (#4432).
+    # Only those server-side transports stamp this positive marker (see
     # ``fichero_server.api.uds_transport`` and the in-memory client's scope builder);
     # the shared TCP+TLS app never sets it, so this can never grant a network
     # client — not even one where ``request.client is None`` (which we must NOT
