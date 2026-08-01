@@ -257,7 +257,8 @@ struct EntityDigestContent: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(entity.canonicalName)
-                    .font(.system(size: 32, weight: .bold, design: .serif))
+                    .font(.title)
+                    .fontWeight(.bold)
 
                 if let type = entity.entityType {
                     Text(type.rawValue.capitalized)
