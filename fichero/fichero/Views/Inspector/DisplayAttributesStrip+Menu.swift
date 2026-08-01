@@ -77,23 +77,20 @@ extension DisplayAttributesStrip {
 
     // MARK: - Visibility + bindings
 
-    /// A fixed attribute renders when the user hasn't hidden it — and, for
-    /// `path`, only when the document actually has one (matching pre-#1229).
+    /// A fixed attribute renders only once the user opts it in (#4422) —
+    /// matching the KG/artifact/metadata rows below, all of which were
+    /// already opt-in. Default: nothing renders.
     func shouldRender(_ attr: DisplayAttribute) -> Bool {
-        guard !hiddenAttributes.contains(attr.rawValue) else { return false }
-        if attr == .path {
-            return !(document.path?.isEmpty ?? true)
-        }
-        return true
+        shownAttributes.contains(attr.rawValue)
     }
 
     func binding(for attr: DisplayAttribute) -> Binding<Bool> {
         Binding(
-            get: { !hiddenAttributes.contains(attr.rawValue) },
+            get: { shownAttributes.contains(attr.rawValue) },
             set: { show in
-                var set = hiddenAttributes
-                if show { set.remove(attr.rawValue) } else { set.insert(attr.rawValue) }
-                hiddenRaw = csvString(set)
+                var set = shownAttributes
+                if show { set.insert(attr.rawValue) } else { set.remove(attr.rawValue) }
+                shownAttributesRaw = csvString(set)
             }
         )
     }

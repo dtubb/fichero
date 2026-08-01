@@ -117,10 +117,6 @@ extension DisplayAttributesStrip {
         }
     }
 
-    var ingestValue: String {
-        document.isLinked ? "LINK" : "COPY"
-    }
-
     func relativeDateString(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated

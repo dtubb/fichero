@@ -46,8 +46,6 @@ extension DisplayAttributesStrip {
         switch attr {
         case .status: row(attr.label, value: statusValue, color: statusColor)
         case .kind: row(attr.label, value: kindValue)
-        case .ingest: row(attr.label, value: ingestValue)
-        case .path: row(attr.label, value: document.path ?? "", monospaced: true)
         case .created: row(attr.label, value: relativeDateString(document.createdAt))
         case .modified: row(attr.label, value: relativeDateString(document.updatedAt))
         }
