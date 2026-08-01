@@ -1,5 +1,6 @@
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ContentViewModifiers")
 
@@ -107,17 +108,41 @@ struct DropTargetModifiers: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // Transferable API — does not interfere with hit testing on sidebar
-            // icon/text rows the way .onDrop(of:) does. Root-level drops are
-            // classified in handleFileDrop: `.fichero` packages open/focus a
-            // window, everything else still imports to Inbox. The 400 error is
-            // now readable via LocalizedError so the real backend message
-            // surfaces (#598).
-            .dropDestination(for: URL.self) { urls, _ in
-                handleFileDrop(urls)
+            // NSItemProvider-based (#4184), not the Transferable
+            // `.dropDestination(for: URL.self)` this used to be: Transferable
+            // decodes URL via the SAME file-url promise `loadObject(URL.self)`
+            // uses, which Finder drags supply but Mail attachment / Safari
+            // image-or-PDF / in-progress Downloads drags often don't — those
+            // advertise a content UTI only, and only
+            // `loadFileRepresentation(forTypeIdentifier:)` reads them. The
+            // sidebar row drop target solved this for #587; content-pane drops
+            // quietly never had the fix. `ExternalFileDropLoader` is the ONE
+            // shared implementation now — a fix to one drag source lands on
+            // every drop surface, not just the one that happened to hit it.
+            // Root-level drops are classified in handleFileDrop: `.fichero`
+            // packages open/focus a window, everything else still imports to
+            // Inbox. The 400 error is readable via LocalizedError so the real
+            // backend message surfaces (#598).
+            .onDrop(of: [.item], isTargeted: $isDropTargeted) { providers in
+                guard !providers.isEmpty else { return false }
+                Task {
+                    var urls: [URL] = []
+                    for provider in providers {
+                        if let url = try? await ExternalFileDropLoader.loadAnyFileURL(from: provider) {
+                            urls.append(url)
+                        }
+                    }
+                    guard !urls.isEmpty else { return }
+                    // ponytail: the stable fichero-drop-<uuid> temp copies
+                    // `loadFileRepresentation` produces for non-file-url
+                    // providers aren't swept here — `handleFileDrop`'s import
+                    // Task has no completion signal this closure can await,
+                    // and deleting on a fixed timer risks racing a slow copy.
+                    // The OS temp directory is purged periodically; add real
+                    // cleanup if that turns out not to be good enough.
+                    handleFileDrop(urls)
+                }
                 return true
-            } isTargeted: { isTargeted in
-                self.isDropTargeted = isTargeted
             }
             // No full-window import overlay — a folder-of-folders import runs
             // long and the dimmed spinner covered the sidebar so nothing
