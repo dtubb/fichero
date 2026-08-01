@@ -9,6 +9,27 @@ import CoreGraphics
 /// PDFKit-free so it is unit-testable.
 enum PDFRegionGeometry {
     /// PDF page rect (bottom-left origin) for a normalized top-left box.
+    ///
+    /// **The returned rect assumes a ZERO ORIGIN.** It takes a `CGSize`, so it
+    /// can only flip and scale — it cannot know where the box it was measured
+    /// against actually sits on the page. Callers working from a rect whose
+    /// origin may be non-zero MUST re-add it:
+    ///
+    /// ```swift
+    /// let cropBounds = page.bounds(for: .cropBox)
+    /// let rect = PDFRegionGeometry.pageRect(normalized: box, pageSize: cropBounds.size)?
+    ///     .offsetBy(dx: cropBounds.minX, dy: cropBounds.minY)
+    /// ```
+    ///
+    /// That is safe to omit ONLY against the `.mediaBox`, whose origin is
+    /// normally zero — which is why `applyRegions` gets away with it for
+    /// user-drawn regions. It is wrong against an INSET `.cropBox`, and
+    /// **scanned documents routinely have one**, so the error lands on exactly
+    /// the archival material this app exists for: every box uniformly
+    /// displaced, the page looking like the app cannot read it (#4418).
+    ///
+    /// The shipped precedent is the #2105/#3449 claim-source highlight, which
+    /// re-adds `cropBounds.minX/minY` for this reason.
     static func pageRect(normalized box: [Double], pageSize: CGSize) -> CGRect? {
         guard box.count >= 4, pageSize.width > 0, pageSize.height > 0 else { return nil }
         let width = box[2] * pageSize.width

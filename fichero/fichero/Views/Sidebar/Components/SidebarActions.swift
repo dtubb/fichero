@@ -4,6 +4,16 @@ import SwiftUI
 /// Structured logger for sidebar action operations
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarActions")
 
+/// Raised when a delete reaches the action layer for a type that cannot be
+/// deleted (#4454). Surfaced in the sidebar's Delete Failed alert.
+enum SidebarDeleteError: LocalizedError {
+    case notDeletable
+
+    var errorDescription: String? {
+        "This item can't be deleted."
+    }
+}
+
 private struct DocumentDeleteActionParams: Encodable {
     let docId: String
 
@@ -146,7 +156,13 @@ extension SidebarView {
             rebuildCaches(for: libraryId)
             selectedItemId = nil
         } catch {
+            // Surface it. `DeleteStateManager` has carried a complete error
+            // surface — `deleteErrorMessage`, `showingDeleteError`,
+            // `showError(message:)` and a "Delete Failed" alert — with ZERO
+            // callers, so every delete failure so far has been a log line
+            // nobody reads while the row stayed put unexplained (#4454).
             logger.error("Failed to delete: \(error.localizedDescription)")
+            deleteState.showError(message: error.localizedDescription)
         }
     }
 
@@ -165,7 +181,7 @@ extension SidebarView {
         case .schedule, .trigger, .batch:
             try await deleteAutomationItem(itemType, library: library)
         case .comparison, .activityRun, .folder, .libraryHeader:
-            logNondeletableItem(itemType)
+            try rejectNondeletableItem(itemType)
         }
     }
 
@@ -225,16 +241,14 @@ extension SidebarView {
         }
     }
 
-    private func logNondeletableItem(_ itemType: SidebarItem.ItemType) {
-        switch itemType {
-        case .comparison, .activityRun:
-            logger.warning("This item type cannot be deleted")
-        case .folder:
-            logger.info("Folder deletion not yet implemented")
-        case .libraryHeader:
-            logger.warning("Cannot delete library header")
-        default:
-            break
-        }
+    /// Reached only if a type whose `canBeDeleted` is false somehow arrives
+    /// here. It THROWS rather than logs (rule zero): swallowing an action the
+    /// user explicitly confirmed is how #4454 stayed invisible — the delete was
+    /// never issued, `performDelete` reported "Delete successful" anyway, and
+    /// the only evidence was a log line. Now it lands in the Delete Failed
+    /// alert instead.
+    private func rejectNondeletableItem(_ itemType: SidebarItem.ItemType) throws -> Never {
+        logger.warning("Refusing delete for non-deletable item type: \(String(describing: itemType))")
+        throw SidebarDeleteError.notDeletable
     }
 }

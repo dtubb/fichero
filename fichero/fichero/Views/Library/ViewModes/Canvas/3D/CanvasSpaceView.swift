@@ -115,7 +115,7 @@ struct CanvasSpaceView: View {
             .gesture(orbitOrPan)
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
-            .onTapGesture { controller?.dispatch(.tap(id: nil)) }
+            .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
@@ -230,7 +230,10 @@ struct CanvasSpaceView: View {
             .targetedToAnyEntity()
             .onEnded { value in
                 let id = value.entity.name
-                controller?.dispatch(.tap(id: id.isEmpty ? nil : id))
+                controller?.dispatch(.tap(
+                    id: id.isEmpty ? nil : id,
+                    modifiers: CanvasInteractionController.liveSelectionModifiers()
+                ))
             }
     }
 

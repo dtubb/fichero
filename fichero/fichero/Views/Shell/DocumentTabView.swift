@@ -44,9 +44,34 @@ struct DocumentTabView: View {
     @Environment(ResearchService.self) var researchService
     @Environment(WindowState.self) var windowState
 
-    // @Observable objects injected by LibraryWindow — must be forwarded explicitly
-    // when ContentView() is constructed below (SwiftUI does not re-propagate
-    // @Environment(T.self) values across an explicit .environment() chain).
+    // @Observable objects injected by LibraryWindow and re-forwarded to
+    // ContentView() below.
+    //
+    // MOST OF THIS LIST IS UNNECESSARY. It grew from a comment that claimed
+    // "SwiftUI does not re-propagate @Environment(T.self) values across an
+    // explicit .environment() chain". That was false, and it is withdrawn.
+    // Environment values INHERIT down the view tree; `.environment(x)` adds a
+    // value, it does not clear the others.
+    //
+    // The measured evidence (#4455): of fifteen library-scoped types, fourteen
+    // are read ONLY by in-tree views — 39 readers between them, AnnotationStore
+    // alone with 8 — and not one of them ever crashed while unforwarded. The
+    // single type that DID crash, ActivityStore (#4448), is the only one read
+    // by TOOLBAR content. 39 in-tree readers fine, 2 toolbar readers trapping.
+    //
+    // THE RULE: forward only across a hosting boundary — toolbar content, or a
+    // separate Scene. Toolbar content is laid out by the WINDOW, not by this
+    // view tree, so it does not inherit from here; a Scene never inherits from
+    // another Scene (see ArtifactServiceInjectionTests, #3350).
+    //
+    // ADDING A TOOLBAR ITEM THAT READS A STORE? Inject it for the toolbar. Do
+    // not assume the content tree's environment reaches it — that assumption is
+    // exactly #4448. Everything else needs nothing: if your view is in this
+    // tree, it already has what LibraryWorkspaceRoot injected.
+    //
+    // What remains below is not yet pruned to that rule; entries here are
+    // harmless but most are ceremony. Do not ADD to it without a hosting
+    // boundary to point at.
     @Environment(ArtifactService.self) var artifactService
     @Environment(EntityService.self) var entityService
     @Environment(KGCurationService.self) var kgCurationService

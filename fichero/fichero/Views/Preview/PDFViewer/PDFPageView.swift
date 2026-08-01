@@ -59,6 +59,9 @@ struct PDFPageView: NSViewRepresentable {
     /// Saved bounding-box regions for the current page, normalized `[x,y,w,h]`
     /// (top-left origin). Rendered as native PDFKit square annotations (#2458).
     var regionBoxes: [[Double]] = []
+    /// Recognised text regions for the current page (#4418). Rendered as
+    /// outline annotations by `applyOCRBoxes`; empty means draw none.
+    var ocrBoxes: [OCRGeometryBox] = []
     /// When true, a drag draws a new region instead of turning the page.
     var isDrawingRegion = false
     /// Fires with a normalized `[x,y,w,h]` when a region drag completes.
@@ -152,6 +155,7 @@ struct PDFPageView: NSViewRepresentable {
             storageService: storageService
         )
         context.coordinator.applyRegions(to: view)
+        context.coordinator.applyOCRBoxes(to: view)
     }
 
     static func dismantleNSView(_ view: PDFView, coordinator: Coordinator) {
@@ -571,6 +575,9 @@ struct PDFPageView: UIViewRepresentable {
     // Region annotation rendering/creation is the macOS reader surface for
     // #2458; the iOS remote client renders text + page-scoped notes only.
     var regionBoxes: [[Double]] = []
+    /// API parity for the shared call site (#4418); the iOS remote client does
+    /// not render text-region annotations.
+    var ocrBoxes: [OCRGeometryBox] = []
     var isDrawingRegion = false
     var onCreateRegion: (([Double]) -> Void)?
     /// PDF page-arrangement mode (#2090). Default preserves the single-page
@@ -867,7 +874,6 @@ struct PDFPageView: UIViewRepresentable {
         }
     }
 }
-
 
 #endif
 

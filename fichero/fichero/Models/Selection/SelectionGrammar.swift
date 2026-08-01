@@ -20,6 +20,30 @@ import Foundation
 /// exactly this (#4160); the mouse path never got it. Now there is one chain,
 /// and both use it.
 ///
+/// ## The two anchor rules, which are the whole difference between multi-select
+/// ## feeling right and feeling nearly right
+///
+/// 1. **⌘-click moves the anchor even when the click DESELECTED the row.**
+///    Finder extends from where you last *acted*, not from where you last
+///    landed a selection. A copy that only moves the anchor on selection looks
+///    correct until someone ⌘-clicks a row off and then ⇧-clicks.
+///
+/// 2. **⇧ holds the anchor still and moves only the cursor.** That is what lets
+///    ⇧↓ ⇧↓ ⇧↑ *shrink* a selection instead of only ever growing it. A copy
+///    that moves the anchor on ⇧ appears to work until someone reverses
+///    direction mid-extend.
+///
+/// Neither is something a second implementation arrives at by accident, which
+/// is the practical argument for delegating here rather than reimplementing.
+///
+/// ## Adopting this from a new surface
+///
+/// `click` needs an **ordered list**. ⌘ does not use it — that branch is a pure
+/// toggle — but ⇧ indexes into it to build a range, so a surface with no
+/// inherent order (a spatial canvas, say) can adopt ⌘ immediately and must
+/// first *decide* what order ⇧ extends along. That is a design question about
+/// the surface, not a gap in this type.
+///
 /// Pure, platform-free and `enum`-namespaced on purpose. Every rule below is a
 /// row in `SelectionGrammarTests`' table, which is the thing that stops a third
 /// copy of these rules appearing.

@@ -92,4 +92,39 @@ enum OCRGeometrySelection {
         guard let geometry else { return false }
         return !geometry.boxes.isEmpty
     }
+
+    /// Fetch the best available geometry for a page, or `nil` if none applies.
+    ///
+    /// List first (lean payload), then the single GET that actually carries the
+    /// geometry. Probes candidates best-first and stops at the first that
+    /// carries boxes, because an artifact of the right type can still be empty:
+    /// the importer writes a zero-box `text_geometry` artifact for every scanned
+    /// page on purpose.
+    ///
+    /// Lives here rather than on either preview so the two rendering surfaces —
+    /// a SwiftUI overlay for rasterised images, PDF annotations for PDFKit —
+    /// share ONE decision about which artifact wins (#4418). They must draw
+    /// differently because AppKit's `PDFView` has no coordinate space a SwiftUI
+    /// sibling can be laid out in; they must not *choose* differently.
+    @MainActor
+    static func load(
+        documentId: String,
+        using artifactService: ArtifactService
+    ) async throws -> OCRGeometry? {
+        var candidates: [Artifact] = []
+        for type in geometryBearingTypes {
+            candidates += try await artifactService.getArtifacts(
+                forDocumentId: documentId,
+                type: type,
+                includeDescendants: false
+            )
+        }
+        for candidate in ranked(candidates) {
+            let full = try await artifactService.getArtifact(id: candidate.id)
+            if carriesGeometry(full.ocrGeometry) {
+                return full.ocrGeometry
+            }
+        }
+        return nil
+    }
 }
