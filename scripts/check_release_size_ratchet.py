@@ -251,12 +251,13 @@ def main(argv: list[str] | None = None) -> int:
     # fresh release built: scripts/verify_all.sh's guardrail-blindness sweep
     # (test_guardrails_fail_on_missing_input.py, #4382) runs every
     # scripts/check_*.py alone in an empty directory, where this default
-    # baseline is also absent — so it fails loudly (BLIND) there. An
-    # EXPLICITLY passed --baseline is exempt from this existence check: that
-    # is the legitimate "no baseline yet" first-run case (also how this
-    # script's own tests exercise a fresh baseline), not a moved tree.
+    # baseline is also absent — so it fails loudly (BLIND) there. Two
+    # exemptions: an EXPLICITLY passed --baseline (the legitimate "no
+    # baseline yet" first-run case, also how this script's own tests exercise
+    # a fresh baseline) and --update-baseline (whose entire point is to
+    # CREATE a missing baseline).
     baseline_path = args.baseline if args.baseline is not None else DEFAULT_BASELINE
-    if args.baseline is None and not baseline_path.is_file():
+    if args.baseline is None and not args.update_baseline and not baseline_path.is_file():
         print(
             f"check_release_size_ratchet: BLIND — baseline missing at "
             f"{_display_path(baseline_path)} (the tree moved; restore it from git)",
