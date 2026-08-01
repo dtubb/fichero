@@ -377,6 +377,24 @@ enum ExecutionStatus: String, Codable {
     case cancelled
     case stopped
     case deleted
+
+    /// Whether the persisted run has stopped for good (#4457).
+    ///
+    /// `running` and `paused` are the two states a run can still leave on its
+    /// own — a paused run resumes and streams again — so everything else is
+    /// terminal. That is deliberately the SAME split
+    /// `WorkflowExecutionStore.shouldSubscribe(status:)` makes on
+    /// `WorkflowStatus`; the two enums are separate, but "can this run still
+    /// move?" must not get two different answers. Anything that needs the
+    /// split should read it from here rather than re-listing the cases.
+    var isTerminal: Bool {
+        switch self {
+        case .running, .paused:
+            return false
+        case .completed, .error, .failed, .cancelled, .stopped, .deleted:
+            return true
+        }
+    }
 }
 
 // The thread-list response is now the generated `Components.Schemas.ThreadListResponse`
