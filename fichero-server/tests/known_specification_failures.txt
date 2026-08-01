@@ -26,8 +26,6 @@ tests/unit/importers/test_import_embedding_report_contract.py::TestImportReports
 tests/unit/importers/test_import_embedding_report_contract.py::TestPageChildrenEmbeddingIsNotSilentlySkipped::test_page_children_default_to_being_embedded
 
 # ---- #4420 (10) ----
-tests/unit/api/test_security_headers_contract.py::test_api_responses_declare_nosniff[/api/entities]
-tests/unit/api/test_security_headers_contract.py::test_api_responses_declare_nosniff[/api/workflows]
 tests/unit/seams/test_change_event_seam.py::test_every_kg_writing_tool_emits_a_change_event
 tests/unit/seams/test_change_event_seam.py::test_kg_writer_emits_a_change_event
 tests/unit/seams/test_declared_port_seam.py::test_every_declared_input_port_is_fillable_by_some_tool_output

@@ -260,20 +260,25 @@ class TestSecurityHeaders:
     """Test security headers are present."""
 
     def test_security_headers_present(self, client):
-        """Security headers should be present in responses."""
+        """The declared security-header contract holds — FAIL, never skip.
+
+        #4383: this used to loop three headers and `pytest.skip` on the first
+        absent one — absence being the ONLY thing it could discover, routed
+        into a skip that read as "not applicable" while the header was
+        genuinely missing in production. The contract is exactly what the
+        middleware enforces: `x-content-type-options: nosniff` on every
+        response. The two headers the old list carried are deliberately NOT
+        asserted: `x-xss-protection` is deprecated (modern browsers ignore
+        it; OWASP advises against sending it) and `x-frame-options` is
+        meaningless for an API consumed by a native app — asserting either
+        would be testing a header nobody decided to ship.
+        """
         response = client.get("/api/research/projects")
-        
-        # Check for basic security headers
-        # Note: These might not be implemented yet
-        security_headers = [
-            "x-content-type-options",
-            "x-frame-options",
-            "x-xss-protection",
-        ]
-        
-        for header in security_headers:
-            if header not in response.headers:
-                pytest.skip(f"Security header {header} not implemented yet")
+
+        assert response.headers.get("x-content-type-options") == "nosniff", (
+            "x-content-type-options: nosniff is missing — the security-header "
+            "middleware (#4383) is not running or was reordered out"
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

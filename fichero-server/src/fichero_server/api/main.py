@@ -877,6 +877,22 @@ app.add_middleware(
 
 
 @app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Every response declares nosniff (#4383).
+
+    ``x-content-type-options: nosniff`` stops a browser second-guessing the
+    declared content type — relevant because the engine serves rendered
+    artifacts and thumbnails to WebKit surfaces, where a sniffed
+    text/html-looking body would otherwise execute. Applied as middleware so
+    every route — including ones added later — carries it; the contract test
+    (test_security_headers_contract.py) FAILS when it is absent, never skips.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
+
+
+@app.middleware("http")
 async def validate_library_path_header(request: Request, call_next):
     """Validate library header early, even when dependencies are overridden in tests."""
     library_path = optional_library_path(request)
