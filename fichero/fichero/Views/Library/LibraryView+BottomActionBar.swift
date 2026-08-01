@@ -60,6 +60,16 @@ extension LibraryView {
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
         }
+        // The ONE picker presenter for every import affordance in this view
+        // (#4449) — the bottom-bar button below AND the folder contextual
+        // menu (`LibraryView+ContextMenu.swift`) both flip `showingFileImporter`
+        // after stating their target in `fileImportTargetFolderId`.
+        .fileImporter(
+            isPresented: $showingFileImporter,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true,
+            onCompletion: handleFileImport
+        )
     }
 
     /// Essential verbs — always inline (#3057): New Folder, Delete, Import. The
@@ -93,6 +103,10 @@ extension LibraryView {
         .disabled(isShowingEntitiesCollection || selection.isEmpty)
 
         Button {
+            // Targets the folder this pane is currently showing, never the
+            // library root (#4449) — `folderId` is nil only when browsing
+            // the library's own top level, which IS the root.
+            fileImportTargetFolderId = folderId
             showingFileImporter = true
         } label: {
             Image(systemName: "square.and.arrow.down")
@@ -209,7 +223,10 @@ extension LibraryView {
             guard let library = libraryManager.getLibrary(id: windowState.libraryId)
                 ?? libraryManager.globalLibrary else { return }
             do {
-                _ = try await library.documentStore.createCollection(name: "New Folder")
+                // `folderId` — never the deprecated root-only `createCollection`
+                // (#4449): a folder created while browsing a subfolder must land
+                // IN that subfolder, not the library root.
+                _ = try await library.documentStore.createFolder(name: "New Folder", parentId: folderId)
                 await library.documentStore.refresh()
             } catch {
                 bottomBarLogger.error("Failed to create folder from bottom bar: \(error.localizedDescription)")
@@ -217,21 +234,27 @@ extension LibraryView {
         }
     }
 
-    private func handleBottomBarImport(_ result: Result<[URL], Error>) {
+    /// The ONE import handler every `showingFileImporter` presenter in this
+    /// view shares (#4449) — bottom bar and folder contextual menu alike.
+    /// Always imports into `fileImportTargetFolderId`, which each presenter
+    /// sets before flipping `showingFileImporter = true`; never a bare
+    /// `parentId: nil` that silently lands documents at the library root.
+    func handleFileImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
+            let targetFolderId = fileImportTargetFolderId
             Task { @MainActor in
                 guard let library = libraryManager.getLibrary(id: windowState.libraryId)
                     ?? libraryManager.globalLibrary else { return }
                 do {
-                    _ = try await library.importService.importFiles(urls, mode: .link)
+                    _ = try await library.importService.importFiles(urls, mode: .link, parentId: targetFolderId)
                     await library.documentStore.refresh()
                 } catch {
-                    bottomBarLogger.error("Bottom-bar import failed: \(error.localizedDescription)")
+                    bottomBarLogger.error("Import failed: \(error.localizedDescription)")
                 }
             }
         case .failure(let error):
-            bottomBarLogger.debug("Bottom-bar import cancelled or failed: \(error.localizedDescription)")
+            bottomBarLogger.debug("Import cancelled or failed: \(error.localizedDescription)")
         }
     }
 

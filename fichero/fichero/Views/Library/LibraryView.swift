@@ -68,8 +68,16 @@ struct LibraryView: View {
     /// the document set changes, so keystroke filtering is a dict lookup, not a
     /// fresh full-OCR scan. See `rebuildDocumentSearchKeys`.
     @State var documentSearchKeys: [String: String] = [:]
-    /// Bottom-bar file import presenter (#2313).
+    /// The ONE file-picker presenter every import affordance shares (#4449):
+    /// the bottom-bar Import button, and the folder contextual-menu "Import
+    /// Here…" item. Originally #2313 for just the bottom bar.
     @State var showingFileImporter = false
+    /// The container the in-flight `showingFileImporter` picker imports into.
+    /// Set immediately before flipping `showingFileImporter = true` so every
+    /// presenter states its own target explicitly — nil silently lands
+    /// documents at the library root, which is the "+ on a folder imports to
+    /// the root" bug this issue exists to close (#4449).
+    @State var fileImportTargetFolderId: String?
     @FocusState var filterFieldFocused: Bool
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
     @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
