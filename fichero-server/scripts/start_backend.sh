@@ -208,6 +208,12 @@ FICHERO_DEBUG_APP_BUNDLE_ID="${FICHERO_DEBUG_APP_BUNDLE_ID:-app.fichero.fichero}
 FICHERO_APP_BUNDLE_ID="${FICHERO_APP_BUNDLE_ID:-${FICHERO_DEBUG_APP_BUNDLE_ID}}"
 export FICHERO_APP_BUNDLE_ID
 export FICHERO_DEBUG_APP_BUNDLE_ID
+# #4400: every engine is accountable to an owner. A script-launched engine
+# watches the shell that invoked this script ($PPID — NOT $$, which after the
+# UDS branch's `exec` would be the engine itself), so closing that terminal
+# takes the engine with it instead of leaving an immortal process holding the
+# socket and serving hours-old code. An explicit FICHERO_PARENT_PID wins.
+export FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"
 PYTHONPATH="$API_ROOT/src" "$PYTHON_BIN" - <<'PY'
 import os
 

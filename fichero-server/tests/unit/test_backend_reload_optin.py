@@ -37,3 +37,51 @@ def test_stable_mode_overrides_an_explicit_request(monkeypatch):
     monkeypatch.setenv("FICHERO_BACKEND_STABLE_MODE", "1")
 
     assert backend_main._reload_enabled() is False
+
+
+# ---------------------------------------------------------------------------
+# #4400 — an unsupervised engine says so; it never silently opts out
+# ---------------------------------------------------------------------------
+
+
+def test_watchdog_without_a_parent_pid_warns_loudly(monkeypatch, caplog):
+    """No FICHERO_PARENT_PID used to mean a silent return — an immortal
+    engine nobody knew was unsupervised. It must SAY it (#4400)."""
+    import asyncio
+    import logging
+
+    from fichero_server.api import main as api_main
+
+    monkeypatch.delenv("FICHERO_PARENT_PID", raising=False)
+    with caplog.at_level(logging.WARNING, logger=api_main.__name__):
+        asyncio.run(api_main._watch_parent_process())
+
+    assert any("UNSUPERVISED ENGINE" in r.message for r in caplog.records), (
+        "the watchdog opted out silently — the #4400 immortal-engine shape"
+    )
+
+
+def test_watchdog_with_a_garbage_parent_pid_warns_loudly(monkeypatch, caplog):
+    import asyncio
+    import logging
+
+    from fichero_server.api import main as api_main
+
+    monkeypatch.setenv("FICHERO_PARENT_PID", "not-a-pid")
+    with caplog.at_level(logging.WARNING, logger=api_main.__name__):
+        asyncio.run(api_main._watch_parent_process())
+
+    assert any("UNSUPERVISED ENGINE" in r.message for r in caplog.records)
+
+
+def test_launch_script_supplies_an_owner_pid():
+    """start_backend.sh must hand the engine an owner ($PPID) so a
+    script-launched engine dies with its terminal instead of becoming
+    immortal (#4400). Source-level: the script is bash, but the contract
+    is one line and this fails the moment it is dropped."""
+    from pathlib import Path
+
+    script = (
+        Path(__file__).resolve().parents[2] / "scripts" / "start_backend.sh"
+    ).read_text()
+    assert 'FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"' in script

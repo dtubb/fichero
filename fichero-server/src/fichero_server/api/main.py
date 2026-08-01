@@ -596,10 +596,29 @@ async def _watch_parent_process() -> None:
 
     parent_pid_str = os.environ.get("FICHERO_PARENT_PID")
     if not parent_pid_str:
+        # #4400: silently doing nothing here made an externally-started engine
+        # IMMORTAL — nothing ever took it down, it held the UDS socket, and it
+        # kept serving hours-old code while the user believed they had
+        # restarted. Refusing to run would break every terminal launch, so the
+        # honest middle is LOUD: say once, at startup, that nobody is watching.
+        # (start_backend.sh now sets FICHERO_PARENT_PID to its invoking shell,
+        # so the ordinary dev launch IS supervised; this fires for bare
+        # uvicorn/python launches only.)
+        logger.warning(
+            "UNSUPERVISED ENGINE: FICHERO_PARENT_PID is not set — this process "
+            "will outlive whatever started it, keep its socket, and keep "
+            "serving the code it loaded at start (#4400). Set "
+            "FICHERO_PARENT_PID=<owner pid> so it exits with its owner."
+        )
         return
     try:
         parent_pid = int(parent_pid_str)
     except ValueError:
+        logger.warning(
+            "UNSUPERVISED ENGINE: FICHERO_PARENT_PID=%r is not a pid — the "
+            "parent watchdog cannot run (#4400).",
+            parent_pid_str,
+        )
         return
 
     while True:
