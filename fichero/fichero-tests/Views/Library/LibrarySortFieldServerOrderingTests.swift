@@ -28,14 +28,16 @@ final class LibrarySortFieldServerOrderingTests: XCTestCase {
 
     // MARK: - Fixtures
 
-    /// Server order deliberately disagrees with EVERY client comparator:
-    /// names descend, JDNs are shuffled, and the undated document sits in the
-    /// middle rather than at either end (where the engine's `created_at`
-    /// fallback placed it).
+    /// Server order deliberately disagrees with EVERY client comparator: names
+    /// descend and the JDNs are shuffled, so any re-sort is visible.
+    ///
+    /// All three are DATED, which matters: `groupingUndatedLast` is a no-op on
+    /// this fixture, so "the order survived verbatim" isolates the client-sort
+    /// question from the grouping question. The grouping has its own tests.
     private func serverOrderedDocuments() -> [Document] {
         [
             makeDocument(id: "z", name: "Zulu diary", dateJdn: 2_375_000),
-            makeDocument(id: "m", name: "Mike letter", dateJdn: nil),
+            makeDocument(id: "m", name: "Mike letter", dateJdn: 2_300_000),
             makeDocument(id: "a", name: "Alpha ledger", dateJdn: 2_260_000)
         ]
     }
@@ -200,6 +202,147 @@ final class LibrarySortFieldServerOrderingTests: XCTestCase {
             "undated documents collapse onto one value here — the engine's "
                 + "created_at fallback is what separates them, and that is why "
                 + "this key path must not be used to order rows"
+        )
+    }
+}
+
+// MARK: - The "No date" group (#3322 step 6)
+
+/// The engine's fallback orders an undated document by its `created_at`
+/// converted to a JDN. That is what makes the ordering total, and it stays.
+///
+/// But it places undated documents INTERLEAVED among dated ones — a diary
+/// scanned in 2024 landing between two 1791 letters, which reads as a claim
+/// about when it was written. The UI groups them instead.
+///
+/// The grouping is a stable PARTITION, never a sort: it does not compare two
+/// documents, so it cannot become a second opinion about ordering. These tests
+/// are mostly about that property.
+final class LibraryUndatedGroupingTests: XCTestCase {
+
+    private func doc(_ id: String, jdn: Int?) -> Document {
+        Document(
+            id: id, parentId: nil, docType: .file, fileType: nil, name: id,
+            path: nil, sequence: nil, bbox: nil, status: .completed,
+            metadata: [:], pageContent: nil, dateJdn: jdn, sortOrder: 0,
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    func testUndatedDocumentsMoveToTheEnd() {
+        let mixed = [doc("a", jdn: 100), doc("u1", jdn: nil), doc("b", jdn: 200),
+                     doc("u2", jdn: nil), doc("c", jdn: 300)]
+
+        XCTAssertEqual(
+            LibrarySortField.groupingUndatedLast(mixed).map(\.id),
+            ["a", "b", "c", "u1", "u2"]
+        )
+    }
+
+    /// The important half. Within each group the ENGINE's order survives —
+    /// including among the undated, where that order is the `created_at`
+    /// fallback and is the only thing giving them a stable sequence at all.
+    func testRelativeOrderSurvivesWithinBothGroups() {
+        // Deliberately NOT ascending by JDN: this is the engine's order, and a
+        // partition that quietly sorted would tidy it up.
+        let engineOrder = [doc("b", jdn: 300), doc("u1", jdn: nil),
+                           doc("a", jdn: 100), doc("u2", jdn: nil)]
+
+        let grouped = LibrarySortField.groupingUndatedLast(engineOrder)
+
+        XCTAssertEqual(grouped.map(\.id), ["b", "a", "u1", "u2"],
+                       "a partition must not reorder within a group")
+    }
+
+    func testAnAllDatedListIsUnchanged() {
+        let dated = [doc("b", jdn: 300), doc("a", jdn: 100)]
+
+        XCTAssertEqual(LibrarySortField.groupingUndatedLast(dated).map(\.id), ["b", "a"])
+    }
+
+    func testAnAllUndatedListIsUnchanged() {
+        let undated = [doc("u1", jdn: nil), doc("u2", jdn: nil)]
+
+        XCTAssertEqual(LibrarySortField.groupingUndatedLast(undated).map(\.id), ["u1", "u2"])
+    }
+
+    func testNoDocumentIsLostOrDuplicated() {
+        let mixed = [doc("a", jdn: 1), doc("u", jdn: nil), doc("b", jdn: 2)]
+        let grouped = LibrarySortField.groupingUndatedLast(mixed)
+
+        XCTAssertEqual(Set(grouped.map(\.id)), Set(mixed.map(\.id)))
+        XCTAssertEqual(grouped.count, mixed.count)
+    }
+
+    func testEmptyIsEmpty() {
+        XCTAssertTrue(LibrarySortField.groupingUndatedLast([]).isEmpty)
+    }
+
+    /// Grouping applies only where it means something. Sorting by Name must not
+    /// exile undated documents to the bottom — under that sort "undated" is not
+    /// a fact the ordering is about.
+    func testGroupingDoesNotApplyToClientSortedFields() {
+        let mixed = [doc("b", jdn: nil), doc("a", jdn: 100)]
+
+        let byName = LibrarySortField.orderedForDisplay(
+            mixed, field: .name, using: LibrarySortField.name.comparator(ascending: true)
+        )
+
+        XCTAssertEqual(byName.map(\.id), ["a", "b"],
+                       "undated documents sort by name like any other")
+    }
+
+    /// The grouped order IS the order `filteredDocuments` holds, so keyboard
+    /// navigation and the prefetch index agree with what is on screen. A
+    /// grouping applied only at render time would put arrow-key order out of
+    /// step with row order.
+    func testTheGroupedOrderIsWhatTheSortPathReturns() {
+        let mixed = [doc("a", jdn: 100), doc("u", jdn: nil), doc("b", jdn: 200)]
+
+        let displayed = LibrarySortField.orderedForDisplay(
+            mixed, field: .documentDate,
+            using: LibrarySortField.documentDate.comparator(ascending: true)
+        )
+
+        XCTAssertEqual(displayed.map(\.id), ["a", "b", "u"])
+    }
+
+    // MARK: - Precision survives the sort (#3322 step 7)
+
+    /// A year-precision document sorts by its start JDN and still RENDERS
+    /// "1791". Sorting and rendering read different things — the sort reads
+    /// `date_jdn`, the cell reads the engine's `display` — and this pins that
+    /// passing through the sort path does not swap one for the other.
+    func testAYearPrecisionDocumentStillRendersAsAYearAfterSorting() {
+        let yearPrecision = Document(
+            id: "y", parentId: nil, docType: .file, fileType: nil, name: "Ledger",
+            path: nil, sequence: nil, bbox: nil, status: .completed,
+            metadata: [:], pageContent: nil,
+            dateOriginal: "1791",
+            dateJdn: 2_375_260,
+            dateMeta: ["status": AnyCodable("dated"),
+                       "display": AnyCodable("1791"),
+                       "precision": AnyCodable("year")],
+            sortOrder: 0,
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+
+        let displayed = LibrarySortField.orderedForDisplay(
+            [yearPrecision], field: .documentDate,
+            using: LibrarySortField.documentDate.comparator(ascending: true)
+        )
+
+        XCTAssertEqual(displayed.first?.dateJdn, 2_375_260, "it sorts by the start JDN")
+        XCTAssertEqual(
+            DocumentDateDisplay.resolve(
+                dateOriginal: displayed.first?.dateOriginal,
+                dateJdn: displayed.first?.dateJdn,
+                dateMeta: displayed.first?.dateMeta?.mapValues { $0.value }
+            ),
+            .dated(text: "1791"),
+            "and still reads as a year — never '1 January 1791'"
         )
     }
 }

@@ -71,8 +71,34 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         field: LibrarySortField,
         using comparators: [KeyPathComparator<Document>]
     ) -> [Document] {
-        guard !field.ordersOnServer else { return documents }
+        guard !field.ordersOnServer else { return groupingUndatedLast(documents) }
         return documents.sorted(using: comparators)
+    }
+
+    /// Move undated documents to the end, **preserving the engine's relative
+    /// order within each group** (#3322).
+    ///
+    /// This is a stable partition, not a sort — it never compares two
+    /// documents, so it cannot introduce a second opinion about ordering. That
+    /// distinction is the whole reason it is a separate function from
+    /// `orderedForDisplay`: one decides who orders the rows, this one only
+    /// decides where the undated ones sit.
+    ///
+    /// Why it is needed at all: the engine's fallback sorts a document with no
+    /// extracted date by its `created_at` converted to a JDN, which is correct
+    /// for producing one total order but places undated documents INTERLEAVED
+    /// among dated ones — a diary scanned in 2024 landing between two 1791
+    /// letters. The fallback stays (it is what makes the ordering total); the
+    /// UI just refuses to present the interleaving as though it were evidence.
+    ///
+    /// The visible order is also the order `filteredDocuments` holds, so
+    /// keyboard navigation and the `documentIndexById` prefetch map agree with
+    /// what is on screen. A grouping applied only at render time would put
+    /// arrow-key order out of step with row order.
+    static func groupingUndatedLast(_ documents: [Document]) -> [Document] {
+        let dated = documents.filter { $0.dateJdn != nil }
+        guard dated.count != documents.count else { return documents }
+        return dated + documents.filter { $0.dateJdn == nil }
     }
 
     func comparator(ascending: Bool) -> [KeyPathComparator<Document>] {
