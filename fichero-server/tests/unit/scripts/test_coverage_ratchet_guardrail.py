@@ -94,5 +94,13 @@ class TestUpdateBaseline:
             "--engine-json", str(FIXTURES / "engine_low.json"),
             "--baseline", str(FIXTURES / "does_not_exist.json"),
         )
-        assert r.returncode != 0
-        assert "cannot read" in (r.stdout + r.stderr)
+        out = r.stdout + r.stderr
+        # BLIND (exit 2), not a violation (exit 1): "I could not read the
+        # baseline I compare against" is not "coverage regressed" (#4487).
+        assert r.returncode == 2, f"expected BLIND, got {r.returncode}: {out}"
+        # Assert the PROPERTY the message must carry — it names the path it
+        # could not read — not the wording. This test previously pinned the
+        # literal string "cannot read" and went red when #4487 improved the
+        # message without changing the behaviour. A test that fails on better
+        # prose is a test about prose.
+        assert "does_not_exist.json" in out, out
