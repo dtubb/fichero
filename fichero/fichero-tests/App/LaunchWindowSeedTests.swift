@@ -12,6 +12,11 @@ import XCTest
 ///
 /// Two platforms seeding one window differently, with nothing forcing them to
 /// agree — which is why only one of them had the wall in front of it.
+/// `@MainActor` because `WindowState` is: constructing one and reading
+/// `library` are both main-actor work, and the launch path this describes runs
+/// there. Hopping per-assertion instead would let the test observe a state the
+/// app never sees.
+@MainActor
 final class LaunchWindowSeedTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
