@@ -106,17 +106,19 @@ extension KnowledgeGraphInspectorSection {
                 ? InspectorClaimBulkSelection.libraryWideSuppressRules(for: targetClaims)
                 : []
 
-            if !claimIds.isEmpty {
-                _ = try await kgCurationService.batchSetClaimCurationState(
-                    claimIds: claimIds,
-                    curationState: action.curationState
-                )
-            }
+            // Through the store, not the two services (#1848 / observable data
+            // layer). `ClaimStore.setCuration` wraps exactly this pair —
+            // including the same "skip when empty" guards — and reloads the
+            // claim scope afterwards, so every other claim surface sees the
+            // curation change instead of only this inspector (#1862).
+            try await claimStore.setCuration(
+                claimIds: claimIds,
+                to: action.curationState,
+                suppressRules: action == .suppress && scope == .libraryWide ? suppressRules : []
+            )
 
-            if action == .suppress, scope == .libraryWide, !suppressRules.isEmpty {
-                _ = try await kgCurationService.batchCreateClaimRules(suppressRules)
-            }
-
+            // Still needed: the store refreshes CLAIMS, this refreshes the
+            // document's STATEMENTS list, which is a different fetch.
             await loadStatements()
             claimSelection = []
             claimSelectionAnchor = nil
@@ -165,9 +167,10 @@ extension KnowledgeGraphInspectorSection {
         defer { isApplyingBulkAction = false }
 
         do {
-            for claimId in claimIds {
-                try await entityService.deleteClaim(claimId)
-            }
+            // Through the store (#1848). `ClaimStore.delete` is this loop
+            // verbatim plus the claim-scope reload — this copy predated the
+            // store action and was never switched over.
+            try await claimStore.delete(claimIds: claimIds)
             await loadStatements()
             claimSelection = []
             claimSelectionAnchor = nil
@@ -196,9 +199,11 @@ extension KnowledgeGraphInspectorSection {
         defer { isApplyingBulkAction = false }
 
         do {
-            _ = try await kgCurationService.mergeClaims(
-                survivorId: plan.survivorId,
-                absorbedIds: plan.absorbedClaimIds
+            // Through the store (#1848): identical call, plus the claim-scope
+            // reload that makes a merge visible on surfaces other than this one.
+            _ = try await claimStore.merge(
+                absorbedIds: plan.absorbedClaimIds,
+                into: plan.survivorId
             )
             await loadStatements()
             claimSelection = []

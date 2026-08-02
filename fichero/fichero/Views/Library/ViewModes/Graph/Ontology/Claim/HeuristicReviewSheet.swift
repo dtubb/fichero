@@ -24,6 +24,8 @@ struct HeuristicReviewSheet: View {
     let response: Components.Schemas.HeuristicPredictionsResponse
     let dismiss: () -> Void
 
+    @Environment(ClaimStore.self) private var claimStore
+
     @State private var processed: Set<String> = []
     @State private var accepted: Set<String> = []
     @State private var status: String = ""
@@ -131,9 +133,11 @@ struct HeuristicReviewSheet: View {
     }
 
     private func accept(_ pred: Components.Schemas.HeuristicPredictionItem, key: String) async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
         do {
-            _ = try await library.entityService.createClaimLink(
+            // Through the store (#1848): `ClaimStore.link` is this exact call
+            // plus the claim-scope reload, so an accepted prediction shows up
+            // wherever claims are displayed rather than only in this sheet.
+            _ = try await claimStore.link(
                 claimId: pred.sourceClaimId,
                 relatedClaimId: pred.targetClaimId,
                 relationType: .supports,
