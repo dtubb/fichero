@@ -41,6 +41,7 @@ extension OntologyBrowser {
             .buttonStyle(.plain)
             .disabled(!navHistory.canGoBack)
             .help("Go back (⌘')")
+            .accessibilityLabel("Go Back")
             .keyboardShortcut("'", modifiers: .command)
             Button {
                 applyHistoryEntry(navHistory.goForward())
@@ -50,6 +51,7 @@ extension OntologyBrowser {
             .buttonStyle(.plain)
             .disabled(!navHistory.canGoForward)
             .help("Go forward (⌘⇧')")
+            .accessibilityLabel("Go Forward")
             .keyboardShortcut("'", modifiers: [.command, .shift])
             Spacer(minLength: 0)
             if let status = toolStatus {

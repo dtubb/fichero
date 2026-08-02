@@ -27,6 +27,7 @@ struct ActionPickerView: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear Search")
                 }
             }
             .padding(8)

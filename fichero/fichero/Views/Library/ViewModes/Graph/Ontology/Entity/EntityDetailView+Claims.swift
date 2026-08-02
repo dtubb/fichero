@@ -25,6 +25,7 @@ extension EntityDetailView {
                 }
                 .buttonStyle(.plain)
                 .help("View claims grouped by source document")
+                .accessibilityLabel("Group Claims by Source Document")
 
                 if isLoadingClaims {
                     ProgressView()
