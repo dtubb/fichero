@@ -56,3 +56,34 @@ lane until the above is moving.
 - Lanes never build. The manager builds every 4 hours and before any release.
 - Nobody runs `pytest tests/perf` outside the gate.
 - **Do real stuff.** A user-visible fix beats three triaged closures.
+
+## Blocked on Daniel — Tuesday (added 2026-08-02)
+
+Paleography #265 is six sequenced steps and step 1 cannot start without two
+answers. Both are editorial/authority decisions, not engineering ones, so no
+lane may guess them.
+
+1. **#3320 Q1 — is NFC-normalised text acceptable as diplomatic content?**
+   The text-normalisation choke point cannot be written without this; the
+   contract changes depending on the answer. A diplomatic transcription is
+   supposed to preserve what the manuscript actually shows, and Unicode
+   normalisation silently changes some of it.
+
+2. **#3320 Q6 — backfill sign-off (the #3077 analog).**
+   Backfilling normalised text rewrites the Marshall Diaries. Real data,
+   never nuked, changes need db_migrations.py. This is authorisation, not
+   implementation.
+
+#3321 sits on top of both.
+
+**Unblocked and queued:** #3322 histdate — the largest piece needing neither
+answer, and the one Ann would feel first. A diary corpus is navigated by
+date, and today sort/filter uses created_at (import time), which is
+meaningless for the Marshall Diaries. Green-field, touches no existing
+content. Cheap precursor: add ftfy/anyascii/convertdate/jdcal to pyproject
+(unblocks three later steps).
+
+**Also for Daniel:** #2397 cross-library drag. There is no cross-library move
+action; every path terminates in one library's documentStore.moveDocument,
+and a client-orchestrated version cannot be atomic across two databases.
+Destructive + Marshall Diaries + a semantics question = his call.
