@@ -337,3 +337,86 @@ class TestFilesToolEndToEnd:
         assert [doc["id"] for doc in output["documents"]] == ["page-7"]
         assert output["documents"][0]["parent_id"] == "pdf"
         assert output["documents"][0]["sequence"] == 7
+
+
+# ---------------------------------------------------------------------------
+# Layer 3: empty resolution fails LOUD (#4467)
+# ---------------------------------------------------------------------------
+
+class TestEmptyResolutionFailsLoud:
+    """A selection that resolves to zero processable files must raise.
+
+    The MCP no-op (#4467) showed the worst failure shape this project knows:
+    a run that completes green having processed nothing. The boundary now
+    rejects unread target keys; this layer covers the other route to the same
+    lie — ids that ARE in the right key but resolve to nothing (stale/deleted
+    ids, docs with no path). files_tool raises; the node wrapper turns that
+    into state["error"] and the run ends FAILED, not completed.
+    """
+
+    @pytest.mark.asyncio
+    async def test_stale_selection_raises_instead_of_completing_green(self):
+        from fichero_server.workflows.tools.sources import files_tool
+
+        mock_db = MagicMock()
+        mock_db.get.return_value = None  # every selected id is stale/deleted
+
+        with patch("fichero_server.workflows.tools.sources.db_manager") as mock_mgr:
+            mock_mgr.get_database.return_value = mock_db
+            with pytest.raises(ValueError, match="resolved to 0 processable files"):
+                await files_tool(
+                    {},
+                    {
+                        "selected_doc_ids": ["gone-1", "gone-2"],
+                        "library_path": "/tmp/test.fichero",
+                    },
+                    MagicMock(),
+                )
+
+    @pytest.mark.asyncio
+    async def test_pathless_docs_also_raise(self):
+        """Found ids whose documents have no on-disk file are still nothing."""
+        from fichero_server.workflows.tools.sources import files_tool
+
+        pathless = Document(
+            id="doc-nopath",
+            name="ghost",
+            doc_type=DocType.file,
+            path=None,
+            status=Status.completed,
+        )
+        mock_db = MagicMock()
+        mock_db.get.return_value = pathless
+
+        with patch("fichero_server.workflows.tools.sources.db_manager") as mock_mgr:
+            mock_mgr.get_database.return_value = mock_db
+            with pytest.raises(ValueError, match="resolved to 0 processable files"):
+                await files_tool(
+                    {},
+                    {
+                        "selected_doc_ids": ["doc-nopath"],
+                        "library_path": "/tmp/test.fichero",
+                    },
+                    MagicMock(),
+                )
+
+    @pytest.mark.asyncio
+    async def test_a_resolving_selection_still_succeeds(self):
+        """The guard must not fire when the selection resolves normally."""
+        from fichero_server.workflows.tools.sources import files_tool
+
+        doc = _make_doc("doc-ok", "/library/letter.jpg")
+        mock_db = MagicMock()
+        mock_db.get.return_value = doc
+
+        with patch("fichero_server.workflows.tools.sources.db_manager") as mock_mgr:
+            mock_mgr.get_database.return_value = mock_db
+            out = await files_tool(
+                {},
+                {
+                    "selected_doc_ids": ["doc-ok"],
+                    "library_path": "/tmp/test.fichero",
+                },
+                MagicMock(),
+            )
+        assert out["count"] == 1

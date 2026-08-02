@@ -368,10 +368,18 @@ rather than fetching. `fichero-cli` and `fichero-mcp` are thin — every command
 is one or two HTTP calls through `FicheroClient`, and **no backend logic lives in
 either**. If a client needs logic, the logic belongs in the engine.
 
-- **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `dev`, default `release`) in
-  `api/main.py`. On current `main` the dev tier gates exactly one route group:
-  `iiif`. Everything else is core. Route registration is therefore a poor signal of
-  whether a feature is *usable* — the UI is flag-gated separately.
+- **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `beta` | `alpha` | `dev`,
+  default `release`) in `api/main.py`, table in `api/feature_tiers_generated.py`.
+  **Twenty route groups are tier-gated**, and a default (release) engine registers
+  only `/api/ingest` and `/api/search` of them — `workflows`, `workflow-execution`,
+  `kg`, `claims`, `activity`, `providers`, `models`, `chat`, `research`, `mcp` and
+  the rest need `beta`+ (`iiif`/`schedules`/`triggers` need `dev`,
+  `integrations`/`mcp-servers` need `alpha`). The app spawns its engine at its own
+  build tier, so it never notices; a hand-started engine at the default tier 404s
+  the entire workflow/KG surface, which reads as "the CLI is broken" (#4470,
+  found live in #4465). A gated route 404s with no hint a tier would reveal it.
+  Route registration is therefore a poor signal of whether a feature is *usable* —
+  the UI is flag-gated separately.
 - **What ships to a user** is decided by `FeatureManager.resetToV001()` in
   `fichero/fichero/Models/FeatureManager.swift`, re-applied on every
   `releaseProfileVersion` bump. `docs/user/features.md` is derived from it.

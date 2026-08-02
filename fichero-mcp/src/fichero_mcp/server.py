@@ -387,6 +387,89 @@ def fichero_reveal_location(
         return client.request("POST", "/api/locations/resolve", json=payload)
 
 
+# -- knowledge graph (audited writes) ---------------------------------------
+# These call /api/mcp/tools/knowledge/* — the server-side MCP mutation routes
+# that write MutationLog with the request actor (#4415/#4469). They existed
+# with ZERO callers while the product's only KG story was read-only; wiring
+# them here is what makes "the agent is a user making audited edits" true.
+
+
+@mcp.tool()
+def fichero_kg_entity_upsert(
+    canonical_name: str,
+    entity_type: str = "other",
+    entity_id: Optional[str] = None,
+    aliases: Optional[list[str]] = None,
+    description: Optional[str] = None,
+    language: Optional[str] = None,
+) -> Any:
+    """Create or update a knowledge-graph entity (audited, undoable).
+
+    Args:
+        canonical_name: The entity's canonical name.
+        entity_type: person | place | organization | ... (default "other").
+        entity_id: Pass an existing entity's ID to update it.
+        aliases: Alternative names.
+        description: Entity description.
+        language: ISO 639-1 code.
+    """
+    payload: dict[str, Any] = {
+        "canonical_name": canonical_name,
+        "entity_type": entity_type,
+    }
+    if entity_id:
+        payload["id"] = entity_id
+    if aliases:
+        payload["aliases"] = aliases
+    if description:
+        payload["description"] = description
+    if language:
+        payload["language"] = language
+    with _mutating_client() as client:
+        return client.request(
+            "POST", "/api/mcp/tools/knowledge/entities/upsert", json=payload
+        )
+
+
+@mcp.tool()
+def fichero_kg_claim_create(
+    text: str,
+    source_document_id: Optional[str] = None,
+    entity_ids: Optional[list[str]] = None,
+    claim_type: str = "fact",
+    epistemic_status: str = "tentative",
+    confidence: float = 0.5,
+    language: Optional[str] = None,
+) -> Any:
+    """Create a knowledge-graph claim (audited, provenance-carrying).
+
+    Args:
+        text: The claim text.
+        source_document_id: Document the claim is grounded in.
+        entity_ids: Linked entity IDs.
+        claim_type: fact | analysis | interpretation | argument | historiography | theory.
+        epistemic_status: tentative | confirmed | rejected.
+        confidence: 0.0–1.0.
+        language: ISO 639-1 code.
+    """
+    payload: dict[str, Any] = {
+        "text": text,
+        "claim_type": claim_type,
+        "epistemic_status": epistemic_status,
+        "confidence": confidence,
+    }
+    if source_document_id:
+        payload["source_document_id"] = source_document_id
+    if entity_ids:
+        payload["entity_ids"] = entity_ids
+    if language:
+        payload["language"] = language
+    with _mutating_client() as client:
+        return client.request(
+            "POST", "/api/mcp/tools/knowledge/claims/create", json=payload
+        )
+
+
 # -- knowledge graph / content (read) --------------------------------------
 @mcp.tool()
 def fichero_kg_neighborhood(

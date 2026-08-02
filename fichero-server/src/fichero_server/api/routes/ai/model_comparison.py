@@ -452,6 +452,16 @@ def _workflow_from_request(
         raise HTTPException(status_code=400, detail="workflow_id or workflow required")
     workflow = db.get(Workflow, request.workflow_id)
     if not workflow:
+        # #4450 parity: shipped defaults live only in the global library, so a
+        # comparison against a default 404'd in every other library while the
+        # exact same run worked in the global one ("runs in one library but
+        # not the other"). Same fallback the list/get/execute paths use.
+        from fichero_server.workflows.default_workflows import (  # noqa: PLC0415
+            resolve_default_workflow,
+        )
+
+        workflow = resolve_default_workflow(request.workflow_id)
+    if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
     return WorkflowDef(
         id=workflow.id,
@@ -473,6 +483,16 @@ def _workflow_from_compare_request(
     if not request.workflow_id:
         raise HTTPException(status_code=400, detail="workflow_id or workflow required")
     workflow = db.get(Workflow, request.workflow_id)
+    if not workflow:
+        # #4450 parity: shipped defaults live only in the global library, so a
+        # comparison against a default 404'd in every other library while the
+        # exact same run worked in the global one ("runs in one library but
+        # not the other"). Same fallback the list/get/execute paths use.
+        from fichero_server.workflows.default_workflows import (  # noqa: PLC0415
+            resolve_default_workflow,
+        )
+
+        workflow = resolve_default_workflow(request.workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
     return WorkflowDef(

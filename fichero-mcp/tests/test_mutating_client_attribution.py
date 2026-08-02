@@ -59,3 +59,30 @@ def test_mutating_tools_route_through_mutating_client():
             fn = getattr(tool, "fn", tool)
             fn(**kwargs)
     assert mut.call_count == 3
+
+
+def test_kg_write_tools_call_the_audited_mcp_routes():
+    """#4469: the audited /api/mcp/tools/knowledge/* routes — which write
+    MutationLog with the request actor — had ZERO callers in this product.
+    The KG write tools must hit exactly those routes, via _mutating_client."""
+    client = _mock_client()
+    with patch.object(server, "_mutating_client", return_value=client):
+        fn = getattr(server.fichero_kg_entity_upsert, "fn", server.fichero_kg_entity_upsert)
+        fn(canonical_name="Chocó", entity_type="place", aliases=["El Chocó"])
+        method, path = client.request.call_args[0]
+        assert (method, path) == ("POST", "/api/mcp/tools/knowledge/entities/upsert")
+        body = client.request.call_args[1]["json"]
+        assert body == {
+            "canonical_name": "Chocó",
+            "entity_type": "place",
+            "aliases": ["El Chocó"],
+        }, "extra=forbid on the server: only known, non-empty keys may ride"
+
+        fn = getattr(server.fichero_kg_claim_create, "fn", server.fichero_kg_claim_create)
+        fn(text="Istmina is on the San Juan", source_document_id="doc-1", confidence=0.9)
+        method, path = client.request.call_args[0]
+        assert (method, path) == ("POST", "/api/mcp/tools/knowledge/claims/create")
+        body = client.request.call_args[1]["json"]
+        assert body["text"] == "Istmina is on the San Juan"
+        assert body["source_document_id"] == "doc-1"
+        assert body["confidence"] == 0.9
