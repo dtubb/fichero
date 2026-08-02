@@ -23,6 +23,25 @@ from fichero_server.workflows.subworkflow import validate_sub_workflow_reference
 
 logger = logging.getLogger(__name__)
 
+# THE port-conversion table (#4477): the only output→input data-type pairs
+# that may connect beyond same-type and ANY. Served to clients via
+# GET /api/workflows/tools so the canvas DERIVES its edge legality from here
+# — the editor kept its own hand-written copy and drifted to six conversions
+# the engine rejects, so users drew edges that saved fine and died at run
+# time. Add a conversion here (with a reason) and every surface moves
+# together; never add one client-side.
+PORT_CONVERSIONS: dict[DataType, tuple[DataType, ...]] = {
+    DataType.FILES: (DataType.FILE,),  # a files list can feed a single-file input
+}
+
+
+def port_conversion_table() -> dict[str, list[str]]:
+    """``PORT_CONVERSIONS`` in wire form for API serialization."""
+    return {
+        source.value: [target.value for target in targets]
+        for source, targets in PORT_CONVERSIONS.items()
+    }
+
 
 def validate_port_connection(source_port: PortDef, target_port: PortDef) -> bool:
     """Validate that a connection between two ports is compatible.
@@ -55,13 +74,9 @@ def validate_port_connection(source_port: PortDef, target_port: PortDef) -> bool
     if source_type == target_type:
         return True
 
-    # Specific type compatibilities
-    compatible_types = {
-        DataType.FILES: [DataType.FILE],  # Files can connect to single file
-        DataType.ARRAY: [DataType.ANY],  # Arrays can connect to any (individual items)
-    }
-
-    if source_type in compatible_types and target_type in compatible_types[source_type]:
+    # Specific type compatibilities — the ONE table, also served to clients.
+    # (The old ARRAY→ANY entry was dead code: ANY is accepted above.)
+    if target_type in PORT_CONVERSIONS.get(source_type, ()):
         return True
 
     logger.warning(f"Incompatible data types: {source_type} -> {target_type}")
@@ -118,6 +133,43 @@ def validate_node_connections(
                 f"Input mapping references unknown port '{mapping.port_id}' on node '{node.id}'"
             )
 
+    return errors
+
+
+def validate_edge_type_errors(workflow: WorkflowDef) -> list[str]:
+    """Edge type-compatibility errors ONLY — safe to enforce at SAVE time.
+
+    Drafts legitimately have unmapped required ports and half-configured
+    nodes, so save must not run the full preflight. But an edge between two
+    KNOWN ports of incompatible types can never become valid by finishing the
+    draft — reject it while the user can still see the edge they drew,
+    instead of at run time (#4477). Unknown nodes/ports are left to
+    execution-time validation, where the full check runs.
+    """
+    errors: list[str] = []
+    enriched = {node.id: enrich_node_with_ports(node) for node in workflow.nodes}
+    for edge in workflow.edges:
+        if edge.route_map:
+            continue
+        source_node = enriched.get(edge.source)
+        target_node = enriched.get(edge.target)
+        if source_node is None or target_node is None:
+            continue
+        source_port = next(
+            (p for p in source_node.output_ports if p.id == edge.source_port), None
+        )
+        target_port = next(
+            (p for p in target_node.input_ports if p.id == edge.target_port), None
+        )
+        if source_port is None or target_port is None:
+            continue
+        if not validate_port_connection(source_port, target_port):
+            errors.append(
+                f"Incompatible connection {edge.source}.{edge.source_port} "
+                f"({source_port.data_type.value}) -> {edge.target}."
+                f"{edge.target_port} ({target_port.data_type.value}): the "
+                "engine will refuse to execute this edge"
+            )
     return errors
 
 

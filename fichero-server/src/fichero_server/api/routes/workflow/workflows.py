@@ -193,6 +193,15 @@ class WorkflowToolListResponse(BaseModel):
 
     items: list[ToolResponse]
     count: int
+    conversions: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description=(
+            "Port data-type conversion table (#4477): output type -> input "
+            "types it may connect to, beyond same-type and 'any'. The engine "
+            "is the only owner of this rule; the node editor derives edge "
+            "legality from it instead of keeping a copy."
+        ),
+    )
 
 
 class WorkflowCostEstimateRequest(BaseModel):
@@ -378,9 +387,13 @@ async def list_workflow_tools() -> WorkflowToolListResponse:
     # Palette contract (#4322): only tools with a loaded implementation
     # (directly or via alias) are offered — a palette tool without an
     # implementation kills the whole graph at build time.
+    from fichero_server.workflows.validation import port_conversion_table
+
     tools = list_executable_tools()
     items = [_tool_to_response(t) for t in tools]
-    return WorkflowToolListResponse(items=items, count=len(items))
+    return WorkflowToolListResponse(
+        items=items, count=len(items), conversions=port_conversion_table()
+    )
 
 
 @router.get("/tools/grouped")
@@ -502,6 +515,22 @@ async def create_node(
 # =============================================================================
 
 
+def _reject_incompatible_edges(workflow: WorkflowDef) -> None:
+    """422 on save for edges the engine will refuse to execute (#4477).
+
+    Edge TYPE compatibility only — drafts keep saving (unmapped required
+    ports, half-configured nodes are legitimate mid-edit states), but an
+    edge between two known ports of incompatible types can never become
+    valid by finishing the draft, so failing here keeps the error next to
+    the edge the user just drew instead of surfacing at run time.
+    """
+    from fichero_server.workflows.validation import validate_edge_type_errors
+
+    errors = validate_edge_type_errors(workflow)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+
+
 def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # noqa: F821
     """Build + persist a node-based workflow from a WorkflowDef (the proven
     create logic, extracted verbatim from the ``POST /api/workflows`` route).
@@ -511,6 +540,8 @@ def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # 
     Uses ``model_dump_for_storage()`` so ports (registry-owned) are not persisted.
     """
     from fichero_server.models import Workflow
+
+    _reject_incompatible_edges(workflow)
 
     db_workflow = Workflow(
         name=workflow.name,
@@ -932,6 +963,7 @@ def update_workflow_impl(
             status_code=404, detail=f"Workflow not found: {workflow_id}"
         )
     _reject_if_read_only(existing)
+    _reject_incompatible_edges(workflow)
 
     # Use model_dump_for_storage() to exclude ports (they come from registry)
     existing.name = workflow.name
