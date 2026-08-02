@@ -150,3 +150,37 @@ assertions in its own test suite.
 
 This is the same class as EPIC #4487's blind guardrails, one layer out: a tool
 reporting a confident answer about something it never looked at.
+
+---
+
+## 8. Where does a REMOTE CLI's SPKI pin live? (#4468's last half)
+
+**Blocks:** the CLI reaching a remote engine at all. Local now works.
+
+Fixed today: the CLI's default was `http://127.0.0.1:8765` against an engine
+that **refuses to start without certs** — a default that could never work.
+Now `https://`, anchoring the certs the engine itself writes
+(`Remote Access/<host>-<port>-*/server.crt`), failing closed and naming the
+path it searched. `verify=False` appears nowhere. Live-proven: `fichero
+health` with no manual trust setup returns healthy.
+
+**What is left is not implementable without you.** The app's pins arrive by QR
+pairing into defaults *on the paired device*. A CLI on another machine has no
+pairing flow and no store, so there is nowhere for a pin to live.
+
+Three options, from the lane:
+
+- **A CLI pairing flow** — heaviest, and the most consistent with the standing
+  design (QR pairing over Bonjour+TLS, per-device tokens). A CLI on another
+  machine *is* another device by that model.
+- **`FICHERO_SPKI_PIN` env var** — lightest and scriptable, but pins land in
+  shell history and CI logs, and a pin is the thing that makes verification
+  meaningful.
+- **A pin file beside `cli-session.json`** — middle. Same lifetime as the
+  session it accompanies.
+
+My read, not a decision: the standing design already answers this — a machine
+that wants to reach a remote engine becomes a paired device. But that is a
+real amount of work and you may want the middle option first.
+
+Remote HTTPS keeps default verification until you rule.
