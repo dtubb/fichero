@@ -47,9 +47,13 @@ EXPECTED_TOOLS = {
     "fichero_workspace_surface_claim",
     "fichero_workspace_add_note",
     "fichero_reveal_location",
+<<<<<<< HEAD:fichero-server/tests/unit/mcp/test_mcp_server.py
     # Audited KG writes (#4469): these call /api/mcp/tools/knowledge/*, the
     # routes that write MutationLog with the request actor and previously had
     # zero callers.
+=======
+    # audited KG writes (#4469) — the MutationLog-backed mutation surface
+>>>>>>> origin/lane/lane-plan:fichero-mcp/tests/test_mcp_server.py
     "fichero_kg_entity_upsert",
     "fichero_kg_claim_create",
 }
@@ -158,12 +162,19 @@ def test_workflow_run_builds_execute_body(monkeypatch):
 
     with _mock_client(monkeypatch, handler=handler):
         mcp_server.fichero_workflow_run("wf-1", "doc-9", skip_cache=True)
+<<<<<<< HEAD:fichero-server/tests/unit/mcp/test_mcp_server.py
     # `selected_doc_ids`, NOT `inputs: {"files": [...]}` (#4467). This
     # assertion previously pinned the BUG: the Files-source node, the CLI and
     # SwiftUI all read `selected_doc_ids`, nothing read `files`, so every MCP
     # workflow run resolved to zero documents and completed green. A test
     # asserting the shape the sender happened to send, rather than the shape
     # the receiver reads, cannot tell those apart.
+=======
+    # #4480: THIS assertion, stale in the server tree, PINNED the #4467 bug —
+    # it asserted the {"files": [...]} wire shape that made every MCP-run
+    # workflow a silent no-op, staying green while the product was broken.
+    # The engine reads selected_doc_ids (and now 422s the old shape).
+>>>>>>> origin/lane/lane-plan:fichero-mcp/tests/test_mcp_server.py
     assert seen[0] == {
         "workflow_id": "wf-1",
         "inputs": {"selected_doc_ids": ["doc-9"]},
