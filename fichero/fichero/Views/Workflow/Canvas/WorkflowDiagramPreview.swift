@@ -94,6 +94,7 @@ struct WorkflowDiagramPreview: View {
                                 }
                                 .buttonStyle(.plain)
                                 .help("Copy to clipboard")
+                                .accessibilityLabel("Copy Python code to clipboard")
                             }
                         }
                         .padding(.horizontal, 8)

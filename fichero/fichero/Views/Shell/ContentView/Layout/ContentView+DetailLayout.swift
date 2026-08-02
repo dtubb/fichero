@@ -53,6 +53,7 @@ extension ContentView {
             .buttonStyle(.borderless)
             .controlSize(.small)
             .help("Open current library in new tab")
+            .accessibilityLabel("Open current library in new tab")
         }
         .padding(.horizontal, 10)
         .frame(height: 32)

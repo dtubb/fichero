@@ -57,6 +57,7 @@ struct WorkflowPickerSheet: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear workflow search")
                 }
             }
             .padding()

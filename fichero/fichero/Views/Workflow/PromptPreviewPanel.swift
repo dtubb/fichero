@@ -78,6 +78,7 @@ struct PromptPreviewPanel: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
                 .help("Copy prompt to clipboard")
+                .accessibilityLabel("Copy prompt to clipboard")
             }
 
             // Prompt text in a styled container

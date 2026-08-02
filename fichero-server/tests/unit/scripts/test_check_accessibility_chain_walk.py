@@ -205,3 +205,46 @@ def test_an_explicitly_hidden_control_is_not_flagged():
         .accessibilityHidden(true)
 """
     assert not guard._is_icon_only_button(_chain(source))
+
+
+# ---------------------------------------------------------------------------
+# The empty allowlist removed the scanner's own proof of life
+# ---------------------------------------------------------------------------
+
+
+def test_the_blindness_floor_fires_when_the_detector_matches_nothing():
+    """A broken matcher must exit 2, not report a clean tree.
+
+    While the allowlist held entries, a non-empty result was itself evidence
+    the reader worked. Now that every control is labelled, "all clean" and
+    "matched nothing" print the same line — so the floor is asserted directly.
+
+    The violation is synthesised here by breaking the reader, not by deleting
+    files: a guard's self-test has to produce the failure it claims to catch.
+    """
+    import pytest
+
+    original = guard._is_icon_only_button
+    seen = guard.BUTTONS_SEEN
+    try:
+        guard.BUTTONS_SEEN = 0  # what a matcher that never fired leaves behind
+        with pytest.raises(SystemExit) as exit_info:
+            guard._require_buttons_seen_4382()
+        assert exit_info.value.code == 2, "blindness is exit 2, never 0 or 1"
+    finally:
+        guard.BUTTONS_SEEN = seen
+        guard._is_icon_only_button = original
+
+
+def test_the_floor_passes_on_the_real_tree():
+    """And it must NOT fire in normal operation, or it is just noise.
+
+    A guard that cries blind on a healthy tree gets disabled within a week,
+    which is the same outcome as not having written it.
+    """
+    guard.scan()
+
+    assert guard.BUTTONS_SEEN >= guard.MIN_BUTTONS_SEEN, (
+        f"only {guard.BUTTONS_SEEN} Button chains found in the real tree — "
+        "either the detector regressed or the floor is set too high"
+    )
