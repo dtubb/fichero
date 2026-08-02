@@ -76,6 +76,76 @@ final class LaunchWindowSeedTests: XCTestCase {
         )
     }
 
+    // MARK: - First-run presents only over a VERIFIED-empty library (#4017b)
+
+    private func inbox() -> Document {
+        Document(docType: .folder, name: "Inbox")
+    }
+
+    private func realDocument() -> Document {
+        Document(docType: .file, name: "1893 diary.pdf")
+    }
+
+    /// The requirement that makes this gate better than the flag it replaces:
+    /// NOT LOADED is not EMPTY. Onboarding during load would be the same bug
+    /// wearing a better gate — an absence read as an answer.
+    func testAnUnloadedLibraryIsNeverTreatedAsEmpty() {
+        XCTAssertFalse(libraryIsLoadedAndEmpty(isLoaded: false, rootCollections: []))
+        XCTAssertFalse(libraryIsLoadedAndEmpty(isLoaded: false, rootCollections: [inbox()]))
+        XCTAssertFalse(
+            libraryIsLoadedAndEmpty(isLoaded: false, rootCollections: [realDocument()]),
+            "an unloaded library says nothing about its contents, whatever happens to be cached"
+        )
+    }
+
+    /// The case that would have made this a silent no-op.
+    ///
+    /// `ensureInboxFolder` runs on every successful load, so a loaded library
+    /// ALWAYS has at least the Inbox and `collections.isEmpty` is never true.
+    /// Gating on emptiness-by-count would mean the sheet never presents at all
+    /// — a fix that reads as done and does nothing.
+    func testAFreshLibraryWithOnlyItsInboxCountsAsEmpty() {
+        XCTAssertTrue(
+            libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: [inbox()]),
+            "every loaded library has an Inbox; requiring zero collections never fires"
+        )
+    }
+
+    func testALibraryWithRealContentIsNotEmpty() {
+        XCTAssertFalse(
+            libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: [inbox(), realDocument()])
+        )
+        XCTAssertFalse(libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: [realDocument()]))
+    }
+
+    /// A genuinely empty library — loaded, and nothing at all — still counts.
+    /// `allSatisfy` is vacuously true on an empty array, which is the right
+    /// answer here only BECAUSE `isLoaded` was already checked above it.
+    func testALoadedLibraryWithNothingAtAllCountsAsEmpty() {
+        XCTAssertTrue(libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: []))
+    }
+
+    /// Only the ROOT Inbox is ignored. A folder called "Inbox" nested inside
+    /// something is real user content that happens to share a name.
+    func testANestedFolderNamedInboxIsRealContent() {
+        var nested = Document(docType: .folder, name: "Inbox")
+        nested.parentId = "some-parent"
+
+        XCTAssertFalse(libraryIsLoadedAndEmpty(isLoaded: true, rootCollections: [nested]))
+    }
+
+    /// The sheet must actually consult this. A predicate nothing calls is the
+    /// #4473 shape, and it would leave the flag-only gate live.
+    func testTheFirstRunSheetIsGatedOnIt() throws {
+        let window = try Self.appSource("App/LibraryWindow.swift")
+
+        XCTAssertTrue(window.contains("libraryIsLoadedAndEmpty("))
+        XCTAssertTrue(
+            window.contains("loadedLibraryIds.contains(windowState.libraryId)"),
+            "loaded-ness must come from the verified set, not be inferred"
+        )
+    }
+
     // MARK: - Could this pass while the app still shows the prompt?
 
     /// The honest answer to that question was YES, until this test.
