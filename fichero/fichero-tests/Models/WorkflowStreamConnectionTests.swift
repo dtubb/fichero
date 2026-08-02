@@ -92,9 +92,38 @@ final class WorkflowStreamConnectionTests: XCTestCase {
         // SSE now flows through the shared FicheroClient ClientTransport (works
         // over `.https` / `.uds` / in-process), not a raw pinned URLSession.
         XCTAssertTrue(source.contains("client.streamLines("))
-        XCTAssertFalse(source.contains("RemoteCertificatePinning.configuredSession()"))
         XCTAssertFalse(source.contains("urlSession.bytes"))
         XCTAssertFalse(source.contains("engineEventStreamRequest("))
+    }
+
+    /// #4447: the two sites below proved `RemoteCertificatePinning
+    /// .configuredSession()` was gone from the ONE file each named — a THIRD
+    /// service reintroducing a raw pinned session would have passed both
+    /// tests untested. The invariant ("workflow/change streaming always goes
+    /// through the shared client transport, never a hand-rolled pinned
+    /// URLSession") is about the service layer, so this sweeps `Services/`
+    /// instead of naming files. Verified zero occurrences app-wide before
+    /// landing.
+    func testNoServiceAnywhereBuildsARawPinnedSession() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Services")
+
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        XCTAssertFalse(files.isEmpty, "the sweep must actually read files")
+
+        var offenders: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if source.contains("RemoteCertificatePinning.configuredSession()") {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+        XCTAssertTrue(offenders.isEmpty, "raw pinned URLSession in: \(offenders.joined(separator: ", "))")
     }
 
     func testLocalHTTPSStreamFailureExplainsTLSBackendRequirement() throws {

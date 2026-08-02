@@ -13,6 +13,22 @@ final class AnnotationServiceTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private static func appRoot() -> URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+    }
+
+    private static func swiftFiles(under relativeDir: String, namePrefix: String? = nil) -> [URL] {
+        let root = appRoot().appendingPathComponent(relativeDir)
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        guard let namePrefix else { return files }
+        return files.filter { $0.lastPathComponent.hasPrefix(namePrefix) }
+    }
+
     func testAnnotationServiceWiresDetailCropAndPromoteEndpoints() throws {
         let source = try [
             Self.appSource("Services/AnnotationService.swift"),
@@ -26,9 +42,6 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertTrue(source.contains("client.api.getCropApiAnnotationsAnnotationIdCropGet"))
         XCTAssertTrue(source.contains("client.api.promoteToClaimApiAnnotationsAnnotationIdPromoteToClaimPost"))
         XCTAssertTrue(source.contains("client.api.deleteAnnotationApiAnnotationsAnnotationIdDelete"))
-        XCTAssertFalse(source.contains("URLRequest("))
-        XCTAssertFalse(source.contains("URLSession"))
-        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testDocumentInspectorAnnotationsTabWiresRowActions() throws {
@@ -46,9 +59,6 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertFalse(source.contains("libraryManager.getLibrary(id: windowState.libraryId)"))
         XCTAssertFalse(source.contains("guard let documentId = annotation.documentId else { return }"))
         XCTAssertFalse(source.contains("LibraryManager.shared"))
-        XCTAssertFalse(source.contains("URLRequest("))
-        XCTAssertFalse(source.contains("URLSession"))
-        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testInspectorListDetailPanesUseExpectedSplitLayout() throws {
@@ -61,10 +71,52 @@ final class AnnotationServiceTests: XCTestCase {
         XCTAssertTrue(citationsSource.contains("InspectorListDetailSplit {"))
         XCTAssertTrue(annotationsSource.contains("InspectorListDetailSplit {"))
         XCTAssertTrue(notesSource.contains("InspectorListDetailSplit {"))
-        XCTAssertFalse(artifactsSource.contains("PlatformHSplitView {"))
-        XCTAssertFalse(citationsSource.contains("PlatformHSplitView {"))
-        XCTAssertFalse(annotationsSource.contains("PlatformHSplitView {"))
-        XCTAssertFalse(notesSource.contains("PlatformHSplitView {"))
+    }
+
+    /// #4447: the four panes above were each checked by NAME for the
+    /// hand-rolled split view they replaced — a FIFTH inspector pane hand-
+    /// rolling `PlatformHSplitView` would have passed untested. The
+    /// invariant ("every inspector pane uses the shared
+    /// `InspectorListDetailSplit`, never a raw `PlatformHSplitView`") is
+    /// about the Inspector surface as a whole, so this sweeps the directory.
+    /// Verified zero occurrences under `Views/Inspector/` before landing.
+    func testNoInspectorPaneAnywhereHandRollsASplitView() throws {
+        let files = Self.swiftFiles(under: "Views/Inspector")
+        XCTAssertFalse(files.isEmpty, "the sweep must actually read files")
+
+        var offenders: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if source.contains("PlatformHSplitView {") {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+        XCTAssertTrue(offenders.isEmpty, "hand-rolled PlatformHSplitView in: \(offenders.joined(separator: ", "))")
+    }
+
+    /// #4447: the two networking bans above (annotation service endpoints,
+    /// Inspector row-action wiring) each only ever read ONE named file (or a
+    /// closed list of siblings) — a NEW `AnnotationService+*.swift` split, or
+    /// a new Inspector view, could still reach for raw `URLSession` and pass.
+    /// Two scopes, because the invariant is genuinely two different ones:
+    /// the annotation service family stays on the typed client, and no
+    /// Inspector VIEW ever touches networking directly (that's the service
+    /// layer's job). Verified zero occurrences in both scopes before landing.
+    func testNoAnnotationServiceFileOrInspectorViewTouchesRawNetworking() throws {
+        let serviceFiles = Self.swiftFiles(under: "Services", namePrefix: "AnnotationService")
+        let inspectorFiles = Self.swiftFiles(under: "Views/Inspector")
+        XCTAssertFalse(serviceFiles.isEmpty, "the sweep must actually read files")
+        XCTAssertFalse(inspectorFiles.isEmpty, "the sweep must actually read files")
+
+        let bannedPatterns = ["URLRequest(", "URLSession", "URL(string:"]
+        var offenders: [String] = []
+        for file in serviceFiles + inspectorFiles {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if bannedPatterns.contains(where: source.contains) {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+        XCTAssertTrue(offenders.isEmpty, "raw networking in: \(offenders.joined(separator: ", "))")
     }
 
     func testInspectorEmptyStatesAreTopAligned() throws {
@@ -138,9 +190,6 @@ final class AnnotationServiceTests: XCTestCase {
         // Reveal/hide logic lives in AnnotationListView after the store migration.
         let source = try Self.appSource("Views/Inspector/Notes/Annotations/AnnotationListView.swift")
         XCTAssertTrue(source.contains("annotation.canRevealSource && (annotation.hasRegion || annotation.hasSpan)"))
-        XCTAssertFalse(source.contains("URLRequest("))
-        XCTAssertFalse(source.contains("URLSession"))
-        XCTAssertFalse(source.contains("URL(string:"))
     }
 
     func testMatchesSearchByText() {

@@ -180,6 +180,37 @@ final class FeatureTierBadgeGlyphTests: XCTestCase {
             encoding: .utf8
         )
         XCTAssertTrue(source.contains("tierBadgeGlyph)\""))
-        XCTAssertFalse(source.contains("[\\(descriptor.tier.tierBadgeText)]"))
+    }
+
+    /// #4447: the check above only ever read ONE named file. `FicheroApp.swift`
+    /// renders a SECOND tier badge (the tier legend) that this test never
+    /// looked at — a bracket regression there would have passed silently. The
+    /// invariant ("gated features are badged with the glyph, never bracket
+    /// text") is about the app, so this sweeps every `.swift` file for the
+    /// literal bracket-interpolation shape rather than naming sites by hand.
+    /// Verified zero occurrences app-wide before landing.
+    func testNoFileAnywhereBracketsATierBadge() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        XCTAssertFalse(files.isEmpty, "the sweep must actually read files")
+
+        var offenders: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            // "tierBadgeText)]" is the shape of a badge closed by a literal
+            // bracket right after the property access — specific enough that
+            // no unrelated interpolation would produce it by accident.
+            if source.contains("tierBadgeText)]") {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+        XCTAssertTrue(offenders.isEmpty, "bracket-text tier badge in: \(offenders.joined(separator: ", "))")
     }
 }

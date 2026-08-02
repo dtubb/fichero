@@ -15,6 +15,45 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
+    private static func swiftFiles(under relativeDir: String) -> [URL] {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero")
+            .appendingPathComponent(relativeDir)
+        return FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+    }
+
+    /// #4447: five separate call sites below each checked ONE named
+    /// entities/claims/ontology file for raw networking — a NEW curation or
+    /// query surface under these two directories could still reach for
+    /// `URLSession` and pass every one of them. The invariant ("the
+    /// Knowledge Graph surfaces always route through KGCurationService /
+    /// EntityStore / ClaimStore / KGQueryStore, never a hand-rolled
+    /// request") is about the whole KG surface, so this sweeps both
+    /// directories that host it. `URLSession` legitimately appears
+    /// elsewhere in `Views/` (WKWebView TLS challenge handling, sharing
+    /// links, canvas texture loading) — scoping to Knowledge/Ontology only
+    /// avoids banning those. Verified zero occurrences in both directories
+    /// before landing.
+    func testNoKnowledgeGraphSurfaceAnywhereTouchesRawNetworking() throws {
+        let files = Self.swiftFiles(under: "Views/Inspector/Knowledge")
+            + Self.swiftFiles(under: "Views/Library/ViewModes/Graph/Ontology")
+        XCTAssertFalse(files.isEmpty, "the sweep must actually read files")
+
+        let bannedPatterns = ["URLSession", "URLRequest(", "URL(string:"]
+        var offenders: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if bannedPatterns.contains(where: source.contains) {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+        XCTAssertTrue(offenders.isEmpty, "raw networking in: \(offenders.joined(separator: ", "))")
+    }
+
     func testVisibleItemsCapsWhenCollapsed() {
         let items = (1...12).map(String.init)
 
@@ -309,9 +348,6 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     }
 
     func testInspectorEntitiesTabUsesGeneratedBulkCurationOnly() throws {
-        let source = try Self.appSource(
-            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift"
-        )
         // #4024: the batch-curation generated call moved out of ArtifactService
         // into the dedicated KGCurationService.
         let serviceSource = try Self.appSource("Services/KGCurationService.swift")
@@ -324,9 +360,6 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
         XCTAssertTrue(storeSource.contains("batchSetEntityCurationState"))
         XCTAssertTrue(storeSource.contains("batchCreateEntityRules"))
-        XCTAssertFalse(source.contains("URLSession"))
-        XCTAssertFalse(source.contains("URLRequest"))
-        XCTAssertFalse(source.contains("URL(string:"))
         XCTAssertTrue(serviceSource.contains("batchSetEntityCurationStateApiKgEntitiesBatchCurationPatch"))
     }
 
@@ -519,8 +552,6 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(claimsSource.contains("try await entityService.deleteClaim(claimId)"))
         XCTAssertTrue(rowSource.contains("Button(\"Delete…\", role: .destructive)"))
         XCTAssertTrue(rowSource.contains("requestClaimDeleteAction(targetClaims)"))
-        XCTAssertFalse(entitiesSource.contains("URLSession"))
-        XCTAssertFalse(claimsSource.contains("URLSession"))
         XCTAssertTrue(serviceSource.contains("deleteEntityApiEntitiesEntityIdDelete"))
         XCTAssertTrue(serviceSource.contains("deleteClaimApiClaimsClaimIdDelete"))
     }
@@ -718,9 +749,6 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(rowSource.contains("Menu(\"Merge\")"))
         XCTAssertTrue(rowSource.contains("(Recommended)"))
         XCTAssertTrue(rowSource.contains("Menu(\"Prune trivial\")"))
-        XCTAssertFalse(source.contains("URLSession"))
-        XCTAssertFalse(source.contains("URLRequest"))
-        XCTAssertFalse(source.contains("URL(string:"))
         XCTAssertTrue(serviceSource.contains("batchSetClaimCurationStateApiKgClaimsBatchCurationPatch"))
         XCTAssertTrue(serviceSource.contains("mergeClaimsApiKgClaimsMergePost"))
         XCTAssertTrue(serviceSource.contains("unmergeClaimsApiKgClaimsUnmergePost"))
@@ -1081,7 +1109,6 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(storeSource.contains("sparqlQueryApiKgQuerySparqlPost"))
         XCTAssertTrue(storeSource.contains("sparqlExamplesApiKgQueryExamplesGet"))
         XCTAssertTrue(source.contains("response.truncated"))
-        XCTAssertFalse(source.contains("URLSession"))
     }
 
     // MARK: - OntologyBrowser store routing (#3300)

@@ -142,10 +142,38 @@ struct ConfidenceBandTests {
         for surface in surfaces {
             let source = try Self.codeOnly(Self.appSource(surface))
             #expect(source.contains("ConfidenceBand.band(for:"), Comment(rawValue: surface))
-            #expect(
-                !source.contains("\"%.2f\", confidence"),
-                Comment(rawValue: "\(surface) still formats a raw confidence"))
         }
+    }
+
+    /// #4447: the four named surfaces above prove EACH ONE bands, but a fifth
+    /// surface added later that formats a raw confidence with `%.2f` would
+    /// sail through untested — the invariant is "the app never renders a raw
+    /// confidence decimal", not "these four files don't". So this half is a
+    /// real directory sweep, not a named-file list: nowhere under `Views/`
+    /// does any file format `"%.2f", confidence` (verified zero occurrences
+    /// app-wide before landing, so this cannot be a false-red on day one).
+    @Test("nowhere in the app does a confidence render as a raw decimal")
+    func noSurfaceAnywhereFormatsARawConfidence() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views")
+
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        #expect(!files.isEmpty, "the sweep must actually read files")
+
+        var offenders: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if source.contains("\"%.2f\", confidence") {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+        let message = "raw confidence formatting in: \(offenders.joined(separator: ", "))"
+        #expect(offenders.isEmpty, Comment(rawValue: message))
     }
 
     /// Similarity scores are deliberately NOT banded: a cosine distance is a

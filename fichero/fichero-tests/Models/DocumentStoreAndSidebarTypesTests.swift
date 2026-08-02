@@ -551,15 +551,44 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     func testRemotePreviewSurfacesDoNotInventLocalFileURLs() throws {
         // file_length: ImageViewerComponents/ImageWithCursorTracking split; assertions repointed to the files that hold the URL logic now.
-        let imageViewerSource = try Self.appSource("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
         let activitySource = try Self.appSource("Views/Activity/Progress/ActivityProgressView+HistoricalProgress.swift")
         let trackingSource = try Self.appSource("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")
 
-        XCTAssertFalse(imageViewerSource.contains("URL(fileURLWithPath: \"/\")"))
-        XCTAssertFalse(activitySource.contains("URL(fileURLWithPath: filePath)"))
         XCTAssertTrue(activitySource.contains("(filePath as NSString).lastPathComponent"))
         XCTAssertTrue(trackingSource.contains("let url: URL?"))
         XCTAssertTrue(trackingSource.contains("loadImageAsync(url: url"))
+    }
+
+    /// #4447: the two literals below were checked absent in only two named
+    /// preview files. The invariant is the HARD rule "no local paths — the
+    /// server may be remote" (see `docs/contributor/architecture`), which
+    /// applies to every preview/activity surface, not just the two that broke
+    /// once. A THIRD surface fabricating a local file URL would have passed
+    /// silently. Verified zero occurrences app-wide before landing.
+    func testNoViewAnywhereInventsALocalFileURL() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("fichero/Views")
+
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" } ?? []
+        XCTAssertFalse(files.isEmpty, "the sweep must actually read files")
+
+        let bannedPatterns = [
+            "URL(fileURLWithPath: \"/\")",
+            "URL(fileURLWithPath: filePath)"
+        ]
+        var offenders: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if bannedPatterns.contains(where: source.contains) {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+        XCTAssertTrue(offenders.isEmpty, "invented local file URL in: \(offenders.joined(separator: ", "))")
     }
 
     func testNotesLiveInDocumentInspectorAndStandaloneBrowserRetired() throws {
