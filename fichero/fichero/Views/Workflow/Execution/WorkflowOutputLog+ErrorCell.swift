@@ -45,6 +45,7 @@ struct ErrorStatusCell: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close error details")
             }
 
             Divider()

@@ -81,6 +81,8 @@ struct WorkflowExecutionView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(isLoading)
+                .help("Refresh runs")
+                .accessibilityLabel("Refresh runs")
             }
         }
     }

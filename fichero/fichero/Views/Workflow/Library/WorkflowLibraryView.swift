@@ -192,6 +192,7 @@ struct WorkflowListView: View {
                     Image(systemName: "plus")
                 }
                 .help("Create new workflow")
+                .accessibilityLabel("Create new workflow")
 
                 // #930 — collapsed Install + Reset into one Reset
                 // action. Reset is a superset of Install (ensures all
@@ -216,6 +217,7 @@ struct WorkflowListView: View {
                     }
                     .disabled(isImporting)
                     .help("Import workflow from JSON file")
+                    .accessibilityLabel("Import workflow from JSON file")
                 }
 
                 Button(role: .destructive) {
@@ -225,6 +227,7 @@ struct WorkflowListView: View {
                 }
                 .disabled(currentDeletionSelection.isEmpty)
                 .help("Delete selection")
+                .accessibilityLabel("Delete selected workflows")
             }
         }
         #if os(macOS)

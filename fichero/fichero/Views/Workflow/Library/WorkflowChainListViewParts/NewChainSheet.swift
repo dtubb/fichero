@@ -45,6 +45,12 @@ struct NewChainSheet: View {
                                         .foregroundStyle(.red)
                                 }
                                 .buttonStyle(.borderless)
+                                // Names its row: the chain is an ORDERED list
+                                // of steps that can repeat the same workflow,
+                                // so the position is part of the identity.
+                                .accessibilityLabel(
+                                    "Remove step \(index + 1), \(workflowName(for: step.workflowId))"
+                                )
                             }
                         }
                         .onMove { from, destination in

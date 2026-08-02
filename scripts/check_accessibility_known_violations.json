@@ -9,16 +9,5 @@
   "Views/Chat/Research/ResearchTasksPane+Views.swift#ea4c3a50e2": "icon-only Button missing .accessibilityLabel(...) (lines 220-226)",
   "Views/Preview/ImageEditor/ImageEditChainPanel.swift#74827b60c2": "icon-only Button missing .accessibilityLabel(...) (lines 137-146)",
   "Views/Preview/ImageEditor/ImageEditChainPanel.swift#9a2774f872": "icon-only Button missing .accessibilityLabel(...) (lines 54-60)",
-  "Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift#8fb85ee84b": "icon-only Button missing .accessibilityLabel(...) (lines 48-55)",
-  "Views/Workflow/Canvas/WorkflowDiagramPreview.swift#7fe3397d0a": "icon-only Button missing .accessibilityLabel(...) (lines 88-96)",
-  "Views/Workflow/Execution/WorkflowExecutionView.swift#99a2a105dc": "icon-only Button missing .accessibilityLabel(...) (lines 78-83)",
-  "Views/Workflow/Execution/WorkflowOutputLog+ErrorCell.swift#7e2cb5a899": "icon-only Button missing .accessibilityLabel(...) (lines 41-47)",
-  "Views/Workflow/Library/WorkflowChainListViewParts/NewChainSheet.swift#f4542716d0": "icon-only Button missing .accessibilityLabel(...) (lines 41-47)",
-  "Views/Workflow/Library/WorkflowLibraryView.swift#4d327051ac": "icon-only Button missing .accessibilityLabel(...) (lines 212-218)",
-  "Views/Workflow/Library/WorkflowLibraryView.swift#9cdf060864": "icon-only Button missing .accessibilityLabel(...) (lines 221-227)",
-  "Views/Workflow/Library/WorkflowLibraryView.swift#ac3f5d7a86": "icon-only Button missing .accessibilityLabel(...) (lines 189-202)",
-  "Views/Workflow/Library/WorkflowPickerSheet.swift#1dd291304d": "icon-only Button missing .accessibilityLabel(...) (lines 53-59)",
-  "Views/Workflow/Nodes/NodeConfigs/ExtractEntitiesNodeConfig.swift#02c6926180": "icon-only Button missing .accessibilityLabel(...) (lines 68-76)",
-  "Views/Workflow/Nodes/NodeConfigs/FilesNodeConfig.swift#e967d67ad6": "icon-only Button missing .accessibilityLabel(...) (lines 184-190)",
-  "Views/Workflow/PromptPreviewPanel.swift#88cefdffaa": "icon-only Button missing .accessibilityLabel(...) (lines 72-80)"
+  "Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift#8fb85ee84b": "icon-only Button missing .accessibilityLabel(...) (lines 48-55)"
 }

@@ -188,6 +188,8 @@ private extension FilesNodeConfig {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
+            // Names its row -- one of these per attached file, all the same icon.
+            .accessibilityLabel("Remove file \(docName)")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)

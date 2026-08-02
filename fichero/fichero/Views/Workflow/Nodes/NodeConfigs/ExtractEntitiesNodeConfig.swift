@@ -74,6 +74,7 @@ struct ExtractEntitiesNodeConfig: View {
                             }
                             .buttonStyle(.plain)
                             .help("Remove \(type) from this library's extraction targets")
+                            .accessibilityLabel("Remove entity type \(type)")
                         }
                     }
                 }
