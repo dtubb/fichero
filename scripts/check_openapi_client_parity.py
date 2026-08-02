@@ -84,7 +84,16 @@ def scan() -> tuple[list[Operation], list[Path], list[Operation], list[str]]:
     canonical = _load_json(CANONICAL_OPENAPI)
     operations = _operations(canonical)
     mismatches = _copy_mismatches(canonical)
-    cli_text = CLI_SURFACE.read_text(encoding="utf-8", errors="ignore") if CLI_SURFACE.exists() else ""
+    if not CLI_SURFACE.exists():
+        # #4487 Phase 3: a missing NAMED input used to read as "" — every
+        # operation then looked CLI-missing, a wall of false accusations
+        # begging to be baselined. Blind, said out loud, is exit 2.
+        print(
+            f"BLIND: named source missing: {CLI_SURFACE} (#4487 Phase 3)",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    cli_text = CLI_SURFACE.read_text(encoding="utf-8", errors="ignore")
     missing_cli = [operation for operation in operations if not _cli_exposes(operation, cli_text)]
     stale = sorted(set(KNOWN_GAPS) - {operation.endpoint for operation in missing_cli})
     return operations, mismatches, missing_cli, stale

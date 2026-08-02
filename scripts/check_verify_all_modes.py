@@ -26,7 +26,16 @@ CAPTURE_MATRIX = ROOT / "docs" / "contributor" / "qa" / "capture-smoke-matrix.md
 
 
 def _read(path: Path) -> str:
-    return path.read_text(errors="ignore") if path.exists() else ""
+    """Non-optional (#4487 Phase 3): every path handed here is a NAMED,
+    COMMITTED file. `"" if missing` turned a moved file into a wall of
+    'missing needle' violations — false accusations, not blindness."""
+    if not path.exists():
+        print(
+            f"BLIND: named source missing: {path} (#4487 Phase 3)",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    return path.read_text(errors="ignore")
 
 
 def _require_all(haystack: str, needles: list[str], label: str) -> list[str]:

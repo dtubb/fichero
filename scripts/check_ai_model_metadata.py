@@ -140,11 +140,22 @@ def scan(
     target_files: tuple[str, ...] | None = None,
 ) -> list[Offender]:
     root = ROOT if root is None else root
+    strict = target_files is None  # explicit lists (self-tests) may probe
     target_files = TARGET_FILES if target_files is None else target_files
     offenders: list[Offender] = []
     for rel_path in target_files:
         path = root / rel_path
         if not path.exists():
+            if strict:
+                # #4487 Phase 3: TARGET_FILES are NAMED, COMMITTED inputs — a
+                # moved one silently dropping from the scan is how a rename
+                # disables a named-file guard with the gate green.
+                print(
+                    f"BLIND: named target missing: {path} — the file moved; "
+                    "update TARGET_FILES (#4487 Phase 3)",
+                    file=sys.stderr,
+                )
+                raise SystemExit(2)
             continue
         try:
             source = path.read_text(encoding="utf-8")

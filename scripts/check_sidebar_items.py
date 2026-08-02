@@ -64,7 +64,20 @@ KNOWN_VIOLATIONS: dict[str, str] = {}
 
 
 def read(path: Path) -> str:
-    return path.read_text(errors="ignore") if path.exists() else ""
+    """Non-optional (#4487 Phase 3): these are NAMED, COMMITTED sources.
+
+    The old `"" if missing` meant a renamed factory file silently became
+    empty text — its item types vanished from the scan and "unwired: 0"
+    read as progress. A missing named input is BLIND, said out loud.
+    """
+    if not path.exists():
+        print(
+            f"BLIND: named source missing: {path} — the sidebar factories/"
+            "router moved; update this guardrail's paths (#4487 Phase 3)",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    return path.read_text(errors="ignore")
 
 
 def built_item_types() -> set[str]:
