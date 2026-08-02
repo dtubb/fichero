@@ -29,8 +29,8 @@ final class ClaimStoreRoutingTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()  // Models
             .deletingLastPathComponent()  // fichero-tests
-            .deletingLastPathComponent()  // fichero
-            .appendingPathComponent("fichero/fichero")
+            .deletingLastPathComponent()  // fichero (the repo's Swift root)
+            .appendingPathComponent("fichero")
         return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
@@ -133,7 +133,7 @@ final class ClaimStoreRoutingTests: XCTestCase {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("fichero/fichero/Views")
+            .appendingPathComponent("fichero/Views")
 
         let banned = [
             "entityService.patchClaim(",
