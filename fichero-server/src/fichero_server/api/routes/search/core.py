@@ -757,7 +757,9 @@ class SearchRequest(BaseModel):
     filters: dict | None = (
         None  # Advanced filters (doc_type, file_type, date ranges, etc.)
     )
-    sort_by: str = "relevance"  # "relevance", "date", "name", "size"
+    # "document_date" = the HISTORICAL date the document was written
+    # (#3322), not import time; filters may carry date_jdn_from/date_jdn_to.
+    sort_by: str = "relevance"  # "relevance", "date", "document_date", "name", "size"
     sort_direction: str = "desc"  # "asc" or "desc"
 
     # Pagination
@@ -907,10 +909,13 @@ async def enhanced_search(
         )
 
     # Validate sort options
-    if request.sort_by not in ["relevance", "date", "name", "size"]:
+    if request.sort_by not in ["relevance", "date", "document_date", "name", "size"]:
         raise HTTPException(
             status_code=400,
-            detail="Invalid sort_by. Must be 'relevance', 'date', 'name', or 'size'",
+            detail=(
+                "Invalid sort_by. Must be 'relevance', 'date', "
+                "'document_date', 'name', or 'size'"
+            ),
         )
 
     if request.sort_direction not in ["asc", "desc"]:

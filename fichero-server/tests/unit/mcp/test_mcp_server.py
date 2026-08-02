@@ -47,6 +47,11 @@ EXPECTED_TOOLS = {
     "fichero_workspace_surface_claim",
     "fichero_workspace_add_note",
     "fichero_reveal_location",
+    # Audited KG writes (#4469): these call /api/mcp/tools/knowledge/*, the
+    # routes that write MutationLog with the request actor and previously had
+    # zero callers.
+    "fichero_kg_entity_upsert",
+    "fichero_kg_claim_create",
 }
 
 
@@ -153,9 +158,15 @@ def test_workflow_run_builds_execute_body(monkeypatch):
 
     with _mock_client(monkeypatch, handler=handler):
         mcp_server.fichero_workflow_run("wf-1", "doc-9", skip_cache=True)
+    # `selected_doc_ids`, NOT `inputs: {"files": [...]}` (#4467). This
+    # assertion previously pinned the BUG: the Files-source node, the CLI and
+    # SwiftUI all read `selected_doc_ids`, nothing read `files`, so every MCP
+    # workflow run resolved to zero documents and completed green. A test
+    # asserting the shape the sender happened to send, rather than the shape
+    # the receiver reads, cannot tell those apart.
     assert seen[0] == {
         "workflow_id": "wf-1",
-        "inputs": {"files": ["doc-9"]},
+        "inputs": {"selected_doc_ids": ["doc-9"]},
         "force_new": False,
         "skip_cache": True,
     }
