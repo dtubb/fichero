@@ -85,13 +85,46 @@ extension LibraryView {
         .width(min: 80, ideal: 100)
         .customizationID("createdDate")
 
-        // Per-entity-type columns (#519). Each renders FlowLayout
-        // lozenges via ArtifactEntityCell for that doc's artifacts
-        // of one type. All hidden by default; users opt in via the
-        // column-header right-click menu (Mac native).
+        // #3322: the date the document was WRITTEN, beside Created — which is
+        // IMPORT time and, for a 19th-century diary, sorts by when we happened
+        // to scan it. `InspectorAttributeVisibility` already wrote the argument
+        // down and never acted on it: "Created/Modified are filesystem dates,
+        // which for historical material are not the date that matters."
         //
-        // SwiftUI's TableColumnBuilder caps at 10 children — we
-        // dropped path/modifiedDate/size/artifacts(combined) to fit.
+        // Deliberately NOT sortable — no `value:` comparator. Sorting by
+        // document date needs the engine's ordering (precision_rank tiebreak,
+        // undated falling back to created_at-as-JDN); a KeyPathComparator here
+        // would be a SECOND implementation of that ordering with different
+        // tie-breaking, and it would only order the loaded page rather than the
+        // corpus. It becomes sortable when the listing routes accept `sort_by`.
+        //
+        // A non-sortable column also declares no comparator, so it cannot put
+        // one into the table's `sortOrder` binding that no column can map back
+        // — the NSSortDescriptor-bridge crash class from #4282.
+        TableColumn("Date") { node in
+            documentColumnCell(for: node, columnId: "documentDate")
+        }
+        .width(min: 90, ideal: 130)
+        .customizationID("documentDate")
+
+        // Per-entity-type columns (#519), nested as ONE child.
+        //
+        // SwiftUI's `TableColumnBuilder` caps at 10 direct children, and this
+        // builder was at exactly 10 — the existing comment records that
+        // path/modifiedDate/size/artifacts were dropped to fit. Grouping the six
+        // entity columns into their own `TableColumnContent` costs one child
+        // instead of six, so the cap stops dictating which columns the library
+        // may have.
+        entityTypeColumns
+    }
+
+    /// The six per-entity-type columns (#519), extracted so the outline builder
+    /// spends one of its ten children rather than six. Each renders FlowLayout
+    /// lozenges via `ArtifactEntityCell`; all hidden by default, opt-in through
+    /// the native column-header menu.
+    @TableColumnBuilder<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>>
+    private var entityTypeColumns:
+        some TableColumnContent<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>> {
         TableColumn("People") { node in
             documentColumnCell(for: node, columnId: "people")
         }

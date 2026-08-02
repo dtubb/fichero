@@ -91,6 +91,18 @@ extension LibraryView {
         case "createdDate":
             Text(doc.createdAt, style: .date)
                 .font(.caption).foregroundColor(.secondary)
+        case "documentDate":
+            // #3322: the date the document was WRITTEN, beside `createdDate`,
+            // which is import time. `InspectorAttributeVisibility` already
+            // wrote the argument down and never acted on it — "Created/Modified
+            // are filesystem dates, which for historical material are not the
+            // date that matters". This is that date.
+            //
+            // Through `DocumentDateDisplay` so all four states read the same
+            // here as everywhere else, and so no second formatter exists: the
+            // dated case is the ENGINE's rendered string, which is what keeps a
+            // year-precision date reading "1791" and not "1 January 1791".
+            documentDateCell(for: doc)
         case "modifiedDate":
             Text(doc.updatedAt, style: .date)
                 .font(.caption).foregroundColor(.secondary)
@@ -101,6 +113,28 @@ extension LibraryView {
         default:
             Text("-").foregroundColor(.secondary)
         }
+    }
+
+    /// The historical-date cell (#3322).
+    ///
+    /// An unknown date is rendered in a dimmer, italic treatment rather than as
+    /// "-" like the other empty cells: "undated in source" and "not examined"
+    /// are different facts and both are worth reading, where a dash says only
+    /// "nothing here". The `help` carries the longer explanation, since a table
+    /// cell has no room for it.
+    @ViewBuilder
+    private func documentDateCell(for doc: Document) -> some View {
+        let state = DocumentDateDisplay.resolve(
+            dateOriginal: doc.dateOriginal,
+            dateJdn: doc.dateJdn,
+            dateMeta: doc.dateMeta?.mapValues(\.value)
+        )
+        Text(state.text)
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .italic(!state.isKnown)
+            .lineLimit(1)
+            .help(state.explanation)
     }
 
     @ViewBuilder
