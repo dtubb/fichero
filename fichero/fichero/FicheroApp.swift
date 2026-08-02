@@ -131,14 +131,14 @@ struct FicheroApp: App {
         let env = ProcessInfo.processInfo.environment
         // #3968: `isUITesting()` is also true in embedded-engine UI-test mode
         // (which is *defined* as `isUITesting() && hasFlag`), but that mode is
-        // supposed to launch the real engine interactively. Carve it out here —
-        // matching the `&& !isEmbeddedEngineUITesting()` guard at :117 and
-        // `EngineConfig.macLaunchConnectionMode` — so the flag that neutralizes
-        // boot side effects does not also mark the embedded run non-interactive.
+        // supposed to launch the real engine interactively. The carve-out lives
+        // in ONE predicate now — `suppressesBootSideEffectsForUITesting()` —
+        // rather than being spelled out both here and in
+        // `currentEngineProvisioningInputs`, with nothing forcing the two to agree.
         let interactiveLaunch = !(env["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
             || env["XCODE_RUNNING_FOR_PLAYGROUNDS"] == "1"
             || isRunningXCTests()
-            || (isUITesting() && !isEmbeddedEngineUITesting()))
+            || suppressesBootSideEffectsForUITesting())
         let optionHeld = interactiveLaunch && EngineConfig.optionKeyHeldAtLaunch()
         self._showRemoteConnectionChooser = State(
             initialValue: EngineConfig.macLaunchConnectionMode(
