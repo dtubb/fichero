@@ -12,7 +12,6 @@
   "Views/Inspector/Knowledge/EntityDigestView.swift#b7ec9dc9eb": "icon-only Button missing .accessibilityLabel(...) (lines 75-82)",
   "Views/Inspector/Notes/DocumentInterpretationsSection.swift#45dc70e76f": "icon-only Button missing .accessibilityLabel(...) (lines 294-310)",
   "Views/Inspector/Notes/DocumentInterpretationsSection.swift#7de1f57d60": "icon-only Button missing .accessibilityLabel(...) (lines 57-70)",
-  "Views/Inspector/Source/Info/DocumentInspectorInfoTab+BibliographyRow.swift#73d96baf77": "icon-only Button missing .accessibilityLabel(...) (lines 60-74)",
   "Views/Library/Actions/ActionLibraryView.swift#6976d14918": "icon-only Button missing .accessibilityLabel(...) (lines 97-102)",
   "Views/Library/Actions/ActionPickerView.swift#1dd291304d": "icon-only Button missing .accessibilityLabel(...) (lines 23-29)",
   "Views/Library/Automation/TriggerEditorView/TriggerEditorFormPanel.swift#1d8c0040f7": "icon-only Button missing .accessibilityLabel(...) (lines 61-65)",

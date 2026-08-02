@@ -71,6 +71,15 @@ struct ReferenceRowView: View {
                     }
                     .buttonStyle(.plain)
                     .help(isExpanded ? "Copy BibTeX" : "Show BibTeX")
+                    // #4479: VoiceOver announced nothing here. The button was
+                    // invisible to check_accessibility because its trailing
+                    // `.onChange { }` truncated the scan — a real gap the
+                    // scanner's own blindness was hiding, not an allowlisted
+                    // decision. Mirrors `.help`, and reports the COPIED state
+                    // too, which the icon shows and the help does not.
+                    .accessibilityLabel(
+                        copied ? "BibTeX copied" : (isExpanded ? "Copy BibTeX" : "Show BibTeX")
+                    )
                     .onChange(of: copied) { _, newValue in
                         if newValue {
                             Task {

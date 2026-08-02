@@ -85,6 +85,23 @@ def _line_indent(line: str) -> int:
     return len(line) - len(line.lstrip(" \t"))
 
 
+def _bracket_delta(line: str) -> int:
+    """Net unclosed brackets on one line — parens, squares AND BRACES.
+
+    Braces matter as much as parens here: `.contextMenu { ... }`,
+    `.overlay { ... }` and `.background { ... }` are trailing modifiers whose
+    bodies span lines and do not begin with ".". Counting only `(` and `[` left
+    those truncating the chain exactly as the original bug did — found by this
+    scanner's own self-test before it shipped, which is the entire argument for
+    having one.
+    """
+    return (
+        (line.count("(") - line.count(")"))
+        + (line.count("[") - line.count("]"))
+        + (line.count("{") - line.count("}"))
+    )
+
+
 def _collect_button_chain(lines: list[str], start: int) -> tuple[int, str]:
     """Return the end line and snippet for a button plus its trailing modifiers."""
     depth = 0
@@ -131,8 +148,7 @@ def _collect_button_chain(lines: list[str], start: int) -> tuple[int, str]:
 
         if open_brackets > 0:
             # Inside a modifier's wrapped arguments — consume unconditionally.
-            open_brackets += line.count("(") - line.count(")")
-            open_brackets += line.count("[") - line.count("]")
+            open_brackets += _bracket_delta(line)
             end = idx
             continue
 
@@ -143,9 +159,7 @@ def _collect_button_chain(lines: list[str], start: int) -> tuple[int, str]:
             break
 
         if stripped.startswith(".") and _line_indent(line) >= start_indent:
-            open_brackets = (line.count("(") - line.count(")")) + (
-                line.count("[") - line.count("]")
-            )
+            open_brackets = _bracket_delta(line)
             end = idx
             continue
         break
