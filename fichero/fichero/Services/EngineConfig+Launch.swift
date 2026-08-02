@@ -189,7 +189,7 @@ extension EngineConfig {
         return EngineProvisioningInputs(
             isMacOS: allowsEmbeddedLocalDefault,
             isDebugBuild: isDebugBuild,
-            isInertHost: isPreview || isRunningXCTests() || (isUITesting() && !isEmbeddedEngineUITesting()),
+            isInertHost: isPreview || isRunningXCTests() || suppressesBootSideEffectsForUITesting(),
             hostRequiresRemoteConnection: requiresExternalBackendConnection,
             hasExplicitConfiguredHost: hasConfiguredHost
         )

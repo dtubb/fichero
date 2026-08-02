@@ -20,6 +20,29 @@ func isEmbeddedEngineUITesting() -> Bool {
     isUITesting() && ProcessInfo.processInfo.arguments.contains("--uitesting-embedded")
 }
 
+/// True when a UI test wants boot side effects — engine spawn, interactive
+/// launch, provisioning — NEUTRALIZED. False in embedded-engine mode, which is
+/// the one UI-test mode whose entire purpose is to run the real engine.
+///
+/// This exists because `isUITesting()` is true in BOTH modes: embedded mode is
+/// *defined* as `isUITesting() && hasFlag`. Gating a boot side effect on the
+/// bare predicate therefore switches it off in the mode that needs it on, and
+/// that is #3968 — the embedded launch tests polled for 120s while the engine
+/// was never spawned at all.
+///
+/// The carve-out `isUITesting() && !isEmbeddedEngineUITesting()` was written
+/// out by hand at two separate call sites — the interactive-launch decision and
+/// the engine-provisioning inputs — with nothing forcing them to agree and
+/// nothing stopping a third from omitting it. One named predicate makes the
+/// wrong version unwriteable rather than merely discouraged.
+///
+/// Use `isUITesting()` directly only where BOTH modes genuinely want the same
+/// answer — a disposable support directory, a seeded library fixture, an
+/// explicitly owned transport.
+func suppressesBootSideEffectsForUITesting() -> Bool {
+    isUITesting() && !isEmbeddedEngineUITesting()
+}
+
 /// A disposable restored-library fixture for the embedded-engine launch smoke.
 /// It lives under the app's existing UI-test support directory, never in the
 /// developer's defaults or library tree.
