@@ -131,22 +131,19 @@ struct SidebarBottomToolbar: View {
     }
 
     /// Secondary verbs — inline when they fit, else the '…' overflow (macOS narrow)
-    /// or menu-only (compact iPhone) (#3058): Export, Import menu, New Workflow.
+    /// or menu-only (compact iPhone) (#3058): Import menu, New Workflow.
+    ///
+    /// Export used to sit here as a permanently `.disabled(true)` button whose
+    /// own `.help` read "Export (not yet wired)" (#4100). A control that can
+    /// never do anything is placeholder chrome, and the dead-simple-UX rule is
+    /// that a feature is ON or OFF — a greyed button that never ungreys reads
+    /// as "broken", not "coming".
+    ///
+    /// Nothing is lost: File ▸ Export already exports (BibTeX, Markdown static
+    /// site), library-scoped and working. #2309 tracks a SIDEBAR-scoped export
+    /// handler, and the button comes back when there is something behind it.
     @ViewBuilder
     private var secondaryButtons: some View {
-            // Export — no sidebar-level export handler yet; left disabled (#2309)
-            Button {
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(iconFont)
-                    .frame(minWidth: metrics.touchTargetSide, minHeight: metrics.touchTargetSide)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .disabled(true)
-            .help("Export (not yet wired)")
-            .accessibilityLabel("Export")
-
             // Import menu
             Menu {
                 Button(
@@ -202,11 +199,9 @@ struct SidebarBottomToolbar: View {
     /// (#3058) — same actions + disabled logic, menu-item presentation.
     @ViewBuilder
     private var overflowMenu: some View {
-        // Export — still disabled until a sidebar-scoped handler exists (#2309).
-        Button {} label: {
-            Label("Export", systemImage: "square.and.arrow.up")
-        }
-        .disabled(true)
+        // Export intentionally absent — see `secondaryButtons` (#4100). The
+        // overflow menu mirrors the inline verbs, so a dead entry here would
+        // reintroduce the same never-enabled control one menu deeper.
 
         // Import submenu (link / copy / move), mirroring the inline Import menu.
         Menu {

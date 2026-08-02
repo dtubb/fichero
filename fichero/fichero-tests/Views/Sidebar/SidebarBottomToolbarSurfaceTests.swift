@@ -28,9 +28,41 @@ final class SidebarBottomToolbarSurfaceTests: XCTestCase {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
         // These `Label(...)` forms are unique to the overflow (the inline bar uses
         // icon-only `Image` labels), so they prove the overflow mirrors secondary.
-        XCTAssertTrue(source.contains("Label(\"Export\", systemImage: \"square.and.arrow.up\")"))
+        //
+        // Export is deliberately NOT here (#4100): it was removed from BOTH
+        // tiers, so the mirror property still holds — the overflow reflects the
+        // inline verbs, and there are now two rather than three.
         XCTAssertTrue(source.contains("Label(\"Import Files\", systemImage: \"square.and.arrow.down\")"))
         XCTAssertTrue(source.contains("Label(\"New Workflow\", systemImage: \"bolt\")"))
+    }
+
+    /// #4100: the sidebar shipped an Export button that was permanently
+    /// `.disabled(true)`, with `.help("Export (not yet wired)")` saying so out
+    /// loud, in both the inline bar and the overflow menu.
+    ///
+    /// A control that can never do anything is placeholder chrome. Per the
+    /// dead-simple-UX rule a feature is ON or OFF, and a greyed button that
+    /// never ungreys reads as "broken", not "coming". File ▸ Export already
+    /// exports (BibTeX, Markdown static site); #2309 tracks the sidebar-scoped
+    /// handler, and the control returns when there is something behind it.
+    ///
+    /// Asserted on BOTH tiers because the overflow mirrors the inline bar —
+    /// putting it back in only one is how a dead control survives half a fix.
+    func testNoDeadExportControlInEitherTier() throws {
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarBottomToolbar.swift")
+        let code = source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+
+        XCTAssertFalse(code.contains("not yet wired"), "no shipped control may advertise itself as unwired")
+        XCTAssertFalse(code.contains("Label(\"Export\""), "the overflow Export entry is dead chrome")
+        XCTAssertFalse(code.contains(".disabled(true)"), "a permanently disabled control must not ship")
+
+        // The guard must not have gone blind on a moved or emptied file: the
+        // verbs that DO belong here are still present.
+        XCTAssertTrue(code.contains("Label(\"Import Files\""))
+        XCTAssertTrue(code.contains("New Workflow"))
     }
 
     func testEssentialTierHoldsNewItemAndDelete() throws {
