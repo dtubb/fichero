@@ -208,3 +208,102 @@ class TestColumnsPersist:
         assert dumped["date_meta"]["status"] == "dated"
         restored = Document.model_validate(dumped)
         assert restored.date_original == "17 de abril de 1893"
+
+
+class TestUserDatesSurviveReExtraction:
+    """Step 5b: a user assertion is a persistent rule the extractor consults.
+
+    Today's data-loss shape, closed: a historian corrects a date, someone
+    re-runs extraction across the library, and without this the correction
+    is silently gone — worse than the original bug, because the user
+    believes they fixed it. The extractor still runs; disagreement is
+    RECORDED (candidate preserved), never silently resolved either way.
+    """
+
+    @staticmethod
+    def _run_tool(doc):
+        import asyncio
+        from unittest.mock import MagicMock, patch
+
+        from fichero_server.workflows.tools.date_extract import date_extract_tool
+
+        db = MagicMock()
+        db.get.return_value = doc
+        saved = []
+        db.save.side_effect = saved.append
+        with patch(
+            "fichero_server.workflows.tools.date_extract.db_manager"
+        ) as mgr, patch(
+            "fichero_server.workflows.tools.date_extract.emit_workflow_document_changes"
+        ):
+            mgr.get_database.return_value = db
+            result = asyncio.run(
+                date_extract_tool(
+                    {"documents": [{"id": doc.id}]},
+                    {"library_path": "/tmp/t.fichero"},
+                    MagicMock(),
+                )
+            )
+        return result, saved
+
+    def _pinned_doc(self, **meta_extra):
+        return Document(
+            id="doc-pinned",
+            name="d",
+            page_content="Diario. 17 de abril de 1893. Hoy...",  # extractor sees THIS
+            date_original="3 de mayo de 1892",  # the user's correction
+            date_jdn=gregorian_to_jdn(1892, 5, 3),
+            date_jdn_end=gregorian_to_jdn(1892, 5, 3),
+            date_meta={"status": "dated", "source": "user", "precision": "day", **meta_extra},
+        )
+
+    def test_reextraction_does_not_overwrite_a_user_date(self):
+        doc = self._pinned_doc()
+        result, _saved = self._run_tool(doc)
+        assert doc.date_original == "3 de mayo de 1892", (
+            "the user's correction was stomped by re-extraction — the "
+            "data-loss shape this rule exists to prevent"
+        )
+        assert doc.date_jdn == gregorian_to_jdn(1892, 5, 3)
+        record = result["dates"][0]
+        assert record["status"] == "user_pinned"
+
+    def test_disagreement_is_recorded_not_discarded(self):
+        doc = self._pinned_doc()
+        result, _ = self._run_tool(doc)
+        conflict = doc.date_meta.get("extraction_conflict")
+        assert conflict is not None, "a disagreement the user cannot see is a fact destroyed"
+        assert conflict["candidate"]["meta"]["converted_gregorian_iso"] == "1893-04-17"
+        assert result["dates"][0]["conflict"] is True
+        assert "1 with a conflicting" in result["text"]
+
+    def test_agreement_clears_a_stale_conflict(self):
+        doc = self._pinned_doc(extraction_conflict={"candidate": None, "found_at": "x"})
+        # Make the manuscript agree with the user's assertion.
+        doc.page_content = "3 de mayo de 1892"
+        self._run_tool(doc)
+        assert "extraction_conflict" not in doc.date_meta
+
+    def test_user_asserted_undated_is_pinned_too(self):
+        doc = Document(
+            id="doc-und",
+            name="d",
+            page_content="17 de abril de 1893",  # extractor WOULD find this
+            date_meta={"status": STATUS_UNDATED_EXPLICIT, "source": "user"},
+        )
+        result, _ = self._run_tool(doc)
+        assert doc.date_jdn is None, "user said undated; extraction must not date it"
+        assert doc.date_meta["status"] == STATUS_UNDATED_EXPLICIT
+        assert doc.date_meta["extraction_conflict"]["candidate"] is not None
+        assert result["dates"][0]["status"] == "user_pinned"
+
+    def test_user_undated_and_manuscript_undated_are_different_claims(self):
+        """source distinguishes 'the manuscript says n.d.' (extracted) from
+        'a user asserts this is undated' (user)."""
+        manuscript = Document(id="m", name="m", page_content="n.d.\ntext")
+        _result, _ = self._run_tool(manuscript)
+        assert manuscript.date_meta["status"] == STATUS_UNDATED_EXPLICIT
+        assert manuscript.date_meta["source"] == "extracted"
+        # The user-asserted form (written by document.set_date) carries user.
+        asserted = {"status": STATUS_UNDATED_EXPLICIT, "source": "user"}
+        assert asserted["source"] != manuscript.date_meta["source"]
