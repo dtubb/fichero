@@ -12,6 +12,14 @@ from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
 
 logger = logging.getLogger(__name__)
 
+# Keys a client might plausibly use to target documents in execute `inputs`,
+# none of which any node reads from there. fichero-mcp shipped
+# `inputs={"files": [doc_id]}` and every run "completed" green on zero
+# documents (#4467). Targets ride in `selection` (or the legacy
+# `inputs["selected_doc_ids"]`); anything else is rejected at the boundary
+# so a mistargeted run fails loudly instead of succeeding at nothing.
+UNREAD_TARGET_INPUT_KEYS = ("files", "documents", "docs", "doc_ids", "document_ids")
+
 
 class ExecuteWorkflowRequest(BaseModel):
     """Request to execute a workflow."""
@@ -61,6 +69,27 @@ class ExecuteWorkflowRequest(BaseModel):
         if isinstance(raw, list) and raw:
             self.selection = WorkflowSelection(
                 kind=SelectionKind.documents, ids=[str(i) for i in raw]
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _reject_unread_target_keys(self) -> "ExecuteWorkflowRequest":
+        """Fail loudly when doc targets ride under a key nothing reads (#4467).
+
+        Runs after ``_derive_selection``: a request that also carried a real
+        selection is fine — only a request whose ONLY targeting is an unread
+        key is rejected, because that run would complete having processed
+        nothing and report success.
+        """
+        if self.selection is not None or not self.inputs:
+            return self
+        stray = [k for k in UNREAD_TARGET_INPUT_KEYS if self.inputs.get(k)]
+        if stray:
+            raise ValueError(
+                f"inputs[{stray!r}] is not read by any workflow node — the run "
+                "would complete without processing anything. Pass the target "
+                "documents as `selection` (or legacy "
+                "`inputs['selected_doc_ids']`). (#4467)"
             )
         return self
 

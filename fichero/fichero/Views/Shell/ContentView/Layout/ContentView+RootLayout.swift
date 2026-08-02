@@ -134,7 +134,10 @@ extension ContentView {
             // `.dropDestination` sits inside this view and keeps first claim —
             // SwiftUI resolves drops innermost-first, the same way the sidebar
             // rows' nested handlers already work.
-            .onDrop(of: [.item]) { providers in
+            // `isTargeted:` is required to select the closure overload —
+            // without it Swift matches `.onDrop(of:delegate:)` and rejects the
+            // trailing closure.
+            .onDrop(of: [.item], isTargeted: nil) { providers in
                 handleContentPaneExternalDrop(providers)
                 return true
             }

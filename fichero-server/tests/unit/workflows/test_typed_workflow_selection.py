@@ -159,3 +159,50 @@ class TestTheLegacyAdapter:
             "an empty list is not a selection; inventing one would report a "
             "scope the user never chose"
         )
+
+
+class TestUnreadTargetKeysAreRejected:
+    """#4467: targets under a key nothing reads must fail at the boundary.
+
+    fichero-mcp sent `inputs={"files": [doc_id]}` — a key no node reads from
+    execute inputs — and every run completed green with zero documents and
+    zero artifacts. A run that succeeds at nothing is the worst failure shape
+    this project knows; the request is now rejected where it can still be
+    attributed to the caller.
+    """
+
+    def test_inputs_files_alone_is_rejected_not_silently_dropped(self):
+        with pytest.raises(ValidationError) as caught:
+            ExecuteWorkflowRequest(workflow_id="wf-1", inputs={"files": ["doc-1"]})
+        message = str(caught.value)
+        assert "selection" in message, (
+            "the error must say what the client SHOULD have sent"
+        )
+        assert "#4467" in message
+
+    @pytest.mark.parametrize(
+        "key", ["documents", "docs", "doc_ids", "document_ids"]
+    )
+    def test_every_plausible_wrong_key_is_rejected(self, key):
+        with pytest.raises(ValidationError):
+            ExecuteWorkflowRequest(workflow_id="wf-1", inputs={key: ["doc-1"]})
+
+    def test_a_real_selection_beside_a_stray_key_is_allowed(self):
+        """Only a request whose ONLY targeting is unread is incoherent."""
+        request = ExecuteWorkflowRequest(
+            workflow_id="wf-1",
+            inputs={"files": ["doc-1"], "selected_doc_ids": ["doc-1"]},
+        )
+        assert request.selection is not None
+
+    def test_empty_stray_values_do_not_reject(self):
+        """`{"files": []}` carries no target; refusing it would break callers
+        that pass empty scaffolding dicts."""
+        request = ExecuteWorkflowRequest(workflow_id="wf-1", inputs={"files": []})
+        assert request.selection is None
+
+    def test_non_target_inputs_pass_untouched(self):
+        request = ExecuteWorkflowRequest(
+            workflow_id="wf-1", inputs={"prompt": "hello", "temperature": 0.2}
+        )
+        assert request.selection is None

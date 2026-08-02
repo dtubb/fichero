@@ -2210,6 +2210,16 @@ class ActionAudit(BaseModel):
     id: str = Field(default_factory=_new_id)
     action_name: str = Field(description="Registered action name, '<domain>.<verb>'")
     actor: str = Field(default="system", description="ui | chat | workflow | import | system | device id")
+    client: str | None = Field(
+        default=None,
+        description=(
+            "Client surface that invoked the action (X-Fichero-Client header: "
+            "fichero-mcp | fichero-cli | ...). Attribution only, never authz — "
+            "so an agent acting on the owner credential is distinguishable "
+            "from the owner in the app (#4469). None = header absent (the app, "
+            "or pre-#4469 rows)."
+        ),
+    )
     target_ids: list[str] = Field(
         default_factory=list,
         description="Primary domain-object ids this action touched.",

@@ -57,6 +57,8 @@ class ActionContext:
     """
 
     actor: str = "system"
+    # Client surface (X-Fichero-Client) — audit attribution only, never authz (#4469).
+    client: str | None = None
     origin_window: str | None = None
     run_id: str | None = None
     library_path: str | None = None
@@ -220,6 +222,7 @@ class ActionRegistry:
                 audit = ActionAudit(
                     action_name=name,
                     actor=ctx.actor,
+                    client=ctx.client,
                     target_ids=list(spec.target_ids),
                     params=params.model_dump(mode="json"),
                     before=spec.before,
@@ -233,6 +236,7 @@ class ActionRegistry:
             audit = ActionAudit(
                 action_name=name,
                 actor=ctx.actor,
+                client=ctx.client,
                 target_ids=list(spec.target_ids),
                 params=params.model_dump(mode="json"),
                 before=spec.before,
