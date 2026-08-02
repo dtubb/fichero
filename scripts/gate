@@ -643,7 +643,15 @@ cmd_ipad() {
   # Absent that, it reports NOT ARMED (exit 0) rather than blind — the
   # distinction AGENTS.md draws: inputs legitimately missing is not the same as
   # a check that cannot see.
+  # Default to whatever iPad simulator this machine actually has, resolved at
+  # run time rather than hardcoded — device names change with every Xcode.
   local dest="${GATE_IPAD_DESTINATION:-}"
+  if [[ -z "$dest" ]]; then
+    local ipad
+    ipad="$(xcrun simctl list devices available 2>/dev/null \
+      | sed -n 's/^ *\(iPad[^(]*\) (.*/\1/p' | head -1 | sed 's/ *$//')"
+    [[ -n "$ipad" ]] && dest="platform=iOS Simulator,name=$ipad"
+  fi
   if [[ -z "$dest" ]]; then
     echo "gate: ipad NOT ARMED — set GATE_IPAD_DESTINATION to a booted simulator," >&2
     echo "gate:   e.g. GATE_IPAD_DESTINATION='platform=iOS Simulator,name=iPad Pro 13-inch (M4)'" >&2
