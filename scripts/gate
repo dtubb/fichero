@@ -610,6 +610,55 @@ cmd_ui() {
       -resultBundlePath "$(mktemp -d)/gate-$plan.xcresult" test
 }
 
+cmd_ios() {
+  # iOS COMPILE gate, device-less. Daniel, 2026-08-02: "we need to do iOS and
+  # iPad test individually."
+  #
+  # This existed only inside `verify_all.sh --full`, which is why BOTH #4331
+  # (iOS TestFlight crashing at launch) and #4418 (a root view chain that
+  # type-checked on macOS and timed out on iOS) reached an archive. macOS
+  # compiling proves nothing about iOS: the type-checker budget is tighter and
+  # AppKit-gated code is invisible to it.
+  #
+  # Generic destination on purpose — no simulator is booted or named, so this
+  # runs headless and cannot depend on whatever devices this machine has.
+  GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_IOS_MB:-8192}" \
+  run_gated "ios-compile" "${GATE_TIMEOUT_IOS:-3600}" \
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$UNIT_SCHEME" \
+      -destination 'generic/platform=iOS Simulator' \
+      -derivedDataPath "$GATE_DERIVED/ios" \
+      -skipPackagePluginValidation build
+}
+
+cmd_ipad() {
+  # iPad leg. `fichero-ipad.xctestplan` has existed for some time and was wired
+  # into NOTHING — `scripts/gate` did not mention iPad at all before this.
+  #
+  # iPad is not "iOS on a bigger screen" for this app: it is where the
+  # multi-column layout, the inspector and the canvas actually get exercised,
+  # and where a NavigationSplitView behaves differently from either sibling.
+  #
+  # Needs a booted simulator, so this leg is OPT-IN via GATE_IPAD_DESTINATION
+  # rather than guessing a device name that may not exist on this machine.
+  # Absent that, it reports NOT ARMED (exit 0) rather than blind — the
+  # distinction AGENTS.md draws: inputs legitimately missing is not the same as
+  # a check that cannot see.
+  local dest="${GATE_IPAD_DESTINATION:-}"
+  if [[ -z "$dest" ]]; then
+    echo "gate: ipad NOT ARMED — set GATE_IPAD_DESTINATION to a booted simulator," >&2
+    echo "gate:   e.g. GATE_IPAD_DESTINATION='platform=iOS Simulator,name=iPad Pro 13-inch (M4)'" >&2
+    echo "gate:   list with: xcrun simctl list devices available | grep iPad" >&2
+    return 0
+  fi
+  GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_IPAD_MB:-8192}" \
+  run_gated "ipad-tests" "${GATE_TIMEOUT_IPAD:-5400}" \
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$UI_SCHEME" \
+      -testPlan fichero-ipad -destination "$dest" \
+      -derivedDataPath "$GATE_DERIVED/ipad" \
+      -skipPackagePluginValidation \
+      -resultBundlePath "$(mktemp -d)/gate-ipad.xcresult" test
+}
+
 cmd_embedded() {
   run_gated "embedded-launch" "${GATE_TIMEOUT_EMBEDDED:-3600}" \
     bash scripts/verify_embedded_launch.sh
@@ -691,6 +740,12 @@ cmd_verify_all() {
   # So: lint (in guardrails, seconds) -> does it build and are the unit tests
   # right -> backend logic -> integration -> and only then, how fast is it.
   run_leg "swift-unit"    cmd_unit
+  # iOS compiles BEFORE the slow legs. Both #4331 and #4418 reached an archive
+  # because this only ran at `verify_all --full`, and macOS compiling proves
+  # nothing about iOS — tighter type-checker budget, and AppKit-gated code is
+  # invisible from a Mac build.
+  run_leg "ios-compile"   cmd_ios
+  run_leg "ipad"          cmd_ipad
   run_leg "engine"        cmd_engine
   run_leg "transport"     cmd_transport
   run_leg "ui-hermetic"   cmd_ui fichero
@@ -910,6 +965,8 @@ case "$SUBCMD" in
   part)       cmd_part "$@" ;;
   areas)      cmd_areas "$@" ;;
   ui)         cmd_ui "$@" ;;
+  ios)        cmd_ios "$@" ;;
+  ipad)       cmd_ipad "$@" ;;
   embedded)   cmd_embedded "$@" ;;
   transport)  cmd_transport "$@" ;;
   coverage)   cmd_coverage "$@" ;;
