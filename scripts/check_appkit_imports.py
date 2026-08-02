@@ -98,7 +98,13 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/ImageViewer/MagnifierPanel.swift": "#2713 — loupe bridge uses AppKit/UIKit-specific magnifier surfaces; #2101",
     "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#2713 — zoom gesture bridge uses AppKit/UIKit event adapters; #2101",
     "Views/Library/ViewModes/Canvas/CanvasScrollPan.swift": "#4408 — scroll-wheel PAN bridge; SwiftUI has no scroll gesture for a non-scroll view, so this mirrors ScrollWheelZoom two-axis; #2101",
-    "Views/Shell/ContentView/ContentDropTargetView.swift": "#4458 — content-pane external-drop bridge; hitTest always nil so it cannot intercept clicks, unlike .onDrop(of:) at the same scope; mirrors CanvasScrollPan/ScrollWheelZoom's AppKit-bridge-for-what-SwiftUI-lacks pattern; #2101",
+    # ContentDropTargetView.swift was here for #4458 and is DELETED. Its
+    # reason ("hitTest always nil so it cannot intercept clicks") was true and
+    # was also why it could never RECEIVE a drop: AppKit's drag-destination
+    # search walks the same hitTest. Replaced by .onDrop(of: [.item]) at the
+    # same detailColumn scope, which needs no bridge. See #4473.
+    "Views/Library/ViewModes/Canvas/Engine/CanvasInteractionController.swift": "#4408 — reads NSEvent.modifierFlags to resolve the click grammar; SwiftUI exposes modifiers only inside a gesture callback, not at tap time; deliberately maps to its own enum rather than passing NSEvent.ModifierFlags around; #2101",
+    "Views/Preview/PDFViewer/PDFPageView+OCRBoxes.swift": "#2713 — PDFAnnotation.color is NSColor/UIColor, not SwiftUI.Color; same PDFKit bridge as PDFPageView.swift, split out by file_length; #2101",
     "Views/Reader/Page/Immersive/KeyboardExitCatcher.swift": "#2520 — immersive reader catches Esc via AppKit keyboard bridge (moved here when ImmersiveReaderView was split by file_length); #2101",
     "Views/Preview/PDFViewer/PDFPageView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Preview/PDFViewer/PDFThumbnailView.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
