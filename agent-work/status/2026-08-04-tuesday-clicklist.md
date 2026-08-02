@@ -159,3 +159,39 @@ Blunt list. Everything here needed a GUI, a keypress, a real drag, or eyes — n
 8. **First run** (§B) — the launch logic is deterministic and tested, but launch is exactly where a race that unit tests cannot see would live.
 9. **Entity curation** (H5) is a one-loop change whose whole point is that it removes a dependency on the change stream — so if the stream happens to be healthy, a broken version looks identical to a fixed one. Watching for the badge to appear *immediately* rather than a moment later is the whole test.
 10. **The build tier** now fails closed to `.release` if unresolvable. Every configuration defines it, so this should be invisible — but if features are mysteriously *missing*, check Console for `FeatureTier` and the message about an unresolvable tier.
+
+---
+
+## KNOWN LIMITATION OF THIS DMG — read before testing offline
+
+**The DMG is stapled. The app inside it is not.** Verified by reading the bits:
+
+```
+xcrun stapler validate build/releases/Fichero.dmg      → "The validate action worked!"
+xcrun stapler validate /Volumes/Fichero/Fichero.app    → "does not have a ticket stapled to it"
+```
+
+`spctl` accepts the app (`source=Notarized Developer ID`) — but that assessment
+is allowed to reach Apple over the network, which is exactly what a stapled
+ticket exists to make unnecessary.
+
+**What this means for you:**
+
+- **Opening the DMG: fine, online or off.**
+- **Dragging `Fichero.app` to /Applications and launching it while ONLINE:
+  fine** — Gatekeeper checks with Apple and accepts.
+- **First launch with NO NETWORK: not vouched for.** The copied app carries no
+  ticket of its own, so Gatekeeper has nothing local to verify against and may
+  refuse to open it.
+
+If you test somewhere without a connection and the app will not open, this is
+why — it is not a code signing failure and not a bug in the app.
+
+**Cause and fix:** `scripts/release-all.sh` notarizes and staples the DMG only.
+The correct order is to notarize the .app first, staple IT, then build the DMG
+from the already-stapled app and staple the DMG too. That is a second
+notarization round trip per release (~5-10 min) and a change to the release
+path, so it is filed rather than made blind on a Sunday night — see the issue.
+
+Every release cut from this repo has had this property; it has been invisible
+because notarization checks succeed when online.
