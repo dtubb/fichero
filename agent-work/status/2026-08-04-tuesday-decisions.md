@@ -120,3 +120,33 @@ field.
 - **EPIC #4487**: 66 guardrail scripts, 56 discover-then-assert, **50 with no
   floor**. A check that scans nothing currently passes. Phase 1 (a shared
   primitive + the 12 highest-risk) is in progress.
+
+---
+
+## WARNING — jCodemunch's index is unreliable in this worktree (#4490)
+
+Not a decision, but do not act on it before reading this.
+
+The project's standing code-navigation policy is to use jCodemunch for
+"is this referenced?" questions — exactly the questions that justify a
+deletion, a rename, or a dead-code claim. **In this worktree its index
+resolves to sibling worktrees, and it is wrong in BOTH directions:**
+
+- **FALSE ABSENCE** — `check_references` returned `is_referenced=false` for
+  `LibraryDateSectioning`, `groupingUndatedLast`, `dateHeaderSortKey` and
+  `ListingSort`. All four exist and are referenced. A reader trusting that
+  answer deletes four live types.
+- **FALSE PRESENCE** — `syncLegacyScope` returned `is_referenced=true` on
+  references that are not in this tree.
+
+False absence gets working code deleted. False presence keeps dead code alive
+and blocks cleanup. Both are silent, and both look like authoritative answers.
+
+**Until #4490 is fixed:** do not justify a deletion with a jCodemunch
+"no references" result in a worktree. Use an exhaustive multi-pattern text
+search and say that is what you did. That is how today's `EntityStore.entities`
+deletion was proved — the only external references turned out to be ten
+assertions in its own test suite.
+
+This is the same class as EPIC #4487's blind guardrails, one layer out: a tool
+reporting a confident answer about something it never looked at.
