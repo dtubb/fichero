@@ -1,31 +1,43 @@
 # Priority order — set 2026-08-02, from Daniel
 
-1. **CLI + MCP.** Instruments first. *"I say MCP/CLI so you can do stuff, test,
-   etc."* Once the CLI drives a live engine — local, UDS, and remote with auth
-   enforced — everything below becomes testable end to end instead of by
-   inspection. One real test through it is worth more than a plan for tests.
+**Revised after:** *"we want paleography and workflows and sidebar and stuff
+new users see."*
 
-2. **Workflows, and the node editor.** *"node editor is not working either and
-   needs more testing and a fabel review."* Establish WHICH failure it is before
-   fixing: a graph that does not persist, a run that does not match the graph,
-   or a status that lies. All three have happened here (#4139, #4396, #4457).
+That is the through-line: **what Ann actually encounters.** Not infrastructure,
+not ratchets, not architecture — the work she does, the way she navigates, and
+what the app looks like the first time.
 
-3. **Import.** Where a user loses files. Four instances this month of an import
-   that appeared to work and did not.
+1. **Paleography / historical text** — milestone #265. This is her real work:
+   #3320 text normalisation (NFC + ftfy), #3321 normalized_content + folded
+   index, #3322 histdate, #3323 cross-script entity variants, #3324 paleography
+   fonts + diplomatic render, #3325 translation, #3326 transliteration.
+   #3319 is a grounded fabel plan already written for it — read that first
+   rather than re-deriving.
 
-4. **Everything else, filed and not worked:** #4466 iOS/iPad ratcheting,
-   #4464 the interaction matrix (every surface × every interaction), #4463 the
-   managed folder + iCloud sync.
+2. **Workflows, and the node editor.** *"node editor is not working."*
+   Establish WHICH failure before fixing: a graph that does not persist, a run
+   that does not match the graph, or a status that lies. All three have
+   happened (#4139, #4396, #4457).
 
-## Not priority, explicitly
+3. **Sidebar** — milestone #116. How she navigates. Two delete crashes lived
+   here this week.
 
-Daniel on #4463: *"however this is not current priority."* And on #4466:
-*"again this is not priority."* Both are captured so they are not lost, and
-neither gets a lane until 1–3 are done.
+4. **What a new user sees** — first run, empty states, the launch prompt
+   (#4017: the app asks a question before it will show you anything).
+
+5. **CLI + MCP** — instruments. Worth finishing because they make 1–4 testable
+   end to end, but they are a means, not the goal.
+
+## Captured, explicitly NOT worked
+
+Daniel on #4463 (managed folder / iCloud sync): *"this is not current
+priority."* On #4466 (iOS/iPad ratcheting): *"again this is not priority."*
+Also #4464 (interaction matrix). All filed so they are not lost; none gets a
+lane until the above is moving.
 
 ## Standing constraints
 
 - Exactly TWO lanes. Mostly opus; fabel for genuinely hard reasoning.
 - Lanes never build. The manager builds every 4 hours and before any release.
 - Nobody runs `pytest tests/perf` outside the gate.
-- Do real stuff: a user-visible fix beats three triaged closures.
+- **Do real stuff.** A user-visible fix beats three triaged closures.
