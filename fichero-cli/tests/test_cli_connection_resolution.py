@@ -50,9 +50,12 @@ def captured_requests(monkeypatch):
 # -- base URL selection ----------------------------------------------------
 
 
-def test_default_base_url_is_loopback_8765():
+def test_default_base_url_is_https_loopback_8765():
+    """#4468: the engine mandates TLS on TCP, so an http:// default could
+    never work against the engine we ship — a default that cannot work is a
+    trap. Fail-closed loopback/HTTPS is the standing transport rule."""
     with FicheroClient(token="", transport=httpx.MockTransport(lambda r: httpx.Response(200))) as client:
-        assert client.base_url == "http://127.0.0.1:8765"
+        assert client.base_url == "https://127.0.0.1:8765"
         assert client.base_url == client_module.DEFAULT_BASE_URL
 
 
@@ -160,3 +163,63 @@ def test_library_env_var_is_honoured(monkeypatch, captured_requests, tmp_path):
     assert captured_requests[0].headers["X-Fichero-Library-Path"].endswith(
         "FromEnv.fichero"
     )
+
+
+class TestLoopbackTrustFailsClosed:
+    """#4468: loopback https anchors the engine's OWN cert; a missing cert
+    is a refusal that NAMES the path searched — never a silent fallback to
+    unverified, never verify=False."""
+
+    def test_missing_material_fails_closed_naming_the_path(self, monkeypatch, tmp_path):
+        from fichero_cli import client as client_module
+        from fichero_cli.client import FicheroError
+
+        import fichero_server.security.remote_access_tls as tls
+
+        monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+        monkeypatch.setattr(tls, "DEFAULT_STORAGE_ROOT", tmp_path / "Remote Access")
+        with pytest.raises(FicheroError) as caught:
+            client_module._loopback_trust("https://127.0.0.1:8765")
+        message = str(caught.value)
+        assert "Remote Access" in message and "server.crt" in message, (
+            "the refusal must name the path it looked for"
+        )
+        assert "unverified" in message
+
+    def test_existing_material_becomes_a_trust_anchor(self, monkeypatch, tmp_path):
+        """A real self-signed cert on disk loads as an anchor (no
+        verify=False anywhere)."""
+        import ssl
+
+        from fichero_cli import client as client_module
+
+        import fichero_server.security.remote_access_tls as tls
+
+        root = tmp_path / "Remote Access"
+        material = tls.prepare_remote_access_tls(
+            "https://127.0.0.1:8765", storage_root=root, allow_loopback=True
+        )
+        monkeypatch.setattr(tls, "DEFAULT_STORAGE_ROOT", root)
+        context = client_module._loopback_trust("https://127.0.0.1:8765")
+        assert isinstance(context, ssl.SSLContext)
+        assert context.verify_mode == ssl.CERT_REQUIRED
+        stats = context.cert_store_stats()
+        assert stats["x509_ca"] >= 1 or stats["x509"] >= 1, (
+            f"the engine cert at {material.certificate_path} did not load "
+            "as a trust anchor"
+        )
+
+    def test_explicit_ssl_cert_file_env_bypasses_discovery(self, monkeypatch):
+        """FICHERO_API_URL/SSL_CERT_FILE overrides still win (additive)."""
+        import httpx
+
+        from fichero_cli.client import FicheroClient
+
+        monkeypatch.setenv("SSL_CERT_FILE", "/tmp/nonexistent.pem")
+        # Construction must not call _loopback_trust (which would raise on a
+        # machine with no material); it defers to httpx's env handling. Use a
+        # mock transport so no real dial happens either.
+        client = FicheroClient(
+            token="", transport=httpx.MockTransport(lambda r: httpx.Response(200))
+        )
+        client.close()

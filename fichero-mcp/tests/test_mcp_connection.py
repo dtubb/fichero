@@ -46,7 +46,9 @@ def recorded(monkeypatch):
 def test_default_target_is_loopback_8765(recorded):
     mcp_server.fichero_health()
 
-    assert str(recorded[0].url) == "http://127.0.0.1:8765/api/health"
+    # https (#4468): the engine mandates TLS on TCP; the MCP server inherits
+    # the CLI client's fail-closed loopback/HTTPS default.
+    assert str(recorded[0].url) == "https://127.0.0.1:8765/api/health"
 
 
 def test_config_base_url_is_used(recorded, monkeypatch):
