@@ -25,7 +25,22 @@ what the app looks like the first time.
 4. **What a new user sees** — first run, empty states, the launch prompt
    (#4017: the app asks a question before it will show you anything).
 
-5. **CLI + MCP** — instruments. Worth finishing because they make 1–4 testable
+5. **Document reader and document inspector** — where she actually reads.
+   Daniel, on his way out: *"document inspector, document reader are also
+   important. entity editor. SVO."* The inspector lists have a live defect he
+   named earlier: *"you can't properly click on an icon and some operations
+   don't work properly."*
+
+6. **Entity editor** — how she corrects the knowledge graph. Curation is
+   persistent and constrains later imports, so an edit that does not stick, or
+   sticks in the wrong place, is worse than one that fails loudly.
+
+7. **SVO / claims** — subject-verb-object extraction and its surfaces.
+   The through-line with 5 and 6: this is the READ → THINK → WRITE spine, and
+   it is what the app is FOR. Milestones #151 Inspector Knowledge (33 open) and
+   the claim/citation surfaces.
+
+8. **CLI + MCP** — instruments. Worth finishing because they make 1–4 testable
    end to end, but they are a means, not the goal.
 
 ## Captured, explicitly NOT worked
