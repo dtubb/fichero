@@ -69,8 +69,15 @@ def fake_ingest(monkeypatch):
     """
     cfg = {"folder_count": 2}
 
-    def _fake_ingest_file(path, *, mode=None, parent_id=None, db=None, **kwargs):
-        doc = Document(name=Path(path).name, parent_id=parent_id)
+    def _fake_ingest_file(
+        path, *, mode=None, parent_id=None, db=None, original_filename=None, **kwargs
+    ):
+        # Mirrors the real contract (#4471): original_filename rides INTO
+        # ingest_file (so pages are named before creation), replacing the old
+        # post-hoc rename. If the impl stops passing it through, this fake
+        # never sees it and the filename assertion below fails — the test
+        # pins the pass-through, not a rename that no longer exists.
+        doc = Document(name=original_filename or Path(path).name, parent_id=parent_id)
         db.save(doc)
         return doc
 

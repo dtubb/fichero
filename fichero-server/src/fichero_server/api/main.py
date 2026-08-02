@@ -1595,3 +1595,62 @@ def register_tiered_routes(feature_tier: str | None = None) -> str:
 
 
 ACTIVE_FEATURE_TIER = register_tiered_routes()
+
+
+def tier_hidden_prefix(path: str, active_tier: str) -> tuple[str, str] | None:
+    """(route_group, required_tier) when ``path`` belongs to a route group
+    that exists in code but is NOT registered at ``active_tier`` — else None.
+
+    #4470: a release-tier engine hides 20 route groups, and a request to one
+    got a bare 404 — indistinguishable from a typo'd path. "This engine does
+    not expose workflows at its tier" is a state the system knows and must
+    say. This only *names* the gate; it never widens what a tier exposes.
+    """
+    normalized = active_tier if active_tier in _VALID_FEATURE_TIERS else "release"
+    enabled = _CUMULATIVE_ROUTE_PREFIX_SET[normalized]
+    for prefix, required in ROUTE_PREFIX_TIERS.items():
+        if prefix in enabled:
+            continue
+        if path == prefix or path.startswith(prefix + "/"):
+            return prefix, required
+    return None
+
+
+def install_tier_aware_not_found(target_app: FastAPI, active_tier: str) -> None:
+    """404s under a tier-hidden route group say WHICH tier would expose it.
+
+    Safe with route-raised 404s ("Document not found"): a hidden prefix has
+    no handlers registered, so any 404 for a path under it can only be the
+    router's unmatched-path 404 — everything else passes through with its
+    original detail and headers.
+    """
+
+    @target_app.exception_handler(404)
+    async def _tier_aware_not_found(request: Request, exc: Exception) -> JSONResponse:
+        hidden = tier_hidden_prefix(request.url.path, active_tier)
+        if hidden is not None:
+            route_group, required_tier = hidden
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "detail": (
+                        f"{route_group} exists but is not registered at this "
+                        f"engine's feature tier: it requires tier "
+                        f"'{required_tier}', and this engine is running tier "
+                        f"'{active_tier}' (FICHERO_FEATURE_TIER)."
+                    ),
+                    "code": "feature_tier_gated",
+                    "route_group": route_group,
+                    "required_tier": required_tier,
+                    "active_tier": active_tier,
+                },
+            )
+        detail = getattr(exc, "detail", None) or "Not Found"
+        return JSONResponse(
+            status_code=404,
+            content={"detail": detail},
+            headers=getattr(exc, "headers", None),
+        )
+
+
+install_tier_aware_not_found(app, ACTIVE_FEATURE_TIER)
