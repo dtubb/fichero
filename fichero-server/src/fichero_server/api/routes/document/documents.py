@@ -1624,7 +1624,13 @@ def import_uploaded_file_impl(
     # package_path should be /path/to/Library.fichero
     package_path = Path(db.path).parent
 
-    # Ingest the file (copies to library storage and saves to database)
+    # Ingest the file (copies to library storage and saves to database).
+    # original_filename rides INTO ingest (#4471), not as a post-hoc rename:
+    # the old #1104 fixup renamed only the parent AFTER page children were
+    # created, so every page kept "fichero_upload_<random>.pdf - Page N" and
+    # metadata recorded the server temp dir as source_path — provenance loss
+    # on an archival corpus. Inside ingest, the real name lands before pages
+    # are named and the temp path is never recorded as a source.
     doc = ingest_file(
         path=file_path,
         mode=IngestMode.COPY,  # Copy file into library
@@ -1634,18 +1640,8 @@ def import_uploaded_file_impl(
         save=True,  # Save to database
         db=db,  # Database instance
         package_path=package_path,  # Library package path
+        original_filename=original_filename,
     )
-
-    # Preserve the user's original filename (#1104). save_uploaded_file
-    # writes to a temp file named ``fichero_upload_<random><ext>`` and
-    # ingest_file derives Document.name from ``path.name`` — without
-    # this fixup every imported document shows up as
-    # ``fichero_upload_*`` in docs list / sidebar. The hashed storage
-    # filename stays on Document.path; only the display name is
-    # corrected to the original filename.
-    if original_filename and doc.name != original_filename:
-        doc.name = original_filename
-        db.save(doc)
 
     logger.info(f"Imported document: {doc.id} ({doc.name})")
     return doc

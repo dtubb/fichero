@@ -588,6 +588,33 @@ class FicheroClient:
             )
         )
 
+    EXPORT_FORMATS = (
+        "parquet",
+        "jsonl",
+        "markdown-folder",
+        "word",
+        "excel",
+        "eleventy-site",
+    )
+
+    def export_library(self, export_format: str, output_path: str) -> Any:
+        """Run a server-side library export (#4471).
+
+        Thin wrapper over ``POST /api/export/{format}`` — the ONE export
+        implementation (the server's ``iter_export_records()`` stream); the
+        CLI adds no second path. All formats take ``output_path``.
+        """
+        if export_format not in self.EXPORT_FORMATS:
+            raise FicheroError(
+                f"Unknown export format {export_format!r}; supported: "
+                + ", ".join(self.EXPORT_FORMATS)
+            )
+        return self.request(
+            "POST",
+            f"/api/export/{export_format}",
+            json={"output_path": output_path},
+        )
+
     def import_file(self, path: str | Path, parent_id: str | None = None) -> Document:
         """Upload a single file to the library (multipart/form-data)."""
         file_path = Path(path).expanduser()

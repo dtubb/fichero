@@ -216,6 +216,7 @@ def ingest_file(
     save: bool = True,
     db: "Database | None" = None,
     package_path: Path | None = None,
+    original_filename: str | None = None,
 ) -> Document:
     """Ingest a single file.
 
@@ -286,13 +287,27 @@ def ingest_file(
     # so the frontend can show LINK / COPY / MOVE badges and branch the
     # delete-confirmation copy. Pre-fix docs without this key fall back to
     # bookmark presence: bookmark → LINK, no bookmark → COPY.
-    metadata: dict = {"ingest_mode": mode.value, "source_path": str(path)}
-    try:
-        stat = path.stat()
-        metadata["source_folder"] = str(path.parent)
-        metadata["source_mtime"] = datetime.fromtimestamp(stat.st_mtime).isoformat()
-    except Exception as exc:
-        logger.debug("Could not record filesystem provenance for %s: %s", path, exc)
+    # ``original_filename`` (#4471): set when ``path`` is a server-side TEMP
+    # file for an upload — the real name the user's file had. The source name
+    # is PROVENANCE in an archival tool: a page recorded as
+    # ``fichero_upload_<random>.pdf`` has lost the fact that connects it to
+    # the physical original, and nobody can cite a tempfile. When set, the
+    # display name comes from it (BEFORE page children are created, so pages
+    # inherit the real name too) and the temp path is NOT recorded as
+    # source_path/source_folder/source_mtime — those would describe the
+    # server's temp dir, which is a lie about origin, not provenance.
+    display_name = original_filename or path.name
+    metadata: dict = {"ingest_mode": mode.value}
+    if original_filename:
+        metadata["source_filename"] = original_filename
+    else:
+        metadata["source_path"] = str(path)
+        try:
+            stat = path.stat()
+            metadata["source_folder"] = str(path.parent)
+            metadata["source_mtime"] = datetime.fromtimestamp(stat.st_mtime).isoformat()
+        except Exception as exc:
+            logger.debug("Could not record filesystem provenance for %s: %s", path, exc)
 
     if mode in (IngestMode.COPY, IngestMode.MOVE):
         # Copy file into library storage
@@ -324,7 +339,7 @@ def ingest_file(
                 # dest somehow landed outside the package — keep absolute.
                 stored_path = str(dest)
         doc = Document(
-            name=path.name,
+            name=display_name,
             path=stored_path,
             doc_type=DocType.file,
             file_type=file_type,
@@ -341,7 +356,7 @@ def ingest_file(
             metadata["bookmark"] = base64.b64encode(bookmark).decode()
 
         doc = Document(
-            name=path.name,
+            name=display_name,
             path=str(path),
             doc_type=DocType.file,
             file_type=file_type,
