@@ -59,7 +59,25 @@ struct LibraryWindow: View {
 
     init(seed: WindowSeed? = nil) {
         self.seed = seed
-        _windowState = State(wrappedValue: WindowState(libraryId: UUID()))
+        // Seed the GLOBAL library, matching iOS (#4017).
+        //
+        // This was `UUID()` — a fresh random id that `getLibrary(id:)` can
+        // never resolve, so `windowState.library` was nil on the first frame of
+        // every launch and the window rendered `noLibraryView`: "Create a new
+        // library or open an existing one to get started". A wall in front of
+        // the app, asking a question whose answer is almost always "the one I
+        // had last time", before showing anything.
+        //
+        // `LibraryManager.shared` inserts the Global library during its own
+        // init — App construction, before the first frame — so this id resolves
+        // immediately and the prompt never renders. `initializeWindow` still
+        // upgrades to a restored or seeded library afterwards; this only
+        // decides what the window shows before that arrives.
+        //
+        // iOS already did exactly this (`FicheroApp_iOS.swift:12`). Two
+        // platforms seeding one window differently, with nothing forcing them
+        // to agree, is why only one of them had the prompt.
+        _windowState = State(wrappedValue: WindowState(libraryId: LibraryManager.globalLibraryId))
     }
 
     // Extracted from `body` so the ~40-modifier per-library environment chain
