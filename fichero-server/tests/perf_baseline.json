@@ -14,6 +14,256 @@
     "ms": 14.0,
     "note": "first recorded run"
   },
+  "mem::session::tests,tests/unit/mcp": {
+    "commit": "c653992c9",
+    "mb": 444.1,
+    "note": "first recorded run"
+  },
+  "mem::session::tests/unit/actions": {
+    "commit": "c653992c9",
+    "mb": 2012.7,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/actions/registry": {
+    "commit": "c653992c9",
+    "count": 0,
+    "note": "first recorded run"
+  },
+  "queries.GET./api/research/projects": {
+    "commit": "c653992c9",
+    "count": 1,
+    "note": "first recorded run"
+  },
+  "queries.POST./api/actions/invoke": {
+    "commit": "c653992c9",
+    "count": 22,
+    "note": "first recorded run"
+  },
+  "queries.POST./api/chat": {
+    "commit": "c653992c9",
+    "count": 1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_appended_actions_verify_and_link_contiguously": {
+    "commit": "c653992c9",
+    "ms": 36.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_near_simultaneous_invokes_produce_linear_chain": {
+    "commit": "c653992c9",
+    "ms": 39.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_undo_mutates_undone_without_breaking_chain": {
+    "commit": "c653992c9",
+    "ms": 34.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_deleted_middle_row": {
+    "commit": "c653992c9",
+    "ms": 45.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_edited_historical_row": {
+    "commit": "c653992c9",
+    "ms": 33.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_forged_middle_insert_with_plain_hash": {
+    "commit": "c653992c9",
+    "ms": 50.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_plain_sha256_rehash_without_secret": {
+    "commit": "c653992c9",
+    "ms": 33.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_reordered_chain_seq": {
+    "commit": "c653992c9",
+    "ms": 49.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_truncated_tail_via_external_anchor": {
+    "commit": "c653992c9",
+    "ms": 45.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_registry.py::TestActionsRegistryRoute::test_get_registry_lists_entity_merge": {
+    "commit": "c653992c9",
+    "ms": 111.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_registry.py::TestActionsRegistryRoute::test_invoke_via_route_writes_audit": {
+    "commit": "c653992c9",
+    "ms": 423.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_registry.py::TestEntityMergeAction::test_merge_via_registry_effect_and_audit": {
+    "commit": "c653992c9",
+    "ms": 8154.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_registry.py::TestEntityMergeAction::test_undo_reverses_merge": {
+    "commit": "c653992c9",
+    "ms": 786.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_action_registry.py::TestEntityMergeAction::test_unmerge_undo_remerges_same_entities": {
+    "commit": "c653992c9",
+    "ms": 959.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_chat_tools_loop.py::test_default_llm_error_still_raises_never_silent": {
+    "commit": "c653992c9",
+    "ms": 42.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_chat_tools_loop.py::test_default_model_without_bind_tools_falls_back_to_single_shot": {
+    "commit": "c653992c9",
+    "ms": 43.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_chat_tools_loop.py::test_default_runs_agent_loop_and_dispatches_read_tool": {
+    "commit": "c653992c9",
+    "ms": 50.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_chat_tools_loop.py::test_flag_on_mutating_tool_is_denied_and_never_invoked": {
+    "commit": "c653992c9",
+    "ms": 43.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_chat_tools_loop.py::test_flag_on_read_tool_is_dispatched_and_surfaced": {
+    "commit": "c653992c9",
+    "ms": 49.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_chat_tools_loop.py::test_kill_switch_forces_single_shot_with_no_tool_calls": {
+    "commit": "c653992c9",
+    "ms": 80.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/actions/test_chat_tools_loop.py::test_read_tool_dispatch_failure_surfaces_as_error_tool_call": {
+    "commit": "c653992c9",
+    "ms": 45.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestCORSSecurity::test_cors_allows_specific_origins_not_wildcard": {
+    "commit": "c653992c9",
+    "ms": 43.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestCORSSecurity::test_cors_blocks_malicious_origin": {
+    "commit": "c653992c9",
+    "ms": 45.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestCORSSecurity::test_cors_preflight_validates_origin": {
+    "commit": "c653992c9",
+    "ms": 40.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[alpha-get-/api/activity-False]": {
+    "commit": "c653992c9",
+    "ms": 444.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[alpha-get-/api/iiif/iiif/test/info.json-True]": {
+    "commit": "c653992c9",
+    "ms": 360.0,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[alpha-get-/api/research/projects-False]": {
+    "commit": "c653992c9",
+    "ms": 438.1,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[alpha-post-/api/chat-False]": {
+    "commit": "c653992c9",
+    "ms": 574.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[beta-get-/api/activity-False]": {
+    "commit": "c653992c9",
+    "ms": 478.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[beta-get-/api/iiif/iiif/test/info.json-True]": {
+    "commit": "c653992c9",
+    "ms": 438.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[beta-get-/api/research/projects-False]": {
+    "commit": "c653992c9",
+    "ms": 321.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[beta-post-/api/chat-False]": {
+    "commit": "c653992c9",
+    "ms": 437.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[dev-get-/api/activity-False]": {
+    "commit": "c653992c9",
+    "ms": 468.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[dev-get-/api/iiif/iiif/test/info.json-False]": {
+    "commit": "c653992c9",
+    "ms": 357.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[dev-get-/api/research/projects-False]": {
+    "commit": "c653992c9",
+    "ms": 451.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[dev-post-/api/chat-False]": {
+    "commit": "c653992c9",
+    "ms": 485.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[release-get-/api/activity-True]": {
+    "commit": "c653992c9",
+    "ms": 185.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[release-get-/api/iiif/iiif/test/info.json-True]": {
+    "commit": "c653992c9",
+    "ms": 304.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[release-get-/api/research/projects-True]": {
+    "commit": "c653992c9",
+    "ms": 286.8,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[release-post-/api/chat-True]": {
+    "commit": "c653992c9",
+    "ms": 185.9,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestLibraryPathSecurity::test_library_path_blocks_traversal": {
+    "commit": "c653992c9",
+    "ms": 39.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestLibraryPathSecurity::test_library_path_validates_allowed_locations": {
+    "commit": "c653992c9",
+    "ms": 39.6,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_integration_security.py::TestSecurityHeaders::test_security_headers_present": {
+    "commit": "c653992c9",
+    "ms": 40.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_mcp_manager.py::TestMCPManager::test_load_server_tools": {
+    "commit": "c653992c9",
+    "ms": 180.4,
+    "note": "first recorded run"
+  },
   "test::tests/unit/search/test_search_page_results.py::TestProjectPdfFileHitsToPages::test_returns_page_id_not_pdf_id": {
     "commit": "3263d1d92",
     "ms": 25.1,

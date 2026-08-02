@@ -75,6 +75,7 @@ def _require_scan_roots_4382(*roots):
     moved or renamed directory can never disable this guardrail while the
     gate stays green.
     """
+    import sys as _sys
 
     flat = []
     for root in roots:
