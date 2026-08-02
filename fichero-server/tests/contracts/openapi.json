@@ -41720,6 +41720,31 @@
             "title": "Source Metadata",
             "description": "Bibliographic metadata (SourceMetadata shape). See #908."
           },
+          "date_original": {
+            "type": "string",
+            "nullable": true,
+            "title": "Date Original",
+            "description": "The date string as written on/about the document, verbatim."
+          },
+          "date_jdn": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Date Jdn",
+            "description": "Julian Day Number of the date (range start)."
+          },
+          "date_jdn_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Date Jdn End",
+            "description": "Julian Day Number of the range end."
+          },
+          "date_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Date Meta",
+            "description": "HistoricalDate metadata: status, calendar_system, precision, display, source, confidence."
+          },
           "is_workspace": {
             "type": "boolean",
             "title": "Is Workspace",

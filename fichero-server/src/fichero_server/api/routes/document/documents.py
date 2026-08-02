@@ -2545,6 +2545,113 @@ def _action_update_document(
     return doc.model_dump(mode="json"), spec
 
 
+class DocumentSetDateParams(BaseModel):
+    """Params for document.set_date — the user's date override (#3322).
+
+    ``date_original`` is parsed through ``histdate``; unparseable input is a
+    422, never a silent store of half a date. ``explicitly_undated`` records
+    the archival fact "this document says n.d." — distinct from clearing.
+    ``date_original=None`` with ``explicitly_undated=False`` clears the date
+    entirely (back to never-extracted).
+    """
+
+    doc_id: str = Field(description="Document id to date")
+    date_original: str | None = Field(
+        default=None, description="The date as written, e.g. '17 de abril de 1893'."
+    )
+    explicitly_undated: bool = Field(
+        default=False, description="The document itself says it is undated (n.d./s.f.)."
+    )
+    year_start_march: bool = Field(
+        default=False, description="Old Style parsing: pre-1752 English double years."
+    )
+    assume_julian: bool = Field(
+        default=False, description="Treat plain dates as Julian-calendar dates."
+    )
+
+
+@action(
+    "document.set_date",
+    DocumentSetDateParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_restore_from_snapshot,
+)
+def _action_set_document_date(
+    db: Database, params: DocumentSetDateParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """User curation of a document's historical date — audited + undoable.
+
+    Persistent like other curation: the columns survive re-extraction because
+    ``date_extract`` writes ``source: extracted`` while this writes
+    ``source: user`` — a later automated pass must not clobber a user value
+    (enforced in the tool via the source check… #3322 follow-up: the tool
+    currently overwrites; the curation-rules integration is step 5's second
+    half and is noted on the issue).
+    """
+    from fichero_server.core.timeutil import utc_now as _utc_now
+    from fichero_server.histdate import (
+        STATUS_UNDATED_EXPLICIT,
+        parse_historical_date,
+    )
+
+    doc = db.get(Document, params.doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {params.doc_id}")
+    before = doc.model_dump(mode="json")
+
+    if params.explicitly_undated:
+        doc.date_original = None
+        doc.date_jdn = None
+        doc.date_jdn_end = None
+        doc.date_meta = {
+            "status": STATUS_UNDATED_EXPLICIT,
+            "source": "user",
+            "set_at": _utc_now().isoformat(),
+        }
+    elif params.date_original is None:
+        doc.date_original = None
+        doc.date_jdn = None
+        doc.date_jdn_end = None
+        doc.date_meta = None
+    else:
+        parsed = parse_historical_date(
+            params.date_original,
+            year_start_march=params.year_start_march,
+            assume_julian=params.assume_julian,
+        )
+        if parsed is None:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Could not parse date: {params.date_original!r}. "
+                    "Supported forms include '17 de abril de 1893', "
+                    "'March 1791', '1791', '12 Thermidor An II', "
+                    "'10 Feb 1723/4' (with year_start_march)."
+                ),
+            )
+        doc.date_original = parsed.original
+        doc.date_jdn = parsed.jdn
+        doc.date_jdn_end = parsed.jdn_end
+        meta = parsed.as_meta()
+        meta["source"] = "user"
+        meta["confidence"] = 1.0
+        doc.date_meta = meta
+
+    doc.updated_at = _utc_now()
+    db.save(doc)
+
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        before=before,
+        after=doc.model_dump(mode="json"),
+        emit_type="document.updated",
+        document_ids=[doc.id],
+    )
+    return doc.model_dump(mode="json"), spec
+
+
 @action(
     "document.move",
     DocumentMoveParams,

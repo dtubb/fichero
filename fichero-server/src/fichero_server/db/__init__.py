@@ -4670,6 +4670,34 @@ class Database(DatabaseEmbeddingMixin):
                             except (ValueError, TypeError):
                                 pass
 
+                    # Filter by HISTORICAL date range (#3322): JDN ints, no
+                    # datetime. Docs without a date_jdn are excluded when a
+                    # JDN filter is active — a JDN filter asks about the
+                    # written date, and "unknown" cannot satisfy a range.
+                    if "date_jdn_from" in filters or "date_jdn_to" in filters:
+                        from fichero_server.models import Document as _JdnDoc
+
+                        jdn_doc = self.get(_JdnDoc, result["document_id"])
+                        doc_jdn = jdn_doc.date_jdn if jdn_doc is not None else None
+                        doc_jdn_end = (
+                            jdn_doc.date_jdn_end
+                            if jdn_doc is not None and jdn_doc.date_jdn_end is not None
+                            else doc_jdn
+                        )
+                        if doc_jdn is None:
+                            match = False
+                        else:
+                            if (
+                                "date_jdn_from" in filters
+                                and doc_jdn_end < int(filters["date_jdn_from"])
+                            ):
+                                match = False
+                            if (
+                                "date_jdn_to" in filters
+                                and doc_jdn > int(filters["date_jdn_to"])
+                            ):
+                                match = False
+
                     if match:
                         filtered_results.append(result)
                 combined_results = filtered_results
@@ -4684,6 +4712,40 @@ class Database(DatabaseEmbeddingMixin):
             ):
                 combined_results.sort(
                     key=lambda x: x["metadata"].get("created_at", ""),
+                    reverse=(sort_order == "desc"),
+                )
+            elif sort_by == "document_date":
+                # #3322: order by the HISTORICAL date. The key is a plain
+                # (jdn, precision_rank) int tuple — calendar-independent,
+                # timezone-immune, no datetime in the sort path. Undated
+                # docs fall back to created_at CONVERTED TO A JDN so one
+                # integer key orders the whole list (#3309 fallback rule);
+                # ties on start JDN break by precision (day before month
+                # before year — "March 1791" starts before "15 March 1791"
+                # by start-JDN alone; equal starts put the precise date
+                # first).
+                from fichero_server.histdate import gregorian_to_jdn as _to_jdn
+                from fichero_server.models import Document as _DateDoc
+
+                _precision_rank = {"day": 0, "month": 1, "year": 2, "circa": 3}
+                date_keys: dict[str, tuple[int, int]] = {}
+                for item in combined_results:
+                    doc = self.get(_DateDoc, item["document_id"])
+                    if doc is not None and doc.date_jdn is not None:
+                        rank = _precision_rank.get(
+                            (doc.date_meta or {}).get("precision", ""), 4
+                        )
+                        date_keys[item["document_id"]] = (doc.date_jdn, rank)
+                    elif doc is not None and doc.created_at is not None:
+                        created = doc.created_at
+                        date_keys[item["document_id"]] = (
+                            _to_jdn(created.year, created.month, created.day),
+                            5,
+                        )
+                    else:
+                        date_keys[item["document_id"]] = (0, 9)
+                combined_results.sort(
+                    key=lambda x: date_keys.get(x["document_id"], (0, 9)),
                     reverse=(sort_order == "desc"),
                 )
             elif sort_by == "name":

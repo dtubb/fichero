@@ -84,6 +84,7 @@ from fichero_server.workflows.tools import kg_writer
 from fichero_server.workflows.tools import book_structure
 from fichero_server.workflows.tools import detect_structure
 from fichero_server.workflows.tools import citations_extract
+from fichero_server.workflows.tools import date_extract  # historical dates -> JDN (#3322)
 from fichero_server.workflows.tools import cleanup  # per-section page/folder canonical cleanup
 from fichero_server.workflows.tools import import_artifacts  # noqa: F401  (#1757 step 1)
 from fichero_server.workflows.tools import extract_entities_only  # noqa: F401  (#1757 step 2)
@@ -195,6 +196,7 @@ __all__ = [
     "book_structure",
     "detect_structure",
     "citations_extract",
+    "date_extract",
     "cleanup",
     "import_artifacts",
     "extract_entities_only",
