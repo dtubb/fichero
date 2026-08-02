@@ -154,6 +154,11 @@ DEFAULT_MEASUREMENT = "ios.compile_ms"
 #: skipped, or the file holds a stale zero — none of which is a fast build.
 IMPLAUSIBLY_FAST_SECONDS = 1.0
 
+#: Where the gate's iOS leg would write its wall time if it were wired to.
+#: Argless invocation (the `verify_all` sweep over every `scripts/check_*.py`)
+#: falls back to this, and its ABSENCE is NOT ARMED rather than blind.
+DEFAULT_DURATION_FILE = ROOT / "build" / "verify-all-derived" / "ios-compile-seconds"
+
 
 def _load_recorder():
     """Import the existing perf ratchet rather than reimplementing its rules."""
@@ -192,14 +197,45 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", default=DEFAULT_MEASUREMENT)
     args = parser.parse_args(argv)
 
+    # The distinction this project's own EPIC established (#4487), which the
+    # first version of this script got wrong and failed every full gate for:
+    #
+    #   BLIND     — I TRIED to measure and could not. Something is broken.
+    #   NOT ARMED — the input legitimately does not exist in this context.
+    #
+    # `verify_all` runs every `scripts/check_*.py` automatically, so merely
+    # existing in this directory arms a check. A Mac verify-all never runs the
+    # iOS leg, so an argless invocation has nothing to judge and that is not a
+    # fault — it is the ordinary case. Reporting BLIND there fails every full
+    # gate, which trains everyone to ignore the one voice that is supposed to
+    # mean something.
+    #
+    # Explicit `--seconds` / `--from-file` is an assertion that the leg RAN, so
+    # those are held to full rigor: a missing or unreadable duration is BLIND.
+    # Same two-tier shape as `check_release_size_ratchet`'s --app/--dmg.
+    explicit = args.seconds is not None or args.from_file is not None
+
+    if not explicit and not DEFAULT_DURATION_FILE.is_file():
+        print(
+            "iOS compile ratchet: NOT ARMED — no iOS build timing at "
+            f"{DEFAULT_DURATION_FILE}. This is the ordinary case on a Mac "
+            "verify-all, which does not run the iOS leg.\n"
+            "  (And it is currently unwired by design: the compile proved "
+            "unratchetable — 341s cold vs ~30s warm. See this file's docstring.)"
+        )
+        return 0
+
+    if not explicit:
+        args.from_file = str(DEFAULT_DURATION_FILE)
+
     seconds = read_seconds(args)
 
     if seconds is None:
         print(
-            "check_ios_compile_ratchet: BLIND -- no compile duration to judge. "
-            "The gate's iOS leg did not run, or ran without reporting its wall "
-            "time. A ratchet that passes when nothing was measured is worse "
-            "than no ratchet.",
+            "check_ios_compile_ratchet: BLIND -- a compile duration was asked "
+            "for and could not be read. The iOS leg ran without reporting its "
+            "wall time, or the duration file is unreadable. A ratchet that "
+            "passes when nothing was measured is worse than no ratchet.",
             file=sys.stderr,
         )
         return 2

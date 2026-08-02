@@ -27,10 +27,19 @@ VIEWS_DIR = ROOT / "fichero" / "fichero" / "Views"
 RULE_DOC = "agents/ROADMAP.md"
 
 # Current toolbar-tooltip backlog. Keys are `relative/path.swift#signature`.
-KNOWN_VIOLATIONS: dict[str, str] = {
-    "Workflow/Library/WorkflowChainListViewParts/NewChainSheet.swift#f4542716d0": "#1954 baseline",
-    "Workflow/Execution/WorkflowExecutionView.swift#99a2a105dc": "#1954 baseline",
-}
+#: Empty, and that is the finished state of the #1954 migration backlog.
+#:
+#: Both former entries were fixed rather than re-hashed: `WorkflowExecutionView`
+#: got `.help("Refresh runs")` and `NewChainSheet`'s remove-step button got
+#: `.help("Remove this step from the chain")`. The gate reported them as "now
+#: clean" only because a hash drifted — the same control was still untooltipped
+#: under a new content hash, which is what a content-addressed allowlist looks
+#: like when the code changes around a violation.
+#:
+#: That is the trap to remember if this dict ever fills again: a stale entry
+#: plus a new entry for the same file is usually ONE unfixed control, not a
+#: fixed one and a fresh one.
+KNOWN_VIOLATIONS: dict[str, str] = {}
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"(?<!:)//.*")
