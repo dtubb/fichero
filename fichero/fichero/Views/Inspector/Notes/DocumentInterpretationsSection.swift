@@ -68,6 +68,10 @@ struct DocumentInterpretationsSection: View {
                 }
                 .buttonStyle(.borderless)
                 .help(showingCreateForm ? "Cancel" : "Add interpretation")
+                // State-dependent, like the icon: the label must say which of
+                // the two things the button currently does, or VoiceOver
+                // announces "Add" while the control cancels.
+                .accessibilityLabel(showingCreateForm ? "Cancel Adding Interpretation" : "Add Interpretation")
                 if !interpretations.isEmpty {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.caption2).foregroundStyle(.tertiary)
@@ -308,6 +312,7 @@ extension DocumentInterpretationsSection {
             }
             .buttonStyle(.borderless)
             .help(isEditing ? "Cancel edit" : "Edit interpretation")
+            .accessibilityLabel(isEditing ? "Cancel Editing Interpretation" : "Edit Interpretation")
         }
     }
 

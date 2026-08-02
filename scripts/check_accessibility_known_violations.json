@@ -1,7 +1,5 @@
 {
   "Views/Chat/ChatInputView.swift#5e5347f060": "icon-only Button missing .accessibilityLabel(...) (lines 37-45)",
-  "Views/Chat/Inspector/ChatInspector+Header.swift#f45296e31e": "icon-only Button missing .accessibilityLabel(...) (lines 21-31)",
-  "Views/Chat/Inspector/ChatInspector+Search.swift#056c0eccf3": "icon-only Button missing .accessibilityLabel(...) (lines 30-39)",
   "Views/Chat/ModelComparison/ModelComparisonView+Sidebar.swift#1a38362517": "icon-only Button missing .accessibilityLabel(...) (lines 47-54)",
   "Views/Chat/ModelComparison/ModelComparisonView+Sidebar.swift#9aee84f4fe": "icon-only Button missing .accessibilityLabel(...) (lines 81-87)",
   "Views/Chat/ModelComparison/ModelComparisonView+Sidebar.swift#a44a2ffdbf": "icon-only Button missing .accessibilityLabel(...) (lines 55-61)",
@@ -9,9 +7,6 @@
   "Views/Chat/Research/ResearchTasksPane+Views.swift#41b046dd9d": "icon-only Button missing .accessibilityLabel(...) (lines 203-210)",
   "Views/Chat/Research/ResearchTasksPane+Views.swift#a592b63269": "icon-only Button missing .accessibilityLabel(...) (lines 382-388)",
   "Views/Chat/Research/ResearchTasksPane+Views.swift#ea4c3a50e2": "icon-only Button missing .accessibilityLabel(...) (lines 220-226)",
-  "Views/Inspector/Knowledge/EntityDigestView.swift#b7ec9dc9eb": "icon-only Button missing .accessibilityLabel(...) (lines 75-82)",
-  "Views/Inspector/Notes/DocumentInterpretationsSection.swift#45dc70e76f": "icon-only Button missing .accessibilityLabel(...) (lines 294-310)",
-  "Views/Inspector/Notes/DocumentInterpretationsSection.swift#7de1f57d60": "icon-only Button missing .accessibilityLabel(...) (lines 57-70)",
   "Views/Library/Actions/ActionLibraryView.swift#6976d14918": "icon-only Button missing .accessibilityLabel(...) (lines 97-102)",
   "Views/Library/Actions/ActionPickerView.swift#1dd291304d": "icon-only Button missing .accessibilityLabel(...) (lines 23-29)",
   "Views/Library/Automation/TriggerEditorView/TriggerEditorFormPanel.swift#1d8c0040f7": "icon-only Button missing .accessibilityLabel(...) (lines 61-65)",

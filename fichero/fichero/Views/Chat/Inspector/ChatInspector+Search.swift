@@ -37,6 +37,7 @@ extension ChatInspector {
                 }
                 .buttonStyle(.plain)
                 .help("Clear the search")
+                .accessibilityLabel("Clear Search")
             }
         }
         .padding(8)

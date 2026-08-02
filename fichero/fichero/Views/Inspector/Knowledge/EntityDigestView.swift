@@ -80,6 +80,7 @@ struct EntityDigestView: View {
                 .buttonStyle(.borderless)
                 .disabled(selectedEntityIds.isEmpty)
                 .help("Delete selected entities")
+                .accessibilityLabel("Delete Selected Entities")
             }
             .padding(12)
             .background(Color(.controlBackgroundColor))
