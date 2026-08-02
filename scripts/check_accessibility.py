@@ -102,37 +102,50 @@ def _collect_button_chain(lines: list[str], start: int) -> tuple[int, str]:
         if saw_open and depth <= 0:
             break
 
-    # KNOWN LIMITATION (#4479): the chain stops at the first continuation line
-    # that does not begin with ".", so a MULTI-LINE modifier truncates it and
-    # everything below is invisible to this scan.
+    # Trailing modifiers, tracking BRACKET DEPTH across continuation lines
+    # (#4479).
+    #
+    # This used to stop at the first continuation line not beginning with ".",
+    # so a MULTI-LINE modifier truncated the chain and everything below was
+    # invisible:
     #
     #     .disabled(isEditing == nil)
     #     .help(isEditing == nil
-    #         ? "Not available"          <- stops here
+    #         ? "Not available"          <- stopped here
     #         : "Edit image")
-    #     .accessibilityLabel("Edit")    <- never seen; reported as MISSING
+    #     .accessibilityLabel("Edit")    <- never seen; reported MISSING
     #
-    # That produced a false positive on `ReaderToolbar+Controls.editButton`,
-    # which HAD a label three lines below a multi-line `.help`. Worse, the
-    # button already sat in KNOWN_VIOLATIONS — so the allowlist had been
-    # silencing a SCANNER BUG rather than a real violation, which is the worst
-    # failure mode a guardrail has: a broken tool preserved as a documented,
-    # reviewed exception. It only surfaced because an unrelated edit changed
-    # the button's hash.
+    # It produced a false positive on `ReaderToolbar+Controls.editButton`, which
+    # HAD a label three lines below a multi-line `.help`. Worse, that button
+    # already sat in KNOWN_VIOLATIONS — so the allowlist had been silencing a
+    # SCANNER BUG rather than a real violation, invisibly, until an unrelated
+    # edit changed its content hash. An exemption that documents a broken tool
+    # is worse than no tool: it makes the defect reviewed and permanent.
     #
-    # Fixed at that call site by ordering `.accessibilityLabel` above the
-    # multi-line `.help`. Fixing it HERE means tracking bracket depth across
-    # continuation lines so a modifier's own wrapped arguments do not end the
-    # chain — worth doing, and it will reclassify entries in KNOWN_VIOLATIONS,
-    # so it wants its own pass with the list re-audited rather than a drive-by.
+    # A modifier now continues while its own brackets are unbalanced, so its
+    # wrapped arguments cannot end the chain.
+    open_brackets = 0
     for idx in range(end + 1, len(lines)):
-        stripped = lines[idx].strip()
+        line = lines[idx]
+        stripped = line.strip()
+
+        if open_brackets > 0:
+            # Inside a modifier's wrapped arguments — consume unconditionally.
+            open_brackets += line.count("(") - line.count(")")
+            open_brackets += line.count("[") - line.count("]")
+            end = idx
+            continue
+
         if not stripped:
             if idx == end + 1:
                 end = idx
                 continue
             break
-        if stripped.startswith(".") and _line_indent(lines[idx]) >= start_indent:
+
+        if stripped.startswith(".") and _line_indent(line) >= start_indent:
+            open_brackets = (line.count("(") - line.count(")")) + (
+                line.count("[") - line.count("]")
+            )
             end = idx
             continue
         break
@@ -147,8 +160,19 @@ def _is_text_labeled_button(snippet: str) -> bool:
     # A visible Text(...) in the label is announced.
     if re.search(r"\bText\s*\(", snippet):
         return True
-    # Label("text", systemImage:) provides a spoken title unless icon-only.
-    if re.search(r"\bLabel\s*\(\s*\"", snippet) and ".labelStyle(.iconOnly)" not in snippet:
+    # Label(title, systemImage:) provides a spoken title unless icon-only.
+    #
+    # The title may be a VARIABLE, not only a string literal (#4479 follow-up).
+    # This used to require `Label("`, so `Label(label, systemImage: icon)` — a
+    # menu row whose title is passed in — was classified icon-only and reported
+    # as unlabeled, though VoiceOver announces it perfectly well.
+    #
+    # Both those buttons sat in KNOWN_VIOLATIONS, so this second scanner bug was
+    # ALSO being silenced by the allowlist, and only surfaced when the chain-walk
+    # fix above changed their content hashes. Two distinct detector defects,
+    # both preserved as reviewed exceptions, both invisible until something
+    # unrelated moved.
+    if re.search(r"\bLabel\s*\(", snippet) and ".labelStyle(.iconOnly)" not in snippet:
         return True
     return False
 
