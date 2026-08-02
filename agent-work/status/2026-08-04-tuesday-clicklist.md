@@ -49,6 +49,8 @@ Full reasoning in `2026-08-02-drop-path-table.md`. Three payload types are in pl
 | C8 | A document in the library pane | Onto a **folder cell** in the library pane | Moves | `LibraryItemDrag` |
 | C9 | A **PDF from Finder** | Onto a sidebar folder | Imports into that folder | file URL path |
 | C10 | A document | Onto the **chat** pane | Attaches to the transcript | text path |
+| C11 | After **any** successful move above: look at the source folder **and** the destination, in the sidebar **and** the grid | The document is in **exactly one** of them | This is the invariant behind "move copies". The store now has tests asserting exactly-one placement (`66836c9bc`); if you can see it twice, the client's bookkeeping disagrees with them — reopen the drop-path table with which two places |
+| C12 | Move a document **into a collapsed folder**, then look at that folder's disclosure triangle and count | Both reflect the new child | #3355 + the move path meeting. The triangle comes from `child_count`, the row from the cache — a move updates one and must update the other |
 
 **The general failure signature:** an internal move that produces a *second copy* means a destination matched the file-URL import handler instead of the typed move handler. That is the #4123 side effect and it is the same bug wherever it appears.
 
@@ -109,6 +111,7 @@ This is the paleography chain and the reason for the release. Do it in order.
 | G4 | Hover a **selected** row | Wash does **not** stack on the selection | #4097 |
 | G5 | Look at a library header's item count | A system badge, right-aligned | #4095 |
 | G6 | Type in the sidebar filter until the selected row would be excluded | The selected row stays visible | #4099 |
+| G6b | **Drag a row up or down among its siblings** in the sidebar to reorder it | It lands where you dropped it and **stays** there — and if the same folder is open in the grid, the grid shows the same order | Until today this path had **no test at all** (`41fc832dd`). The failure is quiet: the sidebar and grid can disagree while each looks internally fine. If they disagree, that is the store's containers disagreeing about `sortOrder` |
 | G7 | Compare a library row's height to its item rows | Item rows are ~2pt shorter | **Known and undecided** — see `2026-08-02-sidebar-row-height-decision.md`, which needs your answer, not a bug report |
 
 ---
@@ -123,6 +126,12 @@ This is the paleography chain and the reason for the release. Do it in order.
 | H4 | Right-click a row | Context menu | #4483 |
 
 ---
+
+## H2. Entities — curation (#4489, new since this list was written)
+
+| # | Do this | Expect | If it fails |
+|---|---|---|---|
+| H5 | In the inspector's **Entities** tab, mark an entity **verified** (or suppress one) | The badge changes **immediately** | This changed today. The store patched a container the inspector does not read, so the update previously depended on the change stream arriving to repair it — redundant when it worked, wrong when it did not. If the badge only appears after switching documents and back, the fix did not land |
 
 ## I. Claims — routing (#1848)
 
@@ -148,4 +157,5 @@ Blunt list. Everything here needed a GUI, a keypress, a real drag, or eyes — n
 6. **VoiceOver** (§F) — I verified every control *has* a label and that the scanner examined 1185 buttons. I have never heard one spoken.
 7. **The four date states** (D3) — unit-tested as distinct values. Whether the wording reads correctly to a historian is your call, especially "Undated in source" versus "Date not examined".
 8. **First run** (§B) — the launch logic is deterministic and tested, but launch is exactly where a race that unit tests cannot see would live.
-9. **The build tier** now fails closed to `.release` if unresolvable. Every configuration defines it, so this should be invisible — but if features are mysteriously *missing*, check Console for `FeatureTier` and the message about an unresolvable tier.
+9. **Entity curation** (H5) is a one-loop change whose whole point is that it removes a dependency on the change stream — so if the stream happens to be healthy, a broken version looks identical to a fixed one. Watching for the badge to appear *immediately* rather than a moment later is the whole test.
+10. **The build tier** now fails closed to `.release` if unresolvable. Every configuration defines it, so this should be invisible — but if features are mysteriously *missing*, check Console for `FeatureTier` and the message about an unresolvable tier.
