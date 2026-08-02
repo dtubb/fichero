@@ -1,4 +1,7 @@
 import SwiftUI
+// `UTType` for the content-pane drop's `.item` root type — a split file
+// inherits symbols, not imports (#4353).
+import UniformTypeIdentifiers
 
 // MARK: - ContentView Root Layout Extension
 // Agent: ViewBuilderAgent
@@ -109,23 +112,32 @@ extension ContentView {
     private var detailColumn: some View {
         detailShellColumn
             .toolbar { detailToolbarContent }
-            // #4458: the content-pane-only supplementary drop path, scoped
-            // to `detailColumn` specifically — never the sidebar, which
-            // `DropTargetModifiers`'s `.dropDestination` (still applied at
-            // the whole-split-view level, see `ContentViewModifiers.swift`)
-            // continues to cover for the common Finder-drag case. `.background`
-            // (not `.overlay`): AppKit resolves an ambiguous drag destination
-            // front-to-back, so anything already registered in FRONT of this
-            // (a folder cell's own `.dropDestination`, #4124) keeps priority.
-            // See `ContentDropTargetView`'s own doc comment for the
-            // hit-test-safety argument.
-            #if os(macOS)
-            .background {
-                ContentDropTargetView { providers in
-                    handleContentPaneExternalDrop(providers)
-                }
+            // The content-pane external drop (#4184), scoped to `detailColumn`
+            // specifically — never the sidebar. Scope was the ONLY reason
+            // #4184's `.onDrop` was reverted: it had been applied to the whole
+            // `NavigationSplitView`, so nobody could rule out its stealing
+            // hit-testing from nested sidebar rows. Here the sidebar is not
+            // inside the modified view at all, so that argument does not apply.
+            //
+            // This replaces the #4458 `ContentDropTargetView` AppKit bridge,
+            // which could not work: `NSItemProvider` does not conform to
+            // `NSPasteboardReading`, so its
+            // `readObjects(forClasses: [NSItemProvider.self])` never returned
+            // providers — and its load-bearing `hitTest -> nil` override is
+            // exactly how AppKit's drag-destination search fails to find a
+            // view, since that search walks `hitTest` too. Both defects are
+            // provable from the API contract; neither needed a live drag.
+            //
+            // `.item` is UTType's root, so this accepts the content-UTI drags
+            // (Mail, Safari, in-progress downloads) that a `.fileURL`-only
+            // destination silently discarded. A folder cell's own
+            // `.dropDestination` sits inside this view and keeps first claim —
+            // SwiftUI resolves drops innermost-first, the same way the sidebar
+            // rows' nested handlers already work.
+            .onDrop(of: [.item]) { providers in
+                handleContentPaneExternalDrop(providers)
+                return true
             }
-            #endif
             // The detail column carries only a MODEST hard floor — the
             // always-present library-list spine width — NOT the full
             // per-layout `paneAwareDetailMinWidth`. The full content
