@@ -114,17 +114,30 @@ struct LibrarySectionHeader: View {
         HStack(spacing: 6) {
             Image(systemName: "books.vertical")
                 .foregroundStyle(isCurrentLibrary ? Color.accentColor : Color.primary)
-                .font(.system(size: 13))
+                // #4098: `.body` rather than `.system(size: 13)`. This icon
+                // sits beside `Text(libraryName)`, which carries no explicit
+                // font and is therefore body — so the hardcoded 13pt was
+                // hand-matching body at the DEFAULT text size only, and drifted
+                // out of step the moment the user changed it.
+                .font(.body)
             Text(libraryName)
             locationBadge
             LibrarySharingBadge(library: library)
             Spacer()
-            if itemCount > 0 {
-                Text("\(itemCount)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
+        // Native `.badge()` instead of a hand-drawn trailing count (#4095).
+        //
+        // What it replaces: `if itemCount > 0 { Text("\(itemCount)")
+        // .font(.caption).foregroundStyle(.secondary) }` — a manual
+        // hide-at-zero, a manual font and a manual colour, all of them
+        // re-deciding what the system already decides for a sidebar count.
+        //
+        // `.badge(Int)` hides itself at zero, so the `if` goes too. On macOS 26
+        // it renders the monospaced-digit secondary-label treatment NetNewsWire
+        // switched to by hand under `#available(macOS 26, *)`, and it tracks the
+        // selected row's contrast without us restating it — which is the whole
+        // reason to adopt it rather than tune a `Text`.
+        .badge(itemCount)
         .simultaneousGesture(TapGesture().onEnded { onTap?() })
     }
 

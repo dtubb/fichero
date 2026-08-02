@@ -92,7 +92,7 @@ extension SidebarView {
                 libraryDisclosureLabel(library: library, totalCount: totalCount)
             }
             .tag(SidebarDestination.library(library.id))
-            .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+            .listRowInsets(SidebarRowMetrics.insets(.library))
         }
     }
 

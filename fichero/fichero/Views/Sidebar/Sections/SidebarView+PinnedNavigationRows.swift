@@ -27,7 +27,7 @@ extension SidebarView {
             }
             .buttonStyle(.borderless)
         }
-        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 8))
+        .listRowInsets(SidebarRowMetrics.insets(.inlineNotice))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .selectionDisabled()

@@ -198,10 +198,55 @@ extension SidebarView {
     /// `findSidebarItemById` in SidebarItemRow+Helpers.
 
     func filteredSidebarItem(_ item: SidebarItem, query: String) -> SidebarItem? {
-        if item.name.localizedCaseInsensitiveContains(query) {
+        Self.filteredSidebarItem(item, query: query, exempt: filterExemptIDs)
+    }
+
+    /// Rows the filter must never remove: everything currently selected (#4099).
+    ///
+    /// Recomputed from live selection on every access rather than accumulated,
+    /// so exemptions cannot outlive the selection that earned them — the
+    /// failure mode NetNewsWire's `resetFilterExceptions()` exists to prevent.
+    /// Both the single `selectedItemId` and the multi-selection set count: a
+    /// batch selection that half-vanishes is the same defect, only wider.
+    var filterExemptIDs: Set<String> {
+        var ids = Set(selectionState.selectedDestinations.map(\.serializedID))
+        if let selectedItemId { ids.insert(selectedItemId) }
+        return ids
+    }
+
+    /// Filter one item's subtree, keeping anything that matches the query, is
+    /// EXEMPT, or has a surviving descendant.
+    ///
+    /// Static and exempt-injected so the rule is testable without standing up a
+    /// SidebarView — the bug is in the predicate, and a test that needs a live
+    /// view to reach it would not have been written.
+    ///
+    /// #4099: a filter that hides the selected row leaves the detail pane
+    /// showing a document with no row in the sidebar — the UI asserting two
+    /// contradictory things at once, and no way back to the item except
+    /// clearing the filter.
+    ///
+    /// Ancestors need no special case: the existing "keep a parent whose
+    /// children survived" rule already carries an exempt descendant's whole
+    /// chain up to the root, so the child stays REACHABLE, not just present.
+    /// Handling ancestors separately would be a second rule to keep in
+    /// agreement with this one.
+    static func filteredSidebarItem(
+        _ item: SidebarItem,
+        query: String,
+        exempt: Set<String>
+    ) -> SidebarItem? {
+        // A match (or an exemption) returns the item UNCHANGED, subtree intact
+        // — deliberately the pre-existing behaviour. Filtering a matched
+        // folder's children too would be a second change riding along: search
+        // "1893", match the folder, and then show it empty because none of its
+        // children are called "1893".
+        if item.name.localizedCaseInsensitiveContains(query) || exempt.contains(item.id) {
             return item
         }
-        let children = item.children?.compactMap { filteredSidebarItem($0, query: query) }
+        let children = item.children?.compactMap {
+            filteredSidebarItem($0, query: query, exempt: exempt)
+        }
         guard let children, !children.isEmpty else { return nil }
         var copy = item
         copy.children = children
