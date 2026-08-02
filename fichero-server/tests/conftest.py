@@ -191,6 +191,59 @@ def _sweep_abandoned_pytest_basetemps(
     return removed
 
 
+def reclaim_tmp_path_contents(path: _pathlib.Path) -> None:
+    """Empty every child of ``path`` without removing ``path`` itself (#4434).
+
+    The two sweeps above stop DEAD runs from accumulating. They do nothing
+    for a single LIVE session: a suite whose tests each seed a full library
+    (images, DuckDB, LanceDB vectors) under their own ``tmp_path`` holds
+    EVERY passed test's copy simultaneously until session end, because
+    nothing in pytest's own retention machinery frees a passing test's
+    directory mid-run — ``tmp_path_retention_count``/``_policy`` only prune
+    OLD SESSIONS' basetemps. Observed 2026-08-01: 26 minutes into the perf
+    suite, 14 GB held by tests that had already passed.
+
+    ``tmp_path_retention_policy="failed"`` looks like the fix and ISN'T:
+    pytest's own ``tmp_path`` fixture teardown (``_pytest/tmpdir.py``) does
+    exactly a directory ``rmtree`` under that policy, and
+    ``make_numbered_dir`` (``_pytest/pathlib.py``) computes the next numbered
+    suffix by scanning the basetemp with ``os.scandir`` — so removing a
+    numbered directory ENTIRELY frees its number for reuse. A later test
+    whose node id truncates to the same 30-character prefix (`_mk_tmp`'s
+    ``name[:30]``) is then handed the SAME absolute path, and every
+    path-keyed process cache (``db_manager``, ``get_activity_tracker``)
+    serves a stale handle to a database that no longer exists — the exact
+    "Table workflow_runs does not exist" incident in ``e767147e5``.
+
+    This reclaims the disk WITHOUT that trap: it empties the directory's
+    CONTENTS and leaves the (now-empty) directory itself in place.
+    ``find_prefixed`` (the function ``make_numbered_dir`` uses to find
+    "existing" numbers) lists whatever still EXISTS via ``os.scandir`` —
+    an empty stub with the same name keeps its numbered slot, so it can
+    never be handed to a later test. Verified synthetically against
+    pytest's own ``TempPathFactory`` in
+    ``tests/unit/test_perf_disk_reclaim.py`` (a full ``rmtree`` of the
+    directory DOES reuse the number; emptying contents does NOT).
+
+    Caller is responsible for calling this only after every fixture holding
+    an open connection into ``path`` has already closed it — this function
+    does not know what created the files it is deleting.
+
+    Best-effort, like the two sweeps above and like pytest's own ``rmtree``
+    in ``_pytest/tmpdir.py``: a leaked file handle or a permissions quirk on
+    one child must not abort reclaiming the rest of a multi-GB seeded
+    library, and must never be allowed to fail a passing test at teardown.
+    """
+    for child in path.iterdir():
+        if child.is_dir():
+            _shutil.rmtree(child, ignore_errors=True)
+        else:
+            try:
+                child.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def _make_test_base_path() -> _pathlib.Path:
     """Create a per-process base path for test-only app storage.
 
