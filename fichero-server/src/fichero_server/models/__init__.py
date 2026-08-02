@@ -236,6 +236,37 @@ class Document(BaseModel):
         description="Bibliographic metadata (SourceMetadata shape). See #908.",
     )
 
+    # Historical document date (#3322, plan #3319). The date the document was
+    # WRITTEN, not imported — `created_at` is import time and is meaningless
+    # for an 1893 diary page. JDN (Julian Day Number, an int) is the sort/
+    # filter key: calendar-independent, timezone-immune, no datetime anywhere
+    # in the sort path. Imprecise dates ("March 1791", "An II") are RANGES:
+    # jdn = range start, jdn_end = range end; a day-precise date has
+    # jdn == jdn_end. All NULL = no date; sort falls back to created_at.
+    #
+    # date_meta distinguishes three facts a historian needs kept apart
+    # (never collapse them): {"status": "dated"} a date was extracted;
+    # {"status": "undated_explicit"} the document SAYS it is undated
+    # ("n.d.", "s.f."); {"status": "none_found"} extraction ran and found
+    # nothing. date_meta is None only when extraction has never run. Also
+    # carries calendar_system, precision (day|month|year|circa),
+    # converted_gregorian_iso, display, source (extracted|metadata|user),
+    # confidence.
+    date_original: str | None = Field(
+        default=None,
+        description="The date string as written on/about the document, verbatim.",
+    )
+    date_jdn: int | None = Field(
+        default=None, description="Julian Day Number of the date (range start)."
+    )
+    date_jdn_end: int | None = Field(
+        default=None, description="Julian Day Number of the range end."
+    )
+    date_meta: dict[str, Any] | None = Field(
+        default=None,
+        description="HistoricalDate metadata: status, calendar_system, precision, display, source, confidence.",
+    )
+
     # Workspace folders (#1313). A workspace is a normal folder document with
     # curated items layered on top of its child documents; views consume the
     # same folder hierarchy instead of a separate Mind Palace room tree.

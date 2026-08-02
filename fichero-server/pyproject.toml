@@ -116,6 +116,11 @@ requires = [
     "watchdog",
     "kreuzberg",
     "fastembed",
+    # Historical-text stack (#3319/#3322) — mirrors [project].dependencies.
+    "ftfy",
+    "anyascii",
+    "convertdate",
+    "jdcal",
     # Optional KG/NER/image extras are deliberately not shipped in the
     # embedded Mac engine. They pull hundreds of MB into the tester app:
     # pykeen -> torch, spacy -> model/runtime stack, rdflib -> SPARQL stack,
@@ -241,6 +246,11 @@ dependencies = [
     # "rdflib",
     # "spacy",
     # "opencv-python-headless",
+    # Historical-text stack (#3319/#3322): all four are small pure-Python.
+    "ftfy",         # mojibake repair before parsing OCR'd text
+    "anyascii",     # transliteration for accent-insensitive matching
+    "convertdate",  # Julian / French Republican / Hebrew / Islamic calendars
+    "jdcal",        # Julian Day Number <-> Gregorian, the sort key
     "PyMuPDF",
     "Pillow>=12.3.0",  # 22 image-decoder advisories fixed in 12.3.0
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
