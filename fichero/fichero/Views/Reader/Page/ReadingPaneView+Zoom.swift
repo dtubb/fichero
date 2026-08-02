@@ -8,6 +8,7 @@ extension ReadingPaneView {
     var zoomControls: some View {
         Button { webZoom = max(0.5, webZoom - 0.1) } label: {
             Image(systemName: "minus.magnifyingglass")
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .help("Zoom Out")
@@ -24,6 +25,7 @@ extension ReadingPaneView {
 
         Button { webZoom = min(3.0, webZoom + 0.1) } label: {
             Image(systemName: "plus.magnifyingglass")
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .help("Zoom In")
@@ -32,6 +34,7 @@ extension ReadingPaneView {
 
         Button { webZoom = 1.0 } label: {
             Image(systemName: "1.square")
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .help("Reset Zoom")

@@ -59,6 +59,7 @@ extension ImmersiveReaderView {
                         .foregroundStyle(.white)
                         .padding(10)
                         .background(.ultraThinMaterial, in: Circle())
+                        .readerIconTarget()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Exit full screen reader")
@@ -117,6 +118,7 @@ extension ImmersiveReaderView {
                 .disabled(annotationStore == nil)
                 .accessibilityLabel("Bookmark this page")
                 .help("Bookmark this page")
+                        .readerIconTarget()
             }
             .buttonStyle(.plain)
             .foregroundStyle(.white)

@@ -131,6 +131,7 @@ struct ReadingPaneView: View {
                         // closing a pane must not wear the same glyph.
                         Image(systemName: ToolbarSymbols.closePane)
                             .foregroundStyle(.secondary)
+                            .readerIconTarget()
                     }
                     .buttonStyle(.plain)
                     .help(isInSplit ? "Close this split" : "Close reading pane")
@@ -179,6 +180,7 @@ struct ReadingPaneView: View {
                 } label: {
                     Image(systemName: isPinned ? "pin.fill" : ToolbarSymbols.pin)
                         .imageScale(.small)
+                        .readerIconTarget()
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
