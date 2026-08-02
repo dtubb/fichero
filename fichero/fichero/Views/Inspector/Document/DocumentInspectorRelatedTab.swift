@@ -16,6 +16,20 @@ struct DocumentInspectorRelatedTab: View {
 
     @Environment(DocumentStore.self) private var documentStore
 
+    /// Keyboard-navigable selection (#4483).
+    ///
+    /// Without a `selection:` binding a `List` is a stack of tappable rows:
+    /// macOS gives it no arrow keys, no focus ring, no type-select and no
+    /// context menu. This tab was the only inspector list in that state — and
+    /// the rule against it is written down in its siblings' own doc comments
+    /// ("Native `List(selection:)`, NOT a hand-rolled `VStack` of tappable
+    /// rows", ArtifactListView:12 / CitationListView:13).
+    ///
+    /// Single, not `Set`: no operation here acts on several rows — the tab
+    /// navigates to one document. Multi-select would be an affordance for
+    /// nothing.
+    @State private var selectedDocumentId: String?
+
     @State private var items: [Components.Schemas.RelatedDocumentsResponse] = []
     @State private var isLoading = false
     @State private var loadError: String?
@@ -42,11 +56,21 @@ struct DocumentInspectorRelatedTab: View {
                     )
                 )
             } else {
-                List(items, id: \.documentId) { item in
+                List(items, id: \.documentId, selection: $selectedDocumentId) { item in
                     relatedRow(item)
                         .inspectorListRowTarget()
-                        .onTapGesture {
-                            onNavigateToSource?(item.documentId)
+                        // Select on single click (the List's job), OPEN on
+                        // double-click — the same open-vs-select split
+                        // `ArtifactListView` uses. Navigating on selection
+                        // change would mean arrow-keying through the list
+                        // reloaded the whole content pane on every keystroke.
+                        .onTapGesture(count: 2) {
+                            navigate(to: item.documentId)
+                        }
+                        .contextMenu {
+                            Button("Open Document") {
+                                navigate(to: item.documentId)
+                            }
                         }
                 }
                 .listStyle(.inset)
@@ -55,6 +79,13 @@ struct DocumentInspectorRelatedTab: View {
         .task(id: document.id) {
             await load()
         }
+    }
+
+    /// The one place this tab navigates from, so the double-click and the
+    /// context menu cannot drift apart.
+    private func navigate(to documentId: String) {
+        selectedDocumentId = documentId
+        onNavigateToSource?(documentId)
     }
 
     @ViewBuilder
