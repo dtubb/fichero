@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validat
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 from uuid import uuid4
 import base64
 import logging
@@ -325,6 +325,27 @@ class Document(BaseModel):
     # assignment is dropped silently by `model_dump()` (only declared
     # fields are serialized), so reorder never persists to DB.
     sort_order: int = 0
+
+    # How many children this node has, supplied per-request by the listing
+    # routes and NEVER stored (#3355). Listed in TRANSIENT_FIELDS below.
+    #
+    # The sidebar decides whether to draw a disclosure triangle from
+    # `childCount > 0`. The backend did not send this on `/roots` or
+    # `/{id}/children`, so every unexpanded folder decoded 0 and rendered
+    # childless: you could not tell a folder had sub-folders, or a PDF had
+    # pages, without clicking it first. "Not loaded yet" was being rendered as
+    # "has nothing" — an absence read as an answer.
+    #
+    # The Swift client already reads it (`DocumentService` takes `child_count`
+    # from `additionalProperties`), so nothing there had to change.
+    child_count: int = 0
+
+    # Fields that exist on the wire but never as columns. `Document` is both the
+    # API response shape and the persisted row, so a per-request value like
+    # `child_count` would otherwise become a real column holding a number that
+    # goes stale the moment any child is added, moved or deleted. Honoured by
+    # `db.transient_field_names` (CREATE TABLE, ALTER TABLE, and every write).
+    TRANSIENT_FIELDS: ClassVar[set[str]] = {"child_count"}
 
     # Case grouping: optional identifier to group documents into cases within
     # a folder (#1096). Catalogue tool groups documents by case_id and emits

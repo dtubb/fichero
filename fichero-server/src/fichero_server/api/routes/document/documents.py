@@ -329,6 +329,39 @@ def _list_documents(
     )
 
 
+def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
+    """Populate each item's transient ``child_count`` (#3355).
+
+    The sidebar draws a disclosure triangle from ``childCount > 0``. Without
+    this the field decoded 0 for every unexpanded node, so a folder of folders
+    and an empty folder looked identical until you clicked one — "not loaded
+    yet" rendered as "has nothing".
+
+    ONE grouped query for the whole page, not one per row: the listing routes
+    are on the sidebar's hot path, and a per-item count is the N+1 the
+    query-count ratchet exists to catch. Soft-deleted children are excluded so
+    the count matches what the same endpoints would actually return.
+
+    Counts live nowhere but this response — ``child_count`` is in
+    ``Document.TRANSIENT_FIELDS``, so it is never written to a column where it
+    could go stale.
+    """
+    if not items:
+        return items
+    parent_ids = [item.id for item in items]
+    placeholders = ", ".join("?" for _ in parent_ids)
+    rows = db.execute_fetchall(
+        f"SELECT parent_id, COUNT(*) FROM documents "
+        f"WHERE deleted_at IS NULL AND parent_id IN ({placeholders}) "
+        f"GROUP BY parent_id",
+        parent_ids,
+    )
+    counts = {row[0]: int(row[1]) for row in rows}
+    for item in items:
+        item.child_count = counts.get(item.id, 0)
+    return items
+
+
 def _get_document_row(
     db: Database, doc_id: str, *, include_deleted: bool = False
 ) -> Document | None:
@@ -554,7 +587,9 @@ async def list_roots(
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """List root documents (no parent)."""
-    items = _ordered_by_sort_order(_list_documents(db, parent_id=None))
+    items = _with_child_counts(
+        db, _ordered_by_sort_order(_list_documents(db, parent_id=None))
+    )
     return DocumentListResponse(items=items, count=len(items))
 
 
@@ -915,7 +950,9 @@ async def get_children(
         if limit is not None:
             children = children[:limit]
         perf["returned_rows"] = len(children)
-        return DocumentListResponse(items=children, count=len(children))
+        return DocumentListResponse(
+            items=_with_child_counts(db, children), count=len(children)
+        )
 
 
 @router.get("/{doc_id}/ancestors")

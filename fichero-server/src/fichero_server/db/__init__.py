@@ -92,6 +92,29 @@ _DUCKDB_WRITE_CONFLICT_RETRIES = 3
 _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
 
 
+def transient_field_names(model_cls: type) -> set[str]:
+    """Fields a model declares for the WIRE but never for the database (#3355).
+
+    A model here is both the API response shape and the persisted row, so a
+    field that must be computed per request — a child count, a derived total —
+    has nowhere to live: adding it normally creates a real column and stores a
+    value that goes stale the moment anything else changes.
+
+    Declaring it in ``TRANSIENT_FIELDS`` keeps it out of the CREATE TABLE column
+    list, out of the ALTER TABLE reconciliation, and out of every written row,
+    while leaving it in ``model_dump()`` so it still serialises to clients.
+
+    Deliberately NOT a Pydantic ``@computed_field``: those are already excluded
+    from persistence, but they can only derive from the instance, and a child
+    count needs a query. This is the same exclusion for a value the ROUTE
+    supplies.
+
+    A ``ClassVar`` is invisible to Pydantic's field machinery, so declaring one
+    cannot itself become a column.
+    """
+    return set(getattr(model_cls, "TRANSIENT_FIELDS", ()) or ())
+
+
 def _vector_compaction_interval() -> int:
     """How many LanceDB appends to a table before an automatic compaction.
 
@@ -1114,9 +1137,10 @@ class Database(DatabaseEmbeddingMixin):
     def _dump_row(obj: BaseModel) -> dict[str, Any]:
         """Serialise a Pydantic instance into a DuckDB-ready column dict.
 
-        Excludes computed fields and JSON-encodes nested structures, exactly as
-        the single-row ``save`` path does. Shared with ``save_many`` so the
-        batched path produces byte-identical column values (#2542).
+        Excludes computed and TRANSIENT fields and JSON-encodes nested
+        structures, exactly as the single-row ``save`` path does. Shared with
+        ``save_many`` so the batched path produces byte-identical column values
+        (#2542).
         """
         model_cls = type(obj)
         computed_keys = (
@@ -1124,7 +1148,7 @@ class Database(DatabaseEmbeddingMixin):
             if hasattr(model_cls, "model_computed_fields")
             else set()
         )
-        data = obj.model_dump(exclude=computed_keys)
+        data = obj.model_dump(exclude=computed_keys | transient_field_names(model_cls))
 
         # Convert dict/list/tuple/Path fields for DuckDB (recursively handle
         # nested Pydantic models with datetimes).
@@ -5092,8 +5116,11 @@ class Database(DatabaseEmbeddingMixin):
             first_reconcile_this_connection = table not in self._tables_created
 
             # Build column definitions from Pydantic model
+            transient = transient_field_names(model)
             columns = []
             for name, field_info in model.model_fields.items():
+                if name in transient:
+                    continue
                 col_type = self._python_to_duckdb_type(field_info.annotation)
                 columns.append(f"{name} {col_type}")
 
@@ -5128,11 +5155,10 @@ class Database(DatabaseEmbeddingMixin):
                     ).fetchall()
                 }
             for name, field_info in model.model_fields.items():
-                if name not in existing:
-                    col_type = self._python_to_duckdb_type(field_info.annotation)
-                    _execute_locked(
-                        f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}"
-                    )
+                if name in transient or name in existing:
+                    continue
+                col_type = self._python_to_duckdb_type(field_info.annotation)
+                _execute_locked(f"ALTER TABLE {sql_table} ADD COLUMN {name} {col_type}")
 
             self._tables_created.add(table)
 
