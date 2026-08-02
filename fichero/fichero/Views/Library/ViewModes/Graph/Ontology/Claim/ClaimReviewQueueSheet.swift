@@ -6,6 +6,7 @@ struct ClaimReviewQueueSheet: View {
     let claims: [Components.Schemas.KnowledgeClaim]
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(ClaimStore.self) private var claimStore
     @State private var personFilter = ""
     @State private var topicFilter = ""
     @State private var questionFilter = ""
@@ -186,12 +187,17 @@ struct ClaimReviewQueueSheet: View {
         claim: Components.Schemas.KnowledgeClaim,
         state: Components.Schemas.ClaimCurationState
     ) async {
-        guard let library = LibraryManager.shared.globalLibrary,
-              let claimId = claim.id else { return }
+        guard let claimId = claim.id else { return }
         updatingIds.insert(claimId)
         defer { updatingIds.remove(claimId) }
         do {
-            _ = try await library.entityService.patchClaim(claimId, curationState: state)
+            // Through the store (#1848). The old call went straight to
+            // `entityService`, so this sheet edited a list that did not know it
+            // had changed: the comment below promised the change stream would
+            // fan the refresh, but nothing bumped the store's own scope, and a
+            // sheet dismissed before the stream arrived left the surface behind
+            // it stale.
+            _ = try await claimStore.patch(claimId: claimId, curationState: state)
             statusMessage = "Updated \(claimId) → \(state.rawValue)"
             // Backend emits `claim.updated`; change-stream fans the refresh (#1862).
         } catch {
@@ -200,7 +206,6 @@ struct ClaimReviewQueueSheet: View {
     }
 
     private func updateBatch(state: Components.Schemas.ClaimCurationState) async {
-        guard let library = LibraryManager.shared.globalLibrary else { return }
         let claimIds = Array(selectedIds)
         guard !claimIds.isEmpty else { return }
         var successCount = 0
@@ -208,7 +213,7 @@ struct ClaimReviewQueueSheet: View {
             updatingIds.insert(claimId)
             defer { updatingIds.remove(claimId) }
             do {
-                _ = try await library.entityService.patchClaim(claimId, curationState: state)
+                _ = try await claimStore.patch(claimId: claimId, curationState: state)
                 successCount += 1
                 // Backend emits `claim.updated`; change-stream fans refresh (#1862).
             } catch {
