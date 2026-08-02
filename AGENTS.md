@@ -437,6 +437,16 @@ The ones that cost hours, and that no test catches for you:
   has no `docs/<page>.md` substring to grep. Moving a file breaks it silently.
 - **Backtick text inside `git commit -m "..."` is command substitution.** The shell
   executes it and pastes the output into your message. Use `git commit -F <file>`.
+- **Automated edits and function-local imports do not mix — AST-audit after
+  any scripted import change.** During #4487's 44-file floor sweep, a batch
+  import-inserter matched a *function-local* `import sys` and spliced a
+  module-level import into the function body; `ruff --fix` then compounded it
+  by deleting the now-"unused" import while `_sys` references remained.
+  Neither tool was wrong in isolation — each reasoned about a file the other
+  had just changed under a different model of it. After any scripted edit
+  that touches imports across many files, run
+  `python -c "import ast; ast.parse(open(f).read())"` over every touched file
+  (the #4487 batch did, and that audit is why only one file needed repair).
 - **Renames/moves break path-keyed guardrails.** `PERSISTENCE_PATH`,
   `WILDCARD_BIND`, the XML chokepoint check, `db_access`,
   `single_connection`, and every `check_*.py` `TARGET_FILES` list hardcode
