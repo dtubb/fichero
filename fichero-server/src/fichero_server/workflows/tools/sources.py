@@ -427,6 +427,19 @@ async def files_tool(
 
             files = [path for path, _ in pairs]
             documents = [d.model_dump(mode="json") for _, d in pairs]
+            if not files:
+                # #4467: the user POINTED AT something and it resolved to
+                # nothing — stale/deleted ids, an empty folder, or docs with
+                # no on-disk file. Completing green here is a run that
+                # "succeeded" at nothing, indistinguishable from success in
+                # every client. Fail where the cause is still attributable.
+                raise ValueError(
+                    f"files source: selection of {len(selected_doc_ids)} "
+                    f"document id(s) resolved to 0 processable files "
+                    f"(found {len(docs)} of {len(selected_doc_ids)} ids in "
+                    f"the library). Refusing to complete a run that would "
+                    f"process nothing. ids={list(selected_doc_ids)[:5]}"
+                )
             logger.info(
                 f"Files source tool: {len(files)} entries from selected_doc_ids "
                 f"({len(seen_ids)} unique docs)"

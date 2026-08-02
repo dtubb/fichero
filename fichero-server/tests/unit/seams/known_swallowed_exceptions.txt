@@ -139,7 +139,7 @@ workflows/default_workflows.py::seed_default_workflows 4
 workflows/executor.py::WorkflowExecutor._emit_event 1
 workflows/registry.py::enrich_node_with_ports 1
 workflows/runtime.py::apply_default_provider_model 1
-workflows/subworkflow.py::resolve_sub_workflow_ref 1
+workflows/subworkflow.py::resolve_sub_workflow_ref 2
 workflows/subworkflow.py::validate_sub_workflow_references.refs_for 1
 workflows/task_workers.py::TaskWorkersMixin._do_reindex 1
 workflows/task_workers.py::TaskWorkersMixin._do_repair 1

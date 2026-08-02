@@ -2,22 +2,39 @@ import SwiftUI
 
 // MARK: - Edge Connection
 
+/// Edge legality, derived from the ENGINE's conversion table (#4477).
+///
+/// The engine (`workflows/validation.py::PORT_CONVERSIONS`, served on
+/// `GET /api/workflows/tools`) is the only owner of which port types may
+/// connect. This file used to keep its own five-conversion table; the engine
+/// accepted one of them, so edges drew fine, saved fine, and died at RUN time
+/// with "Invalid connection". Never add a conversion here — add it engine-side
+/// and both surfaces move together.
+enum PortConnectionRules {
+    static func canConnect(
+        outputType: String,
+        inputType: String,
+        conversions: [String: Set<String>]
+    ) -> Bool {
+        // "any" accepts everything — mirrors the engine's ANY rule.
+        if inputType == "any" || outputType == "any" { return true }
+        // Same type always compatible.
+        if outputType == inputType { return true }
+        // Beyond that, ONLY what the engine served. An empty table (tools not
+        // loaded yet) is strict, which can never permit an edge the engine
+        // would refuse.
+        return conversions[outputType]?.contains(inputType) ?? false
+    }
+}
+
 extension WorkflowCanvasView {
     /// Check if two port types are compatible for connection
     func canConnect(outputType: String, inputType: String) -> Bool {
-        // "any" accepts everything
-        if inputType == "any" || outputType == "any" { return true }
-        // Same type always compatible
-        if outputType == inputType { return true }
-        // Implicit conversions
-        let conversions: [String: Set<String>] = [
-            "json": ["text"],
-            "array": ["json", "text"],
-            "file": ["files"],
-            "files": ["file"],
-            "image": ["file", "files"]
-        ]
-        return conversions[outputType]?.contains(inputType) ?? false
+        PortConnectionRules.canConnect(
+            outputType: outputType,
+            inputType: inputType,
+            conversions: workflowStore.workflowService.portConversions
+        )
     }
 
     /// Get the data type of a port by node and port ID

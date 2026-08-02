@@ -120,7 +120,12 @@ def test_engine_cold_start(tmp_path):
     with open(log_path, "w") as log_handle:
         start = time.perf_counter()
         process = subprocess.Popen(
-            [str(VENV_UVICORN), "fichero_server.api.main:app",
+            # `tcp_transport:app`, not the bare `main:app`. Two reasons and
+            # both matter: a TCP listener on the bare app exposes the
+            # local-only control surface to remote callers (#4222), and a
+            # cold-start budget measured against an app production never
+            # serves over TCP is measuring the wrong thing.
+            [str(VENV_UVICORN), "fichero_server.api.tcp_transport:app",
              "--host", "127.0.0.1", "--port", str(port)],
             env=env, stdout=subprocess.DEVNULL, stderr=log_handle,
         )

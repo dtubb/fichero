@@ -56,3 +56,67 @@ lane until the above is moving.
 - Lanes never build. The manager builds every 4 hours and before any release.
 - Nobody runs `pytest tests/perf` outside the gate.
 - **Do real stuff.** A user-visible fix beats three triaged closures.
+
+## Blocked on Daniel — Tuesday (added 2026-08-02)
+
+Paleography #265 is six sequenced steps and step 1 cannot start without two
+answers. Both are editorial/authority decisions, not engineering ones, so no
+lane may guess them.
+
+1. **#3320 Q1 — is NFC-normalised text acceptable as diplomatic content?**
+   The text-normalisation choke point cannot be written without this; the
+   contract changes depending on the answer. A diplomatic transcription is
+   supposed to preserve what the manuscript actually shows, and Unicode
+   normalisation silently changes some of it.
+
+2. **#3320 Q6 — backfill sign-off (the #3077 analog).**
+   Backfilling normalised text rewrites the Marshall Diaries. Real data,
+   never nuked, changes need db_migrations.py. This is authorisation, not
+   implementation.
+
+#3321 sits on top of both.
+
+**Unblocked and queued:** #3322 histdate — the largest piece needing neither
+answer, and the one Ann would feel first. A diary corpus is navigated by
+date, and today sort/filter uses created_at (import time), which is
+meaningless for the Marshall Diaries. Green-field, touches no existing
+content. Cheap precursor: add ftfy/anyascii/convertdate/jdcal to pyproject
+(unblocks three later steps).
+
+**Also for Daniel:** #2397 cross-library drag. There is no cross-library move
+action; every path terminates in one library's documentStore.moveDocument,
+and a client-orchestrated version cannot be atomic across two databases.
+Destructive + Marshall Diaries + a semantics question = his call.
+
+## Sidebar IA — half-migrated, and one question for Daniel (2026-08-02)
+
+Full analysis: `agent-work/status/2026-08-02-sidebar-ia-decision.md` (lane-crash2).
+
+**The finding: the sidebar IA is HALF-MIGRATED, which is worse than either
+end state.** The duplicate entry points were removed (pinned bottom nav rows,
+#4102's removal half) but the modes they duplicated remain — `ViewSettings`
+still declares `.research` and `.knowledgeGraph`, and `SidebarModeIcon`
+renders `allCases`. So research and entities are now reachable ONLY through a
+mode bar the rest of the design has moved away from. Fewer doors to a room
+nobody meant to keep.
+
+`SidebarItem.ItemType` holds 12 node kinds and has NO case for workspace,
+research project, or entity — the tree can express most of #4335 and
+specifically cannot express the three things this decision is about.
+
+**Recommendation:** close #1686, #1738, #1793, #2446, #2447 as duplicates of
+#4102 — but #1686 carries a detail the others lose and it must be transcribed
+first: entities should reuse LibraryView's view-mode machinery, not merely
+appear in the tree.
+
+**THE QUESTION ONLY DANIEL CAN ANSWER:** an entity is not a container the way
+a folder is — its children are a QUERY RESULT. So what does "add photos to a
+person" mean?
+
+- If it ASSERTS a claim (this photo depicts this person), the drop is a
+  knowledge-graph write and belongs to the SVO/claims spine.
+- If it PINS an exception to a query, entities need a membership store that
+  folders do not have.
+
+These are different products. Nothing should be built until this is answered,
+and no lane may guess it.

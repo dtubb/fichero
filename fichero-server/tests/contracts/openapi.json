@@ -62625,6 +62625,17 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "conversions": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Conversions",
+            "description": "Port data-type conversion table (#4477): output type -> input types it may connect to, beyond same-type and 'any'. The engine is the only owner of this rule; the node editor derives edge legality from it instead of keeping a copy."
           }
         },
         "type": "object",

@@ -17,6 +17,15 @@ class WorkflowService {
     /// Cached tools by name for quick lookup (populated when tools are loaded)
     private(set) var toolsByName: [String: ToolInfo] = [:]
 
+    /// Port data-type conversion table SERVED BY THE ENGINE (#4477):
+    /// output type → input types it may connect to, beyond same-type/"any".
+    /// The canvas derives edge legality from this; it must never keep its own
+    /// copy — a hand-written Swift table drifted to six conversions the
+    /// engine rejects, so edges drew fine, saved fine, and died at run time.
+    /// Empty until tools load; `canConnect` is strict (same-type/"any" only)
+    /// in that window, which matches the engine minus its one conversion.
+    private(set) var portConversions: [String: Set<String>] = [:]
+
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
     }
@@ -60,6 +69,10 @@ class WorkflowService {
             // Populate cache
             for tool in tools {
                 toolsByName[tool.name] = tool
+            }
+            // The engine's conversion table rides on the same response (#4477).
+            if let served = generatedTools.conversions?.additionalProperties {
+                portConversions = served.mapValues(Set.init)
             }
             return tools
         default:

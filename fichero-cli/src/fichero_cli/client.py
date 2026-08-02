@@ -175,6 +175,25 @@ def _read_token(base_url: str | None = None, as_user: str | None = None) -> str 
         return None
 
 
+
+def _connect_error(base_url: str, exc: httpx.ConnectError) -> "FicheroError":
+    """Say what actually failed: TLS trust and connection-refused are different
+    diagnoses (#4468). Reporting a certificate failure as "is the engine
+    running?" sends the caller to check a process that is up.
+    """
+    text = f"{exc} {exc.__cause__ or ''}".lower()
+    if "certificate" in text or "ssl" in text or "tls" in text:
+        return FicheroError(
+            f"TLS certificate verification failed for {base_url}. The engine is "
+            "likely RUNNING; its loopback certificate is self-signed. Trust it "
+            "by pointing SSL_CERT_FILE at the engine's server.crt (under "
+            "~/Library/Application Support/Fichero/Remote Access/<host-port-...>/)."
+        )
+    return FicheroError(
+        f"Cannot connect to the Fichero backend at {base_url}. Is the engine running?"
+    )
+
+
 def _clean(params: dict[str, Any] | None) -> dict[str, Any] | None:
     """Drop None-valued entries so optional query params are simply omitted."""
     if not params:
@@ -316,10 +335,7 @@ class FicheroClient:
                 headers=self._headers(),
             )
         except httpx.ConnectError as exc:
-            raise FicheroError(
-                f"Cannot connect to the Fichero backend at {self.base_url}. "
-                "Is the engine running?"
-            ) from exc
+            raise _connect_error(self.base_url, exc) from exc
         except httpx.HTTPError as exc:
             raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
@@ -334,10 +350,7 @@ class FicheroClient:
                     headers=self._headers(),
                 )
             except httpx.ConnectError as exc:
-                raise FicheroError(
-                    f"Cannot connect to the Fichero backend at {self.base_url}. "
-                    "Is the engine running?"
-                ) from exc
+                raise _connect_error(self.base_url, exc) from exc
             except httpx.HTTPError as exc:
                 raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
@@ -382,10 +395,7 @@ class FicheroClient:
                     )
                 return [line for line in response.iter_lines() if line]
         except httpx.ConnectError as exc:
-            raise FicheroError(
-                f"Cannot connect to the Fichero backend at {self.base_url}. "
-                "Is the engine running?"
-            ) from exc
+            raise _connect_error(self.base_url, exc) from exc
         except httpx.HTTPError as exc:
             raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
