@@ -24,6 +24,8 @@ from __future__ import annotations
 import json
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -251,6 +253,10 @@ def main() -> int:
             print(f"  {offender.identifier}")
         return 0
 
+    # #4487 scan floor: on files ENUMERATED (offenders at zero is the goal).
+    require_scan_floor(
+        len(swift_service_files()), 40, "Swift service files (~90 on 2026-08-02)"
+    )
     print("OpenAPI typed-field guardrail: scanned Swift service files")
     print(f"  {len(offenders)} offender location(s).")
     if not offenders:

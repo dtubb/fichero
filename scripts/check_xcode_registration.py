@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
@@ -232,7 +234,13 @@ def target_sources_phase_ids(objects: dict[str, PBXObject]) -> list[str]:
             continue
         if _unquote(obj.fields.get("name", "")) == TARGET_NAME:
             return obj.lists.get("buildPhases", [])
-    raise RuntimeError(f"PBXNativeTarget {TARGET_NAME!r} not found in {PROJECT_FILE}")
+    # #4487: cannot parse my own committed input — BLIND (exit 2), not a crash.
+        print(
+            f"BLIND: PBXNativeTarget {TARGET_NAME!r} not found in {PROJECT_FILE} "
+            "— the project parser resolved nothing (#4487)",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
 
 
 def registered_swift_files(objects: dict[str, PBXObject]) -> set[str]:
@@ -283,10 +291,23 @@ def main() -> int:
         print(__doc__)
         return 0
 
-    objects = parse_pbxproj()
-    found = scan()
+    # #4487: ANY failure parsing the committed project file is BLIND (exit
+    # 2) — "I could not read the registry I compare against" must never
+    # surface as a crash (rc=1, reads as violation) or worse, a pass.
+    try:
+        objects = parse_pbxproj()
+        found = scan()
+        sync_roots = synchronized_roots(objects)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        print(
+            f"BLIND: could not parse {PROJECT_FILE} / enumerate sources "
+            f"({type(exc).__name__}: {exc}) (#4487)",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from exc
     known = set(KNOWN_VIOLATIONS)
-    sync_roots = synchronized_roots(objects)
 
     if "--list" in sys.argv[1:]:
         print(f"Unregistered Swift files ({len(found)} files):\n")
@@ -304,6 +325,9 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
+    # #4487 scan floor: a dead disk enumeration -> 0 files -> 0 unregistered
+    # -> pass. 884 on 2026-08-02.
+    require_scan_floor(len(disk_swift_files()), 400, "Swift files on disk (884 on 2026-08-02)")
     print(f"Xcode-registration guardrail: scanned {SWIFT_ROOT.relative_to(ROOT)}")
     print(f"  {len(disk_swift_files())} Swift file(s) on disk; {len(found)} not registered in {TARGET_NAME}.")
     if sync_roots:

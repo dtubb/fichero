@@ -181,6 +181,51 @@ FLOORED_CHECKS: dict[str, dict] = {
         "files": {},
         "extra_scripts": [],
     },
+    "check_openapi_typed_fields.py": {
+        "dirs": ["fichero/fichero/Services"],
+        "files": {
+            "fichero-server/tests/contracts/openapi.json": _EMPTY_OPENAPI,
+            "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [],
+    },
+    "check_openapi_shadow_types.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {"fichero-server/tests/contracts/openapi.json": _EMPTY_OPENAPI},
+        "extra_scripts": [],
+    },
+    "check_generated_wrapper_drift.py": {
+        "dirs": ["fichero/fichero/Services"],
+        "files": {
+            "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [],
+    },
+    "check_service_consistency.py": {
+        "dirs": ["fichero/fichero/Services"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_canonical_renderers.py": {
+        "dirs": ["fichero/fichero/Views"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_xcode_registration.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {"fichero/fichero.xcodeproj/project.pbxproj": ""},
+        "extra_scripts": [],
+    },
+    "check_mainactor_view_statics.py": {
+        "dirs": ["fichero/fichero", "fichero/fichero-tests"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_feature_flags.py": {
+        "dirs": ["fichero/fichero/Models"],
+        "files": {},
+        "extra_scripts": [],
+    },
 }
 
 
@@ -204,7 +249,7 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
 
 def test_the_floored_inventory_is_not_empty():
     """Guard the guard: this sweep is the proof the floors can fire."""
-    assert len(FLOORED_CHECKS) >= 19
+    assert len(FLOORED_CHECKS) >= 27
 
 
 @pytest.mark.parametrize("name", sorted(FLOORED_CHECKS))

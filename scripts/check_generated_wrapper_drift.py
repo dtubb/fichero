@@ -38,6 +38,8 @@ from __future__ import annotations
 import json
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -81,7 +83,12 @@ def expected_names(openapi_json: Path = OPENAPI_JSON) -> set[str]:
 def scan_references(wrappers_dir: Path = WRAPPERS_DIR) -> dict[str, str]:
     """Map `relpath::TypeName` -> the raw referenced name."""
     found: dict[str, str] = {}
-    for path in sorted(wrappers_dir.glob("*Generated.swift")):
+    # ALL service files, not "*Generated.swift" (#4487): #3751 dropped the
+    # lying *ServiceGenerated suffix (22b0d403e) and this glob was never
+    # repointed — the check scanned ZERO files and certified "every wrapper
+    # schema reference resolves" from that commit until 2026-08-02. The
+    # references live in plain Services/*.swift now; scan them all.
+    for path in sorted(wrappers_dir.rglob("*.swift")):
         try:
             source = path.read_text(errors="ignore")
         except OSError:
@@ -90,7 +97,13 @@ def scan_references(wrappers_dir: Path = WRAPPERS_DIR) -> dict[str, str]:
             rel = path.relative_to(ROOT).as_posix()
         except ValueError:
             rel = path.name
-        for name in _REF_RE.findall(source):
+        # Strip // comments: the widened scan (#4487) immediately "caught"
+        # Components.Schemas.Chain — which was prose in a comment saying
+        # "the Chain* types". Code references only; a comment cannot drift.
+        code = "\n".join(
+            line.split("//", 1)[0] for line in source.splitlines()
+        )
+        for name in _REF_RE.findall(code):
             found[f"{rel}::{name}"] = name
     return found
 
@@ -114,6 +127,9 @@ def main() -> int:
         return 1
 
     refs = scan_references()
+    # #4487 scan floor: on references FOUND — the population this check
+    # exists to validate. Blind since #3751 with zero; revived count below.
+    require_scan_floor(len(refs), 115, "Components.Schemas references (231 on 2026-08-02)")
     bad = violations()
     known = set(KNOWN_VIOLATIONS)
 

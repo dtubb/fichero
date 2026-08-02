@@ -45,6 +45,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -250,6 +252,10 @@ def main(argv: list[str]) -> int:
     new_violations = [f for f in findings if not f["known"]]
     known = [f for f in findings if f["known"]]
 
+    # #4487 scan floor: 582 view files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291, "view files (582 on 2026-08-02)"
+    )
     print(f"Canonical-renderer guardrail: scanned {VIEWS_DIR.relative_to(ROOT)}")
     print(
         f"  {len(new_violations)} new violation(s); "
