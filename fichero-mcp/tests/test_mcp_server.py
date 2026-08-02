@@ -47,6 +47,9 @@ EXPECTED_TOOLS = {
     "fichero_workspace_surface_claim",
     "fichero_workspace_add_note",
     "fichero_reveal_location",
+    # audited KG writes (#4469) — the MutationLog-backed mutation surface
+    "fichero_kg_entity_upsert",
+    "fichero_kg_claim_create",
 }
 
 
@@ -153,9 +156,13 @@ def test_workflow_run_builds_execute_body(monkeypatch):
 
     with _mock_client(monkeypatch, handler=handler):
         mcp_server.fichero_workflow_run("wf-1", "doc-9", skip_cache=True)
+    # #4480: THIS assertion, stale in the server tree, PINNED the #4467 bug —
+    # it asserted the {"files": [...]} wire shape that made every MCP-run
+    # workflow a silent no-op, staying green while the product was broken.
+    # The engine reads selected_doc_ids (and now 422s the old shape).
     assert seen[0] == {
         "workflow_id": "wf-1",
-        "inputs": {"files": ["doc-9"]},
+        "inputs": {"selected_doc_ids": ["doc-9"]},
         "force_new": False,
         "skip_cache": True,
     }

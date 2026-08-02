@@ -96,6 +96,9 @@ chat      | Chat,Agent,Research              | fichero-server/tests/unit/api/rou
 toolbar   | Toolbar,ContentView,Shell        |
 db        | Library,Storage                  | fichero-server/tests/unit/db/
 auth      | Auth,Account,Pairing             | fichero-server/tests/unit/security/
+actions   | Action                           | fichero-server/tests/unit/actions/
+cli       |                                  | fichero-cli/tests/
+mcp       |                                  | fichero-mcp/tests/ fichero-server/tests/unit/mcp/
 EOF
 }
 
@@ -306,9 +309,16 @@ resolve_area() {
   # must match at any depth — a top-level glob resolves to NOTHING and a
   # vacuously green gate, the exact silent-skip class this harness exists
   # to kill.
+  # An EMPTY swift-prefix column (Python-only areas: cli, mcp) must yield an
+  # empty array, not an unbound-variable abort. Under `set -u`,
+  # `read -ra` on empty input leaves the array unset and `${_prefixes[@]}`
+  # blew up — and the blast exited 0 having run NOTHING, a vacuous green
+  # (found the moment the first prefix-less area was added, #4480). The
+  # `${arr[@]+...}` idiom expands to nothing for an empty/unset array.
   local prefix file klass
-  IFS=',' read -ra _prefixes <<<"$prefixes"
-  for prefix in "${_prefixes[@]}"; do
+  local -a _prefixes=()
+  IFS=',' read -ra _prefixes <<<"$prefixes" || true
+  for prefix in ${_prefixes[@]+"${_prefixes[@]}"}; do
     [[ -n "$prefix" ]] || continue
     while IFS= read -r file; do
       [[ -n "$file" ]] || continue
