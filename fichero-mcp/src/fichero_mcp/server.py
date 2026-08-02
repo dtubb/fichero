@@ -210,9 +210,13 @@ def fichero_workflow_run(
     ``fichero_workflow_status``.
     """
     with _client() as client:
+        # `selected_doc_ids` is the selection path the Files-source node reads
+        # from state — the same key the CLI and SwiftUI send. This tool used to
+        # send `{"files": [doc_id]}`, which nothing reads: every run "completed"
+        # green on zero documents (#4467). The engine now rejects that shape.
         return client.run_workflow(
             workflow_id,
-            {"files": [doc_id]},
+            {"selected_doc_ids": [doc_id]},
             force_new=force_new,
             skip_cache=skip_cache,
         )
