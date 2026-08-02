@@ -142,9 +142,16 @@ fi
 # many files; grep Mach-O; drop the per-architecture lines `file` emits for
 # universal binaries ("path (for architecture x86_64): ...") so only real paths
 # remain. sort -u dedups.
+#
+# `LC_ALL=C` is load-bearing: `file` echoes bytes from the paths and contents it
+# inspects, and the embedded engine ships files whose names are not valid UTF-8.
+# Under a UTF-8 locale awk ABORTS on the first such byte ("towc: multibyte
+# conversion failure") and takes the whole release with it — which is exactly
+# how two release runs died today, both at this line. C locale treats input as
+# bytes, which is all this filter needs.
 macho_list="$(mktemp)"
 find "$APP" -type f -exec file {} + 2>/dev/null \
-  | awk -F': ' '/Mach-O/ && !/\(for architecture/ {print $1}' \
+  | LC_ALL=C awk -F': ' '/Mach-O/ && !/\(for architecture/ {print $1}' \
   | sort -u > "$macho_list"
 macho_count=$(wc -l < "$macho_list" | tr -d ' ')
 echo "  $macho_count Mach-O binaries to sign (Developer ID + hardened runtime + secure timestamp)"

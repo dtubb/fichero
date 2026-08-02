@@ -8280,7 +8280,7 @@ def register_generated_openapi_commands(
             }, {
                 "claim_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Claim Type', 'description': 'Type: fact, analysis, interpretation, argument, historiography, theory', 'default': 'fact', 'x-cli-required': False},
                 "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
-                "created_by": {'type': 'string', 'maxLength': 128, 'minLength': 1, 'title': 'Created By', 'default': 'mcp', 'x-cli-required': False},
+                "created_by": {'type': 'string', 'maxLength': 128, 'minLength': 1, 'title': 'Created By', 'description': 'IGNORED (#4485). Who asserted a claim is the difference between evidence and hearsay; it derives exclusively from authenticated request state and a body value can never claim another principal. Accepted only for wire compatibility.', 'default': 'mcp', 'x-cli-required': False},
                 "curation_state": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Curation State', 'description': 'State: unreviewed, shortlisted, curated, rejected', 'default': 'unreviewed', 'x-cli-required': False},
                 "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Entity Ids', 'description': 'Linked entity IDs', 'x-cli-required': False},
                 "epistemic_status": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Epistemic Status', 'description': 'Status: tentative, confirmed, rejected', 'default': 'tentative', 'x-cli-required': False},

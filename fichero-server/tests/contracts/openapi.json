@@ -47752,6 +47752,7 @@
             "maxLength": 128,
             "minLength": 1,
             "title": "Created By",
+            "description": "IGNORED (#4485). Who asserted a claim is the difference between evidence and hearsay; it derives exclusively from authenticated request state and a body value can never claim another principal. Accepted only for wire compatibility.",
             "default": "mcp"
           }
         },
