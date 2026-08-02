@@ -242,13 +242,21 @@ extension DocumentService {
     }
 
     /// Get children of a document/collection
-    /// - Parameter parentId: Parent document ID
-    /// - Returns: Array of child documents
-    func getChildren(_ parentId: String) async throws -> [Document] {
-        logger.info("Fetching children of: \(parentId)")
+    ///
+    /// - Parameters:
+    ///   - parentId: Parent document ID
+    ///   - sort: Server-side ordering, or nil for the stored sibling order.
+    ///     Only fields the ENGINE can order pass a value here — see
+    ///     `LibrarySortField.ordersOnServer` (#3322). Passing nil is the
+    ///     pre-existing behaviour, not a missing argument.
+    /// - Returns: Array of child documents, in the order the server returned
+    ///   them. Callers must not re-sort a server-ordered result.
+    func getChildren(_ parentId: String, sort: ListingSort? = nil) async throws -> [Document] {
+        logger.info("Fetching children of: \(parentId) sort: \(sort?.field ?? "default")")
 
         let response = try await client.api.getChildrenApiDocumentsDocIdChildrenGet(.init(
             path: .init(docId: parentId),
+            query: .init(sortBy: sort?.field, sortDirection: sort?.direction)
         ))
 
         switch response {
@@ -288,11 +296,14 @@ extension DocumentService {
     }
 
     /// Get root-level documents
-    /// - Returns: Array of root documents
-    func getRoots() async throws -> [Document] {
-        logger.info("Fetching root documents")
+    /// - Parameter sort: Server-side ordering, or nil for the stored order.
+    /// - Returns: Array of root documents, in the order the server returned them.
+    func getRoots(sort: ListingSort? = nil) async throws -> [Document] {
+        logger.info("Fetching root documents sort: \(sort?.field ?? "default")")
 
-        let response = try await client.api.listRootsApiDocumentsRootsGet(.init())
+        let response = try await client.api.listRootsApiDocumentsRootsGet(.init(
+            query: .init(sortBy: sort?.field, sortDirection: sort?.direction)
+        ))
 
         switch response {
         case .ok(let okResponse):

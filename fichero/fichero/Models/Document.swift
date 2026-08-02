@@ -198,6 +198,13 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var dateOriginal: String?
     var dateJdn: Int?
     var dateMeta: [String: AnyCodable]?
+    /// **Not the library's sort setting.** `LibraryView` also has a
+    /// `sortOrder` — an array of `KeyPathComparator`s driving the table
+    /// header — and `DocumentStore` sits close enough to both that the two
+    /// meanings meet. This one is a per-document POSITION among its siblings.
+    /// The listing routes' `sort_by` parameter overrides it; absent `sort_by`,
+    /// this is what orders a folder (#3322).
+    ///
     /// User-defined order within the document's parent folder. Written by the
     /// backend `/documents/reorder` route (`documents.py:276`) and by the
     /// `move` route when it accepts a position. Defaults to 0 for documents

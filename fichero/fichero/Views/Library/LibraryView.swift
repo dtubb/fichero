@@ -548,20 +548,29 @@ struct LibraryView: View {
             .onChange(of: folderId) { _, newId in
                 loadSortSettings(for: newId)
                 syncSortOrder()
+                // A folder remembers its own sort, so navigating can change the
+                // server request without the sort menu being touched (#3322).
+                syncServerListingSort()
                 recomputeFiltered()
             }
             .onChange(of: sortFieldRaw) { _, _ in
                 syncSortOrder()
                 saveSortSettings(for: folderId)
+                syncServerListingSort()
                 recomputeFiltered()
             }
             .onChange(of: sortAscending) { _, _ in
                 syncSortOrder()
                 saveSortSettings(for: folderId)
+                // Direction is the engine's business for a server-ordered sort:
+                // reversing the array here would flip rows without re-deciding
+                // the precision ties (#3322).
+                syncServerListingSort()
                 recomputeFiltered()
             }
             .onChange(of: sortOrder) { _, newOrder in
                 handleSortOrderChange(newOrder)
+                syncServerListingSort()
                 recomputeFiltered()
             }
             .onChange(of: showFilterBar) { _, shown in filterBarVisibilityChanged(shown) }
