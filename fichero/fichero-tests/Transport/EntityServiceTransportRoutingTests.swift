@@ -32,14 +32,45 @@ final class EntityServiceTransportRoutingTests: XCTestCase {
             .path
     }()
 
+    /// The smallest believable number of `EntityService*.swift` files.
+    ///
+    /// There are 9 today. The floor is deliberately well below that — it is not
+    /// a count of the files, which would fail on every legitimate split or
+    /// merge. It is a floor on the SCAN POPULATION: enough to prove the
+    /// enumeration found the service at all.
+    private static let minimumSourceCount = 4
+
     /// All `EntityService*.swift` source files (main + per-concern extensions).
+    ///
+    /// **Floored.** Every test below is a negative assertion — "no file
+    /// contains `URLSession(`" — and a negative assertion over an empty list is
+    /// vacuously true. So all four passed identically whether the service was
+    /// clean or the enumeration had found nothing.
+    ///
+    /// `contentsOfDirectory` throws if `Services/` itself moves, which covers
+    /// one half. The half it does not cover is the one that matters: the
+    /// directory surviving while the FILES are renamed or moved into a
+    /// subdirectory. `EntityService` is not recursive here, so
+    /// `Services/Entity/EntityService+Foo.swift` would already be invisible —
+    /// and with no floor, invisible and clean were the same result.
+    ///
+    /// The floor lives in this helper rather than in each test so a fifth test
+    /// added later inherits it instead of being remembered.
     private static func entityServiceSources() throws -> [String] {
         let fm = FileManager.default
         let entries = try fm.contentsOfDirectory(atPath: servicesDir)
-        return entries
+        let sources = entries
             .filter { $0.hasPrefix("EntityService") && $0.hasSuffix(".swift") }
             .sorted()
             .map { (servicesDir as NSString).appendingPathComponent($0) }
+
+        XCTAssertGreaterThanOrEqual(
+            sources.count, minimumSourceCount,
+            "found only \(sources.count) EntityService*.swift files under \(servicesDir) — "
+                + "the files moved or were renamed, so these transport guards are "
+                + "asserting over nothing rather than over a clean service"
+        )
+        return sources
     }
 
     private static func readSource(_ path: String) throws -> String {
