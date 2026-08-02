@@ -2582,12 +2582,11 @@ def _action_set_document_date(
 ) -> tuple[dict, ChangeSpec]:
     """User curation of a document's historical date — audited + undoable.
 
-    Persistent like other curation: the columns survive re-extraction because
-    ``date_extract`` writes ``source: extracted`` while this writes
-    ``source: user`` — a later automated pass must not clobber a user value
-    (enforced in the tool via the source check… #3322 follow-up: the tool
-    currently overwrites; the curation-rules integration is step 5's second
-    half and is noted on the issue).
+    Persistent like other curation: ``source: user`` on the row IS the rule.
+    ``date_extract`` consults it and may not overwrite — it still runs, and a
+    disagreeing new extraction is RECORDED as ``date_meta.extraction_conflict``
+    (candidate preserved, nothing silently discarded). Re-asserting here
+    clears any recorded conflict by construction (fresh meta dict).
     """
     from fichero_server.core.timeutil import utc_now as _utc_now
     from fichero_server.histdate import (
