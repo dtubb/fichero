@@ -63,6 +63,34 @@ app.add_typer(providers_app, name="providers")
 app.add_typer(devices_app, name="devices")
 app.add_typer(compare_app, name="compare")
 app.add_typer(auth_app, name="auth")
+# `fichero export <format> -o PATH` (#4471). The GENERATED surface also
+# mounts commands onto this same group (as `<format>-route`, raw endpoint
+# form) via existing_apps below — one group, two spellings, one server-side
+# implementation.
+export_app = typer.Typer(help="Export the library server-side.", no_args_is_help=True)
+app.add_typer(export_app, name="export")
+
+
+def _register_export_commands() -> None:
+    from fichero_cli.client import FicheroClient as _FC
+
+    def _make(fmt: str):
+        @export_app.command(fmt, help=f"Export the library as {fmt} to --output.")
+        def _cmd(
+            ctx: typer.Context,
+            output: str = typer.Option(
+                ..., "--output", "-o",
+                help="Destination path (folder or file, per format).",
+            ),
+        ) -> None:
+            expanded = str(Path(output).expanduser())
+            _invoke(ctx, lambda c: c.export_library(fmt, expanded))
+
+    for fmt in _FC.EXPORT_FORMATS:
+        _make(fmt)
+
+
+_register_export_commands()
 workflow_app.add_typer(threads_app, name="threads")
 
 # Execution statuses the workflow status endpoint may return when the run has
@@ -435,6 +463,7 @@ register_generated_openapi_commands(
         "settings": settings_app,
         "workflow-execution": threads_app,
         "workflows": workflow_app,
+        "export": export_app,
     },
 )
 

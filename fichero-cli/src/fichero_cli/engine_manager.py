@@ -253,25 +253,24 @@ def start(port: int = 8765, workers: int = 1, host: str | None = None) -> None:
 
 
 def stop() -> None:
-    """Stop engine gracefully.
+    """Stop the engine: SIGTERM (uvicorn's graceful shutdown), then SIGKILL.
 
-    Attempts graceful shutdown via HTTP first, then SIGTERM, finally SIGKILL.
+    There is no HTTP leg, on purpose (#4471). The old one could not work
+    three times over — it imported ``requests`` (not a dependency; httpx
+    is), POSTed plain ``http://`` at a TLS-only engine, and targeted
+    ``/api/shutdown``, a route that does not exist — and swallowed every
+    failure with a bare except, then fell through to SIGTERM. It "worked"
+    by accident while lying about a graceful path. SIGTERM IS uvicorn's
+    graceful shutdown (lifespan shutdown hooks run, in-flight requests
+    drain); pretending there is a politer HTTP layer above it reports a
+    mechanism that does nothing.
     """
     pid = _read_pid()
     if not pid:
         typer.echo("Engine not running")
         return
 
-    # Try graceful shutdown via HTTP first
-    try:
-        import requests
-
-        requests.post("http://localhost:8765/api/shutdown", timeout=5)
-        time.sleep(1)
-    except Exception:
-        pass
-
-    # If still alive, SIGTERM then SIGKILL
+    # SIGTERM first (graceful), SIGKILL only if it does not exit.
     if _is_process_alive(pid):
         try:
             os.kill(pid, signal.SIGTERM)
