@@ -134,3 +134,21 @@ class TestSaveRefusesWhatExecutionWouldRefuse:
             create_workflow_impl(object(), _two_node_workflow(DataType.IMAGE, DataType.FILES))
         assert caught.value.status_code == 422
         assert "Incompatible connection" in str(caught.value.detail)
+
+
+class TestPresetJsonValidatesDirectly:
+    """#4477 side-finding: presets carry ``version: 1`` (int) but the field
+    is str, so direct ``model_validate`` of preset dicts — which the
+    sub-workflow JSON fallback performs — threw on every such preset."""
+
+    def test_int_version_coerces(self):
+        wf = WorkflowDef.model_validate({"name": "t", "version": 1})
+        assert wf.version == "1"
+
+    def test_every_shipped_preset_validates_as_a_workflowdef(self):
+        from fichero_server.workflows.default_workflows import _load_preset_files
+
+        presets = list(_load_preset_files())
+        assert len(presets) >= 30, "preset discovery went blind"
+        for preset in presets:
+            WorkflowDef.model_validate(preset)  # must not raise
