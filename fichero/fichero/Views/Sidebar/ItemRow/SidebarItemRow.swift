@@ -22,6 +22,20 @@ func sidebarRowShowsOpenAffordance(isHovered: Bool, isRenaming: Bool, hasLibrary
     isHovered && !isRenaming && hasLibrary
 }
 
+/// Whether a row paints the pointer-is-over wash (#4097).
+///
+/// Selection SUPPRESSES hover rather than layering under it. Two washes on one
+/// row would sum to something neither was designed to be, and the resulting
+/// shade would sit close enough to the selected treatment to be mistaken for
+/// it — which is the confusion #4371 is separately trying to remove.
+///
+/// A named rule rather than an inline `&&` because it is the whole behaviour:
+/// the fill and the corner radius are house tokens, so this predicate is the
+/// only thing about the hover wash that can be wrong.
+func sidebarRowShowsHoverWash(isHovered: Bool, isSelected: Bool) -> Bool {
+    isHovered && !isSelected
+}
+
 /// Whether a restored/persisted sidebar selection still needs to be driven into
 /// the view mode (#2548). `selectedItemId` is restored from `@SceneStorage` at
 /// launch, but `SidebarView.onChange(of: selectedItemId)` only fires on a
@@ -480,6 +494,31 @@ struct SidebarItemRow: View {
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
+            // Hover wash (#4097). #2496's real cause was not that rows are hard
+            // to HIT but that they are hard to AIM at: nothing told you what the
+            // pointer was over until selection had already happened. The trailing
+            // open-affordance added for #2496 is a hover cue at the row's far
+            // edge; this is the one under the pointer.
+            //
+            // `.background`, not `.overlay`, so it can never dim the label.
+            // Suppressed while selected so the two never stack — and it is
+            // `LibrarySelectionStyle.fill` at half opacity, so hover cannot
+            // read as selection by construction rather than by two hand-tuned
+            // values someone must keep in the right order.
+            //
+            // Every Frame Perfect: this changes a fill only. No metrics move
+            // between hovered and not, so hovering cannot relayout or
+            // re-truncate the row name — the same discipline the trailing
+            // affordance follows by staying in the layout and toggling opacity.
+            .background(
+                RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                    .fill(
+                        sidebarRowShowsHoverWash(isHovered: isRowHovered, isSelected: isRowSelected)
+                            ? LibrarySelectionStyle.hoverFill
+                            : Color.clear
+                    )
+                    .allowsHitTesting(false)
+            )
             // Full name on hover — row names truncate (`lineLimit(1)`) with no
             // other way to reveal themselves. Empty string disables the tooltip
             // during inline rename (same idiom as the read-only library help).
