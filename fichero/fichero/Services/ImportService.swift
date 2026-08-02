@@ -58,14 +58,22 @@ class ImportService {
 
     /// Import multiple files from URLs
     /// For folders, this starts an async task and polls until completion
+    ///
+    /// `extractText`/`autoEmbed` are `nil` by default and OMITTED from the
+    /// request, so the engine's documented defaults apply (#3276). They used to
+    /// default to `false` here, which silently overrode the backend's `True` on
+    /// every drag-drop and menu import — the engine chose `True` precisely to
+    /// avoid the first-run "search returns nothing because nothing is indexed"
+    /// trap, and the app was re-deciding it four layers away with no UI saying
+    /// so. A caller that genuinely wants indexing off now has to say `false`.
     func importFiles(
         _ urls: [URL],
         mode: IngestMode = .link,
         parentId: String? = nil,
-        extractText: Bool = false,
-        autoEmbed: Bool = false,
+        extractText: Bool? = nil,
+        autoEmbed: Bool? = nil,
         onProgress: ((Int, Int) -> Void)? = nil
-    ) async throws -> [Document] {
+    ) async throws -> ImportOutcome {
         isImporting = true
         defer { isImporting = false }
 
@@ -125,7 +133,11 @@ class ImportService {
         try recordImportErrors(errors, imported: imported, urls: urls)
 
         logger.info("Import completed: \(imported.count) successful, \(errors.count) failed")
-        return imported
+        // Failures ride back with the successes (#3276). Returning a bare
+        // [Document] made the partial case indistinguishable from a clean one
+        // at every call site, and the only record of it — `lastError` — was
+        // read by no view.
+        return ImportOutcome(documents: imported, failures: errors, attempted: urls.count)
     }
 
     /// A folder import needs the sandboxed engine granted access BEFORE the
@@ -136,8 +148,8 @@ class ImportService {
         _ url: URL,
         mode: IngestMode,
         parentId: String?,
-        extractText: Bool,
-        autoEmbed: Bool
+        extractText: Bool?,
+        autoEmbed: Bool?
     ) async throws {
         logger.info("Detected folder: \(url.lastPathComponent), using async folder import")
         let documentIds = try await FolderAccessManager.grantThenEngineWork(
@@ -184,8 +196,8 @@ class ImportService {
         _ url: URL,
         mode: IngestMode,
         parentId: String?,
-        extractText: Bool,
-        autoEmbed: Bool
+        extractText: Bool?,
+        autoEmbed: Bool?
     ) async throws -> Document {
         // Enable security-scoped access in sandboxed builds; non-sandboxed builds
         // return false but the URL remains accessible via normal file I/O.
@@ -236,8 +248,8 @@ class ImportService {
         _ url: URL,
         mode: IngestMode,
         parentId: String?,
-        extractText: Bool,
-        autoEmbed: Bool
+        extractText: Bool?,
+        autoEmbed: Bool?
     ) async throws -> Document {
         // .link / .move: the engine reads (and for .move, deletes) the file
         // at `url.path`. The sandboxed engine (App Store build) cannot read

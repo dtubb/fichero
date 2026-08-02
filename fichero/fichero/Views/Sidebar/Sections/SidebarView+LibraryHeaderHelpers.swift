@@ -70,14 +70,19 @@ extension SidebarView {
         Task {
             sidebarState.dropErrorMessage = nil
             do {
+                // #3276: not throwing only ever meant "not everything failed".
+                var outcomes: [ImportOutcome] = []
                 for batch in batches {
-                    _ = try await library.importService.importFiles(
+                    outcomes.append(try await library.importService.importFiles(
                         batch.urls, mode: .link, parentId: batch.parentId
-                    )
+                    ))
                 }
                 await library.documentStore.refresh()
                 try? await Task.sleep(for: .milliseconds(500))
                 await library.documentStore.refresh()
+                if let message = ImportOutcome.merged(outcomes).partialFailureMessage {
+                    sidebarState.dropErrorMessage = message
+                }
             } catch {
                 Logger(subsystem: "app.fichero.fichero", category: "LibraryHeaderDrop")
                     .error("Library root drop failed: \(error.localizedDescription)")

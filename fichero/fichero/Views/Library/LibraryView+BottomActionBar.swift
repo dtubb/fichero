@@ -70,6 +70,19 @@ extension LibraryView {
             allowsMultipleSelection: true,
             onCompletion: handleFileImport
         )
+        // Sits beside the picker it reports on, so the alert and the one
+        // handler that can populate it stay together (#3276).
+        .alert(
+            "Import Incomplete",
+            isPresented: Binding(
+                get: { importErrorMessage != nil },
+                set: { if !$0 { importErrorMessage = nil } }
+            )
+        ) {
+            Button("OK") { importErrorMessage = nil }
+        } message: {
+            Text(importErrorMessage ?? "")
+        }
     }
 
     /// Essential verbs — always inline (#3057): New Folder, Delete, Import. The
@@ -253,10 +266,18 @@ extension LibraryView {
                 guard let library = libraryManager.getLibrary(id: windowState.libraryId)
                     ?? libraryManager.globalLibrary else { return }
                 do {
-                    _ = try await library.importService.importFiles(urls, mode: mode, parentId: targetFolderId)
+                    let outcome = try await library.importService.importFiles(urls, mode: mode, parentId: targetFolderId)
                     await library.documentStore.refresh()
+                    // #3276: this returns normally when SOME files failed, so
+                    // without this the shared importer handler reported a
+                    // partial loss as a clean import.
+                    if let message = outcome.partialFailureMessage {
+                        bottomBarLogger.error("Import completed partially: \(message)")
+                        importErrorMessage = message
+                    }
                 } catch {
                     bottomBarLogger.error("Import failed: \(error.localizedDescription)")
+                    importErrorMessage = "Import failed: \(error.localizedDescription)"
                 }
             }
         case .failure(let error):
