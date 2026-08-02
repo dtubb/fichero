@@ -61,6 +61,8 @@ import argparse
 import ast
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 # A consumer value that intentionally has no single producer.
@@ -89,6 +91,11 @@ _ORPHAN_BASELINE: frozenset[str] = frozenset(
         # other artifact, with no by-name query. Baselined, not deleted — the
         # rows are user-visible, they are simply not fetched by type.
         "catalogue.chunk",
+        # "dates" (#3322): a per-document provenance record of historical-date
+        # extraction. The QUERYABLE surface is the Document date_* columns
+        # (sort/filter read those); the artifact rides the generic artifact
+        # browser like catalogue.chunk. Generic read, not a dead feature.
+        "dates",
         "analysis", "book_index_topics", "caption", "catalogue", "classification",
         "clean_text", "colors", "comparison", "description", "diagram", "entities",
         "extraction", "extraction_error", "faces", "geo", "handwriting",
@@ -230,10 +237,12 @@ def main() -> int:
 
     produced, dynamic = _producers(py)
     consumed = _consumers(sw)
-    if not produced or not consumed:
-        print("FAIL: extracted an empty producer or consumer set — the extractor "
-              "is broken or the layout moved. Refusing to pass vacuously.", file=sys.stderr)
-        return 1
+    # #4487: upgraded from an exactly-zero refusal (rc=1) to half-count scan
+    # floors with the BLIND exit — a half-dead extractor that still finds a
+    # handful is the same lie as a fully dead one, and "could not check" is
+    # exit 2, never the violation code.
+    require_scan_floor(len(produced), 23, "producer artifact_type values (47 on 2026-08-02)")
+    require_scan_floor(len(consumed), 2, "consumer artifact_type values (4 on 2026-08-02)")
 
     enum_cases, enum_path = _enum_cases(sw)
     dead_cases = sorted(enum_cases - produced) if enum_cases else []

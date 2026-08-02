@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -161,6 +163,10 @@ def main() -> int:
     stale = sorted(known - set(found))
 
     print(f"AppKit/UIKit import guardrail: scanned {SWIFT_DIR.relative_to(ROOT)}")
+    # #4487 scan floor: on files ENUMERATED, not importers found — the
+    # importer count legitimately shrinks as AppKit is removed.
+    scanned_files = sum(1 for p in SWIFT_DIR.rglob("*.swift") if "Tests" not in p.parts)
+    require_scan_floor(scanned_files, 400, "app Swift files (884 on 2026-08-02)")
     print(f"  {len(found)} file(s) import AppKit/UIKit; {len(known)} known.")
 
     if stale:

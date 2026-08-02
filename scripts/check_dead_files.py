@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from collections import Counter
 from pathlib import Path
 
@@ -43,6 +45,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/LibraryView+FilterAndBatch.swift": "#4235 — extension file; LibraryEmptyPlaceholder classifies empty/loading/importing for LibraryView",
     "Services/EmbeddedBackendService+Readiness.swift": "#1943 — extension file; SpawnWaitStep used by EmbeddedBackendService readiness methods (service split)",
     "Services/EmbeddedBackendService+TLS.swift": "#1943 — extension file; DataBox/CachedTLSPaths used by EmbeddedBackendService TLS methods (service split)",
+    "Views/Workflow/Canvas/WorkflowCanvasView+EdgeConnection.swift": "#4477 — extension file; PortConnectionRules is consumed by the WorkflowCanvasView extension IN THIS FILE (canConnect) and by PortConnectionRulesTests; the detector cannot see same-file extension usage",
     "Models/CacheModel.swift": "#1945 — candidate dead file: CacheModel, CacheWrapper",
     "Models/DocumentStoreTypes.swift": "#3961 — candidate dead file: DocumentHierarchy. Never used in production (git log -S proves it); only its own 3 tests reference it. Surfaced when #3919 removed the file's other types. Delete or wire it — do not let this entry outlive the decision.",
     "Models/DragDropModel.swift": "#1945 — candidate dead file: DragDropModel",
@@ -167,6 +170,12 @@ def main() -> int:
     stale = sorted(known - set(found))
 
     print(f"Dead-file guardrail: scanned {SWIFT_ROOT.relative_to(ROOT)}")
+    # #4487 scan floor: on files ENUMERATED — candidates reaching zero is
+    # the goal state; an empty enumeration is blindness.
+    require_scan_floor(
+        sum(1 for _ in SWIFT_ROOT.rglob("*.swift")), 400,
+        "Swift files (884 on 2026-08-02)",
+    )
     print(f"  {len(found)} candidate dead file(s); {len(known)} known backlog entries.")
 
     if stale:

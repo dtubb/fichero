@@ -26,6 +26,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 
+_EMPTY_OPENAPI = json.dumps(
+    {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
+)
+
 # Every check converted under #4487, with the empty-but-present scaffolding
 # its scan expects. Growing Phase 1/2 = adding rows here.
 FLOORED_CHECKS: dict[str, dict] = {
@@ -62,6 +66,72 @@ FLOORED_CHECKS: dict[str, dict] = {
         },
         "extra_scripts": [],
     },
+    "check_endpoint_coverage_matrix.py": {
+        "dirs": [
+            "fichero/fichero/Services",
+            "fichero/fichero/Models",
+            "fichero-cli/src/fichero_cli",
+        ],
+        "files": {
+            "fichero-server/tests/contracts/openapi.json": _EMPTY_OPENAPI,
+            "docs/contributor/api-reference/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [
+            "matrix_guardrail_common.py",
+            "check_endpoint_coverage_matrix_known_gaps.json",
+        ],
+    },
+    "check_action_surface_matrix.py": {
+        "dirs": ["fichero/fichero/Views", "fichero/fichero/App/Menus"],
+        "files": {
+            "fichero/fichero/FicheroApp.swift": "",
+            "fichero/fichero/App/Menus/FocusedCommandButtons.swift": "",
+        },
+        "extra_scripts": [
+            "matrix_guardrail_common.py",
+            "check_action_surface_matrix_known_gaps.json",
+        ],
+    },
+    "check_appkit_imports.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_dead_files.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_view_endpoint_access.py": {
+        "dirs": ["fichero/fichero/Views"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_test_assertions.py": {
+        "dirs": [
+            "fichero/fichero",
+            "fichero-server/tests",
+            "fichero/fichero-cli",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_artifact_type_contract.py": {
+        "dirs": [
+            "fichero-server/src/fichero_server",
+            "fichero/fichero",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_change_event_contract.py": {
+        "dirs": ["fichero-server/src/fichero_server/api", "fichero/fichero/Services"],
+        "files": {
+            "fichero-server/src/fichero_server/api/change_stream.py": "",
+            "fichero/fichero/Services/LibraryChangeStream.swift": "",
+        },
+        "extra_scripts": [],
+    },
 }
 
 
@@ -85,7 +155,7 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
 
 def test_the_floored_inventory_is_not_empty():
     """Guard the guard: this sweep is the proof the floors can fire."""
-    assert len(FLOORED_CHECKS) >= 3
+    assert len(FLOORED_CHECKS) >= 11
 
 
 @pytest.mark.parametrize("name", sorted(FLOORED_CHECKS))

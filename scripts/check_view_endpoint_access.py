@@ -43,6 +43,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -189,6 +191,11 @@ def main() -> int:
     stale = sorted(known - set(found))
 
     print(f"Observable-data-layer guardrail: scanned {VIEWS_DIR.relative_to(ROOT)}")
+    # #4487 scan floor: on view files ENUMERATED (582 on 2026-08-02).
+    require_scan_floor(
+        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291,
+        "view files (582 on 2026-08-02)",
+    )
     print(f"  {len(found)} view file(s) bypass a store; {len(known)} known (migration backlog).")
 
     if stale:
