@@ -107,6 +107,32 @@ extension LibraryView {
         .width(min: 90, ideal: 130)
         .customizationID("documentDate")
 
+        // #4482: restored now that nesting the entity columns freed slots. Both
+        // were dropped only because `TableColumnBuilder` caps at 10 children —
+        // a compiler arity limit deciding the app's column set — and both
+        // already have cells in `tableCellView`, so this is wiring, not new UI.
+        //
+        // Hidden by default, like the entity columns: available in the native
+        // column-header menu without adding default clutter.
+        //
+        // `path` was deliberately NOT restored. The engine may be remote, so a
+        // local path is a lie on any other host (the no-local-paths rule);
+        // `artifacts` overlaps the six per-type columns and wants a decision
+        // rather than a default. Both remain on #4482.
+        TableColumn("Modified", value: \.document.updatedAt) { node in
+            documentColumnCell(for: node, columnId: "modifiedDate")
+        }
+        .width(min: 80, ideal: 100)
+        .customizationID("modifiedDate")
+        .defaultVisibility(.hidden)
+
+        TableColumn("Size") { node in
+            documentColumnCell(for: node, columnId: "size")
+        }
+        .width(min: 70, ideal: 90)
+        .customizationID("size")
+        .defaultVisibility(.hidden)
+
         // Per-entity-type columns (#519), nested as ONE child.
         //
         // SwiftUI's `TableColumnBuilder` caps at 10 direct children, and this
