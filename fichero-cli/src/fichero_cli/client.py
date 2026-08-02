@@ -220,6 +220,7 @@ class FicheroClient:
         as_user: str | None = None,
         timeout: float = 60.0,
         transport: httpx.BaseTransport | None = None,
+        client_name: str | None = None,
     ) -> None:
         self.base_url = (
             base_url or os.environ.get("FICHERO_API_URL") or DEFAULT_BASE_URL
@@ -237,6 +238,11 @@ class FicheroClient:
         # can still recover without reconstructing the client.
         self._discover_library_path = library_path is None
         self.library_path = library_path or os.environ.get("FICHERO_LIBRARY_PATH")
+        # Which client surface is speaking (e.g. "fichero-cli", "fichero-mcp").
+        # Sent as X-Fichero-Client and recorded on ActionAudit rows so an audit
+        # entry says WHICH surface used a credential, not just whose credential
+        # it was (#4469). Attribution metadata only — never used for authz.
+        self.client_name = client_name
         self._client = httpx.Client(
             base_url=self.base_url, timeout=timeout, transport=transport
         )
@@ -282,6 +288,8 @@ class FicheroClient:
             headers["Authorization"] = f"Bearer {self.token}"
         if self.library_path:
             headers["X-Fichero-Library-Path"] = quote(self.library_path, safe="/")
+        if self.client_name:
+            headers["X-Fichero-Client"] = self.client_name
         return headers
 
     def request(
