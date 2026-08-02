@@ -64,6 +64,43 @@ def fill_path(template: str, summary: dict) -> str:
     return out
 
 
+def _reclaim_contents(path: Path) -> None:
+    """tests/conftest.py's reclaim_tmp_path_contents, found by file path.
+
+    Same trap and same lookup technique as perf/conftest.py: the workdir is a
+    ``tmp_path_factory`` NUMBERED dir, so removing it outright frees its
+    number for reuse (the e767147e5 stale path-keyed-cache incident) —
+    contents are emptied and the dir itself stays.
+    """
+    root_path = (Path(__file__).resolve().parents[1] / "conftest.py").resolve()
+    for module in list(sys.modules.values()):
+        if getattr(module, "__file__", None) and Path(module.__file__).resolve() == root_path:
+            module.reclaim_tmp_path_contents(path)
+            return
+    raise RuntimeError("tests/conftest.py not loaded — cannot reclaim live-engine workdir")
+
+
+def _share_real_model_cache(workdir: Path) -> None:
+    """Point the spawned engine's fake HOME at the REAL model cache (#4434).
+
+    The fixture redirects HOME into the workdir (necessary — startup library
+    discovery must stay inside the harness), but the engine's models dir
+    hangs off HOME, so every integration run RE-DOWNLOADED the 2.2 GB
+    e5-large ONNX embedding model into temp and then leaked it. A symlink to
+    the real cache means no download and nothing to leak; if the real cache
+    is absent (fresh CI), the engine downloads into the workdir as before and
+    teardown reclaims it. The models tree is a shared CACHE, not library
+    data — the harness's isolation rule protects Daniel's library, and this
+    shares only what a real engine on this machine would populate anyway.
+    """
+    real_models = Path.home() / "Library" / "Application Support" / "Fichero" / "models"
+    if not real_models.is_dir():
+        return
+    fake_fichero = workdir / "Library" / "Application Support" / "Fichero"
+    fake_fichero.mkdir(parents=True, exist_ok=True)
+    (fake_fichero / "models").symlink_to(real_models)
+
+
 @pytest.fixture(scope="module")
 def cli_live_engine(tmp_path_factory):
     if not VENV_UVICORN.exists():
@@ -72,6 +109,7 @@ def cli_live_engine(tmp_path_factory):
     from tests.integration._seedlib import seed
 
     workdir = tmp_path_factory.mktemp("cli-live")
+    _share_real_model_cache(workdir)
     library = workdir / "library.fichero"
     summary = seed(library)
 
@@ -118,3 +156,14 @@ def cli_live_engine(tmp_path_factory):
         except subprocess.TimeoutExpired:
             process.kill()
         log_handle.close()
+        # #4434: the engine is dead, nothing holds handles into workdir —
+        # reclaim the module's whole footprint (seeded library, engine base,
+        # any model the engine downloaded into the fake HOME). The model-cache
+        # symlink is removed FIRST and explicitly: shutil.rmtree refuses to
+        # walk a symlinked dir (so the REAL cache can never be deleted through
+        # it), but with ignore_errors=True that refusal is silent and the link
+        # would linger.
+        models_link = workdir / "Library" / "Application Support" / "Fichero" / "models"
+        if models_link.is_symlink():
+            models_link.unlink(missing_ok=True)
+        _reclaim_contents(workdir)

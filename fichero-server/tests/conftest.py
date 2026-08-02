@@ -24,6 +24,16 @@ for _sibling in ("fichero-cli/src", "fichero-mcp/src"):
     if _sibling_path not in sys.path:
         sys.path.insert(0, _sibling_path)
 
+# #4487 gave every guardrail script `from _check_floor import ...`, which
+# resolves only with scripts/ on sys.path. Contract tests spec-load those
+# scripts in place, and whether that import worked depended on COLLECTION
+# ORDER (a unit test module happening to add the path first) — contracts
+# alone failed at collection while unit+contracts passed. One seam here,
+# APPENDED so nothing in scripts/ can shadow a real package.
+_scripts_path = str(_REPO_ROOT / "scripts")
+if _scripts_path not in sys.path:
+    sys.path.append(_scripts_path)
+
 from fastapi.testclient import TestClient
 
 # Keep existing route-heavy tests running against the broader dev API surface.
@@ -110,15 +120,41 @@ def _sweep_abandoned_test_base_paths() -> int:
     return removed
 
 
-def _pytest_basetemp_root() -> _pathlib.Path:
-    """Where pytest keeps its numbered basetemps (``pytest-of-<user>``)."""
+def _pytest_basetemp_roots() -> list[_pathlib.Path]:
+    """EVERY place pytest may keep its numbered basetemps (``pytest-of-<user>``).
+
+    There are TWO, and which one a run uses depends on how it was launched
+    (#4434, observed 2026-08-02): pytest derives its basetemp from
+    ``tempfile.gettempdir()``, which honours ``$TMPDIR`` when exported (macOS
+    login shells: ``/var/folders/.../T/``) and falls back to ``/tmp`` when not
+    (some spawned/managed contexts). A sweeper that checks only the location
+    the CURRENT process resolves to cleans one tree while the other
+    accumulates untouched — 6.4 GB sat in ``/private/tmp`` while
+    ``$TMPDIR``'s tree was empty, and during the gate it was the inverse.
+    Two locations, one sweeper, nothing forcing them to agree.
+
+    Sweeping both is chosen over forcing a single ``TMPDIR``: forcing means
+    editing every launch path (gate, bare pytest, Xcode-spawned, subagents)
+    and any missed one silently recreates the blindness; this is one function.
+    """
     import getpass
 
     try:
         user = getpass.getuser()
     except Exception:  # no passwd entry (some CI sandboxes)
         user = os.environ.get("USER", "unknown")
-    return _pathlib.Path(_tempfile.gettempdir()) / f"pytest-of-{user}"
+    roots: list[_pathlib.Path] = []
+    seen: set[_pathlib.Path] = set()
+    for candidate in (_pathlib.Path(_tempfile.gettempdir()), _pathlib.Path("/tmp")):
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        if resolved in seen:
+            continue  # TMPDIR unset → gettempdir() IS /tmp; sweep it once
+        seen.add(resolved)
+        roots.append(resolved / f"pytest-of-{user}")
+    return roots
 
 
 def _safe_mtime(path: _pathlib.Path) -> float:
@@ -161,8 +197,18 @@ def _sweep_abandoned_pytest_basetemps(
       creates the dir a moment before writing its lock, and a starting
       concurrent run must not lose that race.
     """
+    if root is None:
+        # Sweep BOTH possible locations — see _pytest_basetemp_roots.
+        return sum(
+            _sweep_abandoned_pytest_basetemps(
+                r,
+                keep_lockless=keep_lockless,
+                min_lockless_age_s=min_lockless_age_s,
+            )
+            for r in _pytest_basetemp_roots()
+        )
     removed = 0
-    base = root if root is not None else _pytest_basetemp_root()
+    base = root
     if not base.is_dir():
         return 0
     import time as _time
@@ -244,6 +290,83 @@ def reclaim_tmp_path_contents(path: _pathlib.Path) -> None:
                 pass
 
 
+# ---------------------------------------------------------------------------
+# Per-test tmp_path reclaim, ALL suites (#4434)
+# ---------------------------------------------------------------------------
+# The measurement (2026-08-02, issue #4434): one unit+contracts run held
+# 15.8 GB across 3,847 tmp_path dirs, largest 22 MB — 96% of the mass in
+# ~3,000 dirs of 1-10 MB each. Not whales; every seeded-library test, held
+# simultaneously until session end. The reclaim mechanism existed and worked,
+# but was wired only into perf/conftest.py — a bound that runs on one branch
+# of the suite while reading as if it covers the whole (the #4485 shape).
+#
+# Policy: reclaim a PASSED test's tmp_path at teardown; RETAIN a failed
+# test's (that is the data you want) — but bounded: retention is capped in
+# BYTES, first-retained kept, and once the cap is hit further failures are
+# reclaimed LOUDLY (listed in the terminal summary). An unbounded "keep
+# failures" is the same leak wearing a better justification: 500 failures
+# x 10 MB is 5 GB, and a bad day produces exactly that.
+
+# 1 GiB ≈ 45+ retained failures at the observed 22 MB max. Env-overridable so
+# the bound-holds test can exercise the cap path with kilobytes, not gigabytes.
+_RETAIN_FAILED_TMP_BYTES_CAP = int(
+    os.environ.get("FICHERO_TMP_RETAIN_CAP_BYTES", str(1 * 1024**3))
+)
+_retained_failed_tmp: list[tuple[str, str, int]] = []  # (nodeid, path, bytes)
+_overcap_reclaimed_tmp: list[str] = []
+
+
+def _dir_bytes(path: _pathlib.Path) -> int:
+    total = 0
+    try:
+        for p in path.rglob("*"):
+            try:
+                if p.is_file() and not p.is_symlink():
+                    total += p.stat().st_size
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return total
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):  # noqa: ARG001
+    outcome = yield
+    report = outcome.get_result()
+    if report.failed:
+        item._fichero_tmp_retain = True  # any phase failing marks the test
+
+
+@pytest.fixture(autouse=True)
+def _reclaim_tmp_path_after_test(request, tmp_path):
+    """Reclaim tmp_path on pass, retain (bounded) on failure — every suite.
+
+    Requesting only ``tmp_path`` keeps this autouse fixture's setup EARLY
+    relative to the test's own fixtures, so per pytest's LIFO teardown order
+    it runs LAST — after ``test_package``'s ``db_manager.close_all()`` and
+    ``app_db``'s ``db.close()`` have released every connection into this
+    directory (same technique, same reason as perf/conftest.py's fixture,
+    which keeps its own unconditional reclaim: multi-GB perf dirs are never
+    worth retaining).
+
+    Contents are EMPTIED, never the directory removed — see
+    ``reclaim_tmp_path_contents`` for the numbered-dir path-reuse trap.
+    """
+    yield
+    if getattr(request.node, "_fichero_tmp_retain", False):
+        size = _dir_bytes(tmp_path)
+        held = sum(b for _, _, b in _retained_failed_tmp)
+        if held + size <= _RETAIN_FAILED_TMP_BYTES_CAP:
+            _retained_failed_tmp.append((request.node.nodeid, str(tmp_path), size))
+            return
+        # Cap hit: reclaim anyway, but never silently — the summary names it.
+        _overcap_reclaimed_tmp.append(
+            f"{request.node.nodeid} ({size / 1e6:.1f} MB)"
+        )
+    reclaim_tmp_path_contents(tmp_path)
+
+
 def _make_test_base_path() -> _pathlib.Path:
     """Create a per-process base path for test-only app storage.
 
@@ -302,23 +425,20 @@ def pytest_sessionstart(session):  # noqa: ARG001
     _deadlock_dump_armed = True
 
 
-def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
-    """Cancel the hang dump alarm once the suite exits normally."""
-    global _deadlock_dump_armed
+# NOTE: pytest_sessionfinish is defined ONCE, far below (the perf-ratchet
+# section) — it also cancels the faulthandler hang-dump alarm. A second def
+# here would silently SHADOW it (module attribute, last def wins), which is
+# exactly what happened until 2026-08-02: the cancel hook was dead code and
+# test_pytest_sessionfinish_cancels_only_when_armed failed against the
+# ratchet's def. One hook name, one def.
 
-    if _deadlock_dump_armed:
-        faulthandler.cancel_dump_traceback_later()
-        _deadlock_dump_armed = False
 
-
-def pytest_collection_modifyitems(items):
-    """
-    Auto-mark coroutine tests so they run with the installed anyio plugin.
-    """
-    for item in items:
-        test_obj = getattr(item, "obj", None)
-        if test_obj is not None and inspect.iscoroutinefunction(test_obj):
-            item.add_marker(pytest.mark.anyio)
+# NOTE: pytest_collection_modifyitems is defined ONCE, below the Apple
+# probes — an earlier duplicate def silently shadowed the anyio automark
+# (module attribute, last def wins), which broke every async-FIXTURE test
+# (pytest_pyfunc_call covers coroutine TESTS, not their fixtures): the 20
+# test_background_tasks errors on 2026-08-02. Same defect and same fix as
+# pytest_sessionfinish. One hook name, one def.
 
 
 # ---------------------------------------------------------------------------
@@ -395,8 +515,14 @@ _APPLE_VISION_OK = _apple_vision_available()
 _APPLE_INTELLIGENCE_OK = _apple_intelligence_available()
 
 
-def pytest_collection_modifyitems(items):  # noqa: F811 — extends prior hook
-    """Auto-mark async + apply Apple-availability skips."""
+def pytest_collection_modifyitems(config, items):  # noqa: ARG001
+    """The ONE collection hook: anyio automark, Apple skips, known-spec xfails.
+
+    These lived as THREE separate defs of this hook name; only the last one
+    executed (module attribute, last def wins), so the anyio automark and the
+    Apple skips were silently dead — async-fixture tests errored and nobody
+    connected it to a shadowed hook. Merged 2026-08-02; do not split again.
+    """
     skip_vision = pytest.mark.skip(
         reason="Apple Vision unavailable (non-mac or PyObjC Vision missing)"
     )
@@ -415,6 +541,28 @@ def pytest_collection_modifyitems(items):  # noqa: F811 — extends prior hook
             and not _APPLE_INTELLIGENCE_OK
         ):
             item.add_marker(skip_intelligence)
+
+    # Known specification failures (#4382 #4395 #4420): xfail(strict=True)
+    # on the listed tests, and only those. Marking a whole module also marks
+    # the tests in it that pass, and strict mode then fails those FOR
+    # PASSING — so the unit is one test id. Strict is the point: when the
+    # defect is fixed the test passes, this turns that into a failure, and
+    # the failure says to delete the line.
+    known = _known_specification_failures()
+    if not known:
+        return
+    prefix = "fichero-server/"
+    for item in items:
+        nodeid = item.nodeid
+        if nodeid.startswith(prefix):
+            nodeid = nodeid[len(prefix):]
+        if nodeid in known:
+            item.add_marker(
+                pytest.mark.xfail(
+                    strict=True,
+                    reason=f"specified, not yet implemented — see {_SPEC_FAILURES_PATH.name}",
+                )
+            )
 
 
 def pytest_pyfunc_call(pyfuncitem):
@@ -737,7 +885,18 @@ def _verify_query_counting_wired() -> None:
 
 
 def pytest_sessionfinish(session, exitstatus):
-    """Compare everything once, tighten what improved, report what regressed."""
+    """Compare everything once, tighten what improved, report what regressed.
+
+    Also cancels the #2651 hang-dump alarm — this is the ONLY sessionfinish
+    def in the module (a second one earlier in the file silently shadowed
+    whichever came first; see the note beside pytest_sessionstart).
+    """
+    global _deadlock_dump_armed
+
+    if _deadlock_dump_armed:
+        faulthandler.cancel_dump_traceback_later()
+        _deadlock_dump_armed = False
+
     if not _ratchet_enabled():
         return
     import perf_ratchet
@@ -822,33 +981,9 @@ def _known_specification_failures() -> set[str]:
     }
 
 
-def pytest_collection_modifyitems(config, items):
-    """Apply xfail(strict=True) to the listed tests, and only those.
-
-    Marking a whole module also marks the tests in it that pass, and strict
-    mode then fails those FOR PASSING. So the unit is one test id.
-
-    Strict is the point: when the defect is fixed the test passes, this turns
-    that into a failure, and the failure says to delete the line. A skip would
-    hide it; a non-strict xfail would let the line outlive the defect.
-    """
-    known = _known_specification_failures()
-    if not known:
-        return
-    import pytest as _pytest
-
-    prefix = "fichero-server/"
-    for item in items:
-        nodeid = item.nodeid
-        if nodeid.startswith(prefix):
-            nodeid = nodeid[len(prefix):]
-        if nodeid in known:
-            item.add_marker(
-                _pytest.mark.xfail(
-                    strict=True,
-                    reason=f"specified, not yet implemented — see {_SPEC_FAILURES_PATH.name}",
-                )
-            )
+# The known-specification xfail marking lives in the single
+# pytest_collection_modifyitems def above the Apple probes — a third def of
+# the hook here was the one that shadowed the other two (see the note there).
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
@@ -859,6 +994,37 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     project keeps hitting. So the count and its issues are printed at the end
     of EVERY run, in red, whether or not anything failed.
     """
+    # #4434: retained failing tests' tmp dirs, and any dropped past the cap.
+    if _retained_failed_tmp:
+        held = sum(b for _, _, b in _retained_failed_tmp)
+        terminalreporter.write_line(
+            f"retained {len(_retained_failed_tmp)} failing tests' tmp dirs "
+            f"({held / 1e6:.1f} MB, cap {_RETAIN_FAILED_TMP_BYTES_CAP / 1e9:.1f} GB, #4434):"
+        )
+        for nodeid, path, size in _retained_failed_tmp[:20]:
+            terminalreporter.write_line(f"  {size / 1e6:8.1f} MB  {nodeid}  {path}")
+        if len(_retained_failed_tmp) > 20:
+            terminalreporter.write_line(
+                f"  ... and {len(_retained_failed_tmp) - 20} more"
+            )
+    if _overcap_reclaimed_tmp:
+        terminalreporter.write_sep(
+            "=", "FAILING-TEST TMP RETENTION CAP HIT (#4434)", red=True
+        )
+        terminalreporter.write_line(
+            f"  The {_RETAIN_FAILED_TMP_BYTES_CAP / 1e9:.1f} GB retention cap filled; "
+            f"{len(_overcap_reclaimed_tmp)} later failures' tmp dirs were "
+            "reclaimed anyway. Their artifacts are GONE — re-run those tests "
+            "alone if you need the dirs. This is said out loud because "
+            "silently dropping evidence is how a bound becomes a lie."
+        )
+        for line in _overcap_reclaimed_tmp[:20]:
+            terminalreporter.write_line(f"    {line}")
+        if len(_overcap_reclaimed_tmp) > 20:
+            terminalreporter.write_line(
+                f"    ... and {len(_overcap_reclaimed_tmp) - 20} more"
+            )
+
     # #4434: a failing run's basetemp survives until the next run's sweep —
     # say WHERE, so nobody has to hunt /var/folders under time pressure.
     if exitstatus:
