@@ -71,6 +71,7 @@ struct AIModelCatalog: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear model search")
                 }
             }
             .padding(8)

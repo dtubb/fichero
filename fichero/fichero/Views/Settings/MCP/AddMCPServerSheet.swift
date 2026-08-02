@@ -42,6 +42,7 @@ struct AddMCPServerSheet: View {
                         .imageScale(.large)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close")
             }
             .padding()
 

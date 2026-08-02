@@ -42,6 +42,7 @@ struct MCPToolsCatalogView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("Refresh Tools")
+                .accessibilityLabel("Refresh Tools")
             }
             .padding()
 
@@ -62,6 +63,7 @@ struct MCPToolsCatalogView: View {
                             .foregroundColor(.secondary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear tool search")
                 }
 
                 Divider()

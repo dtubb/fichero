@@ -235,6 +235,10 @@ struct ProviderDetailView: View {
                                         .foregroundColor(.red)
                                 }
                                 .buttonStyle(.plain)
+                                // Names its row: every model in this list has the
+                                // same icon, so a bare "Remove" is announced
+                                // identically for all of them.
+                                .accessibilityLabel("Remove model \(model.name)")
                             }
                             .padding(.vertical, 2)
                         }

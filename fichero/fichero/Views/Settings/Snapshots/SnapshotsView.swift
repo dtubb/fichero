@@ -148,6 +148,9 @@ struct SnapshotsView: View {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
+            // Names its row -- a bare "Delete" would read the same for every
+            // snapshot, and this one is destructive and irreversible.
+            .accessibilityLabel("Delete snapshot \(title(snapshot))")
             .disabled(snapshotId == nil || store.restoringId != nil || store.deletingId != nil)
         }
     }

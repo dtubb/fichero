@@ -49,16 +49,12 @@ extension AddProviderSheet {
 
             // Footer with buttons
             HStack {
-                // Help button
-                Button {
-                    // help action
-                } label: {
-                    Image(systemName: "questionmark.circle")
-                        .font(.title2)
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-
+                // A help button used to sit here with an empty action -- it
+                // drew a "?" and did nothing when clicked. Labelling it for
+                // VoiceOver would have announced "Help" for a control that
+                // offers none, which is worse than the silence it replaced.
+                // Removed rather than pointed somewhere invented; wire a real
+                // help target back in when there is one to point at.
                 Spacer()
 
                 Button("Cancel") {
