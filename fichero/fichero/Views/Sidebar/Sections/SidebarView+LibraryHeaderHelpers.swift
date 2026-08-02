@@ -18,6 +18,9 @@ extension SidebarView {
             onSidebarItemDrop: { [library] droppedIds in
                 handleLibraryHeaderItemDrop(droppedIds: droppedIds, library: library)
             },
+            // The header accepted the drop synchronously; without somewhere to
+            // report a refusal the item just appears to vanish (#4401).
+            onDropError: { sidebarState.dropErrorMessage = $0 },
             onTap: {
                 selectedItemId = sidebarLibrarySelectionId(library.id)
                 if windowState.libraryId != library.id { windowState.libraryId = library.id }
@@ -149,6 +152,10 @@ struct LibraryHeaderRow: View {
     let isCurrentLibrary: Bool
     let onFileDrop: ([URL]) -> Bool
     let onSidebarItemDrop: ([String]) -> Void
+    /// Where a refused or unreadable drop is reported. This row has no
+    /// `sidebarState` of its own, so the sink is injected by the SidebarView
+    /// that does.
+    let onDropError: (String) -> Void
     let onTap: () -> Void
     let onRename: () -> Void
     let onShare: () -> Void
@@ -187,6 +194,9 @@ struct LibraryHeaderRow: View {
             // handlers `guard let` the closure) — viewers can't import/reparent.
             onFileDrop: canWrite ? onFileDrop : nil,
             onSidebarItemDrop: canWrite ? onSidebarItemDrop : nil,
+            // Same banner every other drop failure uses, so a refused header
+            // drop is reported in one place rather than nowhere (#4401).
+            onDropError: onDropError,
             onTap: onTap
         )
         .help(canWrite ? "" : Self.readOnlyHelp)
