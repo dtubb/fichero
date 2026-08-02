@@ -346,3 +346,99 @@ final class LibraryUndatedGroupingTests: XCTestCase {
         )
     }
 }
+
+// MARK: - When the section appears at all (#3322 step 6)
+
+/// One predicate and one title, shared by three view modes: the outline
+/// `Table`'s `Section`, the macOS `LazyVStack` header, and the iOS `List`
+/// `Section`. They render the group completely differently, which is exactly
+/// the shape where one grouping becomes three that disagree about when it
+/// shows or what it is called.
+final class LibraryDateSectioningTests: XCTestCase {
+
+    private func doc(_ id: String, jdn: Int?) -> Document {
+        Document(
+            id: id, parentId: nil, docType: .file, fileType: nil, name: id,
+            path: nil, sequence: nil, bbox: nil, status: .completed,
+            metadata: [:], pageContent: nil, dateJdn: jdn, sortOrder: 0,
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    func testTheSectionAppearsWhenSortingByDateAndSomethingIsUndated() {
+        XCTAssertTrue(
+            LibraryDateSectioning.showsUndatedSection(
+                sortField: .documentDate,
+                documents: [doc("a", jdn: 100), doc("u", jdn: nil)]
+            )
+        )
+    }
+
+    /// No section when everything has a date — a "No date" heading over an
+    /// empty group is chrome answering a question nobody asked.
+    func testNoSectionWhenEverythingIsDated() {
+        XCTAssertFalse(
+            LibraryDateSectioning.showsUndatedSection(
+                sortField: .documentDate,
+                documents: [doc("a", jdn: 100), doc("b", jdn: 200)]
+            )
+        )
+    }
+
+    /// And none under any other sort. Under sort-by-name "undated" is not a
+    /// fact the ordering is about, so sectioning on it would invent a hierarchy
+    /// the user did not ask for.
+    func testNoSectionUnderAClientOrderedSort() {
+        for field in LibrarySortField.allCases where !field.ordersOnServer {
+            XCTAssertFalse(
+                LibraryDateSectioning.showsUndatedSection(
+                    sortField: field,
+                    documents: [doc("a", jdn: 100), doc("u", jdn: nil)]
+                ),
+                "\(field.rawValue) must keep the flat list"
+            )
+        }
+    }
+
+    func testNoSectionForAnEmptyLibrary() {
+        XCTAssertFalse(
+            LibraryDateSectioning.showsUndatedSection(sortField: .documentDate, documents: [])
+        )
+    }
+
+    /// Both halves partition the same list — nothing lost, nothing in both.
+    func testTheTwoHalvesArePartitions() {
+        let all = [doc("a", jdn: 1), doc("u", jdn: nil), doc("b", jdn: 2)]
+        let dated = LibraryDateSectioning.dated(all) { $0.dateJdn }
+        let undated = LibraryDateSectioning.undated(all) { $0.dateJdn }
+
+        XCTAssertEqual(dated.count + undated.count, all.count)
+        XCTAssertTrue(Set(dated.map(\.id)).isDisjoint(with: Set(undated.map(\.id))))
+    }
+
+    /// The heading stays neutral on purpose. The four date states remain
+    /// distinguishable INSIDE the group — "Undated in source" is evidence a
+    /// historian cites, "Date not examined" is not evidence at all — and a
+    /// heading claiming either would flatten that for every row beneath it.
+    func testTheTitleDoesNotClaimAnyOfTheFourStates() {
+        let title = LibraryDateSectioning.undatedSectionTitle
+
+        XCTAssertEqual(title, "No date")
+        for claim in [DocumentDateDisplay.undatedInSource.text,
+                      DocumentDateDisplay.noDateFound.text,
+                      DocumentDateDisplay.notExamined.text] {
+            XCTAssertNotEqual(title, claim, "the heading must not adopt one row's state")
+        }
+    }
+
+    /// And those states still read differently from each other, so grouping
+    /// them together has not collapsed them.
+    func testTheStatesStayDistinctInsideTheGroup() {
+        let inside = [DocumentDateDisplay.undatedInSource,
+                      .noDateFound,
+                      .notExamined]
+
+        XCTAssertEqual(Set(inside.map(\.text)).count, 3)
+    }
+}

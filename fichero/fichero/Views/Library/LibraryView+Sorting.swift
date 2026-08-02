@@ -178,6 +178,38 @@ extension LibraryView {
         sortOrder = field.comparator(ascending: sortAscending)
     }
 
+    // MARK: - The "No date" section (#3322)
+
+    var activeSortField: LibrarySortField {
+        LibrarySortField(rawValue: sortFieldRaw) ?? .name
+    }
+
+    /// Whether to split the undated rows into their own section. Both view
+    /// modes ask this same question so they cannot disagree about when the
+    /// section appears.
+    var showsUndatedSection: Bool {
+        LibraryDateSectioning.showsUndatedSection(
+            sortField: activeSortField,
+            documents: filteredDocuments
+        )
+    }
+
+    var datedDocuments: [Document] {
+        LibraryDateSectioning.dated(filteredDocuments) { $0.dateJdn }
+    }
+
+    var undatedDocuments: [Document] {
+        LibraryDateSectioning.undated(filteredDocuments) { $0.dateJdn }
+    }
+
+    var datedOutlineNodes: [LibraryOutlineNode] {
+        LibraryDateSectioning.dated(outlineNodes) { $0.document.dateJdn }
+    }
+
+    var undatedOutlineNodes: [LibraryOutlineNode] {
+        LibraryDateSectioning.undated(outlineNodes) { $0.document.dateJdn }
+    }
+
     /// Tell the store which server ordering the library now wants (#3322).
     ///
     /// Called from every path that can change the active sort, INCLUDING the
