@@ -157,3 +157,70 @@ def test_dev_build_serves_release_beta_and_dev_routes(monkeypatch):
     assert client.post("/api/chat").status_code != 404
     assert client.get("/api/research/projects").status_code != 404
     assert client.get("/api/activity").status_code != 404
+
+
+class TestTierGated404sNameTheTier:
+    """#4470 server half: 'hidden by tier' and 'no such path' are different
+    facts and the response must say which — the #4380 connection-honesty
+    class. Naming the gate never widens it: the routes stay unregistered."""
+
+    def _client_with_handler(self, monkeypatch, tier: str) -> TestClient:
+        client = _tier_client(monkeypatch, tier)
+        main_module.install_tier_aware_not_found(main_module.app, tier)
+        return client
+
+    def test_hidden_route_group_404_names_both_tiers(self, monkeypatch):
+        client = self._client_with_handler(monkeypatch, "release")
+        response = client.get("/api/workflows")
+        assert response.status_code == 404, "naming the gate must not open it"
+        body = response.json()
+        assert body["code"] == "feature_tier_gated"
+        assert body["route_group"] == "/api/workflows"
+        assert body["required_tier"] == "beta"
+        assert body["active_tier"] == "release"
+        assert "beta" in body["detail"] and "release" in body["detail"]
+
+    def test_subpaths_of_a_hidden_group_are_also_named(self, monkeypatch):
+        client = self._client_with_handler(monkeypatch, "release")
+        body = client.get("/api/workflow-execution/threads").json()
+        assert body["code"] == "feature_tier_gated"
+        assert body["route_group"] == "/api/workflow-execution"
+
+    def test_a_genuinely_unknown_path_stays_a_plain_404(self, monkeypatch):
+        client = self._client_with_handler(monkeypatch, "release")
+        body = client.get("/api/no-such-thing").json()
+        assert body == {"detail": "Not Found"}, (
+            "a typo'd path must not claim to be tier-gated"
+        )
+
+    def test_the_group_is_not_flagged_on_a_tier_that_exposes_it(self, monkeypatch):
+        # At beta, /api/workflows is registered — a 404 under it (unknown
+        # sub-path or route-raised) must keep its own meaning.
+        assert main_module.tier_hidden_prefix("/api/workflows", "beta") is None
+        assert main_module.tier_hidden_prefix("/api/iiif", "dev") is None
+        assert main_module.tier_hidden_prefix("/api/iiif", "beta") == (
+            "/api/iiif",
+            "dev",
+        )
+
+    def test_route_raised_404s_keep_their_detail(self, monkeypatch):
+        """'Document not found: X' must pass through untouched — only
+        unmatched paths under HIDDEN prefixes are rewritten, and a hidden
+        prefix has no handlers to raise from."""
+        from fastapi import HTTPException as _HTTPException
+
+        test_app = FastAPI()
+        monkeypatch.setattr(main_module, "app", test_app)
+
+        @test_app.get("/api/documents/{doc_id}")
+        def _get(doc_id: str):
+            raise _HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+        main_module.install_tier_aware_not_found(test_app, "release")
+        client = TestClient(test_app)
+        body = client.get("/api/documents/nope").json()
+        assert body == {"detail": "Document not found: nope"}
+
+    def test_prefix_matching_does_not_swallow_lookalikes(self, monkeypatch):
+        # /api/workflowsphony is NOT under /api/workflows.
+        assert main_module.tier_hidden_prefix("/api/workflowsphony", "release") is None
