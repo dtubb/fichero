@@ -30,7 +30,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "#1912 baseline",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "#1912 baseline",
-    "Library/ViewModes/LibraryView+ListView.swift#bfcf9a9a01": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by the #2501 iOS List container split — the macOS branch keeps the ScrollView, iOS got a native List)",
+    "Library/ViewModes/LibraryView+ListView.swift#48ada56631": "#1912 baseline (ScrollView is required for #4160 keyboard handling; rehashed by the #2501 iOS List split and again by #3322's 'No date' section — same sanctioned container, more content inside it)",
     # Miller columns (#4160 step 4): List is NSTableView-backed and consumes
     # arrow keys before .onKeyPress — the browser's whole keyboard model
     # (up/down in the active column, left/right BETWEEN columns, one shared
@@ -39,8 +39,12 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # constraint is stated in-file at the collection site.
     "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#aba65b4662": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
-    "Chat/Research/ResearchTasksPane+Views.swift#1d731da4e7": "#1912 baseline (shifted by store migration)",
-    "Chat/Research/ResearchTasksPane+Views.swift#f50acbd404": "#1912 baseline (shifted by store migration)",
+    # Same two content hashes as the +Views.swift entries they replace — only
+    # the PATH moved. The file was split at its own MARK boundary when
+    # accessibility labels pushed it past the 400-line limit (#4484), and the
+    # unchanged hashes are independent proof that split was a pure move.
+    "Chat/Research/ResearchTasksPane+Tabs.swift#1d731da4e7": "#1912 baseline (moved from +Views.swift by the #4484 split; hash unchanged)",
+    "Chat/Research/ResearchTasksPane+Tabs.swift#f50acbd404": "#1912 baseline (moved from +Views.swift by the #4484 split; hash unchanged)",
     "Workflow/Library/WorkflowChainListViewParts/ChainDetailContent.swift#c804133262": "#1912 baseline",
 }
 

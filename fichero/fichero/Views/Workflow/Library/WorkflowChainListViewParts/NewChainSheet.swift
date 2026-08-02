@@ -45,6 +45,7 @@ struct NewChainSheet: View {
                                         .foregroundStyle(.red)
                                 }
                                 .buttonStyle(.borderless)
+                                .help("Remove this step from the chain")
                                 // Names its row: the chain is an ORDERED list
                                 // of steps that can repeat the same workflow,
                                 // so the position is part of the identity.

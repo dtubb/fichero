@@ -35,12 +35,42 @@ guard = _load("check_ios_compile_ratchet")
 # ---------------------------------------------------------------------------
 
 
-def test_no_duration_at_all_is_blind(capsys):
-    assert guard.main([]) == 2
-    assert "BLIND" in capsys.readouterr().err
+def test_no_duration_at_all_is_NOT_ARMED_not_blind(capsys, monkeypatch, tmp_path):
+    """The bug a full verify-all found: this went BLIND on every run.
+
+    `verify_all` sweeps every `scripts/check_*.py`, so merely existing arms a
+    check — and a Mac verify-all never runs the iOS leg. Reporting BLIND there
+    fails every full gate, which trains everyone to ignore the one voice that
+    is supposed to mean something.
+
+    BLIND is "I tried to measure and could not". NOT ARMED is "the input
+    legitimately does not exist here" (#4487).
+    """
+    monkeypatch.setattr(guard, "DEFAULT_DURATION_FILE", tmp_path / "absent")
+
+    assert guard.main([]) == 0
+    assert "NOT ARMED" in capsys.readouterr().out
 
 
-def test_a_missing_duration_file_is_blind(tmp_path, capsys):
+def test_an_argless_run_DOES_judge_a_duration_the_leg_left_behind(monkeypatch, tmp_path):
+    """NOT ARMED must not become "never checks anything". If the iOS leg is
+    ever wired to write its time, the argless gate sweep has to pick it up."""
+    duration = tmp_path / "ios-compile-seconds"
+    duration.write_text("214.7", encoding="utf-8")
+    monkeypatch.setattr(guard, "DEFAULT_DURATION_FILE", duration)
+
+    seen: list[float] = []
+    perf = guard._load_recorder()
+    monkeypatch.setattr(perf, "record", lambda name, ms: seen.append(ms))
+
+    assert guard.main([]) == 0
+    assert seen == [214700.0]
+
+
+def test_an_EXPLICIT_missing_duration_file_is_still_blind(tmp_path, capsys):
+    """The other half of the two-tier rule. Passing `--from-file` asserts the
+    leg ran, so a file that is not there means something broke — full rigor,
+    same as `check_release_size_ratchet`'s explicit --app/--dmg."""
     assert guard.main(["--from-file", str(tmp_path / "absent")]) == 2
     assert "BLIND" in capsys.readouterr().err
 
