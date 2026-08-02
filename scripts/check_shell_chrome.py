@@ -33,6 +33,8 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -125,6 +127,10 @@ def main(argv: list[str]) -> int:
 
     _self_test()
     found = violations()
+    # #4487 scan floor: 582 view files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291, "view files (582 on 2026-08-02)"
+    )
     oversize = oversize_shell_files()
 
     if "--generate" in argv:

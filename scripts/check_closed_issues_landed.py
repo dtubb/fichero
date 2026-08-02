@@ -41,7 +41,11 @@ Two related invariants, for the same reason:
     nothing. Failing those produces noise, and a noisy check gets disabled.
 """
 from __future__ import annotations
-import argparse, json, re, subprocess, sys
+import argparse
+import json
+import re
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 
 ISSUE_REF = re.compile(r"#(\d+)")

@@ -20,6 +20,8 @@ from __future__ import annotations
 import ast
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -300,6 +302,10 @@ def main() -> int:
         return 0
 
     tests = scan()
+    # #4487 scan floor: 7721 test functions on 2026-08-02. This check
+    # already caught its own CLI-tree silent-zero once (see module doc);
+    # the floor makes the whole population loud.
+    require_scan_floor(len(tests), 3860, "test functions (7721 on 2026-08-02)")
     vacuous = [t for t in tests if not t.has_assertion]
     asserting = [t for t in tests if t.has_assertion]
 

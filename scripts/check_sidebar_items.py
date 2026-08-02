@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,7 +64,20 @@ KNOWN_VIOLATIONS: dict[str, str] = {}
 
 
 def read(path: Path) -> str:
-    return path.read_text(errors="ignore") if path.exists() else ""
+    """Non-optional (#4487 Phase 3): these are NAMED, COMMITTED sources.
+
+    The old `"" if missing` meant a renamed factory file silently became
+    empty text — its item types vanished from the scan and "unwired: 0"
+    read as progress. A missing named input is BLIND, said out loud.
+    """
+    if not path.exists():
+        print(
+            f"BLIND: named source missing: {path} — the sidebar factories/"
+            "router moved; update this guardrail's paths (#4487 Phase 3)",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+    return path.read_text(errors="ignore")
 
 
 def built_item_types() -> set[str]:
@@ -127,6 +142,12 @@ def main() -> int:
     stale = sorted(known - set(found))
 
     print("Sidebar item wiring guardrail: scanned SidebarItem factories/builders and ContentView router")
+    # #4487: the factories/router are COMMITTED files — the masked-blind
+    # shape. Floor the item-type population parsed from them; unwired at
+    # zero is the goal, item types at zero is a dead parser.
+    require_scan_floor(
+        len(built_item_types()), 6, "built sidebar item types (committed factory sources)"
+    )
     print(f"  {len(found)} unwired item type(s); {len(known)} known backlog entries.")
 
     if stale:

@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from collections import Counter
 from pathlib import Path
 
@@ -213,6 +215,10 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
+    # #4487 scan floor: 582 view files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in VIEWS_DIR.rglob("*.swift")), 291, "view files (582 on 2026-08-02)"
+    )
     print(f"Observer-pattern guardrail: scanned {VIEWS_DIR.relative_to(ROOT)}")
     print(f"  {len(found)} file(s) with observer-pattern violations; {len(known)} known backlog entries.")
     print("  Summary by anti-pattern:")

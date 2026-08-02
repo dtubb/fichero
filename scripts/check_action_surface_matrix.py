@@ -23,6 +23,8 @@ Usage:
 from __future__ import annotations
 
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -435,6 +437,15 @@ def main() -> int:
 
     print("Action surface matrix guardrail:")
     print(f"  scanned {len(rows)} action(s)")
+    # #4487 scan floors. The 34 actions are a COMMITTED matrix, so their
+    # count only proves the constant exists; the discoverable half is the
+    # Swift evidence scan, and a dead one is masked by the known-gaps
+    # baseline (every action reads "missing menu" and every miss is known).
+    # Floor the evidence population too: 588 files on 2026-08-02.
+    require_scan_floor(len(rows), 17, "registered actions (34 on 2026-08-02)")
+    require_scan_floor(
+        len(_EVIDENCE_FILES), 294, "Swift evidence files (588 on 2026-08-02)"
+    )
     print(f"  menu gaps: {menu_missing}")
     print(f"  context gaps: {context_missing}")
     print(f"  toolbar gaps: {toolbar_missing}")

@@ -36,6 +36,8 @@ from __future__ import annotations
 import ast
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,7 +85,15 @@ def python_fields(path: Path = PY_SOURCE) -> set[str]:
                 for item in node.body
                 if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
             }
-    raise SystemExit(f"error: no ChangeEvent class found in {path}")
+    # #4487: parse resolved NOTHING from a present input — BLIND (exit 2),
+    # not a violation (exit 1). "I could not read my own contract source"
+    # must never share a code with "the contract is broken".
+    print(
+        f"BLIND: no ChangeEvent class found in {path} — the parser resolved "
+        "nothing from a present input (#4487)",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
 
 def swift_wire_keys(path: Path = SWIFT_SOURCE) -> set[str]:
@@ -99,11 +109,13 @@ def swift_wire_keys(path: Path = SWIFT_SOURCE) -> set[str]:
     source = path.read_text(encoding="utf-8")
     declaration = re.search(r"\bstruct\s+ChangeEvent\b", source)
     if not declaration:
-        raise SystemExit(f"error: no `struct ChangeEvent` found in {path}")
+        print(f"BLIND: no `struct ChangeEvent` found in {path} (#4487)", file=sys.stderr)
+        raise SystemExit(2)
 
     match = _CODING_KEYS.search(source, declaration.end())
     if not match:
-        raise SystemExit(f"error: ChangeEvent has no CodingKeys enum in {path}")
+        print(f"BLIND: ChangeEvent has no CodingKeys enum in {path} (#4487)", file=sys.stderr)
+        raise SystemExit(2)
 
     # Nothing may declare another type between ChangeEvent and its CodingKeys,
     # or the enum we just found belongs to that type instead.
@@ -126,6 +138,10 @@ def scan() -> tuple[set[str], set[str]]:
 
 
 def main() -> int:
+    # #4487 scan floor: both sides of the contract must resolve.
+    # 22 engine fields / 10 Swift keys on 2026-08-02.
+    require_scan_floor(len(python_fields()), 11, "ChangeEvent engine fields (22 on 2026-08-02)")
+    require_scan_floor(len(swift_wire_keys()), 5, "Swift ChangeEvent wire keys (10 on 2026-08-02)")
     argv = sys.argv[1:]
     if any(a in ("-h", "--help") for a in argv):
         print(__doc__)

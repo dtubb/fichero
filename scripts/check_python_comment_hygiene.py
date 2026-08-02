@@ -29,6 +29,8 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -154,6 +156,10 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
+    # #4487 scan floor: 423 server .py files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in SRC_DIR.rglob("*.py")), 211, "server Python files (423 on 2026-08-02)"
+    )
     print(f"Python comment hygiene guardrail: scanned {SRC_DIR.relative_to(ROOT)}")
     print(f"  {len(found)} violation(s); {len(known)} known.")
 

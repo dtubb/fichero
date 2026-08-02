@@ -18,6 +18,8 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -161,6 +163,11 @@ def main() -> int:
         return 0
 
     found = scan()
+    # #4487: the FeatureManager* glob is a 3-file committed convention — the
+    # masked-blind shape in miniature. Below 2, the convention moved.
+    require_scan_floor(
+        len(FEATURE_MANAGER_FILES), 2, "FeatureManager* files (3 on 2026-08-02)"
+    )
     known = set(KNOWN_VIOLATIONS)
 
     if "--list" in sys.argv[1:]:

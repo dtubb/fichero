@@ -29,6 +29,8 @@ from __future__ import annotations
 import json
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -138,6 +140,8 @@ def main() -> int:
 
     print("docs publication guardrail")
     print(f"  mkdocs.yml: {MKDOCS.relative_to(ROOT)}")
+    # #4487 scan floor: built-pages population on 2026-08-02.
+    require_scan_floor(len(built_pages(text)), 61, "built docs pages (~122 on 2026-08-02)")
     print(f"  built pages: {len(built_pages(text))}, in nav: {len(nav_pages(text))}")
     print(f"  unlinked but public: {len(unlinked_all)} ({len(new)} unaccounted)")
 

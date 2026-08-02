@@ -14,6 +14,8 @@ Usage:
 from __future__ import annotations
 
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -116,6 +118,8 @@ def main() -> int:
 
     print("Endpoint coverage matrix guardrail:")
     print(f"  scanned {len(rows)} operation(s)")
+    # #4487 scan floor: on the SCANNED population. 664 ops on 2026-08-02.
+    require_scan_floor(len(rows), 332, "OpenAPI operations (664 on 2026-08-02)")
     print(f"  store missing: {store_missing}")
     print(f"  cli missing: {cli_missing}")
     print(f"  missing from both: {both_missing}")

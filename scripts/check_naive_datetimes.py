@@ -37,6 +37,8 @@ from __future__ import annotations
 
 import ast
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator
@@ -304,8 +306,12 @@ def main(argv: list[str]) -> int:
     found_keys = {o.key for o in found}
     stale = sorted(k for k in KNOWN_VIOLATIONS if k not in found_keys)
 
+    # #4487 scan floor: 438 files on 2026-08-02, computed on every path —
+    # a violation run proves the scan lived; a clean run must prove it too.
+    scanned = sum(1 for _ in _iter_python_files(SCANNED_ROOTS))
+    require_scan_floor(scanned, 219, "Python files (438 on 2026-08-02)")
+
     if not unexpected and not stale:
-        scanned = sum(1 for _ in _iter_python_files(SCANNED_ROOTS))
         print(f"check_naive_datetimes: OK ({scanned} files, 0 naive clock reads)")
         return 0
 

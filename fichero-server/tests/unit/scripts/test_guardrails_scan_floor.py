@@ -26,6 +26,10 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 
+_EMPTY_OPENAPI = json.dumps(
+    {"openapi": "3.1.0", "info": {"title": "t", "version": "0"}, "paths": {}}
+)
+
 # Every check converted under #4487, with the empty-but-present scaffolding
 # its scan expects. Growing Phase 1/2 = adding rows here.
 FLOORED_CHECKS: dict[str, dict] = {
@@ -62,6 +66,251 @@ FLOORED_CHECKS: dict[str, dict] = {
         },
         "extra_scripts": [],
     },
+    "check_endpoint_coverage_matrix.py": {
+        "dirs": [
+            "fichero/fichero/Services",
+            "fichero/fichero/Models",
+            "fichero-cli/src/fichero_cli",
+        ],
+        "files": {
+            "fichero-server/tests/contracts/openapi.json": _EMPTY_OPENAPI,
+            "docs/contributor/api-reference/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [
+            "matrix_guardrail_common.py",
+            "check_endpoint_coverage_matrix_known_gaps.json",
+        ],
+    },
+    "check_action_surface_matrix.py": {
+        "dirs": ["fichero/fichero/Views", "fichero/fichero/App/Menus"],
+        "files": {
+            "fichero/fichero/FicheroApp.swift": "",
+            "fichero/fichero/App/Menus/FocusedCommandButtons.swift": "",
+        },
+        "extra_scripts": [
+            "matrix_guardrail_common.py",
+            "check_action_surface_matrix_known_gaps.json",
+        ],
+    },
+    "check_appkit_imports.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_dead_files.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_view_endpoint_access.py": {
+        "dirs": ["fichero/fichero/Views"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_test_assertions.py": {
+        "dirs": [
+            "fichero/fichero",
+            "fichero-server/tests",
+            "fichero/fichero-cli",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_artifact_type_contract.py": {
+        "dirs": [
+            "fichero-server/src/fichero_server",
+            "fichero/fichero",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_change_event_contract.py": {
+        "dirs": ["fichero-server/src/fichero_server/api", "fichero/fichero/Services"],
+        "files": {
+            "fichero-server/src/fichero_server/api/change_stream.py": "",
+            "fichero/fichero/Services/LibraryChangeStream.swift": "",
+        },
+        "extra_scripts": [],
+    },
+    "check_naive_datetimes.py": {
+        "dirs": [
+            "fichero-server/src/fichero_server",
+            "fichero-cli/src",
+            "fichero-mcp/src",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_silent_write_swallow.py": {
+        "dirs": ["fichero-server/src/fichero_server"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_swift_transport.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_tcp_transport_wrapper.py": {
+        "dirs": [
+            "fichero-server/src/fichero_server",
+            "fichero-server/scripts",
+            "scripts",
+            "fichero/fichero",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_no_raw_urlsession.py": {
+        "dirs": ["fichero/fichero-api-client/Sources"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_no_raw_urlsession_app.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_no_hardcoded_engine_base.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_observer_pattern.py": {
+        "dirs": ["fichero/fichero/Views"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_openapi_typed_fields.py": {
+        "dirs": ["fichero/fichero/Services"],
+        "files": {
+            "fichero-server/tests/contracts/openapi.json": _EMPTY_OPENAPI,
+            "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [],
+    },
+    "check_openapi_shadow_types.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {"fichero-server/tests/contracts/openapi.json": _EMPTY_OPENAPI},
+        "extra_scripts": [],
+    },
+    "check_generated_wrapper_drift.py": {
+        "dirs": ["fichero/fichero/Services"],
+        "files": {
+            "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [],
+    },
+    "check_service_consistency.py": {
+        "dirs": ["fichero/fichero/Services"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_canonical_renderers.py": {
+        "dirs": ["fichero/fichero/Views"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_xcode_registration.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {"fichero/fichero.xcodeproj/project.pbxproj": ""},
+        "extra_scripts": [],
+    },
+    "check_mainactor_view_statics.py": {
+        "dirs": ["fichero/fichero", "fichero/fichero-tests"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_feature_flags.py": {
+        "dirs": ["fichero/fichero/Models"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_localization.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_model_download_location.py": {
+        "dirs": ["fichero-server/src/fichero_server"], "files": {}, "extra_scripts": [],
+    },
+    "check_no_emoji_sf_symbols.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_python_comment_hygiene.py": {
+        "dirs": ["fichero-server/src/fichero_server"], "files": {}, "extra_scripts": [],
+    },
+    "check_swift_hand_rolled_urls.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_test_userdefaults_isolation.py": {
+        "dirs": ["fichero/fichero-tests", "fichero/fichero-ui-tests"],
+        "files": {}, "extra_scripts": [],
+    },
+    "check_tooltips.py": {
+        "dirs": ["fichero/fichero/Views"], "files": {}, "extra_scripts": [],
+    },
+    "check_shell_chrome.py": {
+        "dirs": ["fichero/fichero/Views"], "files": {}, "extra_scripts": [],
+    },
+    "check_appsource_paths.py": {
+        "dirs": ["fichero/fichero-tests", "fichero/fichero-ui-tests", "fichero/fichero"],
+        "files": {}, "extra_scripts": [],
+    },
+    "check_folder_organization.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_app_intent_action_coverage.py": {
+        "dirs": ["fichero-server/src/fichero_server", "fichero/fichero"],
+        "files": {}, "extra_scripts": [],
+    },
+    "check_docs_paths.py": {
+        "dirs": ["docs"], "files": {}, "extra_scripts": [],
+    },
+    "check_applescript_coverage.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {
+            "fichero/fichero/Fichero.sdef": "<dictionary></dictionary>",
+        },
+        "extra_scripts": [],
+    },
+    "check_import_render_completeness.py": {
+        "dirs": ["fichero-server/src/fichero_server/models", "fichero/fichero/Services"],
+        "files": {
+            "fichero-server/src/fichero_server/models/__init__.py": "",
+            "fichero/fichero/Services/DocumentService.swift": "",
+        },
+        "extra_scripts": [],
+    },
+    "check_docs_publication.py": {
+        "dirs": ["docs"],
+        "files": {"mkdocs.yml": "site_name: t\nnav: []\n"},
+        "extra_scripts": ["check_docs_publication_allowlist.json"],
+    },
+    "check_sidebar_items.py": {
+        "dirs": ["fichero/fichero/Views/Shell/ContentView"],
+        "files": {
+            "fichero/fichero/Views/Shell/ContentView/ContentView+Navigation.swift": "",
+        },
+        "extra_scripts": [],
+    },
+    "check_endpoint_usage.py": {
+        "dirs": [
+            "fichero/fichero/Services",
+            "fichero/fichero/Models",
+            "fichero-cli/src/fichero_cli",
+        ],
+        "files": {
+            "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [],
+    },
+    "check_locale_safe_binary_pipes.py": {
+        # scripts/ exists (holds the copied check itself) but has no .sh —
+        # zero file(1) pipe sites is BLIND ("the idiom moved"), never "all
+        # safe".
+        "dirs": ["fichero-server/scripts"],
+        "files": {},
+        "extra_scripts": [],
+    },
 }
 
 
@@ -85,7 +334,7 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
 
 def test_the_floored_inventory_is_not_empty():
     """Guard the guard: this sweep is the proof the floors can fire."""
-    assert len(FLOORED_CHECKS) >= 3
+    assert len(FLOORED_CHECKS) >= 45
 
 
 @pytest.mark.parametrize("name", sorted(FLOORED_CHECKS))

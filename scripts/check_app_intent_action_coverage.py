@@ -34,6 +34,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -97,6 +99,9 @@ def main() -> int:
     stale = sorted(known - set(bad))
 
     print("App Intents → action-registry reachability (#2281):")
+    # #4487 scan floors: 209 actions / 5 intent refs on 2026-08-02.
+    require_scan_floor(len(registered), 104, "registered actions (209 on 2026-08-02)")
+    require_scan_floor(len(refs), 2, "App Intent references (5 on 2026-08-02)")
     print(f"  {len(registered)} registered action(s); {len(refs)} App Intent reference(s)")
     print(f"  {len(bad)} unresolved; {len(known)} known.")
 

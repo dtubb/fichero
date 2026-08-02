@@ -30,6 +30,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -105,6 +107,8 @@ def main() -> int:
     stale = sorted(known - set(bad))
 
     print("AppleScript dictionary coverage guardrail (#2286):")
+    # #4487 scan floors: 17 sdef classes / 13 commands on 2026-08-02.
+    require_scan_floor(len(advertised), 8, "sdef cocoa classes (17 on 2026-08-02)")
     print(f"  {len(advertised)} advertised cocoa class(es); "
           f"{len(commands)} Swift NSScriptCommand(s); {len(bad)} gap(s).")
 

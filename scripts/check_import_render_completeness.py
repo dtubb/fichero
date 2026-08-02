@@ -36,6 +36,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -108,6 +110,15 @@ def main() -> int:
 
     bad = violations()
     known = set(KNOWN_VIOLATIONS)
+    # #4487 scan floors: enum members parsed from committed sources — the
+    # masked-blind shape; a dead parser reads zero members and every
+    # decoder looks complete.
+    _py_src = PY_MODELS.read_text(errors="ignore")
+    for _enum in ENUM_DECODERS:
+        require_scan_floor(
+            len(_python_enum_cases(_py_src, _enum)), 3,
+            f"{_enum} members parsed (committed model source)",
+        )
 
     if "--list" in argv:
         py_src = PY_MODELS.read_text(errors="ignore")

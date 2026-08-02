@@ -19,6 +19,16 @@
     "ms": 3187.7,
     "note": "first recorded run"
   },
+  "mem::session::tests,tests/unit/mcp": {
+    "commit": "c653992c9",
+    "mb": 444.1,
+    "note": "first recorded run"
+  },
+  "mem::session::tests/unit/actions": {
+    "commit": "c653992c9",
+    "mb": 2012.7,
+    "note": "first recorded run"
+  },
   "mem::session::tests/unit/llm/test_lang_detect.py": {
     "commit": "e123a8a43",
     "mb": 263.0,
@@ -2395,8 +2405,8 @@
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_appended_actions_verify_and_link_contiguously": {
-    "commit": "e123a8a43",
-    "ms": 49.0,
+    "commit": "c653992c9",
+    "ms": 36.9,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_current_head_and_save_chained_audit_track_latest_row_and_anchor": {
@@ -2405,13 +2415,13 @@
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_near_simultaneous_invokes_produce_linear_chain": {
-    "commit": "e123a8a43",
-    "ms": 49.3,
+    "commit": "c653992c9",
+    "ms": 39.9,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_undo_mutates_undone_without_breaking_chain": {
-    "commit": "e123a8a43",
-    "ms": 39.0,
+    "commit": "c653992c9",
+    "ms": 34.3,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_deleted_middle_row": {
@@ -2435,23 +2445,23 @@
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_reordered_chain_seq": {
-    "commit": "e123a8a43",
-    "ms": 62.2,
+    "commit": "c653992c9",
+    "ms": 49.5,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_audit_chain.py::test_verification_detects_truncated_tail_via_external_anchor": {
-    "commit": "e123a8a43",
-    "ms": 66.8,
+    "commit": "c653992c9",
+    "ms": 45.1,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_registry.py::TestActionsRegistryRoute::test_get_registry_lists_entity_merge": {
-    "commit": "e123a8a43",
-    "ms": 133.4,
+    "commit": "c653992c9",
+    "ms": 111.4,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_registry.py::TestActionsRegistryRoute::test_invoke_via_route_writes_audit": {
-    "commit": "e123a8a43",
-    "ms": 728.6,
+    "commit": "c653992c9",
+    "ms": 423.0,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_registry.py::TestEntityMergeAction::test_merge_via_registry_effect_and_audit": {
@@ -2460,38 +2470,38 @@
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_registry.py::TestEntityMergeAction::test_undo_reverses_merge": {
-    "commit": "e123a8a43",
-    "ms": 1187.5,
+    "commit": "c653992c9",
+    "ms": 786.4,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_action_registry.py::TestEntityMergeAction::test_unmerge_undo_remerges_same_entities": {
-    "commit": "e123a8a43",
-    "ms": 1644.6,
+    "commit": "c653992c9",
+    "ms": 959.5,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_chat_tools_loop.py::test_default_llm_error_still_raises_never_silent": {
-    "commit": "e123a8a43",
-    "ms": 50.8,
+    "commit": "c653992c9",
+    "ms": 42.4,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_chat_tools_loop.py::test_default_model_without_bind_tools_falls_back_to_single_shot": {
-    "commit": "e123a8a43",
-    "ms": 54.2,
+    "commit": "c653992c9",
+    "ms": 43.4,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_chat_tools_loop.py::test_default_runs_agent_loop_and_dispatches_read_tool": {
-    "commit": "e123a8a43",
-    "ms": 62.1,
+    "commit": "c653992c9",
+    "ms": 50.4,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_chat_tools_loop.py::test_flag_on_mutating_tool_is_denied_and_never_invoked": {
-    "commit": "e123a8a43",
-    "ms": 51.6,
+    "commit": "c653992c9",
+    "ms": 43.9,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_chat_tools_loop.py::test_flag_on_read_tool_is_dispatched_and_surfaced": {
-    "commit": "e123a8a43",
-    "ms": 57.1,
+    "commit": "c653992c9",
+    "ms": 49.7,
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_chat_tools_loop.py::test_kill_switch_forces_single_shot_with_no_tool_calls": {
@@ -2500,8 +2510,8 @@
     "note": "first recorded run"
   },
   "test::tests/unit/actions/test_chat_tools_loop.py::test_read_tool_dispatch_failure_surfaces_as_error_tool_call": {
-    "commit": "e123a8a43",
-    "ms": 61.9,
+    "commit": "c653992c9",
+    "ms": 45.3,
     "note": "first recorded run"
   },
   "test::tests/unit/api/test_action_chat_tools.py::TestActionTools::test_one_tool_per_registered_action_with_valid_shape": {
@@ -12400,8 +12410,8 @@
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[beta-get-/api/activity-False]": {
-    "commit": "e123a8a43",
-    "ms": 950.1,
+    "commit": "c653992c9",
+    "ms": 478.6,
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[beta-get-/api/iiif/iiif/test/info.json-True]": {
@@ -12425,8 +12435,8 @@
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[dev-get-/api/iiif/iiif/test/info.json-False]": {
-    "commit": "e123a8a43",
-    "ms": 848.9,
+    "commit": "c653992c9",
+    "ms": 357.8,
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[dev-get-/api/research/projects-False]": {
@@ -12455,23 +12465,28 @@
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestFeatureTierSecurity::test_tier_change_requires_validation[release-post-/api/chat-True]": {
-    "commit": "e123a8a43",
-    "ms": 751.6,
+    "commit": "c653992c9",
+    "ms": 185.9,
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestLibraryPathSecurity::test_library_path_blocks_traversal": {
-    "commit": "e123a8a43",
-    "ms": 44.9,
+    "commit": "c653992c9",
+    "ms": 39.5,
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestLibraryPathSecurity::test_library_path_validates_allowed_locations": {
-    "commit": "e123a8a43",
-    "ms": 41.1,
+    "commit": "c653992c9",
+    "ms": 39.6,
     "note": "first recorded run"
   },
   "test::tests/unit/mcp/test_integration_security.py::TestSecurityHeaders::test_security_headers_present": {
-    "commit": "e123a8a43",
-    "ms": 46.5,
+    "commit": "c653992c9",
+    "ms": 40.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/mcp/test_mcp_manager.py::TestMCPManager::test_load_server_tools": {
+    "commit": "c653992c9",
+    "ms": 180.4,
     "note": "first recorded run"
   },
   "test::tests/unit/models/test_background_tasks.py::TestTaskQueue::test_direct_task_execution_emits_backend_work_lifecycle": {

@@ -23,6 +23,8 @@ from __future__ import annotations
 import json
 import ipaddress
 import os
+import re
+import ssl
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -74,7 +76,11 @@ from fichero_server.models import (
     Workflow,
 )
 
-DEFAULT_BASE_URL = "http://127.0.0.1:8765"
+# https, not http (#4468): the engine MANDATES TLS on TCP (engine_manager
+# refuses to start without certs), so an http default could never work
+# against the engine we ship — a default that cannot work is a trap, and
+# Daniel's standing transport rule is fail-closed loopback/HTTPS.
+DEFAULT_BASE_URL = "https://127.0.0.1:8765"
 SPLIT_CHAPTERS_WORKFLOW_NAME = "Split Chapters"
 TRANSLATE_WORKFLOW_NAME = "Translate"
 
@@ -224,6 +230,46 @@ def _expect_list(raw: Any, path: str) -> list[Any]:
     return raw
 
 
+def _loopback_trust(base_url: str) -> ssl.SSLContext:
+    """Trust anchors for a LOOPBACK https engine: the engine's OWN certs.
+
+    The engine (fichero_server.security.remote_access_tls) writes its
+    self-signed identity under
+    ``~/Library/Application Support/Fichero/Remote Access/<host>-<port>-<hash>/server.crt``
+    — the same location for embedded and hand-started engines (the hash
+    varies with the URL + alt-host set, so we anchor EVERY cert this machine
+    has generated for this host:port rather than recomputing one hash).
+
+    FAIL CLOSED (#4468): if no material exists, raise naming the path
+    searched — never fall back to unverified. ``verify=False`` is not
+    acceptable anywhere, including "just for localhost": loopback is where
+    the owner credential lives.
+    """
+    from fichero_server.security.remote_access_tls import DEFAULT_STORAGE_ROOT
+
+    parsed = urlparse(base_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 8765
+    safe_host = re.sub(r"[^A-Za-z0-9._-]+", "_", host).strip("._-") or "host"
+    pattern = f"{safe_host}-{port}-*"
+    certs = sorted(DEFAULT_STORAGE_ROOT.glob(f"{pattern}/server.crt"))
+    if not certs:
+        raise FicheroError(
+            f"No engine TLS material found for {host}:{port} — looked for "
+            f"{DEFAULT_STORAGE_ROOT / pattern}/server.crt. The engine writes "
+            "this the first time it starts with TLS (start_backend.sh, the "
+            "app, or `fichero engine start`); start it once on this machine. "
+            "Refusing to connect unverified."
+        )
+    context = ssl.create_default_context()
+    for cert in certs:
+        try:
+            context.load_verify_locations(cafile=str(cert))
+        except ssl.SSLError:
+            continue  # a corrupt cert must not block the valid ones
+    return context
+
+
 class FicheroClient:
     """Synchronous HTTP client for the Fichero backend.
 
@@ -262,8 +308,21 @@ class FicheroClient:
         # entry says WHICH surface used a credential, not just whose credential
         # it was (#4469). Attribution metadata only — never used for authz.
         self.client_name = client_name
+        # Trust (#4468): explicit test transports skip TLS entirely; an
+        # explicit SSL_CERT_FILE keeps httpx's default behaviour (it honours
+        # that env); a LOOPBACK https URL anchors the engine's own generated
+        # cert(s), failing closed if none exist. Remote https keeps default
+        # verification for now — the SPKI-pin trust path for remote CLI use
+        # needs a pin store the CLI does not have yet (#4468, reported).
+        verify: Any = True
+        if transport is None and self.base_url.startswith("https://"):
+            if not os.environ.get("SSL_CERT_FILE") and _is_loopback_base_url(
+                self.base_url
+            ):
+                verify = _loopback_trust(self.base_url)
         self._client = httpx.Client(
-            base_url=self.base_url, timeout=timeout, transport=transport
+            base_url=self.base_url, timeout=timeout, transport=transport,
+            verify=verify,
         )
 
     # -- lifecycle ---------------------------------------------------------
