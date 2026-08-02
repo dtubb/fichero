@@ -94,7 +94,17 @@ class KnowledgeClaimCreateRequest(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     language: str | None = Field(None, description="ISO 639-1 language code", min_length=2, max_length=16)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_by: str = Field(default="mcp", min_length=1, max_length=128)
+    created_by: str = Field(
+        default="mcp",
+        min_length=1,
+        max_length=128,
+        description=(
+            "IGNORED (#4485). Who asserted a claim is the difference between "
+            "evidence and hearsay; it derives exclusively from authenticated "
+            "request state and a body value can never claim another principal. "
+            "Accepted only for wire compatibility."
+        ),
+    )
 
 
 class KnowledgeClaimCreateResponse(BaseModel):
@@ -240,6 +250,60 @@ def _log_mcp_entity_mutation(
         )
 
 
+def _log_mcp_claim_creation(*, db: Database, claim: KnowledgeClaim, actor: str) -> None:
+    """MutationLog for an agent's claim CREATE (#4485) — same contract as the
+    entity edit log: best-effort, loud on failure, because an unrecorded KG
+    write is a change to the archive nobody can account for."""
+    from fichero_server.models.knowledge import MutationLog, MutationOperationType
+
+    try:
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeClaim",
+                entity_id=claim.id,
+                operation=MutationOperationType.create,
+                before_state=None,
+                after_state=claim.model_dump(mode="json"),
+                created_by=actor,
+            )
+        )
+    except Exception as exc:
+        logger.error(
+            "MCP claim %s created by %s but the mutation log FAILED (%s) — "
+            "this write is unaccounted for (#4485)",
+            claim.id,
+            actor,
+            exc,
+        )
+
+
+def _emit_mcp_kg_change(
+    db: Database,
+    *,
+    claim_ids: list[str] | None = None,
+    entity_ids: list[str] | None = None,
+    actor: str,
+) -> None:
+    """Broadcast an MCP KG write to the change stream (#4485/#4427).
+
+    Emit at the write, not at each caller: a mutation that does not emit is
+    invisible to every other client. Best-effort by the stream's own contract.
+    """
+    from fichero_server.api.change_stream import emit_change
+
+    try:
+        emit_change(
+            str(db.path.parent),
+            type="claim.updated" if claim_ids else "entity.updated",
+            claim_ids=list(claim_ids or []),
+            entity_ids=list(entity_ids or []),
+            actor=actor,
+            origin_user=actor,
+        )
+    except Exception as exc:  # pragma: no cover - emit is best-effort
+        logger.debug("MCP KG emit failed (ignored): %s", exc)
+
+
 @router.post(
     "/knowledge/entities/upsert",
     response_model=KnowledgeEntityUpsertResponse,
@@ -286,6 +350,7 @@ async def mcp_knowledge_entity_upsert(
             _log_mcp_entity_mutation(
                 db=db, entity=existing, before_state=before_state, actor=actor
             )
+            _emit_mcp_kg_change(db, entity_ids=[existing.id], actor=actor)
             logger.info("MCP: Updated entity %s by %s", request.id, actor)
             return KnowledgeEntityUpsertResponse(
                 success=True,
@@ -307,7 +372,31 @@ async def mcp_knowledge_entity_upsert(
     )
 
     db.save(entity)
-    logger.info("MCP: Created entity %s", entity.id)
+    # #4485: the CREATE branch saved with no MutationLog and no emit — an
+    # agent-created entity was untraceable while an agent-EDITED one was
+    # logged (#4415). Same contract for both now.
+    from fichero_server.models.knowledge import MutationLog, MutationOperationType
+
+    try:
+        db.save(
+            MutationLog(
+                entity_type="KnowledgeEntity",
+                entity_id=entity.id,
+                operation=MutationOperationType.create,
+                before_state=None,
+                after_state=entity.model_dump(mode="json"),
+                created_by=actor,
+            )
+        )
+    except Exception as exc:
+        logger.error(
+            "MCP entity %s created by %s but the mutation log FAILED (%s) (#4485)",
+            entity.id,
+            actor,
+            exc,
+        )
+    _emit_mcp_kg_change(db, entity_ids=[entity.id], actor=actor)
+    logger.info("MCP: Created entity %s by %s", entity.id, actor)
     return KnowledgeEntityUpsertResponse(
         success=True,
         entity_id=entity.id,
@@ -326,6 +415,7 @@ async def mcp_knowledge_entity_upsert(
 async def mcp_knowledge_claim_create(
     request: KnowledgeClaimCreateRequest,
     db: Database = Depends(get_library_database_for_write),
+    actor: str = Depends(request_actor),
 ) -> KnowledgeClaimCreateResponse:
     """MCP tool endpoint: Create knowledge claim.
 
@@ -367,13 +457,21 @@ async def mcp_knowledge_claim_create(
         confidence=request.confidence,
         language=request.language,
         metadata=request.metadata,
-        created_by=request.created_by,
+        # #4485: the author is the AUTHENTICATED principal, never the body.
+        # request.created_by is deliberately ignored — honouring it would let
+        # a client record that someone asserted a claim they never asserted,
+        # undetectably and irreparably.
+        created_by=actor,
         created_at=utc_now(),
         updated_at=utc_now(),
     )
 
     db.save(claim)
-    logger.info("MCP: Created claim %s", claim.id)
+    _log_mcp_claim_creation(db=db, claim=claim, actor=actor)
+    _emit_mcp_kg_change(
+        db, claim_ids=[claim.id], entity_ids=list(request.entity_ids), actor=actor
+    )
+    logger.info("MCP: Created claim %s by %s", claim.id, actor)
     return KnowledgeClaimCreateResponse(
         success=True,
         claim_id=claim.id,
