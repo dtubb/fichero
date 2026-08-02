@@ -757,6 +757,17 @@ private extension DocumentService {
         // child_count isn't a typed field on Components.Schemas.Document (it lives
         // on FolderViewsResponse); it arrives via additionalProperties.
         let childCount = (extras["child_count"] as? Int) ?? 0
+        // #3322 historical date, read from `additionalProperties` — the same
+        // single path `child_count` above uses, rather than a typed read plus a
+        // fallback. One way in is the point: two ways to obtain one field is
+        // how they drift.
+        let dateOriginal = extras["date_original"] as? String
+        let dateJdn = extras["date_jdn"] as? Int
+        // `date_meta`'s ABSENCE is the "never extracted" state, so this stays
+        // nil when the server sent nothing. Defaulting it to [:] would read as
+        // "extraction ran and found nothing" — a different fact.
+        let dateMeta = (extras["date_meta"] as? [String: Any])
+            .map { raw in raw.mapValues { AnyCodable($0) } }
         // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
         let bbox = (doc.bbox?.value as? [Int]) ?? (extras["bbox"] as? [Int])
         let pageContent = doc.pageContent ?? (extras["page_content"] as? String)
@@ -775,6 +786,9 @@ private extension DocumentService {
             pageContent: pageContent,
             excludeFromProcessing: doc.excludeFromProcessing ?? false,
             childCount: childCount,
+            dateOriginal: dateOriginal,
+            dateJdn: dateJdn,
+            dateMeta: dateMeta,
             createdAt: doc.createdAt ?? Date(),
             updatedAt: doc.updatedAt ?? Date(),
             expectedThumbnailPath: doc.expectedThumbnailPath,
