@@ -542,6 +542,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -631,6 +641,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -815,6 +835,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -874,6 +904,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -1002,6 +1042,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -1064,6 +1114,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -1108,6 +1168,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -1925,6 +1995,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -2120,6 +2200,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -2179,6 +2269,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -2329,6 +2429,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -2463,6 +2573,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -2515,6 +2635,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -2741,6 +2871,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -2800,6 +2940,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -3910,6 +4060,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -4100,6 +4260,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -4204,6 +4374,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -4311,6 +4491,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -4386,6 +4576,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -4428,6 +4628,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -4943,6 +5153,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -5039,6 +5259,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -5101,6 +5331,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -5228,6 +5468,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -5280,6 +5530,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -5634,6 +5894,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -5853,6 +6123,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -5912,6 +6192,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -5990,6 +6280,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -6052,6 +6352,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -6112,6 +6422,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -6158,6 +6478,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -6307,6 +6637,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -6368,6 +6708,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -6467,6 +6817,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -6637,6 +6997,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -6698,6 +7068,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -6830,6 +7210,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -7051,6 +7441,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -7154,6 +7554,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -7487,6 +7897,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -7717,6 +8137,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -7777,6 +8207,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -7951,6 +8391,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -8012,6 +8462,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -8057,6 +8517,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -8341,6 +8811,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -8402,6 +8882,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -8504,6 +8994,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -8619,6 +9119,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -8664,6 +9174,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -8755,6 +9275,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -8808,6 +9338,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -8876,6 +9416,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -8950,6 +9500,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -9013,6 +9573,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -9056,6 +9626,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -9371,6 +9951,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -9431,6 +10021,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -9819,6 +10419,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -10201,6 +10811,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -10274,6 +10894,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -11523,6 +12153,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -11584,6 +12224,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -11629,6 +12279,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -11693,6 +12353,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -11755,6 +12425,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -11819,6 +12499,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -11881,6 +12571,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -11945,6 +12645,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -11999,6 +12709,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -12064,6 +12784,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -12108,6 +12838,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -12173,6 +12913,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -12237,6 +12987,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -12290,6 +13050,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -12354,6 +13124,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -15311,6 +16091,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -15891,6 +16681,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -16018,6 +16818,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -16079,6 +16889,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -16890,6 +17710,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -16944,6 +17774,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -17376,6 +18216,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -17430,6 +18280,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -17486,6 +18346,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -17540,6 +18410,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -21334,6 +22214,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -22917,6 +23807,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -22967,6 +23867,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -23020,6 +23930,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -23093,6 +24013,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -23143,6 +24073,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -23197,6 +24137,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -23249,6 +24199,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -23365,6 +24325,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -24068,6 +25038,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -24221,6 +25201,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -24281,6 +25271,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -24323,6 +25323,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -24497,6 +25507,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -24549,6 +25569,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -24713,6 +25743,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -24784,6 +25824,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -24826,6 +25876,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -24972,6 +26032,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -25033,6 +26103,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -25802,6 +26882,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -25863,6 +26953,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -25976,6 +27076,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -26047,6 +27157,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -26116,6 +27236,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -26158,6 +27288,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -26302,6 +27442,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -26362,6 +27512,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "responses": {
@@ -26404,6 +27564,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -26549,6 +27719,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -26601,6 +27781,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -26789,6 +27979,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -26841,6 +28041,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -26946,6 +28156,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -26998,6 +28218,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -27093,6 +28323,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -27248,6 +28488,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -27300,6 +28550,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -27413,6 +28673,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -27637,6 +28907,16 @@
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
             }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
           }
         ],
         "requestBody": {
@@ -27768,6 +29048,16 @@
               "type": "string",
               "nullable": true,
               "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
             }
           }
         ],
@@ -34532,6 +35822,12 @@
           "actor": {
             "type": "string",
             "title": "Actor"
+          },
+          "client": {
+            "type": "string",
+            "nullable": true,
+            "title": "Client",
+            "description": "Client surface that invoked the action (X-Fichero-Client), e.g. fichero-mcp (#4469)."
           },
           "target_ids": {
             "items": {

@@ -549,10 +549,27 @@ def action_context(
     x_fichero_origin_window: str | None = Header(
         default=None, alias="X-Fichero-Origin-Window"
     ),
+    x_fichero_client: str | None = Header(default=None, alias="X-Fichero-Client"),
 ) -> ActionContext:
-    """Build the canonical action context for user-initiated API requests."""
+    """Build the canonical action context for user-initiated API requests.
+
+    ``client`` (X-Fichero-Client) is attribution metadata ONLY — it records
+    which surface (fichero-mcp, fichero-cli, …) used the credential so audit
+    rows can distinguish an agent surface acting on the owner token from the
+    owner in the app (#4469). The actor itself still comes exclusively from
+    middleware-populated auth state; a header can never claim another user.
+    """
+    # Direct (non-FastAPI) callers pass no header and the `Header(None)`
+    # default object arrives instead of a string — treat anything but a
+    # non-empty str as absent.
+    client = (
+        x_fichero_client.strip()
+        if isinstance(x_fichero_client, str) and x_fichero_client.strip()
+        else None
+    )
     return ActionContext(
         actor=actor_from_request(request),
+        client=client,
         origin_window=x_fichero_origin_window,
         library_path=x_fichero_library_path,
         is_bootstrap=bool(getattr(request.state, "bootstrap_auth", False)),

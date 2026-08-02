@@ -54,6 +54,7 @@ def _client() -> FicheroClient:
     return FicheroClient(
         base_url=_CONFIG["base_url"],
         library_path=_CONFIG["library_path"],
+        client_name="fichero-mcp",
     )
 
 
@@ -63,11 +64,28 @@ def _agent_client() -> FicheroClient:
         base_url=_CONFIG["base_url"],
         library_path=_CONFIG["library_path"],
         as_user="agent",
+        client_name="fichero-mcp",
     )
     if not client.token:
         client.close()
         raise RuntimeError("No stored session for agent; run `fichero auth login agent`.")
     return client
+
+
+def _mutating_client() -> FicheroClient:
+    """Client for MUTATING tools: the agent account when one exists (#4469).
+
+    With a stored agent session (`fichero auth login agent`, multiuser), the
+    mutation is the agent's — actor "agent" in the audit. Without one
+    (single-user engines have no accounts), the owner credential acts, and the
+    X-Fichero-Client tag both clients send keeps the audit row truthful about
+    WHICH surface used it: actor=owner, client=fichero-mcp — recorded, not
+    silent.
+    """
+    try:
+        return _agent_client()
+    except RuntimeError:
+        return _client()
 
 
 def _workspace_action(name: str, params: dict[str, str]) -> Any:
@@ -93,7 +111,7 @@ def fichero_import(path: str, parent_id: Optional[str] = None) -> Any:
         path: Path to the file to upload.
         parent_id: Optional parent folder document ID.
     """
-    with _client() as client:
+    with _mutating_client() as client:
         return client.import_file(path, parent_id=parent_id)
 
 
@@ -140,7 +158,7 @@ def fichero_create_note(
     parent_address: Optional[str] = None,
 ) -> Note:
     """Create a Zettelkasten note linked to documents, entities, claims, or notes."""
-    with _client() as client:
+    with _mutating_client() as client:
         return client.create_note(
             title=title,
             body=body,
@@ -209,7 +227,7 @@ def fichero_workflow_run(
     Returns the execution handle, including the ``thread_id`` to poll with
     ``fichero_workflow_status``.
     """
-    with _client() as client:
+    with _mutating_client() as client:
         # `selected_doc_ids` is the selection path the Files-source node reads
         # from state — the same key the CLI and SwiftUI send. This tool used to
         # send `{"files": [doc_id]}`, which nothing reads: every run "completed"
