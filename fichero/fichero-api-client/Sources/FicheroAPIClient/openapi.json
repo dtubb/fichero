@@ -7973,6 +7973,32 @@
         "summary": "List Roots",
         "description": "List root documents (no parent).",
         "operationId": "list_roots_api_documents_roots_get",
+        "parameters": [
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Optional server-side ordering; only 'document_date'.",
+              "title": "Sort By"
+            },
+            "description": "Optional server-side ordering; only 'document_date'."
+          },
+          {
+            "name": "sort_direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "'asc' or 'desc'",
+              "default": "asc",
+              "title": "Sort Direction"
+            },
+            "description": "'asc' or 'desc'"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -7980,6 +8006,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -8637,6 +8673,30 @@
               "title": "Limit"
             },
             "description": "Max results (no limit if not specified)"
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Optional server-side ordering; only 'document_date'.",
+              "title": "Sort By"
+            },
+            "description": "Optional server-side ordering; only 'document_date'."
+          },
+          {
+            "name": "sort_direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "'asc' or 'desc'",
+              "default": "asc",
+              "title": "Sort Direction"
+            },
+            "description": "'asc' or 'desc'"
           }
         ],
         "responses": {
