@@ -7,6 +7,10 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
     case name = "Name"
     case createdAt = "Date Created"
     case updatedAt = "Date Modified"
+    /// The historical date the document was WRITTEN (#3322) — the paleography
+    /// sort, and the only field in this enum the ENGINE orders. See
+    /// `ordersOnServer`.
+    case documentDate = "Document Date"
     case fileType = "Type"
     case status = "Status"
 
@@ -17,9 +21,58 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         case .name: return "textformat"
         case .createdAt: return "calendar.badge.plus"
         case .updatedAt: return "calendar.badge.clock"
+        case .documentDate: return "calendar"
         case .fileType: return "doc"
         case .status: return "circle.dotted"
         }
+    }
+
+    // MARK: - Who owns the ordering
+
+    /// Whether the ENGINE produces the row order for this field.
+    ///
+    /// Only `documentDate` does, and the reason is that the ordering is not
+    /// expressible as a key path. `histdate.document_date_sort_key` returns a
+    /// `(jdn, precision_rank)` tuple: ties on the start JDN break precise-first
+    /// so a day-precision date sorts ahead of the year that contains it, and a
+    /// document with no extracted date falls back to `created_at` CONVERTED TO
+    /// A JDN so one integer tuple orders the whole list.
+    ///
+    /// A client-side `KeyPathComparator` on `dateJdn` would reproduce neither.
+    /// It would be a second implementation of the ordering with different
+    /// tie-breaking and a different fallback — the two-things-nothing-forces-
+    /// to-agree class this whole design exists to avoid.
+    var ordersOnServer: Bool {
+        self == .documentDate
+    }
+
+    /// The `sort_by` value for the listing routes, or nil when the client
+    /// orders this field itself. Absent `sort_by` is the pre-existing
+    /// behaviour (the stored `sort_order` position), so nil is a real answer
+    /// here rather than a missing one.
+    var serverSortBy: String? {
+        ordersOnServer ? "document_date" : nil
+    }
+
+    /// Order rows for display — **the one place the client sort is applied.**
+    ///
+    /// For a server-ordered field this returns `documents` UNTOUCHED. That is
+    /// the entire behaviour, and it is the kind that reads like an oversight:
+    /// a `guard` that returns its input looks like a missing implementation,
+    /// and re-sorting rows the engine already ordered looks like a fix. It is
+    /// not. Applying a comparator on top would silently discard the precision
+    /// tie-breaking and the `created_at`-as-JDN fallback described above, and
+    /// the list would still look plausible — sorted by *something*, just not
+    /// by what the engine decided.
+    ///
+    /// `LibrarySortFieldServerOrderingTests` fails if this guard is removed.
+    static func orderedForDisplay(
+        _ documents: [Document],
+        field: LibrarySortField,
+        using comparators: [KeyPathComparator<Document>]
+    ) -> [Document] {
+        guard !field.ordersOnServer else { return documents }
+        return documents.sorted(using: comparators)
     }
 
     func comparator(ascending: Bool) -> [KeyPathComparator<Document>] {
@@ -28,6 +81,11 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         case .name: return [.init(\.name, order: order)]
         case .createdAt: return [.init(\.createdAt, order: order)]
         case .updatedAt: return [.init(\.updatedAt, order: order)]
+        // Header binding only -- `orderedForDisplay` never applies it. The
+        // Table needs a comparator its Date column declares so the AppKit
+        // sort-descriptor bridge can map the header click back (#4282); the
+        // ROWS come from the engine.
+        case .documentDate: return [.init(\.dateHeaderSortKey, order: order)]
         case .fileType: return [.init(\.sortableFileType, order: order)]
         case .status: return [.init(\.status.rawValue, order: order)]
         }
@@ -42,6 +100,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         if keyPath == \Document.name { return .name }
         if keyPath == \Document.createdAt { return .createdAt }
         if keyPath == \Document.updatedAt { return .updatedAt }
+        if keyPath == \Document.dateHeaderSortKey { return .documentDate }
         if keyPath == \Document.sortableFileType { return .fileType }
         if keyPath == \Document.status.rawValue { return .status }
         return nil
@@ -54,6 +113,7 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         if keyPath == \LibraryOutlineNode.document.name { return .name }
         if keyPath == \LibraryOutlineNode.document.createdAt { return .createdAt }
         if keyPath == \LibraryOutlineNode.document.updatedAt { return .updatedAt }
+        if keyPath == \LibraryOutlineNode.document.dateHeaderSortKey { return .documentDate }
         if keyPath == \LibraryOutlineNode.document.sortableFileType { return .fileType }
         if keyPath == \LibraryOutlineNode.document.status.rawValue { return .status }
         return nil
@@ -74,6 +134,9 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         case .name: return .init(\.document.name, order: order)
         case .createdAt: return .init(\.document.createdAt, order: order)
         case .status: return .init(\.document.status.rawValue, order: order)
+        // The Date column IS sortable, so it must declare a comparator the
+        // bridge can resolve (#4282). It drives the header only.
+        case .documentDate: return .init(\.document.dateHeaderSortKey, order: order)
         case .updatedAt, .fileType: return nil
         }
     }
@@ -87,6 +150,21 @@ extension LibraryView {
     func syncSortOrder() {
         let field = LibrarySortField(rawValue: sortFieldRaw) ?? .name
         sortOrder = field.comparator(ascending: sortAscending)
+    }
+
+    /// Tell the store which server ordering the library now wants (#3322).
+    ///
+    /// Called from every path that can change the active sort, INCLUDING the
+    /// folder change — a folder remembers its own sort field, so navigating
+    /// from a folder sorted by Date to one sorted by Name changes the request
+    /// without the user touching the sort menu.
+    ///
+    /// The store refetches only if the request actually changed, so calling
+    /// this on a Name -> Type change costs nothing.
+    func syncServerListingSort() {
+        let field = LibrarySortField(rawValue: sortFieldRaw) ?? .name
+        let sort = ListingSort.forLibrarySort(field: field, ascending: sortAscending)
+        Task { await documentStore.setListingSort(sort) }
     }
 
     /// Handle a sortOrder change from column-header clicks — syncs sortFieldRaw/sortAscending back.

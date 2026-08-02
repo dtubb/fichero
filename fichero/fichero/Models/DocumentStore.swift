@@ -234,6 +234,30 @@ final class DocumentStore {
         return (collections + childrenCache.values.flatMap { $0 }).filter { seen.insert($0.id).inserted }
     }
 
+    /// The ordering currently requested from the listing routes (#3322).
+    ///
+    /// nil — the overwhelmingly common case — means the stored sibling order,
+    /// which is what every client-ordered sort field wants. Only
+    /// `document_date` sets this, because only its ordering lives in the
+    /// engine.
+    private(set) var listingSort: ListingSort?
+
+    /// Point the store at a new server ordering and reload if the request
+    /// actually changed. Returns whether a refetch happened.
+    ///
+    /// The refetch is conditional rather than unconditional on purpose: sorting
+    /// by Name and by Type are both free today, and making them round-trip so
+    /// that Date does not look special would spend a request on every sort
+    /// change to buy nothing. `ListingSort.requiresRefetch(from:to:)` is where
+    /// that decision lives.
+    @discardableResult
+    func setListingSort(_ sort: ListingSort?) async -> Bool {
+        guard ListingSort.requiresRefetch(from: listingSort, to: sort) else { return false }
+        listingSort = sort
+        await refresh()
+        return true
+    }
+
     /// Load root documents only; descendants are loaded lazily into `childrenCache`.
     func loadCollections() async {
         isLoading = true
@@ -241,7 +265,7 @@ final class DocumentStore {
 
         do {
             logger.info("Loading root documents for sidebar...")
-            collections = applyStatusOverrides(try await fetchWithRetry { try await documentService.getRoots() })
+            collections = applyStatusOverrides(try await fetchWithRetry { try await documentService.getRoots(sort: self.listingSort) })
             childrenCache.removeAll()
             isConnected = true
             logger.info("Loaded \(self.collections.count) root documents")
@@ -311,7 +335,11 @@ final class DocumentStore {
         logger.info("loadChildren called for document: \(document.id), library path: \(libraryPath)")
 
         do {
-            let children = applyStatusOverrides(try await fetchWithRetry { try await documentService.getChildren(document.id) })
+            let children = applyStatusOverrides(
+                try await fetchWithRetry {
+                    try await documentService.getChildren(document.id, sort: self.listingSort)
+                }
+            )
             self.childrenCache[document.id] = children
             self.currentDocuments = children
             logger.info("loadChildren succeeded, got \(children.count) children")

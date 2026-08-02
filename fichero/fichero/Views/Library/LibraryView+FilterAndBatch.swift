@@ -73,7 +73,16 @@ extension LibraryView {
                 (documentSearchKeys[doc.id] ?? Self.documentSearchKey(for: doc)).contains(query)
             }
         }
-        filteredDocuments = docs.sorted(using: sortOrder)
+        // NOT `docs.sorted(using: sortOrder)` (#3322). For `document_date` the
+        // engine already ordered these rows, and re-sorting them here would
+        // discard the precision tie-breaking and the undated fallback while
+        // still producing a plausible-looking list. `orderedForDisplay` is the
+        // one place that decides whether the client sorts at all.
+        filteredDocuments = LibrarySortField.orderedForDisplay(
+            docs,
+            field: LibrarySortField(rawValue: sortFieldRaw) ?? .name,
+            using: sortOrder
+        )
         // Hash the ids (Int) instead of joining every id into one giant String
         // (#3870) — it only needs to CHANGE when the visible set changes.
         var hasher = Hasher()
