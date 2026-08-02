@@ -247,3 +247,116 @@ final class DocumentStoreOperationOutcomeTests: XCTestCase {
                        "if this reads 1, every move test above is vacuous")
     }
 }
+
+/// The optimistic reorder must agree with itself across every container
+/// (#4473 sweep).
+///
+/// `reorderChildrenOptimistically` is the other mutation that touches all
+/// three of the store's containers — `collections`, `currentDocuments` and
+/// every `childrenCache` bucket — and it had no test at all.
+///
+/// It is not cosmetic. `SidebarItemBuilder.childOrder` reads `sortOrder` to
+/// produce the visible order on the next render, which is what satisfies
+/// SwiftUI's `.onMove` contract that the data source reflects the move
+/// synchronously. If the containers disagree about a document's `sortOrder`,
+/// the sidebar and the grid draw the same siblings in different orders — and
+/// nothing would fail, because both are internally consistent.
+///
+/// So the assertion here is AGREEMENT, not correctness of any single value.
+@MainActor
+final class DocumentStoreReorderOutcomeTests: XCTestCase {
+
+    private func doc(_ id: String, parent: String? = nil, sortOrder: Int = 0) -> Document {
+        Document(
+            id: id, parentId: parent, docType: .file, fileType: nil, name: id,
+            path: nil, sequence: nil, bbox: nil, status: .completed,
+            metadata: [:], pageContent: nil, sortOrder: sortOrder,
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+    }
+
+    /// Every sortOrder the store holds for one document, across all containers.
+    private func recordedOrders(of id: String, in store: DocumentStore) -> Set<Int> {
+        var orders = Set(store.collections.filter { $0.id == id }.map(\.sortOrder))
+        orders.formUnion(store.currentDocuments.filter { $0.id == id }.map(\.sortOrder))
+        for (_, bucket) in store.childrenCache {
+            orders.formUnion(bucket.filter { $0.id == id }.map(\.sortOrder))
+        }
+        return orders
+    }
+
+    /// **The both-buckets question for this mutation.** A document living in
+    /// the grid AND in a cache bucket must come out of a reorder with ONE
+    /// value, or the two surfaces order the same siblings differently and
+    /// neither looks broken on its own.
+    func testEveryContainerAgreesOnTheNewSortOrder() {
+        let store = DocumentStore(apiClient: APIClient())
+        store.currentDocuments = [doc("a", parent: "f", sortOrder: 9), doc("b", parent: "f", sortOrder: 9)]
+        store.childrenCache = ["f": [doc("a", parent: "f", sortOrder: 9), doc("b", parent: "f", sortOrder: 9)]]
+        store.collections = [doc("a", parent: "f", sortOrder: 9)]
+
+        store.reorderChildrenOptimistically(orderedIds: ["b", "a"])
+
+        XCTAssertEqual(recordedOrders(of: "b", in: store), [0], "b is first, everywhere")
+        XCTAssertEqual(recordedOrders(of: "a", in: store), [1], "a is second, everywhere")
+    }
+
+    /// Positions come from the index in `orderedIds`, so a reorder of three
+    /// produces 0/1/2 rather than preserved-but-shuffled old values.
+    func testPositionsAreTheIndexInTheRequestedOrder() {
+        let store = DocumentStore(apiClient: APIClient())
+        store.childrenCache = ["f": [doc("x", parent: "f", sortOrder: 5),
+                                     doc("y", parent: "f", sortOrder: 3),
+                                     doc("z", parent: "f", sortOrder: 8)]]
+
+        store.reorderChildrenOptimistically(orderedIds: ["z", "x", "y"])
+
+        let bucket = store.childrenCache["f"] ?? []
+        XCTAssertEqual(bucket.first { $0.id == "z" }?.sortOrder, 0)
+        XCTAssertEqual(bucket.first { $0.id == "x" }?.sortOrder, 1)
+        XCTAssertEqual(bucket.first { $0.id == "y" }?.sortOrder, 2)
+    }
+
+    /// A sibling not named in the reorder must keep its value. Renumbering
+    /// everything in the bucket would silently reorder rows the user never
+    /// touched — and with a comparator reading these, that IS the visible
+    /// order.
+    func testDocumentsOutsideTheRequestKeepTheirOrder() {
+        let store = DocumentStore(apiClient: APIClient())
+        store.childrenCache = ["f": [doc("a", parent: "f", sortOrder: 0),
+                                     doc("untouched", parent: "f", sortOrder: 77)]]
+
+        store.reorderChildrenOptimistically(orderedIds: ["a"])
+
+        XCTAssertEqual(
+            store.childrenCache["f"]?.first { $0.id == "untouched" }?.sortOrder, 77,
+            "a reorder of one sibling must not renumber the others"
+        )
+    }
+
+    /// A document in a DIFFERENT folder that happens to be named in the list
+    /// still gets its position — the request is by id, and the store does not
+    /// second-guess which bucket the caller meant. Pinned so that if this ever
+    /// becomes parent-scoped it is a decision rather than a surprise.
+    func testTheRequestIsByIdAcrossBuckets() {
+        let store = DocumentStore(apiClient: APIClient())
+        store.childrenCache = ["f": [doc("a", parent: "f", sortOrder: 9)],
+                               "g": [doc("a", parent: "g", sortOrder: 9)]]
+
+        store.reorderChildrenOptimistically(orderedIds: ["a"])
+
+        XCTAssertEqual(recordedOrders(of: "a", in: store), [0])
+    }
+
+    /// The counter must be able to SEE a disagreement, or every agreement
+    /// assertion above passes by measuring nothing.
+    func testTheOrderCounterCanSeeADisagreement() {
+        let store = DocumentStore(apiClient: APIClient())
+        store.currentDocuments = [doc("a", parent: "f", sortOrder: 1)]
+        store.childrenCache = ["f": [doc("a", parent: "f", sortOrder: 2)]]
+
+        XCTAssertEqual(recordedOrders(of: "a", in: store), [1, 2],
+                       "if this reads a single value, the agreement tests are vacuous")
+    }
+}
