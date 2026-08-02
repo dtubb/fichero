@@ -1,4 +1,10 @@
 import Foundation
+import OSLog
+
+/// Diagnostics for the build-tier resolution below. Its own logger rather than
+/// a shared one: the single message it emits is a build-configuration failure,
+/// and it should be findable without reading everything else the app logs.
+let featureTierLogger = Logger(subsystem: "app.fichero.fichero", category: "FeatureTier")
 
 // MARK: - Feature Visibility & Gating
 
@@ -6,11 +12,37 @@ import Foundation
 /// (issue #3743) — these read the persisted, tier-gated stored flags declared there and stay
 /// pure computed properties/methods, so they can live in a plain `extension`.
 extension FeatureManager {
+    /// One-shot guard for `reportUnresolvableTierOnce`. `FeatureManager` is
+    /// `@MainActor`, so this static inherits that isolation and needs no lock.
+    static var hasReportedUnresolvableTier = false
+
     /// Development builds deliberately expose every implemented feature.
     var allFeaturesEffectivelyEnabled: Bool {
         allFeaturesEnabled || activeBuildTier == .dev
     }
 
+    /// The feature tier this build runs at.
+    ///
+    /// **Fails CLOSED.** An unresolvable tier returns `.release` — the
+    /// NARROWEST surface — not `.dev`.
+    ///
+    /// The direction is the whole point. This used to fall back to `.dev`,
+    /// which meant "I could not determine the tier, so assume maximum
+    /// privilege" — the inverse of every other safety decision here:
+    /// loopback-only transport, the canvas's strict-when-unloaded conversion
+    /// table, the engine refusing a zero-resolution run. A configuration
+    /// failure should not be the thing that unlocks features.
+    ///
+    /// It is also unreachable in practice, which is why changing it is safe
+    /// rather than merely principled: all 16 build configurations in
+    /// `project.pbxproj` define `FICHERO_FEATURE_TIER` (4 × each of dev /
+    /// alpha / beta / release), `Info.plist` substitutes it, and the test
+    /// bundle is hosted in `Fichero.app` — so `Bundle.main` carries a
+    /// resolvable value in shipped builds, dev builds and test runs alike.
+    ///
+    /// So this returning at all means something is wrong with the build, and
+    /// it says so once rather than silently choosing. Silently choosing a tier
+    /// is how nobody notices.
     var activeBuildTier: FeatureTier {
         if let testTierOverride {
             return testTierOverride
@@ -25,7 +57,28 @@ extension FeatureManager {
         ) {
             return tier
         }
-        return .dev
+        Self.reportUnresolvableTierOnce()
+        return .release
+    }
+
+    /// Log the unresolvable tier exactly once.
+    ///
+    /// `activeBuildTier` is a computed property read on many render paths, so
+    /// an unguarded log would emit thousands of identical lines and bury
+    /// itself — a diagnostic nobody can read is the silence it was meant to
+    /// replace.
+    static func reportUnresolvableTierOnce() {
+        guard !hasReportedUnresolvableTier else { return }
+        hasReportedUnresolvableTier = true
+        featureTierLogger.error(
+            """
+            Build tier unresolvable: neither Info.plist FicheroFeatureTier nor \
+            FICHERO_FEATURE_TIER resolved. Falling back to .release (narrowest \
+            surface). Every build configuration should define \
+            FICHERO_FEATURE_TIER — if you are seeing this, the build settings \
+            or Info.plist substitution is broken, not the app.
+            """
+        )
     }
 
     @available(*, deprecated, message: "use activeBuildTier == .dev")
