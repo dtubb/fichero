@@ -16,6 +16,8 @@ import argparse
 import json
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -367,6 +369,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         print(f"Endpoint usage check failed: {exc}", file=sys.stderr)
         return 1
+
+    # #4487 scan floor: 664 operations on 2026-08-02.
+    require_scan_floor(len(rows), 332, "OpenAPI operations (664 on 2026-08-02)")
 
     summary = counts(rows)
     gaps = {row.endpoint: row.status for row in rows if row.status != "both"}

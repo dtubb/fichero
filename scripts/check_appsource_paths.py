@@ -16,13 +16,25 @@ Exit codes:
 from __future__ import annotations
 
 import re
-import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"           # appSource() resolves here
 TEST_DIRS = [ROOT / "fichero" / "fichero-tests", ROOT / "fichero" / "fichero-ui-tests"]
 _APPSOURCE = re.compile(r'appSource(?:Root)?\(\s*"([^"]+)"')
+
+
+def _count_sites() -> int:
+    """Total appSource(...) call sites across the test trees (#4487 floor)."""
+    count = 0
+    for test_dir in TEST_DIRS:
+        if not test_dir.exists():
+            continue
+        for tf in sorted(test_dir.rglob("*.swift")):
+            count += len(_APPSOURCE.findall(tf.read_text(errors="ignore")))
+    return count
 
 
 def stale_paths() -> list[tuple[str, str]]:
@@ -40,6 +52,10 @@ def stale_paths() -> list[tuple[str, str]]:
 
 def main() -> int:
     bad = stale_paths()
+    # #4487 scan floor: zero appSource(...) call sites means the helper
+    # convention moved or the test tree is gone — not "all resolve".
+    # 71 sites on 2026-08-02 (appSource helper duplicated across tests).
+    require_scan_floor(_count_sites(), 35, "appSource call sites (71 on 2026-08-02)")
     if not bad:
         print("appSource-path guardrail: all appSource(...) paths resolve.")
         return 0
@@ -59,7 +75,6 @@ def _require_scan_roots_4382(*roots):
     moved or renamed directory can never disable this guardrail while the
     gate stays green.
     """
-    import sys as _sys
 
     flat = []
     for root in roots:

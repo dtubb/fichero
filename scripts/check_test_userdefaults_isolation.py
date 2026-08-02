@@ -39,6 +39,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,6 +108,11 @@ def main() -> int:
         return selftest()
 
     found = scan()
+    # #4487 scan floor: test-tree Swift files must enumerate.
+    require_scan_floor(
+        sum(1 for _ in TESTS.rglob("*.swift")) + sum(1 for _ in UI_TESTS.rglob("*.swift")),
+        150, "test Swift files (~380 on 2026-08-02)",
+    )
     print(f"UserDefaults isolation: scanned {TESTS.name} + {UI_TESTS.name}")
     if not found:
         print(f"  0 violations; {len(ALLOWLIST)} allowlisted.")

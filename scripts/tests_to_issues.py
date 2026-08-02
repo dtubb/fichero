@@ -110,7 +110,8 @@ def main() -> int:
 
 
 def _selfcheck() -> None:
-    import tempfile, os
+    import tempfile
+    import os
     xml = (
         '<testsuite>'
         '<testcase classname="tests.unit.test_db" name="test_ok"/>'

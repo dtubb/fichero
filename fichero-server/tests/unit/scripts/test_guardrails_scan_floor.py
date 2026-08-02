@@ -226,6 +226,83 @@ FLOORED_CHECKS: dict[str, dict] = {
         "files": {},
         "extra_scripts": [],
     },
+    "check_localization.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_model_download_location.py": {
+        "dirs": ["fichero-server/src/fichero_server"], "files": {}, "extra_scripts": [],
+    },
+    "check_no_emoji_sf_symbols.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_python_comment_hygiene.py": {
+        "dirs": ["fichero-server/src/fichero_server"], "files": {}, "extra_scripts": [],
+    },
+    "check_swift_hand_rolled_urls.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_test_userdefaults_isolation.py": {
+        "dirs": ["fichero/fichero-tests", "fichero/fichero-ui-tests"],
+        "files": {}, "extra_scripts": [],
+    },
+    "check_tooltips.py": {
+        "dirs": ["fichero/fichero/Views"], "files": {}, "extra_scripts": [],
+    },
+    "check_shell_chrome.py": {
+        "dirs": ["fichero/fichero/Views"], "files": {}, "extra_scripts": [],
+    },
+    "check_appsource_paths.py": {
+        "dirs": ["fichero/fichero-tests", "fichero/fichero-ui-tests", "fichero/fichero"],
+        "files": {}, "extra_scripts": [],
+    },
+    "check_folder_organization.py": {
+        "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
+    },
+    "check_app_intent_action_coverage.py": {
+        "dirs": ["fichero-server/src/fichero_server", "fichero/fichero"],
+        "files": {}, "extra_scripts": [],
+    },
+    "check_docs_paths.py": {
+        "dirs": ["docs"], "files": {}, "extra_scripts": [],
+    },
+    "check_applescript_coverage.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {
+            "fichero/fichero/Fichero.sdef": "<dictionary></dictionary>",
+        },
+        "extra_scripts": [],
+    },
+    "check_import_render_completeness.py": {
+        "dirs": ["fichero-server/src/fichero_server/models", "fichero/fichero/Services"],
+        "files": {
+            "fichero-server/src/fichero_server/models/__init__.py": "",
+            "fichero/fichero/Services/DocumentService.swift": "",
+        },
+        "extra_scripts": [],
+    },
+    "check_docs_publication.py": {
+        "dirs": ["docs"],
+        "files": {"mkdocs.yml": "site_name: t\nnav: []\n"},
+        "extra_scripts": ["check_docs_publication_allowlist.json"],
+    },
+    "check_sidebar_items.py": {
+        "dirs": ["fichero/fichero/Views/Shell/ContentView"],
+        "files": {
+            "fichero/fichero/Views/Shell/ContentView/ContentView+Navigation.swift": "",
+        },
+        "extra_scripts": [],
+    },
+    "check_endpoint_usage.py": {
+        "dirs": [
+            "fichero/fichero/Services",
+            "fichero/fichero/Models",
+            "fichero-cli/src/fichero_cli",
+        ],
+        "files": {
+            "fichero/fichero-api-client/Sources/FicheroAPIClient/openapi.json": _EMPTY_OPENAPI,
+        },
+        "extra_scripts": [],
+    },
 }
 
 
@@ -249,7 +326,7 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
 
 def test_the_floored_inventory_is_not_empty():
     """Guard the guard: this sweep is the proof the floors can fire."""
-    assert len(FLOORED_CHECKS) >= 27
+    assert len(FLOORED_CHECKS) >= 44
 
 
 @pytest.mark.parametrize("name", sorted(FLOORED_CHECKS))

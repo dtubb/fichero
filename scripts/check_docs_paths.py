@@ -33,6 +33,8 @@ import json
 import re
 import subprocess
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -166,6 +168,8 @@ def main() -> int:
         return 0
 
     print("docs path guardrail")
+    # #4487 scan floor: 122 docs on 2026-08-02.
+    require_scan_floor(len(doc_files()), 61, "docs pages (122 on 2026-08-02)")
     print(f"  docs scanned: {len(doc_files())}")
     print(f"  absent paths named: {len(absent)} "
           f"({len(allowed & set(absent))} allowlisted, {len(new)} unaccounted)")

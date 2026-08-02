@@ -48,6 +48,8 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -163,6 +165,10 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
+    # #4487 scan floor: 423 engine .py files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in ENGINE_SRC.rglob("*.py")), 211, "engine Python files (423 on 2026-08-02)"
+    )
     print(f"Model-download location guardrail: scanned {ENGINE_SRC.relative_to(ROOT)}")
     print(f"  canonical shared folder: {CANONICAL_MODELS_DIR_EXPR}")
     print(f"  {len(found)} divergence(s); {len(known)} known.")

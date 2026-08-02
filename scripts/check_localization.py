@@ -37,6 +37,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -97,6 +99,10 @@ def main() -> int:
     stale = sorted(known - set(found))
 
     print("Localization guardrail (#2287):")
+    # #4487 scan floor: 884 app Swift files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in APP_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+    )
     print(f"  scanned {APP_DIR.relative_to(ROOT)} for Text(verbatim:) prose")
     print(f"  {len(found)} verbatim prose string(s); {len(known)} known.")
 

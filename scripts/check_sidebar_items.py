@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -127,6 +129,12 @@ def main() -> int:
     stale = sorted(known - set(found))
 
     print("Sidebar item wiring guardrail: scanned SidebarItem factories/builders and ContentView router")
+    # #4487: the factories/router are COMMITTED files — the masked-blind
+    # shape. Floor the item-type population parsed from them; unwired at
+    # zero is the goal, item types at zero is a dead parser.
+    require_scan_floor(
+        len(built_item_types()), 6, "built sidebar item types (committed factory sources)"
+    )
     print(f"  {len(found)} unwired item type(s); {len(known)} known backlog entries.")
 
     if stale:

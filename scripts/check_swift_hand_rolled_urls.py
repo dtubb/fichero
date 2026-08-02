@@ -46,6 +46,8 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -197,6 +199,10 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
+    # #4487 scan floor: 884 app Swift files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in SWIFT_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+    )
     print(f"Hand-rolled engine URL guardrail: scanned {SWIFT_DIR.relative_to(ROOT)} (excl. Services/)")
     print(f"  {len(found)} hand-rolled-transport site(s); {len(known)} known.")
 
