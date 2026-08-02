@@ -132,6 +132,31 @@ def _resolve_from_library_db(workflow_ref: str, library_path: str) -> WorkflowDe
     return to_workflow_def(stored)
 
 
+def _resolve_from_global_defaults(workflow_ref: str) -> WorkflowDef | None:
+    """Resolve a child ref against the global library's DEFAULT rows (#4450).
+
+    Mirrors ``_resolve_from_library_db``'s id-then-name order, but only
+    ``is_system`` rows qualify — a user workflow in the global library is a
+    global-library workflow, not a default, and must not leak into other
+    libraries' runs.
+    """
+    from fichero_server.workflows.default_workflows import (
+        list_global_default_workflows,
+        resolve_default_workflow,
+    )
+    from fichero_server.workflows.runtime import to_workflow_def
+
+    stored = resolve_default_workflow(workflow_ref)
+    if stored is None:
+        matches = [
+            w for w in list_global_default_workflows() if w.name == workflow_ref
+        ]
+        stored = matches[0] if matches else None
+    if stored is None or not (getattr(stored, "nodes", None) or []):
+        return None
+    return to_workflow_def(stored)
+
+
 def resolve_sub_workflow_ref(workflow_ref: str, state: State | None = None) -> WorkflowDef | None:
     """Resolve a child workflow: injected state, then DB, then shipped presets.
 
@@ -161,6 +186,24 @@ def resolve_sub_workflow_ref(workflow_ref: str, state: State | None = None) -> W
                 workflow_ref,
                 exc,
             )
+
+    # #4450 parity: default components live as rows in the GLOBAL library,
+    # and a user's edit to one (tweaked prompts on the Spanish Script child
+    # passes, say) edits that row. Skipping straight to the shipped JSON here
+    # meant the parent used the EDITED component in the global library and
+    # the PRISTINE one everywhere else — the same workflow silently behaving
+    # differently per library. Resolve the global row before the JSON.
+    try:
+        resolved = _resolve_from_global_defaults(workflow_ref)
+        if resolved is not None:
+            return resolved
+    except Exception as exc:
+        logger.warning(
+            "Sub-workflow global-default resolution failed for %r (%s); "
+            "falling back to shipped presets",
+            workflow_ref,
+            exc,
+        )
 
     try:
         from fichero_server.workflows.default_workflows import _load_preset_files
