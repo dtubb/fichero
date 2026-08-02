@@ -111,7 +111,7 @@ echo "  entitlements: $ENGINE_ENTITLEMENTS"
 # and sign plain; executables and executable bundles (.app/.xpc) carry the
 # two-key sandbox set. Frameworks sign plain.
 is_macho_executable() {
-  file -b "$1" 2>/dev/null | grep -q "Mach-O.*executable"
+  file -b "$1" 2>/dev/null | LC_ALL=C grep -q "Mach-O.*executable"
 }
 
 sign_mas() {
@@ -132,7 +132,7 @@ sign_mas() {
 # Mach-Os first.
 macho_list="$(mktemp)"
 find "$ENGINE_DST" -type f -exec file {} + 2>/dev/null \
-  | awk -F': ' '/Mach-O/ && !/for architecture/ {print $1}' | sort -u > "$macho_list"
+  | LC_ALL=C awk -F': ' '/Mach-O/ && !/for architecture/ {print $1}' | sort -u > "$macho_list"
 echo "  signing $(wc -l < "$macho_list" | tr -d ' ') Mach-O binaries in the engine"
 
 sign_fails=0

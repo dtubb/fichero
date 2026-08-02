@@ -118,7 +118,7 @@ fi
 # By Mach-O TYPE, not by path — the whole point of the fm-bridge rejection is that
 # the offender was somewhere nobody thought to look.
 EXECS="$(find "$APP" -type f -exec file {} + 2>/dev/null \
-  | awk -F': ' '/Mach-O/ && /executable/ && !/for architecture/ {print $1}' | sort -u)"
+  | LC_ALL=C awk -F': ' '/Mach-O/ && /executable/ && !/for architecture/ {print $1}' | sort -u)"
 
 EXEC_COUNT=0
 UNSANDBOXED=0

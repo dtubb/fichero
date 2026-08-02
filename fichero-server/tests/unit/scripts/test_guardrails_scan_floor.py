@@ -303,6 +303,14 @@ FLOORED_CHECKS: dict[str, dict] = {
         },
         "extra_scripts": [],
     },
+    "check_locale_safe_binary_pipes.py": {
+        # scripts/ exists (holds the copied check itself) but has no .sh —
+        # zero file(1) pipe sites is BLIND ("the idiom moved"), never "all
+        # safe".
+        "dirs": ["fichero-server/scripts"],
+        "files": {},
+        "extra_scripts": [],
+    },
 }
 
 
@@ -326,7 +334,7 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
 
 def test_the_floored_inventory_is_not_empty():
     """Guard the guard: this sweep is the proof the floors can fire."""
-    assert len(FLOORED_CHECKS) >= 44
+    assert len(FLOORED_CHECKS) >= 45
 
 
 @pytest.mark.parametrize("name", sorted(FLOORED_CHECKS))

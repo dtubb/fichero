@@ -132,7 +132,7 @@ fi
 if [ -n "$SIGN_IDENTITY" ]; then
   macho_list="$(mktemp)"
   find "$ENGINE_APP" -type f -exec file {} + 2>/dev/null \
-    | awk -F': ' '/Mach-O/ && !/\(for architecture/ {print $1}' \
+    | LC_ALL=C awk -F': ' '/Mach-O/ && !/\(for architecture/ {print $1}' \
     | sort -u > "$macho_list"
   macho_count=$(wc -l < "$macho_list" | tr -d ' ')
   echo "  Embedded engine cleanup: signing $macho_count Mach-O files with $SIGN_IDENTITY"
