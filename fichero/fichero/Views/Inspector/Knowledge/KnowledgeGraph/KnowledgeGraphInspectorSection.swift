@@ -41,14 +41,14 @@ struct KnowledgeGraphInspectorSection: View {
 
     // Promoted `private` → internal: focusClaim lives in +Actions.
     @Environment(KGFocusState.self) var kgFocusState
-    /// Observable claim store (#1862) — its `changeToken` bumps on every
-    /// `claim.*` change event from the per-library change-stream, driving this
-    /// section's resync. Replaces the retired `.ficheroClaim*` NotificationCenter
-    /// bus; the inspector still owns its grouped KG read (iterate, never replace).
     // Internal, not `private`: read from +Actions.swift now that claim writes
     // route through the store (#1848). Same reason as spaceQuickLookPopover
     // below — this type spans four files, so `private` on any shared member is
     // a compile error waiting for the next extension that needs it.
+    /// Observable claim store (#1862) — its `changeToken` bumps on every
+    /// `claim.*` change event from the per-library change-stream, driving this
+    /// section's resync. Replaces the retired `.ficheroClaim*` NotificationCenter
+    /// bus; the inspector still owns its grouped KG read (iterate, never replace).
     @Environment(ClaimStore.self) var claimStore
     // Promoted `private` → internal: spaceQuickLookPopover lives in +Views.
     /// Crop fetch seam for the Space-key source quick-look (#3449/#3425). Optional
