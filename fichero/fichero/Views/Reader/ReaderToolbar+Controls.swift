@@ -21,6 +21,7 @@ extension ReaderToolbar {
             } label: {
                 Image(systemName: ToolbarSymbols.closePane)
                     .foregroundStyle(.secondary)
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .help(isInSplit ? "Close this split" : "Close this pane")
@@ -54,6 +55,7 @@ extension ReaderToolbar {
         } label: {
             Image(systemName: "chevron.left")
                 .foregroundStyle(.secondary)
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .disabled(!(enabled && (pageNav?.canGoPrevious ?? false)))
@@ -72,6 +74,7 @@ extension ReaderToolbar {
         } label: {
             Image(systemName: "chevron.right")
                 .foregroundStyle(.secondary)
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .disabled(!(enabled && (pageNav?.canGoNext ?? false)))
@@ -89,6 +92,7 @@ extension ReaderToolbar {
         Button(action: zoomOut) {
             Image(systemName: "minus.magnifyingglass")
                 .foregroundStyle(.secondary)
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .help("Zoom Out")
@@ -102,6 +106,7 @@ extension ReaderToolbar {
         Button(action: zoomIn) {
             Image(systemName: "plus.magnifyingglass")
                 .foregroundStyle(.secondary)
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .help("Zoom In")
@@ -115,6 +120,7 @@ extension ReaderToolbar {
         Button(action: fitToWindow) {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .foregroundStyle(.secondary)
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .help("Fit to Window")
@@ -123,6 +129,7 @@ extension ReaderToolbar {
         Button(action: actualSize) {
             Image(systemName: "1.square")
                 .foregroundStyle(.secondary)
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .help("Actual Size (100%)")
@@ -140,6 +147,7 @@ extension ReaderToolbar {
             binding.wrappedValue.toggle()
         } label: {
             Image(systemName: "rectangle.bottomhalf.inset.filled")
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .foregroundColor(binding.wrappedValue ? .accentColor : .primary)
@@ -162,6 +170,7 @@ extension ReaderToolbar {
                 Image(systemName: enabledBinding.wrappedValue
                         ? "magnifyingglass.circle.fill"
                         : "magnifyingglass.circle")
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .foregroundColor(enabledBinding.wrappedValue ? .accentColor : .primary)
@@ -174,6 +183,7 @@ extension ReaderToolbar {
                     lockedBinding.wrappedValue.toggle()
                 } label: {
                     Image(systemName: lockedBinding.wrappedValue ? "lock.fill" : "lock.open")
+                        .readerIconTarget()
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(lockedBinding.wrappedValue ? .accentColor : .secondary)
@@ -207,17 +217,25 @@ extension ReaderToolbar {
             }
         } label: {
             Image(systemName: binding.wrappedValue ? "pencil.circle.fill" : "pencil.circle")
+                .readerIconTarget()
         }
         .buttonStyle(.plain)
         .foregroundColor(binding.wrappedValue ? .accentColor : .primary)
         .disabled(isEditing == nil)
-                .help(isEditing == nil
-                ? "Image editing (not available for this document)"
-                : (binding.wrappedValue
-                    ? "Done — return to viewing"
-                    : "Edit image (crop, rotate, straighten, enhance, remove background)"))
+        // #4479: `.accessibilityLabel` sits BEFORE the multi-line `.help`, and
+        // the `.help` is re-indented to the chain's own level. Both are for the
+        // same reason: check_accessibility walks the modifier chain and stops at
+        // the first continuation line that does not begin with `.`, so a
+        // multi-line `.help` hid the label from it. The label was always there —
+        // the guard could not see past the help text, and this button's presence
+        // in KNOWN_VIOLATIONS had been masking that it was mis-scanned.
         .accessibilityLabel(binding.wrappedValue ? "Done editing" : "Edit image")
         .accessibilityIdentifier("canvasEditModeToggle")
+        .help(isEditing == nil
+            ? "Image editing (not available for this document)"
+            : (binding.wrappedValue
+                ? "Done — return to viewing"
+                : "Edit image (crop, rotate, straighten, enhance, remove background)"))
 
         sectionDivider
     }
@@ -231,6 +249,7 @@ extension ReaderToolbar {
                 onAnnotate?(tool)
             } label: {
                 Image(systemName: tool.icon)
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .disabled(onAnnotate == nil)
@@ -250,6 +269,7 @@ extension ReaderToolbar {
             Button(action: onTogglePin) {
                 Image(systemName: isPinned.wrappedValue ? "pin.fill" : "pin")
                     .font(.system(size: 11))
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .foregroundStyle(isPinned.wrappedValue ? Color.accentColor : Color.secondary)

@@ -1,5 +1,38 @@
 import SwiftUI
 
+// MARK: - Icon hit target (#4479)
+
+extension View {
+    /// The house hit target for a `.buttonStyle(.plain)` icon button.
+    ///
+    /// `.plain` strips the default padding and background, so a bare
+    /// `Image(systemName:)` label is clickable only where the glyph is DRAWN —
+    /// about 13pt for a default SF Symbol. That is Daniel's "you can't properly
+    /// click on an icon": the button works when hit, it is simply a fifth of the
+    /// area it looks, so aiming fails rather than clicking.
+    ///
+    /// 28pt on Mac / 44pt on touch is not a value chosen here — it is
+    /// `MiniToolbar.touchTargetSide`, the policy the sidebar's bottom toolbar
+    /// and this file's own collapse buttons already use. 24 buttons across six
+    /// reader files missed it, including thirteen in `ReaderToolbar+Controls`,
+    /// the same toolbar as the two that had it.
+    ///
+    /// Applied to the LABEL, not the Button, and last in the chain: it must
+    /// wrap whatever tint/scale/font modifiers the icon already carries, and
+    /// those differ across the 24 sites.
+    ///
+    /// `contentShape` makes the whole frame clickable rather than just the
+    /// opaque glyph pixels inside it — without it the frame enlarges the layout
+    /// and not the target, which would look like a fix and change nothing.
+    func readerIconTarget() -> some View {
+        frame(
+            minWidth: MiniToolbar<EmptyView, EmptyView>.touchTargetSide,
+            minHeight: MiniToolbar<EmptyView, EmptyView>.touchTargetSide
+        )
+        .contentShape(Rectangle())
+    }
+}
+
 // MARK: - ReaderToolbar
 
 /// One unified, persistent reader toolbar shared by the image viewer and the PDF

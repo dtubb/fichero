@@ -124,6 +124,7 @@ extension ReadingPaneView {
                 searchState.previous()
             } label: {
                 Image(systemName: ToolbarSymbols.findPrevious)
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .disabled(searchState.matchCount == 0)
@@ -133,6 +134,7 @@ extension ReadingPaneView {
                 searchState.next()
             } label: {
                 Image(systemName: ToolbarSymbols.findNext)
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .disabled(searchState.matchCount == 0)
@@ -143,6 +145,7 @@ extension ReadingPaneView {
             } label: {
                 Image(systemName: ToolbarSymbols.clearField)
                     .foregroundStyle(.secondary)
+                    .readerIconTarget()
             }
             .buttonStyle(.plain)
             .help("Clear find")

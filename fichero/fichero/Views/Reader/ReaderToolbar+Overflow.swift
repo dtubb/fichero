@@ -58,6 +58,7 @@ extension ReaderToolbar {
             binding.wrappedValue.toggle()
         } label: {
             Image(systemName: "text.viewfinder")
+                .readerIconTarget()
         }
         .accessibilityLabel("Text Boxes")
         .buttonStyle(.plain)
