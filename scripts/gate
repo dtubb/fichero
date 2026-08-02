@@ -664,6 +664,19 @@ print(names[0] if names else "")' 2>/dev/null)"
     echo "gate:   list with: xcrun simctl list devices available | grep iPad" >&2
     return 0
   fi
+  # KNOWN BROKEN (#4472): fichero-ipad.xctestplan's only target is FicheroTests,
+  # which does not support iPad — so this plan has never been runnable. The leg
+  # is wired and resolves a simulator correctly; it will start working the
+  # moment a runnable iOS/iPadOS test target exists. Until then it reports the
+  # real reason rather than a bare xcodebuild error, and does NOT fail the gate
+  # for a defect that is filed and understood.
+  if [[ "${GATE_IPAD_STRICT:-0}" != "1" ]]; then
+    echo "gate: ipad NOT ARMED — #4472: fichero-ipad.xctestplan targets FicheroTests," >&2
+    echo "gate:   which does not support iPad. No runnable iPad test target exists yet." >&2
+    echo "gate:   Destination resolves fine: $dest" >&2
+    echo "gate:   Set GATE_IPAD_STRICT=1 to run it anyway and see the raw failure." >&2
+    return 0
+  fi
   GATE_FOOTPRINT_OVERRIDE_MB="${GATE_FOOTPRINT_IPAD_MB:-8192}" \
   run_gated "ipad-tests" "${GATE_TIMEOUT_IPAD:-5400}" \
     xcodebuild -project "$XCODE_PROJECT" -scheme "$UI_SCHEME" \
