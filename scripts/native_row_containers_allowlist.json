@@ -1,0 +1,3 @@
+{
+  "Library/ViewModes/Columns/LibraryView+ColumnsView.swift": "DESIGN, not debt. A Miller browser's keyboard model is cross-column: up/down move within the ACTIVE column while left/right move BETWEEN columns, over ONE shared cursor and ONE shared selection set. A per-column List would own its own selection and consume the arrow keys before the shared handler saw them, so the shape List gives free is the wrong shape here. What List provides is provided explicitly and can be checked: selection via LibrarySelectableRow, accessibility via combined elements plus libraryColumnRow identifiers, hover via LibraryRowHoverWash. Reason recorded at LibraryView+ColumnsView.swift:118-128."
+}

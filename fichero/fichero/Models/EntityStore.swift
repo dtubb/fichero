@@ -49,9 +49,19 @@ struct AuthorityCandidate: Identifiable, Hashable {
 @Observable
 final class EntityStore: ObservableDomainStore {
     // ─── Published domain state (views read these directly) ───
-    var entities: [Components.Schemas.KnowledgeEntity] = []
-    var isLoading = false
-    var loadError: String?
+    //
+    // There used to be a fourth: `entities`, a mirror of the CURRENT document
+    // scope, kept in sync by five mutations and a `syncLegacyScope` helper —
+    // and read by nothing. Views take the per-document containers below
+    // through `entities(forDocument:)` / `isLoading(forDocument:)` /
+    // `loadError(forDocument:)`. Its two scalar companions, `isLoading` and
+    // `loadError`, were dead for the same reason.
+    //
+    // It was removed rather than reconciled (#4489): three of this store's
+    // four "partial reconciliations" were partial only with respect to state
+    // nobody could see. Reconciling it would have made five mutations more
+    // expensive to maintain a value with no reader, and would have looked
+    // like diligence.
     var libraryEntities: [Components.Schemas.KnowledgeEntity] = []
     var libraryClaimCounts: [String: Int] = [:]
     var isLoadingLibrary = false
