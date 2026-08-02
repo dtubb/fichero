@@ -156,6 +156,27 @@ extension LibraryView {
     #if os(macOS)
     // MARK: - macOS container (ScrollView + LazyVStack, unchanged)
 
+    /// The list-mode counterpart of the outline table's `Section` header.
+    ///
+    /// A plain view in the stack rather than a `Section`, because this mode is
+    /// a `LazyVStack` — but it takes its title from
+    /// `LibraryDateSectioning.undatedSectionTitle`, so the two modes cannot
+    /// end up calling the same group different things.
+    ///
+    /// It is a header, not a row: `.accessibilityAddTraits(.isHeader)` so
+    /// VoiceOver users can navigate by heading to the boundary instead of
+    /// arrowing through every dated document to discover it exists.
+    private var undatedSectionHeader: some View {
+        Text(LibraryDateSectioning.undatedSectionTitle)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            .accessibilityAddTraits(.isHeader)
+    }
+
     private func macList(proxy: ScrollViewProxy) -> some View {
         listScrollSync(
             ScrollView {
@@ -163,6 +184,24 @@ extension LibraryView {
                     if isShowingEntitiesCollection {
                         ForEach(filteredEntities, id: \.stableInspectorId) { entity in
                             entityListRow(entity)
+
+                            Divider()
+                                .padding(.leading, 12)
+                        }
+                    } else if showsUndatedSection {
+                        // #3322: same predicate and same title as the outline
+                        // table's Section — one grouping, not two that drift.
+                        ForEach(datedDocuments) { doc in
+                            documentRow(doc)
+
+                            Divider()
+                                .padding(.leading, 12)
+                        }
+
+                        undatedSectionHeader
+
+                        ForEach(undatedDocuments) { doc in
+                            documentRow(doc)
 
                             Divider()
                                 .padding(.leading, 12)
@@ -199,6 +238,32 @@ extension LibraryView {
     #else
     // MARK: - iOS/iPadOS container (native List, #2501)
 
+    /// One document row in the touch list.
+    ///
+    /// Extracted so the sectioned and unsectioned branches share it — two
+    /// copies of a row that carries a DESTRUCTIVE swipe action is how one copy
+    /// quietly loses its confirmation.
+    private func touchDocumentRow(_ doc: Document) -> some View {
+        documentRow(doc)
+            // The rows draw their own selection wash and Mail-style layout —
+            // keep List chrome out of the way so both platforms render
+            // identically.
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            // Swipe-to-delete (#2501): the platform-standard trailing swipe,
+            // routed through the SAME audited delete pipeline as the context
+            // menu — Finder semantics (selection-aware), confirm dialog, then
+            // the document.delete action. Never a parallel delete path. Full
+            // swipe still confirms.
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button(role: .destructive) {
+                    promptDelete(for: doc)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+    }
+
     private func touchList(proxy: ScrollViewProxy) -> some View {
         listScrollSync(
             List {
@@ -211,28 +276,14 @@ extension LibraryView {
                         // knowledge-graph entity is a KG operation with its
                         // own consequences/undo story (see promptDeleteSelected).
                     }
-                } else {
-                    ForEach(filteredDocuments) { doc in
-                        documentRow(doc)
-                            // The rows draw their own selection wash and
-                            // Mail-style layout — keep List chrome out of the
-                            // way so both platforms render identically.
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
-                            // Swipe-to-delete (#2501): the platform-standard
-                            // trailing swipe, routed through the SAME audited
-                            // delete pipeline as the context menu — Finder
-                            // semantics (selection-aware), confirm dialog,
-                            // then the document.delete action. Never a
-                            // parallel delete path. Full swipe still confirms.
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    promptDelete(for: doc)
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
+                } else if showsUndatedSection {
+                    // #3322: same predicate and title as every other mode.
+                    Section { ForEach(datedDocuments) { touchDocumentRow($0) } }
+                    Section(LibraryDateSectioning.undatedSectionTitle) {
+                        ForEach(undatedDocuments) { touchDocumentRow($0) }
                     }
+                } else {
+                    ForEach(filteredDocuments) { touchDocumentRow($0) }
                 }
             }
             .listStyle(.plain),

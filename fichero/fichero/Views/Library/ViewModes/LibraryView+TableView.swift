@@ -39,6 +39,34 @@ extension LibraryView {
         .padding(.leading, browserLeadingInset)
     }
 
+    /// One outline row and its disclosed children.
+    ///
+    /// Extracted so the sectioned and unsectioned branches share it rather than
+    /// carrying two copies of a three-deep nested builder. Duplicating that
+    /// expression is also how `LibraryWindow.body` earned its type-check
+    /// timeout — the type this returns grows with the nesting, and the checker
+    /// pays for it twice if it appears twice.
+    @TableRowBuilder<LibraryOutlineNode>
+    private func outlineRows(for node: LibraryOutlineNode) -> some TableRowContent<LibraryOutlineNode> {
+        if nodeCanExpand(node) {
+            DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
+                ForEach(node.children ?? []) { childGroup in
+                    if nodeCanExpand(childGroup) {
+                        DisclosureTableRow(childGroup, isExpanded: expansionBinding(for: childGroup)) {
+                            ForEach(childGroup.children ?? []) { child in
+                                TableRow(child)
+                            }
+                        }
+                    } else {
+                        TableRow(childGroup)
+                    }
+                }
+            }
+        } else {
+            TableRow(node)
+        }
+    }
+
     private func handleOutlineDoubleClickSelection() {
         // Act on the deterministic primary ROW id, not the document-level
         // cursor: child ids ("<doc>:artifact:<id>") aren't in
@@ -118,23 +146,28 @@ extension LibraryView {
         ) {
             outlineColumns
         } rows: {
-            ForEach(outlineNodes) { node in
-                if nodeCanExpand(node) {
-                    DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
-                        ForEach(node.children ?? []) { childGroup in
-                            if nodeCanExpand(childGroup) {
-                                DisclosureTableRow(childGroup, isExpanded: expansionBinding(for: childGroup)) {
-                                    ForEach(childGroup.children ?? []) { child in
-                                        TableRow(child)
-                                    }
-                                }
-                            } else {
-                                TableRow(childGroup)
-                            }
-                        }
+            // #3322: when sorting by document date, the undated rows get their
+            // own section rather than being interleaved among dated ones by the
+            // engine's created_at fallback. `showsUndatedSection` is shared with
+            // list mode so the two cannot disagree about when it appears.
+            //
+            // The dated half deliberately has NO heading: labelling it would
+            // caption the ordinary case, and the only thing worth naming here
+            // is the absence.
+            if showsUndatedSection {
+                Section {
+                    ForEach(datedOutlineNodes) { node in
+                        outlineRows(for: node)
                     }
-                } else {
-                    TableRow(node)
+                }
+                Section(LibraryDateSectioning.undatedSectionTitle) {
+                    ForEach(undatedOutlineNodes) { node in
+                        outlineRows(for: node)
+                    }
+                }
+            } else {
+                ForEach(outlineNodes) { node in
+                    outlineRows(for: node)
                 }
             }
         }
