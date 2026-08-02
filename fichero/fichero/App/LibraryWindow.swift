@@ -9,6 +9,27 @@ import SwiftUI
 
 // MARK: - LibraryWindow
 
+/// Whether a library counts as GENUINELY EMPTY for first-run purposes (#4017b).
+///
+/// Two things must both be true, and the first is the one that matters:
+///
+/// 1. **The library is LOADED** — `loadedLibraryIds` is only written after a
+///    verified successful load; a failed load is deliberately left unloaded so
+///    it retries (#3986-B). So "loaded" means confirmed, never "we have not
+///    looked yet". Presenting onboarding during load would be the same bug
+///    wearing a better gate: an absence read as an answer.
+/// 2. **Nothing is in it but the Inbox.** `ensureInboxFolder` runs on every
+///    successful load, so a freshly created library ALWAYS has one root folder.
+///    `collections.isEmpty` is therefore never true for a loaded library, and
+///    gating on it would mean the sheet never presents at all — a silent no-op
+///    dressed as a fix.
+func libraryIsLoadedAndEmpty(isLoaded: Bool, rootCollections: [Document]) -> Bool {
+    guard isLoaded else { return false }
+    return rootCollections.allSatisfy { document in
+        document.name == "Inbox" && document.docType == .folder && document.parentId == nil
+    }
+}
+
 /// Main window view - simplified to just track one library per window
 struct LibraryWindow: View {
     @Environment(LibraryManager.self) var libraryManager
@@ -162,7 +183,19 @@ struct LibraryWindow: View {
         // Gated on `firstRunSheetArmed` so it never presents in the same update
         // cycle that mounts ContentView / first-populates the NSToolbar (#3163).
         .sheet(isPresented: Binding(
-            get: { firstRunSheetArmed && appState.isBackendRunning && !featureManager.firstRunCompleted },
+            get: {
+                firstRunSheetArmed
+                    && appState.isBackendRunning
+                    && !featureManager.firstRunCompleted
+                    // #4017b: and the library is VERIFIED empty. The flag alone
+                    // said "nobody set a boolean", which is not the same fact as
+                    // "this user has nothing yet" — so onboarding presented over
+                    // a loaded library full of documents.
+                    && libraryIsLoadedAndEmpty(
+                        isLoaded: libraryManager.loadedLibraryIds.contains(windowState.libraryId),
+                        rootCollections: windowState.library?.documentStore.collections ?? []
+                    )
+            },
             set: { if !$0 { featureManager.firstRunCompleted = true } }
         )) {
             FirstRunWindow()
