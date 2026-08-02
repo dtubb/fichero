@@ -114,8 +114,8 @@ final class EntityStoreTests: XCTestCase {
         let updated = try await store.rename(entityId: "entity-1", to: "Alpha Prime")
 
         XCTAssertEqual(updated.canonicalName, "Alpha Prime")
-        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1", "entity-2"])
-        XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha Prime", "Beta"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").compactMap(\.id), ["entity-1", "entity-2"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Alpha Prime", "Beta"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" })
@@ -149,8 +149,8 @@ final class EntityStoreTests: XCTestCase {
 
         try await store.setCuration(entityIds: ["entity-1", "entity-3"], to: .verified)
 
-        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1", "entity-2", "entity-3"])
-        XCTAssertEqual(store.entities.map(\.curationState), [.verified, nil, .verified])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").compactMap(\.id), ["entity-1", "entity-2", "entity-3"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.curationState), [.verified, nil, .verified])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" })
@@ -179,8 +179,8 @@ final class EntityStoreTests: XCTestCase {
 
         try await store.delete(entityIds: ["entity-1"])
 
-        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-2"])
-        XCTAssertEqual(store.entities.map(\.canonicalName), ["Beta"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").compactMap(\.id), ["entity-2"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Beta"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/documents/doc-1/inspector" })
@@ -226,7 +226,7 @@ final class EntityStoreTests: XCTestCase {
         XCTAssertEqual(store.libraryClaimCounts["entity-1"], 3)
 
         await store.loadEntities(forDocument: "doc-1")
-        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-2"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").compactMap(\.id), ["entity-2"])
         XCTAssertEqual(store.libraryEntities.compactMap(\.id), ["entity-1"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
@@ -272,7 +272,7 @@ final class EntityStoreTests: XCTestCase {
 
         _ = try await store.reclassify(entityId: "entity-1", to: "person")
 
-        XCTAssertEqual(store.entities.first?.entityType, .location)
+        XCTAssertEqual(store.entities(forDocument: "doc-1").first?.entityType, .location)
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "PATCH" && $0.url?.path == "/api/entities/entity-1" })
@@ -326,8 +326,8 @@ final class EntityStoreTests: XCTestCase {
         // Absorbed rows gone, survivor's row PATCHED (canonical name from
         // the fresh fetch) rather than the list being thrown away and
         // re-fetched wholesale.
-        XCTAssertEqual(store.entities.compactMap(\.id), ["entity-1"])
-        XCTAssertEqual(store.entities.map(\.canonicalName), ["Alpha Prime"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").compactMap(\.id), ["entity-1"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Alpha Prime"])
 
         let requests = MockFicheroURLProtocol.recordedRequests()
         XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/kg/entity-curation/merge" })
@@ -369,7 +369,7 @@ final class EntityStoreTests: XCTestCase {
 
         XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Alpha"])
         XCTAssertEqual(store.entities(forDocument: "doc-2").map(\.canonicalName), ["Beta"])
-        XCTAssertEqual(store.entities.map(\.canonicalName), ["Beta"])
+        XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Beta"])
     }
 
     func testAuthoritySettingsLoadAndToggleFlowThroughTheStore() async throws {

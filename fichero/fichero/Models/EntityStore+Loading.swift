@@ -38,17 +38,14 @@ extension EntityStore {
     /// button / post-mutation refresh).
     func loadEntities(forDocument documentId: String, force: Bool = false) async {
         if !force, loadedDocumentIds.contains(documentId), loadErrorsByDocumentId[documentId] == nil {
-            syncLegacyScope(documentId: documentId)
             return
         }
 
         lastLoadedDocumentId = documentId
         loadingDocumentIds.insert(documentId)
         loadErrorsByDocumentId[documentId] = nil
-        syncLegacyScope(documentId: documentId)
         defer {
             loadingDocumentIds.remove(documentId)
-            syncLegacyScope(documentId: documentId)
         }
         do {
             let loaded = try await entityService.listInspectorEntitiesForDocument(
@@ -57,7 +54,6 @@ extension EntityStore {
             entitiesByDocumentId[documentId] = loaded
             loadErrorsByDocumentId.removeValue(forKey: documentId)
             loadedDocumentIds.insert(documentId)
-            syncLegacyScope(documentId: documentId)
             log.debug(
                 "Loaded \(loaded.count, privacy: .public) entities for \(documentId, privacy: .public)"
             )
@@ -69,7 +65,6 @@ extension EntityStore {
             entitiesByDocumentId[documentId] = []
             loadErrorsByDocumentId[documentId] = "Couldn't load entities: \(error.localizedDescription)"
             loadedDocumentIds.remove(documentId)
-            syncLegacyScope(documentId: documentId)
             log.error(
                 "Failed to load entities for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
@@ -91,17 +86,14 @@ extension EntityStore {
         force: Bool = false
     ) async {
         if !force, loadedDocumentIds.contains(folderId), loadErrorsByDocumentId[folderId] == nil {
-            syncLegacyScope(documentId: folderId)
             return
         }
 
         lastLoadedDocumentId = folderId
         loadingDocumentIds.insert(folderId)
         loadErrorsByDocumentId[folderId] = nil
-        syncLegacyScope(documentId: folderId)
         defer {
             loadingDocumentIds.remove(folderId)
-            syncLegacyScope(documentId: folderId)
         }
 
         // Folder-level entities first, then each child — union preserves that order.
@@ -128,7 +120,6 @@ extension EntityStore {
             loadErrorsByDocumentId.removeValue(forKey: folderId)
             loadedDocumentIds.insert(folderId)
         }
-        syncLegacyScope(documentId: folderId)
     }
 
     /// Re-fetch the current document scope (post-mutation / reconnect resync).

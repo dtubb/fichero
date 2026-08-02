@@ -28,9 +28,23 @@ extension EntityStore {
             guard let id = libraryEntities[index].id, targetIds.contains(id) else { continue }
             libraryEntities[index].curationState = state
         }
-        for index in entities.indices {
-            guard let id = entities[index].id, targetIds.contains(id) else { continue }
-            entities[index].curationState = state
+        // #4489 ①. This loop is the one behaviour change in an otherwise
+        // deletion-only commit, and deleting the legacy mirror is what forced
+        // it: the old code patched `libraryEntities` and the unread `entities`,
+        // so the INSPECTOR — which reads these buckets — never saw the new
+        // curation state from this call at all. Its caller does no reload
+        // (`DocumentInspectorEntitiesTab+Actions.swift:112-127`), so the patch
+        // was either redundant (the change stream repaired it) or wrong (it did
+        // not), and never right.
+        //
+        // `rename` and `delete` already loop these buckets. Three mutations
+        // agreed and this one forgot.
+        for documentId in entitiesByDocumentId.keys {
+            for index in entitiesByDocumentId[documentId]?.indices ?? (0..<0) {
+                guard let id = entitiesByDocumentId[documentId]?[index].id,
+                      targetIds.contains(id) else { continue }
+                entitiesByDocumentId[documentId]?[index].curationState = state
+            }
         }
     }
 
@@ -89,9 +103,6 @@ extension EntityStore {
         libraryEntities.removeAll { entity in
             entity.id.map(absorbed.contains) ?? false
         }
-        entities.removeAll { entity in
-            entity.id.map(absorbed.contains) ?? false
-        }
         for documentId in entitiesByDocumentId.keys {
             entitiesByDocumentId[documentId]?.removeAll { entity in
                 entity.id.map(absorbed.contains) ?? false
@@ -105,9 +116,6 @@ extension EntityStore {
         let survivor = try await entityService.getEntity(survivorId)
         if let index = libraryEntities.firstIndex(where: { $0.id == survivorId }) {
             libraryEntities[index] = survivor
-        }
-        if let index = entities.firstIndex(where: { $0.id == survivorId }) {
-            entities[index] = survivor
         }
         for documentId in entitiesByDocumentId.keys {
             if let index = entitiesByDocumentId[documentId]?.firstIndex(where: { $0.id == survivorId }) {
@@ -127,9 +135,6 @@ extension EntityStore {
         let updated = try await entityService.patchEntity(entityId, canonicalName: newName)
         if let index = libraryEntities.firstIndex(where: { $0.id == entityId }) {
             libraryEntities[index] = updated
-        }
-        if let index = entities.firstIndex(where: { $0.id == entityId }) {
-            entities[index] = updated
         }
         for documentId in entitiesByDocumentId.keys {
             if let index = entitiesByDocumentId[documentId]?.firstIndex(where: { $0.id == entityId }) {
@@ -152,8 +157,6 @@ extension EntityStore {
         }
         if hasDocumentScope {
             await reload()
-        } else if let index = entities.firstIndex(where: { $0.id == entityId }) {
-            entities[index] = updated
         }
         return updated
     }
@@ -168,9 +171,6 @@ extension EntityStore {
             entity.id.map(deleted.contains) ?? false
         }
         libraryClaimCounts = libraryClaimCounts.filter { !deleted.contains($0.key) }
-        entities.removeAll { entity in
-            entity.id.map(deleted.contains) ?? false
-        }
         for documentId in entitiesByDocumentId.keys {
             entitiesByDocumentId[documentId]?.removeAll { entity in
                 entity.id.map(deleted.contains) ?? false
