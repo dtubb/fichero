@@ -124,12 +124,20 @@ struct LibrarySectionHeader: View {
             locationBadge
             LibrarySharingBadge(library: library)
             Spacer()
-            if itemCount > 0 {
-                Text("\(itemCount)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
+        // Native `.badge()` instead of a hand-drawn trailing count (#4095).
+        //
+        // What it replaces: `if itemCount > 0 { Text("\(itemCount)")
+        // .font(.caption).foregroundStyle(.secondary) }` — a manual
+        // hide-at-zero, a manual font and a manual colour, all of them
+        // re-deciding what the system already decides for a sidebar count.
+        //
+        // `.badge(Int)` hides itself at zero, so the `if` goes too. On macOS 26
+        // it renders the monospaced-digit secondary-label treatment NetNewsWire
+        // switched to by hand under `#available(macOS 26, *)`, and it tracks the
+        // selected row's contrast without us restating it — which is the whole
+        // reason to adopt it rather than tune a `Text`.
+        .badge(itemCount)
         .simultaneousGesture(TapGesture().onEnded { onTap?() })
     }
 
