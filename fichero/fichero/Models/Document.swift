@@ -186,6 +186,18 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var curatedItems: [[String: AnyCodable]]
     var structure: [DocumentStructureNode]
     var childCount: Int
+    /// The historical date the document was WRITTEN (#3322) — not `createdAt`,
+    /// which is import time and is meaningless for a 19th-century diary.
+    ///
+    /// Three columns and a status, read through `DocumentDateDisplay.resolve`
+    /// rather than directly: `dateMeta == nil` is what "extraction never ran"
+    /// means, so its absence is an answer and not a value to default away.
+    /// `dateJdn` is the sort key; it is deliberately an Int, because a
+    /// Foundation `Date` cannot represent a Julian or French-Republican date
+    /// and would drag a timezone into a fact that has none.
+    var dateOriginal: String?
+    var dateJdn: Int?
+    var dateMeta: [String: AnyCodable]?
     /// User-defined order within the document's parent folder. Written by the
     /// backend `/documents/reorder` route (`documents.py:276`) and by the
     /// `move` route when it accepts a position. Defaults to 0 for documents
@@ -222,6 +234,9 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case curatedItems = "curated_items"
         case structure
         case childCount = "child_count"
+        case dateOriginal = "date_original"
+        case dateJdn = "date_jdn"
+        case dateMeta = "date_meta"
         case sortOrder = "sort_order"
         case prototypeKey = "prototype_key"
         case nodeKind = "node_kind"
@@ -249,6 +264,9 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         curatedItems: [[String: AnyCodable]] = [],
         structure: [DocumentStructureNode] = [],
         childCount: Int = 0,
+        dateOriginal: String? = nil,
+        dateJdn: Int? = nil,
+        dateMeta: [String: AnyCodable]? = nil,
         sortOrder: Int = 0,
         prototypeKey: String? = nil,
         nodeKind: String? = nil,
@@ -274,6 +292,9 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.curatedItems = curatedItems
         self.structure = structure
         self.childCount = childCount
+        self.dateOriginal = dateOriginal
+        self.dateJdn = dateJdn
+        self.dateMeta = dateMeta
         self.sortOrder = sortOrder
         self.prototypeKey = prototypeKey
         self.nodeKind = nodeKind
@@ -305,6 +326,9 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
         self.structure = try container.decodeIfPresent([DocumentStructureNode].self, forKey: .structure) ?? []
         self.childCount = try container.decodeIfPresent(Int.self, forKey: .childCount) ?? 0
+        self.dateOriginal = try container.decodeIfPresent(String.self, forKey: .dateOriginal)
+        self.dateJdn = try container.decodeIfPresent(Int.self, forKey: .dateJdn)
+        self.dateMeta = try container.decodeIfPresent([String: AnyCodable].self, forKey: .dateMeta)
         self.sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
         self.prototypeKey = try container.decodeIfPresent(String.self, forKey: .prototypeKey)
         self.nodeKind = try container.decodeIfPresent(String.self, forKey: .nodeKind)
