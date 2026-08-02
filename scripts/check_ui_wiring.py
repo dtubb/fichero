@@ -24,6 +24,8 @@ from __future__ import annotations
 import json
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 from typing import Any
 
@@ -236,6 +238,11 @@ def main() -> int:
     write = "--write-allowlist" in sys.argv
     emit_matrix = "--matrix" in sys.argv
     openapi_data = json.loads(OPENAPI.read_text())
+    # #4487 scan floor: an empty/near-empty spec would make every surface
+    # 'fully wired' vacuously. 352 paths observed on 2026-08-02.
+    require_scan_floor(
+        len(openapi_data.get('paths', {})), 176, 'OpenAPI paths (352 on 2026-08-02)'
+    )
     if emit_matrix:
         write_matrix(openapi_data)
         print(f"wrote {MATRIX.relative_to(ROOT)}")

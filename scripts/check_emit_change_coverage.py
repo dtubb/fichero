@@ -20,6 +20,8 @@ from __future__ import annotations
 import ast
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -88,9 +90,9 @@ STRING_RE = re.compile(r'\"([^\"]+)\"')
 
 # Deferred gaps to fix later.
 KNOWN_GAPS: set[str] = {
-    "fichero-server/src/fichero_server/api/routes/documents.py::import_file",
-    "fichero-server/src/fichero_server/api/routes/documents.py::purge_document",
-    "fichero-server/src/fichero_server/api/routes/workflows.py::create_node",
+    "fichero-server/src/fichero_server/api/routes/document/documents.py::import_file",
+    "fichero-server/src/fichero_server/api/routes/document/documents.py::purge_document",
+    "fichero-server/src/fichero_server/api/routes/workflow/workflows.py::create_node",
 }
 
 # PERMANENTLY EXEMPT: POST handlers in a store-observed domain that mutate NO
@@ -99,13 +101,13 @@ KNOWN_GAPS: set[str] = {
 # only add a route here after confirming it performs no DB write.
 EXEMPT: set[str] = {
     # Compute-only: estimates a cost, returns it; writes nothing.
-    "fichero-server/src/fichero_server/api/routes/workflows.py::estimate_workflow_cost",
+    "fichero-server/src/fichero_server/api/routes/workflow/workflows.py::estimate_workflow_cost",
     # Read-only: returns a tool's prompt text for preview; writes nothing.
-    "fichero-server/src/fichero_server/api/routes/workflows.py::get_tool_prompt",
+    "fichero-server/src/fichero_server/api/routes/workflow/workflows.py::get_tool_prompt",
     # Compute-only: generates AI interpretation suggestions; persists nothing.
-    "fichero-server/src/fichero_server/api/routes/hermeneutics.py::suggest_interpretations",
+    "fichero-server/src/fichero_server/api/routes/interpretation/hermeneutics.py::suggest_interpretations",
     # Ephemeral crop returns a transient region preview and never saves an annotation.
-    "fichero-server/src/fichero_server/api/routes/annotations.py::crop_ephemeral",
+    "fichero-server/src/fichero_server/api/routes/document/annotations.py::crop_ephemeral",
 }
 
 
@@ -472,7 +474,11 @@ def scan(
     observed_domains = _observed_domains(root=base_root, models_dir=models_dir)
     rows: list[Row] = []
 
-    for path in sorted(route_root.glob("*.py")):
+    # rglob, NOT glob (#4487): the routes tree grew subpackages (document/,
+    # workflow/, ...) and a flat glob matched only __init__.py — this check
+    # scanned ZERO routes and exited 0 for as long as that was true. Found
+    # the moment a scan floor was about to be installed.
+    for path in sorted(route_root.rglob("*.py")):
         if path.name == "__init__.py":
             continue
         domain = _route_domain_map().get(path.stem)
@@ -573,6 +579,12 @@ def main() -> int:
 
     rows = scan()
     save_rows = scan_non_route_saves()
+    # #4487 scan floor: this check scanned ZERO routes from the moment the
+    # routes tree grew subpackages until 2026-08-02, and exited 0 throughout.
+    # 82 mutating routes observed at commit time; floor = half. The floor is
+    # on the SCANNED population, never the gap count — gaps reaching zero is
+    # the goal state, not blindness.
+    require_scan_floor(len(rows), 41, "mutating routes (82 on 2026-08-02)")
     gaps = {row.key: row for row in rows if row.gap and row.key not in EXEMPT}
     save_gaps = {row.key: row for row in save_rows if row.gap}
     known = set(KNOWN_GAPS)

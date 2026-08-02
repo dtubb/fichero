@@ -14,6 +14,8 @@ Usage:
 from __future__ import annotations
 
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -106,6 +108,9 @@ def main() -> int:
         return 0
 
     rows = scan()
+    # #4487 scan floor: on the SCANNED population (mutating operations from
+    # the OpenAPI spec), never the gap count. 351 observed on 2026-08-02.
+    require_scan_floor(len(rows), 175, "mutating operations (351 on 2026-08-02)")
     found = {row.endpoint: row for row in rows if row.gap}
     known = set(KNOWN_GAPS)
 
