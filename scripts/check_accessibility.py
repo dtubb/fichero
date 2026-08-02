@@ -102,6 +102,29 @@ def _collect_button_chain(lines: list[str], start: int) -> tuple[int, str]:
         if saw_open and depth <= 0:
             break
 
+    # KNOWN LIMITATION (#4479): the chain stops at the first continuation line
+    # that does not begin with ".", so a MULTI-LINE modifier truncates it and
+    # everything below is invisible to this scan.
+    #
+    #     .disabled(isEditing == nil)
+    #     .help(isEditing == nil
+    #         ? "Not available"          <- stops here
+    #         : "Edit image")
+    #     .accessibilityLabel("Edit")    <- never seen; reported as MISSING
+    #
+    # That produced a false positive on `ReaderToolbar+Controls.editButton`,
+    # which HAD a label three lines below a multi-line `.help`. Worse, the
+    # button already sat in KNOWN_VIOLATIONS — so the allowlist had been
+    # silencing a SCANNER BUG rather than a real violation, which is the worst
+    # failure mode a guardrail has: a broken tool preserved as a documented,
+    # reviewed exception. It only surfaced because an unrelated edit changed
+    # the button's hash.
+    #
+    # Fixed at that call site by ordering `.accessibilityLabel` above the
+    # multi-line `.help`. Fixing it HERE means tracking bracket depth across
+    # continuation lines so a modifier's own wrapped arguments do not end the
+    # chain — worth doing, and it will reclassify entries in KNOWN_VIOLATIONS,
+    # so it wants its own pass with the list re-audited rather than a drive-by.
     for idx in range(end + 1, len(lines)):
         stripped = lines[idx].strip()
         if not stripped:
