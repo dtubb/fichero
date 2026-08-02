@@ -44,6 +44,33 @@ own defect class appearing in the tooling built to prevent it.
 is wide, and wide is correct here: a flaky gate leg is worse than no gate leg,
 and the failure being guarded against is a doubling, not a wobble.
 
+## How the tolerance gets chosen — decided BEFORE the numbers exist
+
+Three runs of the iOS leg on a quiet machine are coming. Writing the rule down
+first is deliberate: choosing a tolerance after seeing the spread means fitting
+the bar to whatever the machine happened to do, and any spread can be made to
+look acceptable that way.
+
+Let `spread = (max - min) / min` across the three runs.
+
+- **spread < 0.10** — the leg is stable. Keep `TOLERANCE` at 1.35; it is
+  already several times the observed jitter, and the failure being guarded
+  against is a doubling toward the #4418 cliff, not a wobble.
+- **0.10 <= spread < 0.25** — usable, but 1.35 is close to the noise. Set the
+  baseline from the SLOWEST of the three, so the first honest run cannot fail.
+- **spread >= 0.25** — **do not gate on it.** A quarter of a multi-minute
+  compile is minutes of jitter, and no tolerance separates that from a real
+  regression. Report it, leave the script unwired, and say the iOS compile is
+  not measurable on this machine.
+
+That last outcome is a result, not a failure to deliver. A flaky gate leg
+trains everyone to re-run until green, which is the mechanism by which a real
+regression gets waved through — so a ratchet nobody believes is worse than the
+absence of one.
+
+Whatever the numbers say, the baseline is seeded from a run nobody optimised
+for and the note in `perf_baseline.json` records which of the three it was.
+
 ## Blindness
 
 "I could not measure the compile" is **exit 2**, never a pass. A missing or
