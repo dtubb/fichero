@@ -154,6 +154,8 @@ async def date_extract_tool(
     dated = undated = none_found = 0
     changed_ids: list[str] = []
 
+    pinned = conflicts = 0
+
     for raw in raw_documents:
         doc_id = raw.get("id") if isinstance(raw, dict) else getattr(raw, "id", None)
         if not doc_id:
@@ -166,6 +168,77 @@ async def date_extract_tool(
         parsed, status = resolve_document_date(
             doc, year_start_march=year_start_march, assume_julian=assume_julian
         )
+
+        # A user assertion is a persistent curation rule, stored on the row
+        # it governs (`date_meta.source == "user"`) — one mechanism, not a
+        # side table that must stay in agreement with the columns. The
+        # extractor still RUNS (an improved extractor may have something to
+        # say) but it may not overwrite: agreement clears any earlier
+        # conflict; disagreement is RECORDED, visibly, in date_meta and the
+        # artifact — neither the user's value nor the new candidate is
+        # silently discarded (a disagreement the user cannot see is a fact
+        # destroyed).
+        existing_meta = doc.date_meta or {}
+        if existing_meta.get("source") == "user":
+            pinned += 1
+            candidate = None
+            if parsed is not None:
+                candidate = {
+                    "date_original": parsed.original,
+                    "date_jdn": parsed.jdn,
+                    "date_jdn_end": parsed.jdn_end,
+                    "meta": parsed.as_meta(),
+                }
+            agrees = (
+                # user asserted a date and extraction found the same range
+                (parsed is not None
+                 and doc.date_jdn == parsed.jdn
+                 and doc.date_jdn_end == parsed.jdn_end)
+                # user asserted undated and extraction found nothing/undated
+                or (parsed is None
+                    and existing_meta.get("status") == STATUS_UNDATED_EXPLICIT)
+                # user cleared/asserted nothing dated and nothing found
+                or (parsed is None and doc.date_jdn is None
+                    and existing_meta.get("status") != STATUS_UNDATED_EXPLICIT
+                    and status == STATUS_NONE_FOUND
+                    and "extraction_conflict" not in existing_meta)
+            )
+            new_meta = dict(existing_meta)
+            if agrees:
+                new_meta.pop("extraction_conflict", None)
+            else:
+                conflicts += 1
+                new_meta["extraction_conflict"] = {
+                    "candidate": candidate,  # None = extraction now finds NO date
+                    "found_at": utc_now().isoformat(),
+                }
+            if new_meta != existing_meta:
+                doc.date_meta = new_meta
+                doc.updated_at = utc_now()
+                db.save(doc)
+
+            record = {
+                "document_id": doc.id,
+                "status": "user_pinned",
+                "conflict": not agrees,
+                "date_original": doc.date_original,
+                "date_jdn": doc.date_jdn,
+                "date_jdn_end": doc.date_jdn_end,
+                "meta": doc.date_meta,
+            }
+            results.append(record)
+            db.save(
+                Artifact(
+                    document_id=doc.id,
+                    artifact_type="dates",
+                    content=doc.date_original or "",
+                    data=record,
+                    provider="rule",
+                    model="histdate",
+                )
+            )
+            changed_ids.append(doc.id)
+            continue
         if parsed is not None:
             doc.date_original = parsed.original
             doc.date_jdn = parsed.jdn
@@ -178,7 +251,14 @@ async def date_extract_tool(
             doc.date_original = None
             doc.date_jdn = None
             doc.date_jdn_end = None
-            doc.date_meta = {"status": status, "extracted_at": utc_now().isoformat()}
+            # source distinguishes "the MANUSCRIPT says n.d." read by
+            # extraction from the same status asserted by a user in
+            # document.set_date (source: user) — different claims, kept apart.
+            doc.date_meta = {
+                "status": status,
+                "source": "extracted",
+                "extracted_at": utc_now().isoformat(),
+            }
             if status == STATUS_UNDATED_EXPLICIT:
                 undated += 1
             else:
@@ -212,6 +292,7 @@ async def date_extract_tool(
 
     summary = (
         f"{dated} dated, {undated} explicitly undated, {none_found} with no "
-        f"date found, of {len(results)} documents"
+        f"date found, {pinned} user-pinned ({conflicts} with a conflicting "
+        f"new extraction), of {len(results)} documents"
     )
     return {"dates": results, "value": results, "text": summary, "cached": False}
