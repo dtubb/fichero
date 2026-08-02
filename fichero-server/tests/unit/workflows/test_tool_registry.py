@@ -504,15 +504,21 @@ class TestCompatibleTools:
         )
         
         compatible_tools = get_compatible_tools(target_port)
-        
+
         # Should find tools that output files
         assert len(compatible_tools) > 0
-        
-        # Check that all returned tools have compatible outputs
+
+        # Check against THE rule (validate_port_connection), not a restated
+        # list of types — this assertion used to hardcode {FILES, ANY} and
+        # broke the moment file->files was legitimately added to
+        # PORT_CONVERSIONS (#4478): a private copy of the table, the exact
+        # defect class the table exists to end.
+        from fichero_server.workflows.validation import validate_port_connection
+
         for tool in compatible_tools:
             has_compatible_output = any(
-                p.port_type == "output" and 
-                (p.data_type == DataType.FILES or p.data_type == DataType.ANY)
+                p.port_type == "output"
+                and validate_port_connection(p, target_port)
                 for p in tool.output_ports
             )
             assert has_compatible_output is True

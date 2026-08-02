@@ -40,7 +40,11 @@ struct ClaimSummaryCard: View {
     @State var isLoadingDetails: Bool = false
     @State private var showEditSheet = false
     @State private var showDeleteConfirmation = false
-    @State private var isInlineEditing = false
+    // Not `private`: read by the +Navigation.swift extension (a separate
+    // file). Swift's `private` is FILE-scoped, so once a type spans files,
+    // `private` on a shared member is a compile error waiting for the next
+    // split — which is exactly what happened here.
+    @State var isInlineEditing = false
     // Not `private`: written from the mutation handlers in the +Details.swift
     // extension (a separate file), so it must be at least internal.
     @State var mutationError: String?
@@ -50,7 +54,7 @@ struct ClaimSummaryCard: View {
     /// NotificationCenter posts this card used to make.
     @Environment(ClaimStore.self) var claimStore
     /// Finder-style Open in New Tab / New Window for claim cards (#1685).
-    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openWindow) var openWindow
     @AppStorage("editor.fontSize") private var defaultFontSize: Double = 13
 
     struct SVOTriple {
@@ -90,7 +94,7 @@ struct ClaimSummaryCard: View {
         return SVOTriple(subject: metaSubject, verb: metaVerb, object: metaObject)
     }
 
-    private var svo: SVOTriple? {
+    var svo: SVOTriple? {
         Self.svoTriple(for: claim)
     }
 

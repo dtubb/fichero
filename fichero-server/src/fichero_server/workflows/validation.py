@@ -32,6 +32,24 @@ logger = logging.getLogger(__name__)
 # together; never add one client-side.
 PORT_CONVERSIONS: dict[DataType, tuple[DataType, ...]] = {
     DataType.FILES: (DataType.FILE,),  # a files list can feed a single-file input
+    # #4478: decided from RECEIVER behaviour, not type names. Every consumer
+    # of a files-typed input coerces a bare string to a one-element list
+    # before use (process_vision, process_audio, video_base, zoom, compare,
+    # _doc_lookup, files_tool) — the runtime already performed this
+    # conversion while the validator forbade the edge. And the registry has
+    # ZERO file-typed INPUTS, so without it the four single-file outputs
+    # (to_pdf/to_word/to_excel/to_json) could connect to nothing but `any`.
+    DataType.FILE: (DataType.FILES,),
+    # DECIDED FORBIDDEN, same method (#4478) — do not re-add client-side:
+    #   json->text, array->text: text receivers do
+    #     `x if isinstance(x, str) else ""` (extract_all, vision_base) — a
+    #     dict/list arriving at a text input silently becomes "" and the run
+    #     completes over nothing, the #4467 shape exactly.
+    #   image->file, image->files: no image-typed port exists anywhere in
+    #     the registry; the old canvas entries were dead vocabulary.
+    #   array->json: JSON receivers disagree (some expect dicts, some
+    #     lists); zero shipped preset edges need it. If a specific pair
+    #     turns out to, fix the PORT's declared type — not this table.
 }
 
 

@@ -48,15 +48,27 @@ class TestTheTableIsTheBehaviour:
             )
             assert actual == expected, f"{source.value} -> {target.value}"
 
-    def test_the_old_editor_conversions_stay_rejected(self):
-        """The canvas's five extra conversions were optimism, not design —
-        resolving the divergence by widening the engine is explicitly the
-        wrong fix (#4477). If one becomes desirable, it gets its own issue."""
+    def test_file_to_files_is_allowed_from_receiver_behaviour(self):
+        """#4478: every files-input consumer coerces a bare string to a
+        one-element list before use (process_vision/process_audio/
+        video_base/zoom/compare/_doc_lookup/files_tool), and the registry
+        has zero file-typed inputs — so file->files is what the runtime
+        already does, now permitted by the validator."""
+        assert validate_port_connection(
+            _port("output", DataType.FILE), _port("input", DataType.FILES)
+        )
+
+    def test_the_five_rejected_conversions_stay_rejected(self):
+        """Decided per-pair from receiver behaviour (#4478), not type names:
+        text receivers silently coerce non-str to "" (a run over nothing,
+        the #4467 shape); image ports do not exist in the registry;
+        JSON receivers disagree about lists vs dicts. Forbidding is
+        recoverable; permitting a conversion the receiver chokes on is
+        the #4477 bug moved later."""
         for source, target in [
             ("json", "text"),
             ("array", "json"),
             ("array", "text"),
-            ("file", "files"),
             ("image", "file"),
             ("image", "files"),
         ]:
@@ -152,3 +164,89 @@ class TestPresetJsonValidatesDirectly:
         assert len(presets) >= 30, "preset discovery went blind"
         for preset in presets:
             WorkflowDef.model_validate(preset)  # must not raise
+
+
+class TestReceiversHandleTheConvertedValue:
+    """#4478: an addition to PORT_CONVERSIONS needs proof the RECEIVER
+    handles the converted shape — a conversion the validator allows and the
+    tool then chokes on just moves the failure later.
+
+    file->files: a single-file value arriving at a files input must become a
+    one-element list, at every coercion seam a converted edge can reach."""
+
+    def test_files_source_tool_accepts_a_bare_string(self):
+        """files_tool's Priority-1 inputs['files'] path (upstream mapping)."""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        from fichero_server.workflows.tools.sources import files_tool
+
+        out = asyncio.run(files_tool({"files": "/lib/one.pdf"}, {}, MagicMock()))
+        assert out["files"] == ["/lib/one.pdf"]
+        assert out["count"] == 1
+
+    def test_doc_lookup_accepts_a_bare_string(self):
+        from fichero_server.workflows.tools._doc_lookup import (
+            documents_from_state_outputs,
+        )
+
+        state = {
+            "outputs": {
+                "src": {
+                    "files": ["/lib/one.pdf"],
+                    "documents": [{"id": "d1", "path": "/lib/one.pdf"}],
+                }
+            }
+        }
+        docs = documents_from_state_outputs(state, "/lib/one.pdf")
+        assert docs and docs[0]["id"] == "d1"
+
+    def test_every_files_consuming_base_coerces_str(self):
+        """The coercion the conversion depends on exists in each base that a
+        files-typed edge can deliver into. Source-level assertion — if a
+        base drops its coercion, permitting file->files becomes unsafe and
+        this fails naming the file."""
+        from pathlib import Path
+
+        roots = Path("fichero-server/src/fichero_server/workflows/tools")
+        for base in ["vision_base.py", "audio_base.py", "video_base.py"]:
+            text = (roots / base).read_text(encoding="utf-8")
+            assert "isinstance(files, str)" in text, (
+                f"{base} no longer coerces a bare string into [files] — "
+                "file->files in PORT_CONVERSIONS depends on that coercion"
+            )
+
+    def test_no_file_typed_inputs_exist_so_files_is_the_only_route(self):
+        """The registry-level fact behind the decision: the four single-file
+        outputs can connect to nothing but `any` without this conversion."""
+        from fichero_server.workflows.registry import (
+            TOOL_DEFS,
+            _ensure_tools_loaded,
+        )
+        from fichero_server.workflows.types import DataType as DT
+
+        _ensure_tools_loaded()
+        file_inputs = [
+            (name, p.id)
+            for name, td in TOOL_DEFS.items()
+            for p in td.input_ports
+            if p.data_type == DT.FILE
+        ]
+        assert file_inputs == [], (
+            f"file-typed inputs now exist: {file_inputs} — revisit the "
+            "#4478 decision notes; the 'only route' argument no longer holds"
+        )
+
+    def test_text_receivers_would_silently_empty_a_dict(self):
+        """Why json->text stays FORBIDDEN: the receiver turns a dict into
+        '' — a run over nothing. This pins the behaviour the decision
+        rests on; if a receiver starts raising instead, the pair can be
+        reconsidered."""
+        from fichero_server.workflows.tools.extract_all import (
+            _recover_text_and_records,
+        )
+
+        text, records = _recover_text_and_records(
+            {"text": {"not": "a string"}, "records": None}, {"outputs": {}}
+        )
+        assert text == "" and records == []
