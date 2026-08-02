@@ -91,17 +91,21 @@ extension LibraryView {
         // down and never acted on it: "Created/Modified are filesystem dates,
         // which for historical material are not the date that matters."
         //
-        // Deliberately NOT sortable — no `value:` comparator. Sorting by
-        // document date needs the engine's ordering (precision_rank tiebreak,
-        // undated falling back to created_at-as-JDN); a KeyPathComparator here
-        // would be a SECOND implementation of that ordering with different
-        // tie-breaking, and it would only order the loaded page rather than the
-        // corpus. It becomes sortable when the listing routes accept `sort_by`.
+        // Sortable as of the listing routes accepting `sort_by` — which is what
+        // the previous version of this comment said it was waiting for.
         //
-        // A non-sortable column also declares no comparator, so it cannot put
-        // one into the table's `sortOrder` binding that no column can map back
-        // — the NSSortDescriptor-bridge crash class from #4282.
-        TableColumn("Date") { node in
+        // `dateHeaderSortKey` is NOT the ordering. The rows come back already
+        // ordered by `histdate.document_date_sort_key` (precision tie-break,
+        // undated falling back to created_at-as-JDN), and
+        // `LibrarySortField.orderedForDisplay` skips the client sort entirely
+        // for this field. This key path exists so the column can declare a
+        // comparator at all: on macOS the Table bridges each comparator to an
+        // AppKit sort descriptor resolved against a column, and a descriptor
+        // that maps back to nothing is the crash class from #4282.
+        //
+        // So the header is clickable, the click round-trips to the engine, and
+        // the key path never orders a row.
+        TableColumn("Date", value: \.document.dateHeaderSortKey) { node in
             documentColumnCell(for: node, columnId: "documentDate")
         }
         .width(min: 90, ideal: 130)
