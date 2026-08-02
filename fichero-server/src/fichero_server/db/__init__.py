@@ -4715,35 +4715,19 @@ class Database(DatabaseEmbeddingMixin):
                     reverse=(sort_order == "desc"),
                 )
             elif sort_by == "document_date":
-                # #3322: order by the HISTORICAL date. The key is a plain
-                # (jdn, precision_rank) int tuple — calendar-independent,
-                # timezone-immune, no datetime in the sort path. Undated
-                # docs fall back to created_at CONVERTED TO A JDN so one
-                # integer key orders the whole list (#3309 fallback rule);
-                # ties on start JDN break by precision (day before month
-                # before year — "March 1791" starts before "15 March 1791"
-                # by start-JDN alone; equal starts put the precise date
-                # first).
-                from fichero_server.histdate import gregorian_to_jdn as _to_jdn
+                # #3322: order by the HISTORICAL date. THE key is
+                # histdate.document_date_sort_key — one implementation,
+                # shared with the document listing routes; do not inline a
+                # copy here or anywhere.
+                from fichero_server.histdate import document_date_sort_key
                 from fichero_server.models import Document as _DateDoc
 
-                _precision_rank = {"day": 0, "month": 1, "year": 2, "circa": 3}
                 date_keys: dict[str, tuple[int, int]] = {}
                 for item in combined_results:
                     doc = self.get(_DateDoc, item["document_id"])
-                    if doc is not None and doc.date_jdn is not None:
-                        rank = _precision_rank.get(
-                            (doc.date_meta or {}).get("precision", ""), 4
-                        )
-                        date_keys[item["document_id"]] = (doc.date_jdn, rank)
-                    elif doc is not None and doc.created_at is not None:
-                        created = doc.created_at
-                        date_keys[item["document_id"]] = (
-                            _to_jdn(created.year, created.month, created.day),
-                            5,
-                        )
-                    else:
-                        date_keys[item["document_id"]] = (0, 9)
+                    date_keys[item["document_id"]] = (
+                        document_date_sort_key(doc) if doc is not None else (0, 9)
+                    )
                 combined_results.sort(
                     key=lambda x: date_keys.get(x["document_id"], (0, 9)),
                     reverse=(sort_order == "desc"),

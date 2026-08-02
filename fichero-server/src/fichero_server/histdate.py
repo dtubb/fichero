@@ -81,6 +81,28 @@ def islamic_to_jdn(year: int, month: int, day: int) -> int:
     return int(islamic.to_jd(year, month, day) + 0.5)
 
 
+# THE document_date ordering (#3322): defined once, used by Database.search's
+# sort AND the document listing routes. A second implementation — a client
+# KeyPathComparator on dateJdn, an inline copy in another route — would carry
+# different tie-breaking and different fallback, which is exactly the
+# two-things-nothing-forces-to-agree class. Ties on start JDN break
+# precise-first; undated docs fall back to created_at CONVERTED TO A JDN so
+# one integer tuple orders the whole list; docs with neither sort first.
+_PRECISION_RANK = {"day": 0, "month": 1, "year": 2, "circa": 3}
+
+
+def document_date_sort_key(doc: Any) -> tuple[int, int]:
+    """(jdn, precision_rank) for any object with date_jdn/date_meta/created_at."""
+    date_jdn = getattr(doc, "date_jdn", None)
+    if date_jdn is not None:
+        meta = getattr(doc, "date_meta", None) or {}
+        return (int(date_jdn), _PRECISION_RANK.get(meta.get("precision", ""), 4))
+    created = getattr(doc, "created_at", None)
+    if created is not None:
+        return (gregorian_to_jdn(created.year, created.month, created.day), 5)
+    return (0, 9)
+
+
 def _gregorian_iso(jdn: int) -> str:
     y, m, d = jdn_to_gregorian(jdn)
     return f"{y:04d}-{m:02d}-{d:02d}"

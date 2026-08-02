@@ -549,12 +549,56 @@ async def list_collections(
     return DocumentListResponse(items=items, count=len(items))
 
 
+def _apply_listing_sort(
+    items: list, sort_by: str | None, sort_direction: str
+) -> list:
+    """Optional server-side ordering for listing routes (#3322).
+
+    Absent ``sort_by`` = exactly the pre-existing behaviour (sort_order),
+    zero added work on the hot path. The ONLY server-side value is
+    ``document_date``: its precision tie-breaking and created_at->JDN
+    fallback live in ``histdate.document_date_sort_key`` — the same key
+    Database.search uses, so search and the library can never order the
+    same corpus differently. Client-computable orderings (name, size,
+    import date) deliberately stay client-side; accepting them here would
+    duplicate what the app already does. A wrong value is a loud 400, not
+    a silent insertion-order list.
+    """
+    if sort_by is None:
+        return items
+    if sort_by != "document_date":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Invalid sort_by. Listing routes support only "
+                "'document_date' (server-side historical-date ordering); "
+                "other orderings are client-side."
+            ),
+        )
+    if sort_direction not in ("asc", "desc"):
+        raise HTTPException(
+            status_code=400, detail="Invalid sort_direction. Must be 'asc' or 'desc'"
+        )
+    from fichero_server.histdate import document_date_sort_key
+
+    # Stable sort: within equal (jdn, precision) keys the incoming
+    # sort_order arrangement is preserved.
+    return sorted(
+        items, key=document_date_sort_key, reverse=(sort_direction == "desc")
+    )
+
+
 @router.get("/roots")
 async def list_roots(
     db: Database = Depends(get_library_database),
+    sort_by: Optional[str] = Query(
+        None, description="Optional server-side ordering; only 'document_date'."
+    ),
+    sort_direction: str = Query("asc", description="'asc' or 'desc'"),
 ) -> DocumentListResponse:
     """List root documents (no parent)."""
     items = _ordered_by_sort_order(_list_documents(db, parent_id=None))
+    items = _apply_listing_sort(items, sort_by, sort_direction)
     return DocumentListResponse(items=items, count=len(items))
 
 
@@ -880,6 +924,10 @@ async def get_children(
     limit: Optional[int] = Query(
         None, ge=1, description="Max results (no limit if not specified)"
     ),
+    sort_by: Optional[str] = Query(
+        None, description="Optional server-side ordering; only 'document_date'."
+    ),
+    sort_direction: str = Query("asc", description="'asc' or 'desc'"),
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
     """Get child documents."""
@@ -899,6 +947,7 @@ async def get_children(
             parent_id=normalized_id,
         )
         children = _ordered_by_sort_order(children)
+        children = _apply_listing_sort(children, sort_by, sort_direction)
         perf["normalized_id"] = normalized_id
         perf["matched_rows"] = len(children)
 

@@ -307,3 +307,71 @@ class TestUserDatesSurviveReExtraction:
         # The user-asserted form (written by document.set_date) carries user.
         asserted = {"status": STATUS_UNDATED_EXPLICIT, "source": "user"}
         assert asserted["source"] != manuscript.date_meta["source"]
+
+
+class TestOneOrderingEverywhere:
+    """#3322: the library asks the SERVER for document_date order — one key,
+    histdate.document_date_sort_key, shared by Database.search and the
+    listing routes. A client comparator on dateJdn would compile, look
+    right, and carry different tie-breaking; this pins the single source."""
+
+    def _docs(self):
+        from datetime import datetime, timezone
+
+        day = Document(
+            id="day", name="day", date_jdn=2375283, date_jdn_end=2375283,
+            date_meta={"status": "dated", "precision": "day"},
+        )
+        month = Document(
+            id="month", name="month", date_jdn=2375283, date_jdn_end=2375299,
+            date_meta={"status": "dated", "precision": "month"},
+        )
+        earlier = Document(
+            id="earlier", name="earlier", date_jdn=2375269, date_jdn_end=2375269,
+            date_meta={"status": "dated", "precision": "day"},
+        )
+        undated = Document(
+            id="undated", name="undated",
+            created_at=datetime(1998, 1, 1, tzinfo=timezone.utc),
+        )
+        return day, month, earlier, undated
+
+    def test_key_orders_jdn_then_precision_then_fallback(self):
+        from fichero_server.histdate import document_date_sort_key, gregorian_to_jdn
+
+        day, month, earlier, undated = self._docs()
+        ordered = sorted([month, undated, day, earlier], key=document_date_sort_key)
+        assert [d.id for d in ordered] == ["earlier", "day", "month", "undated"], (
+            "equal start-JDNs put the precise date first; undated docs fall "
+            "back to created_at converted to a JDN"
+        )
+        assert document_date_sort_key(undated)[0] == gregorian_to_jdn(1998, 1, 1)
+
+    def test_listing_sort_uses_the_shared_key(self):
+        from fichero_server.api.routes.document.documents import _apply_listing_sort
+
+        day, month, earlier, undated = self._docs()
+        out = _apply_listing_sort([month, undated, day, earlier], "document_date", "asc")
+        assert [d.id for d in out] == ["earlier", "day", "month", "undated"]
+        out_desc = _apply_listing_sort([month, day], "document_date", "desc")
+        assert [d.id for d in out_desc] == ["month", "day"]
+
+    def test_absent_sort_by_is_exactly_todays_behaviour(self):
+        from fichero_server.api.routes.document.documents import _apply_listing_sort
+
+        items = list(self._docs())
+        assert _apply_listing_sort(items, None, "asc") is items, (
+            "the hot path must not pay for an ordering nobody asked for"
+        )
+
+    def test_wrong_values_are_loud_400s(self):
+        from fastapi import HTTPException
+
+        from fichero_server.api.routes.document.documents import _apply_listing_sort
+
+        with pytest.raises(HTTPException) as caught:
+            _apply_listing_sort([], "name", "asc")
+        assert caught.value.status_code == 400
+        assert "client-side" in caught.value.detail
+        with pytest.raises(HTTPException):
+            _apply_listing_sort([], "document_date", "sideways")
