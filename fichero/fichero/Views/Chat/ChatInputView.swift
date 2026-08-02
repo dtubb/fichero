@@ -41,6 +41,7 @@ struct ChatInputView<Leading: View>: View {
             }
             .buttonStyle(.plain)
             .help("Send your message (Return)")
+            .accessibilityLabel("Send message")
             .disabled(inputText.isEmpty || isLoading)
             .keyboardShortcut(.return, modifiers: [])
         }

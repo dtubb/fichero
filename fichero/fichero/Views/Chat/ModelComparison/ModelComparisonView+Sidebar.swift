@@ -51,6 +51,7 @@ extension ModelComparisonView {
                 }
                 .buttonStyle(.borderless)
                 .help("Load preset")
+                .accessibilityLabel("Load preset")
 
                 Button {
                     showingModelPicker = true
@@ -59,6 +60,7 @@ extension ModelComparisonView {
                 }
                 .buttonStyle(.borderless)
                 .help("Add model")
+                .accessibilityLabel("Add model")
             }
 
             if selectedModels.isEmpty {
@@ -85,6 +87,8 @@ extension ModelComparisonView {
                                 .foregroundStyle(.secondary)
                         }
                         .buttonStyle(.borderless)
+                        // Names its row -- one per compared model.
+                        .accessibilityLabel("Remove \(model.model) from comparison")
                     }
                     .padding(8)
                     .background(.quaternary.opacity(0.5))

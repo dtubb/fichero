@@ -57,6 +57,7 @@ struct ImageEditChainPanel: View {
                 .buttonStyle(.borderless)
                 .disabled(isBusy)
                 .help("Reset all edits — restores the original image")
+                .accessibilityLabel("Reset all edits")
                 .accessibilityIdentifier("imageEditChainReset")
             }
         }
@@ -144,6 +145,10 @@ struct ImageEditChainPanel: View {
                     .foregroundStyle(.secondary)
                     .disabled(isBusy)
                     .help("Remove this step")
+                    // Names its row -- one per edit in the chain, and "this"
+                    // means nothing to a reader that cannot see which row has
+                    // focus.
+                    .accessibilityLabel("Remove step \(index + 1), \(operation.title)")
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

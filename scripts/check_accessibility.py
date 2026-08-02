@@ -209,7 +209,23 @@ def _snippet_key(path: Path, snippet: str, base_dir: Path = VIEWS_DIR) -> str:
     return f"{path.relative_to(base_dir).as_posix()}#{digest}"
 
 
+#: How many Button chains the last `scan()` actually examined.
+#:
+#: Until the allowlist reached zero, a non-empty result was itself the proof
+#: that the detector still worked. At zero it no longer is: "every control is
+#: labelled" and "the reader matched nothing at all" print the same line. This
+#: counter is what keeps those two apart -- see `_require_buttons_seen_4382`.
+BUTTONS_SEEN = 0
+
+#: Below this, assume the detector broke rather than that the app shrank.
+#: The tree holds hundreds; a hundred is far under any real number and far
+#: over anything a broken matcher would return.
+MIN_BUTTONS_SEEN = 100
+
+
 def scan(views_dir: Path = VIEWS_DIR) -> dict[str, str]:
+    global BUTTONS_SEEN
+    BUTTONS_SEEN = 0
     found: dict[str, str] = {}
     for path in sorted(views_dir.rglob("*.swift")):
         try:
@@ -223,6 +239,7 @@ def scan(views_dir: Path = VIEWS_DIR) -> dict[str, str]:
             if "Button" not in line:
                 continue
             end, snippet = _collect_button_chain(lines, idx)
+            BUTTONS_SEEN += 1
             if not _is_icon_only_button(snippet):
                 continue
             found[_snippet_key(path, snippet, views_dir)] = (
@@ -245,6 +262,7 @@ def main() -> int:
         return 0
 
     found = scan()
+    _require_buttons_seen_4382()
 
     if "--update" in argv:
         BASELINE.write_text(json.dumps(dict(sorted(found.items())), indent=2) + "\n")
@@ -264,7 +282,9 @@ def main() -> int:
     stale = sorted(known - set(found))
 
     print("Accessibility / VoiceOver guardrail (#2285):")
-    print(f"  scanned {VIEWS_DIR.relative_to(ROOT)}")
+    # The examined count is printed, not just asserted: at zero violations it
+    # is the only line that distinguishes a clean tree from a broken reader.
+    print(f"  scanned {VIEWS_DIR.relative_to(ROOT)}, {BUTTONS_SEEN} Button chain(s) examined")
     print(f"  {len(found)} icon-only Button(s) without an accessibility label; "
           f"{len(known)} known.")
 
@@ -285,6 +305,38 @@ def main() -> int:
 
     print("\n✓ No new unlabeled icon-only controls.")
     return 0
+
+
+def _require_buttons_seen_4382():
+    """#4382, second axis: a sweep for an ABSENCE must know it measured something.
+
+    The root check below catches a tree that MOVED. This catches a detector
+    that stopped matching while the tree stayed put -- a different failure with
+    an identical symptom now that the allowlist is empty.
+
+    Both of this scanner's real bugs were of that kind: the chain walk stopped
+    at a multi-line modifier, and `Label(` was only recognised with a literal
+    title. Both made the reader see less than it should, and both were absorbed
+    by the allowlist rather than caught. With six entries hiding them, a
+    partial break still left a plausible number on screen. With zero entries
+    there is no such cushion: a matcher that returns nothing prints exactly
+    what a perfectly labelled app prints.
+
+    So the floor is asserted rather than the result. Exit 2, not 1 -- "I could
+    not check" is not "I checked and it was clean".
+    """
+    import sys as _sys
+
+    if BUTTONS_SEEN >= MIN_BUTTONS_SEEN:
+        return
+    print(
+        f"{__file__.rsplit('/', 1)[-1]}: BLIND -- examined only {BUTTONS_SEEN} "
+        f"Button chain(s), expected at least {MIN_BUTTONS_SEEN}. The detector "
+        "broke or the tree moved; a clean result here would be a measurement "
+        "of nothing.",
+        file=_sys.stderr,
+    )
+    _sys.exit(2)
 
 
 def _require_scan_roots_4382(*roots):
