@@ -114,7 +114,12 @@ struct LibrarySectionHeader: View {
         HStack(spacing: 6) {
             Image(systemName: "books.vertical")
                 .foregroundStyle(isCurrentLibrary ? Color.accentColor : Color.primary)
-                .font(.system(size: 13))
+                // #4098: `.body` rather than `.system(size: 13)`. This icon
+                // sits beside `Text(libraryName)`, which carries no explicit
+                // font and is therefore body — so the hardcoded 13pt was
+                // hand-matching body at the DEFAULT text size only, and drifted
+                // out of step the moment the user changed it.
+                .font(.body)
             Text(libraryName)
             locationBadge
             LibrarySharingBadge(library: library)

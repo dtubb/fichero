@@ -202,14 +202,23 @@ extension SidebarItemRow {
                 // upstream factory forgets to set one. (#1015)
                 Image(systemName: item.icon.isEmpty ? "doc" : item.icon)
                     .foregroundStyle(iconTint)
+                // #4098: `.caption2` instead of `.system(size: 11)` — a
+                // hardcoded point size does not track the user's text-size or
+                // accessibility settings, which is a standing hard rule here.
+                // caption2 is ~11pt at the default setting, so the intended
+                // look is unchanged and now scales.
+                //
+                // The backing circle SIZES ITSELF from the symbol (padding +
+                // `.background`) rather than a fixed 13pt frame, so it grows
+                // with the glyph instead of letting it clip out at larger text
+                // sizes. Deliberately not `@ScaledMetric`: a self-sizing
+                // background needs no separate scale factor to keep in step,
+                // and nothing else in this app uses that property yet.
                 Image(systemName: badge.symbol.isEmpty ? "questionmark.circle" : badge.symbol)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(.white, badge.color)
-                    .background(
-                        Circle()
-                            .fill(.background)
-                            .frame(width: 13, height: 13)
-                    )
+                    .padding(1)
+                    .background(Circle().fill(.background))
                     .offset(x: 4, y: 4)
             }
             .frame(width: 16, alignment: .center)
