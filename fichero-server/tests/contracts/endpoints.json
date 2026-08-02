@@ -2564,7 +2564,18 @@
         "operation_id": "list_roots_api_documents_roots_get",
         "summary": "List Roots",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "sort_by",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sort_direction",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": "fichero_server__models__DocumentListResponse"
       },
@@ -2672,6 +2683,16 @@
             "name": "limit",
             "required": false,
             "type": "integer"
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sort_direction",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,

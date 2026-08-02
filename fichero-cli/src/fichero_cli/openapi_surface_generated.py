@@ -3846,11 +3846,16 @@ def register_generated_openapi_commands(
     @target_app.command("list-roots")
     def documents_list_roots_get(
         ctx: typer.Context,
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
     ) -> None:
         """List Roots (GET /api/documents/roots)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/documents/roots"
-            params = None
+            params = {
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
@@ -4012,12 +4017,16 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
     ) -> None:
         """Get Children (GET /api/documents/{doc_id}/children)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/documents/{doc_id}/children"
             params = {
                 "limit": limit,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

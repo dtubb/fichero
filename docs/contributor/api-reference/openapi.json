@@ -41905,6 +41905,11 @@
             "title": "Sort Order",
             "default": 0
           },
+          "child_count": {
+            "type": "integer",
+            "title": "Child Count",
+            "default": 0
+          },
           "case_id": {
             "type": "string",
             "nullable": true,
