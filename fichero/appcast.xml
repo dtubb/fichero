@@ -6,6 +6,91 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.08.02</title>
+            <pubDate>Sun, 02 Aug 2026 16:09:39 -0300</pubDate>
+            <sparkle:version>2026080201</sparkle:version>
+            <sparkle:shortVersionString>2026.08.02</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Dev build</h3>
+<p>The overnight build: 122 commits on top of the morning's 2026.07.29
+release — the workflow-trust overhaul, the iPhone launch fix, and a
+night-long bug sweep. Internal TestFlight + DMG dev prerelease from
+green <code>integration</code> (1,990 XCTests + 1,927 Swift Testing + 8,500+
+Python tests, 0 failures).</p>
+<h3>Workflows you can trust</h3>
+<p><strong>Every run tells you what it did.</strong> Artifacts now record which run and
+step produced them; the artifact browser groups results by run in
+pipeline order with "Produced by → View Run" navigation; and a new
+Trace tab on every run shows the executed graph — each node colored by
+what happened, with the provider and model actually used, timings, and
+per-step outputs one click away.</p>
+<p><strong>Results land where you're looking.</strong> Transcriptions appear in the
+content pane the moment a workflow writes them — no reselecting, from
+any window, even runs launched from the CLI.</p>
+<p><strong>Honest lifecycle.</strong> Cancel stops multi-file steps within one file;
+paused runs can be resumed, cancelled, or deleted; failed runs release
+their documents instead of spinning forever; Cancelled shows as
+Cancelled; and Pause/Resume/Stop buttons visibly do what they say.</p>
+<p><strong>A node editor that explains itself.</strong> Ports and connection types are
+finally visible with distinct parallel edges, fan-out badges reflect
+real behavior, execution order is numbered on the canvas, a Tidy
+command lays the graph out, drops land under the cursor, and the
+palette only offers tools that actually run. Zoom nodes show a live
+tile-grid preview.</p>
+<p><strong>Works out of the box.</strong> A fresh install with no API keys runs every
+default workflow on-device; a workflow that needs a missing key says so
+before running, naming the provider. Default presets cleaned up
+(internal components hidden from Run menus, explicit routing, real
+source nodes).</p>
+<h3>Fixed</h3>
+<p><strong>iPhone launches again.</strong> The iOS TestFlight build crashed instantly at
+launch: the shell's fully composed view type overflowed the iPhone's 1MB
+main-thread stack during type-metadata instantiation (macOS's 8MB stack
+absorbed the identical code). Bounded type-erasures at the compact layout's
+chokepoints fix it (#4331).</p>
+<p><strong>Edits can no longer vanish.</strong> A rejected page-content save silently marked
+the buffer clean, so the next refresh replaced your edit with stale content.
+Saves are now transactional: a failure keeps the buffer dirty, shows an
+inline error, and retries — and write conflicts with a running workflow
+resolve with retries server-side instead of surfacing as an unexplained
+error (#4285, #4286).</p>
+<p><strong>Table sorting can't crash.</strong> Sorting by Name crashed the app when the
+persisted sort field had no matching table column; sort state now only emits
+column-backed descriptors (#4282).</p>
+<p><strong>Sidebar behaves.</strong> Chevron prefetch restored (#4294), selection survives
+tree rebuilds (#4297), drop-hover highlights only the target row instead of
+washing the whole subtree (#4229), folders dropped at the library root import
+at the root instead of vanishing into Inbox (#4274), and per-row progress
+spinners reflect actual running work regardless of selection (#4295).</p>
+<p><strong>Workflows tell the truth.</strong> Single-page runs no longer widen to the whole
+PDF (#4298); runs where every file failed record as failed with the real
+error instead of a green checkmark (#4283); newly added AI providers appear
+in the Run Workflow menu immediately, from any window or device (#4276); and
+a connection error in the status island clears itself once the server is
+reachable again (#4296).</p>
+<h3>New</h3>
+<p><strong>iPhone essentials.</strong> Tapping a document on iPhone opens the reader again
+(#2666), first-run setup skips the Mac-only steps (#2807), and list rows get
+native swipe-to-delete (#2501).</p>
+<p><strong>Recognized-text boxes.</strong> Every OCR/transcription pass now stores the text's
+bounding geometry, and the reader gains a Text Boxes overlay showing exactly
+where each recognized line sits on the page (#4309).</p>
+<p><strong>Convert to Markdown, HTML, and SVG.</strong> New AI conversion workflows render a
+page into portable formats, viewable in place — flip a page between its image
+and its generated rendition in the reader (#4329).</p>
+<p><strong>Chat with your library.</strong> The research chat now answers through audited,
+read-only library tools with each tool call visible and attributed, and
+creating a chat works without an AI provider configured (#2067, #4308).</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.08.02/Fichero.dmg"
+                length="541322988"
+                type="application/octet-stream"
+                sparkle:edSignature="0EqwmqUkRBSPH/9qkU+SiNNv89/jxStCMw4MEn/2yxcI57cNtUF+fp31MFz6FUHIvl5McHzW1Bcp1CYldARHDQ=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.07.29</title>
             <pubDate>Wed, 29 Jul 2026 14:06:16 -0300</pubDate>
             <sparkle:version>2026072901</sparkle:version>
