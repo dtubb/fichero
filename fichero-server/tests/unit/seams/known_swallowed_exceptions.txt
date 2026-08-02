@@ -33,7 +33,10 @@ api/routes/kg/review.py::_run_retrain 1
 api/routes/kg/review.py::accept_pair 1
 api/routes/library/core.py::create_library 3
 api/routes/library/registry.py::add_known_library 1
+api/routes/mcp/tools.py::_emit_mcp_kg_change 1
+api/routes/mcp/tools.py::_log_mcp_claim_creation 1
 api/routes/mcp/tools.py::_log_mcp_entity_mutation 1
+api/routes/mcp/tools.py::mcp_knowledge_entity_upsert 1
 api/routes/research/crud.py::_extract_json_payload 1
 api/routes/search/core.py::_enrich_page_results_with_parent_info 1
 api/routes/search/core.py::_run_claim_semantic_queries 1

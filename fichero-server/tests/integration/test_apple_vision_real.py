@@ -1,8 +1,11 @@
 """Real Apple Vision OCR integration tests.
 
-Marked with @pytest.mark.requires_apple_vision so they're auto-skipped
-on non-macOS or when PyObjC's Quartz/Vision modules aren't importable
-(see fichero-server/tests/conftest.py for the probe).
+Gated by the module-level ``pytestmark = pytest.mark.skipif(...)`` below —
+NOT by ``@pytest.mark.requires_apple_vision``, which this docstring used to
+claim while no test in the tree carried that marker. Prose asserting a
+mechanism the code does not use is how a dead conftest hook (the shadowed
+pytest_collection_modifyitems, fixed 2026-08-02) went unnoticed: the hook
+was dead AND its population was empty, and each defect concealed the other.
 
 Cost: zero. Apple Vision is on-device + free. Runtime: ~1-3s per test
 on Apple Silicon for the small fixture images this file generates.

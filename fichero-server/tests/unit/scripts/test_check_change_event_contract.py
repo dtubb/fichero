@@ -128,14 +128,22 @@ struct SomethingElse: Decodable {
         with pytest.raises(SystemExit, match="Nested"):
             guard.swift_wire_keys(sw)
 
-    def test_a_missing_change_event_struct_is_refused(self, tmp_path):
-        """A renamed/moved struct must fail loudly, not silently compare nothing."""
+    def test_a_missing_change_event_struct_is_refused(self, tmp_path, capsys):
+        """A renamed/moved struct must fail loudly, not silently compare nothing.
+
+        #4487 made this the BLIND exit: code 2 (never 1 = violation, never
+        0 = clean), with the missing struct named on stderr rather than in
+        the SystemExit payload.
+        """
         import pytest
 
         _, sw = _sources(tmp_path, swift=_SWIFT.replace("struct ChangeEvent", "struct Renamed"))
 
-        with pytest.raises(SystemExit, match="ChangeEvent"):
+        with pytest.raises(SystemExit) as excinfo:
             guard.swift_wire_keys(sw)
+        assert excinfo.value.code == 2, "a parse failure is BLIND (2), not a violation"
+        err = capsys.readouterr().err
+        assert "ChangeEvent" in err and "BLIND" in err
 
 
 class TestTheDangerousDirection:

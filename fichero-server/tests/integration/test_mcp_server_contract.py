@@ -46,6 +46,10 @@ EXPECTED_TOOLS = {
     "fichero_kg_neighborhood",
     "fichero_document_kg",
     "fichero_artifact_get",
+    # #4485: KG writes through the audited /api/mcp/tools/knowledge/* path
+    # (actor from auth state, change events emitted).
+    "fichero_kg_entity_upsert",
+    "fichero_kg_claim_create",
 }
 
 

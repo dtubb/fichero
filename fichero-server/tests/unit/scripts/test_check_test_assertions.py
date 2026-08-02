@@ -95,10 +95,17 @@ func test_without_assertion() {
     assert by_name["test_without_assertion"] is False
 
 
+# These two stub scan() to a SINGLE entry to isolate the allowlist logic —
+# which trips the #4487 scan floor by construction. The floor is neutralized
+# here because it is not the property under test; that it FIRES on a starved
+# scan is proven separately in test_guardrails_scan_floor.py.
+
+
 def test_known_vacuous_entry_is_suppressed(monkeypatch):
     vacuous = check_test_assertions.TestEntry("fichero-server/tests/unit/test_dummy.py::test_known", False)
     monkeypatch.setattr(check_test_assertions, "scan", lambda: [vacuous])
     monkeypatch.setattr(check_test_assertions, "KNOWN_VACUOUS", {vacuous.key})
+    monkeypatch.setattr(check_test_assertions, "require_scan_floor", lambda *a, **k: None)
     monkeypatch.setattr(check_test_assertions.sys, "argv", ["check_test_assertions.py"])
     assert check_test_assertions.main() == 0
 
@@ -107,5 +114,6 @@ def test_new_vacuous_entry_returns_nonzero(monkeypatch):
     vacuous = check_test_assertions.TestEntry("fichero-server/tests/unit/test_dummy.py::test_unknown", False)
     monkeypatch.setattr(check_test_assertions, "scan", lambda: [vacuous])
     monkeypatch.setattr(check_test_assertions, "KNOWN_VACUOUS", set())
+    monkeypatch.setattr(check_test_assertions, "require_scan_floor", lambda *a, **k: None)
     monkeypatch.setattr(check_test_assertions.sys, "argv", ["check_test_assertions.py"])
     assert check_test_assertions.main() == 1
