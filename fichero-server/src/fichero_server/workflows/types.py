@@ -595,6 +595,21 @@ class WorkflowDef(BaseModel):
     folder_path: str = "/"  # Folder organization path
     sort_order: int = 0  # Sort order within folder
 
+    @field_validator("version", mode="before")
+    @classmethod
+    def coerce_version_to_str(cls, v):
+        """Shipped preset JSON carries ``version: 1`` (int); the field is str.
+
+        Anything that ``model_validate``s a preset dict directly — the
+        sub-workflow JSON fallback does exactly that — threw ValidationError
+        on every such preset (#4477 side-finding). Coerce, don't reject: the
+        value is metadata, and a hard error here turns a shipped preset into
+        an unresolvable child ref.
+        """
+        if isinstance(v, (int, float)):
+            return str(v)
+        return v
+
     @field_validator("description", mode="before")
     @classmethod
     def convert_none_to_empty_description(cls, v):
