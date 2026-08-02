@@ -348,15 +348,7 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     """
     if not items:
         return items
-    parent_ids = [item.id for item in items]
-    placeholders = ", ".join("?" for _ in parent_ids)
-    rows = db.execute_fetchall(
-        f"SELECT parent_id, COUNT(*) FROM documents "
-        f"WHERE deleted_at IS NULL AND parent_id IN ({placeholders}) "
-        f"GROUP BY parent_id",
-        parent_ids,
-    )
-    counts = {row[0]: int(row[1]) for row in rows}
+    counts = db.child_counts([item.id for item in items])
     for item in items:
         item.child_count = counts.get(item.id, 0)
     return items

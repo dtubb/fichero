@@ -215,6 +215,21 @@ def main(argv: list[str] | None = None) -> int:
     # Same two-tier shape as `check_release_size_ratchet`'s --app/--dmg.
     explicit = args.seconds is not None or args.from_file is not None
 
+    # NOT ARMED is a VERIFIED claim, not a default (#4487 follow-up, caught
+    # by the empty-tree sweep the day this file landed): "the iOS leg did
+    # not run in this REAL repo" and "my ROOT resolved somewhere that is not
+    # the repo at all" must not share an exit code. If the repo landmarks
+    # are gone, the timing file's absence proves nothing — that is BLIND.
+    if not explicit and not (ROOT / "fichero-server" / "src").is_dir():
+        print(
+            "check_ios_compile_ratchet: BLIND — repo landmarks missing at "
+            f"{ROOT} (no fichero-server/src). The timing file's absence "
+            "cannot be read as NOT ARMED when the scan root itself is gone "
+            "(#4487).",
+            file=sys.stderr,
+        )
+        return 2
+
     if not explicit and not DEFAULT_DURATION_FILE.is_file():
         print(
             "iOS compile ratchet: NOT ARMED — no iOS build timing at "

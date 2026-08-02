@@ -1005,6 +1005,24 @@ class Database(DatabaseEmbeddingMixin):
         """Execute + ``fetchone`` atomically under the lock (#2508)."""
         return self._execute(sql, params, fetch="one")
 
+    def child_counts(self, parent_ids: list[str]) -> dict[str, int]:
+        """Live (non-deleted) child count per parent id, one query.
+
+        Typed home for the #3355 sidebar disclosure-triangle count — inline
+        SQL in the listing route violated #1876 (raw SQL lives only in the
+        persistence layer). Parents with zero children are simply absent.
+        """
+        if not parent_ids:
+            return {}
+        placeholders = ", ".join("?" for _ in parent_ids)
+        rows = self.execute_fetchall(
+            f"SELECT parent_id, COUNT(*) FROM documents "
+            f"WHERE deleted_at IS NULL AND parent_id IN ({placeholders}) "
+            f"GROUP BY parent_id",
+            parent_ids,
+        )
+        return {row[0]: int(row[1]) for row in rows}
+
     def _execute_fetch_with_columns(
         self,
         sql: str,
