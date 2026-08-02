@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -100,6 +102,13 @@ def _assert_logic() -> None:
     assert not _RAW_SESSION_RE.search("URLSession.AuthChallengeDisposition")
 
 
+def _floor(app_dir) -> None:
+    # #4487 scan floor: 884 app Swift files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in app_dir.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+    )
+
+
 def main(argv: list[str]) -> int:
     if "--help" in argv or "-h" in argv:
         print(__doc__)
@@ -110,6 +119,7 @@ def main(argv: list[str]) -> int:
         return 0
 
     _assert_logic()
+    _floor(APP_DIR)
     found = raw_transport_files()
 
     if "--list" in argv:

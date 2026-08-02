@@ -29,6 +29,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -122,6 +124,12 @@ def main() -> int:
     offenders = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
+    # #4487 scan floor — deliberately on `found`, the ONE check where that is
+    # right: the 8 allowlisted references (launchers, harnesses) legitimately
+    # EXIST, so references dropping toward zero does not mean "clean", it
+    # means either the BARE_APP constant went stale after a rename or the
+    # enumeration died. Both are blindness. 9 referencing files on 2026-08-02.
+    require_scan_floor(len(found), 4, "files naming the bare app (9 on 2026-08-02)")
     print(f"TCP transport wrapper: {len(found)} file(s) name `{BARE_APP}`; {len(known)} allowed.")
 
     if stale:

@@ -132,6 +132,55 @@ FLOORED_CHECKS: dict[str, dict] = {
         },
         "extra_scripts": [],
     },
+    "check_naive_datetimes.py": {
+        "dirs": [
+            "fichero-server/src/fichero_server",
+            "fichero-cli/src",
+            "fichero-mcp/src",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_silent_write_swallow.py": {
+        "dirs": ["fichero-server/src/fichero_server"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_swift_transport.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_tcp_transport_wrapper.py": {
+        "dirs": [
+            "fichero-server/src/fichero_server",
+            "fichero-server/scripts",
+            "scripts",
+            "fichero/fichero",
+        ],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_no_raw_urlsession.py": {
+        "dirs": ["fichero/fichero-api-client/Sources"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_no_raw_urlsession_app.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_no_hardcoded_engine_base.py": {
+        "dirs": ["fichero/fichero"],
+        "files": {},
+        "extra_scripts": [],
+    },
+    "check_observer_pattern.py": {
+        "dirs": ["fichero/fichero/Views"],
+        "files": {},
+        "extra_scripts": [],
+    },
 }
 
 
@@ -155,7 +204,7 @@ def _materialize(tmp_path: Path, name: str, spec: dict) -> Path:
 
 def test_the_floored_inventory_is_not_empty():
     """Guard the guard: this sweep is the proof the floors can fire."""
-    assert len(FLOORED_CHECKS) >= 11
+    assert len(FLOORED_CHECKS) >= 19
 
 
 @pytest.mark.parametrize("name", sorted(FLOORED_CHECKS))

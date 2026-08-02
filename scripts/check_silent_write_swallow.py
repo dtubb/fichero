@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import ast
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -116,6 +118,13 @@ def scan(src: Path = SRC) -> dict[str, str]:
     return found
 
 
+def _floor_scan(src) -> None:
+    # #4487 scan floor: 423 server .py files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in src.rglob("*.py")), 211, "server Python files (423 on 2026-08-02)"
+    )
+
+
 def main() -> int:
     argv = sys.argv[1:]
     if any(a in ("-h", "--help") for a in argv):
@@ -123,6 +132,7 @@ def main() -> int:
         return 0
 
     found = scan()
+    _floor_scan(SRC)
     known = set(KNOWN_VIOLATIONS)
 
     if "--list" in argv:

@@ -48,6 +48,8 @@ from __future__ import annotations
 
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -145,6 +147,10 @@ def main(argv: list[str]) -> int:
         return 0
 
     _assert_logic()
+    # #4487 scan floor: 884 app Swift files on 2026-08-02.
+    require_scan_floor(
+        sum(1 for _ in APP_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+    )
 
     if "--list" in argv:
         for rel, line, call in constructions():

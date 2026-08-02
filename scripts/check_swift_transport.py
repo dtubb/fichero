@@ -34,6 +34,8 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+
+from _check_floor import require_scan_floor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -378,6 +380,10 @@ def main() -> int:
     new = sorted(set(found) - known)
     stale = sorted(known - set(found))
 
+    # #4487 scan floor: violations at zero is the GOAL; empty enumeration is blindness.
+    require_scan_floor(
+        sum(1 for _ in SWIFT_DIR.rglob("*.swift")), 400, "app Swift files (884 on 2026-08-02)"
+    )
     print(f"Swift transport/TLS guardrail: scanned {SWIFT_DIR.relative_to(ROOT)}")
     print(f"  {len(found)} violation(s); {len(known)} known.")
 
