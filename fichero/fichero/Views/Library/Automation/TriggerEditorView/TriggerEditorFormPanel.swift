@@ -63,6 +63,7 @@ struct TriggerEditorFormPanel: View {
                     } label: {
                         Image(systemName: "folder")
                     }
+                    .accessibilityLabel("Choose Folder")
                 }
 
                 Toggle("Include subfolders", isOn: $recursive)
@@ -173,6 +174,9 @@ struct TriggerEditorFormPanel: View {
                     .font(.caption)
             }
             .buttonStyle(.plain)
+            // Names the item: these rows repeat, and a bare "Remove" would be
+            // announced identically for every extension in the list.
+            .accessibilityLabel("Remove extension \(ext)")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -260,6 +264,7 @@ struct TriggerEditorFormPanel: View {
                     .font(.caption)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove exclude pattern \(pattern)")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)

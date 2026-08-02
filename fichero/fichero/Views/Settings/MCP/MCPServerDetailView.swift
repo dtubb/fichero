@@ -169,6 +169,7 @@ struct MCPServerDetailView: View {
                             }
                             .buttonStyle(.plain)
                             .help("Reload Tools")
+                            .accessibilityLabel("Reload Tools")
                         }
                     }
                 }

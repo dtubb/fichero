@@ -181,6 +181,7 @@ struct ForceDirectedGraphView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Zoom in")
+                .accessibilityLabel("Zoom In")
                 Button {
                     let next = max(scale / 1.25, minScale)
                     scale = next
@@ -190,6 +191,7 @@ struct ForceDirectedGraphView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Zoom out")
+                .accessibilityLabel("Zoom Out")
                 Button {
                     scale = 1.0
                     scaleAtGestureStart = 1.0
@@ -200,6 +202,7 @@ struct ForceDirectedGraphView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Reset view")
+                .accessibilityLabel("Reset View")
             }
             // Hop depth — how many hops from focus to show in the graph.
             HStack(spacing: 4) {
@@ -212,6 +215,7 @@ struct ForceDirectedGraphView: View {
                 .buttonStyle(.plain)
                 .disabled(hops <= 1)
                 .help("Fewer hops")
+                .accessibilityLabel("Fewer Hops")
                 Text(hops == 1 ? "1 hop" : "\(hops) hops")
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -225,6 +229,7 @@ struct ForceDirectedGraphView: View {
                 .buttonStyle(.plain)
                 .disabled(hops >= 3)
                 .help("More hops")
+                .accessibilityLabel("More Hops")
             }
         }
         .padding(.horizontal, 6)

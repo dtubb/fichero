@@ -37,6 +37,7 @@ struct MCPServersView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Add MCP Server")
+                    .accessibilityLabel("Add MCP Server")
 
                     Button(action: deleteSelectedServer) {
                         Image(systemName: "minus")
@@ -44,6 +45,7 @@ struct MCPServersView: View {
                     .buttonStyle(.borderless)
                     .disabled(selectedServer == nil)
                     .help("Remove Selected Server")
+                    .accessibilityLabel("Remove Selected Server")
 
                     Spacer()
 
@@ -55,6 +57,7 @@ struct MCPServersView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Refresh Server List")
+                    .accessibilityLabel("Refresh Server List")
                 }
                 .padding(8)
             }

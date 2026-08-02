@@ -201,6 +201,7 @@ extension LibraryView {
                         }
                         .buttonStyle(.plain)
                         .help("Clear filter")
+                        .accessibilityLabel("Clear Filter")
                     }
                 }
                 .padding(.horizontal, 10)

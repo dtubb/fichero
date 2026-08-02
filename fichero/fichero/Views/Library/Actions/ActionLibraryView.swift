@@ -100,6 +100,7 @@ struct ActionLibraryView: View {
                     Image(systemName: "plus")
                 }
                 .help("Create new action")
+                .accessibilityLabel("Create Action")
             }
         }
         .sheet(isPresented: $showingCreateSheet) {

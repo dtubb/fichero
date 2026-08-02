@@ -40,12 +40,16 @@ struct ProvidersView: View {
                         Image(systemName: "plus")
                     }
                     .buttonStyle(.borderless)
+                    .help("Add Provider")
+                    .accessibilityLabel("Add Provider")
 
                     Button(action: deleteSelectedProvider) {
                         Image(systemName: "minus")
                     }
                     .buttonStyle(.borderless)
                     .disabled(selectedProvider == nil)
+                    .help("Remove Selected Provider")
+                    .accessibilityLabel("Remove Selected Provider")
 
                     Spacer()
                 }
