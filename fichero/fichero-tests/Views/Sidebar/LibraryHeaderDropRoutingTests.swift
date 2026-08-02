@@ -92,6 +92,89 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
         XCTAssertFalse(isInternalSidebarItemID("search:abc"))
     }
 
+    // MARK: - Two drag types for one concept (library pane -> sidebar)
+
+    private func libraryDragJSON(
+        kind: String = "document",
+        id: String = "11111111-2222-3333-4444-555555555555",
+        documentId: String? = "11111111-2222-3333-4444-555555555555",
+        text: String = "Marshall diary, 1893…"
+    ) -> String {
+        let documentIdField = documentId.map { "\"documentId\":\"\($0)\"," } ?? "\"documentId\":null,"
+        return """
+        {"kind":"\(kind)","id":"\(id)",\(documentIdField)"text":"\(text)","name":"Diary.pdf"}
+        """
+    }
+
+    /// The gesture this restores: drag a document out of the LIBRARY pane —
+    /// where the documents actually are — onto a sidebar folder to file it.
+    ///
+    /// Library rows/tiles/columns/table cells vend `LibraryItemDrag`, whose `id`
+    /// is the BARE document id and whose first string is JSON. Only the
+    /// sidebar's own `doc:<uuid>` shape was recognised, so this answered
+    /// `.unreadableInternal` — "Couldn't read what was dragged" — and filing a
+    /// document from the library pane could not be done at all.
+    func testLibraryPaneDragOntoASidebarFolderIsRecognisedAsAMove() {
+        XCTAssertEqual(
+            classifySidebarDropPayload(
+                loadedIDs: [libraryDragJSON()],
+                hasFileURL: true,
+                carriesOwnProcessFlavor: true
+            ),
+            .internalItems(["doc:11111111-2222-3333-4444-555555555555"]),
+            "a library-pane drag must move, not report itself unreadable"
+        )
+    }
+
+    /// It must come back in the `doc:` shape, because every downstream consumer
+    /// (`handleDropIntoFolder`, `handleLibraryHeaderItemDrop`,
+    /// `handleExternalInsertionDrop`) filters on that prefix. Returning a bare
+    /// id would be silently dropped by all three.
+    func testLibraryDragIDIsReturnedInTheDocPrefixedShape() throws {
+        let id = try XCTUnwrap(internalSidebarItemID(fromLibraryDragJSON: libraryDragJSON()))
+        XCTAssertTrue(id.hasPrefix("doc:"))
+        XCTAssertTrue(isInternalSidebarItemID(id), "the result must satisfy the sidebar's own id test")
+    }
+
+    /// Artifacts, notes and annotations are not documents and cannot be
+    /// reparented — the same exclusion `moveDraggedItems` already makes. Letting
+    /// them through would send a non-document id to the document move endpoint.
+    func testNonDocumentLibraryKindsAreNotTreatedAsMovableItems() {
+        for kind in ["artifact", "note", "annotation"] {
+            XCTAssertNil(
+                internalSidebarItemID(fromLibraryDragJSON: libraryDragJSON(kind: kind)),
+                "\(kind) is not a document and must not be reparented"
+            )
+        }
+    }
+
+    /// A transcript that happens to start with a brace is not a payload, and a
+    /// Finder path is not JSON. Neither may be mistaken for an internal drag —
+    /// a false positive here would REFUSE a genuine external import.
+    func testNonJSONAndMalformedJSONAreNotInternalDrags() {
+        XCTAssertNil(internalSidebarItemID(fromLibraryDragJSON: "/Users/ann/Diary.pdf"))
+        XCTAssertNil(internalSidebarItemID(fromLibraryDragJSON: "{ not really json"))
+        XCTAssertNil(internalSidebarItemID(fromLibraryDragJSON: ""))
+        XCTAssertNil(
+            internalSidebarItemID(fromLibraryDragJSON: #"{"unrelated":"object"}"#),
+            "a JSON object that is not a LibraryItemDrag must not decode into one"
+        )
+    }
+
+    /// A genuine Finder drag must still import. If JSON recognition ever
+    /// over-matched, external imports would start being refused instead — the
+    /// opposite failure, equally silent.
+    func testFinderDragIsUnaffectedByLibraryDragRecognition() {
+        XCTAssertEqual(
+            classifySidebarDropPayload(
+                loadedIDs: ["/Users/ann/Scans/Diary.pdf"],
+                hasFileURL: true,
+                carriesOwnProcessFlavor: false
+            ),
+            .externalFiles
+        )
+    }
+
     // MARK: - One implementation, not two
 
     private static func appSource(_ relativePath: String) throws -> String {
