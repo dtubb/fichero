@@ -120,3 +120,27 @@ person" mean?
 
 These are different products. Nothing should be built until this is answered,
 and no lane may guess it.
+
+## Backfill decision — provenance (added 2026-08-02)
+
+`fichero-cli` uploads recorded the SERVER TEMP NAME as the document's source:
+pages listed as `fichero_upload_sez7fq02.pdf - Page N`, and metadata carried
+the server's temp directory as `source_path`/`source_folder`. Fixed at ingest
+(dc021b9f9) — new imports carry the real filename and temp paths are never
+recorded as a source.
+
+**Already-imported documents still carry the bad names and temp source paths.**
+Verified, not assumed.
+
+The source name is PROVENANCE, not a label — it is the fact connecting a
+document to the physical original, and it is what a citation needs. But
+repairing it means rewriting existing rows, so it is a data-rewrite decision
+and therefore Daniel's:
+
+- the honest original name is recoverable for uploads only where the
+  `source_filename` we now record already exists — for older rows it may not,
+  and inventing one would be worse than an obviously-wrong one;
+- the app's FOLDER imports were always correct (real paths through
+  /api/ingest/folder), so this affects CLI/upload-imported documents only.
+
+No lane may backfill this. Same class as #3320's Q6.
