@@ -132,7 +132,7 @@ sign_mas() {
 # Mach-Os first.
 macho_list="$(mktemp)"
 find "$ENGINE_DST" -type f -exec file {} + 2>/dev/null \
-  | awk -F': ' '/Mach-O/ && !/for architecture/ {print $1}' | sort -u > "$macho_list"
+  | LC_ALL=C awk -F': ' '/Mach-O/ && !/for architecture/ {print $1}' | sort -u > "$macho_list"
 echo "  signing $(wc -l < "$macho_list" | tr -d ' ') Mach-O binaries in the engine"
 
 sign_fails=0
