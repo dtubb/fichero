@@ -316,3 +316,83 @@ class TestGoingBlind:
         r = run_ratchet("--app", str(app), "--dmg", str(dmg), "--baseline", str(baseline))
         assert r.returncode == 2, r.stdout + r.stderr
         assert "restore it from git" in r.stderr
+
+
+# ---------------------------------------------------------------------------
+# iOS (#4466) — the platform whose broken builds actually shipped
+# ---------------------------------------------------------------------------
+
+
+def _make_ios_app(tmp_path: Path, name: str, executable_bytes: int) -> Path:
+    """An iOS .app: FLAT. Info.plist and the executable at the bundle root.
+
+    Written out by hand rather than reusing `_make_app` precisely because the
+    layouts differ — a fixture that shared the macOS shape would have hidden
+    the bug this test exists to prevent.
+    """
+    app = tmp_path / f"{name}.app"
+    app.mkdir(parents=True)
+    (app / "Info.plist").write_bytes(
+        plistlib.dumps({"CFBundleExecutable": name})
+    )
+    (app / name).write_bytes(b"\0" * executable_bytes)
+    return app
+
+
+def test_an_ios_bundle_is_measured_despite_its_flat_layout(tmp_path):
+    """The bug caught before shipping: `Contents/Info.plist` is macOS-only.
+
+    Pointing the macOS resolver at an iOS bundle raises Blind on every real
+    build — a ratchet that looks armed and can never measure anything.
+    """
+    ios_app = _make_ios_app(tmp_path, "Fichero", executable_bytes=5000)
+    baseline = tmp_path / "baseline.json"
+
+    assert _import_script().main(["--ios-app", str(ios_app), "--baseline", str(baseline)]) == 0
+
+    recorded = json.loads(baseline.read_text())
+    assert recorded["release.ios_app_binary"]["bytes"] == 5000
+    assert "release.ios_app_bundle" in recorded
+
+
+def test_a_bigger_ios_binary_fires(tmp_path):
+    baseline = tmp_path / "baseline.json"
+    _import_script().main(["--ios-app", str(_make_ios_app(tmp_path / "a", "Fichero", 5000)),
+          "--baseline", str(baseline)])
+
+    assert _import_script().main(["--ios-app", str(_make_ios_app(tmp_path / "b", "Fichero", 5001)),
+                 "--baseline", str(baseline)]) == 1
+
+
+def test_ios_only_does_not_demand_the_macos_artifacts(tmp_path):
+    """The gate's iOS leg produces a .app and no DMG. Requiring the macOS
+    artifacts would make the iOS ratchet unrunnable exactly where it runs."""
+    ios_app = _make_ios_app(tmp_path, "Fichero", executable_bytes=1234)
+    baseline = tmp_path / "baseline.json"
+
+    assert _import_script().main(["--ios-app", str(ios_app), "--baseline", str(baseline)]) == 0
+    assert "release.dmg" not in json.loads(baseline.read_text())
+
+
+def test_a_missing_ios_bundle_is_BLIND_not_a_pass(tmp_path):
+    """Same rule as every other artifact: asked to check a specific build that
+    cannot be measured is exit 2, never 0."""
+    assert _import_script().main(["--ios-app", str(tmp_path / "absent.app"),
+                 "--baseline", str(tmp_path / "b.json")]) == 2
+
+
+def test_ios_and_macos_can_be_measured_together(tmp_path):
+    """One baseline file holds both. A second ratchet with a second baseline is
+    the divergence this project keeps finding elsewhere."""
+    app = _make_app(tmp_path, "Fichero", executable_bytes=100)
+    dmg = tmp_path / "Fichero.dmg"
+    dmg.write_bytes(b"\0" * 200)
+    ios_app = _make_ios_app(tmp_path / "ios", "Fichero", executable_bytes=300)
+    baseline = tmp_path / "baseline.json"
+
+    assert _import_script().main(["--app", str(app), "--dmg", str(dmg), "--ios-app", str(ios_app),
+                 "--baseline", str(baseline)]) == 0
+
+    recorded = json.loads(baseline.read_text())
+    for key in ("release.app_binary", "release.dmg", "release.ios_app_binary"):
+        assert key in recorded

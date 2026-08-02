@@ -1,5 +1,51 @@
 #!/usr/bin/env python3
-"""Hold the iOS compile to its best-ever wall time (#4466).
+"""MEASURED AND REJECTED: the iOS compile is not ratchetable on this machine.
+
+**Do not wire this in. The experiment was run; these are the numbers.**
+
+    run 1   341 s     (cold DerivedData)
+    run 2    32 s     (warm)
+    run 3    27 s     (warm)
+
+    spread = (max - min) / min = 11.63
+
+The pre-registered rule below said "do not gate at >= 0.25". This is 11.63.
+
+But the number is not the finding — **the shape is.** That is not jitter, it is
+bimodal with a known cause: a 12x difference that tracks DerivedData warmth and
+nothing about the code. A wall-time ratchet here would measure WHETHER THE
+BUILD CACHE WAS WARM and nothing else: firing on every cold build, passing on
+every warm one, with uninformative failures and meaningless passes. That trains
+everyone to re-run until green, which is the mechanism by which a real
+regression gets waved through.
+
+## What WOULD work, and why it is not an engineering decision
+
+A COLD-build time is a real number — it is what #4418 actually hit. Measuring
+it honestly means clearing DerivedData first, which costs roughly six minutes
+per gate run. Whether that is worth a ratchet on the number that killed #4418
+is a cost question for Daniel, not a design question. It is on the decisions
+list rather than decided here.
+
+## What was done instead
+
+**iOS app SIZE**, in `check_release_size_ratchet.py --ios-app`. A byte count
+does not care whether the cache was warm, so it is held EXACTLY, with no jitter
+allowance at all — the query-count/DMG-size shape. That is the iOS ratchet this
+project actually has.
+
+## Why this file stays in the tree
+
+A measured negative result is worth keeping. The next person to propose an iOS
+time ratchet should find the data and the reasoning, not repeat the experiment
+— and the machinery below is correct and tested, so if the cold-build question
+is ever answered yes, it is ready.
+
+---
+
+Original design notes follow.
+
+Hold the iOS compile to its best-ever wall time (#4466).
 
 ## Why iOS, and why compile time
 

@@ -81,15 +81,30 @@ def _app_binary_path(app_path: Path) -> Path:
     contract, so a rename of the target doesn't silently start measuring a
     stale or missing path.
     """
-    plist_path = app_path / "Contents" / "Info.plist"
-    if not plist_path.is_file():
-        raise Blind(f"no Info.plist at {plist_path}")
+    # TWO bundle layouts, because iOS is not macOS-with-a-different-slice
+    # (#4466). macOS nests everything under `Contents/`; an iOS .app is FLAT —
+    # `Info.plist` and the executable sit at the bundle root.
+    #
+    # Reusing the macOS path for an iOS bundle would raise Blind on every real
+    # iOS build ("no Info.plist at .../Contents/Info.plist"), which is the
+    # failure mode where a ratchet looks armed and can never measure anything.
+    # `CFBundleExecutable` remains the contract in both.
+    macos_plist = app_path / "Contents" / "Info.plist"
+    ios_plist = app_path / "Info.plist"
+
+    if macos_plist.is_file():
+        plist_path, binary_dir = macos_plist, app_path / "Contents" / "MacOS"
+    elif ios_plist.is_file():
+        plist_path, binary_dir = ios_plist, app_path
+    else:
+        raise Blind(f"no Info.plist at {macos_plist} or {ios_plist}")
+
     with plist_path.open("rb") as fh:
         plist = plistlib.load(fh)
     executable = plist.get("CFBundleExecutable")
     if not executable:
         raise Blind(f"{plist_path} has no CFBundleExecutable")
-    binary_path = app_path / "Contents" / "MacOS" / executable
+    binary_path = binary_dir / executable
     if not binary_path.is_file():
         raise Blind(f"main executable missing at {binary_path}")
     return binary_path
@@ -113,17 +128,45 @@ def _bundle_bytes(app_path: Path) -> int:
     return total
 
 
-def measure(app_path: Path, dmg_path: Path) -> dict[str, int]:
-    if not app_path.is_dir():
-        raise Blind(f"app bundle not found at {app_path}")
-    if not dmg_path.is_file():
-        raise Blind(f"DMG not found at {dmg_path}")
-    binary_path = _app_binary_path(app_path)
-    return {
-        "release.app_binary": binary_path.stat().st_size,
-        "release.app_bundle": _bundle_bytes(app_path),
-        "release.dmg": dmg_path.stat().st_size,
-    }
+def measure(
+    app_path: Path | None, dmg_path: Path | None, ios_app_path: Path | None = None
+) -> dict[str, int]:
+    """Every artifact size this ratchet holds.
+
+    iOS was added here rather than in its own script (#4466). A byte count is
+    a byte count whatever platform produced it, and the alternative — a second
+    ratchet with a second baseline file — is the divergence this project keeps
+    finding everywhere else. `run()` is already generic over whatever this
+    returns, so iOS needed measuring, not machinery.
+
+    Why SIZE and not compile time for iOS: a compile-time ratchet was written
+    and measured, and the numbers killed it — 341s / 32s / 27s across three
+    runs, a 12x spread that tracks DerivedData warmth and nothing else. See
+    `check_ios_compile_ratchet.py`. Bytes have no such problem: an artifact
+    does not get smaller because the cache was warm, which is what lets this
+    ratchet hold sizes EXACTLY, with no jitter allowance at all.
+    """
+    measured: dict[str, int] = {}
+
+    if app_path is not None or dmg_path is not None:
+        if app_path is None or not app_path.is_dir():
+            raise Blind(f"app bundle not found at {app_path}")
+        if dmg_path is None or not dmg_path.is_file():
+            raise Blind(f"DMG not found at {dmg_path}")
+        measured["release.app_binary"] = _app_binary_path(app_path).stat().st_size
+        measured["release.app_bundle"] = _bundle_bytes(app_path)
+        measured["release.dmg"] = dmg_path.stat().st_size
+
+    if ios_app_path is not None:
+        if not ios_app_path.is_dir():
+            raise Blind(f"iOS app bundle not found at {ios_app_path}")
+        measured["release.ios_app_binary"] = _app_binary_path(ios_app_path).stat().st_size
+        measured["release.ios_app_bundle"] = _bundle_bytes(ios_app_path)
+
+    if not measured:
+        raise Blind("nothing to measure — no macOS artifacts and no --ios-app")
+
+    return measured
 
 
 def _load_baseline(path: Path) -> dict:
@@ -161,8 +204,14 @@ def _human(n: int) -> str:
     return f"{size:.1f}GB"
 
 
-def run(app: Path, dmg: Path, baseline_path: Path, update_baseline: bool) -> int:
-    measured = measure(app, dmg)  # raises Blind
+def run(
+    app: Path | None,
+    dmg: Path | None,
+    baseline_path: Path,
+    update_baseline: bool,
+    ios_app: Path | None = None,
+) -> int:
+    measured = measure(app, dmg, ios_app)  # raises Blind
     baseline = _load_baseline(baseline_path)  # raises Blind
 
     if update_baseline:
@@ -235,6 +284,10 @@ def main(argv: list[str] | None = None) -> int:
         help=f"Path to the notarized+stapled .dmg (default: {DEFAULT_DMG_PATH})",
     )
     parser.add_argument(
+        "--ios-app", type=Path, default=None, dest="ios_app",
+        help="Path to the built iOS .app bundle (additive; may be used alone)",
+    )
+    parser.add_argument(
         "--baseline", type=Path, default=None,
         help=f"Baseline JSON to compare/update (default: {DEFAULT_BASELINE})",
     )
@@ -269,9 +322,14 @@ def main(argv: list[str] | None = None) -> int:
     # full rigor: a missing artifact is BLIND. Falling back to the DEFAULT_*
     # paths (the argless gate-sweep case) is different — most gate runs have
     # not just built a release, so a missing default is NOT ARMED, not blind.
-    explicit = args.app is not None or args.dmg is not None
-    app_path = args.app if args.app is not None else DEFAULT_APP_PATH
-    dmg_path = args.dmg if args.dmg is not None else DEFAULT_DMG_PATH
+    explicit = args.app is not None or args.dmg is not None or args.ios_app is not None
+
+    # An iOS-only invocation measures iOS only: the gate's iOS leg produces a
+    # .app and no DMG, so demanding the macOS artifacts would make the iOS
+    # ratchet unrunnable exactly where it is meant to run.
+    ios_only = args.ios_app is not None and args.app is None and args.dmg is None
+    app_path = None if ios_only else (args.app if args.app is not None else DEFAULT_APP_PATH)
+    dmg_path = None if ios_only else (args.dmg if args.dmg is not None else DEFAULT_DMG_PATH)
 
     if not explicit and not (app_path.is_dir() and dmg_path.is_file()):
         print(
@@ -283,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        return run(app_path, dmg_path, baseline_path, args.update_baseline)
+        return run(app_path, dmg_path, baseline_path, args.update_baseline, args.ios_app)
     except Blind as exc:
         print(f"check_release_size_ratchet: BLIND — {exc}", file=sys.stderr)
         return BLIND_EXIT_CODE
