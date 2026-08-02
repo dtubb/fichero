@@ -435,13 +435,19 @@ extension DocumentService {
 
     /// Recursively ingest a folder via the generated `ingest_folder` op (#3030).
     /// Returns the async task descriptor; throws on non-`.ok`.
+    ///
+    /// `extractText`/`autoEmbed` are omitted when nil so the engine's
+    /// documented defaults decide (#3276). This path hard-coded them ON while
+    /// `ImportService` hard-coded them OFF, for the same two fields of the same
+    /// endpoint: two app-side copies of a decision that belongs to the engine,
+    /// disagreeing with each other.
     func ingestFolder(
         path: String,
         parentId: String? = nil,
         copyMode: Bool = true,
         recursive: Bool = true,
-        extractText: Bool = true,
-        autoEmbed: Bool = true
+        extractText: Bool? = nil,
+        autoEmbed: Bool? = nil
     ) async throws -> Components.Schemas.IngestTaskResponse {
         logger.info("Ingesting folder: \(path)")
 

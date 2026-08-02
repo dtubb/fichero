@@ -122,21 +122,20 @@ extension SidebarItemRow {
             // the move paths that clear at start).
             await MainActor.run { sidebarState.dropErrorMessage = nil }
             do {
+                // Outcomes merge ACROSS batches and report once below (#3276).
+                // Not throwing only ever meant "not EVERYTHING failed", so a
+                // ten-file drop that lost three looked clean.
+                var outcomes: [ImportOutcome] = []
                 for batch in batches {
-                    _ = try await importService.importFiles(
+                    outcomes.append(try await importService.importFiles(
                         batch.urls,
                         mode: mode,
                         parentId: batch.parentId
+                    ))
+                    let target = batch.parentId.map { "folder \($0)" } ?? "library root"
+                    sidebarRowLogger.debug(
+                        "Imported \(batch.urls.count) external file(s) to \(target)"
                     )
-                    if let parentId = batch.parentId {
-                        sidebarRowLogger.debug(
-                            "Imported \(batch.urls.count) external file(s) to folder \(parentId)"
-                        )
-                    } else {
-                        sidebarRowLogger.debug(
-                            "Imported \(batch.urls.count) external file(s) to library root"
-                        )
-                    }
                 }
                 // The engine emits a per-file ``document.created`` change event
                 // as each file is ingested, so the DocumentStore patches the
@@ -146,6 +145,10 @@ extension SidebarItemRow {
                 // replaces the old double-refresh + 500ms sleep that made the
                 // sidebar lag the spinner stop (#4067).
                 await documentStore?.refresh()
+                if let message = ImportOutcome.merged(outcomes).partialFailureMessage {
+                    sidebarRowLogger.error("External drop imported partially: \(message)")
+                    await MainActor.run { sidebarState.dropErrorMessage = message }
+                }
             } catch {
                 sidebarRowLogger.error("External drop import failed: \(error.localizedDescription)")
                 // Surface the failure to the user, not just the log — a file drop

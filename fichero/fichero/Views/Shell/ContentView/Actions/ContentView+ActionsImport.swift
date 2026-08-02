@@ -137,17 +137,16 @@ extension ContentView {
             )
 
             do {
-                for batch in batches {
-                    _ = try await library.importService.importFiles(
-                        batch.urls,
-                        mode: .copy,
-                        parentId: batch.parentId
-                    ) { current, total in
-                        importProgress = "Importing \(current) of \(total)..."
-                    }
-                }
+                let outcome = try await importDropBatches(batches, into: library)
                 await library.documentStore.refresh()
-                logger.info("Successfully imported \(droppedURLs.importURLs.count) dropped item(s)")
+                // #3276: `importFiles` throws only when EVERY file in a batch
+                // failed, so without this a drop that lost some files logged
+                // "Successfully imported N" and raised no alert.
+                if let message = outcome.partialFailureMessage {
+                    importError = message
+                } else {
+                    logger.info("Successfully imported \(droppedURLs.importURLs.count) dropped item(s)")
+                }
             } catch {
                 logger.error("Failed dropped import: \(String(describing: error))")
                 importError = "Import failed: \(error.localizedDescription)"
@@ -161,6 +160,29 @@ extension ContentView {
             isImporting = false
             importProgress = nil
         }
+    }
+
+    /// Run every batch of a content-pane drop and MERGE what they achieved
+    /// (#3276). One drop is one gesture and deserves one verdict: reporting per
+    /// batch would either raise two banners for one drop, or let a clean second
+    /// batch overwrite the first batch's failure — the same silence in a
+    /// different shape.
+    @MainActor
+    private func importDropBatches(
+        _ batches: [LibraryRootImportBatch],
+        into library: LibraryManager.LibraryReference
+    ) async throws -> ImportOutcome {
+        var outcomes: [ImportOutcome] = []
+        for batch in batches {
+            outcomes.append(try await library.importService.importFiles(
+                batch.urls,
+                mode: .copy,
+                parentId: batch.parentId
+            ) { current, total in
+                importProgress = "Importing \(current) of \(total)..."
+            })
+        }
+        return ImportOutcome.merged(outcomes)
     }
 
     /// Import batches for a content-pane drop. Browsing a folder targets it

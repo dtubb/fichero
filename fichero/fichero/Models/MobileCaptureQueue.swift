@@ -194,8 +194,8 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
             throw MobileCaptureQueueStoreError.noLibraryAvailable
         }
 
-        let imported = try await library.importService.importFiles([fileURL], mode: .copy, parentId: nil)
-        guard let importedDocument = imported.first else {
+        let outcome = try await library.importService.importFiles([fileURL], mode: .copy, parentId: nil)
+        guard let importedDocument = outcome.documents.first else {
             throw MobileCaptureQueueStoreError.importFailed
         }
 

@@ -168,6 +168,14 @@ struct LibraryView: View {
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?
 
+    /// The one place `handleFileImport` reports an import that did not fully
+    /// land (#3276). `errorMessage` above is a `let` supplied by the parent, so
+    /// this path had nowhere to write and settled for a log line — which is how
+    /// "imported 7 of 10" looked identical to "imported 10". Not `private`:
+    /// `handleFileImport` lives in the LibraryView+BottomActionBar.swift
+    /// extension, a different file.
+    @State var importErrorMessage: String?
+
     // ponytail: recompute inputs — documents, entities, searchText, sortOrder, sortFieldRaw, sortAscending, folderId
     // Not `private`: recomputeFiltered() lives in the LibraryView+FilterAndBatch.swift
     // extension (a different file), so these must be at least internal to be visible there.

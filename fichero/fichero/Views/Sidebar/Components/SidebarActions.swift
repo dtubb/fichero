@@ -55,10 +55,19 @@ extension SidebarView {
 
         logger.info("Importing \(urls.count) files to library: \(library.displayName)")
         do {
-            _ = try await library.importService.importFiles(urls, mode: mode, parentId: parentId)
+            let outcome = try await library.importService.importFiles(urls, mode: mode, parentId: parentId)
             logger.info("Imported \(urls.count) files using mode: \(mode.rawValue)")
+            // A menu/file-picker import that lost some files must say so
+            // (#3276) — this path threw only when EVERY file failed, so a
+            // partial loss read as a clean import. Same banner the drop paths
+            // use, so there is one place a failed import is reported.
+            if let message = outcome.partialFailureMessage {
+                logger.error("Import completed partially: \(message)")
+                sidebarState.dropErrorMessage = message
+            }
         } catch {
             logger.error("Failed to import files: \(error)")
+            sidebarState.dropErrorMessage = "Import failed: \(error.localizedDescription)"
         }
         // Refresh twice — once immediately, again after 500ms — to catch the
         // race where the backend hasn't finished indexing when the first

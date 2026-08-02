@@ -50,7 +50,14 @@ final class LibraryImportAffordancesTests: XCTestCase {
         // The captured target, not a bare nil — the root-cause bug pattern
         // this issue exists to close.
         XCTAssertTrue(source.contains("let targetFolderId = fileImportTargetFolderId"))
-        XCTAssertTrue(source.contains("importFiles(urls, mode: .link, parentId: targetFolderId)"))
+        // `mode:` is deliberately NOT pinned here. This assertion read
+        // `mode: .link` until #4452 made the handler honour the presenting
+        // surface's mode, and went on asserting a string the source had
+        // stopped containing — a stale guard is indistinguishable from a
+        // broken feature, and this one guards the TARGET FOLDER, which is what
+        // its name says. The mode is pinned by
+        // LibraryImportFocusedValueTests.testHandleFileImportUsesTheStatedMode…
+        XCTAssertTrue(source.contains("importFiles(urls, mode: mode, parentId: targetFolderId)"))
     }
 
     func testCreateNewFolderTargetsCurrentFolderNotRoot() throws {

@@ -27,8 +27,8 @@ extension ImportService {
         mode: IngestMode = .link,
         parentId: String? = nil,
         recursive: Bool = true,
-        extractText: Bool = false,
-        autoEmbed: Bool = false
+        extractText: Bool? = nil,
+        autoEmbed: Bool? = nil
     ) async throws -> IngestTask {
         logger.info("Starting async folder import: \(url.lastPathComponent)")
 
@@ -150,8 +150,8 @@ extension ImportService {
         mode: IngestMode = .link,
         parentId: String? = nil,
         recursive: Bool = true,
-        extractText: Bool = false,
-        autoEmbed: Bool = false,
+        extractText: Bool? = nil,
+        autoEmbed: Bool? = nil,
         pollInterval: TimeInterval = 0.5,
         timeout: TimeInterval = 300
     ) async throws -> [String] {
@@ -249,8 +249,8 @@ extension ImportService {
         mode: IngestMode = .link,
         parentId: String? = nil,
         recursive: Bool = true,
-        extractText: Bool = false,
-        autoEmbed: Bool = false,
+        extractText: Bool? = nil,
+        autoEmbed: Bool? = nil,
         onProgress: ((Int, Int) -> Void)? = nil
     ) async throws -> [String] {
         isImporting = true
