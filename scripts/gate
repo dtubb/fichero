@@ -647,9 +647,15 @@ cmd_ipad() {
   # run time rather than hardcoded — device names change with every Xcode.
   local dest="${GATE_IPAD_DESTINATION:-}"
   if [[ -z "$dest" ]]; then
+    # JSON, not a regex over the human listing: the device NAME itself contains
+    # parentheses — "iPad Pro 13-inch (M5)" — so cutting at the first "(" drops
+    # the chip suffix and xcodebuild then finds no matching destination.
     local ipad
-    ipad="$(xcrun simctl list devices available 2>/dev/null \
-      | sed -n 's/^ *\(iPad[^(]*\) (.*/\1/p' | head -1 | sed 's/ *$//')"
+    ipad="$(xcrun simctl list devices available -j 2>/dev/null \
+      | "$(find_python)" -c 'import json,sys
+d=json.load(sys.stdin)["devices"]
+names=[v["name"] for rt in d for v in d[rt] if v["name"].startswith("iPad")]
+print(names[0] if names else "")' 2>/dev/null)"
     [[ -n "$ipad" ]] && dest="platform=iOS Simulator,name=$ipad"
   fi
   if [[ -z "$dest" ]]; then
