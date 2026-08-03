@@ -282,6 +282,12 @@ def test_the_recognition_language_reaches_vision_and_changes_nothing_here() -> N
 # reasoning as APPLE_VISION_CER_CEILING.
 ENSEMBLE_PATH_CER_CEILING = 0.55
 
+#: The measured value itself, accent-blind — free on-device OCR of exactly the
+#: tiles the paid ensemble is given. This is the LIKE-FOR-LIKE baseline: any
+#: paid tier must be compared against OCR of the same input, not against OCR of
+#: the whole page, or the tiling penalty is silently charged to the model.
+ENSEMBLE_PATH_ACCENT_BLIND_CER = 0.4586
+
 
 def test_the_ensemble_really_transcribes_the_page_with_free_on_device_ocr(
     tmp_path: Path,
@@ -396,6 +402,17 @@ def test_the_ensemble_really_transcribes_the_page_with_free_on_device_ocr(
         f"{by_tier}"
     )
 
+    # The like-for-like baseline the paid comparison rests on (#3905). Pinned
+    # to the measurement, not just below a ceiling: if free OCR of these tiles
+    # moves, every "the paid tier beat/lost to free by Nx" claim in
+    # agent-work/status/2026-08-03-paleography-ensemble-measurement.md moves
+    # with it, and must be recomputed rather than quietly left stale.
+    assert abs(by_tier["t1a"] - ENSEMBLE_PATH_ACCENT_BLIND_CER) < 0.02, (
+        f"free on-device OCR of the ensemble's tiles now scores "
+        f"{by_tier['t1a']}, not the recorded {ENSEMBLE_PATH_ACCENT_BLIND_CER}. "
+        "Re-measure and update the paid comparison — its ratios use this number"
+    )
+
     # And it reached the end of the graph, which is the part nothing else pins.
     assert outputs["t4"]["text"].strip(), (
         "the final pass produced nothing — OCR text did not survive the "
@@ -412,6 +429,43 @@ def _real_provider_ready() -> bool:
     )
 
 
+# =============================================================================
+# #3905 ANSWERED — measured 2026-08-03, one authorised run
+# =============================================================================
+#
+# Provider: openrouter / google/gemini-3-flash-preview, pinned via env on all
+# of $vision_small, $vision_medium, $vision_large. 12 billable image calls
+# (6 tier nodes x 2 Zoom tiles) — NOT the ~8 estimated; the review tiers send
+# images too.
+#
+# Accent-blind CER by tier (lower is better):
+#     t1a 0.5829   t1b 0.4343   t1c 0.6529
+#     t2  0.3971   t3  0.6129   t4  0.8814
+#
+# Against the free baselines on the same page:
+#     Apple Vision, whole page      0.3571
+#     Apple Vision, the same tiles  0.4586
+#
+# Two findings, both worth more than the headline:
+#
+# 1. THE PAID ENSEMBLE LOSES. t4 is the pass whose text becomes the page, and
+#    at 0.8814 it is 2.47x worse than free on-device OCR of the page and 1.92x
+#    worse than free OCR of the very tiles the paid model was handed. So the
+#    like-for-like comparison does not rescue it: it loses on both.
+#
+# 2. THE ENSEMBLE DEGRADES ITSELF. Quality peaks at t2 (0.3971 — genuinely
+#    competitive, and better than free OCR of the same tiles) and then falls
+#    off a cliff through t3 (0.6129) to t4 (0.8814). The "deep reconcile" and
+#    "expand semi-diplomatic" passes do not refine the transcription, they
+#    destroy it. t4's diplomatic CER of 1.0321 means more edits than there are
+#    characters. Whatever this preset is worth, its LAST TWO STEPS are
+#    negative value, and that is a preset bug rather than a model verdict.
+#
+# #4496 fixed the commentary contamination that produced 2.19-5.41, and that
+# fix holds — nothing here is a preamble leaking into the artifact. This is
+# the model genuinely reading the page worse than Apple Vision does.
+
+
 @pytest.mark.skipif(
     not _real_provider_ready(),
     reason=(
@@ -420,7 +474,11 @@ def _real_provider_ready() -> bool:
     ),
 )
 def test_paleography_ensemble_real_providers(tmp_path: Path) -> None:
-    """Opt-in paid gate: real manuscript, real graph, real configured models."""
+    """Opt-in paid gate: real manuscript, real graph, real configured models.
+
+    Last run 2026-08-03 FAILED, correctly — see the block above. The gate is
+    doing its job; the assertion below is the finding, not a flake.
+    """
     workflow = _paleography_workflow()
     library_path, document = _seed_manuscript(tmp_path)
     state = build_initial_state(
@@ -452,6 +510,34 @@ def test_paleography_ensemble_real_providers(tmp_path: Path) -> None:
             )
         }
     print("paleography CER by tier and policy:", json.dumps(recorded, indent=2))
+
+    # Persist the TEXT, not only the score (#3905). The 2026-08-03 run cost
+    # real money and answered "how bad" but not "bad HOW": this printed the
+    # CER and discarded the strings, so when the numbers showed t3 and t4
+    # degrading their own input, the only evidence left was inference from the
+    # policy spreads — the retained tmp dir had been swept by later test runs.
+    # A paid run must never again be spent without keeping what it produced.
+    # Written next to the fixture's tmp dir so a failing run keeps it too.
+    dump_path = tmp_path / "paleography-run.json"
+    dump_path.write_text(
+        json.dumps(
+            {
+                "gold": expected,
+                "tiers": {
+                    node: {"cer": recorded[node], "text": outputs[node]["text"]}
+                    for node in recorded
+                },
+                "free_baselines": {
+                    "apple_vision_whole_page_accent_blind": APPLE_VISION_ACCENT_BLIND_CER,
+                    "apple_vision_same_tiles_accent_blind": ENSEMBLE_PATH_ACCENT_BLIND_CER,
+                },
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    print("per-tier text written to:", dump_path)
 
     # The bar is not a guess. Apple Vision — the shipped `$vision_small`
     # default, free and on-device — scores APPLE_VISION_ACCENT_BLIND_CER on
