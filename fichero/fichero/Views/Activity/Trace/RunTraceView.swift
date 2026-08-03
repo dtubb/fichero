@@ -182,13 +182,16 @@ struct RunTraceNodeView: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
 
-            if node.status == .failed {
-                // Standard error affordance: icon inline, detail on demand
-                // (the popover) — never a raw dump on the canvas.
-                Image(systemName: "exclamationmark.triangle.fill")
+            // Every non-success outcome states itself in words (#4284).
+            // Colour and icon alone leave "produced nothing" and "did not
+            // run" to be told apart by hue, which is exactly the collapse
+            // the step records were added to end. Error DETAIL still stays
+            // on demand in the popover — never a raw dump on the canvas.
+            if let note = RunTraceStatusStyle.note(for: node.status) {
+                Label(note, systemImage: statusIcon)
                     .font(.caption2)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Step failed — click for details")
+                    .foregroundStyle(statusColor)
+                    .lineLimit(1)
             }
         }
         .padding(6)
@@ -209,117 +212,12 @@ struct RunTraceNodeView: View {
         .accessibilityLabel("\(node.label), \(accessibilityStatus)")
     }
 
-    private var statusColor: Color {
-        switch node.status {
-        case .success: return .green
-        case .failed: return .red
-        case .running: return .blue
-        case .skipped: return .orange
-        case .pending: return .gray
-        }
-    }
+    private var statusColor: Color { RunTraceStatusStyle.color(for: node.status) }
 
-    private var statusIcon: String {
-        switch node.status {
-        case .success: return "checkmark"
-        case .failed: return "xmark"
-        case .running: return "play.fill"
-        case .skipped: return "arrow.uturn.forward"
-        case .pending: return "circle.dashed"
-        }
-    }
+    private var statusIcon: String { RunTraceStatusStyle.icon(for: node.status) }
 
     private var accessibilityStatus: String {
-        switch node.status {
-        case .success: return "completed"
-        case .failed: return "failed"
-        case .running: return "running"
-        case .skipped: return "skipped"
-        case .pending: return "not executed"
-        }
-    }
-}
-
-/// Step detail for one trace node: tool, provider/model actually used,
-/// duration, output artifacts, and error text for failed nodes.
-struct RunTraceNodeDetail: View {
-    let node: RunTraceNode
-    let artifacts: [WorkflowRunArtifact]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(node.label)
-                .font(.headline)
-
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                GridRow {
-                    Text("Tool").foregroundStyle(.secondary)
-                    Text(node.tool)
-                }
-                if let providerModel = node.providerModelText {
-                    GridRow {
-                        Text("Model").foregroundStyle(.secondary)
-                        Text(providerModel).textSelection(.enabled)
-                    }
-                }
-                if let duration = node.durationMs {
-                    GridRow {
-                        Text("Duration").foregroundStyle(.secondary)
-                        Text(RunTraceFormat.duration(ms: duration)).monospacedDigit()
-                    }
-                }
-                if let skipReason = node.skipReason {
-                    GridRow {
-                        Text("Skipped").foregroundStyle(.secondary)
-                        Text(skipReason)
-                    }
-                }
-                // #4343 seam: when per-step tokens/cost lands in the
-                // timeline, add a "Cost" GridRow here beside Duration.
-            }
-            .font(.caption)
-
-            if let error = node.error {
-                DisclosureGroup {
-                    ScrollView {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxHeight: 120)
-                } label: {
-                    Label("Error", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
-
-            if !artifacts.isEmpty {
-                Divider()
-                Text("Artifacts")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(artifacts) { artifact in
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(.secondary)
-                        Text(artifact.artifactType)
-                            .font(.caption)
-                        if let name = artifact.documentName ?? artifact.sourceDocumentName {
-                            Text(name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(12)
-        .frame(minWidth: 240, maxWidth: 340, alignment: .leading)
+        RunTraceStatusStyle.accessibilityText(for: node.status)
     }
 }
 

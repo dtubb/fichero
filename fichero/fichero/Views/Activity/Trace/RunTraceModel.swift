@@ -14,13 +14,28 @@ import Foundation
 // without a view or a server.
 
 /// Executed status of one node in a finished (or in-flight) run.
+///
+/// `success` and `producedNothing` are deliberately separate (#4284). A step
+/// that completed having produced no artifact used to render as a green
+/// checkmark, which is not a gap the reader can notice — it is an affirmative
+/// claim that output exists. Empty output is a real, actionable result and
+/// gets its own state.
 enum RunTraceNodeStatus: Equatable {
-    /// Never reached (run failed/cancelled upstream, or still queued).
+    /// Never reached: run failed/cancelled upstream, still queued, or the
+    /// server said `not_run` outright. Nothing ran, so there is nothing to
+    /// report about it.
     case pending
     case running
+    /// Completed and produced at least one artifact.
     case success
+    /// Completed, and said so, having produced nothing. NOT an error and NOT
+    /// an absence — the step ran to completion and the result was empty.
+    case producedNothing
     case failed
     case skipped
+    /// Stopped by cancellation. Distinct from `failed` (nothing went wrong)
+    /// and from `pending` (it had started).
+    case cancelled
 }
 
 /// One node of the trace graph: the snapshot node joined with its timeline
@@ -72,13 +87,17 @@ enum RunTraceModelBuilder {
     /// has no snapshot (pre-snapshot legacy runs).
     static func graph(from run: WorkflowRunResponse) -> RunTraceGraph? {
         guard let snapshot = run.workflowSnapshot else { return nil }
-        return graph(
+        let base = graph(
             snapshot: snapshot,
             timeline: run.progressTimeline,
             nodeNameMap: run.nodeNameMap,
             runStatus: run.status,
             runError: run.error
         )
+        // Step records win where they exist (#4284). The timeline is kept as
+        // the base layer because legacy runs have no step records at all, and
+        // it still carries the file-level error detail the records do not.
+        return base.map { applying(steps: run.steps, to: $0) }
     }
 
     /// Pure core: join snapshot topology with timeline outcomes.
