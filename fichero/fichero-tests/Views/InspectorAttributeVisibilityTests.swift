@@ -139,7 +139,63 @@ struct InspectorAttributeVisibilityTests {
     func oneGateForEveryRow() throws {
         let source = try Self.infoTab
         #expect(source.contains("if visibleAttributes.contains(attribute)"))
-        #expect(source.contains("InspectorAttributeVisibility.visibleAttributes(for: document)"))
+        #expect(source.contains("InspectorAttributeVisibility.visibleAttributes("))
+        // #4481: and that ONE funnel now passes the chooser's answer. Before
+        // this, `chosen:` had no caller anywhere in the tree, so the resolver
+        // took its `nil` branch forever.
+        #expect(source.contains("chosen: choiceStore.chosen(forPrototype: document.prototypeKey)"))
+    }
+
+    /// #4481: the issue reported "ten dead cases". The number is right and the
+    /// diagnosis needs to be precise, because two different failures look the
+    /// same from outside: a case with NO renderer can never appear however it
+    /// is configured, whereas a case with a renderer is merely switched off.
+    /// Every case here is the second kind — so a case that renders nothing must
+    /// fail loudly rather than quietly joining the invisible ten.
+    @Test("every attribute has somewhere that renders it")
+    func everyAttributeIsRenderedSomewhere() throws {
+        let source = try Self.infoTab
+        for attribute in InspectorAttribute.allCases {
+            #expect(
+                source.contains("attribute: .\(attribute.rawValue)"),
+                """
+                \(attribute.rawValue) has no render site in the Info tab. \
+                An attribute that nothing renders cannot be revealed by any \
+                choice — either give it a row or delete the case.
+                """)
+        }
+    }
+
+    /// The chooser must be able to offer every case it is possible to render.
+    /// A live case the chooser cannot reach is as invisible as one with no row.
+    @Test("the chooser can offer every renderable attribute")
+    func chooserOffersEveryRenderableAttribute() throws {
+        let selectable = Set(InspectorAttributeVisibility.selectable)
+        for attribute in InspectorAttribute.allCases {
+            #expect(selectable.contains(attribute), "\(attribute) is not offerable")
+        }
+        let chooser = try Self.appSource(
+            "Views/Inspector/Source/Info/DocumentInspectorInfoTab+AttributeChooser.swift")
+        // Driven off `selectable`, not a hand-written menu that could drift out
+        // of step with the enum — a new case is offerable the day it is added.
+        #expect(chooser.contains("ForEach(InspectorAttributeVisibility.selectable"))
+    }
+
+    /// The affordance cannot be gated on the thing it configures. With the
+    /// default empty, a chooser that only appears once something is visible can
+    /// never be reached — which is precisely how #4422 became unreachable.
+    @Test("the chooser renders even when nothing is visible")
+    func chooserIsNotGatedOnVisibility() throws {
+        let source = try Self.infoTab
+        // Indentation is the assertion: at the section VStack's own level the
+        // chooser sits beside the sections, not inside a condition. One `if`
+        // around it and this line indents further and the test fails.
+        #expect(source.contains("\n                attributesChooser\n"))
+        let chooser = try Self.appSource(
+            "Views/Inspector/Source/Info/DocumentInspectorInfoTab+AttributeChooser.swift")
+        // And it says why the strip is blank, so an unconfigured inspector does
+        // not read as a broken one.
+        #expect(chooser.contains("No attributes shown."))
     }
 
     /// With every row gated off, a section that is nothing but attribute rows
@@ -158,5 +214,150 @@ struct InspectorAttributeVisibilityTests {
         // Sections that carry real content keep rendering unconditionally.
         #expect(source.contains("infoSection(\"Related Claims\")"))
         #expect(source.contains("infoSection(\"Workflow History\")"))
+    }
+}
+
+/// #4481: #4422 made the visible set data, defaulted it to nothing, and never
+/// built the chooser — so `chosen:` had no caller and all ten attributes
+/// rendered for nobody, forever. This is the store behind that chooser.
+///
+/// Keyed by PROTOTYPE rather than by document, reusing the seam `#4422` left
+/// rather than adding a second visibility mechanism beside it.
+@MainActor
+struct InspectorAttributeChoiceStoreTests {
+    private let document = Document(id: "d1", name: "18590129.pdf")
+
+    /// A private suite per test — these must never touch the user's real
+    /// defaults, and one test's choice must not leak into the next.
+    private func makeStore(_ name: String = #function) -> InspectorAttributeChoiceStore {
+        let suite = "fichero.tests.attributeChoices.\(name)"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        return InspectorAttributeChoiceStore(defaults: UserDefaults(suiteName: suite)!)
+    }
+
+    @Test("with no choice made, the prototype inherits the empty default")
+    func noChoiceInheritsDefault() {
+        let store = makeStore()
+        #expect(store.chosen(forPrototype: "diary") == nil)
+        #expect(!store.hasChoice(forPrototype: "diary"))
+        #expect(
+            InspectorAttributeVisibility.visibleAttributes(
+                for: document, chosen: store.chosen(forPrototype: "diary")
+            ).isEmpty)
+    }
+
+    /// The bug in one test: choosing makes an attribute visible. Before #4481
+    /// there was no call that could produce a non-empty result.
+    @Test("a chosen attribute becomes visible")
+    func choosingMakesAnAttributeVisible() {
+        let store = makeStore()
+        store.toggle(.pageCount, forPrototype: "diary")
+        let visible = InspectorAttributeVisibility.visibleAttributes(
+            for: document, chosen: store.chosen(forPrototype: "diary"))
+        #expect(visible == [.pageCount])
+    }
+
+    @Test("every attribute can be turned on through the chooser")
+    func everyAttributeCanBeTurnedOn() {
+        let store = makeStore()
+        for attribute in InspectorAttributeVisibility.selectable {
+            store.setChosen([attribute], forPrototype: "diary")
+            #expect(store.isChosen(attribute, forPrototype: "diary"), "\(attribute) cannot be shown")
+            let visible = InspectorAttributeVisibility.visibleAttributes(
+                for: document, chosen: store.chosen(forPrototype: "diary"))
+            #expect(visible == [attribute])
+        }
+    }
+
+    @Test("toggling twice returns to hidden")
+    func togglingTwiceHides() {
+        let store = makeStore()
+        store.toggle(.state, forPrototype: "diary")
+        store.toggle(.state, forPrototype: "diary")
+        #expect(!store.isChosen(.state, forPrototype: "diary"))
+        // Still a CHOICE, though — "I chose nothing" is not "I chose nothing yet".
+        #expect(store.hasChoice(forPrototype: "diary"))
+        #expect(store.chosen(forPrototype: "diary") == [])
+    }
+
+    /// The point of keying by prototype: a diary page and a legal record show
+    /// different sets, each configured once rather than per item.
+    @Test("prototypes are configured independently")
+    func prototypesAreIndependent() {
+        let store = makeStore()
+        store.setChosen([.pageCount], forPrototype: "diary")
+        store.setChosen([.fileSize], forPrototype: "legal")
+        #expect(store.chosen(forPrototype: "diary") == [.pageCount])
+        #expect(store.chosen(forPrototype: "legal") == [.fileSize])
+        #expect(store.chosen(forPrototype: nil) == nil)
+    }
+
+    /// A document with no prototype is not a special case with its own rules —
+    /// it is one more bucket, configured the same way.
+    @Test("documents with no prototype share one configurable bucket")
+    func untypedDocumentsShareABucket() {
+        let store = makeStore()
+        store.setChosen([.modified], forPrototype: nil)
+        #expect(store.chosen(forPrototype: nil) == [.modified])
+        // An empty string is the same "no class", not a second bucket.
+        #expect(store.chosen(forPrototype: "") == [.modified])
+        #expect(store.chosen(forPrototype: "diary") == nil)
+    }
+
+    @Test("clearing a choice restores the default rather than showing nothing forever")
+    func clearingRestoresTheDefault() {
+        let store = makeStore()
+        store.setChosen([.state], forPrototype: "diary")
+        store.clearChoice(forPrototype: "diary")
+        #expect(store.chosen(forPrototype: "diary") == nil)
+        #expect(!store.hasChoice(forPrototype: "diary"))
+    }
+
+    @Test("a choice survives being reloaded from storage")
+    func choiceIsPersisted() {
+        let suite = "fichero.tests.attributeChoices.persist"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        let defaults = UserDefaults(suiteName: suite)!
+        InspectorAttributeChoiceStore(defaults: defaults)
+            .setChosen([.pageCount, .fileSize], forPrototype: "diary")
+
+        let reloaded = InspectorAttributeChoiceStore(defaults: defaults)
+        #expect(reloaded.chosen(forPrototype: "diary") == [.fileSize, .pageCount])
+    }
+
+    /// Order follows the declaration however the user ticked the boxes, so the
+    /// strip reads the same as it does for anyone else on that prototype.
+    @Test("stored order follows the declaration, not the order ticked")
+    func storedOrderIsStable() {
+        let store = makeStore()
+        store.setChosen([.pageCount, .state, .fileSize], forPrototype: "diary")
+        #expect(store.chosen(forPrototype: "diary") == [.state, .fileSize, .pageCount])
+    }
+
+    /// A stored choice outlives the build that wrote it. A case removed in a
+    /// later version must be dropped, not brick the chooser for every document
+    /// of that prototype.
+    @Test("an unknown stored attribute is dropped, not fatal")
+    func unknownStoredAttributeIsDropped() {
+        let suite = "fichero.tests.attributeChoices.unknown"
+        UserDefaults.standard.removePersistentDomain(forName: suite)
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(
+            ["diary": ["state", "attributeFromTheFuture"]],
+            forKey: InspectorAttributeChoiceStore.storageKey)
+
+        let store = InspectorAttributeChoiceStore(defaults: defaults)
+        #expect(store.chosen(forPrototype: "diary") == [.state])
+    }
+
+    /// Storage internals stay unreachable: the chooser can only ever write
+    /// cases of `InspectorAttribute`, which has no case for path or ingest mode.
+    @Test("no choice can surface a storage internal")
+    func noChoiceSurfacesAStorageInternal() {
+        let store = makeStore()
+        store.setChosen(InspectorAttribute.allCases, forPrototype: "diary")
+        let titles = (store.chosen(forPrototype: "diary") ?? []).map(\.title)
+        #expect(!titles.contains("Path"))
+        #expect(!titles.contains("Ingest Mode"))
     }
 }
