@@ -37,11 +37,11 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    'GET /api/workflow-execution/comparisons': "#4341 run comparison - engine diff landed 2026-08-03; the SwiftUI surface is in flight under EPIC #4312. Remove when the activity-view run detail calls it.",
     'GET /api/entities/digest': "CLI/engine-only: the app renders the entity digest via the WebKit document view, not this endpoint; the dead Swift entityDigest() wrapper was removed in #3765.",
     'DELETE /api/chains/executions/{execution_id}': "#1920 baseline - cli-only",
     'DELETE /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'DELETE /api/library/links/{link_id}': "#1920 baseline - cli-only",
-    'GET /api/activity/stream': "#2633 app-only SSE refresh stream; CLI remains request/response",
     'GET /api/auth/sessions': "#1920 baseline - cli-only",
     'GET /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'GET /api/folders/{folder_id}/views': "#1920 baseline - cli-only",
@@ -73,12 +73,8 @@ KNOWN_GAPS: dict[str, str] = {
     'GET /api/agent-memory/{note_id}': "#2152 agent memory - cli-only (SwiftUI deferred)",
     'PATCH /api/agent-memory/{note_id}': "#2152 agent memory - cli-only (SwiftUI deferred)",
     'DELETE /api/agent-memory/{note_id}': "#2152 agent memory - cli-only (SwiftUI deferred)",
-    'POST /api/artifacts/': "#1943 - cli-only (Swift creates artifacts via ingest/workflow, not a direct call)",
     'PUT /api/actions/{action_id}': "#1920 baseline - cli-only",
-    'GET /api/activity/feed': "#1920 baseline - cli-only",
     'GET /api/activity/metrics/summary': "#1920 baseline - cli-only",
-    'GET /api/activity/top': "#1920 baseline - cli-only",
-    'GET /api/activity/trends': "#1920 baseline - cli-only",
     'GET /api/actions/registry': "#1848 action layer - cli-only, store/UI deferred",
     'POST /api/agents/write': "#1920 baseline - cli-only",
     'POST /api/agents/write/approve': "#1920 baseline - cli-only",
