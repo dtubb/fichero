@@ -350,3 +350,34 @@ unblocked**, and the lane was precise about why rather than claiming victory:
 So #3905 needs a gold-text side (either ingest gold as artifacts, or teach the
 comparison a text-vs-run mode) plus an actual CER metric. Neither is large.
 Neither is done. Recorded so nobody assumes #3905 is ready.
+
+---
+
+## 14. iPad has never been tested, and giving it a test target is a project change (#4472)
+
+**Finding:** `fichero-ipad.xctestplan` names `FicheroTests`, which cannot run on
+iPad. The correction that matters: **BOTH** test targets are macOS-only —
+`FicheroTests` and `FicheroUITests` inherit `SDKROOT=macosx` and neither sets
+`SUPPORTED_PLATFORMS` in any of its 8 configurations. So it is not a case of
+naming the wrong target; **no test target exists that can run on iPad.**
+
+A prior commit (`4db1d3e71`) converted what had been a **deliberately empty**
+smoke plan into one naming `FicheroTests`. That made things worse in a specific
+way: an empty plan is an honest statement that nothing runs yet, while a plan
+naming an impossible target looks like coverage.
+
+**Your call, because it needs a `pbxproj` change** and Xcode rewrites that file
+— not something to have an agent do unattended:
+- (a) give an existing test target iPad support (`SUPPORTED_PLATFORMS`), or
+- (b) add an iPad-specific test target, or
+- (c) restore the plan to deliberately-empty and accept that iPad is
+  unverified, honestly, until there is time.
+
+(c) is a legitimate answer. It is what the plan originally said.
+
+**What landed meanwhile:** `scripts/check_test_plans_runnable.py` (guardrail
+76) now FAILS when a plan names a target it cannot run, or resolves to zero
+tests. So whichever you choose, the gap stays visible instead of implied.
+
+Until then: **iPad is shipped but unverified.** That was true before tonight
+too — it just was not written down anywhere.
