@@ -171,17 +171,30 @@ extension LibraryView {
                 }
             }
         }
-        .onChange(of: selection) { _, newSelection in
+        .onChange(of: selection) { oldSelection, newSelection in
+            // The native Table owns its own clicks — DELIBERATELY, because
+            // `NSTableView` already implements the same Finder rules and taking
+            // them back would cost column drag-reorder, the native keyboard
+            // loop and its accessibility. What it does not own is our anchor
+            // and cursor, which the SHARED arrow-key path reads (#4160).
+            //
+            // Reconciling those from `newSelection` alone — what this did — can
+            // never express the grammar's first rule: a ⌘-click that DESELECTED
+            // a row must still move the anchor there, and that row is by
+            // definition absent from `newSelection`. It survives only in the
+            // difference between old and new, which `onChange` hands us and
+            // this code was throwing away. The old code also returned early
+            // when the selection emptied, leaving both fields pointing at rows
+            // that were no longer selected (#4436).
+            let reconciled = SelectionGrammar.reconcile(
+                from: oldSelection,
+                to: newSelection,
+                anchor: selectionAnchor,
+                in: filteredDocuments.map(\.id)
+            )
+            selectionAnchor = reconciled.anchor
+            selectionCursor = reconciled.cursor
             guard let nodeId = primaryNodeId(in: newSelection) else { return }
-            // Keep the shared keyboard cursor live in table mode (#4160):
-            // the native Table writes `selection` directly, so the
-            // handleTap/applySelection paths that normally maintain
-            // cursor+anchor never run here — without this, Return/Space/
-            // follow-scroll pointed at the topmost row, not the clicked one.
-            selectionCursor = nodeId
-            if selectionAnchor.map({ !newSelection.contains($0) }) ?? true {
-                selectionAnchor = nodeId
-            }
             if let pageDoc = pageDocumentForNodeId(nodeId) {
                 onPageFocus(pageDoc)
             } else if let artifactSelection = artifactSelectionForNodeId(nodeId) {

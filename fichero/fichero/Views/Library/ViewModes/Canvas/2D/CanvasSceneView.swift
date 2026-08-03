@@ -282,7 +282,13 @@ struct CanvasSceneView: View {
             }
             .onEnded { _ in
                 if draggingNodeId == nil, !spaceHeld, let rect = marqueeRect {
-                    controller?.dispatch(.marquee(ids: renderer.placeableIds(inScreenRect: rect, viewSize: size)))
+                    // ⇧/⌘ held while rubber-banding ADDS to the selection
+                    // (#4436) — read at .onEnded, the moment the marquee
+                    // commits, exactly as the tap path reads them.
+                    controller?.dispatch(.marquee(
+                        ids: renderer.placeableIds(inScreenRect: rect, viewSize: size),
+                        modifiers: CanvasInteractionController.liveSelectionModifiers()
+                    ))
                 }
                 marqueeRect = nil
                 panBaseline = .zero

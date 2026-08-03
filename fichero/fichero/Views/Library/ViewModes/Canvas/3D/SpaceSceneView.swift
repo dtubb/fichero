@@ -35,6 +35,11 @@ struct SpaceSceneView: View {
     var onViewportChanged: (SIMD3<Double>, Double) -> Void = { _, _ in }
     @Binding var selectedNodeIds: Set<String>
 
+    /// The node a ⌘-click extends from. Held here because `SelectionGrammar` is
+    /// pure and keeps no state, and this legacy renderer has no
+    /// `CanvasInteractionController` to hold it (#4436).
+    @State private var canvasSelectionAnchor: String?
+
     /// Observable layout store (#2293) — the SAME instance the 2D canvas uses.
     /// When non-nil together with `folderScopeId`, the 3D scene becomes a second
     /// renderer on the shared model: it loads persisted positions on appear,
@@ -183,7 +188,11 @@ struct SpaceSceneView: View {
                 .onEnded { value in
                     let nodeId = value.entity.name
                     guard !nodeId.isEmpty else { return }
-                    selectedNodeIds = [nodeId]
+                    // Through the shared grammar (#4436): this was a bare
+                    // replace, so ⌘-click could not add a second node here.
+                    CanvasTapSelection.tap(
+                        nodeId, selection: &selectedNodeIds, anchor: &canvasSelectionAnchor
+                    )
                 }
         )
         .simultaneousGesture(cameraDragGesture)
@@ -363,7 +372,18 @@ private extension SpaceSceneView {
                     // row if any, else backend default) so a saved position
                     // isn't lost on the first grab.
                     nodeDragOrigins[nodeId] = effectivePosition(for: node)
-                    selectedNodeIds = [nodeId]
+                    // Grabbing a node that is ALREADY selected keeps the
+                    // selection — Finder never collapses a multi-selection to
+                    // the one item you happened to grab (#4436). Same rule as
+                    // `CanvasInteractionController.beginDrag`.
+                    if !selectedNodeIds.contains(nodeId) {
+                        CanvasTapSelection.tap(
+                            nodeId,
+                            selection: &selectedNodeIds,
+                            anchor: &canvasSelectionAnchor,
+                            modifiers: []
+                        )
+                    }
                 }
                 guard let origin = nodeDragOrigins[nodeId] else { return }
                 let normalized = normalize()
