@@ -200,11 +200,26 @@ extension AISettingsView {
         }
     }
 
+    /// Models & Providers, including the on-device MLX provider's own controls
+    /// (#4503).
+    ///
+    /// MLX is a provider — `omlx` is a `ProviderType` on the wire, and
+    /// `AddProviderSheet` already knows its base URL. But the controls that
+    /// make it USABLE (provision the runtime, download a model, start the
+    /// service) lived on a separate "Local LLM" tab. So a user could add
+    /// "MLX (Local)" here, watch it fail, and the fix was on another screen
+    /// with no sign of where. Daniel asked for these to be together; they were
+    /// split for no reason a user could see.
     @ViewBuilder
     var providersTab: some View {
-        ProvidersView()
-            .environment(appState.providerService)
-            .environment(appState.modelService)
+        ScrollView {
+            VStack(spacing: 0) {
+                ProvidersView()
+                    .environment(appState.providerService)
+                    .environment(appState.modelService)
+                LocalInferenceSettingsView(store: appState.localInferenceStore)
+            }
+        }
     }
 
     @ViewBuilder
@@ -212,10 +227,9 @@ extension AISettingsView {
         LocalModelsSettingsView()
     }
 
-    @ViewBuilder
-    var localLLMTab: some View {
-        LocalInferenceSettingsView(store: appState.localInferenceStore)
-    }
+    // `localLLMTab` is GONE (#4503) — its one view now renders inside
+    // `providersTab`. Deleted rather than left as an unreachable alias, so
+    // there is no second place for MLX settings to drift back into.
 
     @ViewBuilder
     var advancedTab: some View {

@@ -71,7 +71,9 @@ struct AISettingsView: View {
                     if showsModelManagementTabs {
                         Text("Models & Providers").tag(AISettingsTab.providers)
                         Text("Downloads").tag(AISettingsTab.downloads)
-                        Text("Local LLM").tag(AISettingsTab.localLLM)
+                        // "Local LLM" is GONE (#4503) — MLX is a provider, and
+                        // its runtime and model controls now live beside it on
+                        // Models & Providers.
                     }
                     Text("Advanced").tag(AISettingsTab.advanced)
                 }
@@ -82,12 +84,13 @@ struct AISettingsView: View {
                 switch effectiveSelectedTab {
                 case .defaults:
                     defaultsTab
-                case .providers:
+                case .providers, .localLLM:
+                    // `.localLLM` still resolves, so a persisted selection or a
+                    // deep link from before #4503 lands on Models & Providers
+                    // rather than on nothing.
                     providersTab
                 case .downloads:
                     downloadsTab
-                case .localLLM:
-                    localLLMTab
                 case .advanced:
                     advancedTab
                 }
