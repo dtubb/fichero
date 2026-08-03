@@ -2,7 +2,7 @@
   "configurations" : [
     {
       "id" : "B3A1F0C2-7E4D-4A9B-8C21-1F5E9D6A0C74",
-      "name" : "iPad build/run gate",
+      "name" : "iPad",
       "options" : {
 
       }
@@ -15,8 +15,8 @@
     {
       "target" : {
         "containerPath" : "container:fichero.xcodeproj",
-        "identifier" : "A10521A82EFDC92400B28C3E",
-        "name" : "FicheroTests"
+        "identifier" : "FE1DAD000000000000000070",
+        "name" : "FicheroIPadTests"
       }
     }
   ],
