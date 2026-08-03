@@ -1994,6 +1994,8 @@ async def _apple_vision_dispatch(
     images: list[str],
     prompt: str,
     config: LLMConfig,
+    *,
+    language: str | None = None,
 ) -> str:
     """Apple provider's vision dispatch — picks the right on-device API
     based on config.model, since FoundationModels' Swift LLM (apple-
@@ -2013,8 +2015,18 @@ async def _apple_vision_dispatch(
     driven (it's a recognition pass, not a generative model). Caller's
     prompt becomes effectively unused, which is fine for the catalogue
     workflow's vision tools that just want text out.
+
+    `language` is the caller's already-resolved document language (#2092).
+    It used to be the literal `"en"` here regardless of what the workflow had
+    resolved (#4497), so Spanish colonial material was requested as English on
+    this route — invisibly, because the setter downstream discarded bad values
+    in silence too. `None` keeps the historical en-US default for callers
+    (similarity, compare, video) that have no document language to offer.
     """
-    from fichero_server.workflows.tools.vision_base import apple_vision_ocr
+    from fichero_server.workflows.tools.vision_base import (
+        apple_vision_ocr,
+        validate_vision_language,
+    )
     import asyncio
     import base64
     import tempfile
@@ -2042,6 +2054,10 @@ async def _apple_vision_dispatch(
             f"Unknown Apple model for vision: {config.model!r}. "
             "Supported: apple-vision."
         )
+
+    # Resolve (and reject) the recognition locale ONCE, before any image work,
+    # so a bad language fails on the request rather than per page.
+    ocr_language = validate_vision_language(language)
 
     if not images:
         return ""
@@ -2078,7 +2094,9 @@ async def _apple_vision_dispatch(
                 )
             if cleanup_this:
                 cleanup_paths.append(file_path)
-            text = await asyncio.to_thread(apple_vision_ocr, file_path, "en")
+            text = await asyncio.to_thread(
+                apple_vision_ocr, file_path, ocr_language
+            )
             if text:
                 if len(images) > 1:
                     page_texts.append(f"--- Image {index + 1} ---")
@@ -2337,6 +2355,8 @@ async def vision(
     images: list[str],
     prompt: str,
     config: LLMConfig,
+    *,
+    language: str | None = None,
 ) -> str:
     """Analyze images with a vision model using LangChain.
 
@@ -2344,6 +2364,9 @@ async def vision(
         images: List of image URLs or base64 data URIs
         prompt: Analysis prompt
         config: LLM configuration (must use vision-capable model)
+        language: Document language already resolved by the caller's language
+            policy (#2092). Only the Apple/on-device OCR route reads it —
+            generative providers take their language cue from the prompt.
 
     Returns:
         Analysis text
@@ -2363,7 +2386,7 @@ async def vision(
     # provider: 'apple'" (a regression after consolidating to a
     # single Catalogue preset that uses provider=apple by default).
     if config.provider == "apple":
-        return await _apple_vision_dispatch(images, prompt, config)
+        return await _apple_vision_dispatch(images, prompt, config, language=language)
 
     # Built-in deterministic debug provider (#1566), same as chat()'s branch:
     # without it a mock run's vision node reached LangChain and died with

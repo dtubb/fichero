@@ -156,6 +156,15 @@ APPLE_VISION_ACCENT_BLIND_CER = 0.3571
 # point noise.
 APPLE_VISION_CER_CEILING = 0.45
 
+# Re-measured 2026-08-03 after #4497 made the recognition locale reach Vision
+# and made a wrong one raise. The numbers did not move: en-US, es-ES and the
+# policy name "Spanish" all produce BYTE-IDENTICAL output on this page, so the
+# CER is 0.398 either way. Vision's Spanish support does not help this hand.
+# Stated here rather than left implied, because "we corrected the language"
+# would otherwise read as "we improved the transcription", and it did not.
+# The locale is not inert in general — ja-JP changes the output on the same
+# page — it is inert BETWEEN Latin-script locales, which share a recognizer.
+
 
 def test_apple_vision_cheap_tier_cer_on_the_gold_page() -> None:
     """What the free on-device tier actually scores against a verified reading.
@@ -196,6 +205,40 @@ def test_apple_vision_cheap_tier_cer_on_the_gold_page() -> None:
     # Folding accents can only ever help, never hurt. If this inverts, the
     # normalisation is broken rather than the OCR.
     assert scores[ACCENT_BLIND.name] <= scores[DIPLOMATIC.name]
+
+
+def test_the_recognition_language_reaches_vision_and_changes_nothing_here() -> None:
+    """Both halves of #4497's answer, measured on the same free page.
+
+    First: the locale is genuinely applied. `ja-JP` produces different text
+    from `es-ES` on this page, which it could not do if the argument were
+    being discarded — and discarded is exactly what happened for values Vision
+    did not recognise, since it accepts a bad locale without complaint.
+
+    Second, and the part worth saying out loud: applying the CORRECT locale
+    bought nothing. `en-US` and `es-ES` return byte-identical output on this
+    manuscript, so the 0.398 baseline is unchanged by the fix. Latin-script
+    locales share Vision's recognizer; the language only steers a language
+    model this hand is too far from for it to matter. The bug was real and the
+    fix is right — it just does not improve this page, and any plan that
+    assumed Spanish recognition would help should be re-checked.
+    """
+    from fichero_server.workflows.tools.vision_base import apple_vision_ocr
+
+    spanish = apple_vision_ocr(str(MANUSCRIPT_PDF), "Spanish")
+    english = apple_vision_ocr(str(MANUSCRIPT_PDF), "en")
+    japanese = apple_vision_ocr(str(MANUSCRIPT_PDF), "ja-JP")
+
+    assert spanish.strip()
+    assert japanese != spanish, (
+        "Vision returned the same text for ja-JP as for es-ES — the "
+        "recognition language is not reaching the request at all"
+    )
+    assert spanish == english, (
+        "en-US and es-ES have diverged on this page. That is not a failure, "
+        "but it invalidates the measured finding above; re-measure the CER "
+        "under both and update the recorded numbers"
+    )
 
 
 def _real_provider_ready() -> bool:

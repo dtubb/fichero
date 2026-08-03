@@ -198,3 +198,96 @@ def test_a_per_document_override_beats_the_global_default_end_to_end():
         document=document, text="", policy=parse_policy("English")
     )
     assert resolution.language == "Spanish"
+
+
+# ---------------------------------------------------------------------------
+# #4497 — the language argument has to reach Vision, and be rejected when wrong
+# ---------------------------------------------------------------------------
+
+
+def test_an_unrecognisable_vision_language_raises_instead_of_no_opping():
+    """`VNRecognizeTextRequest` accepts a bad locale and then ignores it.
+
+    Before this, `apple_vision_ocr(page, "Spanish")` returned byte-identical
+    output to `apple_vision_ocr(page, "en")`: the request stored the string,
+    recognised in its default locale, and reported nothing. A wrong language
+    and a right one were indistinguishable from the outside, which is why the
+    hardcoded "en" at the call site survived so long.
+    """
+    from fichero_server.workflows.tools.vision_base import (
+        _supported_vision_locales,
+        validate_vision_language,
+    )
+
+    if not _supported_vision_locales():
+        pytest.skip("Vision recognition locales unavailable on this machine")
+
+    with pytest.raises(ValueError, match="cannot recognize"):
+        validate_vision_language("Klingon")
+    with pytest.raises(ValueError, match="cannot recognize"):
+        validate_vision_language("es-XX")
+
+
+def test_a_supported_vision_language_passes_through_unchanged():
+    from fichero_server.workflows.tools.vision_base import (
+        _supported_vision_locales,
+        validate_vision_language,
+    )
+
+    if not _supported_vision_locales():
+        pytest.skip("Vision recognition locales unavailable on this machine")
+
+    # A name, a legacy alias, and a full locale all land on the same locale —
+    # one resolution path, the policy's names included.
+    assert validate_vision_language("Spanish") == "es-ES"
+    assert validate_vision_language("es") == "es-ES"
+    assert validate_vision_language("es-ES") == "es-ES"
+    assert validate_vision_language(None) == "en-US"
+
+
+def test_apple_vision_dispatch_ocrs_in_the_language_it_was_given():
+    """The call site used to hardcode "en" whatever the workflow resolved."""
+    import asyncio
+
+    from fichero_server.llm import LLMConfig, _apple_vision_dispatch
+
+    seen: list[tuple[str, str]] = []
+
+    def fake_ocr(path: str, language: str) -> str:
+        seen.append((path, language))
+        return "text"
+
+    import fichero_server.workflows.tools.vision_base as vision_base
+
+    original = vision_base.apple_vision_ocr
+    vision_base.apple_vision_ocr = fake_ocr
+    try:
+        config = LLMConfig(provider="apple", model="apple-vision")
+        asyncio.run(
+            _apple_vision_dispatch(
+                ["/tmp/does-not-need-to-exist.png"],
+                "ignored prompt",
+                config,
+                language="Spanish",
+            )
+        )
+    finally:
+        vision_base.apple_vision_ocr = original
+
+    assert [language for _path, language in seen] == ["es-ES"]
+
+
+def test_apple_vision_dispatch_refuses_a_language_vision_cannot_use():
+    import asyncio
+
+    from fichero_server.llm import LLMConfig, _apple_vision_dispatch
+    from fichero_server.workflows.tools.vision_base import _supported_vision_locales
+
+    if not _supported_vision_locales():
+        pytest.skip("Vision recognition locales unavailable on this machine")
+
+    config = LLMConfig(provider="apple", model="apple-vision")
+    with pytest.raises(ValueError, match="cannot recognize"):
+        asyncio.run(
+            _apple_vision_dispatch(["/tmp/x.png"], "p", config, language="Klingon")
+        )
