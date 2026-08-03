@@ -35,7 +35,7 @@ fixes and had to be reopened. So: verify, then close. Never the reverse.
 | **4408** | two-finger scroll doesn't pan the canvas | `e4bfe9ede` (2D), `47f7b28c9` (iPad + 3D) | 2D **yes**; iPad/3D **no** | Open the canvas, two-finger scroll. Should pan. Space-drag should still work too. | 10s |
 | **4398** | list rows: badges/errors/columns | `c83036b5c` | yes | Inspector Attributes strip: should default to nothing and not show storage internals | 20s |
 | **4412** | one input grammar for every library view | `48f89b954` | yes | Switch to canvas/spatial mode, then back to list — arrow keys must still move the selection | 30s |
-| **3364** | double-click should focus current window | `7d2d2fc4c` (2026-07-25, **after** the issue) | yes | Double-click a sidebar row. If it opens a NEW window rather than focusing the current one, the issue stands — the commit ADDED open-in-new-tab/window, which may be the behaviour complained about | 20s |
+| **3364** | double-click should focus current window | `7d2d2fc4c` (2026-07-25, **after** the issue) | yes | **Do not click-test — see section E.** The commit does the opposite of what the issue asks, deliberately and with tests. It needs a decision, not a verification | — |
 | **4377** | library multi-select conventions | `38c834c90` | **NO** — committed 2026-08-03, after the tag | shift-click range, ⌘-click toggle, arrow+shift extend. **Not in Daniel's build** — check on a fresh build only | 1m |
 | **4376** | ⌘A in the focused surface | `ff8d592ae` | yes | Click a library row, ⌘A → all rows select. Click into a text field, ⌘A → selects the text, **not** the rows | 15s |
 | **4459** | sidebar drop vanishes on load failure | `18fdfaa62` | **NO** — 2026-08-01, after the tag | Drop a file the loader cannot read onto a sidebar folder. It must report, not vanish | 30s |
@@ -71,6 +71,49 @@ audited action layer) moved here from section B. Their only appearances on
 `main` are a docs commit whose subject names #3690, and a coverage-baseline
 chore. Neither issue has a fix commit of any kind, so there is nothing to
 re-diagnose and nothing to click — they are simply open.
+
+---
+
+## E. #3364 — a decision for Daniel, not a fix
+
+**Nothing changed. This needs your word before anyone touches it**, because it
+alters a shipped interaction default.
+
+**What #3364 asks (filed 2026-07-10):** double-click focuses/navigates the
+selected item *in the current window*. Open-in-new-window/tab stays available
+from the context menu and explicit commands only.
+
+**What the code does (`7d2d2fc4c`, 2026-07-25, fifteen days later):** exactly
+the opposite. `SidebarView+ViewComponents.swift:71` binds
+`.onTapGesture(count: 2)` → `handleSidebarDoubleClick()` →
+`WindowOpener.open(asTab:)`, honouring the system "Prefer tabs" setting. It has
+tests (`SidebarOpenAffordanceTests`) and it ships in v2026.08.02.
+
+**The part worth seeing.** The commit's own comment reads *"mirroring the
+library table's container-level double-click contract (#3364)"* — it cites
+#3364 as the precedent for the behaviour #3364 was filed to remove. The other
+citation is #2496, and #2496 did **not** ask for this: it asked for easier
+click-to-select plus a **trailing affordance**. A trailing affordance is
+precisely the "explicit command" #3364 says should carry open-in-new-window.
+
+So this is not two issues wanting opposite things. It is one change that
+over-delivered: auxiliary-open was bound to the trailing affordance (asked
+for) **and** to double-click (ruled out).
+
+**Also relevant:** single-click already keeps select-in-place, and sidebar
+selection drives the detail column. So the navigate-in-current-window half of
+#3364 arguably already works — double-click is the only part in dispute.
+
+**If you want #3364 honoured**, the change is one binding: drop the
+`.onTapGesture(count: 2)` at `SidebarView+ViewComponents.swift:71`. The
+trailing affordance, the row context menu and the File-menu commands all keep
+working — they call `openPrimarySelection` directly, not through the gesture.
+`SidebarOpenAffordanceTests` tests the *routing* function, not the gesture, so
+it stays green either way.
+
+**If you want to keep double-click-opens**, #3364 should be closed as
+superseded rather than left open, since it currently reads as an unfixed bug
+against deliberate, tested behaviour.
 
 ---
 
