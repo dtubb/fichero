@@ -351,6 +351,123 @@ struct SelectionSurfaceParityTests {
         // gesture extend differently on different runs.
         #expect(result.anchor == "doc:b")
     }
+
+    // MARK: - The ordered list each surface hands the grammar (#4377)
+    //
+    // The gestures above all pass a list that matches what is rendered. The two
+    // gaps that survived #4436 were not about which grammar call a surface
+    // made — both surfaces called the right one — but about the LIST and the
+    // ORDER OF OPERATIONS around it. So these test the arguments, which is the
+    // part `check_selection_grammar.py` structurally cannot see.
+
+    /// The Table renders an expandable outline. Its child rows carry
+    /// `"<doc>:artifact:<id>"` ids that appear in NO document list, so handing
+    /// the grammar `filteredDocuments` means handing it a list in which the
+    /// selected row does not exist.
+    private static let outlineRows = [
+        "doc:a", "doc:a:artifact:1", "doc:a:artifact:2", "doc:b", "doc:c"
+    ]
+    private static let documentRowsOnly = ["doc:a", "doc:b", "doc:c"]
+
+    @Test("↓ from a selected CHILD row steps to the next visible row, not to the top")
+    func arrowsResolveAChildRowAgainstTheVisibleOutline() {
+        // What the arrow path does first: resolve the cursor to an index.
+        let againstVisibleRows = LibraryKeyboardCursor.index(
+            cursor: "doc:a:artifact:1",
+            anchor: "doc:a:artifact:1",
+            selection: ["doc:a:artifact:1"],
+            ids: Self.outlineRows
+        )
+        #expect(againstVisibleRows == 1)
+        // ...so ↓ lands on the NEXT row the user can see.
+        #expect(Self.outlineRows[(againstVisibleRows ?? 0) + 1] == "doc:a:artifact:2")
+
+        // The defect, pinned: against the document list the same child row
+        // resolves to NOTHING. `handleArrowKey` reads that nil as "nothing is
+        // selected yet" and selects ids[0] — the user is thrown to the top of
+        // the library by pressing ↓.
+        #expect(
+            LibraryKeyboardCursor.index(
+                cursor: "doc:a:artifact:1",
+                anchor: "doc:a:artifact:1",
+                selection: ["doc:a:artifact:1"],
+                ids: Self.documentRowsOnly
+            ) == nil,
+            "if this resolves, the two lists have converged and this test is obsolete"
+        )
+    }
+
+    @Test("⇧-extending across disclosed child rows shrinks, which needs the visible order")
+    func reconcileHoldsTheAnchorAcrossChildRows() {
+        // ⇧↓ ⇧↓ grew a range from the parent through both artifact rows; ⇧↑
+        // then shrinks it. Rule 2: the anchor must not have moved, and the
+        // cursor must be the row the range now ENDS on.
+        let shrunk = SelectionGrammar.reconcile(
+            from: ["doc:a", "doc:a:artifact:1", "doc:a:artifact:2"],
+            to: ["doc:a", "doc:a:artifact:1"],
+            anchor: "doc:a",
+            in: Self.outlineRows
+        )
+
+        #expect(shrunk.anchor == "doc:a")
+        #expect(shrunk.cursor == "doc:a:artifact:1")
+    }
+
+    @Test("Against the document list the same shrink cannot find its cursor at all")
+    func reconcileDegradesWhenGivenTheWrongList() {
+        // Same gesture, wrong list: no child row indexes, so `reconcile` falls
+        // through to the lexical-minimum branch. Deterministic — and not the
+        // visual order it is supposed to be reasoning about.
+        let degraded = SelectionGrammar.reconcile(
+            from: ["doc:a", "doc:a:artifact:1", "doc:a:artifact:2"],
+            to: ["doc:a", "doc:a:artifact:1"],
+            anchor: "doc:a",
+            in: Self.documentRowsOnly
+        )
+
+        #expect(degraded.cursor == "doc:a")
+        #expect(
+            degraded.cursor != "doc:a:artifact:1",
+            "the wrong-list degradation closed — the lists converged, delete this test"
+        )
+    }
+
+    // The flatten itself — that disclosed children appear in place, only while
+    // their parent is expanded — is already pinned by
+    // `LibraryOutlineVisibleIdsTests` (#4198). It is not restated here. What
+    // was missing was never the flatten; it was that only ⌘A CALLED it, while
+    // the arrows and the anchor reconciler used the document list.
+
+    // MARK: - Columns: navigation is a plain-click behaviour
+
+    /// A ⇧- or ⌘-click is BUILDING a selection. `handleTap` already refuses to
+    /// drill in for those; the columns wrapper used to descend or truncate the
+    /// column path one call EARLIER, going around that guard — so ⌘-clicking a
+    /// folder to add it to a selection also opened it, and ⇧-clicking a
+    /// document closed every deeper column.
+    ///
+    /// Scoped to OPENING and CLOSING. Which column is active still follows a
+    /// modified click, because a row renders its selection only while its
+    /// column is active — freezing that would make ⌘-click look like a no-op.
+    @Test("Only a PLAIN columns click opens or closes columns")
+    func columnsOpenAndCloseOnPlainClickOnly() {
+        #expect(LibraryView.columnTapOpensOrClosesColumns(modifiers: []))
+        #expect(!LibraryView.columnTapOpensOrClosesColumns(modifiers: .command))
+        #expect(!LibraryView.columnTapOpensOrClosesColumns(modifiers: .shift))
+        #expect(!LibraryView.columnTapOpensOrClosesColumns(modifiers: [.shift, .command]))
+    }
+
+    /// The grammar has exactly one way to say "land on this one row", so the
+    /// three callers that used to hand-fill a `Result` cannot drift apart.
+    @Test("select(_:) is the plain-click result, by construction")
+    func selectMatchesAPlainClick() {
+        let selected = SelectionGrammar.select("doc:c")
+        let plainClick = SelectionGrammar.click(
+            id: "doc:c", in: Self.ids, selection: ["doc:a"], anchor: "doc:a", modifiers: []
+        )
+
+        #expect(selected == plainClick)
+    }
 }
 
 // MARK: - Minimal seams
