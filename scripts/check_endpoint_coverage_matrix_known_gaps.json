@@ -67,6 +67,7 @@
   "GET /api/artifacts/document/{doc_id}": "store missing",
   "GET /api/artifacts/types": "store missing",
   "GET /api/artifacts/{artifact_id}": "store missing",
+  "GET /api/artifacts/{artifact_id}/region": "#4418/#4309 span->region resolution - engine half landed 2026-08-03; the Swift reader renders regions from geometry it already holds, so this addressing endpoint has no client caller yet. Drop when a surface resolves a span through it.",
   "GET /api/auth/invites": "store missing",
   "GET /api/auth/sessions": "store missing",
   "GET /api/authz/members": "store missing",

@@ -9,6 +9,7 @@
     "/api/agents/write/approve": "baseline: not yet wired",
     "/api/agents/write/audit": "baseline: not yet wired",
     "/api/agents/write/audit/{record_id}": "baseline: not yet wired",
+    "/api/artifacts/{artifact_id}/region": "#4418/#4309 span->region resolution - engine half landed 2026-08-03; the Swift reader renders regions from geometry it already holds, so this addressing endpoint has no client caller yet. Drop when a surface resolves a span through it.",
     "/api/auth/sessions": "#2021 multi-user session management - backend lists active sessions; SwiftUI account/session-management UI deferred to the multi-user surface (#2869)",
     "/api/auth/sessions/{session_id}/revoke": "#2021 multi-user session revoke - backend; SwiftUI account/session-management UI deferred to the multi-user surface (#2869)",
     "/api/bibliography/document/{document_id}/attach": "backend bibliography attach (#1101); SwiftUI BibTeX panel surfaces it via typed client / follow-up",
