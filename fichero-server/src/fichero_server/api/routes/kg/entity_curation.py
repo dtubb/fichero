@@ -322,7 +322,7 @@ def _log_entity_curation_mutation(
 
 
 def merge_entities_impl(
-    db: Database, request: EntityMergeRequest
+    db: Database, request: EntityMergeRequest, actor: str = "human"
 ) -> tuple[EntityMergeAudit, list[str], list[str]]:
     """The proven entity-merge algorithm — reconciliation + audit + persistence.
 
@@ -398,11 +398,17 @@ def merge_entities_impl(
             repointed_claim_ids.append(claim.id)
 
     audit = EntityMergeAudit(
+        # #4415: the merge audit names who merged. It used to hardcode
+        # "human", which was a lie whenever a workflow tool drove the merge
+        # (merge_dedup_only calls this path with actor="workflow"). Anything
+        # asking "did a person curate this row?" — the incremental catalogue
+        # check, undo attribution — read that lie as a yes. e85d7b5bd fixed
+        # the same defect in MutationLog; the merge audits were missed.
         operation_type=EntityMergeOperationType.merge,
         source_entity_ids=[e.id for e in absorbed],
         target_entity_id=absorber.id,
         alias_changes=alias_changes,
-        created_by="human",
+        created_by=actor,
         created_at=now,
     )
     db.save(audit)
@@ -1089,7 +1095,7 @@ def _action_merge_entities(
     # Capture before-state of every touched entity BEFORE the impl mutates.
     touched = [params.absorbing_entity_id, *params.absorbed_entity_ids]
     before = _snapshot_entities(db, touched)
-    audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, params)
+    audit, entity_ids, repointed_claim_ids = merge_entities_impl(db, params, ctx.actor)
     after = {
         "entity_merge_audit_id": audit.id,
         "entities": _snapshot_entities(db, entity_ids),

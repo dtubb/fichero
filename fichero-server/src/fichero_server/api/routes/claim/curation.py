@@ -724,7 +724,9 @@ def batch_set_claim_curation_state_impl(
     ), updated_ids
 
 
-def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeAudit:
+def merge_claims_impl(
+    db: Database, request: "ClaimMergeRequest", actor: str = "human"
+) -> ClaimMergeAudit:
     """The proven claim-merge algorithm — provenance fold + link repoint + audit.
 
     Extracted verbatim from the ``/merge`` route so BOTH the route and the
@@ -797,7 +799,10 @@ def merge_claims_impl(db: Database, request: "ClaimMergeRequest") -> ClaimMergeA
             "provenance_changes": provenance_changes,
             "link_changes": link_changes,
         },
-        created_by="human",
+        # #4415: name the real actor. Hardcoding "human" made a workflow-driven
+        # dedup indistinguishable from a curator's merge — see the matching
+        # note in merge_entities_impl.
+        created_by=actor,
         created_at=now,
     )
     db.save(audit)
@@ -1410,7 +1415,7 @@ def _action_batch_curation(
 def _action_merge_claims(
     db: Database, params: ClaimMergeRequest, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    audit = merge_claims_impl(db, params)
+    audit = merge_claims_impl(db, params, ctx.actor)
     claim_ids = [audit.target_claim_id, *audit.source_claim_ids]
     spec = ChangeSpec(
         domains=["claim"],
