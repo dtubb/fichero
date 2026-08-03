@@ -1,6 +1,6 @@
 {
   "swift.lint_warnings": {
-    "count": 74,
-    "note": "seeded from swiftlint 0.63.2 on 2026-08-01, commit fc14c6365"
+    "count": 73,
+    "note": "seeded from swiftlint 0.63.2 on 2026-08-01, commit fc14c6365 at 74; tightened to 73 on 2026-08-03 by the #4474/#4475 drag unification, verified live"
   }
 }
