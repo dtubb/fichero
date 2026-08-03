@@ -21,6 +21,7 @@ struct ActivityDetailView: View {
     @State private var error: String?
     @State private var workflowRun: WorkflowRunResponse?
     @State private var selectedSectionId: String = "overview"
+    @State private var isComparingRuns = false
 
     private var liveExecution: WorkflowExecution? {
         if let threadId = selectedRun.threadId,
@@ -270,7 +271,22 @@ extension ActivityDetailView {
             // Read-only run-trace graph (#4320) — snapshot topology colored by
             // executed status; fetches its own run record by thread id.
             if let threadId = selectedRun.threadId {
-                RunTraceView(threadId: threadId)
+                VStack(spacing: 0) {
+                    HStack {
+                        Spacer()
+                        // Comparing two runs that already exist costs nothing;
+                        // the cost notice for producing a second run lives
+                        // inside the sheet, in the server's own words (#4341).
+                        Button("Compare Runs…") { isComparingRuns = true }
+                            .controlSize(.small)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    RunTraceView(threadId: threadId)
+                }
+                .sheet(isPresented: $isComparingRuns) {
+                    RunComparisonSheet(threadId: threadId)
+                }
             } else {
                 ContentUnavailableView(
                     "No Trace Available",

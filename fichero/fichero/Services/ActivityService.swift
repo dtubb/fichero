@@ -309,50 +309,6 @@ extension ActivityService {
             checkpoints: checkpoints
         )
     }
-
-    /// Convert generated workflow run to app type
-    func convertToWorkflowRun(_ response: Components.Schemas.WorkflowRunResponse) -> WorkflowRunResponse {
-        // Extract workflow snapshot from OpenAPI Payload wrapper
-        let workflowSnapshot: [String: Any]? = response.workflowSnapshot?.additionalProperties.value as? [String: Any]
-
-        // Extract node name map from OpenAPI Payload wrapper
-        let nodeNameMap: [String: String]? = response.nodeNameMap?.additionalProperties
-
-        // Extract progress timeline from OpenAPI Payload wrapper
-        let progressTimeline: [String: Any]? = response.progressTimeline?.additionalProperties.value as? [String: Any]
-
-        return WorkflowRunResponse(
-            threadId: response.threadId,
-            workflowId: response.workflowId,
-            workflowName: response.workflowName,
-            pythonCode: response.pythonCode,
-            executionLog: response.executionLog,
-            status: response.status.rawValue,
-            startedAt: response.startedAt,
-            completedAt: response.completedAt,
-            durationMs: response.durationMs,
-            error: response.error,
-            workflowSnapshot: workflowSnapshot,
-            nodeNameMap: nodeNameMap,
-            progressTimeline: progressTimeline,
-            diagramMermaid: response.diagramMermaid,
-            runArtifacts: (response.runArtifacts ?? []).map { artifact in
-                WorkflowRunArtifact(
-                    artifactId: artifact.artifactId,
-                    artifactType: artifact.artifactType,
-                    documentId: artifact.documentId,
-                    documentName: artifact.documentName,
-                    sourceDocumentId: artifact.sourceDocumentId,
-                    sourceDocumentName: artifact.sourceDocumentName,
-                    runId: artifact.runId,
-                    stepName: artifact.stepName,
-                    nodeName: artifact.nodeName,
-                    sequence: artifact.sequence,
-                    createdAt: artifact.createdAt
-                )
-            }
-        )
-    }
 }
 
 // MARK: - Error Types

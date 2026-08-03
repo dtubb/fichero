@@ -21,6 +21,12 @@ struct WorkflowRunResponse: Codable {
     /// Artifacts produced by this run, in pipeline order (#4313). Empty for
     /// legacy runs recorded before artifact provenance existed.
     let runArtifacts: [WorkflowRunArtifact]
+    /// One record per PLANNED step (#4284). Authoritative for per-step status:
+    /// the timeline can only report the steps that emitted an entry, so a step
+    /// missing from it is ambiguous between "never ran" and "ran silently".
+    /// Empty for legacy runs recorded before step records existed, which is
+    /// why the timeline mapping is kept as the fallback rather than deleted.
+    let steps: [WorkflowRunStep]
 
     enum CodingKeys: String, CodingKey {
         case threadId = "thread_id"
@@ -38,6 +44,7 @@ struct WorkflowRunResponse: Codable {
         case progressTimeline = "progress_timeline"
         case diagramMermaid = "diagram_mermaid"
         case runArtifacts = "run_artifacts"
+        case steps
     }
 
     init(from decoder: Decoder) throws {
@@ -72,6 +79,9 @@ struct WorkflowRunResponse: Codable {
         runArtifacts = try container.decodeIfPresent(
             [WorkflowRunArtifact].self, forKey: .runArtifacts
         ) ?? []
+        steps = try container.decodeIfPresent(
+            [WorkflowRunStep].self, forKey: .steps
+        ) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -96,6 +106,7 @@ struct WorkflowRunResponse: Codable {
         }
         try container.encodeIfPresent(diagramMermaid, forKey: .diagramMermaid)
         try container.encode(runArtifacts, forKey: .runArtifacts)
+        try container.encode(steps, forKey: .steps)
     }
 
     init(
@@ -113,7 +124,8 @@ struct WorkflowRunResponse: Codable {
         nodeNameMap: [String: String]? = nil,
         progressTimeline: [String: Any]? = nil,
         diagramMermaid: String? = nil,
-        runArtifacts: [WorkflowRunArtifact] = []
+        runArtifacts: [WorkflowRunArtifact] = [],
+        steps: [WorkflowRunStep] = []
     ) {
         self.threadId = threadId
         self.workflowId = workflowId
@@ -130,6 +142,7 @@ struct WorkflowRunResponse: Codable {
         self.progressTimeline = progressTimeline
         self.diagramMermaid = diagramMermaid
         self.runArtifacts = runArtifacts
+        self.steps = steps
     }
 }
 
@@ -149,8 +162,58 @@ struct WorkflowRunArtifact: Codable, Identifiable, Equatable {
     let nodeName: String?
     let sequence: Int?
     let createdAt: String?
+    /// Which provider/model actually produced this artifact (#4284). The
+    /// node-level provider/model is what the workflow was CONFIGURED with;
+    /// this is what ran. They diverge on run-level overrides and fallbacks,
+    /// so provenance has to be read per artifact, not per node.
+    let provider: String?
+    let model: String?
+    /// Length of the STORED content, in characters — not the preview's
+    /// length. This is what makes an honest "showing 2,000 of 12,431" line
+    /// possible.
+    let contentChars: Int?
+    /// A preview only. `contentTruncated` says whether it is the whole
+    /// content; the full artifact stays addressable at
+    /// `GET /api/artifacts/{artifact_id}`. Truncation lives in the RESPONSE,
+    /// never in what was stored — rendering this as if it were complete
+    /// would silently misreport a transcription.
+    let contentPreview: String?
+    let contentTruncated: Bool?
+    let hasStructuredData: Bool?
 
     var id: String { artifactId }
+
+    /// True only when the server said the preview is clipped. A nil field is
+    /// an old response that never carried the flag, not a promise that the
+    /// preview is complete — but there is no preview to over-claim in that
+    /// case either, so false is safe here.
+    var isTruncated: Bool { contentTruncated == true }
+
+    /// The sentence to show beside a clipped preview, or nil when what is
+    /// held IS the whole content. Never softened into "long content": the
+    /// reader has to be able to tell a short transcription from a clipped
+    /// one, and only the character counts do that.
+    var truncationNotice: String? {
+        guard isTruncated else { return nil }
+        let shown = (contentPreview ?? "").count
+        guard let total = contentChars, total > shown else {
+            // Truncated, but the server did not say by how much. Still say it
+            // is incomplete — an unknown remainder is not no remainder.
+            return "Preview only — this is not the full text"
+        }
+        return "Preview only — showing \(shown.formatted()) of \(total.formatted()) characters"
+    }
+
+    /// "anthropic · claude-sonnet-4-6", or nil when the server recorded
+    /// neither. Never a placeholder: an artifact with no recorded origin must
+    /// read as having no recorded origin.
+    var providerModelText: String? {
+        let parts = [provider, model].compactMap { value -> String? in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 
     enum CodingKeys: String, CodingKey {
         case artifactId = "artifact_id"
@@ -164,5 +227,11 @@ struct WorkflowRunArtifact: Codable, Identifiable, Equatable {
         case nodeName = "node_name"
         case sequence
         case createdAt = "created_at"
+        case provider
+        case model
+        case contentChars = "content_chars"
+        case contentPreview = "content_preview"
+        case contentTruncated = "content_truncated"
+        case hasStructuredData = "has_structured_data"
     }
 }

@@ -224,7 +224,6 @@
   "GET /api/triggers/{trigger_id}": "store missing",
   "GET /api/triggers/{trigger_id}/executions": "store missing",
   "GET /api/workflow-execution/cache/stats": "store missing",
-  "GET /api/workflow-execution/comparisons": "#4341 run comparison - engine diff landed 2026-08-03; the SwiftUI store is in flight under EPIC #4312. Remove when the run-detail store calls it.",
   "GET /api/workflow-execution/threads": "store missing",
   "GET /api/workflow-execution/threads/{thread_id}/diagram.png": "store missing",
   "GET /api/workflow-execution/threads/{thread_id}/diagram.svg": "store missing",

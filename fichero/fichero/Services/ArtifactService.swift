@@ -23,6 +23,21 @@ class ArtifactService {
         self.client = ficheroClient
     }
 
+    /// Convenience initializer from APIClient - extracts library path.
+    /// Mirrors `ActivityService`, so surfaces that hold only an `APIClient`
+    /// (the Activity window, and any run-trace sheet opened outside the
+    /// document detail layout) can still fetch a full artifact rather than
+    /// being stuck showing a truncated preview.
+    convenience init(apiClient: APIClient) {
+        let libraryPath = apiClient.currentLibraryPath ?? ""
+        let ficheroClient = FicheroClient(
+            baseURL: EngineConfig.host,
+            libraryPath: libraryPath,
+            transportMode: EngineConfig.transportMode
+        )
+        self.init(ficheroClient: ficheroClient)
+    }
+
     // MARK: - Fetch Artifacts
 
     /// Fetch all artifacts for a document.
