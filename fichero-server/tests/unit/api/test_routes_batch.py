@@ -118,6 +118,36 @@ class TestCreateBatch:
             })
         assert r.status_code == 400
 
+    def test_an_incoherent_selection_is_refused_with_422(self, client):
+        """#4500 over HTTP. The rule itself is pinned in
+        test_typed_workflow_selection.py; this pins that it reaches the wire
+        as a 422 the client can act on, rather than a 500 or — as before —
+        a 200 for a run that was never validated at all."""
+        manager = _make_mock_manager(_make_mock_batch())
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
+            r = client.post("/api/batches", json={
+                "workflow_id": "wf-1",
+                "items": [{}],
+                "selection": {"kind": "folder", "ids": ["caja-3", "doc-1", "doc-2"]},
+            })
+        assert r.status_code == 422
+        assert "single container" in r.text
+        manager.create_batch.assert_not_called()
+
+    def test_a_coherent_selection_is_accepted_and_reaches_the_manager(self, client):
+        """The other half: refusing everything would also pass the test above."""
+        manager = _make_mock_manager(_make_mock_batch())
+        with patch("fichero_server.api.routes.workflow.batch.get_batch_manager", return_value=manager):
+            r = client.post("/api/batches", json={
+                "workflow_id": "wf-1",
+                "items": [{}],
+                "selection": {"kind": "folder", "ids": ["caja-3"]},
+            })
+        assert r.status_code == 200
+        assert manager.create_batch.await_args.kwargs["items_inputs"] == [
+            {"selected_doc_ids": ["caja-3"]}
+        ]
+
 
 # ---------------------------------------------------------------------------
 # GET /api/batches/{batch_id}

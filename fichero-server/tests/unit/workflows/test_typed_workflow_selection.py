@@ -19,6 +19,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from fichero_server.api.routes.workflow.batch import CreateBatchRequest
 from fichero_server.api.routes.workflow_execution.schemas import (
     ExecuteWorkflowRequest,
 )
@@ -206,3 +207,107 @@ class TestUnreadTargetKeysAreRejected:
             workflow_id="wf-1", inputs={"prompt": "hello", "temperature": 0.2}
         )
         assert request.selection is None
+
+
+class TestTheBatchPathUsesTheSameBoundary:
+    """#4500: batch items reached NEITHER validator.
+
+    `CreateBatchRequest` had no `selection` field at all, and `BatchManager`
+    handed `item.inputs` straight to `build_initial_state` without ever
+    constructing an `ExecuteWorkflowRequest`. So every rule above — the
+    #4396 folder-with-many-ids refusal, #4467's unread target keys — was
+    simply absent on the batch path. Every other execute path was guarded;
+    this one was a hole with the guarantee written on the outside of it.
+
+    These live beside the direct-execute tests deliberately. One boundary,
+    one rule, one place its behaviour is pinned: a batch-shaped copy of these
+    assertions could pass while the batch path drifted, which is the shape of
+    the original defect.
+    """
+
+    def test_a_batch_claiming_a_folder_with_many_ids_is_rejected(self):
+        with pytest.raises(ValidationError) as caught:
+            CreateBatchRequest(
+                workflow_id="wf-1",
+                items=[{}],
+                selection={"kind": "folder", "ids": ["caja-3", "doc-1", "doc-2"]},
+            )
+        message = str(caught.value)
+        assert "single container" in message
+        assert "kind=documents instead" in message
+
+    def test_the_same_claim_is_rejected_on_a_direct_execute(self):
+        """The point is not that batch refuses it — it is that both refuse it
+        for the same stated reason. Divergent messages mean divergent rules."""
+        with pytest.raises(ValidationError) as batch_error:
+            CreateBatchRequest(
+                workflow_id="wf-1",
+                items=[{}],
+                selection={"kind": "folder", "ids": ["caja-3", "doc-1"]},
+            )
+        with pytest.raises(ValidationError) as execute_error:
+            ExecuteWorkflowRequest(
+                workflow_id="wf-1",
+                selection={"kind": "folder", "ids": ["caja-3", "doc-1"]},
+            )
+        assert "single container" in str(batch_error.value)
+        assert "single container" in str(execute_error.value)
+
+    def test_a_batch_item_with_only_an_unread_target_key_is_rejected(self):
+        """#4467 on the batch path. Without this the batch runs green over
+        nothing, N times."""
+        with pytest.raises(ValidationError) as caught:
+            CreateBatchRequest(workflow_id="wf-1", items=[{"files": ["doc-1"]}])
+        assert "#4467" in str(caught.value)
+
+    def test_the_rejection_names_which_item_was_wrong(self):
+        """"A batch was rejected" is not actionable when the caller sent two
+        hundred of them."""
+        with pytest.raises(ValidationError) as caught:
+            CreateBatchRequest(
+                workflow_id="wf-1",
+                items=[
+                    {"selected_doc_ids": ["doc-1"]},
+                    {"selected_doc_ids": ["doc-2"]},
+                    {"docs": ["doc-3"]},
+                ],
+            )
+        assert "batch item 2" in str(caught.value)
+
+    def test_a_coherent_folder_batch_is_accepted_and_scoped_to_the_folder(self):
+        request = CreateBatchRequest(
+            workflow_id="wf-1",
+            items=[{}],
+            selection={"kind": "folder", "ids": ["caja-3"]},
+        )
+        assert request.selection.container_id == "caja-3"
+        # Mirrors the runner: the validated selection is what the run is
+        # scoped to, so the item carries it where build_initial_state reads it.
+        assert request.items[0]["selected_doc_ids"] == ["caja-3"]
+
+    def test_per_item_targeting_is_not_overwritten_by_the_batch_selection(self):
+        """Per-item ids are what the items are FOR. Replacing them with the
+        batch's would silently re-scope every item to the same documents —
+        trading a missing guard for a scope bug."""
+        request = CreateBatchRequest(
+            workflow_id="wf-1",
+            items=[{"selected_doc_ids": ["doc-1"]}, {"selected_doc_ids": ["doc-2"]}],
+            selection={"kind": "documents", "ids": ["doc-1", "doc-2"]},
+        )
+        assert request.items[0]["selected_doc_ids"] == ["doc-1"]
+        assert request.items[1]["selected_doc_ids"] == ["doc-2"]
+
+    def test_a_batch_with_no_selection_at_all_still_works(self):
+        """The field is optional: existing callers that pass legacy per-item
+        ids keep working, or the fix breaks every batch in the field."""
+        request = CreateBatchRequest(
+            workflow_id="wf-1", items=[{"selected_doc_ids": ["doc-1"]}]
+        )
+        assert request.selection is None
+        assert request.items[0]["selected_doc_ids"] == ["doc-1"]
+
+    def test_non_target_item_inputs_pass_through_untouched(self):
+        request = CreateBatchRequest(
+            workflow_id="wf-1", items=[{"prompt": "hello", "temperature": 0.2}]
+        )
+        assert request.items[0] == {"prompt": "hello", "temperature": 0.2}

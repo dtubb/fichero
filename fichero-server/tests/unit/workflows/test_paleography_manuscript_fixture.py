@@ -69,11 +69,29 @@ def _seed_manuscript(tmp_path: Path) -> tuple[Path, Document]:
     return library_path, document
 
 
-def test_paleography_ensemble_runs_real_manuscript_file(
+def test_paleography_ensemble_graph_wiring_with_no_transcriber_running(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Keep real Files/Zoom/Consistency nodes while stubbing paid model calls."""
+    """The ensemble's PLUMBING on a real manuscript. No OCR, no LLM (#4501).
+
+    Renamed. It used to be called `..._runs_real_manuscript_file`, which reads
+    as "the ensemble transcribed this page" — and it does not: `transcribe`,
+    `transcribe_review` and `search` are all replaced with hardcoded strings,
+    so not one character of this manuscript is ever recognised here. The name
+    asserted coverage the body did not provide, which is the 0.15-similarity
+    floor again: a green test standing in for a measurement nobody took.
+
+    What it does cover is real and worth keeping, so it is stated instead of
+    implied — with the paid model calls removed, what is left is the wiring:
+    the PDF is really resolved from disk, really split into a page child,
+    Zoom really renders image files, the three-draft fan-out really reaches
+    the review node in the right shape, and every tier node really runs. That
+    is why the stubs assert on `inputs["files"]` rather than ignoring them.
+
+    Transcription QUALITY is measured by the two tests below, which run real
+    on-device OCR for free, and by the opt-in paid gate.
+    """
     workflow = _paleography_workflow()
     library_path, document = _seed_manuscript(tmp_path)
     drafts: list[str] = []
@@ -238,6 +256,150 @@ def test_the_recognition_language_reaches_vision_and_changes_nothing_here() -> N
         "en-US and es-ES have diverged on this page. That is not a failure, "
         "but it invalidates the measured finding above; re-measure the CER "
         "under both and update the recorded numbers"
+    )
+
+
+# Measured 2026-08-03: the SAME Apple Vision, on the SAME page, reached
+# through the shipped ensemble instead of called directly on the PDF.
+#
+# It scores WORSE: 0.4586 accent-blind through the graph against 0.3571
+# direct, ~28% relative degradation. The cause is visible in what the OCR is
+# handed — the ensemble's Zoom node cuts the page into tiles
+# (`...page-001.tile-01.jpg`, `tile-02.jpg`) and the transcriber sees the
+# tiles, never the page. Text at the cut is damaged, and the tiles are read
+# independently, so nothing recovers a line the split broke.
+#
+# Whether that is wrong depends on the reader: more pixels per glyph plausibly
+# helps a paid VLM, which is presumably why the tiling is there. For OCR it
+# costs. Nobody had measured it either way, because until this test no test
+# ever ran a real transcriber through this graph — the one that claimed to
+# ("runs_real_manuscript_file") stubbed the transcriber out entirely.
+#
+# Kept as its own constant rather than reusing APPLE_VISION_CER_CEILING: the
+# two measure different paths, and collapsing them would let a real
+# degradation in the graph's own preprocessing hide behind the direct-call
+# baseline. Headroom over the measured 0.4586 for cross-release drift, same
+# reasoning as APPLE_VISION_CER_CEILING.
+ENSEMBLE_PATH_CER_CEILING = 0.55
+
+
+def test_the_ensemble_really_transcribes_the_page_with_free_on_device_ocr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real one the rename left missing (#4501). Costs nothing to run.
+
+    The wiring test above proves the graph moves data; the CER tests below
+    prove Apple Vision can read this page. NEITHER proves that OCR text
+    actually survives the ensemble and lands on the page — which is the thing
+    a user sees, and the thing #4496's contamination broke while every node
+    reported success.
+
+    So the three draft tiers here run REAL Apple Vision on the REAL rendered
+    images: on-device, free, no provider configured, nothing to authorise. The
+    review tiers pass their input through unchanged — they are the LLM passes,
+    and stubbing them is stated rather than hidden, because a review that
+    returns its input cannot improve or corrupt what the OCR produced. That is
+    exactly what makes the final assertion meaningful: t4's text is the OCR's
+    own reading, carried the length of the graph.
+    """
+    from fichero_server.workflows.tools.vision_base import apple_vision_ocr
+
+    workflow = _paleography_workflow()
+    library_path, document = _seed_manuscript(tmp_path)
+    ocr_calls: list[str] = []
+    drafts: list[str] = []
+
+    def resolve_alias(provider: str, model: str, **_kwargs) -> tuple[str, str]:
+        return ("apple", "apple-vision")
+
+    async def real_ocr_transcribe(inputs, state, llm_config):
+        texts = []
+        for path in inputs["files"]:
+            ocr_calls.append(path)
+            texts.append(apple_vision_ocr(path, "es"))
+        joined = "\n".join(t for t in texts if t)
+        drafts.append(joined)
+        return {
+            "text": joined,
+            "records": [{"text": t} for t in texts],
+            "value": joined,
+            "error": None,
+        }
+
+    async def passthrough_review(inputs, state, llm_config):
+        # Strict identity: returns the first draft verbatim. Anything cleverer
+        # would be this test inventing a review pass, and the final assertion
+        # would then be measuring the stub rather than the graph.
+        text = drafts[0] if drafts else ""
+        return {
+            "text": text,
+            "records": [{"text": text} for _ in inputs["files"]],
+            "value": text,
+            "error": None,
+        }
+
+    async def search(inputs, state, llm_config):
+        return {"files": [], "documents": [], "count": 0, "error": None}
+
+    monkeypatch.setattr(
+        "fichero_server.llm.resolve_model_alias_for_capability", resolve_alias
+    )
+    monkeypatch.setitem(workflow_registry.TOOLS, "transcribe", real_ocr_transcribe)
+    monkeypatch.setitem(workflow_registry.TOOLS, "transcribe_review", passthrough_review)
+    monkeypatch.setitem(workflow_registry.TOOLS, "search", search)
+
+    state = build_initial_state(
+        {"selected_doc_ids": [document.id]}, library_path=str(library_path)
+    )
+    state["workflow_id"] = workflow.id
+    state["task_id"] = "paleography-free-on-device-ocr"
+    final_state = asyncio.run(build_graph(workflow, skip_cache=True).ainvoke(state))
+
+    assert not final_state.get("error")
+    assert ocr_calls, "no OCR ran — this test would be the one it replaced"
+    # What the transcriber is actually handed. Pinned because it is the whole
+    # explanation for ENSEMBLE_PATH_CER_CEILING: the ensemble never shows the
+    # transcriber the page, only Zoom's tiles of it.
+    assert all(".tile-" in path for path in ocr_calls), (
+        f"the ensemble stopped feeding the transcriber Zoom tiles: {ocr_calls}. "
+        "Re-measure ENSEMBLE_PATH_CER_CEILING — its number describes tiles"
+    )
+
+    outputs = final_state["outputs"]
+    gold = EXPECTED_TRANSCRIPTION.read_text(encoding="utf-8")
+
+    def _cer(text: str) -> float:
+        return {
+            score.policy: score.cer
+            for score in score_texts_under_policies(gold, text, [ACCENT_BLIND])
+        }[ACCENT_BLIND.name]
+
+    # Report every tier, so a run of this test IS the measurement rather than a
+    # pass/fail with nothing to read — the same shape as the paid gate.
+    by_tier = {
+        node: round(_cer(outputs[node]["text"]), 4)
+        for node in ("t1a", "t1b", "t1c", "t2", "t3", "t4")
+        if node in outputs
+    }
+    print("free on-device OCR CER through the ensemble:", json.dumps(by_tier, indent=2))
+
+    drafted = outputs["t1a"]["text"]
+    assert drafted.strip(), "the first draft tier produced no text from real OCR"
+
+    # It must be a transcription OF THIS PAGE, not merely non-empty, or "OCR
+    # ran but the wrong image reached it" would pass. The bar is the ensemble
+    # path's own measured ceiling — see the note on the constant for why that
+    # is NOT the same number as OCR'ing the source PDF directly.
+    assert by_tier["t1a"] < ENSEMBLE_PATH_CER_CEILING, (
+        f"the text the ensemble carried is not a transcription of this page: "
+        f"{by_tier}"
+    )
+
+    # And it reached the end of the graph, which is the part nothing else pins.
+    assert outputs["t4"]["text"].strip(), (
+        "the final pass produced nothing — OCR text did not survive the "
+        "ensemble, and the page a user opens would be empty"
     )
 
 

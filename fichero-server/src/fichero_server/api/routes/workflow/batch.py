@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from fichero_server.db.app import get_db_path
 from fichero_server.execution.batch import (
@@ -26,6 +26,7 @@ from fichero_server.execution.batch import (
     BatchStatus,
 )
 from fichero_server.workflows.workflow_store import WorkflowStore
+from fichero_server.workflows.selection import WorkflowSelection
 from fichero_server.models import BatchListResponse
 
 logger = logging.getLogger(__name__)
@@ -158,6 +159,57 @@ class CreateBatchRequest(BaseModel):
     max_concurrent: int = Field(
         default=5, ge=1, le=50, description="Maximum concurrent executions"
     )
+
+    # What the user pointed at (#4500). Batch was the one execute path with no
+    # selection field at all, so `BatchManager` handed `item.inputs` straight
+    # to `build_initial_state` and the typed-selection boundary never saw it.
+    # Every other path is guarded; this one was a hole with #4397's
+    # scope-safety guarantee written on the outside of it. Typed, so a batch
+    # claiming `kind=folder` with 47 ids is refused by the same rule that
+    # refuses it on a direct execute — not by a second copy of that rule.
+    selection: Optional[WorkflowSelection] = None
+
+    @model_validator(mode="after")
+    def _validate_items_at_the_execute_boundary(self) -> "CreateBatchRequest":
+        """Put every item through the SAME validator a direct execute uses.
+
+        Not a batch-shaped reimplementation of those checks: each item is
+        actually constructed as an ``ExecuteWorkflowRequest``, so whatever that
+        boundary rejects (an incoherent selection, #4467's unread target keys)
+        is rejected here, and anything added to it later is inherited rather
+        than forgotten. Two validators for one rule is how this hole opened.
+
+        An item that carries its own targeting keeps it — the batch selection
+        describes the run, and per-item ids are what the items are FOR, so
+        overwriting them with the batch's would silently re-scope every item.
+        """
+        from fichero_server.api.routes.workflow_execution.schemas import (
+            ExecuteWorkflowRequest,
+        )
+
+        validated: list[dict[str, Any]] = []
+        for index, item in enumerate(self.items):
+            inputs = dict(item or {})
+            carries_own_target = bool(inputs.get("selected_doc_ids"))
+            try:
+                checked = ExecuteWorkflowRequest(
+                    workflow_id=self.workflow_id,
+                    inputs=inputs,
+                    selection=None if carries_own_target else self.selection,
+                )
+            except ValidationError as exc:
+                # Name the item. "A batch was rejected" is not actionable when
+                # the caller sent two hundred of them.
+                raise ValueError(f"batch item {index}: {exc}") from exc
+
+            if checked.selection is not None:
+                # Mirrors the runner exactly (execution/runner.py, #4397/#4427):
+                # the validated selection is what the run is scoped to.
+                inputs["selected_doc_ids"] = list(checked.selection.ids)
+            validated.append(inputs)
+
+        self.items = validated
+        return self
 
 
 class BatchEventResponse(BaseModel):

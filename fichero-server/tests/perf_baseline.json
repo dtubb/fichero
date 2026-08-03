@@ -16354,7 +16354,7 @@
     "ms": 25.9,
     "note": "first recorded run"
   },
-  "test::tests/unit/workflows/test_paleography_manuscript_fixture.py::test_paleography_ensemble_runs_real_manuscript_file": {
+  "test::tests/unit/workflows/test_paleography_manuscript_fixture.py::test_paleography_ensemble_graph_wiring_with_no_transcriber_running": {
     "commit": "18917fe1f",
     "ms": 952.8,
     "note": "first recorded run"
