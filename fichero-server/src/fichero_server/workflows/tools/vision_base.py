@@ -926,17 +926,17 @@ def _vision_ocr_cgimage_with_geometry(
 
     Retries with .Fast recognition level if Accurate returns empty, to handle
     degraded scans (low contrast, unusual layout, title pages) (#834).
+
+    The recognition locale is validated here rather than mapped here (#4497):
+    this used to carry its own five-entry `lang_map` — a second, smaller copy
+    of `normalize_vision_language` — whose `.get(language, language)` fallback
+    handed anything it did not know straight to Vision. Vision stores an
+    unknown locale on the request without complaint and then ignores it while
+    recognizing, so `"Spanish"` produced exactly the bytes `"en"` produced.
     """
     import Vision
 
-    lang_map = {
-        "en": "en-US",
-        "es": "es-ES",
-        "fr": "fr-FR",
-        "de": "de-DE",
-        "pt": "pt-BR",
-    }
-    lang = lang_map.get(language, language)
+    lang = validate_vision_language(language)
 
     def _extract_text(request, recognition_level_name: str) -> VisionOCRResult | None:
         handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
@@ -1231,6 +1231,59 @@ def normalize_vision_language(language: str | None) -> str:
         return f"{base.lower()}-{suffix}"
 
     return lowered
+
+
+@lru_cache(maxsize=1)
+def _supported_vision_locales() -> frozenset[str]:
+    """The recognition locales THIS machine's Vision text recognizer accepts.
+
+    Asked once per process and cached: the answer is a property of the
+    installed macOS, not of the page being read.
+    """
+    try:
+        import Vision  # noqa: PLC0415
+
+        request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+        request.setRecognitionLevel_(  # pylint: disable=no-member
+            Vision.VNRequestTextRecognitionLevelAccurate
+        )
+        supported, error = request.supportedRecognitionLanguagesAndReturnError_(None)
+    except Exception as exc:  # pragma: no cover - depends on the OS build
+        logger.error("Could not enumerate Vision recognition locales: %s", exc)
+        return frozenset()
+    if error is not None or not supported:
+        logger.error("Vision reported no supported recognition locales: %r", error)
+        return frozenset()
+    return frozenset(str(locale) for locale in supported)
+
+
+def validate_vision_language(language: str | None) -> str:
+    """Normalize a language request to a locale Vision will actually honour.
+
+    `normalize_vision_language` answers "what locale does this name mean";
+    this answers "will Vision recognize with it". They are different questions
+    and the second one was never asked (#4497): `VNRecognizeTextRequest`
+    accepts `setRecognitionLanguages_(["Spanish"])` without error, stores it,
+    and then silently recognizes in its default locale — so a caller passing a
+    language NAME, or a typo, or a locale this macOS does not ship, got clean
+    English-model output and no signal that its argument had been discarded.
+    Raising here is what makes a wrong language visible.
+
+    Falls back to pass-through only when the supported set cannot be read at
+    all; being unable to ask is not evidence that the value is wrong, and
+    bricking every OCR call over it would be worse than the bug.
+    """
+    locale = normalize_vision_language(language)
+    supported = _supported_vision_locales()
+    if not supported:
+        return locale
+    if locale not in supported:
+        raise ValueError(
+            f"Apple Vision cannot recognize with language {language!r} "
+            f"(resolved to {locale!r}). This macOS supports: "
+            f"{', '.join(sorted(supported))}."
+        )
+    return locale
 
 
 def _build_page_records_for_file(
@@ -2327,6 +2380,7 @@ async def process_vision(
                                         images=[_page_uri],
                                         prompt=final_prompt,
                                         config=effective_config,
+                                        language=language,
                                     )
                                 )
                                 _payload = _pt if isinstance(_pt, str) else ""
@@ -2432,6 +2486,7 @@ async def process_vision(
                                 images=[image_uri],
                                 prompt=final_prompt,
                                 config=effective_config,
+                                language=language,
                             )
                         )
                         # Parse output according to format
@@ -2470,6 +2525,7 @@ async def process_vision(
                             images=[image_uri],
                             prompt=final_prompt,
                             config=effective_config,
+                            language=language,
                         )
                     )
                     parsed = parse_output(text, output_format, output_options)
