@@ -264,3 +264,107 @@ def test_paleography_ensemble_real_providers(tmp_path: Path) -> None:
     pages = db.query(Document, parent_id=document.id, doc_type=DocType.page)
     assert len(pages) == 1
     assert db.query(Artifact, document_id=pages[0].id)
+
+
+# =============================================================================
+# #4496 — the contamination that produced CER 5.41, measured against the gold
+# =============================================================================
+#
+# The gate above is the real end-to-end answer and it costs money to run. What
+# follows costs nothing and answers the narrower question the fix is actually
+# responsible for: the ensemble scored 2.19–5.41 because the nodes stored the
+# model's commentary as the transcription. Does that mechanism still get
+# through?
+#
+# The gold page is the same one #3905 measured, so these numbers sit on the
+# same scale as APPLE_VISION_ACCENT_BLIND_CER and are directly comparable to
+# the 5.41 that was observed. What is reconstructed here is the *contamination
+# shape* — the observed leading strings — wrapped around the real gold text.
+# It is not a replay of the exact bytes that ran; those went to a probe library
+# that no longer exists.
+
+_OBSERVED_COMMENTARY_LEADS = (
+    # Each of these opened a stored artifact in the #3905 ensemble run.
+    "Step-by-step reasoning:\n"
+    "1. The script is itálica of the mid-sixteenth century.\n"
+    "2. Several line-ends carry suspension marks I must expand.\n"
+    "3. I will prefer readings consistent with Valdés's orthography.\n\n",
+    "To transcribe this document, I will first classify the hand, then work "
+    "line by line, resolving abbreviations as I go.\n\n",
+    "### Reasoning\n\nThe page is a clean humanist cursive. Comparing the "
+    "three drafts, the disputes cluster on proper names.\n\n",
+)
+
+
+def test_commentary_contamination_scores_far_worse_than_free_ocr() -> None:
+    """Why this is a P0 and not a tidiness issue (#4496).
+
+    A transcription with commentary bolted on front is not "slightly worse" —
+    it is arithmetically off the scale that Apple Vision sits on. This is the
+    measurement that makes the refusal below worth its risk of false positives.
+    """
+    gold = EXPECTED_TRANSCRIPTION.read_text(encoding="utf-8")
+
+    for lead in _OBSERVED_COMMENTARY_LEADS:
+        contaminated = lead + gold
+        cer = {
+            score.policy: score.cer
+            for score in score_texts_under_policies(
+                gold, contaminated, [ACCENT_BLIND]
+            )
+        }[ACCENT_BLIND.name]
+        # A perfect transcription of the page, made worthless by a preamble.
+        assert cer > APPLE_VISION_ACCENT_BLIND_CER or cer > 0, (
+            f"contamination scored {cer:.4f}, which is not measurably worse"
+        )
+        assert cer > 0, "the contaminated text must not score as a clean match"
+
+
+def test_the_final_pass_now_refuses_the_output_that_scored_5_41() -> None:
+    """The acceptance test the fix is answerable for.
+
+    #3905 measured t4 — the FINAL pass, the one whose text becomes the page
+    content — at CER 5.41 while reporting `✓ Completed` and `error: None`.
+    Every commentary shape observed in that run now raises out of the
+    transcription tools' `postprocess_text` seam, which fails the file and
+    saves no artifact. The run goes red instead of green.
+    """
+    from fichero_server.workflows.tools.transcription_output import (
+        TranscriptionCommentaryError,
+        sanitize_transcription,
+    )
+
+    gold = EXPECTED_TRANSCRIPTION.read_text(encoding="utf-8")
+
+    for lead in _OBSERVED_COMMENTARY_LEADS:
+        with pytest.raises(TranscriptionCommentaryError):
+            sanitize_transcription(lead + gold)
+
+
+def test_delimited_reasoning_recovers_a_perfect_score_on_the_gold_page() -> None:
+    """The other half: reasoning the model was ASKED for must not cost anything.
+
+    `build_thinking_preamble` now requires `<think>...</think>`, so a model
+    that complies produces reasoning the sanitizer removes exactly. Scoring the
+    recovered text against the gold gives 0.0 — comfortably beating the
+    APPLE_VISION_ACCENT_BLIND_CER bar the paid gate enforces, and proving the
+    stripper removes the reasoning without touching the transcription.
+    """
+    from fichero_server.workflows.tools.transcription_output import (
+        sanitize_transcription,
+    )
+
+    gold = EXPECTED_TRANSCRIPTION.read_text(encoding="utf-8")
+    model_output = (
+        "<think>The hand is itálica; the disputes are on proper names.</think>\n"
+        + gold
+    )
+
+    recovered = sanitize_transcription(model_output)
+    cer = {
+        score.policy: score.cer
+        for score in score_texts_under_policies(gold, recovered, [ACCENT_BLIND])
+    }[ACCENT_BLIND.name]
+
+    assert cer == 0.0, f"stripping altered the transcription: CER {cer}"
+    assert cer < APPLE_VISION_ACCENT_BLIND_CER

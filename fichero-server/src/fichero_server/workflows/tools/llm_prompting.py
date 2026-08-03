@@ -291,34 +291,75 @@ def apply_reference_matching(
 # =============================================================================
 
 
+THINKING_MODES = ("off", "short", "medium", "long")
+
+# The reasoning tag every thinking-mode preamble asks for. Delimited so a
+# downstream stripper can remove it exactly (#4496); the same tag
+# `parse_thinking_response` and `transcription_output.strip_reasoning` match.
+_THINK_TAG = "think"
+
+_THINKING_DEPTH = {
+    "short": (
+        "briefly consider the key aspects of this task — a few sentences of "
+        "analysis"
+    ),
+    "medium": (
+        "think through this task step by step: consider the context, identify "
+        "the key information, and reason about the best approach"
+    ),
+    "long": (
+        "perform a thorough analysis — consider multiple perspectives, evaluate "
+        "the evidence carefully, identify potential issues or ambiguities, and "
+        "reason through each aspect systematically, taking as much space as you "
+        "need"
+    ),
+}
+
+
 def build_thinking_preamble(thinking_mode: str = "off") -> str:
     """Build a thinking-mode instruction to prepend to the prompt.
 
-    Thinking mode encourages the model to reason step-by-step before answering.
-    Higher levels produce more thorough reasoning at the cost of more tokens.
+    Thinking mode encourages the model to reason before answering. Higher
+    levels produce more thorough reasoning at the cost of more tokens.
+
+    **The reasoning must be delimited** (#4496). This preamble used to end
+    "Show your reasoning, then provide your answer", with no delimiter — and it
+    is prepended to prompts whose own rules say "output ONLY the transcription.
+    No headings, preamble, or commentary". The framework asked for exactly what
+    the tool forbade, produced undelimited prose, and nothing downstream could
+    tell the two apart. The paleography ensemble then stored 4,518 characters
+    beginning "Step-by-step reasoning:" in an artifact typed `transcription`,
+    on every node, green.
+
+    Asking for `<think>...</think>` costs the model nothing and makes the
+    reasoning machine-separable, so `strip_reasoning` can remove it exactly
+    rather than a heuristic guessing where prose stops.
+
+    Raises:
+        ValueError: for a mode outside ``THINKING_MODES``. This used to return
+            "" — silently no reasoning at all. The paleography ensemble asked
+            for ``thinking_mode: "high"`` on its two review nodes and got
+            nothing, which is why the nodes declaring the *deepest* thinking
+            were the *least* polluted. A config value that does nothing must
+            not read as a config value that works.
     """
     if thinking_mode == "off":
         return ""
 
-    instructions = {
-        "short": (
-            "Before answering, briefly consider the key aspects of this task. "
-            "Keep your reasoning concise — a few sentences of analysis before your answer.\n\n"
-        ),
-        "medium": (
-            "Before answering, think through this task step by step. "
-            "Consider the context, identify the key information, and reason about "
-            "the best approach. Show your reasoning, then provide your answer.\n\n"
-        ),
-        "long": (
-            "Before answering, perform a thorough analysis. Consider multiple "
-            "perspectives, evaluate the evidence carefully, identify potential issues "
-            "or ambiguities, and reason through each aspect systematically. "
-            "Take as much space as needed for your reasoning before providing "
-            "your final answer.\n\n"
-        ),
-    }
-    return instructions.get(thinking_mode, "")
+    depth = _THINKING_DEPTH.get(thinking_mode)
+    if depth is None:
+        raise ValueError(
+            f"Unknown thinking_mode {thinking_mode!r}; expected one of "
+            f"{', '.join(THINKING_MODES)}"
+        )
+
+    return (
+        f"Before answering, {depth}.\n"
+        f"Put ALL of that reasoning inside <{_THINK_TAG}>...</{_THINK_TAG}> tags. "
+        f"After the closing </{_THINK_TAG}> tag, output your answer and nothing "
+        f"else — no reasoning, no headings, no preamble, no commentary, no notes "
+        f"about what you decided.\n\n"
+    )
 
 
 def build_context_section(

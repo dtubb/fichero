@@ -108,32 +108,32 @@
   "sha256": "823c049f84ab385a3f0fc6a1e7fbffbd5d4bf86360c0d9404b4bf596f4f03cb0"
  },
  "transcribe_auto_detect.json": {
-  "preset_version": 4,
-  "sha256": "6025b7ed6b7d11a3e9a325b4bab0a63959573c2bfd25ad04cd67fbd5d61ba82f"
+  "preset_version": 5,
+  "sha256": "00f3159cd4aa9efa817ff6abf61f56b7f2d7d1adb51da684d7a0d92f8ab48916"
  },
  "transcribe_cloud.json": {
   "preset_version": 4,
   "sha256": "0bd7b32f89c2d44f40e5529605ffba181ff311d7af46708e68f19ebc1eb5ec22"
  },
  "transcribe_htr.json": {
-  "preset_version": 6,
-  "sha256": "1d9cfcecbb962674391ce4769f7f9695cf17658d4a14b43d9ad654c9aaeb032f"
+  "preset_version": 7,
+  "sha256": "75e9fad51e552198bd793015da2661e1273aa8fcde62cabd21030ff25fff6e08"
  },
  "transcribe_manuscript.json": {
   "preset_version": 4,
   "sha256": "0588c8d2b62720c6badd3f495ce9bb4a7de23651f1374537fec64ec4f3603c52"
  },
  "transcribe_paleography.json": {
-  "preset_version": 6,
-  "sha256": "90b44a4cc3fa3b66ab3f9cd7ac88141ff8d6a1a63baf4ee0b3e916cabe8f56e9"
+  "preset_version": 7,
+  "sha256": "d86910583518820a252d6215fde00e3e90862f53423c1edfac043c958cfbebc8"
  },
  "transcribe_paleography_ensemble.json": {
-  "preset_version": 2,
-  "sha256": "abbed683d0e9c2ff471abf51843c15a600e15495a23e4249bcb618fe3393fc65"
+  "preset_version": 3,
+  "sha256": "828bceab164e9f79f1828982291760e436c1bd3b53b356bd3defe7b2c6dabb17"
  },
  "transcribe_spanish_script_v2_child.json": {
-  "preset_version": 2,
-  "sha256": "6031ab110f5e3bf038d86b7db5f0f98f61d51a2caaf71c55c0c7b05359d4210c"
+  "preset_version": 3,
+  "sha256": "39872451b925c9c95f1dc549ba7899a487366b2efad480be86cad96c04418de9"
  },
  "transcribe_spanish_script_v2_subworkflow.json": {
   "preset_version": 2,

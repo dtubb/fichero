@@ -27,6 +27,7 @@ from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.types import State
 from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
 from fichero_server.workflows.tools.llm_base import BASE_OUTPUT_PORTS, merge_config_schema
+from fichero_server.workflows.tools.transcription_output import sanitize_transcription
 from fichero_server.workflows.tools.vision_base import (
     VISION_CONFIG_SCHEMA,
     VISION_INPUT_PORTS,
@@ -180,4 +181,10 @@ async def transcribe_review(
         context=prior_text,
         input_metadata=input_metadata,
         thinking_mode=inputs.get("thinking_mode", "medium"),
+        # #4496: the review nodes were the worst offenders — t4, the FINAL
+        # pass, scored CER 5.41 by storing reasoning as the reviewed
+        # transcription, with `update_page_content=True` writing it to the page
+        # as well. Strip delimited reasoning; raise on anything still
+        # commentary-shaped so the run goes red.
+        postprocess_text=sanitize_transcription,
     )
