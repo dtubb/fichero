@@ -1077,12 +1077,29 @@ async def _run_workflow_in_background(
         # Best-effort: a run must not fail because its scope could not be
         # described, and a failure is recorded IN the scope record rather than
         # leaving an unexplained empty one.
+        #
+        # The selection is read from the REQUEST, not from `state`. `state`
+        # here is the run registry entry — {workflow_id, workflow_name,
+        # status, events, error, final_state} — and never held
+        # `selected_doc_ids`, so every run recorded an empty scope while
+        # appearing to record one. The graph state that does carry the
+        # selection is not built until ~200 lines below this point.
         try:
             from fichero_server.workflows.run_scope import (  # noqa: PLC0415
                 resolve_run_scope,
             )
 
-            resolved_scope = resolve_run_scope(db, state.get("selected_doc_ids"))
+            selection = request.selection
+            resolved_scope = resolve_run_scope(
+                db, list(selection.ids) if selection else None
+            )
+            if selection is not None:
+                # What the user pointed AT, as declared. `kinds` records what
+                # each requested id turned out to be in the DB; this records
+                # the claim the request made — and the pair is what makes a
+                # client that says "folder" while sending 47 documents
+                # legible in the run record (#4396/#4427).
+                resolved_scope["requested_kind"] = selection.kind.value
         except Exception as scope_exc:
             logger.warning("could not resolve run scope for %s: %s", thread_id, scope_exc)
             resolved_scope = {"resolution_error": str(scope_exc)}
@@ -1274,6 +1291,15 @@ async def _run_workflow_in_background(
             library_path=str(db.path.parent) if hasattr(db, "path") else "",
         )
         initial_state["workflow_id"] = request.workflow_id
+        # #4397/#4427: the typed selection is what the run is scoped to, so it
+        # must reach the graph. Until this line NOTHING in the server read
+        # `request.selection` — it was validated at the boundary and then
+        # discarded, so a client sending the new field (rather than the legacy
+        # `inputs["selected_doc_ids"]`) got a run over zero documents. The
+        # #4467 empty-target guard could not catch it either: that guard fires
+        # only when there is no selection at all, and here there was one.
+        if request.selection is not None:
+            initial_state["selected_doc_ids"] = list(request.selection.ids)
         # #4313: the run's thread_id IS the run id. Tools read task_id from
         # state when saving artifacts (Artifact.run_id), and the fan-out Send
         # payloads already propagate it — so every artifact a live run
