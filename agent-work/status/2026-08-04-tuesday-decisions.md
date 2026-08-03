@@ -381,3 +381,41 @@ tests. So whichever you choose, the gap stays visible instead of implied.
 
 Until then: **iPad is shipped but unverified.** That was true before tonight
 too — it just was not written down anywhere.
+
+---
+
+## 15. Geometry storage: ~103 KB per dense page, 71x the text (#4309/#4418)
+
+**What landed:** Apple Vision was computing every word's bounding rect and
+throwing it away. A real page went from **0 word boxes to 275**. A transcribed
+line now resolves to its region via `GET /api/artifacts/{id}/region`, so a
+transcription becomes checkable rather than merely trusted — which #4421 names
+as the point of this work.
+
+That matters more given what else was measured tonight: Apple Vision sits at
+**CER 0.398** on colonial Spanish and cannot be improved by language setting
+(#4497). Roughly two characters in five are wrong. Regions are what let Ann see
+WHICH two, instead of trusting the whole page.
+
+**The cost, measured rather than estimated:** about **103 KB of geometry per
+dense page** — 71x the size of the text itself, and 8x what the pre-fix
+(broken) path stored.
+
+**Your call.** For a few hundred pages this is nothing. For the Marshall
+Diaries at full scale it is the dominant storage cost of the archive, and it
+is not obvious that word-level precision is worth it everywhere:
+
+- (a) Keep word-level everywhere. Simplest, most useful, most expensive.
+- (b) Word-level on demand, line-level by default. Cheaper, and line-level is
+  probably enough to point a historian at the right place.
+- (c) Word-level only for pages someone has actually opened or corrected.
+  Cheapest, but the first open is slower and it adds a second code path.
+
+I did not choose. The lane measured it and flagged it rather than picking
+silently, which is right — this is a storage-shape decision for a real archive,
+and reversing it later means reprocessing.
+
+**Note:** geometry status is now honest — a workflow that cannot produce
+geometry records that it could not, rather than silently omitting it. So
+whichever option you pick, "no geometry" stays distinguishable from "geometry
+not attempted".
