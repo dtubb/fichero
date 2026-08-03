@@ -15,7 +15,8 @@
   ],
   "config": {
     "preset_version": 1,
-    "stage": "kg_persist_finalize"
+    "stage": "kg_persist_finalize",
+    "tested": true
   },
   "nodes": [
     {
