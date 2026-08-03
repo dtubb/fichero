@@ -171,9 +171,19 @@ struct SidebarItemContextMenu: View {
 extension SidebarItem.ItemType {
     var canBeRenamed: Bool {
         switch self {
-        case .document, .savedSearch, .conversation, .workflow, .folder, .chain, .schedule, .trigger, .libraryHeader:
+        case .document, .savedSearch, .conversation, .workflow, .chain, .schedule, .trigger, .libraryHeader:
             return true
-        case .comparison, .batch, .activityRun:
+        // `.folder` removed (#116). It is the SAME virtual row `canBeDeleted`
+        // excludes below for #4454 — "no data, just structure" — and Rename had
+        // exactly the failure Delete had: the menu item was enabled, the user
+        // typed a new name, and committing fell through to `default:` in
+        // `SidebarItemRow+Rename.swift`, logged "Unknown item type for rename",
+        // and returned. Confirmed action, no change, no error.
+        //
+        // Delete was fixed here and Rename was left, in this file, for the same
+        // rows — the one-of-two-identical-cases miss that #4415 and #4416 were
+        // also instances of.
+        case .comparison, .batch, .activityRun, .folder:
             return false
         }
     }

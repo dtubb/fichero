@@ -185,13 +185,24 @@ struct SidebarItem: Identifiable, Hashable {
         _ doc: Document,
         libraryId: UUID,
         children: [SidebarItem]? = nil,
-        isDefaultWorkflowFolder: Bool? = nil
+        isDefaultWorkflowFolder: Bool? = nil,
+        parent: Document? = nil
     ) -> SidebarItem {
         let isLockedSystemFolder = isDefaultWorkflowFolder
             ?? (doc.docType == .folder && doc.hasDefaultWorkflowContainerID)
         return SidebarItem(
             id: "doc:\(doc.id)",
-            name: doc.pageThumbnailLabel ?? doc.name,
+            // #116/#4416: this was `doc.pageThumbnailLabel ?? doc.name`, and the
+            // sidebar was the ONE document surface composing a name by hand —
+            // zero uses of DocumentTitle across 42 files, against 30 call sites
+            // elsewhere. That is why #4416 needed three sweeps: each fixed the
+            // surfaces that used the composer and could not see the one that
+            // did not. Hand-rolling lost all three of its rungs — a user-set
+            // metadata title was ignored, an unfiltered
+            // `fichero_upload_<random>.pdf` rendered verbatim, and a page read
+            // as a bare "1" instead of "Page 1". The row label, the VoiceOver
+            // label and the help text all derive from this one string.
+            name: DocumentTitle.displayName(for: doc, parent: parent),
             // Default-workflow container/subfolders are locked, system-seeded
             // folders — give them a distinct gear-badged folder icon (colored
             // in `SidebarItemRow.iconView`) so they read as non-editable (#11).

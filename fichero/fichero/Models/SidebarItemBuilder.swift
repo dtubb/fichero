@@ -147,7 +147,10 @@ enum SidebarItemBuilder {
         }
 
         // Recursively build the tree (children sorted by sequence, then name).
-        func buildItem(_ doc: Document) -> SidebarItem {
+        // `parent` is threaded so `DocumentTitle` can use its parent-fallback
+        // rung: a page whose own name is a storage filename borrows the parent
+        // document's name rather than showing an upload id (#116/#4416).
+        func buildItem(_ doc: Document, parent: Document? = nil) -> SidebarItem {
             let raw = childrenMap[doc.id] ?? []
             let structureChildren = buildStructureItems(for: doc, libraryId: libraryId)
             let documentChildren = raw
@@ -155,11 +158,12 @@ enum SidebarItemBuilder {
                 .filter { child in
                     structureChildren.isEmpty || child.docType != .page
                 }
-                .map { buildItem($0) }
+                .map { buildItem($0, parent: doc) }
             let combined = documentChildren + structureChildren
             return SidebarItem.fromDocument(doc, libraryId: libraryId,
                                            children: combined.isEmpty ? nil : combined,
-                                           isDefaultWorkflowFolder: lockedFolderIds.contains(doc.id))
+                                           isDefaultWorkflowFolder: lockedFolderIds.contains(doc.id),
+                                           parent: parent)
         }
 
         // Build Inbox with custom icon
