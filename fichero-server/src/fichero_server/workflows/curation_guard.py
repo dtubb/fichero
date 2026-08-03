@@ -109,13 +109,23 @@ class CurationRecord:
         return self.source in PROTECTED_SOURCES
 
 
+def marker_field(row: Any) -> str:
+    """Which field on ``row`` holds its curation marker.
+
+    Entities, claims and documents carry ``metadata``; ``Artifact`` has only
+    ``data``. One accessor rather than a per-call-site convention, so a caller
+    cannot write the marker where the reader will not look for it.
+    """
+    return "metadata" if hasattr(row, "metadata") else "data"
+
+
 def read_curation(row: Any) -> CurationRecord:
     """Read the provenance marker off a row.
 
     Returns ``unknown`` when the row carries no marker — absence of evidence is
     never reported as evidence of tool authorship.
     """
-    metadata = getattr(row, "metadata", None)
+    metadata = getattr(row, marker_field(row), None)
     if not isinstance(metadata, dict):
         return CurationRecord(CurationSource.unknown, basis="no-metadata")
 
@@ -180,6 +190,11 @@ def audited_row_ids(db, row_ids: set[str]) -> frozenset[str]:
     Batched deliberately: the alternative is a query per row, and this runs
     over every entity and claim scoped to a catalogue run.
 
+    Ceiling worth naming: each table is scanned whole. ``ActionAudit`` grows
+    with every audited mutation, so it is the one that will bite first on a
+    long-lived library — the upgrade path is an indexed lookup by target id,
+    not a cleverer scan. Correctness does not depend on it.
+
     Rows audited only by :data:`MACHINE_ACTORS` are excluded — presence has to
     mean "someone curated this", not merely "something wrote a record".
     """
@@ -221,7 +236,86 @@ def audited_row_ids(db, row_ids: set[str]) -> frozenset[str]:
             if source_id in row_ids:
                 audited.add(source_id)
 
+    # ActionAudit is the general case the three tables above predate: the
+    # registry writes one for EVERY audited action, non-best-effort, naming
+    # the actor and the ids it touched (#4485). Artifacts and documents have
+    # no MutationLog writer at all, so without this the guard is simply blind
+    # to `artifact.update` and `document.update` — every corrected artifact
+    # reads as untouched machine output.
+    from fichero_server.models import ActionAudit
+
+    for audit in db.query(ActionAudit):
+        if (getattr(audit, "actor", None) or "human") in MACHINE_ACTORS:
+            continue
+        for target_id in audit.target_ids or []:
+            if target_id in row_ids:
+                audited.add(target_id)
+
     return frozenset(audited)
+
+
+#: Where the document route records that a person edited a page's text (#672).
+#: Predates this module; folded in rather than reimplemented, so ``llm_base``
+#: and Catalogue cannot drift into disagreeing about the same question.
+PAGE_CONTENT_USER_EDITED_KEY = "page_content_user_edited_at"
+
+
+def page_content_is_user_edited(doc: Any) -> bool:
+    """True when a person has saved an edit to this document's page_content.
+
+    ``llm_base`` has honoured this since #672; Catalogue wrote the container's
+    page_content directly and never asked. One function so "may I overwrite
+    this text?" has one answer for every writer.
+    """
+    metadata = getattr(doc, "metadata", None)
+    return bool(isinstance(metadata, dict) and metadata.get(PAGE_CONTENT_USER_EDITED_KEY))
+
+
+def sweep_replaceable(
+    db,
+    rows: list,
+    *,
+    reason: str,
+    proposal_for=None,
+) -> tuple[list[str], list[str]]:
+    """Discard superseded MACHINE rows; keep the ones a person corrected.
+
+    The shape every "delete prior output, then save fresh" site needs. Those
+    sites exist for a real reason — without them re-runs accumulate duplicates
+    — but an unconditional delete cannot tell last run's output from a
+    correction, and destroys both. This keeps the sweep and adds the question.
+
+    ``proposal_for(row)`` returns what the re-run would have written in that
+    row's place; it is recorded on the preserved row so the disagreement is
+    visible rather than resolved in silence. Returns
+    ``(deleted_ids, preserved_ids)`` so the caller can log honestly about what
+    it declined to do.
+    """
+    if not rows:
+        return [], []
+
+    audited_ids = audited_row_ids(db, {row.id for row in rows})
+    deleted: list[str] = []
+    preserved: list[str] = []
+
+    for row in rows:
+        if resolve_curation(row, audited_ids=audited_ids).is_protected:
+            proposal = proposal_for(row) if proposal_for else None
+            if record_conflict(row, proposal=proposal, reason=reason):
+                db.save(row)
+            preserved.append(row.id)
+            continue
+        try:
+            db.delete(row)
+            deleted.append(row.id)
+        except Exception as exc:  # pragma: no cover - storage-level failure
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "curation_guard: could not delete superseded row %s: %s", row.id, exc
+            )
+
+    return deleted, preserved
 
 
 def _next_metadata(row: Any) -> dict:
@@ -231,7 +325,7 @@ def _next_metadata(row: Any) -> dict:
     changed, and so writes only when it did (that is what makes a re-run over
     settled rows a genuine no-op rather than a churn of identical saves).
     """
-    metadata = getattr(row, "metadata", None)
+    metadata = getattr(row, marker_field(row), None)
     return dict(metadata) if isinstance(metadata, dict) else {}
 
 
@@ -276,7 +370,7 @@ def stamp(
         marker["asserted_at"] = existing.get("asserted_at") or marker["asserted_at"]
 
     metadata[CURATION_KEY] = marker
-    row.metadata = metadata
+    setattr(row, marker_field(row), metadata)
     return True
 
 
@@ -302,7 +396,7 @@ def record_conflict(row: Any, *, proposal: dict | None, reason: str) -> bool:
 
     marker[CONFLICT_KEY] = conflict
     metadata[CURATION_KEY] = marker
-    row.metadata = metadata
+    setattr(row, marker_field(row), metadata)
     return True
 
 
@@ -319,7 +413,7 @@ def clear_conflict(row: Any) -> bool:
 
     marker = {k: v for k, v in existing.items() if k != CONFLICT_KEY}
     metadata[CURATION_KEY] = marker
-    row.metadata = metadata
+    setattr(row, marker_field(row), metadata)
     return True
 
 
@@ -351,13 +445,13 @@ def record_superseded(row: Any, *, identity: dict) -> bool:
 
     marker[SUPERSEDED_KEY] = [*history, identity]
     metadata[CURATION_KEY] = marker
-    row.metadata = metadata
+    setattr(row, marker_field(row), metadata)
     return True
 
 
 def superseded_identities(row: Any) -> list[dict]:
     """Readings a person has corrected away from on this row, oldest first."""
-    metadata = getattr(row, "metadata", None)
+    metadata = getattr(row, marker_field(row), None)
     if not isinstance(metadata, dict):
         return []
     marker = metadata.get(CURATION_KEY)
@@ -370,7 +464,7 @@ def superseded_identities(row: Any) -> list[dict]:
 
 
 def has_conflict(row: Any) -> bool:
-    metadata = getattr(row, "metadata", None)
+    metadata = getattr(row, marker_field(row), None)
     if not isinstance(metadata, dict):
         return False
     marker = metadata.get(CURATION_KEY)

@@ -839,22 +839,45 @@ def _replace_artifact(
     provider: str | None,
     model: str | None,
 ) -> None:
-    """Delete any prior `<key>_clean` artifact on the container and save a
+    """Sweep superseded `<key>_clean` artifacts on the container and save a
     fresh one. Idempotent — reruns overwrite cleanly.
+
+    Same defect as Catalogue's own sweep and fixed the same way (#4415
+    wiring): these six cleanup nodes run inside the Catalogue preset, so an
+    unconditional delete here destroys a corrected `people_clean` on exactly
+    the run the Catalogue fix was meant to make safe. One guard, both sites.
     """
+    content = "; ".join(g["canonical"] for g in groups)
+
     try:
-        existing = db.query(
-            Artifact, document_id=container_id, artifact_type=artifact_type
+        existing = list(
+            db.query(Artifact, document_id=container_id, artifact_type=artifact_type)
         )
     except Exception:
         existing = []
-    for prior in existing:
-        try:
-            db.delete(prior)
-        except Exception as exc:
-            logger.warning(f"could not delete prior {artifact_type}: {exc}")
 
-    content = "; ".join(g["canonical"] for g in groups)
+    from fichero_server.workflows.curation_guard import sweep_replaceable
+
+    _deleted, preserved = sweep_replaceable(
+        db,
+        existing,
+        reason=f"a cleanup re-run would have replaced this corrected {artifact_type}",
+        proposal_for=lambda _prior: {
+            "artifact_type": artifact_type,
+            "content": content,
+            "provider": provider,
+            "model": model,
+        },
+    )
+    if preserved:
+        logger.info(
+            "cleanup: kept %d corrected %s artifact(s) on %s; the re-run's "
+            "version is recorded beside them",
+            len(preserved),
+            artifact_type,
+            container_id,
+        )
+
     try:
         db.save(
             Artifact(

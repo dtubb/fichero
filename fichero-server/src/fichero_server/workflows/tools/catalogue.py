@@ -698,21 +698,57 @@ async def catalogue(
                 error_sink=catalogue_errors,
             )
 
-            # Delete prior catalogue.* artifacts so reruns overwrite, not
-            # accumulate. Keep legacy 'catalogue' (no-suffix) deletions too
-            # so existing libraries stop showing both old and new on rerun.
+            # Sweep prior catalogue.* artifacts so reruns overwrite, not
+            # accumulate. Keep legacy 'catalogue' (no-suffix) sweeps too so
+            # existing libraries stop showing both old and new on rerun.
+            #
+            # #4415 wiring: superseded MACHINE output is discarded exactly as
+            # before; a row a person corrected is NOT. This deletion used to
+            # be unconditional, so a hand-corrected narrative was not
+            # overwritten but REMOVED, by a raw db.delete that leaves no
+            # ActionAudit and no undo payload — nothing to recover from. The
+            # guard is the same one merge_dedup_only uses; the only new part
+            # is that its evidence now includes ActionAudit, which is what
+            # records an `artifact.update` (see curation_guard.audited_row_ids).
             from fichero_server.models import Artifact as ArtifactModel
+            from fichero_server.workflows.curation_guard import (
+                record_conflict,
+                sweep_replaceable,
+            )
+            replacement_content = {
+                "catalogue.narrative": markdown,
+                "catalogue.timeline": timeline_md,
+                "catalogue.keywords": keywords_md,
+            }
+            preserved_artifact_ids: list[str] = []
             try:
-                prior = list(db.query(ArtifactModel, document_id=container.id))
-                for a in prior:
-                    at = a.artifact_type or ""
-                    if at == "catalogue" or at.startswith("catalogue."):
-                        try:
-                            db.delete(a)
-                        except Exception as ex:
-                            logger.warning(f"Catalogue: prior artifact delete failed ({ex})")
+                prior = [
+                    a
+                    for a in db.query(ArtifactModel, document_id=container.id)
+                    if (a.artifact_type or "") == "catalogue"
+                    or (a.artifact_type or "").startswith("catalogue.")
+                ]
+                _deleted, preserved_artifact_ids = sweep_replaceable(
+                    db,
+                    prior,
+                    reason="a Catalogue re-run would have replaced this corrected artifact",
+                    proposal_for=lambda a: {
+                        "artifact_type": a.artifact_type,
+                        "content": replacement_content.get(a.artifact_type or ""),
+                        "provider": provider,
+                        "model": model,
+                        "run_id": run_id,
+                    },
+                )
             except Exception as ex:
                 logger.warning(f"Catalogue: prior artifact query failed ({ex})")
+            if preserved_artifact_ids:
+                logger.info(
+                    "Catalogue: kept %d corrected artifact(s) on container %s; "
+                    "the re-run's version is recorded beside them, not over them",
+                    len(preserved_artifact_ids),
+                    container.id,
+                )
 
             # Per-chunk summaries as separate artifacts (#840)
             chunk_summaries = data.get("chunk_summaries", []) if data else []
@@ -767,10 +803,32 @@ async def catalogue(
                 db.save(a)
                 saved_artifact_ids.append(a.id)
 
-            # Folder's page_content shows the narrative (the headline)
-            container.page_content = markdown
-            container.updated_at = utc_now()
-            db.save(container)
+            # Folder's page_content shows the narrative (the headline) — but
+            # never over text a person has edited. llm_base has honoured this
+            # flag for pages since #672; this write bypassed llm_base entirely,
+            # so the guard held everywhere except the flagship path. Same
+            # function, same answer, both callers.
+            from fichero_server.workflows.curation_guard import (
+                page_content_is_user_edited,
+            )
+
+            if page_content_is_user_edited(container):
+                if record_conflict(
+                    container,
+                    proposal={"page_content": markdown, "provider": provider, "model": model},
+                    reason="a Catalogue re-run would have replaced edited page_content",
+                ):
+                    container.updated_at = utc_now()
+                    db.save(container)
+                logger.info(
+                    "Catalogue: left edited page_content on container %s; the "
+                    "re-run's narrative is recorded beside it",
+                    container.id,
+                )
+            else:
+                container.page_content = markdown
+                container.updated_at = utc_now()
+                db.save(container)
 
             logger.info(
                 f"Catalogue: saved {len(saved_artifact_ids)} artifacts on container "

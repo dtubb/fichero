@@ -647,14 +647,20 @@ def _save_artifact_sync(
         # visible on this connection (concurrent fan-out, #2430) the artifact
         # above is still saved on the right page; only this doc-side update,
         # which needs the live row, is deferred to a later/visible pass.
+        #
+        # The check itself now lives in curation_guard: Catalogue wrote
+        # container.page_content directly and never asked this question, so
+        # the guard held for pages and not for the flagship path. One function,
+        # one answer, both callers.
         if doc is not None:
+            from fichero_server.workflows.curation_guard import (
+                page_content_is_user_edited,
+            )
+
             # Ensure metadata is a mutable dict (NULL in DB parses as None)
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
-            user_edited = (
-                isinstance(doc.metadata, dict)
-                and doc.metadata.get("page_content_user_edited_at")
-            )
+            user_edited = page_content_is_user_edited(doc)
             if tool_config.update_page_content and not user_edited:
                 doc.page_content = content
                 # In-progress, NOT completed: a content-producing node may be
