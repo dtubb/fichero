@@ -221,6 +221,28 @@ enum SelectionGrammar {
         Result(selection: [], anchor: nil, cursor: nil)
     }
 
+    /// Land on exactly one row, with no modifier in play (#4377).
+    ///
+    /// Three callers needed this and none of them could say it: Miller-columns
+    /// ←/→, `openDocument`, and the arrow path's "nothing was selected yet"
+    /// branch each wrote `Result(selection: [id], anchor: id, cursor: id)` by
+    /// hand. That construction is the WORST shape to leave lying around,
+    /// because it is the grammar's own output type filled in manually — it
+    /// reads as delegation, the guardrail scored it as delegation, and it is a
+    /// fourth private copy of the plain-select rule. If that rule ever changes
+    /// (a surface that wants the cursor to lag the anchor, say), those three
+    /// sites are exactly the ones that would not change with it.
+    ///
+    /// It is deliberately NOT expressed as `click(modifiers: [])`: `click`
+    /// requires an ordered list, and every caller here is landing on a row for
+    /// which no single ordered list is meaningful — a different Miller column,
+    /// a document opened from another window, an empty selection. Needing a
+    /// list you have to invent is how a caller ends up passing the wrong one,
+    /// which is the other half of this same issue.
+    static func select(_ id: String) -> Result {
+        Result(selection: [id], anchor: id, cursor: id)
+    }
+
     // MARK: - Marquee
 
     /// Rubber-band selection over a surface with NO inherent order (#4436).

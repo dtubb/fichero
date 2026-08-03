@@ -221,15 +221,57 @@ extension LibraryView {
     /// Click semantics: select in THIS column (which becomes active); a
     /// folder click also discloses its children in the next column, a
     /// document click closes deeper columns.
+    ///
+    /// OPENING and CLOSING columns is a PLAIN-click behaviour only (#4377).
+    /// `handleTap` already refuses to drill into a container when ⇧ or ⌘ is
+    /// held — a modified click is building a selection, and navigating away
+    /// mid-build throws it out — but this wrapper used to descend or truncate
+    /// the column path *unconditionally, one call before that guard ran*. So
+    /// ⌘-clicking a folder to add it to a selection also opened it, and
+    /// ⇧-clicking a document closed every deeper column. The guard was real
+    /// and this path went around it.
+    ///
+    /// `columnsActiveDepth` deliberately still moves on a modified click: it
+    /// opens and closes nothing, and it is what makes the clicked column the
+    /// active one. Freezing it would let a ⌘-click land in a column that
+    /// `millerRow` then renders UNSELECTED — the row only shows its selection
+    /// while its column is active — so the gesture would silently appear to do
+    /// nothing.
+    ///
+    /// A ⇧-click in a DIFFERENT column therefore ranges over the newly-active
+    /// column, where the old anchor does not appear, and `SelectionGrammar`
+    /// degrades it to selecting that one row. That is the intended degrade, not
+    /// a gap: a range spanning two Miller columns has no meaning, which is the
+    /// same reason ←/→ are not `SelectionGrammar.click`.
     func handleColumnTap(_ doc: Document, depth: Int) {
         onRequestFocus()
         columnsActiveDepth = depth
+        guard Self.columnTapOpensOrClosesColumns(modifiers: currentSelectionModifiers) else {
+            handleTap(doc)
+            return
+        }
         if doc.docType == .folder {
             columnsPath = MillerColumnModel.descend(path: columnsLivePath, atDepth: depth, into: doc.id)
         } else {
             columnsPath = MillerColumnModel.truncate(path: columnsLivePath, forSelectionAtDepth: depth)
         }
         handleTap(doc)
+    }
+
+    /// Whether a columns click may open or close columns — i.e. write
+    /// `columnsPath` (#4377). NOT about which column is active, which a
+    /// modified click still moves.
+    ///
+    /// Pure and `nonisolated` for the same reason `plainTapNavigatesInto` is:
+    /// it is a rule, the rule was being applied in the wrong ORDER relative to
+    /// the grammar, and a rule with no seam has no regression test. Its whole
+    /// content is "only a plain click navigates" — which is already what
+    /// `handleTap` believes about drilling in, and was not what the columns
+    /// wrapper did about opening and closing columns.
+    nonisolated static func columnTapOpensOrClosesColumns(
+        modifiers: SelectionGrammar.Modifiers
+    ) -> Bool {
+        modifiers.isEmpty
     }
 
     /// Land the columns cursor on one row of the newly-active column.
@@ -241,7 +283,7 @@ extension LibraryView {
     /// cannot find. What they must still do is move all three fields together,
     /// which is what this goes through `apply` for (#4436).
     private func selectColumnRow(_ id: String) {
-        apply(SelectionGrammar.Result(selection: [id], anchor: id, cursor: id))
+        apply(SelectionGrammar.select(id))
         listScrollTarget = id
     }
 

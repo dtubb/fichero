@@ -178,7 +178,7 @@ extension LibraryView {
         // Opening is a plain selection of one row — cursor included, so the
         // arrows resume from what you just opened rather than from wherever
         // the previous anchor was (#4377).
-        apply(SelectionGrammar.Result(selection: [doc.id], anchor: doc.id, cursor: doc.id))
+        apply(SelectionGrammar.select(doc.id))
         if canNavigateInto(doc) {
             onNavigateInto(doc)
         } else {

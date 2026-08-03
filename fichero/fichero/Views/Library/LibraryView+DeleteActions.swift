@@ -154,7 +154,14 @@ extension LibraryView {
             return filteredEntities.map { entitySelectionId(for: $0) }
         }
         if displayMode == .table {
-            return LibraryOutlineNode.visibleIds(of: outlineNodes, expanded: outlineExpanded)
+            // Via `visibleOutlineRowIds`, which is now the ONE answer to "what
+            // rows is the Table showing, in what order" (#4377). This branch
+            // was the only path that had it right; the arrows and the anchor
+            // reconciler used the document list. Sharing the property also
+            // picks up the two cases this call could not see on its own —
+            // compact width, and the No-date section's dated-then-undated
+            // order, which is what ⌘A's anchor and cursor land in.
+            return visibleOutlineRowIds
         }
         return filteredDocuments.map(\.id)
     }

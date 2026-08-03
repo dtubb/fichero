@@ -57,17 +57,12 @@ extension LibraryView {
             let result = handleColumnsArrowKey(direction: direction)
             if result == .handled { return result }
         }
-        let ids: [String]
-        if isShowingEntitiesCollection {
-            ids = filteredEntities.map { entitySelectionId(for: $0) }
-        } else {
-            ids = keyboardNavigationDocuments.map(\.id)
-        }
+        let ids = keyboardNavigationIds
         guard !ids.isEmpty else { return .ignored }
 
         // Select first item if nothing is selected yet
         guard let currentIndex = currentSelectionIndex(in: ids) else {
-            apply(SelectionGrammar.Result(selection: [ids[0]], anchor: ids[0], cursor: ids[0]))
+            apply(SelectionGrammar.select(ids[0]))
             focusSelectedEntityIfNeeded()
             return .handled
         }
@@ -100,6 +95,29 @@ extension LibraryView {
         displayMode == .columns ? columnsActiveDocuments : filteredDocuments
     }
 
+    /// The ordered ids the arrows actually step through — ONE seam, so the
+    /// grammar can never be handed a list that does not match what is rendered
+    /// (#4377).
+    ///
+    /// This exists because `keyboardNavigationDocuments` cannot answer for the
+    /// Table. The Table renders an outline whose disclosed child rows are not
+    /// documents at all, so a `[Document]` seam structurally cannot describe
+    /// its visible order, and the arrow path quietly navigated the *document*
+    /// list while the user looked at an *outline*. With a child row selected,
+    /// no index resolved, and ↓ jumped to the top of the library.
+    ///
+    /// Entities and columns are unchanged — they really do navigate a list of
+    /// documents/entities. Only the Table needed a wider vocabulary.
+    var keyboardNavigationIds: [String] {
+        if isShowingEntitiesCollection {
+            return filteredEntities.map { entitySelectionId(for: $0) }
+        }
+        if displayMode == .table {
+            return visibleOutlineRowIds
+        }
+        return keyboardNavigationDocuments.map(\.id)
+    }
+
     /// Resolve a selectable id to its Document wherever it lives — the
     /// browsed list, or a deeper Miller column's children cache — so
     /// Return / Space / Quick Look / delete act on deep-column rows too.
@@ -120,6 +138,13 @@ extension LibraryView {
     /// The id keyboard/scroll actions should treat as "the" selection, in
     /// VISUAL order — never `.first` on the selection Set (hash order). Used
     /// by the list watchers and Return-to-open.
+    ///
+    /// DELIBERATELY document-scoped rather than sharing `keyboardNavigationIds`
+    /// (#4377): every caller feeds the answer to `navigableDocument(for:)` to
+    /// open / Quick Look / delete something, and a Table child row id has no
+    /// document to resolve to. The fallback below is what maps a child row back
+    /// to its parent, which is the behaviour those callers want and which
+    /// returning the child id verbatim would break.
     var orderedPrimarySelectionId: String? {
         let ids: [String]
         if isShowingEntitiesCollection {

@@ -98,6 +98,58 @@ def test_a_new_canvas_renderer_that_replaces_node_selection_fails(tmp_path):
     assert len(found) == 1
 
 
+_HAND_BUILT_RESULT = """
+extension LibraryView {
+    private func selectColumnRow(_ id: String) {
+        apply(SelectionGrammar.Result(selection: [id], anchor: id, cursor: id))
+    }
+}
+"""
+
+
+def test_hand_constructing_a_grammar_result_fails(tmp_path):
+    """#4377: the grammar's OUTPUT type filled in by hand.
+
+    The most deceptive shape there is — the token `SelectionGrammar` is right
+    there on the line, so the delegation window scores it as compliant, while
+    it is a private copy of whichever rule it spells out. Three call sites used
+    this to say "select exactly this one row" before `select(_:)` existed.
+    """
+    found = _scan(tmp_path, "LibraryView+ColumnsView.swift", _HAND_BUILT_RESULT)
+
+    assert len(found) == 1
+    assert "SelectionGrammar.Result(" in found[0][2]
+
+
+_NAMED_SELECT = """
+extension LibraryView {
+    private func selectColumnRow(_ id: String) {
+        apply(SelectionGrammar.select(id))
+    }
+}
+"""
+
+
+def test_the_named_replacement_passes(tmp_path):
+    """A rule whose fix does not pass is a rule that gets deleted."""
+    assert _scan(tmp_path, "LibraryView+ColumnsView.swift", _NAMED_SELECT) == []
+
+
+_RESULT_IN_A_COMMENT = """
+extension LibraryView {
+    // Was: apply(SelectionGrammar.Result(selection: [id], anchor: id, cursor: id))
+    private func selectColumnRow(_ id: String) {
+        apply(SelectionGrammar.select(id))
+    }
+}
+"""
+
+
+def test_a_comment_quoting_the_hand_built_result_is_prose(tmp_path):
+    """Including the commit message that explains why the shape is gone."""
+    assert _scan(tmp_path, "LibraryView+ColumnsView.swift", _RESULT_IN_A_COMMENT) == []
+
+
 # ---------------------------------------------------------------------------
 # NEGATIVE — the shapes that MUST NOT fire, or the check is unusable
 # ---------------------------------------------------------------------------

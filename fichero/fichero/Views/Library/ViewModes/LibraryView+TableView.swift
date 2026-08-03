@@ -128,6 +128,53 @@ extension LibraryView {
         return outlineModel.nodes(for: filteredDocuments)
     }
 
+    /// The table's rows **in the order they are on screen**, ids only, with the
+    /// disclosed children of expanded rows interleaved where the user sees them
+    /// (#4377).
+    ///
+    /// Every other surface's ordered list is `filteredDocuments` because every
+    /// other surface renders exactly those rows. The Table does not: it is an
+    /// OUTLINE, so its visible list also depends on `outlineExpanded`, and when
+    /// `showsUndatedSection` is on it renders dated rows then undated ones,
+    /// which is not `filteredDocuments` order either. The selection set holds
+    /// child node ids (`"<doc>:artifact:<id>"`) that are not in
+    /// `filteredDocuments` **at all**.
+    ///
+    /// Handing `filteredDocuments.map(\.id)` to the shared grammar therefore
+    /// looked right and was right only while everything was collapsed — which
+    /// is why this survived a fix explicitly about unifying selection. Expand
+    /// one row and select a child, and the id the grammar is asked about is
+    /// absent from the list it is asked to find it in. Concretely: ↓ from a
+    /// selected child row resolved to no index at all, hit the "nothing is
+    /// selected yet" branch, and jumped the user to the FIRST row of the
+    /// library.
+    ///
+    /// Compact width matches `outlineTableCompact`, which has no disclosure
+    /// affordance and renders `filteredDocuments` flat — a stale
+    /// `outlineExpanded` carried over from a regular-width window must not
+    /// invent rows that iPhone is not showing.
+    ///
+    /// The flatten itself is `LibraryOutlineNode.visibleIds`, which ALREADY
+    /// EXISTED — ⌘A has used it since #4198. That is the sharp edge of this
+    /// bug: three selection paths in one mode, and the one that had the right
+    /// list was not the one the arrows used. The inventory scored ⌘A "✅
+    /// (outline ids)" and arrows "✅ shared" and called both correct, because
+    /// it checked whether a path was shared and not WHICH LIST it shared.
+    /// Routing every path through this one property is the actual fix; adding
+    /// a second flatten would have been the bug again with better manners.
+    var visibleOutlineRowIds: [String] {
+        if horizontalSizeClass == .compact {
+            return filteredDocuments.map(\.id)
+        }
+        // Sectioned rendering puts every dated row above every undated one, so
+        // that — not `outlineNodes` order — is what "topmost" and "furthest"
+        // mean on screen when the No-date section is showing (#3322).
+        let roots = showsUndatedSection
+            ? datedOutlineNodes + undatedOutlineNodes
+            : outlineNodes
+        return LibraryOutlineNode.visibleIds(of: roots, expanded: outlineExpanded)
+    }
+
     // MARK: Regular width — expandable DisclosureTableRow outline
 
     @ViewBuilder
@@ -186,11 +233,17 @@ extension LibraryView {
             // this code was throwing away. The old code also returned early
             // when the selection emptied, leaving both fields pointing at rows
             // that were no longer selected (#4436).
+            // ...over the rows actually ON SCREEN, not over `filteredDocuments`
+            // (#4377). `reconcile` resolves "topmost" and "furthest from the
+            // anchor" by indexing into this list, so with the document list it
+            // scored every disclosed child row as absent and fell through to
+            // the lexical-minimum fallback — deterministic, but not the visual
+            // order it is supposed to be reasoning about.
             let reconciled = SelectionGrammar.reconcile(
                 from: oldSelection,
                 to: newSelection,
                 anchor: selectionAnchor,
-                in: filteredDocuments.map(\.id)
+                in: visibleOutlineRowIds
             )
             selectionAnchor = reconciled.anchor
             selectionCursor = reconciled.cursor

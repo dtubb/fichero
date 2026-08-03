@@ -14,6 +14,33 @@ the anchor/cursor must go through the grammar — `apply(...)`,
 `SelectionGrammar.…`, or `CanvasTapSelection.…`. A raw `selection = [id]` or
 `selectedNodeIds = [id]` is a fifth (sixth, seventh) copy of the rules.
 
+A second rule, added by #4377: hand-constructing `SelectionGrammar.Result(...)`
+is a bypass, not a delegation. It is the grammar's own OUTPUT type filled in
+manually — it names the grammar, so the window rule above scored it as
+delegation, and three call sites used it to express "select exactly this one
+row" four different times in four places. `SelectionGrammar.select(_:)` says
+that now, and constructing a `Result` outside the grammar is forbidden.
+
+WHAT THIS CHECK CANNOT SEE, stated plainly because it was GREEN throughout the
+period when #4377's last two gaps were open, and a guardrail nobody can bound is
+worse than one nobody has:
+
+This is a DELEGATION check. It asks whether a selection write is accompanied by
+the grammar's name; it cannot read the ARGUMENTS. Both surviving #4377 defects
+were argument-level and both sat in code this file scores as perfect:
+
+  * The Table passed `filteredDocuments.map(\\.id)` as its ordered list while
+    rendering an expandable OUTLINE whose child rows are not documents. The
+    delegation was flawless and the list was the wrong list.
+  * Miller-columns mutated `columnsPath` / `columnsActiveDepth` — changing the
+    ordered list itself — immediately BEFORE calling the grammar with it.
+
+No line-oriented regex reaches either; both are properties of what a value IS at
+a call site. They belong to `SelectionSurfaceParityTests`, which drives each
+surface through its real entry point and can therefore catch exactly this class.
+The division of labour is deliberate: this file stops a NEW mode from skipping
+the grammar, and the parity suite stops an EXISTING one from feeding it garbage.
+
 Deliberate exemptions are NAMED here rather than pattern-holed, so adding one
 is a visible decision:
 
@@ -109,6 +136,15 @@ _EXEMPT_FILES = {
 # gone. Matched narrowly so a genuine gesture in the same file still fires.
 _PRUNE = re.compile(r"selection\s*(?:\.remove\(|=\s*selection\.filter)")
 
+# #4377: filling in the grammar's OUTPUT type by hand. Maximally disguised as
+# delegation — the token `SelectionGrammar` is right there on the line, so the
+# `_GRAMMAR_WINDOW` rule above waves it through — while being a private copy of
+# whichever rule it spells out. Every real caller wants `select(_:)`, `click`,
+# `extend`, `clear`, `marquee` or `reconcile`; a surface that needs a shape none
+# of those produce needs a new grammar METHOD, so the rule lands in the rulebook
+# with the rest.
+_HAND_BUILT_RESULT = re.compile(r"SelectionGrammar\.Result\s*\(")
+
 
 def _swift_files() -> list[Path]:
     """The library view-mode tree, plus the shared LibraryView+*Selection files.
@@ -137,6 +173,11 @@ def violations(files: list[Path] | None = None, root: Path = ROOT) -> list[tuple
         since_grammar = _GRAMMAR_WINDOW + 1
         for lineno, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
             if _COMMENT.match(line):
+                continue
+            # Checked BEFORE the delegation window, which this shape would
+            # otherwise open for itself (#4377).
+            if _HAND_BUILT_RESULT.search(line):
+                bad.append((path.relative_to(root).as_posix(), lineno, line.strip()))
                 continue
             if any(token in line for token in _DELEGATES):
                 since_grammar = 0
