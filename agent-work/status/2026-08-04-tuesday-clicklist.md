@@ -271,3 +271,19 @@ Check them on a build cut from `integration`, or after the next release.
   2026-07-30 run to tell "gone" from "unlisted". Re-running a transcribe to
   reproduce is paid, so nobody did. Three of the four store sites were read and
   are clean for stated reasons.
+
+## The big one: 11 issues whose fix already shipped (section F1)
+
+`agent-work/status/2026-08-03-landed-but-open.md` section F1. Eleven open
+issues have a fix that is already in a tagged build — **three of them since
+`v2026.07.13.4-beta`, open three weeks**: #3362 (sandbox bootstrap token),
+#3366 (settings menu routing), #3403 (live-updates paused state).
+
+At roughly twenty seconds each this is about four minutes to clear eleven
+issues, and it is the highest-return block on this page. Verify, then close —
+same rule as everywhere else: shipped means the code is in your build, not that
+the behaviour is right.
+
+The sweep covered 41 issues across six milestones and **skipped 65 across
+thirteen more**, listed by name in section F. So this is a floor on how much
+stale-open backlog exists, not a ceiling.
