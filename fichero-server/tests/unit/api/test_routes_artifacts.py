@@ -5,6 +5,7 @@ summaries, etc.). They are always linked to a Document. SwiftUI uses these route
 display processed results alongside source documents.
 """
 
+import pytest
 from datetime import datetime
 
 from fichero_server.models import ActionAudit, Artifact, Document, DocType, FileType, Status
@@ -713,3 +714,151 @@ class TestUpdateArtifact:
         assert audits[0].target_ids == [artifact.id]
         assert calls[-1][1]["type"] == "artifact.updated"
         assert calls[-1][1]["artifact_ids"] == [artifact.id]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/artifacts/{id}/region — a line resolves to the ink it came from
+# ---------------------------------------------------------------------------
+
+
+class TestArtifactRegion:
+    """#4309/#4418 — the one addressing scheme, served from one place.
+
+    A historian who cannot point at the region a line came from has to TRUST
+    the transcription. With regions she can CHECK it. Resolution lives on the
+    server so there is a single answer to "where did this line come from" —
+    two answers would be worse than none for archival material.
+    """
+
+    @staticmethod
+    def _geometry_artifact(db, doc_id: str):
+        from fichero_server.media.ocr_geometry import (
+            OCRGeometryBox,
+            OCRGeometryLevel,
+            OCRGeometryResult,
+        )
+
+        geometry = OCRGeometryResult(
+            text="alpha beta\ngamma delta",
+            provider="apple_vision",
+            model="VNRecognizeTextRequest",
+            source="apple_vision_ocr",
+            boxes=[
+                OCRGeometryBox(
+                    text=text,
+                    bbox=bbox,
+                    level=OCRGeometryLevel.WORD,
+                    char_start=start,
+                    char_end=end,
+                    source="apple_vision_ocr",
+                )
+                for text, bbox, start, end in (
+                    ("alpha", [0.1, 0.1, 0.2, 0.05], 0, 5),
+                    ("beta", [0.35, 0.1, 0.15, 0.05], 6, 10),
+                    ("gamma", [0.1, 0.3, 0.2, 0.05], 11, 16),
+                    ("delta", [0.35, 0.3, 0.2, 0.05], 17, 22),
+                )
+            ],
+        )
+        artifact = Artifact(
+            document_id=doc_id,
+            artifact_type="transcription",
+            content="alpha beta\ngamma delta",
+            ocr_geometry=geometry,
+            version=1,
+            created_at=datetime.now(),
+        )
+        db.save(artifact)
+        return artifact
+
+    def test_line_resolves_to_its_region(self, client, db):
+        doc = _make_doc(db)
+        artifact = self._geometry_artifact(db, doc.id)
+
+        r = client.get(f"/api/artifacts/{artifact.id}/region", params={"line": 1})
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["geometry_status"] == "captured"
+        assert [b["text"] for b in body["region"]["boxes"]] == ["gamma", "delta"]
+        assert body["region"]["bbox"] == pytest.approx([0.1, 0.3, 0.45, 0.05])
+
+    def test_char_span_resolves_to_a_tight_region(self, client, db):
+        doc = _make_doc(db)
+        artifact = self._geometry_artifact(db, doc.id)
+
+        r = client.get(
+            f"/api/artifacts/{artifact.id}/region",
+            params={"char_start": 6, "char_end": 10},
+        )
+
+        assert r.status_code == 200
+        assert [b["text"] for b in r.json()["region"]["boxes"]] == ["beta"]
+
+    def test_an_artifact_without_geometry_says_why_rather_than_nothing(self, client, db):
+        """Degrade honestly: no region, and the reason there is none.
+
+        A null region alone cannot be told apart from "this page is blank",
+        which is a claim about the page rather than about the engine.
+        """
+        from fichero_server.media.ocr_geometry import (
+            OCRGeometryStatus,
+            geometry_unavailable,
+        )
+
+        doc = _make_doc(db)
+        artifact = Artifact(
+            document_id=doc.id,
+            artifact_type="transcription",
+            content="alpha beta",
+            ocr_geometry=geometry_unavailable(
+                status=OCRGeometryStatus.NOT_SUPPORTED,
+                provider="ollama",
+                model="qwen2.5vl",
+                reason="ollama/qwen2.5vl does not localize the text it reads",
+            ),
+            version=1,
+            created_at=datetime.now(),
+        )
+        db.save(artifact)
+
+        r = client.get(f"/api/artifacts/{artifact.id}/region", params={"line": 0})
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["geometry_status"] == "not_supported"
+        assert "does not localize" in body["geometry_reason"]
+        assert body["region"] is None
+
+    def test_geometry_never_recorded_reads_as_not_run(self, client, db):
+        doc = _make_doc(db)
+        artifact = _make_artifact(db, doc.id, content="alpha beta")
+
+        r = client.get(f"/api/artifacts/{artifact.id}/region", params={"line": 0})
+
+        assert r.status_code == 200
+        assert r.json()["geometry_status"] == "not_run"
+        assert r.json()["region"] is None
+
+    def test_a_line_that_cannot_be_placed_returns_no_region(self, client, db):
+        doc = _make_doc(db)
+        artifact = self._geometry_artifact(db, doc.id)
+
+        r = client.get(f"/api/artifacts/{artifact.id}/region", params={"line": 9})
+
+        assert r.status_code == 200
+        assert r.json()["geometry_status"] == "captured"
+        assert r.json()["region"] is None
+
+    def test_ambiguous_or_missing_addressing_is_rejected(self, client, db):
+        doc = _make_doc(db)
+        artifact = self._geometry_artifact(db, doc.id)
+        base = f"/api/artifacts/{artifact.id}/region"
+
+        assert client.get(base).status_code == 422
+        assert client.get(base, params={"line": 0, "char_start": 0, "char_end": 5}).status_code == 422
+        assert client.get(base, params={"char_start": 0}).status_code == 422
+        assert client.get(base, params={"char_start": 5, "char_end": 5}).status_code == 422
+
+    def test_region_for_a_missing_artifact_is_404(self, client):
+        assert client.get("/api/artifacts/no-such-id/region", params={"line": 0}).status_code == 404

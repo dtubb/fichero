@@ -374,7 +374,12 @@ async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> N
     page_transcripts = ["Transcription of page one.", "Transcription of page two."]
     llm_call_count = 0
 
-    async def _mock_vision(images, prompt, config):
+    # `language` is passed by the caller (#2092). A mock that does not accept
+    # it raises TypeError inside the per-page loop, which the loop logs and
+    # swallows as a page failure — so this test failed with "got 0 LLM calls"
+    # while looking like a fan-out regression. The mock had drifted from the
+    # signature it stands in for.
+    async def _mock_vision(images, prompt, config, language=None):
         nonlocal llm_call_count
         text = page_transcripts[llm_call_count % len(page_transcripts)]
         llm_call_count += 1

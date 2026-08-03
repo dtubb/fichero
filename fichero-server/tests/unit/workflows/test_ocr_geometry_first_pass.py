@@ -140,10 +140,31 @@ class TestGeometryHelpers:
         word = next(b for b in geometry.boxes if b.text == "world")
         assert (word.char_start, word.char_end) == (6, 11)
         assert word.page_index == 2
+        # A region must record the KIND of evidence it came from, not only the
+        # engine: recognised-from-ink and read-from-a-text-layer have different
+        # trustworthiness (#4309).
+        assert geometry.source == "apple_vision_ocr"
+        assert all(box.source == "apple_vision_ocr" for box in geometry.boxes)
 
-    def test_apple_geometry_result_none_when_engine_gave_no_boxes(self):
+    def test_apple_geometry_result_says_produced_nothing_not_nothing_at_all(self):
+        """A blank page is a fact about the PAGE, not about the engine.
+
+        Vision can localize, so zero boxes means it looked and found nothing —
+        which must not be recorded the same way as "geometry was never
+        attempted". Returning None conflated the two.
+        """
+        from fichero_server.media.ocr_geometry import (
+            OCRGeometryStatus,
+            geometry_status,
+        )
+
         empty = VisionOCRResult(text="", line_boxes=[], word_boxes=[])
-        assert _apple_geometry_result(empty) is None
+        geometry = _apple_geometry_result(empty)
+        assert geometry is not None
+        assert geometry.boxes == []
+        assert geometry_status(geometry) is OCRGeometryStatus.PRODUCED_NOTHING
+        # and "nothing recorded at all" still reads as not_run
+        assert geometry_status(None) is OCRGeometryStatus.NOT_RUN
 
     def test_vision_geometry_from_results_flips_and_links_spans(self):
         """Fake Vision observations → flipped boxes + char spans per line."""

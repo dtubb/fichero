@@ -149,6 +149,86 @@ def ocr_bbox_coverage(result: OCRGeometryResult) -> float:
     return min(1.0, boxed_tokens / len(tokens))
 
 
+#: Key under which every producer records WHY a result has the boxes it has.
+#: An empty box list is three different facts wearing one costume, and only
+#: one of them means the page has no text on it (#4309/#4418).
+GEOMETRY_STATUS_KEY = "geometry_status"
+
+#: Key carrying the human-readable reason behind a non-``captured`` status.
+GEOMETRY_REASON_KEY = "geometry_reason"
+
+
+class OCRGeometryStatus(StrEnum):
+    """Why a page's geometry looks the way it does.
+
+    Distinguishing these is the same discipline as ``produced_nothing`` vs
+    ``not_run`` elsewhere in the engine: a workflow that cannot produce
+    geometry must SAY it could not, rather than omitting the field and letting
+    a reader conclude the page is blank. For archival material the difference
+    is material — "nothing was recognised here" is a claim about the page,
+    "this engine cannot localise text" is a claim about the engine.
+    """
+
+    #: Boxes exist.
+    CAPTURED = "captured"
+    #: The engine ran, can localise, and localised nothing on this page.
+    PRODUCED_NOTHING = "produced_nothing"
+    #: The engine ran but cannot localise text at all (most LLM providers).
+    NOT_SUPPORTED = "not_supported"
+    #: Geometry capture was never attempted on this pass.
+    NOT_RUN = "not_run"
+
+
+def geometry_unavailable(
+    *,
+    status: OCRGeometryStatus,
+    provider: str,
+    reason: str,
+    model: str | None = None,
+    text: str = "",
+    source: str | None = None,
+) -> OCRGeometryResult:
+    """Record that a pass produced no geometry, and why.
+
+    Returns a real, persistable record with zero boxes — NOT ``None``. The
+    point is that "this provider does not localise text" survives to the
+    reader, so the overlay can say so instead of rendering an empty page that
+    implies nothing was recognised.
+    """
+    if status is OCRGeometryStatus.CAPTURED:
+        raise ValueError(
+            "geometry_unavailable is for the no-geometry cases; a captured "
+            "result must carry its boxes"
+        )
+    return OCRGeometryResult(
+        text=text,
+        provider=provider,
+        model=model,
+        boxes=[],
+        source=source,
+        metadata={GEOMETRY_STATUS_KEY: str(status), GEOMETRY_REASON_KEY: reason},
+    )
+
+
+def geometry_status(result: OCRGeometryResult | None) -> OCRGeometryStatus:
+    """Read a result's status, defaulting honestly.
+
+    ``None`` means nothing was recorded, which is ``NOT_RUN`` — never
+    ``PRODUCED_NOTHING``. Conflating the two is exactly the failure this enum
+    exists to prevent.
+    """
+    if result is None:
+        return OCRGeometryStatus.NOT_RUN
+    if result.boxes:
+        return OCRGeometryStatus.CAPTURED
+    recorded = result.metadata.get(GEOMETRY_STATUS_KEY)
+    if recorded:
+        return OCRGeometryStatus(str(recorded))
+    # A boxless result with no recorded status predates this contract. It is
+    # not evidence the page is blank, so say the weaker true thing.
+    return OCRGeometryStatus.NOT_RUN
+
+
 def from_apple_vision_result(
     result: Any,
     *,
@@ -300,6 +380,16 @@ def from_pymupdf_page(
         source=source,
         metadata={
             PDF_TEXT_LAYER_FLAG: bool(boxes),
+            GEOMETRY_STATUS_KEY: str(
+                OCRGeometryStatus.CAPTURED
+                if boxes
+                else OCRGeometryStatus.PRODUCED_NOTHING
+            ),
+            GEOMETRY_REASON_KEY: (
+                "pdf text layer read"
+                if boxes
+                else "this PDF page has no text layer to read"
+            ),
             "page_width": page_width,
             "page_height": page_height,
         },
@@ -470,6 +560,214 @@ def parse_tesseract_tsv(
         boxes=boxes,
         metadata={"format": "tesseract_tsv"},
     )
+
+
+# =============================================================================
+# Addressing — resolving a piece of text to the region it came from
+# =============================================================================
+#
+# This is the seam #4418 and #4405 both name, and it is deliberately ONE
+# implementation. A region, a text span and a claim all address the same thing
+# through ``char_start``/``char_end`` into the owning artifact's content; a
+# second addressing scheme would mean two answers to "where did this line come
+# from", which for archival material is worse than none.
+
+
+class SpanRegion(BaseModel):
+    """Where a span of transcribed text sits on the page."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    char_start: int
+    char_end: int
+    #: Union of every contributing box, as normalized [x, y, width, height].
+    bbox: list[float]
+    #: The boxes that produced the union, so a caller can highlight per word
+    #: instead of one blunt rectangle when the geometry supports it.
+    boxes: list[OCRGeometryBox]
+    level: OCRGeometryLevel
+
+
+def attach_char_spans(result: OCRGeometryResult) -> OCRGeometryResult:
+    """Anchor boxes that arrived without spans into the result's own text.
+
+    Apple Vision and the PDF text layer build text and spans together, so they
+    are consistent by construction. A prompted VLM returns boxes and a
+    transcription as separate things, so the link has to be established — and
+    without it those boxes are un-addressable: they can be drawn on the page
+    but no line of the transcript can be resolved to them.
+
+    Matching walks forward through the text, so a word repeated on the page
+    anchors to its own occurrence rather than always to the first. A box whose
+    text cannot be found is left unanchored rather than pointed somewhere
+    plausible — a wrong region is a wrong claim about the page.
+    """
+    text = result.text or ""
+    if not text:
+        return result
+    cursor = 0
+    updated: list[OCRGeometryBox] = []
+    for box in result.boxes:
+        if box.char_start is not None and box.char_end is not None:
+            updated.append(box)
+            continue
+        needle = box.text
+        if not needle:
+            updated.append(box)
+            continue
+        found = text.find(needle, cursor)
+        if found < 0:
+            # Fall back to a search from the start before giving up: box order
+            # need not match reading order.
+            found = text.find(needle)
+        if found < 0:
+            updated.append(box)
+            continue
+        end = found + len(needle)
+        cursor = end
+        updated.append(box.model_copy(update={"char_start": found, "char_end": end}))
+    return result.model_copy(update={"boxes": updated})
+
+
+def boxes_for_span(
+    result: OCRGeometryResult,
+    char_start: int,
+    char_end: int,
+    *,
+    level: OCRGeometryLevel | None = None,
+) -> list[OCRGeometryBox]:
+    """Return the boxes whose text overlaps ``[char_start, char_end)``.
+
+    Boxes with no recorded span cannot be placed against the text and are
+    excluded rather than guessed at.
+    """
+    if char_end <= char_start:
+        return []
+    matches = [
+        box
+        for box in result.boxes
+        if box.char_start is not None
+        and box.char_end is not None
+        and box.char_start < char_end
+        and box.char_end > char_start
+        and (level is None or box.level == level)
+    ]
+    return sorted(matches, key=lambda box: (box.char_start or 0, box.char_end or 0))
+
+
+def union_bbox(boxes: list[OCRGeometryBox]) -> list[float] | None:
+    """Smallest normalized rect containing every box, or ``None`` if empty."""
+    if not boxes:
+        return None
+    left = min(box.bbox[0] for box in boxes)
+    top = min(box.bbox[1] for box in boxes)
+    right = max(box.bbox[0] + box.bbox[2] for box in boxes)
+    bottom = max(box.bbox[1] + box.bbox[3] for box in boxes)
+    return [left, top, max(right - left, 0.0), max(bottom - top, 0.0)]
+
+
+def region_for_span(
+    result: OCRGeometryResult,
+    char_start: int,
+    char_end: int,
+    *,
+    level: OCRGeometryLevel | None = None,
+) -> SpanRegion | None:
+    """Resolve a span of the artifact's text to its region on the page.
+
+    Prefers the FINEST granularity available: word boxes give a tight region,
+    line boxes a coarse one. Apple Vision and the PDF text layer disagree on
+    which levels they produce, so a caller that demanded one level would work
+    against one source and silently fail against the other.
+
+    Returns ``None`` when the span cannot be placed — an unplaceable span is
+    not a span at the origin.
+    """
+    if level is not None:
+        boxes = boxes_for_span(result, char_start, char_end, level=level)
+        resolved_level = level
+    else:
+        boxes = boxes_for_span(result, char_start, char_end, level=OCRGeometryLevel.WORD)
+        resolved_level = OCRGeometryLevel.WORD
+        if not boxes:
+            for fallback in (
+                OCRGeometryLevel.LINE,
+                OCRGeometryLevel.BLOCK,
+                OCRGeometryLevel.REGION,
+                OCRGeometryLevel.PAGE,
+            ):
+                boxes = boxes_for_span(result, char_start, char_end, level=fallback)
+                if boxes:
+                    resolved_level = fallback
+                    break
+    bbox = union_bbox(boxes)
+    if bbox is None:
+        return None
+    return SpanRegion(
+        char_start=char_start,
+        char_end=char_end,
+        bbox=bbox,
+        boxes=boxes,
+        level=resolved_level,
+    )
+
+
+def line_spans(text: str) -> list[tuple[int, int]]:
+    """Character spans of each line of ``text``, newline excluded."""
+    spans: list[tuple[int, int]] = []
+    cursor = 0
+    for line in text.split("\n"):
+        spans.append((cursor, cursor + len(line)))
+        cursor += len(line) + 1
+    return spans
+
+
+def region_for_line(
+    result: OCRGeometryResult,
+    line_index: int,
+    *,
+    text: str | None = None,
+) -> SpanRegion | None:
+    """Resolve line ``line_index`` of the transcription to its page region.
+
+    ``text`` defaults to the result's own text; pass the artifact's content
+    when the artifact is the authority (post-edit, the two can differ, and the
+    artifact is what the historian is reading).
+    """
+    spans = line_spans(text if text is not None else result.text)
+    if line_index < 0 or line_index >= len(spans):
+        return None
+    start, end = spans[line_index]
+    if end <= start:
+        return None
+    return region_for_span(result, start, end)
+
+
+def span_at_point(
+    result: OCRGeometryResult,
+    x: float,
+    y: float,
+    *,
+    level: OCRGeometryLevel | None = None,
+) -> OCRGeometryBox | None:
+    """The reverse direction: which box covers a normalized page point.
+
+    Bidirectional by construction — select a region and get its text span back,
+    select a span and get its region. Same records, read two ways, so the two
+    directions cannot drift apart.
+    """
+    candidates = [
+        box
+        for box in result.boxes
+        if (level is None or box.level == level)
+        and box.bbox[0] <= x <= box.bbox[0] + box.bbox[2]
+        and box.bbox[1] <= y <= box.bbox[1] + box.bbox[3]
+    ]
+    if not candidates:
+        return None
+    # Smallest containing box wins: a word inside a line is the more precise
+    # answer, and both legitimately contain the point.
+    return min(candidates, key=lambda box: box.bbox[2] * box.bbox[3])
 
 
 def _provider_key(provider: str) -> str:
