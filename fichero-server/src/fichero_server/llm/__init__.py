@@ -974,14 +974,42 @@ def _fallback_tier_order() -> tuple[str, ...]:
     return tuple(tiers) or ("medium", "large")
 
 
+def _local_runtime_missing(origin_error: BaseException | None) -> bool:
+    """Whether the failure was "the on-device runtime is not installed" (#4502).
+
+    This is NOT the same failure as Apple's guardrail refusing a prompt, even
+    though both arrive as ``AppleUnavailableError`` — and the difference decides
+    whether a paid fallback is a kindness or a substitution.
+
+    - ``GuardrailViolationError`` / unsupported locale: Apple *cannot serve this
+      CONTENT*. Nothing the user installs changes that, and escaping to a
+      frontier model is the documented intent (academic text trips a consumer
+      safety filter).
+    - ``LocalModelUnavailableError``: the runtime is missing or the hardware
+      cannot run it. Someone chose MLX, and the reasons to choose MLX are free,
+      on-device, and private. Answering "your runtime is not installed" with a
+      paid cloud call charges them money AND sends the data off-device — it
+      substitutes the very thing they rejected. It is a provisioning problem
+      with a fix, so the honest move is to say so.
+    """
+    return isinstance(origin_error, LocalModelUnavailableError)
+
+
 def _iter_fallback_configs(
     config: LLMConfig,
     *,
     original_config: LLMConfig,
     error_name: str,
     kind: str,
+    origin_error: BaseException | None = None,
 ) -> Iterator[tuple[str, LLMConfig, bool]]:
-    """Yield usable fallback configs in ordered tier order."""
+    """Yield usable fallback configs in ordered tier order.
+
+    ``origin_error`` is what failed on the primary attempt. When it says the
+    LOCAL RUNTIME IS MISSING, only local fallbacks are yielded — see
+    :func:`_local_runtime_missing`. Defaults to None so existing callers keep
+    today's behaviour rather than silently changing it.
+    """
     for tier in _fallback_tier_order():
         try:
             fallback_config = _build_fallback_config(config, tier)
@@ -1001,6 +1029,25 @@ def _iter_fallback_configs(
 
         fallback_is_local = _is_local_or_builtin_provider(fallback_config.provider)
         _enforce_local_only_provider(fallback_config, kind=f"{kind} ${tier} fallback")
+
+        # A missing on-device runtime never escalates to a paid provider,
+        # EVEN when paid fallbacks are enabled (#4502). Enabling paid fallbacks
+        # is consent to escape Apple's guardrail, not consent to replace the
+        # local model someone deliberately chose. Falling to another LOCAL tier
+        # is still fine — that keeps the property they picked it for.
+        if _local_runtime_missing(origin_error) and not fallback_is_local:
+            logger.warning(
+                "%s: the on-device runtime is unavailable, so NOT falling back "
+                "to paid $%s %s/%s. Install the local runtime, or pick a "
+                "different provider explicitly — a local-model failure will "
+                "not silently become a billed remote call.",
+                error_name,
+                tier,
+                fallback_config.provider,
+                fallback_config.model,
+            )
+            continue
+
         if not _paid_remote_fallbacks_enabled() and not fallback_is_local:
             logger.warning(
                 "Skipping $%s %s fallback %s/%s because paid remote fallbacks "
@@ -1628,6 +1675,7 @@ async def chat_with_fallback(
             original_config=config,
             error_name=type(apple_exc).__name__,
             kind="chat",
+            origin_error=apple_exc,
         ):
             attempted = True
             cost_note = (
@@ -3192,6 +3240,7 @@ async def chat_structured_with_fallback(
             original_config=config,
             error_name=type(apple_exc).__name__,
             kind="structured",
+            origin_error=apple_exc,
         ):
             attempted = True
             cost_note = (
