@@ -4042,6 +4042,88 @@
         }
       }
     },
+    "/api/artifacts/{artifact_id}/region": {
+      "get": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Get Artifact Region",
+        "description": "Resolve a line or character span of a transcription to its page region.\n\nThis is the single addressing scheme #4418 asks for: a region, a text span\nand a claim all name the same thing through character offsets into the\nartifact's content. Resolution lives here rather than in each client so\nthere is one answer to \"where did this line come from\" \u2014 two answers would\nbe worse than none for archival material.\n\nSpans are resolved against the artifact's CONTENT, which is what the reader\nis reading, not against the geometry record's own copy of the text.",
+        "operationId": "get_artifact_region_api_artifacts__artifact_id__region_get",
+        "parameters": [
+          {
+            "name": "artifact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Artifact Id"
+            }
+          },
+          {
+            "name": "char_start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "description": "Start offset into the artifact's content",
+              "title": "Char Start"
+            },
+            "description": "Start offset into the artifact's content"
+          },
+          {
+            "name": "char_end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "description": "End offset (exclusive) into the artifact's content",
+              "title": "Char End"
+            },
+            "description": "End offset (exclusive) into the artifact's content"
+          },
+          {
+            "name": "line",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "nullable": true,
+              "description": "Zero-based line of the artifact's content",
+              "title": "Line"
+            },
+            "description": "Zero-based line of the artifact's content"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactRegionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bookmarks": {
       "post": {
         "tags": [
@@ -35735,6 +35817,34 @@
         "title": "ArtifactListResponse",
         "description": "Standardized {items, count} envelope for listing artifacts."
       },
+      "ArtifactRegionResponse": {
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "geometry_status": {
+            "type": "string",
+            "title": "Geometry Status"
+          },
+          "geometry_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Geometry Reason"
+          },
+          "region": {
+            "$ref": "#/components/schemas/SpanRegion",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "geometry_status"
+        ],
+        "title": "ArtifactRegionResponse",
+        "description": "Where a span of an artifact's text sits on the page (#4309/#4418)."
+      },
       "ArtifactResponse": {
         "properties": {
           "id": {
@@ -41032,6 +41142,10 @@
             "title": "Max Concurrent",
             "description": "Maximum concurrent executions",
             "default": 5
+          },
+          "selection": {
+            "$ref": "#/components/schemas/WorkflowSelection",
+            "nullable": true
           }
         },
         "type": "object",
@@ -59753,6 +59867,46 @@
         "title": "SourceUpsertResponse",
         "description": "Response after upserting or reading a source document."
       },
+      "SpanRegion": {
+        "properties": {
+          "char_start": {
+            "type": "integer",
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "title": "Char End"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Bbox"
+          },
+          "boxes": {
+            "items": {
+              "$ref": "#/components/schemas/OCRGeometryBox"
+            },
+            "type": "array",
+            "title": "Boxes"
+          },
+          "level": {
+            "$ref": "#/components/schemas/OCRGeometryLevel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "char_start",
+          "char_end",
+          "bbox",
+          "boxes",
+          "level"
+        ],
+        "title": "SpanRegion",
+        "description": "Where a span of transcribed text sits on the page."
+      },
       "SparqlExampleQuery": {
         "properties": {
           "id": {
@@ -62893,6 +63047,11 @@
           "requires_vision": {
             "type": "boolean",
             "title": "Requires Vision",
+            "default": false
+          },
+          "is_system": {
+            "type": "boolean",
+            "title": "Is System",
             "default": false
           }
         },

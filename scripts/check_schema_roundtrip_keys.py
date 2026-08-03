@@ -60,7 +60,6 @@ KNOWN: dict[str, str] = {
     # WorkflowResponse does not carry the field, so the client offers Delete
     # and Edit on every shipped preset and each one 403s. Fixing it is a server
     # change plus an OpenAPI regen, not a client edit.
-    "WorkflowResponse.is_system": "#4495",
 }
 
 # `func name(... label: Components.Schemas.Foo ...)` → the schema a body is about.

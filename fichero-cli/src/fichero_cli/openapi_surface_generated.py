@@ -1305,6 +1305,25 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("get-region")
+    def artifacts_get_region_get(
+        ctx: typer.Context,
+        artifact_id: str = typer.Argument(..., help="Path parameter: artifact_id."),
+        char_end: Optional[int] = typer.Option(None, "--char-end", help="Query parameter: char_end."),
+        char_start: Optional[int] = typer.Option(None, "--char-start", help="Query parameter: char_start."),
+        line: Optional[int] = typer.Option(None, "--line", help="Query parameter: line."),
+    ) -> None:
+        """Get Artifact Region (GET /api/artifacts/{artifact_id}/region)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/artifacts/{artifact_id}/region"
+            params = {
+                "char_end": char_end,
+                "char_start": char_start,
+                "line": line,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('auth')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for auth endpoints.', no_args_is_help=True)
@@ -1590,6 +1609,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         items: str = typer.Option(..., "--items", help="Request field: items."),
         max_concurrent: Optional[int] = typer.Option(None, "--max-concurrent", help="Request field: max_concurrent."),
+        selection: Optional[str] = typer.Option(None, "--selection", help="Request field: selection."),
         workflow_id: str = typer.Option(..., "--workflow-id", help="Request field: workflow_id."),
     ) -> None:
         """Create Batch (POST /api/batches)."""
@@ -1599,10 +1619,12 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "items": items,
                 "max_concurrent": max_concurrent,
+                "selection": selection,
                 "workflow_id": workflow_id,
             }, {
                 "items": {'items': {'additionalProperties': True, 'type': 'object'}, 'type': 'array', 'title': 'Items', 'description': 'List of input dictionaries, one per item', 'x-cli-required': True},
                 "max_concurrent": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Max Concurrent', 'description': 'Maximum concurrent executions', 'default': 5, 'x-cli-required': False},
+                "selection": {'properties': {'kind': {'$ref': '#/components/schemas/SelectionKind'}, 'ids': {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids'}}, 'type': 'object', 'required': ['kind'], 'title': 'WorkflowSelection', 'description': 'The declared scope of a run.\n\nValidation is the whole point: this is the first place in the system that\ncan say "that request does not describe a coherent selection" and refuse,\nrather than running and discovering the scope was wrong from its effects\non real archival data.', 'x-cli-required': False},
                 "workflow_id": {'type': 'string', 'title': 'Workflow Id', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

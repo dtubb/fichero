@@ -165,6 +165,13 @@ class WorkflowResponse(BaseModel):
     # parent — the case where the whole vision requirement lives in a child —
     # was reported as needing nothing.
     requires_vision: bool = False
+    # True = a shipped preset. The server already knows this and enforces it
+    # (`_reject_if_read_only` 403s delete and update), but never serialised it,
+    # so the client's `isSystem` was a constant False and four surfaces read it
+    # wrongly: every preset looked deletable, Delete/Export showed on presets,
+    # "Reinstalled N workflows" always said 0, and the System badge never drew
+    # (#4495). The client read was correct all along; the wire was silent.
+    is_system: bool = False
 
 
 def _workflow_untested(wf) -> bool:
@@ -623,6 +630,7 @@ def _workflow_to_response(
         direct_runnable=_workflow_direct_runnable(workflow),
         accepts_model_override=_workflow_accepts_model_override(workflow),
         requires_vision=_workflow_requires_vision(workflow, workflow_resolver),
+        is_system=bool(getattr(workflow, "is_system", False)),
     )
 
 

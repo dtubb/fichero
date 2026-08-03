@@ -874,6 +874,34 @@
         "query_params": [],
         "request_model": "ArtifactUpdate",
         "response_model": "ArtifactResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/artifacts/{artifact_id}/region",
+        "operation_id": "get_artifact_region_api_artifacts__artifact_id__region_get",
+        "summary": "Get Artifact Region",
+        "path_params": [
+          "artifact_id"
+        ],
+        "query_params": [
+          {
+            "name": "char_end",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "char_start",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "line",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "ArtifactRegionResponse"
       }
     ],
     "auth": [
