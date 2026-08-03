@@ -132,6 +132,29 @@ extension ContentView {
     /// directory this app writes for its own drag export, which makes it a copy
     /// of a document already in the library. Importing that is the duplication
     /// the whole issue is about.
+    /// Said out loud, not swallowed. Importing a link is #2386's second half and
+    /// is not implemented; a user who drops one deserves to be told, rather than
+    /// watching nothing happen.
+    /// Delete the `fichero-drop-UUID` directories an external drop created.
+    ///
+    /// Best-effort by design: a directory the OS already reaped is not an
+    /// error, and failing an import because its scratch space could not be
+    /// tidied would be the tail wagging the dog.
+    static func removeTemporaryDropDirectories(_ directories: [URL]) {
+        for directory in directories {
+            try? FileManager.default.removeItem(at: directory)
+        }
+    }
+
+    private func reportRefusedRemoteURLs(_ remoteURLs: [URL]) {
+        guard !remoteURLs.isEmpty else { return }
+        logger.warning("Refusing \(remoteURLs.count) remote URL(s): link import is not implemented")
+        importError = """
+            Importing from a web link isn't supported yet. \
+            Download the file first, then drop it here.
+            """
+    }
+
     private func externalURLsRefusingOwnDragExports(_ urls: [URL]) -> [URL] {
         let (external, internalExports) = partitionFicheroInternalDragExports(urls)
         guard !internalExports.isEmpty else { return external }
@@ -166,7 +189,24 @@ extension ContentView {
         let targetLibrary = LibraryManager.shared.getLibrary(id: windowState.libraryId)
             ?? LibraryManager.shared.globalLibrary
 
+        // #4459: sweep the `fichero-drop-UUID` directories this drop created.
+        // `loadFileRepresentation` hands back a temp file that dies when its
+        // callback returns, so `ExternalFileDropLoader` copies it somewhere
+        // stable — and SOMEBODY has to delete that copy afterwards.
+        //
+        // The sidebar row already does exactly this (`SidebarItemRow+DropHandlers`
+        // :110-119): collect the directories, `defer` their removal past the
+        // import. The content pane never did, so every drop through the window
+        // left a directory behind. Two paths, one obligation, and nothing
+        // forcing the second to know about it.
+        //
+        // `defer` rather than a trailing call: the import has several early
+        // returns (no library, empty batch, a throw) and a leak on the failure
+        // path is the one most likely to go unnoticed.
+        let temporaryDirectories = externalDropTemporaryDirectories(for: droppedURLs.importURLs)
+
         Task { @MainActor in
+            defer { Self.removeTemporaryDropDirectories(temporaryDirectories) }
             isImporting = true
             importError = nil
 

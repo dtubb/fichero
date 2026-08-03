@@ -28,17 +28,6 @@ struct DroppedURLs {
     /// honesty: a remote URL is recognised as remote and SAID SO, instead of
     /// being mistaken for a file. A drop that explains itself is a smaller lie
     /// than a drop that silently does nothing, which is what #2386 reports.
-    /// Said out loud, not swallowed. Importing a link is #2386's second half and
-    /// is not implemented; a user who drops one deserves to be told, rather than
-    /// watching nothing happen.
-    private func reportRefusedRemoteURLs(_ remoteURLs: [URL]) {
-        guard !remoteURLs.isEmpty else { return }
-        logger.warning("Refusing \(remoteURLs.count) remote URL(s): link import is not implemented")
-        importError = """
-            Importing from a web link isn't supported yet. \
-            Download the file first, then drop it here.
-            """
-    }
 
     /// `static` and pure so the three-way split can be tested without a window,
     /// a drag session or an engine. The bug it now guards against was invisible
