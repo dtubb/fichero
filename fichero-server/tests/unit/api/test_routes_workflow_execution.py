@@ -872,6 +872,80 @@ class TestGetWorkflowRun:
         assert data["run_artifacts"][0]["step_name"] == "n1"
         assert data["run_artifacts"][0]["node_name"] == "Files"
 
+    def test_run_returns_one_step_record_per_planned_node(self, client, db):
+        """#4284: the activity view must be able to expand a run into its
+        steps. Two planned nodes, one of which ran and produced an artifact
+        and one of which never ran, must come back as TWO records — the
+        second reported not_run rather than silently missing."""
+        output_doc = _make_doc(db, "page-1.png")
+        db.save(
+            Artifact(
+                document_id=output_doc.id,
+                artifact_type="transcription",
+                content="hola",
+                run_id="thread-steps",
+                workflow_id="wf-steps",
+                step_name="n1",
+                provider="qwen",
+                model="qwen-vl-max",
+                sequence=1,
+            )
+        )
+        run = MagicMock()
+        run.thread_id = "thread-steps"
+        run.workflow_id = "wf-steps"
+        run.workflow_name = "Transcribe"
+        run.python_code = ""
+        run.execution_log = ""
+        run.status = "failed"
+        run.started_at = None
+        run.completed_at = None
+        run.duration_ms = 10.0
+        run.error = "provider returned 401"
+        run.workflow_snapshot = {
+            "nodes": [
+                {"id": "n1", "tool": "files", "label": "Files"},
+                {"id": "n2", "tool": "transcribe", "label": "Transcribe"},
+            ],
+            "edges": [{"source": "n1", "target": "n2"}],
+        }
+        run.node_name_map = {"n1": "Files", "n2": "Transcribe"}
+        run.progress_timeline = {
+            "steps": [{"node_id": "n1", "status": "success", "duration_ms": 5.0}]
+        }
+        run.diagram_mermaid = ""
+
+        tracker = MagicMock()
+        tracker.store.get_workflow_run = AsyncMock(return_value=run)
+
+        with patch(
+            "fichero_server.api.routes.workflow_execution.threads.get_activity_tracker",
+            return_value=tracker,
+        ):
+            r = client.get("/api/workflow-execution/threads/thread-steps/run")
+
+        assert r.status_code == 200
+        steps = r.json()["steps"]
+        assert len(steps) == 2, "a 2-node run must yield 2 step records"
+        first, second = steps
+        assert first["node_id"] == "n1"
+        assert first["status"] == "completed"
+        assert first["artifact_count"] == 1
+        assert first["produced_nothing"] is False
+        # The provenance that makes the output a record rather than a file.
+        artifact = first["artifacts"][0]
+        assert artifact["run_id"] == "thread-steps"
+        assert artifact["workflow_id"] == "wf-steps"
+        assert artifact["step_name"] == "n1"
+        assert artifact["provider"] == "qwen"
+        assert artifact["model"] == "qwen-vl-max"
+        assert artifact["content_preview"] == "hola"
+        assert artifact["content_truncated"] is False
+        # The step that never ran is present and honest about it.
+        assert second["node_id"] == "n2"
+        assert second["status"] == "not_run"
+        assert second["artifact_count"] == 0
+
 
 class TestThreadDiagramSvg:
     def test_returns_svg_wrapper_for_run_diagram(self, client):

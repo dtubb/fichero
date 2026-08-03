@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -17,6 +18,11 @@ from fichero_server.workflows.workflow_store import WorkflowStore
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.activity_types import WorkflowRun
 from fichero_server.workflows.types import EdgeDef, NodeDef, WorkflowDef
+from fichero_server.workflows.run_steps import (
+    RunStep,
+    RunStepArtifact,
+    build_run_steps,
+)
 from fichero_server.workflows.run_status import (
     DELETABLE_STATUSES,
     DELETED_STATUS,
@@ -107,6 +113,11 @@ class WorkflowRunResponse(BaseModel):
     diagram_mermaid: str | None = None
     planned_steps: list["WorkflowPlannedStepResponse"] = Field(default_factory=list)
     run_artifacts: list["WorkflowRunArtifactResponse"] = Field(default_factory=list)
+    # #4284: one record per step of the run — what it was asked to do, what it
+    # did, and what it produced. A run of N planned steps always yields N
+    # records, so a step that produced nothing is visible as such instead of
+    # being absent like a step that never ran.
+    steps: list["WorkflowRunStepResponse"] = Field(default_factory=list)
     diagram_svg_url: str | None = None
 
 
@@ -121,7 +132,13 @@ class WorkflowPlannedStepResponse(BaseModel):
 
 
 class WorkflowRunArtifactResponse(BaseModel):
-    """Artifact produced by a workflow run, with navigation targets."""
+    """Artifact produced by a workflow run, with navigation targets.
+
+    Carries the whole provenance chain (#4284): which run, which step, which
+    workflow, which document it was derived from, and which provider/model
+    produced it. An artifact that cannot be traced back to all of those is a
+    file, not a record.
+    """
 
     artifact_id: str
     artifact_type: str
@@ -130,10 +147,46 @@ class WorkflowRunArtifactResponse(BaseModel):
     source_document_id: str | None = None
     source_document_name: str | None = None
     run_id: str | None = None
+    workflow_id: str | None = None
     step_name: str | None = None
     node_name: str | None = None
+    provider: str | None = None
+    model: str | None = None
     sequence: int | None = None
     created_at: str | None = None
+    # Preview only — the full artifact stays addressable at
+    # GET /api/artifacts/{artifact_id}. Truncation is in the RESPONSE, never
+    # in what was stored.
+    content_chars: int = 0
+    content_preview: str | None = None
+    content_truncated: bool = False
+    has_structured_data: bool = False
+
+
+class WorkflowRunStepResponse(BaseModel):
+    """One step of a run: planned, observed, and what it produced (#4284)."""
+
+    node_id: str
+    node_name: str
+    tool: str
+    # not_run | running | completed | skipped | failed | cancelled
+    status: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    duration_ms: float | None = None
+    error: str | None = None
+    skip_reason: str | None = None
+    # The step's terminal status came from the RUN ending, not from the step
+    # reporting an outcome of its own.
+    terminated_by_run: bool = False
+    files_total: int = 0
+    files_succeeded: int = 0
+    files_failed: int = 0
+    artifact_count: int = 0
+    # Reached a terminal state having produced no artifact. Stated, not
+    # inferred from an empty list.
+    produced_nothing: bool = False
+    artifacts: list[WorkflowRunArtifactResponse] = Field(default_factory=list)
 
 
 # =============================================================================
@@ -241,52 +294,71 @@ def _planned_steps_from_run(run: WorkflowRun) -> list[WorkflowPlannedStepRespons
     return planned_steps
 
 
-def _run_artifacts_for_thread(
+def _artifact_row(record: RunStepArtifact) -> WorkflowRunArtifactResponse:
+    return WorkflowRunArtifactResponse(**asdict(record))
+
+
+def _step_row(step: RunStep) -> WorkflowRunStepResponse:
+    payload = asdict(step)
+    payload["artifacts"] = [
+        _artifact_row(RunStepArtifact(**a)) for a in payload["artifacts"]
+    ]
+    return WorkflowRunStepResponse(**payload)
+
+
+def _run_step_records(
     db: Database,
     thread_id: str,
     *,
+    run: WorkflowRun,
+    planned_steps: list[WorkflowPlannedStepResponse],
     node_name_map: dict[str, str],
-) -> list[WorkflowRunArtifactResponse]:
+) -> list[RunStep]:
+    """Join the run's snapshot, timeline, and artifacts into per-step records.
+
+    One DB read for the artifacts and one for the documents they name; the
+    join itself is pure (workflows.run_steps) so it is testable without HTTP.
+    """
     artifacts = list(db.query(Artifact, run_id=thread_id))
-    if not artifacts:
-        return []
     doc_ids = {
         doc_id
         for artifact in artifacts
         for doc_id in (artifact.document_id, artifact.source_document_id)
         if doc_id
     }
-    documents = {doc.id: doc for doc in db.query(Document) if doc.id in doc_ids}
-    artifact_rows: list[WorkflowRunArtifactResponse] = []
-    # Pipeline order when sequence is populated (#4313); created_at fallback
-    # for artifacts persisted before the sequence field existed.
-    ordered = sorted(
-        artifacts,
+    document_names = (
+        {doc.id: doc.name for doc in db.query(Document) if doc.id in doc_ids}
+        if doc_ids
+        else {}
+    )
+    return build_run_steps(
+        planned_nodes=[
+            {"node_id": s.node_id, "node_name": s.node_name, "tool": s.tool}
+            for s in planned_steps
+        ],
+        progress_timeline=run.progress_timeline,
+        artifacts=artifacts,
+        node_name_map=node_name_map,
+        document_names=document_names,
+    )
+
+
+def _flatten_run_artifacts(steps: list[RunStep]) -> list[WorkflowRunArtifactResponse]:
+    """Every artifact of the run, in pipeline order.
+
+    Each artifact belongs to exactly one step record (unattributed ones land
+    under the '(unattributed)' pseudo-step), so flattening loses nothing.
+    Pipeline order when sequence is populated (#4313); created_at fallback for
+    artifacts persisted before the sequence field existed.
+    """
+    flat = [artifact for step in steps for artifact in step.artifacts]
+    flat.sort(
         key=lambda item: (
             item.sequence if item.sequence is not None else 0,
             str(item.created_at or ""),
-        ),
-    )
-    for artifact in ordered:
-        step_name = artifact.step_name
-        artifact_rows.append(
-            WorkflowRunArtifactResponse(
-                artifact_id=artifact.id,
-                artifact_type=artifact.artifact_type,
-                document_id=artifact.document_id,
-                document_name=documents.get(artifact.document_id).name if documents.get(artifact.document_id) else None,
-                source_document_id=artifact.source_document_id,
-                source_document_name=documents.get(artifact.source_document_id).name
-                if artifact.source_document_id and documents.get(artifact.source_document_id)
-                else None,
-                run_id=artifact.run_id,
-                step_name=step_name,
-                node_name=node_name_map.get(step_name) if step_name else None,
-                sequence=artifact.sequence,
-                created_at=_iso(artifact.created_at),
-            )
         )
-    return artifact_rows
+    )
+    return [_artifact_row(record) for record in flat]
 
 
 async def _get_workflow_run_or_404(db: Database, thread_id: str) -> WorkflowRun:
@@ -928,6 +1000,14 @@ async def get_workflow_run(
     try:
         run = await _get_workflow_run_or_404(db, thread_id)
         node_name_map = _run_node_names(run)
+        planned_steps = _planned_steps_from_run(run)
+        step_records = _run_step_records(
+            db,
+            thread_id,
+            run=run,
+            planned_steps=planned_steps,
+            node_name_map=node_name_map,
+        )
 
         return WorkflowRunResponse(
             thread_id=run.thread_id,
@@ -946,12 +1026,9 @@ async def get_workflow_run(
             node_name_map=node_name_map,
             progress_timeline=run.progress_timeline,
             diagram_mermaid=run.diagram_mermaid,
-            planned_steps=_planned_steps_from_run(run),
-            run_artifacts=_run_artifacts_for_thread(
-                db,
-                thread_id,
-                node_name_map=node_name_map,
-            ),
+            planned_steps=planned_steps,
+            run_artifacts=_flatten_run_artifacts(step_records),
+            steps=[_step_row(step) for step in step_records],
             diagram_svg_url=f"/api/workflow-execution/threads/{thread_id}/diagram.svg",
         )
 

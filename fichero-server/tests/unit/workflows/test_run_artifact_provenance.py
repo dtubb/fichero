@@ -212,7 +212,9 @@ async def test_stubbed_run_produces_linked_run_artifacts(monkeypatch, temp_db):
         ExecuteWorkflowRequest,
     )
     from fichero_server.api.routes.workflow_execution.threads import (
-        _run_artifacts_for_thread,
+        WorkflowPlannedStepResponse,
+        _flatten_run_artifacts,
+        _run_step_records,
     )
     from fichero_server.execution import runner
     from fichero_server.models import Workflow
@@ -283,9 +285,19 @@ async def test_stubbed_run_produces_linked_run_artifacts(monkeypatch, temp_db):
     assert captured_state.get("task_id") == thread_id, (
         "the live runner must put the run's thread_id into state as task_id"
     )
-    rows = _run_artifacts_for_thread(
-        temp_db, thread_id, node_name_map={"node-1": "Transcribe"}
+    run = SimpleNamespace(progress_timeline={"steps": [], "nodes": {}})
+    step_records = _run_step_records(
+        temp_db,
+        thread_id,
+        run=run,
+        planned_steps=[
+            WorkflowPlannedStepResponse(
+                node_id="node-1", node_name="Transcribe", tool="transcribe"
+            )
+        ],
+        node_name_map={"node-1": "Transcribe"},
     )
+    rows = _flatten_run_artifacts(step_records)
     assert rows, "run_artifacts must be non-empty for a run that saved artifacts"
     assert rows[0].run_id == thread_id
     assert rows[0].step_name == "node-1"
