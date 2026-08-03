@@ -222,3 +222,45 @@ model output you may want.
 assertions stay hard; the divergence now logs), so the test no longer fails
 ~25% of the time — but that only stopped the noise. The persistence is
 untouched and waiting on this.
+
+---
+
+## MACHINE STATE — the Swift test suite currently cannot run
+
+**Not a decision. Something to clear before you trust a Swift test result.**
+
+As of ~23:00 Sunday, every Swift test leg fails identically:
+
+```
+Testing failed:
+    Fichero (NNNNN) encountered an error
+    (The test runner hung before establishing connection.)
+** TEST EXECUTE FAILED **
+```
+
+**Zero tests execute.** Both sub-legs (`unit-xctest` and `unit-swift-testing`)
+hang the same way; `gate unit` alone reproduces it. The leg burns ~25 minutes
+producing no results and exits 65.
+
+**It worked earlier the same evening** — the 21:00 gate ran the Swift suite
+and produced 18 real test failures, all since fixed. So this is not the code.
+
+**Most likely cause:** `testmanagerd` has been running 4h44m and is wedged. I
+could not clear it — it is launchd-managed and `kill` as a normal user does
+nothing. It usually needs `sudo killall -9 testmanagerd` or a reboot.
+
+**Why it matters for Tuesday:**
+
+1. **A red Swift leg right now means nothing.** `FAIL(rc=65)` with zero test
+   cases is not "tests failed", it is "no tests ran". I read it as the former
+   three times before checking, which is how this was found.
+2. **The 18 fixes from Sunday night are UNVERIFIED at gate scale.** They were
+   diagnosed individually and each built green, but the run that would have
+   confirmed them together never executed. Treat them as probably-good, not
+   proven.
+3. Clear the daemon (or reboot) before running `scripts/gate unit` or
+   `verify-all`, or you will spend 25 minutes learning nothing.
+
+**Honest gate state at close:** `main` builds green (RC=0, repeatedly) and the
+released DMG is verified. The full gate has NOT passed — five legs red, of
+which the Swift ones did not run at all, and the others are addressed.
