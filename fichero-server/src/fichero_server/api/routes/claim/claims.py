@@ -483,19 +483,71 @@ def create_claim_impl(db: Database, request: ClaimCreateRequest) -> KnowledgeCla
 
 
 def patch_claim_impl(
-    db: Database, claim_id: str, request: ClaimPatchRequest
+    db: Database,
+    claim_id: str,
+    request: ClaimPatchRequest,
+    actor: str | None = None,
 ) -> tuple[KnowledgeClaim, dict[str, Any]]:
-    """Apply a patch to an existing claim. Returns (claim, before_snapshot)."""
+    """Apply a patch to an existing claim. Returns (claim, before_snapshot).
+
+    An edit that changes what the claim *says* also records who said so and
+    what reading was corrected away from (#4499). Without the second half, a
+    later extraction reproducing the pre-edit reading matches nothing and is
+    filed as a second claim, leaving the archive asserting both the correction
+    and the thing it corrected. Provenance is stamped through #4415's guard —
+    the same mechanism dates (#3322 5b) and catalogue re-runs already use.
+    """
+    from fichero_server.workflows.curation_guard import record_superseded, stamp
+    from fichero_server.workflows.tools._entity_writer import claim_identity_snapshot
+
     claim = db.get(KnowledgeClaim, claim_id)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
 
     before = claim.model_dump(mode="json")
+    prior_identity = claim_identity_snapshot(claim)
     data = request.model_dump(exclude_unset=True)
     _validate_claim_references(db, data)
     _apply_claim_patch(claim, data)
+
+    # A patch that only touches, say, curation_state has not corrected any
+    # reading, so it leaves no superseded entry — the guard must fire on
+    # corrections, not on every save.
+    if claim_identity_snapshot(claim) != prior_identity:
+        source = _curation_source_for_actor(actor)
+        stamp(claim, source=source, actor=actor, basis="claim.patch")
+        if source.is_curated:
+            # Only a correction supersedes a reading. A rewrite by the
+            # pipeline's own actors is tool output being refreshed, and
+            # recording it here would let a tool freeze its own results.
+            record_superseded(claim, identity=prior_identity)
+
     db.save(claim)
     return claim, before
+
+
+def _curation_source_for_actor(actor: str | None):
+    """Which provenance an edit by ``actor`` carries.
+
+    Agents curate through audited routes as user accounts, so their
+    corrections are corrections; only the pipeline driving this route on its
+    own behalf is tool output.
+
+    ``"system"`` is *not* read as a machine here, unlike in the audit-table
+    derivation: on a single-user library nobody is signed in, so an edit
+    arriving through this route carries that actor and is nonetheless a person
+    at the loopback owner's keyboard. It stamps ``unknown`` — protected, and
+    honest that we cannot name who it was rather than guessing either way.
+    Reading it as ``tool`` would leave the single-user case, which is most of
+    them, with no correction survival at all.
+    """
+    from fichero_server.workflows.curation_guard import CurationSource
+
+    if actor == "workflow":
+        return CurationSource.tool
+    if not actor or actor == "system":
+        return CurationSource.unknown
+    return CurationSource.user
 
 
 def delete_claim_impl(
@@ -1132,7 +1184,7 @@ def _action_create_claim(
 def _action_patch_claim(
     db: Database, params: ClaimPatchActionParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    claim, before = patch_claim_impl(db, params.claim_id, params.patch)
+    claim, before = patch_claim_impl(db, params.claim_id, params.patch, actor=ctx.actor)
     spec = ChangeSpec(
         domains=["claim"],
         target_ids=[claim.id],
