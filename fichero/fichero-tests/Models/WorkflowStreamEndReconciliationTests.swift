@@ -118,11 +118,11 @@ final class WorkflowStreamEndReconciliationTests: XCTestCase {
         )
     }
 
+    /// Was a hand-counted root that landed ONE LEVEL SHORT, so all three tests
+    /// in this file died as file-not-found errors naming a path nobody
+    /// recognised (#4493). `AppSource` walks up to a landmark instead of
+    /// counting, so it cannot be wrong by a level.
     private static func appSource(_ relativePath: String) throws -> String {
-        let baseURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("../fichero")
-        return try String(contentsOf: baseURL.appendingPathComponent(relativePath), encoding: .utf8)
+        try AppSource.text(relativePath)
     }
 }
