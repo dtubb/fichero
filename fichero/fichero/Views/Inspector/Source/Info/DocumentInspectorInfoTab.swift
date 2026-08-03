@@ -38,42 +38,9 @@ struct DocumentInspectorInfoTab: View {
                 .padding(.bottom, 8)
 
             VStack(alignment: .leading, spacing: 16) {
-                // Unconditional, and first: the only way any of the sections
-                // below can ever appear (#4481).
-                attributesChooser
-
-                statusSection
-                classSection
-                sharingSection
-
-                // Workspace curated items + per-item node class (#1570 Phase 1).
-                if document.isWorkspace {
-                    infoSection("Curated Items") {
-                        WorkspaceCuratedItemsSection(folderId: document.id)
-                    }
-                }
-
-                fileSection
-                contentSection
-
-                if !geoPoints.isEmpty {
-                    infoSection("Locations") {
-                        locationsView
-                    }
-                }
-
-                infoSection("Related Claims") {
-                    RelatedClaimsPanel(documentId: document.id)
-                }
-
-                // Citations + Bibliography moved to dedicated inspector tabs
-                // (#2004 / #2005) — List + detachable detail, replacing the
-                // stacked CitationGraphPanel / DocumentBibliographyPanel that
-                // were cramped inside this Info list.
-
-                infoSection("Workflow History") {
-                    WorkflowProvenancePanel(documentId: document.id)
-                }
+                identitySections
+                fileAndContentSections
+                provenanceSections
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -86,6 +53,67 @@ struct DocumentInspectorInfoTab: View {
         }
         .task(id: document.id) {
             await loadGeoPoints()
+        }
+    }
+
+    // MARK: - Body groups
+    //
+    // A `ViewBuilder` block takes at most TEN children, and this stack was at
+    // exactly ten — the next row anyone added would have overflowed it. SwiftUI
+    // reports that overflow as "unable to type-check this expression in
+    // reasonable time", which reads as a performance problem rather than the
+    // hard limit it is; `LibraryWindow` cost this project real time to that
+    // misdiagnosis and was fixed this same way. These three groups exist to
+    // leave headroom: add new sections INSIDE one of them, not back into `body`.
+
+    /// Who and what this document is: the chooser that gates everything, then
+    /// state, class, sharing, and (for workspaces) its curated items.
+    @ViewBuilder
+    private var identitySections: some View {
+        // Unconditional, and first: the only way any of the sections
+        // below can ever appear (#4481).
+        attributesChooser
+
+        statusSection
+        classSection
+        sharingSection
+
+        // Workspace curated items + per-item node class (#1570 Phase 1).
+        if document.isWorkspace {
+            infoSection("Curated Items") {
+                WorkspaceCuratedItemsSection(folderId: document.id)
+            }
+        }
+    }
+
+    /// The bytes and what the engine read out of them.
+    @ViewBuilder
+    private var fileAndContentSections: some View {
+        fileSection
+        contentSection
+
+        if !geoPoints.isEmpty {
+            infoSection("Locations") {
+                locationsView
+            }
+        }
+    }
+
+    /// Where this document sits in the knowledge graph and what has been run
+    /// over it.
+    ///
+    /// Citations + Bibliography moved to dedicated inspector tabs (#2004 /
+    /// #2005) — List + detachable detail, replacing the stacked
+    /// CitationGraphPanel / DocumentBibliographyPanel that were cramped inside
+    /// this Info list.
+    @ViewBuilder
+    private var provenanceSections: some View {
+        infoSection("Related Claims") {
+            RelatedClaimsPanel(documentId: document.id)
+        }
+
+        infoSection("Workflow History") {
+            WorkflowProvenancePanel(documentId: document.id)
         }
     }
 
