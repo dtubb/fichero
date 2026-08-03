@@ -1362,6 +1362,68 @@ class TestRestoreAndPurgeDocument:
         assert logs[("KnowledgeClaim", claim.id)].operation.value == "delete"
         assert logs[("KnowledgeEntity", entity.id)].operation.value == "delete"
 
+    def test_purge_writes_an_audit_row_naming_the_actor(self, client, db):
+        """Purge is the one IRREVERSIBLE write, and it was the one with no
+        audit row (#4488).
+
+        Its four siblings — move, duplicate, delete, restore — all go through
+        `registry.invoke`. Purge called its impl directly and hand-rolled an
+        emit, so the write surface was audited in INVERSE proportion to
+        consequence: delete is soft and has a tested undo path, purge
+        permanently destroys a subtree. For an archive, "who destroyed this and
+        when" is precisely what an audit log is for.
+
+        Asserts the RECORD EXISTS, not that the call succeeded. A 204 proves
+        nothing about attribution, and without this assertion the wiring
+        regresses silently — which is the whole shape of #4487.
+        """
+        from fichero_server.models import ActionAudit
+
+        doc = _make_doc(db, "Doomed Doc")
+        before = {a.id for a in db.query(ActionAudit)}
+
+        assert client.delete(f"/api/documents/{doc.id}/purge").status_code == 204
+
+        new_rows = [a for a in db.query(ActionAudit) if a.id not in before]
+        purges = [a for a in new_rows if a.action_name == "document.purge"]
+        assert purges, (
+            "purging a document wrote NO document.purge audit row — the "
+            "irreversible operation is unattributable"
+        )
+        audit = purges[0]
+        assert doc.id in (audit.target_ids or []), (
+            f"the audit row does not name the purged document: {audit.target_ids}"
+        )
+        assert audit.actor, "the audit row records no actor at all"
+
+    def test_purge_emits_once_not_twice(self, client, db):
+        """The hand-rolled emit was DELETED, not left beside the audited one.
+
+        Two emit paths for one operation is the defect class this codebase
+        keeps hitting — and a duplicate `document.deleted` would make a client
+        remove the same rows twice.
+        """
+        import fichero_server.api.routes.document.documents as documents_module
+
+        doc = _make_doc(db, "Once Only")
+        emits: list[str] = []
+        original = documents_module._emit_document_change_ctx
+
+        def _record(ctx, *, event_type, document_ids, **kw):
+            emits.append(event_type)
+            return original(ctx, event_type=event_type, document_ids=document_ids, **kw)
+
+        documents_module._emit_document_change_ctx = _record
+        try:
+            assert client.delete(f"/api/documents/{doc.id}/purge").status_code == 204
+        finally:
+            documents_module._emit_document_change_ctx = original
+
+        assert emits == [], (
+            "the route still hand-rolls an emit beside the action's own "
+            f"ChangeSpec: {emits}"
+        )
+
     def test_trash_lists_deleted_without_normal_list_leak(self, client, db):
         doc = _make_doc(db, "Trash Entry")
         assert client.delete(f"/api/documents/{doc.id}").status_code == 204
