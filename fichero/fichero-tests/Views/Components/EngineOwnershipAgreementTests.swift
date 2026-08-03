@@ -88,8 +88,8 @@ struct EngineOwnershipAgreementTests {
                     )
                     #expect(
                         owns == .ownedEmbedded,
-                        "\(strategy)/\(transport)/\(String(describing: port)) offers a restart "
-                            + "for an engine the process layer will not stop"
+                        Comment(rawValue: "\(strategy)/\(transport)/\(String(describing: port)) "
+                            + "offers a restart for an engine the process layer will not stop")
                     )
                 }
             }
