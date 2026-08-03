@@ -1200,3 +1200,155 @@ class TestDetectEmptyTextOutput:
         }
         is_empty, _ = self._fn(state)
         assert not is_empty
+
+
+# ---------------------------------------------------------------------------
+# GET /api/workflow-execution/comparisons — diff two runs (#4341)
+# ---------------------------------------------------------------------------
+
+
+def _make_run(thread_id: str, *, status: str = "completed", error=None, doc_ids=("doc-1",)):
+    """A stored run record with everything the comparison route reads."""
+    run = MagicMock()
+    run.thread_id = thread_id
+    run.workflow_id = f"wf-{thread_id}"
+    run.workflow_name = f"Workflow {thread_id}"
+    run.python_code = ""
+    run.execution_log = ""
+    run.status = status
+    run.started_at = None
+    run.completed_at = None
+    run.duration_ms = 100
+    run.error = error
+    run.workflow_snapshot = {
+        "nodes": [{"id": "n1", "tool": "transcribe", "label": "Transcribe"}],
+        "edges": [],
+    }
+    run.node_name_map = {"n1": "Transcribe"}
+    run.progress_timeline = {"steps": []}
+    run.diagram_mermaid = ""
+    run.resolved_scope = {"resolved_ids": list(doc_ids), "resolved_count": len(doc_ids)}
+    return run
+
+
+class TestCompareWorkflowRuns:
+    """Two runs of the same page must disagree legibly — or say why they can't."""
+
+    def _patch_runs(self, runs: dict):
+        tracker = MagicMock()
+        tracker.store.get_workflow_run = AsyncMock(side_effect=lambda tid: runs.get(tid))
+        return patch(
+            "fichero_server.api.routes.workflow_execution.comparison.get_activity_tracker",
+            return_value=tracker,
+        )
+
+    def _transcription(self, db, doc, *, run_id, content):
+        db.save(
+            Artifact(
+                document_id=doc.id,
+                artifact_type="transcription",
+                content=content,
+                run_id=run_id,
+                step_name="n1",
+                provider="qwen",
+                model="qwen-vl-max",
+            )
+        )
+
+    def test_differing_transcriptions_name_the_line(self, client, db):
+        doc = _make_doc(db, "folio-1.png")
+        self._transcription(db, doc, run_id="run-a", content="uno\nfirmado Ospina")
+        self._transcription(db, doc, run_id="run-b", content="uno\nfirmado Ocampo")
+        runs = {"run-a": _make_run("run-a", doc_ids=[doc.id]),
+                "run-b": _make_run("run-b", doc_ids=[doc.id])}
+
+        with self._patch_runs(runs):
+            r = client.get("/api/workflow-execution/comparisons?left=run-a&right=run-b")
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["comparable"] is True
+        assert data["identical"] is False
+        assert data["same_input"] is True
+        difference = data["compared"][0]["text_diff"]["differences"][0]
+        assert difference["left_start_line"] == 2
+        assert difference["left_lines"] == ["firmado Ospina"]
+        assert difference["right_lines"] == ["firmado Ocampo"]
+        # The document is named, so the reader knows which page to open.
+        assert data["compared"][0]["document_name"] == "folio-1.png"
+
+    def test_identical_transcriptions_report_no_differences(self, client, db):
+        doc = _make_doc(db, "folio-2.png")
+        self._transcription(db, doc, run_id="run-a", content="mismo texto")
+        self._transcription(db, doc, run_id="run-b", content="mismo texto")
+        runs = {"run-a": _make_run("run-a", doc_ids=[doc.id]),
+                "run-b": _make_run("run-b", doc_ids=[doc.id])}
+
+        with self._patch_runs(runs):
+            r = client.get("/api/workflow-execution/comparisons?left=run-a&right=run-b")
+
+        data = r.json()
+        assert data["identical"] is True
+        assert data["difference_count"] == 0
+
+    def test_failed_side_is_reported_as_failed_not_as_agreement(self, client, db):
+        doc = _make_doc(db, "folio-3.png")
+        self._transcription(db, doc, run_id="run-b", content="texto")
+        runs = {
+            "run-a": _make_run("run-a", status="failed", error="vision model timed out",
+                               doc_ids=[doc.id]),
+            "run-b": _make_run("run-b", doc_ids=[doc.id]),
+        }
+
+        with self._patch_runs(runs):
+            r = client.get("/api/workflow-execution/comparisons?left=run-a&right=run-b")
+
+        assert r.status_code == 200
+        data = r.json()
+        assert data["comparable"] is False
+        # The load-bearing contract: empty-because-broken must not render the
+        # same as empty-because-identical.
+        assert data["identical"] is None
+        assert data["difference_count"] == 0
+        assert "vision model timed out" in data["incomparable_reason"]
+
+    def test_runs_over_different_documents_are_flagged(self, client, db):
+        doc_a = _make_doc(db, "folio-4.png")
+        doc_b = _make_doc(db, "folio-5.png")
+        self._transcription(db, doc_a, run_id="run-a", content="texto")
+        self._transcription(db, doc_b, run_id="run-b", content="texto")
+        runs = {"run-a": _make_run("run-a", doc_ids=[doc_a.id]),
+                "run-b": _make_run("run-b", doc_ids=[doc_b.id])}
+
+        with self._patch_runs(runs):
+            r = client.get("/api/workflow-execution/comparisons?left=run-a&right=run-b")
+
+        data = r.json()
+        assert data["same_input"] is False
+        assert "did NOT see the same input" in data["input_note"]
+
+    def test_cost_notice_is_always_returned(self, client, db):
+        doc = _make_doc(db, "folio-6.png")
+        self._transcription(db, doc, run_id="run-a", content="x")
+        self._transcription(db, doc, run_id="run-b", content="x")
+        runs = {"run-a": _make_run("run-a", doc_ids=[doc.id]),
+                "run-b": _make_run("run-b", doc_ids=[doc.id])}
+
+        with self._patch_runs(runs):
+            r = client.get("/api/workflow-execution/comparisons?left=run-a&right=run-b")
+
+        assert "twice" in r.json()["cost_notice"]
+
+    def test_unknown_run_is_404(self, client, db):
+        with self._patch_runs({"run-b": _make_run("run-b")}):
+            r = client.get("/api/workflow-execution/comparisons?left=nope&right=run-b")
+
+        assert r.status_code == 404
+        assert "nope" in r.json()["detail"]
+
+    def test_comparing_a_run_against_itself_is_400(self, client, db):
+        with self._patch_runs({"run-a": _make_run("run-a")}):
+            r = client.get("/api/workflow-execution/comparisons?left=run-a&right=run-a")
+
+        assert r.status_code == 400
+        assert "same run" in r.json()["detail"]
