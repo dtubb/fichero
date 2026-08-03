@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import shutil
-from difflib import SequenceMatcher
 from pathlib import Path
 
 import pytest
@@ -18,6 +18,13 @@ from fichero_server.workflows import registry as workflow_registry
 from fichero_server.workflows.builder import build_graph
 from fichero_server.workflows.default_workflows import _load_preset_files
 from fichero_server.workflows.runtime import build_initial_state, to_workflow_def
+from fichero_server.workflows.transcription_accuracy import (
+    ACCENT_BLIND,
+    DIPLOMATIC,
+    LAYOUT_INSENSITIVE,
+    LENIENT,
+    score_texts_under_policies,
+)
 
 import fichero_server.workflows.tools  # noqa: F401
 
@@ -167,10 +174,29 @@ def test_paleography_ensemble_real_providers(tmp_path: Path) -> None:
     assert not final_state.get("error")
     outputs = final_state["outputs"]
     assert all(outputs[node]["text"].strip() for node in ("t1a", "t1b", "t1c", "t2", "t3", "t4"))
+    # #3905 wants a recorded character error rate against the DILE gold, not a
+    # similarity ratio. `difflib` does not compute a minimal edit distance, and
+    # the old floor of 0.15 with an unlabelled case-fold would have passed on
+    # almost any page of Spanish. Report every tier under every policy so a run
+    # of this gate IS the calibration measurement, then fail only on numbers
+    # that mean "this is not a transcription of this page".
     expected = EXPECTED_TRANSCRIPTION.read_text(encoding="utf-8")
-    actual = outputs["t4"]["text"]
-    similarity = SequenceMatcher(None, expected.casefold(), actual.casefold()).ratio()
-    assert similarity >= 0.15, f"paleography output similarity too low: {similarity:.3f}"
+    policies = [DIPLOMATIC, LAYOUT_INSENSITIVE, LENIENT, ACCENT_BLIND]
+    recorded: dict[str, dict[str, float]] = {}
+    for node in ("t1a", "t1b", "t1c", "t2", "t3", "t4"):
+        recorded[node] = {
+            score.policy: round(score.cer, 4)
+            for score in score_texts_under_policies(
+                expected, outputs[node]["text"], policies
+            )
+        }
+    print("paleography CER by tier and policy:", json.dumps(recorded, indent=2))
+
+    final = recorded["t4"]
+    assert final[ACCENT_BLIND.name] < 0.5, (
+        "the ensemble's final pass is more than half wrong on this page even "
+        f"with accents, case and punctuation folded away: {recorded['t4']}"
+    )
 
     db = db_manager.get_database(library_path)
     pages = db.query(Document, parent_id=document.id, doc_type=DocType.page)
