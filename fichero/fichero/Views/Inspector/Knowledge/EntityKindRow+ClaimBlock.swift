@@ -108,7 +108,12 @@ extension EntityKindRow {
             }
         )
         .contextMenu {
-            claimContextMenuContent(claimId: claimId, claim: claim, isPrimary: isPrimary)
+            claimContextMenuContent(
+                claimId: claimId,
+                claim: claim,
+                isPrimary: isPrimary,
+                sourceDocumentId: sourceDocumentId
+            )
         }
     }
 
@@ -336,8 +341,18 @@ extension EntityKindRow {
     private func claimContextMenuContent(
         claimId: String,
         claim: Components.Schemas.KnowledgeClaim?,
-        isPrimary: Bool
+        isPrimary: Bool,
+        sourceDocumentId: String?
     ) -> some View {
+        // #4505: `openClaim` had exactly ONE caller — the row's
+        // `TapGesture(count: 2)`. iPad has no double-click, so jumping from a
+        // claim to its source page was unreachable there — on the surface whose
+        // whole argument is that a claim must be traceable back to the page
+        // (#4393). Same conservative repair as the entity row: a menu item, no
+        // gesture changed.
+        Button("Open Source") {
+            openClaim(claimId: claimId, sourceDocumentId: sourceDocumentId)
+        }
         if let claim {
             claimBulkContextMenu(for: claim)
             if isPrimary {

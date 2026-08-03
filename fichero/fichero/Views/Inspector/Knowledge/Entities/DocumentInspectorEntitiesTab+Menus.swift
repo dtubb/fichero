@@ -67,6 +67,14 @@ extension DocumentInspectorEntitiesTab {
         let targetEntities = contextMenuTargetEntities(for: entity)
         let targetCount = targetEntities.count
 
+        // #4505: `openEntity` had exactly ONE caller — the row's
+        // `TapGesture(count: 2)`. There is no double-click on iPad, so opening
+        // an entity was unreachable there entirely. A context-menu item is the
+        // conservative repair and the pattern this codebase already uses:
+        // `ArtifactListView` pairs its double-click with "Open in Window" for
+        // the same reason. It changes no existing gesture, so the Mac behaves
+        // exactly as before.
+        Button("Open") { openEntity(entity) }
         Button("Rename") { beginRename(entity) }
             .disabled(entity.id == nil)
         Button("Find in Library") {
@@ -83,11 +91,14 @@ extension DocumentInspectorEntitiesTab {
         }
         // Row text can't use .textSelection (it fights row selection), so Copy
         // is the always-available copy-paste path for a selectable row (#3461).
+        // #4505: this reached into `NSPasteboard` behind `#if canImport(AppKit)`,
+        // so on iPad the Button rendered and its body was EMPTY — a menu item
+        // that does nothing, which is the exact shape #4421's rule forbids.
+        // `PlatformPasteboard`'s own doc comment says not to touch NSPasteboard
+        // or UIPasteboard from view code, for this reason; the helper already
+        // existed and this call site predated it.
         Button("Copy Name") {
-            #if canImport(AppKit)
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(entity.canonicalName, forType: .string)
-            #endif
+            PlatformPasteboard.writeString(entity.canonicalName)
         }
         if let entityId = entity.id {
             Button("Show in Graph") {
