@@ -94,6 +94,27 @@ enum LibraryEmptyReason: Equatable {
         return false
     }
 
+    /// Whether the empty body may offer "Import Files…" on right-click (#4449).
+    ///
+    /// True for exactly one case: an empty container the user is browsing.
+    /// That is what a NEW USER sees on first launch, and it was the one
+    /// surface #4449's fix missed — the empty-area contextual menu lived on
+    /// the icon grid's scroll gutter, which is only on screen once the
+    /// library already has rows. An empty library renders `emptyState`
+    /// instead, so the affordance the issue asks for was absent precisely
+    /// when it matters most.
+    ///
+    /// False for the rest, and each for a reason rather than by omission:
+    /// a filtered/searched-out body is not empty, it is hidden — importing
+    /// would drop files into a container the user cannot currently see; and
+    /// an entity collection is a projection with no container to import
+    /// into at all. `impossible > checked`: no menu is honest, a menu that
+    /// imports somewhere unexpected is the root-cause bug wearing a new hat.
+    var offersImport: Bool {
+        if case .noCollectionSelected = self { return true }
+        return false
+    }
+
     var systemImage: String {
         switch self {
         case .noEntitiesInCollection: return "person.3.sequence"

@@ -83,6 +83,32 @@ extension LibraryView {
         }
     }
 
+    /// The ONE empty-area import menu (#4449), for every surface that can be
+    /// right-clicked while showing no row: the icon grid's scroll gutter
+    /// (`LibraryView+IconMode.swift`) and — the case the first fix missed —
+    /// the `emptyState` body itself (`LibraryView+FilterAndBatch.swift`).
+    ///
+    /// Those are two different views, and an empty library shows the SECOND
+    /// one: `libraryRowsOrEmptyState` branches to `emptyState` before the
+    /// `displayMode` switch ever reaches `iconsView`. So the gutter menu was
+    /// only ever reachable in a library that already had documents, and a
+    /// new user right-clicking their empty library got nothing — the exact
+    /// "app cannot take my files" conclusion this issue is about.
+    ///
+    /// Extracted rather than copied a third time: two inline duplicates is
+    /// how the bottom bar and `AddItemMenu` diverged in the first place.
+    /// Targets `folderId` — this pane's own container, never a bare root.
+    @ViewBuilder
+    var libraryEmptyAreaImportMenu: some View {
+        Button {
+            fileImportMode = .link
+            fileImportTargetFolderId = folderId
+            showingFileImporter = true
+        } label: {
+            Label("Import Files…", systemImage: "square.and.arrow.down")
+        }
+    }
+
     // MARK: - Sidebar-parity items (#4121)
 
     @ViewBuilder

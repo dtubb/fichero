@@ -83,27 +83,116 @@ final class LibraryImportAffordancesTests: XCTestCase {
 
     // MARK: - Empty-area contextual menu (#4449)
 
-    func testEmptyLibraryAreaOffersImport() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
-        // A contextMenu on the scroll gutter, alongside (not instead of) the
-        // per-tile context menus already attached to each document.
-        XCTAssertTrue(source.contains("Right-click on empty library area"))
-        XCTAssertTrue(source.contains("fileImportTargetFolderId = folderId"))
+    /// There is ONE empty-area menu, defined once. The icon gutter and the
+    /// empty state both mount it; neither carries its own copy of the
+    /// three-line "state the target, then present" sequence, which is how the
+    /// bottom bar and `AddItemMenu` drifted apart to begin with.
+    func testEmptyAreaImportMenuIsDefinedOnceAndSharedByBothSurfaces() throws {
+        let contextMenu = try Self.appSource("Views/Library/LibraryView+ContextMenu.swift")
+        XCTAssertTrue(contextMenu.contains("var libraryEmptyAreaImportMenu: some View"))
+        XCTAssertTrue(contextMenu.contains("fileImportTargetFolderId = folderId"))
+        XCTAssertTrue(contextMenu.contains("showingFileImporter = true"))
+
+        // Both mounting surfaces call the shared builder, not their own copy.
+        let iconMode = try Self.appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
+        XCTAssertTrue(iconMode.contains(".contextMenu { libraryEmptyAreaImportMenu }"))
+        XCTAssertFalse(iconMode.contains("Label(\"Import Files…\""))
+
+        let emptyState = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        XCTAssertTrue(emptyState.contains("libraryEmptyAreaImportMenu"))
+        XCTAssertFalse(emptyState.contains("Label(\"Import Files…\""))
     }
 
-    // MARK: - One shared presenter, not three implementations
+    /// The case the first #4449 fix missed, and the one a NEW USER hits:
+    /// an empty library never renders the icon grid, so the gutter menu was
+    /// unreachable exactly when the library had nothing in it.
+    /// `libraryRowsOrEmptyState` branches to `emptyState` BEFORE the
+    /// `displayMode` switch — assert that ordering, because it is what makes
+    /// the gutter menu insufficient on its own.
+    func testEmptyLibraryShowsEmptyStateBeforeAnyViewMode() throws {
+        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        XCTAssertTrue(library.contains("if isCollectionEmpty {"))
+        XCTAssertTrue(library.contains("emptyState"))
+        guard let emptyBranch = library.range(of: "if isCollectionEmpty {"),
+              let modeSwitch = library.range(of: "switch displayMode {") else {
+            return XCTFail("libraryRowsOrEmptyState no longer has both branches")
+        }
+        XCTAssertLessThan(
+            emptyBranch.lowerBound, modeSwitch.lowerBound,
+            "The empty branch must precede the view-mode switch; if a mode can render "
+                + "an empty library, the gutter menu is no longer the missing case."
+        )
+    }
 
-    func testEveryImportSurfaceSharesTheSamePickerState() throws {
-        // All three affordances funnel through the SAME `@State` pair
-        // declared once on LibraryView — not three separate booleans that
-        // would drift the way `AddItemMenu`'s abandoned parallel
-        // implementation did.
+    /// The empty state's menu is gated on the reason, not shown blindly —
+    /// a filtered-out body would otherwise offer to import into a container
+    /// the user cannot see. The gate's behavior is covered by
+    /// `LibraryEmptyReasonTests.importOfferedByExactlyOneReason`.
+    func testEmptyStateImportIsGatedOnTheReason() throws {
+        let source = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        XCTAssertTrue(source.contains("if reason.offersImport {"))
+    }
+
+    // MARK: - One shared presenter, not four implementations
+
+    /// The whole point of the issue: four affordances, ONE action. Each
+    /// surface must reach `showingFileImporter` + `handleFileImport`, and
+    /// there must be exactly one `.fileImporter` presenter answering them.
+    func testAllFourAffordancesReachTheOneImportAction() throws {
         let bottomBar = try Self.appSource("Views/Library/LibraryView+BottomActionBar.swift")
         let contextMenu = try Self.appSource("Views/Library/LibraryView+ContextMenu.swift")
         let iconMode = try Self.appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
-        for source in [bottomBar, contextMenu, iconMode] {
-            XCTAssertTrue(source.contains("showingFileImporter") || source.contains(".fileImporter("))
-        }
+        let emptyState = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
+        let libraryView = try Self.appSource("Views/Library/LibraryView.swift")
+
+        // (a) Data menu → Import, via the narrow focused value (#4452).
+        XCTAssertTrue(libraryView.contains(".focusedValue(\\.libraryImportAction)"))
+        XCTAssertTrue(libraryView.contains("showingFileImporter = true"))
+        // (b) folder contextual menu, (c) empty-area menu, (d) bottom bar.
+        XCTAssertTrue(contextMenu.contains("importIntoFolderMenuItem(for: document)"))
+        XCTAssertTrue(contextMenu.contains("var libraryEmptyAreaImportMenu: some View"))
+        XCTAssertTrue(iconMode.contains("libraryEmptyAreaImportMenu"))
+        XCTAssertTrue(emptyState.contains("libraryEmptyAreaImportMenu"))
+        XCTAssertTrue(bottomBar.contains("fileImportTargetFolderId = folderId"))
+
+        // ONE presenter, in one place, answering all of them.
+        let presenters = [bottomBar, contextMenu, iconMode, emptyState, libraryView]
+            .filter { $0.contains(".fileImporter(") }
+        XCTAssertEqual(
+            presenters.count, 1,
+            "Exactly one `.fileImporter` may answer `showingFileImporter`; a second "
+                + "presenter is the start of the divergence #4449 exists to close."
+        )
         XCTAssertTrue(bottomBar.contains(".fileImporter("))
+        XCTAssertTrue(bottomBar.contains("onCompletion: handleFileImport"))
+    }
+
+    /// No affordance may present the picker without first stating its target
+    /// — a bare `showingFileImporter = true` silently lands files at the
+    /// library root. Counted per file: every flip is preceded by a
+    /// `fileImportTargetFolderId` assignment.
+    func testNoAffordancePresentsThePickerWithoutStatingATarget() throws {
+        for path in [
+            "Views/Library/LibraryView+BottomActionBar.swift",
+            "Views/Library/LibraryView+ContextMenu.swift",
+            "Views/Library/LibraryView.swift"
+        ] {
+            // Comment lines dropped first: these files DOCUMENT the
+            // state-then-present sequence in prose, and counting those
+            // mentions would make the guard fail on correct code — a false
+            // alarm is how a guard gets deleted instead of fixed.
+            let source = try Self.appSource(path)
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            let flips = source.components(separatedBy: "showingFileImporter = true").count - 1
+            let targets = source.components(separatedBy: "fileImportTargetFolderId = ").count - 1
+            XCTAssertGreaterThan(flips, 0, "\(path): no import affordance left at all.")
+            XCTAssertEqual(
+                flips, targets,
+                "\(path): \(flips) picker presentation(s) but \(targets) stated target(s) — "
+                    + "an unstated target imports to the library root."
+            )
+        }
     }
 }

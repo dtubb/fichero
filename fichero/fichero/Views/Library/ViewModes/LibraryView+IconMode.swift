@@ -122,16 +122,10 @@ extension LibraryView {
                 // Right-click on empty library area → Import (#4449, third
                 // of the three affordances). Tile-level context menus
                 // (above) win over this one; it only fires on the gutter.
-                // Targets `folderId` — this pane's own container, not root.
-                .contextMenu {
-                    Button {
-                        fileImportMode = .link
-                        fileImportTargetFolderId = folderId
-                        showingFileImporter = true
-                    } label: {
-                        Label("Import Files…", systemImage: "square.and.arrow.down")
-                    }
-                }
+                // The shared builder, not a second copy — `emptyState`
+                // mounts the SAME menu, and this gutter is only on screen
+                // once the library already has rows.
+                .contextMenu { libraryEmptyAreaImportMenu }
                 // In icon mode, ScrollView may consume arrow keys for scrolling first.
                 // Handle them at this level so keyboard selection always works.
                 // NOTE: these deliberately DUPLICATE the body-level handlers in

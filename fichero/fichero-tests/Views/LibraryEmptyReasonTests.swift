@@ -28,6 +28,59 @@ struct LibraryEmptyReasonTests {
         )
     }
 
+    // MARK: - Empty-area Import (#4449)
+
+    /// The new-user case: an empty container, nothing filtered, nothing
+    /// searched. This is the ONLY reason that may offer Import, and it must —
+    /// it is the first thing someone sees on launch, and #4449 exists because
+    /// every obvious way in looked dead.
+    @Test("an empty container offers Import on right-click")
+    func emptyContainerOffersImport() {
+        #expect(resolve().offersImport)
+        #expect(resolve() == .noCollectionSelected)
+    }
+
+    /// A filtered or searched-out body is HIDDEN, not empty. Importing there
+    /// would drop files into a container the user cannot currently see —
+    /// "a `+` on a folder that imports to the root is a different bug wearing
+    /// the same shape", one level over. And an entity projection has no
+    /// container to import into at all.
+    @Test("hidden or non-container empty states offer no Import")
+    func hiddenAndProjectionStatesOfferNoImport() {
+        #expect(!resolve(filterText: "Image").offersImport)
+        #expect(!resolve(activeSearchQuery: "Asprilla").offersImport)
+        #expect(
+            !resolve(
+                activeSearchQuery: "Asprilla",
+                hitCounts: SearchHitCounts(artifacts: 6)
+            ).offersImport
+        )
+        #expect(!resolve(isShowingEntities: true).offersImport)
+    }
+
+    /// Exhaustive: across every resolvable combination, Import is offered by
+    /// exactly the empty-container case and nothing else. A new reason added
+    /// later defaults to NOT offering, which is the safe direction — a missing
+    /// menu is visible, a menu that imports somewhere unexpected is not.
+    @Test("Import is offered by exactly one reason, whatever the inputs")
+    func importOfferedByExactlyOneReason() {
+        for showingEntities in [true, false] {
+            for filter in ["", "stuck"] {
+                for query in [nil, "", "q"] as [String?] {
+                    for artifacts in [0, 6] {
+                        let reason = resolve(
+                            isShowingEntities: showingEntities,
+                            filterText: filter,
+                            activeSearchQuery: query,
+                            hitCounts: SearchHitCounts(artifacts: artifacts)
+                        )
+                        #expect(reason.offersImport == (reason == .noCollectionSelected))
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - The invariant that generalises
 
     /// **The body must be non-empty and on-topic whenever the header count is

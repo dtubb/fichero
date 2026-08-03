@@ -418,6 +418,21 @@ extension LibraryView {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The empty-library right-click (#4449). `libraryRowsOrEmptyState`
+        // branches HERE before the `displayMode` switch, so an empty library
+        // never renders the icon grid whose gutter carried the only
+        // empty-area Import menu — a new user's first right-click found
+        // nothing. The `.frame(maxWidth/maxHeight: .infinity)` above is what
+        // makes the whole blank pane the hit area, not just the text.
+        //
+        // Gated on `offersImport`, so a filtered/searched-out body or an
+        // entity projection shows no menu rather than one that would import
+        // into a container the user cannot currently see.
+        .contextMenu {
+            if reason.offersImport {
+                libraryEmptyAreaImportMenu
+            }
+        }
     }
 
     func loadEntitiesIfNeeded() async {
