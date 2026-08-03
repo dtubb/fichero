@@ -17,7 +17,8 @@
     "ocr"
   ],
   "config": {
-    "preset_version": 2
+    "preset_version": 2,
+    "tested": true
   },
   "nodes": [
     {

@@ -1,6 +1,6 @@
 {
   "name": "Export to Desktop (MD + DOCX + XLSX)",
-  "description": "Export the selected folder or whole library to the Desktop as a Markdown folder, a Word .docx, and an Excel .xlsx. No LLM required \u2014 runs entirely on the local export service.",
+  "description": "Export the selected folder or whole library to the Desktop as a Markdown folder, a Word .docx, and an Excel .xlsx. No LLM required — runs entirely on the local export service.",
   "format": "nodes",
   "is_template": true,
   "is_system": true,
@@ -13,7 +13,8 @@
     "xlsx"
   ],
   "config": {
-    "preset_version": 2
+    "preset_version": 2,
+    "tested": true
   },
   "nodes": [
     {
