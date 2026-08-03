@@ -25,9 +25,9 @@
     "note": "first recorded run"
   },
   "entities.list.full": {
-    "commit": "18917fe1f",
-    "ms": 42.0,
-    "note": "first recorded run"
+    "commit": "5c15d0b59",
+    "ms": 30.7,
+    "note": "tightened from 42.0 ms"
   },
   "mem::session::tests,tests/unit/mcp": {
     "commit": "c653992c9",
@@ -35,9 +35,9 @@
     "note": "first recorded run"
   },
   "mem::session::tests/contracts,tests/integration,tests/unit": {
-    "commit": "18917fe1f",
-    "mb": 3774.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "mb": 3359.6,
+    "note": "tightened from 3774 MB"
   },
   "mem::session::tests/integration/test_transport_matrix.py,tests/integration/test_transport_round_trips.py": {
     "commit": "18917fe1f",
@@ -59,339 +59,39 @@
     "mb": 263.0,
     "note": "first recorded run"
   },
-  "queries.DELETE./api/actions/{action_id}": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/agent-memory/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/annotations/{annotation_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/artifacts/{artifact_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/canvas/folders/{folder_id}/canvas-items/{item_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/chat/conversations/{conversation_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/chat/workspaces/{workspace_id}": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/claim-links/{link_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/claims/{claim_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/classifications/{value_id}": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/documents/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/documents/{doc_id}/notes": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/documents/{doc_id}/purge": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/entities/{entity_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/folders/{entity_type}/folders": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/hermeneutics/frameworks/{framework_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/images/{document_id}/edits": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/kg/curation-rules/claim-rules": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/kg/curation-rules/entity-rules": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/libraries/{lib:path}/entity-types/{entity_type_key}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/library/links/{link_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/mcp-servers/{server_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/mcp/tools/knowledge/claims/{claim_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/mcp/tools/knowledge/entities/{entity_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/notes/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/notes/{note_id}/links/{link_id}": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/projects/{project_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/providers/refs/{ref_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/providers/{provider_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/references/{reference_id}": {
-    "commit": "e123a8a43",
+  "queries.DELETE./api/activity/cleanup": {
+    "commit": "107c1c884",
     "count": 5,
     "note": "first recorded run"
   },
-  "queries.DELETE./api/registries/claim-kinds/{value_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
+  "queries.GET./api/actions/registry": {
+    "commit": "107c1c884",
+    "count": 0,
     "note": "first recorded run"
   },
-  "queries.DELETE./api/registries/epistemic-statuses/{value_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
+  "queries.GET./api/activity": {
+    "commit": "107c1c884",
+    "count": 0,
     "note": "first recorded run"
   },
-  "queries.DELETE./api/registry/{library_path:path}": {
-    "commit": "e123a8a43",
-    "count": 2,
+  "queries.GET./api/activity/batch/{batch_id}": {
+    "commit": "107c1c884",
+    "count": 0,
     "note": "first recorded run"
   },
-  "queries.DELETE./api/research/projects/{project_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
+  "queries.GET./api/activity/recent": {
+    "commit": "107c1c884",
+    "count": 0,
     "note": "first recorded run"
   },
-  "queries.DELETE./api/search/saved/{search_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
+  "queries.GET./api/activity/stats": {
+    "commit": "107c1c884",
+    "count": 0,
     "note": "first recorded run"
   },
-  "queries.DELETE./api/settings/ai-defaults": {
-    "commit": "e123a8a43",
-    "count": 50,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/settings/model-profiles/{profile_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/sources/{source_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.DELETE./api/workflows/{workflow_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions": {
-    "commit": "e123a8a43",
-    "count": 14,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/builtin": {
-    "commit": "e123a8a43",
-    "count": 14,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/categories": {
-    "commit": "e123a8a43",
-    "count": 14,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/category/{category}": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/custom": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/popular": {
-    "commit": "e123a8a43",
-    "count": 14,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/recent": {
-    "commit": "e123a8a43",
-    "count": 14,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/search": {
-    "commit": "e123a8a43",
-    "count": 14,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/{action_id}": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/actions/{action_id}/export": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/agent-memory": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/agent-memory/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/annotations": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/annotations/{annotation_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/artifacts/": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/artifacts/document/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/artifacts/types": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/artifacts/{artifact_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/bookmarks": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/bookmarks/{bookmark_id}/resolve": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/canvas/folders/{folder_id}/canvas-items": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/canvas/folders/{folder_id}/canvas-layout": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/chains/presets/paleography": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/chat/conversations": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/chat/conversations/{conversation_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/chat/providers": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/chat/workspaces": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/chat/workspaces/{workspace_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
+  "queries.GET./api/activity/workflow/{workflow_id}": {
+    "commit": "107c1c884",
+    "count": 0,
     "note": "first recorded run"
   },
   "queries.GET./api/citation-usages": {
@@ -399,394 +99,14 @@
     "count": 2,
     "note": "first recorded run"
   },
-  "queries.GET./api/claim-links/{link_id}": {
-    "commit": "e123a8a43",
+  "queries.GET./api/documents": {
+    "commit": "5c15d0b59",
     "count": 1,
     "note": "first recorded run"
   },
-  "queries.GET./api/claims": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/claims/queues/curated": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/claims/queues/rejected": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/claims/queues/shortlisted": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/claims/queues/unreviewed": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/claims/{claim_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/claims/{claim_id}/links": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/claims/{claim_id}/related": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/classifications": {
-    "commit": "e123a8a43",
-    "count": 17,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/content-representations/document/{document_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/content-representations/{representation_id}/revisions": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/collections": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/trash": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/workspaces": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/annotations.jsonld": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/children": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/notes": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/page-ranges": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/page-ranges/at/{page}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/parent": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/related": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/workflow-runs": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{doc_id}/workspace/items": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{document_id}/citations": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/documents/{document_id}/outline": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/entities": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/entities/alias-map": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/entities/resolve/{value}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/entities/{entity_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/entities/{entity_id}/biography": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/entities/{entity_id}/export": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/folders/{entity_type}/folders": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/folders/{folder_id}/views": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/circle-state": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/circle-state/{state_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/frameworks": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/frameworks/{framework_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/interpretations": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/interpretations/{interpretation_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/patterns": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/hermeneutics/patterns/{pattern_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/iiif/iiif/manifest/{document_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/iiif/iiif/{identifier}/info.json": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/images/{document_id}/edits": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/images/{document_id}/preview": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/kg/curation-rules/claim-rules": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/kg/curation-rules/entity-rules": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/kg/entity-curation/audit": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/kg/entity-curation/candidates": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/kg/export/rdf": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/kg/review/graph-candidates": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/kg/review/summary": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/libraries/{lib:path}/entity-types": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/mcp-servers": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/mcp-servers/tools/all": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/mcp-servers/{server_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/mcp/tools/knowledge/claims/{claim_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/mcp/tools/knowledge/entities/{entity_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/migrations/integrity-check": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/model-comparison/models": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/model-comparison/presets": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/notes": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/notes/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/notes/{note_id}/backlinks": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/notes/{note_id}/forward-links": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/projects": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/projects/membership/{target_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/projects/{project_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/projects/{project_id}/items": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/providers": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/providers/refs": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/providers/{provider_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/references": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/references/{reference_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/registries/claim-kinds": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/registries/epistemic-statuses": {
-    "commit": "e123a8a43",
-    "count": 2,
+  "queries.GET./api/health": {
+    "commit": "107c1c884",
+    "count": 0,
     "note": "first recorded run"
   },
   "queries.GET./api/registry": {
@@ -794,795 +114,40 @@
     "count": 1,
     "note": "tightened from 180 queries"
   },
-  "queries.GET./api/research/notes/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/plans/{plan_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/plans/{plan_id}/tasks": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/projects": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/projects/{project_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/projects/{project_id}/notes": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/projects/{project_id}/plans": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/projects/{project_id}/sources": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/tasks/{task_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/research/tasks/{task_id}/steps": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/search/explain/{query}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/search/metrics": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/search/saved": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/settings/ai-defaults": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/settings/model-profiles": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/settings/model-profiles/{profile_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/sources": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/sources/{source_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/stats": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/storage/display/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/storage/source/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/storage/thumbnail/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/workflow-execution/threads/{thread_id}/run": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/workflow-execution/workflows/{workflow_id}/visualization": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
   "queries.GET./api/workflows": {
     "commit": "18917fe1f",
     "count": 2,
     "note": "tightened from 181 queries"
   },
-  "queries.GET./api/workflows/{workflow_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./api/workflows/{workflow_id}/export": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./view/document/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.GET./view/kg/global": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/agent-memory/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/annotations/{annotation_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/canvas/folders/{folder_id}/canvas-items/{item_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/chat/workspaces/{workspace_id}/members": {
-    "commit": "e123a8a43",
+  "queries.POST./api/ingest/file": {
+    "commit": "107c1c884",
     "count": 10,
     "note": "first recorded run"
   },
-  "queries.PATCH./api/claim-links/{link_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
+  "queries.POST./api/library": {
+    "commit": "107c1c884",
+    "count": 401,
     "note": "first recorded run"
   },
-  "queries.PATCH./api/claims/{claim_id}/transition": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/classifications/{value_id}": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/documents/batch-exclude": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/documents/{doc_id}/workspace": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/hermeneutics/frameworks/{framework_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/hermeneutics/interpretations/{interpretation_id}": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/hermeneutics/patterns/{pattern_id}": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/kg/claims/batch-curation": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/kg/entities/batch-curation": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/kg/pykeen/reviews/{review_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/library/links/{link_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/notes/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/projects/{project_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/providers/refs/{ref_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/providers/{provider_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/references/{reference_id}": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/research/checklists/{checklist_id}/items/{item_id}": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/research/notes/{note_id}": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/research/plans/{plan_id}": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/research/projects/{project_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/research/steps/{step_id}": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/research/tasks/{task_id}": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.PATCH./api/workflows/{workflow_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/actions": {
-    "commit": "e123a8a43",
-    "count": 15,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/actions/import": {
-    "commit": "e123a8a43",
-    "count": 15,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/actions/{action_id}/use": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/annotations": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/annotations/{annotation_id}/promote-to-claim": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/artifacts/": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/bibliography/document/{document_id}/attach": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/chat/conversations/reorder": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/chat/conversations/{conversation_id}/workspace": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/citations/graph": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/claims/assign-time-period": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/claims/assign-time-period-from-metadata": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/claims/{claim_id}/links": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/classifications": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/documents/cleanup-orphans": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/documents/groups": {
-    "commit": "e123a8a43",
-    "count": 5,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/documents/groups/{group_id}/ungroup": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/documents/reorder": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/documents/{doc_id}/restore": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/entities/{entity_id}/aliases": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/hermeneutics/circle-state": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/hermeneutics/circle-state/{state_id}/backtrack": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/hermeneutics/circle-state/{state_id}/navigate": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/hermeneutics/frameworks": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/hermeneutics/interpretations": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/hermeneutics/patterns": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/hermeneutics/patterns/{pattern_id}/claims/{claim_id}": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/batch-apply": {
-    "commit": "e123a8a43",
-    "count": 28,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/batch-apply/{batch_id}/undo": {
-    "commit": "e123a8a43",
-    "count": 20,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/crops/batch": {
-    "commit": "e123a8a43",
-    "count": 22,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/{document_id}/crop": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/{document_id}/operations/enhance": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/{document_id}/operations/remove-background": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/{document_id}/operations/segment": {
-    "commit": "e123a8a43",
-    "count": 12,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/{document_id}/operations/straighten": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/{document_id}/uncrop": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/images/{document_id}/unsplit": {
-    "commit": "e123a8a43",
-    "count": 5,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/claims/merge": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/claims/prune-trivial": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/claims/unmerge": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/curation-rules/claim-rules": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/curation-rules/claim-rules/batch": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/curation-rules/entity-rules": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/curation-rules/entity-rules/batch": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/entities/{entity_id}/bio": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/entity-curation/audit/{audit_id}/undo": {
-    "commit": "e123a8a43",
+  "queries.POST./api/search": {
+    "commit": "107c1c884",
     "count": 14,
     "note": "first recorded run"
   },
-  "queries.POST./api/kg/entity-curation/merge": {
-    "commit": "e123a8a43",
-    "count": 5,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/entity-curation/split": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/pykeen/reviews": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/query/sparql": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/kg/render/paragraph": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/libraries/{lib:path}/entity-types": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/links": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/mcp-servers": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/mcp-servers/tools/load-into-workflow-registry": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/model-comparison/compare-node": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/model-comparison/compare-node/apply": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/model-comparison/recommend-models": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/notes/{note_id}/links": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/projects": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/projects/{project_id}/include": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/providers/refs": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/registries/claim-kinds": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/registries/epistemic-statuses": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/registry/add": {
-    "commit": "e123a8a43",
-    "count": 201,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/checklists": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/notes": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/plans": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/projects": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/sources": {
-    "commit": "e123a8a43",
-    "count": 6,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/steps": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/tasks": {
-    "commit": "e123a8a43",
-    "count": 8,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/research/tools/browser-save": {
-    "commit": "e123a8a43",
-    "count": 11,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/search/explain": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/search/saved/reorder": {
-    "commit": "e123a8a43",
-    "count": 5,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/search/saved/{search_id}/duplicate": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/settings/ai-defaults/repair": {
-    "commit": "e123a8a43",
-    "count": 36,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/storage/regenerate-missing": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/storage/snapshots": {
-    "commit": "e123a8a43",
-    "count": 221,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/storage/snapshots/{snapshot_id}/restore": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/workflow-execution/execute": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/workflows": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/workflows/{workflow_id}/duplicate": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.POST./api/workflows/{workflow_id}/estimate-cost": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/actions/{action_id}": {
-    "commit": "e123a8a43",
-    "count": 10,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/artifacts/{artifact_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/canvas/folders/{folder_id}/canvas-layout": {
-    "commit": "e123a8a43",
-    "count": 7,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/chat/conversations/{conversation_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/documents/{doc_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/documents/{doc_id}/notes": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/documents/{doc_id}/page-ranges": {
-    "commit": "e123a8a43",
-    "count": 9,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/documents/{doc_id}/prototype": {
-    "commit": "e123a8a43",
-    "count": 5,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/folders/{entity_type}/folders": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/images/{document_id}/edits": {
-    "commit": "e123a8a43",
-    "count": 4,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/mcp-servers/{server_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/search/saved/{search_id}": {
-    "commit": "e123a8a43",
-    "count": 1,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/settings/model-profiles/{profile_id}": {
-    "commit": "e123a8a43",
-    "count": 2,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/sources/{source_id}": {
-    "commit": "e123a8a43",
-    "count": 3,
-    "note": "first recorded run"
-  },
-  "queries.PUT./api/workflows/{workflow_id}": {
-    "commit": "e123a8a43",
-    "count": 4,
+  "test::tests/contracts/test_docs_coverage.py::test_every_public_openapi_path_is_documented_or_allowlisted": {
+    "commit": "07c13c1ea",
+    "ms": 25.2,
     "note": "first recorded run"
   },
   "test::tests/contracts/test_extensibility_guarantee.py::test_ensure_table_adds_missing_columns_for_existing_tables": {
-    "commit": "18917fe1f",
-    "ms": 124.7,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 84.2,
+    "note": "tightened from 124.7 ms"
   },
   "test::tests/contracts/test_extensibility_guarantee.py::test_entity_type_registry_accepts_new_keys_without_schema_change": {
-    "commit": "18917fe1f",
-    "ms": 412.0,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 357.9,
+    "note": "tightened from 412.0 ms"
   },
   "test::tests/contracts/test_ui_wiring_coverage.py::test_no_unwired_unallowlisted_endpoints[cli]": {
     "commit": "18917fe1f",
@@ -1600,19 +165,19 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestActivityTracking::test_activity_stats[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 154.0,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 126.9,
+    "note": "tightened from 154.0 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestActivityTracking::test_activity_tracker_convenience_methods[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 62.7,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 47.9,
+    "note": "tightened from 62.7 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestActivityTracking::test_query_by_level[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 88.5,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 51.1,
+    "note": "tightened from 88.5 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestActivityTracking::test_query_by_type[asyncio]": {
     "commit": "18917fe1f",
@@ -1620,14 +185,14 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestActivityTracking::test_save_and_query_activity[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 41.9,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 37.6,
+    "note": "tightened from 41.9 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchActivityIntegration::test_batch_item_completion_logging[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 102.8,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 78.6,
+    "note": "tightened from 102.8 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchActivityIntegration::test_batch_progress_with_activity[asyncio]": {
     "commit": "18917fe1f",
@@ -1635,9 +200,9 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchActivityIntegration::test_batch_with_activity_logging[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 77.1,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 51.7,
+    "note": "tightened from 77.1 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_batch_progress[asyncio]": {
     "commit": "18917fe1f",
@@ -1645,24 +210,24 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_cancel_batch[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 91.4,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 69.9,
+    "note": "tightened from 91.4 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_create_batch[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 45.9,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 37.2,
+    "note": "tightened from 45.9 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_delete_batch[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 60.4,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 50.1,
+    "note": "tightened from 60.4 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_get_batch[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 40.4,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 32.1,
+    "note": "tightened from 40.4 ms"
   },
   "test::tests/integration/test_batch_execution_integration.py::TestBatchExecution::test_list_batches[asyncio]": {
     "commit": "18917fe1f",
@@ -1680,19 +245,19 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_cli_engine_contract.py::test_cli_workflows_match_library": {
-    "commit": "18917fe1f",
-    "ms": 112.6,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 97.4,
+    "note": "tightened from 112.6 ms"
   },
   "test::tests/integration/test_cli_kg_parity.py::test_cli_kg_parity_commands_emit_stable_json": {
-    "commit": "18917fe1f",
-    "ms": 1497.4,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 842.4,
+    "note": "tightened from 1497.4 ms"
   },
   "test::tests/integration/test_contract_endpoint_walk.py::test_no_envelope_get_endpoint_returns_500": {
-    "commit": "18917fe1f",
-    "ms": 196.5,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 175.3,
+    "note": "tightened from 196.5 ms"
   },
   "test::tests/integration/test_device_pairing_e2e.py::test_device_pairing_e2e_rejects_remote_pairing_without_https": {
     "commit": "18917fe1f",
@@ -1795,9 +360,9 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_multiuser_flow.py::test_multiuser_ann_flow_happy_path_and_acl_revocation[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 1861.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 1189.8,
+    "note": "tightened from 1861.2 ms"
   },
   "test::tests/integration/test_multiuser_flow.py::test_multiuser_invite_attack_surface_and_concurrent_redeem": {
     "commit": "18917fe1f",
@@ -1875,9 +440,9 @@
     "note": "tightened from 81.6 ms"
   },
   "test::tests/integration/test_workflow_integration.py::TestCheckpointHistory::test_checkpoint_history[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 30.4,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 26.7,
+    "note": "tightened from 30.4 ms"
   },
   "test::tests/integration/test_workflow_integration.py::TestCrashRecovery::test_workflow_survives_restart[asyncio]": {
     "commit": "18917fe1f",
@@ -1895,14 +460,14 @@
     "note": "first recorded run"
   },
   "test::tests/integration/test_workflow_integration.py::TestWorkflowImportExport::test_export_import_execute[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 35.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 30.2,
+    "note": "tightened from 35.2 ms"
   },
   "test::tests/integration/test_workflow_integration.py::TestWorkflowLifecycle::test_save_load_execute_workflow[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 40.3,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 36.0,
+    "note": "tightened from 40.3 ms"
   },
   "test::tests/integration/test_workflow_stream_cache_events.py::test_file_complete_event_marks_cached_on_second_run[asyncio]": {
     "commit": "18917fe1f",
@@ -1915,9 +480,9 @@
     "note": "first recorded run"
   },
   "test::tests/perf/test_document_pipeline_perf.py::test_batch_cache_key_throughput": {
-    "commit": "523cca6c0",
-    "ms": 215.7,
-    "note": "first recorded run"
+    "commit": "5c15d0b59",
+    "ms": 129.0,
+    "note": "tightened from 215.7 ms"
   },
   "test::tests/perf/test_document_pipeline_perf.py::test_claims_list_scale": {
     "commit": "523cca6c0",
@@ -1935,9 +500,9 @@
     "note": "first recorded run"
   },
   "test::tests/perf/test_entity_list_perf.py::test_list_entities_doc_scoped_scale": {
-    "commit": "523cca6c0",
-    "ms": 1613939.2,
-    "note": "first recorded run"
+    "commit": "5c15d0b59",
+    "ms": 1394762.6,
+    "note": "tightened from 1613939.2 ms"
   },
   "test::tests/perf/test_entity_list_perf.py::test_list_entities_full_scale": {
     "commit": "523cca6c0",
@@ -15970,9 +14535,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/test_perf_history.py::TestTheQueryCountRatchet::test_a_lower_count_tightens_the_bar": {
-    "commit": "18917fe1f",
-    "ms": 130.0,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 116.8,
+    "note": "tightened from 130.0 ms"
   },
   "test::tests/unit/test_perf_history.py::TestTheQueryCountRatchet::test_a_timing_entry_and_a_count_entry_share_the_baseline_file": {
     "commit": "18917fe1f",
@@ -15985,9 +14550,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/test_perf_history.py::TestTheQueryCountRatchet::test_each_endpoint_keeps_its_own_bar": {
-    "commit": "18917fe1f",
-    "ms": 68.3,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 60.0,
+    "note": "tightened from 68.3 ms"
   },
   "test::tests/unit/test_perf_history.py::TestTheQueryCountRatchet::test_multiple_hits_in_one_session_are_judged_on_the_fewest": {
     "commit": "18917fe1f",
@@ -16007,6 +14572,31 @@
   "test::tests/unit/test_perf_history.py::TestTheQueryCountRatchet::test_the_tightened_bar_is_then_enforced": {
     "commit": "18917fe1f",
     "ms": 147.7,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/test_query_ratchet_bar_hygiene.py::TestFlushWritesOnlyWhatWasMeasured::test_a_genuine_zero_is_recorded_and_held": {
+    "commit": "107c1c884",
+    "ms": 104.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/test_query_ratchet_bar_hygiene.py::TestFlushWritesOnlyWhatWasMeasured::test_an_unexercised_endpoint_gets_no_bar": {
+    "commit": "07c13c1ea",
+    "ms": 58.9,
+    "note": "tightened from 66.7 ms"
+  },
+  "test::tests/unit/test_query_ratchet_bar_hygiene.py::TestInterruptedRunsWriteNothing::test_sessionfinish_flushes_nothing_on_exitstatus_2": {
+    "commit": "107c1c884",
+    "ms": 47.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/test_query_ratchet_bar_hygiene.py::TestTheMiddlewareKnowsWhenItsInstrumentIsDead::test_a_request_through_a_mocked_db_layer_writes_no_bar": {
+    "commit": "107c1c884",
+    "ms": 55.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/test_query_ratchet_bar_hygiene.py::TestTheMiddlewareKnowsWhenItsInstrumentIsDead::test_the_same_request_through_the_real_layer_IS_recorded": {
+    "commit": "107c1c884",
+    "ms": 47.8,
     "note": "first recorded run"
   },
   "test::tests/unit/test_shared_fixture_library.py::TestSeederWithFiles::test_default_seed_unchanged": {
@@ -16045,9 +14635,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_action_store.py::TestActionStoreConcurrency::test_action_write_concurrent_with_typed_save": {
-    "commit": "18917fe1f",
-    "ms": 179.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 158.2,
+    "note": "tightened from 179.2 ms"
   },
   "test::tests/unit/workflows/test_activity.py::TestActivityEndpoints::test_activity_stats": {
     "commit": "18917fe1f",
@@ -16115,9 +14705,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_activity_store_hydration.py::test_get_workflow_run_hydrates_progress_timeline_from_persisted_events[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 77.2,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 64.4,
+    "note": "tightened from 77.2 ms"
   },
   "test::tests/unit/workflows/test_annotations_source.py::test_source_without_selected_documents_is_empty": {
     "commit": "18917fe1f",
@@ -16150,34 +14740,34 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_book_structure.py::test_detect_structure_tool_reuses_book_structure": {
-    "commit": "18917fe1f",
-    "ms": 123.4,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 94.4,
+    "note": "tightened from 123.4 ms"
   },
   "test::tests/unit/workflows/test_builder_edge_robustness.py::test_build_graph_handles_route_map_edge": {
-    "commit": "18917fe1f",
-    "ms": 28.9,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 25.6,
+    "note": "tightened from 28.9 ms"
   },
   "test::tests/unit/workflows/test_builder_edge_robustness.py::test_parallel_aggregate_auto_wires_downstream_inputs[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 32.3,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 26.9,
+    "note": "tightened from 32.3 ms"
   },
   "test::tests/unit/workflows/test_builder_edge_robustness.py::test_route_map_targets_parallel_tool_fan_out[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 46.6,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 36.0,
+    "note": "tightened from 46.6 ms"
   },
   "test::tests/unit/workflows/test_builder_edge_robustness.py::test_route_map_unknown_value_falls_back_to_first_branch[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 37.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 29.5,
+    "note": "tightened from 37.2 ms"
   },
   "test::tests/unit/workflows/test_builder_parallel_target_label_id.py::test_capture_ocr_transcribe_preset_builds_without_error": {
-    "commit": "18917fe1f",
-    "ms": 33.1,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 29.5,
+    "note": "tightened from 33.1 ms"
   },
   "test::tests/unit/workflows/test_builder_parallel_target_label_id.py::test_non_source_edge_to_parallel_target_builds": {
     "commit": "18917fe1f",
@@ -16220,9 +14810,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_catalogue_scope_isolation_e2e.py::TestNothingOutsideTheSelectionIsTouched::test_the_unselected_folder_gets_no_entities_or_claims": {
-    "commit": "18917fe1f",
-    "ms": 383.5,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 344.8,
+    "note": "tightened from 383.5 ms"
   },
   "test::tests/unit/workflows/test_catalogue_scope_isolation_e2e.py::TestNothingOutsideTheSelectionIsTouched::test_the_unselected_folder_keeps_its_page_content": {
     "commit": "18917fe1f",
@@ -16230,9 +14820,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_catalogue_scope_isolation_e2e.py::TestTheRunProducesItsOwnOutput::test_entities_and_claims_land_for_the_selected_folder": {
-    "commit": "18917fe1f",
-    "ms": 359.3,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 316.9,
+    "note": "tightened from 359.3 ms"
   },
   "test::tests/unit/workflows/test_catalogue_scope_isolation_e2e.py::TestTheRunProducesItsOwnOutput::test_the_selected_folder_carries_the_catalogue_artifact": {
     "commit": "18917fe1f",
@@ -16240,14 +14830,14 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_checkpointer.py::test_checkpointer_serializes_shared_connection_under_concurrency[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 114.9,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 99.5,
+    "note": "tightened from 114.9 ms"
   },
   "test::tests/unit/workflows/test_checkpointer_integration.py::test_checkpoint_history[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 39.3,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 34.7,
+    "note": "tightened from 39.3 ms"
   },
   "test::tests/unit/workflows/test_checkpointer_integration.py::test_multiple_threads_isolated[asyncio]": {
     "commit": "18917fe1f",
@@ -16260,9 +14850,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_checkpointer_integration.py::test_workflow_recovery_after_failure[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 39.9,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 32.6,
+    "note": "tightened from 39.9 ms"
   },
   "test::tests/unit/workflows/test_checkpointer_integration.py::test_workflow_with_checkpointing_full_run[asyncio]": {
     "commit": "18917fe1f",
@@ -16280,8 +14870,13 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_citations_extract_tool.py::test_citations_extract_dedupes_numeric_and_footnote_hits[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 501.1,
+    "commit": "07c13c1ea",
+    "ms": 343.7,
+    "note": "tightened from 406.9 ms"
+  },
+  "test::tests/unit/workflows/test_cli_agent_tool.py::test_cli_agent_timeout_kills_process[asyncio]": {
+    "commit": "107c1c884",
+    "ms": 636.6,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_completion.py::TestCompleteRunDocuments::test_completes_page_children_of_parent": {
@@ -16290,9 +14885,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_completion.py::TestCompleteRunDocumentsPageParent::test_completes_pending_parent_when_explicitly_in_ids": {
-    "commit": "18917fe1f",
-    "ms": 45.6,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 38.1,
+    "note": "tightened from 45.6 ms"
   },
   "test::tests/unit/workflows/test_completion.py::TestProvenanceScopedToRunDocuments::test_settled_children_still_get_provenance": {
     "commit": "18917fe1f",
@@ -16370,9 +14965,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Clean Up Text]": {
-    "commit": "18917fe1f",
-    "ms": 868.0,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 773.7,
+    "note": "tightened from 868.0 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Convert to HTML]": {
     "commit": "18917fe1f",
@@ -16485,9 +15080,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Transcribe Paleography (Ensemble + Deep Review)]": {
-    "commit": "18917fe1f",
-    "ms": 965.5,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 792.1,
+    "note": "tightened from 965.5 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_all_default_workflows_complete_with_deterministic_tool_stubs[Transcribe Paleography]": {
     "commit": "18917fe1f",
@@ -16540,9 +15135,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_live_graph_waits_for_all_merge_inputs_before_catalogue": {
-    "commit": "18917fe1f",
-    "ms": 1777.4,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 1399.6,
+    "note": "tightened from 1777.4 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_e2e_harness.py::test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg": {
     "commit": "18917fe1f",
@@ -16565,9 +15160,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflow_tree_heal.py::test_heal_leaves_user_folder_with_content_alone": {
-    "commit": "18917fe1f",
-    "ms": 52.2,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 42.0,
+    "note": "tightened from 52.2 ms"
   },
   "test::tests/unit/workflows/test_default_workflow_tree_heal.py::test_heal_recognizes_legacy_seed_without_system_flags": {
     "commit": "18917fe1f",
@@ -16635,9 +15230,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_default_workflows_cross_library.py::TestReadFallback::test_get_resolves_default_from_global": {
-    "commit": "18917fe1f",
-    "ms": 59.8,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 53.8,
+    "note": "tightened from 59.8 ms"
   },
   "test::tests/unit/workflows/test_empty_output_guard_family_sweep.py::test_completed_run_state_carries_the_top_level_stats_the_runner_reads": {
     "commit": "18917fe1f",
@@ -16815,14 +15410,14 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_empty_output_guard_family_sweep.py::test_terminal_finalization_can_find_each_family_documents[clean-text]": {
-    "commit": "18917fe1f",
-    "ms": 941.7,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 841.9,
+    "note": "tightened from 941.7 ms"
   },
   "test::tests/unit/workflows/test_empty_output_guard_family_sweep.py::test_terminal_finalization_can_find_each_family_documents[convert-render]": {
-    "commit": "18917fe1f",
-    "ms": 930.1,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 832.6,
+    "note": "tightened from 930.1 ms"
   },
   "test::tests/unit/workflows/test_empty_output_guard_family_sweep.py::test_terminal_finalization_can_find_each_family_documents[describe]": {
     "commit": "18917fe1f",
@@ -16885,9 +15480,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_enhance_images.py::test_enhance_images_workflow_appends_preview_editor_operation[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 90.4,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 77.4,
+    "note": "tightened from 90.4 ms"
   },
   "test::tests/unit/workflows/test_entity_ids_alias_scan.py::TestBuildAliasIndex::test_excludes_short_names": {
     "commit": "18917fe1f",
@@ -17005,9 +15600,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestClaimHelperFunctions::test_find_cross_source_canonical_claim_ignores_same_source_duplicates": {
-    "commit": "18917fe1f",
-    "ms": 119.4,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 107.0,
+    "note": "tightened from 119.4 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestClaimHelperFunctions::test_repoint_claim_entity_references_deduplicates_survivor_ids": {
     "commit": "18917fe1f",
@@ -17015,9 +15610,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestClaimHelperFunctions::test_upsert_entity_accumulates_source_document_ids_without_duplicates": {
-    "commit": "18917fe1f",
-    "ms": 443.7,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 384.1,
+    "note": "tightened from 443.7 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestEmbeddingMatch::test_genuinely_distinct_events_stay_separate_under_embeddings": {
     "commit": "18917fe1f",
@@ -17090,9 +15685,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestSaveClaim::test_creates_claim_with_entity_links": {
-    "commit": "18917fe1f",
-    "ms": 323.7,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 274.8,
+    "note": "tightened from 323.7 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestSaveClaim::test_cross_source_duplicate_preserves_document_scoped_claims": {
     "commit": "18917fe1f",
@@ -17115,9 +15710,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestSaveClaim::test_save_claim_no_entities_for_dates": {
-    "commit": "18917fe1f",
-    "ms": 132.1,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 104.7,
+    "note": "tightened from 132.1 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestSaveClaim::test_save_claim_source_anchors_missing_date_and_place": {
     "commit": "18917fe1f",
@@ -17135,9 +15730,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestStage4RaceRecovery::test_oldest_wins_aliases_fold_in": {
-    "commit": "18917fe1f",
-    "ms": 107.7,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 94.3,
+    "note": "tightened from 107.7 ms"
   },
   "test::tests/unit/workflows/test_entity_writer.py::TestStage4RaceRecovery::test_race_recovery_merges_duplicates": {
     "commit": "18917fe1f",
@@ -17250,9 +15845,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extract_all_registry.py::TestPersistAdditionalEntities::test_creates_entity_rows_with_custom_type_key": {
-    "commit": "18917fe1f",
-    "ms": 874.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 779.5,
+    "note": "tightened from 874.2 ms"
   },
   "test::tests/unit/workflows/test_extract_all_registry.py::TestPersistAdditionalEntities::test_does_not_duplicate_existing_entity": {
     "commit": "18917fe1f",
@@ -17285,9 +15880,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extract_all_systemic.py::TestExtractAllCooperativeScheduling::test_text_recovery_runs_off_event_loop[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 63.0,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 54.0,
+    "note": "tightened from 63.0 ms"
   },
   "test::tests/unit/workflows/test_extract_all_twostage_per_page.py::test_two_stage_preserves_entity_order_when_claim_tasks_finish_out_of_order[asyncio]": {
     "commit": "18917fe1f",
@@ -17320,18 +15915,23 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extraction_fail_loud.py::TestZombieRowIndexCrash::test_db_open_with_no_running_rows_is_unchanged": {
-    "commit": "18917fe1f",
-    "ms": 44.9,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 35.1,
+    "note": "tightened from 44.9 ms"
   },
   "test::tests/unit/workflows/test_extraction_fail_loud.py::TestZombieRowIndexCrash::test_db_open_with_zombie_running_rows_does_not_raise": {
-    "commit": "18917fe1f",
-    "ms": 71.6,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 51.6,
+    "note": "tightened from 71.6 ms"
   },
   "test::tests/unit/workflows/test_extraction_fail_loud.py::TestZombieRunRecovery::test_get_activity_tracker_schedules_recover_on_new_library[asyncio]": {
     "commit": "18917fe1f",
     "ms": 160.4,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_extraction_fail_loud.py::TestZombieRunRecovery::test_recover_stale_runs_noop_when_no_zombies[asyncio]": {
+    "commit": "107c1c884",
+    "ms": 29.1,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extraction_fail_loud.py::TestZombieRunRecovery::test_recover_stale_runs_transitions_running_to_failed[asyncio]": {
@@ -17380,9 +15980,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extractor_kg_edge_cases.py::TestEachGenericExtractor::test_people_writes_person_entities[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 667.7,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 514.4,
+    "note": "tightened from 667.7 ms"
   },
   "test::tests/unit/workflows/test_extractor_kg_edge_cases.py::TestEachGenericExtractor::test_places_writes_location_entities[asyncio]": {
     "commit": "18917fe1f",
@@ -17430,9 +16030,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extractor_kg_edge_cases.py::TestSilentZeroEntityLogging::test_empty_page_in_multipage_doc_logs_zero_items_explicitly[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 268.7,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 239.7,
+    "note": "tightened from 268.7 ms"
   },
   "test::tests/unit/workflows/test_extractor_kg_edge_cases.py::TestSilentZeroEntityLogging::test_populated_page_logs_structured_counts[asyncio]": {
     "commit": "18917fe1f",
@@ -17500,9 +16100,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestPerPageProvenance::test_overlap_context_captures_entities_spanning_pages[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 262.0,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 231.1,
+    "note": "tightened from 262.0 ms"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestPerPageProvenance::test_per_page_extraction_writes_page_labels_and_excerpts[asyncio]": {
     "commit": "18917fe1f",
@@ -17520,9 +16120,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestRerunIdempotence1120::test_db_save_uses_native_on_conflict_upsert": {
-    "commit": "18917fe1f",
-    "ms": 410.1,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 338.5,
+    "note": "tightened from 410.1 ms"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestRerunIdempotence1120::test_write_kg_rows_is_idempotent_across_reruns": {
     "commit": "18917fe1f",
@@ -17535,9 +16135,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_extractor_kg_integration.py::TestTwoStageKGWrite::test_two_stage_writes_kg_entity_and_claim[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 300.9,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 233.5,
+    "note": "tightened from 300.9 ms"
   },
   "test::tests/unit/workflows/test_fuzzy_clean_images.py::test_fuzzy_clean_workflow_appends_preview_editor_operation[asyncio]": {
     "commit": "18917fe1f",
@@ -17565,9 +16165,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_htr_two_pass_per_page.py::TestTwoPassPerPage::test_seven_page_pdf_two_pass_saves_per_page_not_parent[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 718.5,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 632.9,
+    "note": "tightened from 718.5 ms"
   },
   "test::tests/unit/workflows/test_htr_two_pass_per_page.py::TestUnwiredBackstop::test_documents_unwired_pdf_review_never_saves_to_parent[asyncio]": {
     "commit": "18917fe1f",
@@ -17580,9 +16180,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_image_prep_source_immutability.py::test_image_prep_helpers_write_derivatives_without_mutating_source": {
-    "commit": "18917fe1f",
-    "ms": 28.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 25.3,
+    "note": "tightened from 28.2 ms"
   },
   "test::tests/unit/workflows/test_import_artifacts_workflow.py::test_import_artifacts_preset_registers_page_artifacts_and_is_idempotent": {
     "commit": "18917fe1f",
@@ -17605,9 +16205,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_kg_provenance_rerun_idempotent.py::test_rerun_same_source_does_not_duplicate_entity": {
-    "commit": "18917fe1f",
-    "ms": 109.1,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 95.4,
+    "note": "tightened from 109.1 ms"
   },
   "test::tests/unit/workflows/test_kg_provenance_rerun_idempotent.py::test_source_provenance_survives_model_dump": {
     "commit": "18917fe1f",
@@ -17640,13 +16240,23 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_kg_write_announces_itself.py::TestTheSharedWriteHelperAnnouncesItsRows::test_writing_kg_rows_emits_entity_and_claim_changes": {
-    "commit": "18917fe1f",
-    "ms": 559.3,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 484.2,
+    "note": "tightened from 559.3 ms"
   },
   "test::tests/unit/workflows/test_merge_dedup_only_workflow.py::test_merge_dedup_preset_applies_rules_and_is_idempotent": {
     "commit": "18917fe1f",
     "ms": 1939.5,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_model_comparison.py::TestEstimateCost::test_estimate_cost_gpt4o": {
+    "commit": "07c13c1ea",
+    "ms": 25.5,
+    "note": "tightened from 31.1 ms"
+  },
+  "test::tests/unit/workflows/test_model_comparison.py::TestEstimateCost::test_estimate_cost_unknown_model": {
+    "commit": "107c1c884",
+    "ms": 34.5,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_model_comparison.py::TestModelComparisonEngine::test_compare_handles_timeout[asyncio]": {
@@ -17704,6 +16314,11 @@
     "ms": 3936.7,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_no_token_execution_paths.py::test_transcribe_executes_digital_text_selection_without_external_calls[.txt-text]": {
+    "commit": "07c13c1ea",
+    "ms": 645.1,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_no_token_execution_paths.py::test_transcribe_htr_runs_without_tokens_and_keeps_page_scope": {
     "commit": "18917fe1f",
     "ms": 30.5,
@@ -17724,10 +16339,15 @@
     "ms": 491.7,
     "note": "first recorded run"
   },
-  "test::tests/unit/workflows/test_page_scoped_preprocessing.py::TestZoomPageScoping::test_whole_pdf_selection_still_processes_every_page[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 48.7,
+  "test::tests/unit/workflows/test_page_scoped_preprocessing.py::TestZoomPageScoping::test_unwired_documents_recovered_from_state_outputs[asyncio]": {
+    "commit": "07c13c1ea",
+    "ms": 25.6,
     "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_page_scoped_preprocessing.py::TestZoomPageScoping::test_whole_pdf_selection_still_processes_every_page[asyncio]": {
+    "commit": "07c13c1ea",
+    "ms": 40.9,
+    "note": "tightened from 48.7 ms"
   },
   "test::tests/unit/workflows/test_page_scoped_preprocessing.py::TestZoomPageScoping::test_wired_documents_confine_to_one_page[asyncio]": {
     "commit": "18917fe1f",
@@ -17790,9 +16410,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_recombine_segments.py::test_recombine_segment_files_creates_contact_sheet": {
-    "commit": "18917fe1f",
-    "ms": 29.2,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 26.1,
+    "note": "tightened from 29.2 ms"
   },
   "test::tests/unit/workflows/test_recovered_run_settles_documents.py::TestRecoveredRunReleasesDocuments::test_page_children_are_released_too": {
     "commit": "18917fe1f",
@@ -17850,14 +16470,14 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_run_lifecycle_vocabulary.py::TestRecoverySweep::test_store_construction_never_flips_rows": {
-    "commit": "18917fe1f",
-    "ms": 59.1,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 48.7,
+    "note": "tightened from 59.1 ms"
   },
   "test::tests/unit/workflows/test_run_lifecycle_vocabulary.py::TestRecoverySweep::test_sweep_excludes_live_runs": {
-    "commit": "18917fe1f",
-    "ms": 112.0,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 96.4,
+    "note": "tightened from 112.0 ms"
   },
   "test::tests/unit/workflows/test_run_lifecycle_vocabulary.py::TestRecoverySweep::test_sweeps_every_non_terminal_status": {
     "commit": "18917fe1f",
@@ -17869,6 +16489,11 @@
     "ms": 312.6,
     "note": "first recorded run"
   },
+  "test::tests/unit/workflows/test_save_artifact_page_child_resolution.py::TestSaveArtifactPageChildResolution::test_no_orphan_when_db_get_misses_and_no_document[asyncio]": {
+    "commit": "107c1c884",
+    "ms": 642.6,
+    "note": "first recorded run"
+  },
   "test::tests/unit/workflows/test_segment_images.py::test_segment_image_file_writes_cropped_segment_derivatives": {
     "commit": "18917fe1f",
     "ms": 31.9,
@@ -17877,6 +16502,11 @@
   "test::tests/unit/workflows/test_segment_images.py::test_segment_workflow_appends_preview_editor_operation[asyncio]": {
     "commit": "18917fe1f",
     "ms": 86.3,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_skip_if_artifact_exists.py::TestFindExistingArtifact::test_returns_most_recent_when_multiple_artifacts_exist": {
+    "commit": "07c13c1ea",
+    "ms": 678.1,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_subworkflow_db_resolution.py::test_db_edited_child_wins_over_shipped_json": {
@@ -17935,19 +16565,19 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskPriority::test_tasks_ordered_by_priority[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 101.3,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 89.6,
+    "note": "tightened from 101.3 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_cancel_non_pending_task_fails[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 60.1,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 49.1,
+    "note": "tightened from 60.1 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_cancel_task[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 55.9,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 46.3,
+    "note": "tightened from 55.9 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_create_task[asyncio]": {
     "commit": "18917fe1f",
@@ -17955,14 +16585,14 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_delete_running_task_fails[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 42.8,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 35.9,
+    "note": "tightened from 42.8 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_delete_task[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 86.7,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 73.3,
+    "note": "tightened from 86.7 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_get_task[asyncio]": {
     "commit": "18917fe1f",
@@ -17975,19 +16605,19 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_list_tasks[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 192.2,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 160.9,
+    "note": "tightened from 192.2 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_list_tasks_by_type[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 198.0,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 159.2,
+    "note": "tightened from 198.0 ms"
   },
   "test::tests/unit/workflows/test_tasks.py::TestTaskQueue::test_list_tasks_with_filter[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 272.4,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 243.5,
+    "note": "tightened from 272.4 ms"
   },
   "test::tests/unit/workflows/test_transcribe_pdf_text_layer.py::test_born_digital_pdf_beats_stale_cached_artifact[asyncio]": {
     "commit": "18917fe1f",
@@ -18020,9 +16650,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_translation_embedding.py::TestTranslationArtifactDeletion::test_delete_translation_artifact_removes_vectors": {
-    "commit": "18917fe1f",
-    "ms": 109.7,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 88.0,
+    "note": "tightened from 109.7 ms"
   },
   "test::tests/unit/workflows/test_vision_alias_preflight.py::test_spanish_script_subworkflow_parent_is_valid_and_passes_preflight": {
     "commit": "18917fe1f",
@@ -18055,9 +16685,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_code_bugs.py::test_batch_cache_is_bounded": {
-    "commit": "18917fe1f",
-    "ms": 30.8,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 26.3,
+    "note": "tightened from 30.8 ms"
   },
   "test::tests/unit/workflows/test_workflow_code_bugs.py::test_batch_item_execution_accepts_string_db_path[asyncio]": {
     "commit": "18917fe1f",
@@ -18075,9 +16705,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_code_bugs.py::test_scheduler_cache_is_bounded": {
-    "commit": "18917fe1f",
-    "ms": 681.9,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 44.7,
+    "note": "tightened from 681.9 ms"
   },
   "test::tests/unit/workflows/test_workflow_code_bugs.py::test_scheduler_sync_workflow_store_runs_due_schedule[asyncio]": {
     "commit": "18917fe1f",
@@ -18085,9 +16715,9 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_code_bugs.py::test_scheduler_tracks_fire_and_forget_tasks[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 95.1,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 84.3,
+    "note": "tightened from 95.1 ms"
   },
   "test::tests/unit/workflows/test_workflow_code_bugs.py::test_scheduler_uses_utc_aware_times_for_one_time_schedule[asyncio]": {
     "commit": "18917fe1f",
@@ -18100,14 +16730,14 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_run_reconstruct_from_persisted.py::test_errored_run_preserves_error_and_terminal_status[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 80.8,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 60.3,
+    "note": "tightened from 80.8 ms"
   },
   "test::tests/unit/workflows/test_workflow_run_reconstruct_from_persisted.py::test_terminal_run_reconstructs_from_fresh_store_without_sse[asyncio]": {
-    "commit": "18917fe1f",
-    "ms": 77.1,
-    "note": "first recorded run"
+    "commit": "107c1c884",
+    "ms": 54.1,
+    "note": "tightened from 77.1 ms"
   },
   "test::tests/unit/workflows/test_workflow_run_reconstruct_from_persisted.py::test_unknown_thread_reconstructs_to_none[asyncio]": {
     "commit": "18917fe1f",
@@ -18120,14 +16750,14 @@
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_workflow_runs_index_corruption.py::TestFatalFallbackRebuild::test_fatal_on_update_triggers_rebuild_and_leaves_usable_db": {
-    "commit": "18917fe1f",
-    "ms": 53.4,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 47.2,
+    "note": "tightened from 53.4 ms"
   },
   "test::tests/unit/workflows/test_workflow_runs_index_corruption.py::TestFatalFallbackRebuild::test_rebuild_preserves_nonstale_rows_verbatim": {
-    "commit": "18917fe1f",
-    "ms": 36.2,
-    "note": "first recorded run"
+    "commit": "07c13c1ea",
+    "ms": 32.2,
+    "note": "tightened from 36.2 ms"
   },
   "test::tests/unit/workflows/test_workflow_runs_index_corruption.py::TestStartupRecoveryIsCrashSafe::test_construction_does_not_flip_and_sweep_recovers": {
     "commit": "18917fe1f",
@@ -18167,6 +16797,11 @@
   "test::tests/unit/workflows/test_workflows.py::TestVisionFanOutConcurrencyCap::test_concurrency_never_exceeds_cap[asyncio]": {
     "commit": "18917fe1f",
     "ms": 158.2,
+    "note": "first recorded run"
+  },
+  "test::tests/unit/workflows/test_write_file.py::TestWriteFileIntegration::test_per_file_mode_writes_one_per_record[asyncio]": {
+    "commit": "07c13c1ea",
+    "ms": 25.4,
     "note": "first recorded run"
   },
   "test::tests/unit/workflows/test_zoom.py::test_zoom_renders_selected_paleography_pdf_page[asyncio]": {
