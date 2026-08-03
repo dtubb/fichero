@@ -195,3 +195,30 @@ path, so it is filed rather than made blind on a Sunday night — see the issue.
 
 Every release cut from this repo has had this property; it has been invisible
 because notarization checks succeed when online.
+
+---
+
+## Before you run a gate: the disk will look wrong
+
+`scripts/gate` has a 20 GB preflight floor. If you run it first thing Tuesday
+it may refuse with only ~12 GB free. **Nothing is wrong.** Do not go hunting
+for a runaway process or start deleting things.
+
+Sunday night I deleted `fichero/build/xcode` — 15 GB of Xcode DerivedData,
+git-ignored and rebuildable. Free space moved 11 → 12 GB and stopped.
+
+The reason is Time Machine **local snapshots**. Deleting a file does not return
+its blocks while a snapshot still references them; the space is released when
+the snapshot expires, roughly 24 hours after it was taken. So that 15 GB was
+already reclaimable, just not yet reclaimed. By Tuesday the snapshots holding
+it will have rolled off and free space should be ~26 GB with no action.
+
+**If it has not:** `tmutil listlocalsnapshots /` shows what is still pinned,
+and `tmutil thinlocalsnapshots / 20000000000 1` frees the oldest until 20 GB is
+available. I did not run this myself — thinning discards local recovery points
+for a volume holding the Marshall Diaries, and it wins back space that returns
+on its own. That is your call to make, not one to make for you overnight.
+
+**Cost of the deletion:** the first Xcode build Tuesday is a cold build, so
+budget 30-40 minutes rather than the usual few. This was the trade: a gate that
+can actually start, against one slow build.
