@@ -184,3 +184,41 @@ that wants to reach a remote engine becomes a paired device. But that is a
 real amount of work and you may want the middle option first.
 
 Remote HTTPS keeps default verification until you rule.
+
+---
+
+## 9. A translated pseudo-quote can enter the archive unanchored (#4494)
+
+**Found by chasing a flaky test, and it is the one finding on this page that
+touches the archive's integrity rather than its tooling.**
+
+The on-device Apple Intelligence extractor sometimes **translates**
+`source_text` into English — a Spanish sentence comes back as *"La Imprenta
+Oficial published the decree the next day."* — and occasionally attaches a
+neighbouring sentence to the wrong person.
+
+The anchoring check is correct and does its job: #913's offset check is an
+exact substring match, so a non-verbatim quote is **never anchored** to a
+position in the document. **But the divergent text is still PERSISTED as the
+claim's quote.**
+
+So the archive can hold a claim whose quote is not what the manuscript says,
+carrying no anchor to prove or disprove it. It reads exactly like a real
+quotation.
+
+**The decision is what should happen at the extractor write:**
+
+- **Blank it** — no quote is better than a wrong one. Simple, and loses the
+  model's paraphrase entirely.
+- **A distinct non-quote field** — keep the text but never call it a quote.
+  Preserves the extraction as a summary/paraphrase, which may be genuinely
+  useful, at the cost of a new field and everything that renders it.
+
+This is the AI-as-instrument line: a paraphrase presented as a quotation is
+the failure mode the north star exists to prevent. But blanking discards
+model output you may want.
+
+**Not decided, not built.** The flaky assert has been softened (structural
+assertions stay hard; the divergence now logs), so the test no longer fails
+~25% of the time — but that only stopped the noise. The persistence is
+untouched and waiting on this.
