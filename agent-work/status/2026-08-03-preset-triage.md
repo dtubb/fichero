@@ -1,3 +1,33 @@
+# ⚠️ THIS TRIAGE IS UNSAFE TO ACT ON — CORRECTED 2026-08-03
+
+**Do not use the free/paid split below to decide what is safe to run.**
+Acting on it cost real money, twice.
+
+## Why it is wrong
+
+**A preset does not pin a provider.** Every `transcribe` / `convert` /
+`describe` / table node with no explicit provider falls back to the **app
+database defaults** — and this machine's app DB has
+`default_vision_provider=openrouter`, `default_vision_model=google/gemini-*`.
+
+So a preset containing no model-ish tool name can still make PAID calls, and a
+preset whose nodes look on-device can resolve to OpenRouter. Neither my
+tool-name classification (19 "free") nor the lane's judgement (14 "free") could
+see this, because **the answer is not in the preset — it is in the database.**
+
+That is this project's defining defect once more: two things, nothing forcing
+them to agree. The preset declares intent; the app DB decides reality; nothing
+reconciles them, and the gap is denominated in money.
+
+## What must happen before any preset is called free
+
+Resolve each node against the ACTUAL app DB defaults and report the provider
+that would really be used. "Free" is a property of preset + database together,
+never of the preset alone. Until that resolution exists, treat EVERY preset as
+potentially paid.
+
+---
+
 # #4501 phase 1 — preset triage
 
 39 presets in `fichero-server/src/fichero_server/resources/default_workflows/`.
