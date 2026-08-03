@@ -801,7 +801,23 @@ class SearchResponse(BaseModel):
     claim_hits: list[SearchClaimHit] = Field(default_factory=list)
     artifact_hits: list[SearchArtifactHit] = Field(default_factory=list)
     count: int
-    total_results: int  # Total results before pagination
+    #: Full match count BEFORE pagination (#4113). `has_more` and offset paging
+    #: are built on this: 5 matches under a limit of 2 reports 5. It counts
+    #: documents, so it is NOT what the UI header above the result legs should
+    #: read — see `rendered_total`.
+    total_results: int
+    #: Everything actually returned in THIS response, across all four legs:
+    #: documents + entities + claims + artifacts (#4403).
+    #:
+    #: The UI header sits above those legs and asks "how many things am I
+    #: looking at?". `total_results` cannot answer that — under a page limit it
+    #: is larger, and it counts no entity or claim hits at all, which is how
+    #: "3 results" appeared above "Artifacts (6)". Two different questions
+    #: needed two fields, not one field with two meanings.
+    #:
+    #: Derived from the same lists this response carries, so it cannot drift
+    #: from the body.
+    rendered_total: int = 0
     search_type: str  # Type of search performed
     execution_time_ms: float  # Search execution time
 
@@ -1221,14 +1237,39 @@ async def enhanced_search(
                     )
                 )
 
+    # #4403: the header and the body were answering DIFFERENT QUESTIONS with
+    # the same number, and the header had the wrong one.
+    #
+    # `total_results` is the full match count before pagination (#4113) —
+    # `has_more` and offset paging are built on it, and a test pins 5 matches
+    # over a limit of 2. That is correct and stays.
+    #
+    # But the UI header sits above four rendered legs and asks "how many
+    # things am I looking at?", which `total_results` cannot answer: with a
+    # page limit it is larger, and it counts no entity or claim hits at all.
+    # That is how "3 results" appeared over "Artifacts (6)".
+    #
+    # So the answer is a second field, not a redefinition of the first.
+    # Deriving it here, from the same lists the response actually carries,
+    # means the header cannot disagree with the body without the body changing
+    # under it — rather than being accumulated in parallel beside them.
+    typed_entity_hits = [SearchEntityHit.model_validate(item) for item in entity_hits]
+    typed_claim_hits = [SearchClaimHit.model_validate(item) for item in claim_hits]
+
     return SearchResponse(
         query=request.query,
         results=results,
-        entity_hits=[SearchEntityHit.model_validate(item) for item in entity_hits],
-        claim_hits=[SearchClaimHit.model_validate(item) for item in claim_hits],
+        entity_hits=typed_entity_hits,
+        claim_hits=typed_claim_hits,
         artifact_hits=artifact_hits,
         count=len(results),
         total_results=total_count,
+        rendered_total=(
+            len(results)
+            + len(typed_entity_hits)
+            + len(typed_claim_hits)
+            + len(artifact_hits)
+        ),
         search_type=search_stats.get("search_type", request.search_type),
         execution_time_ms=search_stats.get("execution_time_ms", 0),
         has_more=search_stats.get("has_more", False),
