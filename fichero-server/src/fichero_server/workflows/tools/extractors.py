@@ -2413,13 +2413,21 @@ def _write_kg_rows(
             f"{verb} {obj}".strip() if (verb or obj) else legacy_context
         )
 
-        # Verbatim source text the LLM lifted from the input — the
-        # narrowest, most useful excerpt for showing + highlighting in
-        # the source PDF. Falls back to the predicate (legacy items) and
-        # then the whole page chunk so older artifacts still surface
-        # something rather than going blank.
-        source_text = (item.get("source_text") or "").strip()
-        excerpt = source_text or predicate or page_excerpt or None
+        # Source text the LLM claims to have lifted from the input.
+        #
+        # VERBATIM OR IT IS NOT A QUOTE (#4494). Apple Intelligence was
+        # observed populating this with a TRANSLATED sentence — "La Imprenta
+        # Oficial published the decree the next day." — which is neither a
+        # substring of the source paragraph nor in its language. That string
+        # was persisted as the claim's quote anyway, just without an anchor,
+        # so a translated paraphrase entered the archive labelled as source
+        # material. A historian following it back to the manuscript will not
+        # find those words, because they were never there.
+        #
+        # The substring test below already decided verbatim-ness in order to
+        # place the anchor; it now also decides whether this is a quote at
+        # all. Same single check, no second rule to drift.
+        raw_source_text = (item.get("source_text") or "").strip()
 
         # Sub-page anchor (#913): when source_text appears verbatim
         # inside the page chunk, record the character offset so the
@@ -2430,22 +2438,69 @@ def _write_kg_rows(
         char_start: int | None = None
         char_end: int | None = None
         source_bbox = item.get("source_bbox")
-        if source_text and page_excerpt:
-            idx = page_excerpt.find(source_text)
-            if idx >= 0:
-                char_start = idx
-                char_end = idx + len(source_text)
+        verbatim_source_text: str | None = None
+        model_paraphrase: str | None = None
+        unverified_source_text: str | None = None
+        if raw_source_text:
+            if page_excerpt:
+                idx = page_excerpt.find(raw_source_text)
+                if idx >= 0:
+                    verbatim_source_text = raw_source_text
+                    char_start = idx
+                    char_end = idx + len(raw_source_text)
+                else:
+                    # We looked, and these words are not on the page. That is
+                    # a refuted quote, and the reason #4494 exists.
+                    model_paraphrase = raw_source_text
+            else:
+                # We could NOT look — this call has no page text (the
+                # non-paginated extraction path). "Refuted" and "unchecked"
+                # are different facts and must not be collapsed: rejecting
+                # here would strip the quote from every non-paginated
+                # extraction, trading a false-evidence bug for a
+                # lost-provenance one. Kept, and marked as unverified so a
+                # reader can tell it was never checked.
+                verbatim_source_text = raw_source_text
+                unverified_source_text = raw_source_text
+
+        # Falls back to the predicate (legacy items) and then the whole page
+        # chunk so older artifacts still surface something rather than going
+        # blank. A non-verbatim string is NOT eligible: it used to become the
+        # source_excerpt too, displacing the real page text with the model's
+        # paraphrase — the same substitution one field over.
+        excerpt = verbatim_source_text or predicate or page_excerpt or None
 
         meta: dict[str, Any] = {}
         if verb:
             meta["verb"] = verb
         if obj:
             meta["object"] = obj
-        if source_text:
+        if verbatim_source_text:
             # Persist the verbatim quote separately from source_excerpt
             # so the UI can distinguish "LLM-quoted span" from
             # "fallback page chunk" and drive search-highlight.
-            meta["source_text"] = source_text
+            meta["source_text"] = verbatim_source_text
+            if unverified_source_text:
+                # Legible rather than silently trusted: this one was never
+                # checked against page text, so it is not evidence of the same
+                # standing as an anchored quote, and nothing downstream should
+                # have to infer that from a missing char offset.
+                meta["source_text_unverified"] = True
+                meta["source_text_unverified_reason"] = (
+                    "no page text available to verify the quote against"
+                )
+        elif model_paraphrase:
+            # Kept, but never in the field the inspector renders as a quote.
+            # Discarding it would lose a real signal about what the model
+            # produced; promoting it would be the defect. It is labelled as
+            # the model's own words, with the reason it is not a quote, so
+            # nothing downstream has to infer that from an absence.
+            meta["model_paraphrase"] = model_paraphrase
+            meta["source_text_rejected_reason"] = (
+                "not found verbatim in the page text"
+                if page_excerpt
+                else "no page text available to verify the quote against"
+            )
 
         # Two-axis classification on every claim:
         #   epistemic_status — how firmly asserted (tentative/confirmed/rejected)
