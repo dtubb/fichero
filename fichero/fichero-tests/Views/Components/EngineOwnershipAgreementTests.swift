@@ -155,7 +155,7 @@ struct EngineOwnershipAgreementTests {
                 .map { String($0.dropFirst("case ".count)) }
         )
 
-        #expect(declared.count == 5, "found \(declared.sorted())")
+        #expect(declared.count == 5, Comment(rawValue: "found \(declared.sorted())"))
         #expect(
             declared == ["releaseEmbedded", "debugExternal", "configuredRemote", "iosCompanion", "inert"],
             "a provisioning strategy was added or renamed; the sweeps above no longer cover it"

@@ -110,7 +110,7 @@ extension EngineConfig {
     ///
     /// The future iOS in-process embed (#2865) slots in here as one more case;
     /// the seam is deliberate — do NOT implement it yet.
-    enum EngineProvisioningStrategy: Equatable {
+    enum EngineProvisioningStrategy: Equatable, CaseIterable {
         /// Previews / XCTest host / UI-test: adopt an external engine if one is
         /// already up, else run inert. NEVER spawn or manage a lifecycle.
         case inert
