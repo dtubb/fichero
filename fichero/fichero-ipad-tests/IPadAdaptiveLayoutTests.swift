@@ -17,7 +17,7 @@ final class IPadAdaptiveLayoutTests: XCTestCase {
 
     func testCompactWidthPresentsTheInspectorAsASheet() {
         XCTAssertEqual(
-            InspectorPresenter.adaptiveDefault(horizontalSizeClass: .compact),
+            InspectorPlacement.adaptiveDefault(horizontalSizeClass: .compact),
             .sheet
         )
     }
@@ -26,7 +26,7 @@ final class IPadAdaptiveLayoutTests: XCTestCase {
     /// width to be there, and on iPad it is.
     func testRegularWidthDocksTheInspector() {
         XCTAssertEqual(
-            InspectorPresenter.adaptiveDefault(horizontalSizeClass: .regular),
+            InspectorPlacement.adaptiveDefault(horizontalSizeClass: .regular),
             .docked
         )
     }
@@ -36,11 +36,11 @@ final class IPadAdaptiveLayoutTests: XCTestCase {
     /// a usable and an unusable inspector in an iPad split view.
     func testCompactSheetBecomesANavigationPush() {
         XCTAssertEqual(
-            InspectorPresenter.adaptivePresentation(horizontalSizeClass: .compact),
+            InspectorPlacement.adaptivePresentation(horizontalSizeClass: .compact),
             .navigationPush
         )
         XCTAssertEqual(
-            InspectorPresenter.adaptivePresentation(horizontalSizeClass: .regular),
+            InspectorPlacement.adaptivePresentation(horizontalSizeClass: .regular),
             .docked
         )
     }
@@ -52,7 +52,7 @@ final class IPadAdaptiveLayoutTests: XCTestCase {
         for sizeClass: UserInterfaceSizeClass? in [.compact, .regular, nil] {
             for requested in InspectorPlacement.allCases {
                 XCTAssertEqual(
-                    InspectorPresenter.adaptiveDefault(
+                    InspectorPlacement.adaptiveDefault(
                         horizontalSizeClass: sizeClass,
                         requested: requested
                     ),
