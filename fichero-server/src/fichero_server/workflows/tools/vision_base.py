@@ -33,7 +33,10 @@ if TYPE_CHECKING:
 
 from fichero_server.media.ocr_geometry import (
     OCRGeometryResult,
+    OCRGeometryStatus,
+    attach_char_spans,
     from_apple_vision_result,
+    geometry_unavailable,
     parse_vlm_geometry,
 )
 from fichero_server.workflows.types import PortDef, DataType
@@ -100,6 +103,12 @@ from fichero_server.workflows.circuit_breaker import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: Provenance label for regions recognised from ink by the on-device engine.
+#: Distinct from ``"pdf_text_layer"``, which is READ rather than recognised —
+#: for archival work the two are not equally trustworthy, so a region has to
+#: record which kind of evidence produced it (#4309/#4418).
+APPLE_VISION_GEOMETRY_SOURCE = "apple_vision_ocr"
 _vision_activity_db_path: ContextVar[str | None] = ContextVar(
     "vision_activity_db_path", default=None
 )
@@ -266,9 +275,24 @@ def _vision_value(obj: Any, name: str) -> Any:
 
 
 def _vision_bbox_from_rect(rect: Any) -> list[float] | None:
-    """Coerce a Vision/Quartz rect into normalized [x, y, w, h]."""
+    """Coerce a Vision/Quartz rect into normalized [x, y, w, h].
+
+    Vision does not always hand back a bare ``CGRect``. Per-word geometry
+    arrives as a ``VNRectangleObservation`` — an object that CARRIES a rect on
+    its ``boundingBox`` rather than being one — so unwrap that first (#4309).
+    Without the unwrap every word box fell through to ``return None`` and was
+    dropped on the floor, which is why real Apple Vision runs reported line
+    boxes and ZERO word boxes while the code read as if both were captured.
+    """
     if rect is None:
         return None
+
+    # Unwrap an observation-shaped value BEFORE the structural checks: the
+    # wrapper has no origin/size/x of its own, so every check below misses it.
+    if not isinstance(rect, (dict, list, tuple)):
+        inner = _vision_value(rect, "boundingBox")
+        if inner is not None and inner is not rect:
+            return _vision_bbox_from_rect(inner)
 
     if isinstance(rect, dict):
         if {"x", "y", "width", "height"}.issubset(rect):
@@ -1176,12 +1200,62 @@ async def apple_vision_ocr_with_geometry_async(
 def _apple_geometry_result(result: VisionOCRResult) -> OCRGeometryResult | None:
     """Map a Vision OCR result into the shared geometry contract.
 
-    Returns ``None`` when the engine produced no boxes (blank page) so callers
-    keep the "no geometry" state distinct from an empty typed record.
+    When Vision localized nothing, record ``produced_nothing`` rather than
+    ``None``. Vision CAN localize, so a boxless page is a fact about the page,
+    not about the engine — and ``None`` would have said "geometry was never
+    attempted", which is a different and weaker claim (#4309).
+
+    ``source`` names the KIND of evidence, not just the engine: a region read
+    off a PDF text layer and a region recognised from ink carry different
+    trustworthiness, and for archival work the provenance of a region is as
+    material as the region.
     """
     if not (result.line_boxes or result.word_boxes):
-        return None
-    return from_apple_vision_result(result)
+        return geometry_unavailable(
+            status=OCRGeometryStatus.PRODUCED_NOTHING,
+            provider="apple_vision",
+            model="VNRecognizeTextRequest",
+            reason="Apple Vision recognised no text on this page",
+            text=result.text or "",
+            source=APPLE_VISION_GEOMETRY_SOURCE,
+        )
+    return from_apple_vision_result(result, source=APPLE_VISION_GEOMETRY_SOURCE)
+
+
+def _llm_geometry_unavailable(
+    llm_config: LLMConfig,
+    *,
+    return_boxes: bool,
+    reason: str | None = None,
+) -> OCRGeometryResult:
+    """Record why an LLM vision pass produced no geometry (#4309).
+
+    Most vision LLMs do not localize the text they read, so asking them for
+    boxes is not an option that was skipped — it is a capability they lack.
+    Writing ``None`` made "this model cannot point at the page" and "nobody
+    looked" indistinguishable, and left the preview with an empty overlay that
+    reads as "nothing was recognised here". Say which it is.
+    """
+    provider = getattr(llm_config, "provider", None) or "unknown"
+    model = getattr(llm_config, "model", None) or "unknown"
+    if reason is not None:
+        status = OCRGeometryStatus.NOT_RUN
+        detail = reason
+    elif _supports_return_boxes(llm_config):
+        status = OCRGeometryStatus.NOT_RUN
+        detail = (
+            f"{provider}/{model} can return text geometry, but return_boxes "
+            "was not enabled for this run"
+        )
+    else:
+        status = OCRGeometryStatus.NOT_SUPPORTED
+        detail = f"{provider}/{model} does not localize the text it reads"
+    return geometry_unavailable(
+        status=status,
+        provider=provider,
+        model=model,
+        reason=detail,
+    )
 
 
 def normalize_vision_language(language: str | None) -> str:
@@ -1373,7 +1447,10 @@ def _parse_return_boxes_payload(
         )
         for box in geometry.boxes
     ]
-    return geometry.model_copy(update={"boxes": boxes})
+    # #4309: a VLM returns text and boxes as two separate things, so the
+    # box↔text link has to be established here. Without it the boxes can be
+    # drawn but no line of the transcript resolves to one.
+    return attach_char_spans(geometry.model_copy(update={"boxes": boxes}))
 
 
 async def _propagate_to_page_children(
@@ -2393,7 +2470,12 @@ async def process_vision(
                                     _llm_page_geometries.append(_geometry)
                                     _llm_page_texts.append(_geometry.text)
                                 else:
-                                    _llm_page_geometries.append(None)
+                                    _llm_page_geometries.append(
+                                        _llm_geometry_unavailable(
+                                            effective_config,
+                                            return_boxes=return_boxes,
+                                        )
+                                    )
                                     _llm_page_texts.append(_payload)
                         except ProviderRateLimitedError:
                             # #2543: breaker is OPEN for this provider — abort
@@ -2407,7 +2489,16 @@ async def process_vision(
                                 _page_idx, Path(file_path).name, _pe,
                             )
                             _llm_page_texts.append("")
-                            _llm_page_geometries.append(None)
+                            _llm_page_geometries.append(
+                                _llm_geometry_unavailable(
+                                    effective_config,
+                                    return_boxes=return_boxes,
+                                    reason=(
+                                        f"page {_page_idx} failed before "
+                                        f"geometry could be captured: {_pe}"
+                                    ),
+                                )
+                            )
                     if postprocess_text is not None:
                         # #4329: sanitize per PAGE (the per-page artifacts are
                         # what render); the combined text below is only the
@@ -2499,6 +2590,13 @@ async def process_vision(
                         )
                         text = page_geometry.text
                         parsed = parse_output(text, output_format, output_options)
+                    else:
+                        # #4309: no geometry from this pass — say WHY on the
+                        # artifact rather than leaving the field null, which
+                        # the overlay cannot tell apart from a blank page.
+                        page_geometry = _llm_geometry_unavailable(
+                            effective_config, return_boxes=return_boxes
+                        )
 
             # Apply reference matching
             if reference_values:

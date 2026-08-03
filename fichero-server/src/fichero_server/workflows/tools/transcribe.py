@@ -176,14 +176,32 @@ Rules:
 """
 
     if return_boxes:
+        # Coordinates are asked for NORMALIZED, not in pixels (#4309). The
+        # prompt used to ask for pixels while the parser was called without
+        # page dimensions, so `_coerce_normalized_bbox` raised
+        # "pixel bbox values require page_width and page_height" on exactly
+        # the shape the prompt requested — the request and the reader wanted
+        # different coordinate spaces, and any compliant model failed.
+        #
+        # Asking for 0..1 is also the better contract: a page exists as an
+        # original scan, an enhanced copy, a deskewed copy and a thumbnail,
+        # and pixels of whichever rendition happened to be sent are wrong
+        # against all the others. Fractions of the page survive every one.
         prompt += """
 Additionally, return bounding box coordinates as JSON:
 {
     "text": "transcribed text here",
     "boxes": [
-        {"text": "...", "x": 0, "y": 0, "width": 100, "height": 20}
+        {"text": "...", "bbox": [0.07, 0.13, 0.37, 0.06], "level": "line"}
     ]
 }
+
+Bounding box rules:
+- bbox is [x, y, width, height] as FRACTIONS OF THE IMAGE, each between 0
+  and 1. Do NOT use pixels.
+- The origin is the TOP-LEFT corner: x grows right, y grows DOWN.
+- "level" is "line" or "word".
+- Every box's "text" must appear in the transcription above it.
 """
 
     return prompt

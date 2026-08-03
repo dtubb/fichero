@@ -18,7 +18,15 @@ from fichero_server.db import Database
 # NOTE: fichero_server.llm is imported inside the one handler that translates (#3950).
 # It pulls langchain_core -> transformers. Every other endpoint in this module
 # is plain artifact CRUD and paid that cost for nothing.
-from fichero_server.media.ocr_geometry import OCRGeometryResult
+from fichero_server.media.ocr_geometry import (
+    GEOMETRY_REASON_KEY,
+    OCRGeometryResult,
+    OCRGeometryStatus,
+    SpanRegion,
+    geometry_status,
+    region_for_line,
+    region_for_span,
+)
 from fichero_server.models import Artifact, ArtifactTypeListResponse, Document
 
 logger = logging.getLogger(__name__)
@@ -394,6 +402,94 @@ async def get_artifact(
         )
 
     return _artifact_response(artifact, include_geometry=True)
+
+
+class ArtifactRegionResponse(BaseModel):
+    """Where a span of an artifact's text sits on the page (#4309/#4418)."""
+
+    artifact_id: str
+    #: One of OCRGeometryStatus — why the answer is what it is. A caller must
+    #: be able to tell "this engine cannot point at the page" apart from
+    #: "this page is blank", which a null region alone never said.
+    geometry_status: str
+    geometry_reason: Optional[str] = None
+    region: Optional[SpanRegion] = None
+
+
+@router.get("/{artifact_id}/region", response_model=ArtifactRegionResponse)
+async def get_artifact_region(
+    artifact_id: str,
+    char_start: Optional[int] = Query(
+        None, ge=0, description="Start offset into the artifact's content"
+    ),
+    char_end: Optional[int] = Query(
+        None, ge=0, description="End offset (exclusive) into the artifact's content"
+    ),
+    line: Optional[int] = Query(
+        None, ge=0, description="Zero-based line of the artifact's content"
+    ),
+    db: Database = Depends(get_library_database),
+) -> ArtifactRegionResponse:
+    """Resolve a line or character span of a transcription to its page region.
+
+    This is the single addressing scheme #4418 asks for: a region, a text span
+    and a claim all name the same thing through character offsets into the
+    artifact's content. Resolution lives here rather than in each client so
+    there is one answer to "where did this line come from" — two answers would
+    be worse than none for archival material.
+
+    Spans are resolved against the artifact's CONTENT, which is what the reader
+    is reading, not against the geometry record's own copy of the text.
+    """
+    artifact = db.get(Artifact, artifact_id)
+    if not artifact:
+        raise HTTPException(
+            status_code=404, detail=f"Artifact not found: {artifact_id}"
+        )
+
+    if (char_start is None) != (char_end is None):
+        raise HTTPException(
+            status_code=422,
+            detail="char_start and char_end must be given together",
+        )
+    if (char_start is None) == (line is None):
+        raise HTTPException(
+            status_code=422,
+            detail="give either line, or char_start and char_end — not both, not neither",
+        )
+
+    geometry = artifact.ocr_geometry
+    status = geometry_status(geometry)
+    reason = (
+        str(geometry.metadata.get(GEOMETRY_REASON_KEY))
+        if geometry is not None and geometry.metadata.get(GEOMETRY_REASON_KEY)
+        else None
+    )
+    if geometry is None or status is not OCRGeometryStatus.CAPTURED:
+        # Degrade honestly: no region, and the reason it has none.
+        return ArtifactRegionResponse(
+            artifact_id=artifact_id,
+            geometry_status=str(status),
+            geometry_reason=reason,
+            region=None,
+        )
+
+    content = artifact.content or geometry.text
+    if line is not None:
+        region = region_for_line(geometry, line, text=content)
+    else:
+        if char_end <= char_start:
+            raise HTTPException(
+                status_code=422, detail="char_end must be greater than char_start"
+            )
+        region = region_for_span(geometry, char_start, char_end)
+
+    return ArtifactRegionResponse(
+        artifact_id=artifact_id,
+        geometry_status=str(status),
+        geometry_reason=reason,
+        region=region,
+    )
 
 
 class ArtifactUpdate(BaseModel):

@@ -1498,6 +1498,10 @@ class TestProcessVisionSave:
         self, mock_llm_config, tmp_path
     ):
         """Per-page propagation should tolerate absolute file paths for parent PDFs."""
+        from fichero_server.media.ocr_geometry import (
+            OCRGeometryStatus,
+            geometry_status,
+        )
         from fichero_server.workflows.tools.vision_base import (
             VisionOCRResult,
             VisionToolConfig,
@@ -1573,10 +1577,18 @@ class TestProcessVisionSave:
                 str(library_path),
                 artifact_type="transcription",
                 llm_config=ANY,
-                # #4309: the apple path now carries one geometry slot per page
-                # (None here — the stubbed pages had no boxes).
-                page_geometries=[None, None],
+                # #4309: the apple path carries one geometry slot per page, and
+                # a slot with no boxes now says WHY. Vision can localise, so
+                # zero boxes is `produced_nothing` — a fact about the page —
+                # never `None`, which would claim geometry was never attempted.
+                page_geometries=ANY,
                 artifact_data=None,
+            )
+            geometries = mock_propagate.await_args.kwargs["page_geometries"]
+            assert len(geometries) == 2
+            assert all(
+                geometry_status(g) is OCRGeometryStatus.PRODUCED_NOTHING
+                for g in geometries
             )
 
     @pytest.mark.asyncio
