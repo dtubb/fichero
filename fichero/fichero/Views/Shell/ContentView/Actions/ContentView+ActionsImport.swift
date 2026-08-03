@@ -81,6 +81,26 @@ extension ContentView {
     /// common Finder-drag case.
     func handleContentPaneExternalDrop(_ providers: [NSItemProvider]) {
         Task {
+            // Read the payload BEFORE resolving any file URL (#4401). `.item`
+            // is UTType's root, so this destination matches every in-app drag
+            // too — and since #4123 a document row exports a real file, which
+            // the loader below would happily resolve and import. Dragging a
+            // document from the sidebar into the content pane therefore made a
+            // second, hollow copy of it. Positive identification first is the
+            // same rule the sidebar row and the folder cell already follow.
+            switch await readSidebarDropPayload(providers) {
+            case .internalItems, .unreadableInternal:
+                logger.error("Content-pane drop came from inside the app; refusing to import")
+                await MainActor.run {
+                    importError = """
+                        That item is already in this library. \
+                        Drop it on a folder to file it there.
+                        """
+                }
+                return
+            case .externalFiles, .unsupported:
+                break
+            }
             var urls: [URL] = []
             for provider in providers {
                 if let url = try? await ExternalFileDropLoader.loadAnyFileURL(from: provider) {
@@ -100,10 +120,38 @@ extension ContentView {
         }
     }
 
+    /// Drop this app's OWN drag export before anything can import it (#4401),
+    /// returning only the genuinely external URLs.
+    ///
+    /// This is the last line of defence and the only one available on the
+    /// URL-typed route. `DropTargetModifiers` reaches `handleFileDrop` via
+    /// `.dropDestination(for: URL.self)` mounted on the WHOLE
+    /// `NavigationSplitView` — sidebar and detail both — and a Transferable
+    /// destination typed on URL never sees the providers, so it cannot ask what
+    /// the drag carried. What it CAN see is that the URL sits in the temp
+    /// directory this app writes for its own drag export, which makes it a copy
+    /// of a document already in the library. Importing that is the duplication
+    /// the whole issue is about.
+    private func externalURLsRefusingOwnDragExports(_ urls: [URL]) -> [URL] {
+        let (external, internalExports) = partitionFicheroInternalDragExports(urls)
+        guard !internalExports.isEmpty else { return external }
+        logger.error(
+            "Refusing to import \(internalExports.count) item(s) dragged from inside the app"
+        )
+        importError = """
+            That item is already in this library. \
+            Drop it on a folder to file it there.
+            """
+        return external
+    }
+
     func handleFileDrop(urls: [URL]) {
         logger.info("Files dropped: \(urls.map { $0.lastPathComponent })")
 
-        let droppedURLs = classifyDroppedURLs(urls)
+        let external = externalURLsRefusingOwnDragExports(urls)
+        guard !external.isEmpty else { return }
+
+        let droppedURLs = classifyDroppedURLs(external)
         openDroppedLibraries(droppedURLs.libraryURLs)
 
         guard !droppedURLs.importURLs.isEmpty else { return }
