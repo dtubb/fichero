@@ -151,8 +151,10 @@ extension ContentView {
         let external = externalURLsRefusingOwnDragExports(urls)
         guard !external.isEmpty else { return }
 
-        let droppedURLs = classifyDroppedURLs(external)
+        let droppedURLs = DroppedURLs.classify(external)
         openDroppedLibraries(droppedURLs.libraryURLs)
+
+        reportRefusedRemoteURLs(droppedURLs.remoteURLs)
 
         guard !droppedURLs.importURLs.isEmpty else { return }
 
@@ -247,21 +249,6 @@ extension ContentView {
         return libraryRootImportBatches(
             urls: urls, inboxId: inboxId, isDirectory: libraryDropURLIsDirectory
         )
-    }
-
-    private func classifyDroppedURLs(_ urls: [URL]) -> (libraryURLs: [URL], importURLs: [URL]) {
-        var libraryURLs: [URL] = []
-        var importURLs: [URL] = []
-
-        for url in urls {
-            if url.isFicheroLibraryPackage {
-                libraryURLs.append(url.standardizedFileURL)
-            } else {
-                importURLs.append(url)
-            }
-        }
-
-        return (libraryURLs, importURLs)
     }
 
     private func openDroppedLibraries(_ urls: [URL]) {

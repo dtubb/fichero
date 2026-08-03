@@ -370,7 +370,7 @@ extension ContentView {
                     importProgress: $importProgress,
                     importError: $importError,
                     handleDocumentChange: handleDocumentChange,
-                    handleFileDrop: handleFileDrop
+                    handleProviderDrop: handleContentPaneExternalDrop
                 )
             )
     }

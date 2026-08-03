@@ -103,7 +103,10 @@ struct DropTargetModifiers: ViewModifier {
     @Binding var isImporting: Bool
     @Binding var importProgress: String?
     @Binding var importError: String?
-    let handleFileDrop: ([URL]) -> Void
+    /// Providers, NOT `[URL]` (#2386 / #4458): a URL-typed destination is only
+    /// ever offered droppables that can vend a URL, so a promised file or
+    /// data-with-no-URL never reached it. See the drop target below.
+    let handleProviderDrop: ([NSItemProvider]) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -141,11 +144,15 @@ struct DropTargetModifiers: ViewModifier {
             // packages open/focus a window, everything else still imports to
             // Inbox. The 400 error is readable via LocalizedError so the real
             // backend message surfaces (#598).
-            .dropDestination(for: URL.self) { urls, _ in
-                handleFileDrop(urls)
+            // ONE extraction path (#2386): every drop surface now reaches
+            // `ExternalFileDropLoader`. This target was the exception, and it
+            // covers the WHOLE window — so it sat above the surfaces that got
+            // it right, and acceptance depended on which one caught the drop.
+            // That is "doesn't work from some locations": two paths accepting
+            // different things, with nothing forcing them to agree.
+            .onDrop(of: [.item], isTargeted: $isDropTargeted) { providers in
+                handleProviderDrop(providers)
                 return true
-            } isTargeted: { isTargeted in
-                self.isDropTargeted = isTargeted
             }
             // No full-window import overlay — a folder-of-folders import runs
             // long and the dimmed spinner covered the sidebar so nothing
@@ -198,7 +205,7 @@ struct MainContentModifiers: ViewModifier {
     @State private var workflowGraphResyncTask: Task<Void, Never>?
 
     let handleDocumentChange: (DocumentChange) -> Void
-    let handleFileDrop: ([URL]) -> Void
+    let handleProviderDrop: ([NSItemProvider]) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -225,7 +232,7 @@ struct MainContentModifiers: ViewModifier {
                 isImporting: $isImporting,
                 importProgress: $importProgress,
                 importError: $importError,
-                handleFileDrop: handleFileDrop
+                handleProviderDrop: handleProviderDrop
             ))
             .onChange(of: workflowStore.workflows) { _, updatedWorkflows in
                 syncActiveWorkflowMetadata(with: updatedWorkflows)
