@@ -36,6 +36,8 @@ from fichero_server.workflows.runtime import build_initial_state, create_compile
 
 # Import workflow tools for registry side effects before build_graph().
 import fichero_server.workflows.tools  # noqa: F401
+import fichero_server.workflows.tools.citations_extract as citations_module
+import fichero_server.workflows.tools.cleanup as cleanup_module
 import fichero_server.workflows.tools.extract_all as extract_all_module
 
 
@@ -264,6 +266,22 @@ def test_all_default_workflows_complete_with_deterministic_tool_stubs(
         _assert_declared_terminal_outputs(workflow, final_state, preset_name)
 
 
+def _dedup_names_from_prompt(prompt: str) -> list[str]:
+    """The names the cleanup tool actually asked about.
+
+    `_build_cleanup_prompt` numbers them one per line, so the stand-in can
+    answer about the real input rather than a hardcoded guess — which is
+    what keeps the fake from quietly agreeing with a tool that asked the
+    wrong question.
+    """
+    names: list[str] = []
+    for line in prompt.splitlines():
+        _number, _, name = line.strip().partition(". ")
+        if name:
+            names.append(name)
+    return names
+
+
 def _install_deterministic_workflow_stubs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -316,9 +334,6 @@ def _install_deterministic_workflow_stubs(
     async def fake_keywords(*args, **kwargs):
         return "regression fixture; workflow harness"
 
-    async def fake_citations_extract(*args, **kwargs):
-        return {"text": "", "value": [], "cached": False}
-
     monkeypatch.setattr("fichero_server.llm.resolve_model_alias", resolve_alias)
     monkeypatch.setattr(
         "fichero_server.workflows.tools.extract_all.chat_structured_with_fallback",
@@ -332,30 +347,42 @@ def _install_deterministic_workflow_stubs(
         "fichero_server.workflows.tools.catalogue._generate_keywords",
         fake_keywords,
     )
+    # #4414 Stage 4: the six folder-cleanup nodes and citations_extract used
+    # to be REPLACED with no-ops here — seven of the Catalogue preset's twelve
+    # nodes. A harness that swaps out over half the shipped preset cannot see
+    # defects in the shipped preset, which is the exact gap #4404 and #4496
+    # both lived in: what a component does versus what the configured thing
+    # does. So the real tools run now, and only the model is faked.
+    #
+    # Both tools reach the provider through a module-level
+    # `chat_structured_with_fallback`, so stubbing that name leaves every
+    # DB read, merge decision, artifact write and port handoff genuine.
+    async def fake_structured(**kwargs):
+        """Deterministic stand-in for the dedup / citation-parse model."""
+        schema = kwargs.get("schema")
+        if schema is cleanup_module._DedupResult:
+            # Identity grouping: the fixture has no near-duplicates, so a
+            # model that merged anything would be inventing curation.
+            names = _dedup_names_from_prompt(kwargs.get("prompt") or "")
+            return cleanup_module._DedupResult(
+                groups=[
+                    cleanup_module._DedupGroup(canonical=name, aliases=[])
+                    for name in names
+                ]
+            )
+        if schema is citations_module._CitationFields:
+            return citations_module._CitationFields()
+        raise AssertionError(f"unexpected structured schema: {schema!r}")
+
     monkeypatch.setattr(
-        "fichero_server.workflows.tools.citations_extract.citations_extract",
-        fake_citations_extract,
+        "fichero_server.workflows.tools.cleanup.chat_structured_with_fallback",
+        fake_structured,
     )
-    monkeypatch.setitem(
-        workflow_registry.TOOLS,
-        "citations_extract",
-        fake_citations_extract,
+    monkeypatch.setattr(
+        "fichero_server.workflows.tools.citations_extract."
+        "chat_structured_with_fallback",
+        fake_structured,
     )
-    async def _noop_cleanup(*args, **kwargs):
-        state = kwargs.get("state") or {}
-        assert "extract_all" in (state.get("outputs") or {}), (
-            "folder cleanup must not run before extract_all output exists"
-        )
-        return {"text": "", "value": [], "cached": False}
-    for _tool in (
-        "people_folder_cleanup",
-        "places_folder_cleanup",
-        "organizations_folder_cleanup",
-        "dates_folder_cleanup",
-        "events_folder_cleanup",
-        "keywords_folder_cleanup",
-    ):
-        monkeypatch.setitem(workflow_registry.TOOLS, _tool, _noop_cleanup)
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
         "fichero_server.kg.entity_vectors.find_similar",
