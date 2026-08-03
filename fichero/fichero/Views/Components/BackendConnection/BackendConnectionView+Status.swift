@@ -5,10 +5,15 @@ extension BackendConnectionView {
     /// Who owns the engine PROCESS for this build/launch — the input that
     /// decides whether "Restart Engine" is a truthful offer (#4380).
     ///
-    /// Distinct from `EmbeddedBackendService.engineOwnership`, which answers
-    /// "who owns the PORT" (#4057).
+    /// Reads the LIVE service, not the strategy (#4400). The strategy alone
+    /// cannot see that this launch adopted an engine it did not spawn, so it
+    /// said `.appManaged` for a process `beginStop` refuses to signal — and
+    /// this popover is the one surface that turns that answer into a button.
+    /// `EmbeddedBackendService.engineOwnership` is the shared table both
+    /// answers now come from; the two questions still differ, and
+    /// `ConnectionPresentation+Ownership.swift` says why.
     var engineProcessOwnership: ConnectionPresentation.EngineOwnership {
-        ConnectionPresentation.EngineOwnership.resolve(EngineConfig.engineProvisioningStrategy())
+        backendService.connectionOwnership
     }
 
     /// The ONE status this popover renders, derived from the same mapping the
