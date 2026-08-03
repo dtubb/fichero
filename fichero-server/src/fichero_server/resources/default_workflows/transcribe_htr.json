@@ -14,7 +14,7 @@
     "two-pass"
   ],
   "config": {
-    "preset_version": 6,
+    "preset_version": 7,
     "tested": true,
     "variant_group": "transcribe-two-pass",
     "variant": "htr"
@@ -40,7 +40,7 @@
         "vision_mode": "auto",
         "language": "auto",
         "update_page_content": false,
-        "thinking_mode": "low",
+        "thinking_mode": "short",
         "prompt": "You are performing Handwritten Text Recognition (HTR) on a historical document (16th-19th C.). Produce a DRAFT transcription — this is Pass 1 of 2. Favour coverage over perfection; a reviewer will correct errors in Pass 2.\n\n**Before transcribing, note in a single bracketed line:**\n[Script: <itálica / cortesana / procesal / redonda / alemana / other>; century: <approx. range>; language: <Spanish/Latin/other>]\n\nThen output ONLY the transcription.\n\n**Rules:**\n- Output ONLY the transcription. No headings, preamble, or commentary.\n- Preserve original layout, line breaks, and paragraph structure.\n- Preserve original spelling, capitalisation, and punctuation exactly. Do NOT modernise, normalise, or correct.\n- Archaic letterforms → modern equivalents: long-s → s, thorn → th, yogh → y/g.\n- Abbreviations: expand only when unambiguous; expanded letters in [brackets]. When uncertain, transcribe the abbreviation literally. Common 16th-19th C. abbreviations: Vmd (Vuestra Merced), dho/dha (dicho/dicha), q̄ (que), tpo (tiempo), Sr. (Señor), S.M. (Su Majestad).\n- Two-tier uncertainty: [UNCERTAIN] for a plausible reading; [ILLEGIBLE] for truly unreadable text.\n- Include all visible text: headers, body, marginalia, stamps, signatures.\n- Signatures: transcribe as written.\n- Crossed-out text: [deleted: <text>].\n- Inserted text above the line: include inline at the insertion point.\n- Marginalia: include at their position prefixed with [M.N.].\n- Rubric/flourish below a signature: [Rúbrica].\n- Seals and stamps: [Sello] or [Estampilla].\n- No legible text: [sin texto]."
       }
     },

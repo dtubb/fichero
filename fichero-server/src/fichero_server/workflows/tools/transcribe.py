@@ -14,6 +14,7 @@ from fichero_server.workflows.types import State
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._doc_lookup import documents_from_state_outputs
 from fichero_server.workflows.tools.llm_base import BASE_OUTPUT_PORTS, merge_config_schema
+from fichero_server.workflows.tools.transcription_output import sanitize_transcription
 from fichero_server.workflows.tools.vision_base import (
     VISION_INPUT_PORTS,
     VISION_CONFIG_SCHEMA,
@@ -307,4 +308,9 @@ async def transcribe(
         save_to_file_flag=inputs.get("save_to_file", False),
         return_boxes=return_boxes,
         metadata_field=inputs.get("metadata_field"),
+        # #4496: the prompt above forbids commentary and the model ignores it.
+        # This inspects the OUTPUT — strips delimited reasoning, and RAISES on
+        # commentary so the file fails loudly instead of storing "Step-by-step
+        # reasoning:" in an artifact typed `transcription`.
+        postprocess_text=sanitize_transcription,
     )

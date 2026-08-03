@@ -16,7 +16,7 @@
     "v2"
   ],
   "config": {
-    "preset_version": 2,
+    "preset_version": 3,
     "internal": true,
     "input_contract": [
       {
@@ -88,7 +88,7 @@
         "vision_mode": "llm",
         "language": "es",
         "update_page_content": false,
-        "thinking_mode": "low",
+        "thinking_mode": "short",
         "prompt": "You are reviewing a draft transcription against the original image for Spanish Script (19th-20th c.), especially Spanish notarial and secretarial cursive.\n\nThe draft appears in the Context section above. Compare it directly against the image and against any reference snippets provided in metadata.\n\nReview priorities:\n- Preserve original orthography exactly as written; do not modernise spelling or punctuation.\n- Verify names, dates, money amounts, abbreviations, and honorific formulas character by character.\n- Keep original line breaks and paragraph breaks.\n- Check for skipped marginalia, stamps, signatures, inserted words, and crossed-out text.\n- Use [UNCERTAIN] for plausible low-confidence readings and [ILLEGIBLE] for truly unreadable text.\n- Do not hallucinate or silently expand unreadable spans.\n\nRules:\n- Output ONLY the corrected transcription. No commentary, no diff, no preamble.\n- If the draft is already correct, return it verbatim.\n- Preserve [deleted: ...] markers where applicable."
       }
     },

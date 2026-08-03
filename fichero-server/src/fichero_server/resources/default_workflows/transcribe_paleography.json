@@ -14,7 +14,7 @@
     "two-pass"
   ],
   "config": {
-    "preset_version": 6,
+    "preset_version": 7,
     "variant_group": "transcribe-two-pass",
     "variant": "paleography"
   },
@@ -67,7 +67,7 @@
         "vision_mode": "llm",
         "language": "auto",
         "update_page_content": true,
-        "thinking_mode": "high",
+        "thinking_mode": "long",
         "prompt": "You are a senior paleographer reviewing a draft transcription against its original manuscript image.\n\nThe draft appears in the Context section above. Your job: compare each passage against the image using the **comparison method** — use legible known words and letters as standards against which to measure unclear characters.\n\n**Common error patterns to correct (by script family):**\n\nProcesal / cortesana (16th-17th C.):\n- Glyph confusions: rn→m, c→e, u→n, long-s→f, t→l, i→e, v→u\n- Abbreviation errors: dho/dha (dicho/dicha), Vmd (Vuestra Merced), q̄ (que), tpo (tiempo), mrd (merced), qta (cuenta)\n- Stretched baseline letters with heavy entangled connections often hide word boundaries\n- Digit confusions: 1/7, 0/o, 5/6, 3/5 in old numerals\n\nAlbalaes / privilegios / Caroline (12th-15th C.):\n- Suspension marks (final letters dropped): note expansions are plausible not certain\n- Contraction marks (medial letters dropped): check against period formulae\n- Ligatured letter pairs (ct, st, sp): may have been split or merged incorrectly\n\nAll scripts:\n- Marginalia, stamps, rubrics, or crossed-out passages the draft skipped\n- Inserted words above the line the draft dropped\n- Names and places: models default to familiar modern spellings — verify against the image character by character\n- Numbers and dates: confirm every digit\n\n**Rules:**\n- Output ONLY the corrected transcription. No commentary, diff, or preamble.\n- Keep the script identification line from the draft (update if wrong).\n- Preserve original orthography — do NOT modernise.\n- If the draft is already correct, return it verbatim. Do not reformat.\n- Use the same conventions: [UNCERTAIN], [ILLEGIBLE], [deleted: ...], [M.N.], [Rúbrica], [Sello].\n- Do not invent text not visibly present in the image."
       }
     }

@@ -181,9 +181,33 @@ def test_reference_section_truncates_at_twenty():
 
 def test_thinking_preamble_levels():
     assert build_thinking_preamble("off") == ""
-    assert build_thinking_preamble("unknown") == ""  # unknown -> empty
     assert "step by step" in build_thinking_preamble("medium")
     assert build_thinking_preamble("long")
+
+
+def test_thinking_preamble_rejects_an_unknown_mode():
+    """This test used to assert `build_thinking_preamble("unknown") == ""`.
+
+    That pinned the defect (#4496). Four shipped transcription presets asked
+    for `thinking_mode` values outside the enum — `high` and `low` — and each
+    silently produced no preamble at all, so the nodes declaring the deepest
+    reasoning got none. An unknown mode is a typo in a config, not a request
+    for no reasoning, and returning "" made the two indistinguishable.
+    """
+    with pytest.raises(ValueError, match="unknown"):
+        build_thinking_preamble("unknown")
+
+
+def test_thinking_preamble_delimits_the_reasoning_it_asks_for():
+    """The preamble is prepended to prompts that forbid commentary (#4496).
+
+    Asking for undelimited "show your reasoning" in front of "output ONLY the
+    transcription" is how 4,518 characters of reasoning ended up stored as a
+    transcription. Reasoning must be inside tags a stripper can remove.
+    """
+    for mode in ("short", "medium", "long"):
+        preamble = build_thinking_preamble(mode)
+        assert "<think>" in preamble and "</think>" in preamble, mode
 
 
 def test_context_section_assembles_parts_and_empty():
