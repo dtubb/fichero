@@ -245,8 +245,12 @@ extension LibraryView {
                     text: type.groupLabel(count: node.count)
                 ))
         case .pageItem(let page):
+            // `pageThumbnailLabel ?? name` is nil exactly for a page with no
+            // sequence — the case with no page number to show — so it fell
+            // through to the storage name precisely when it mattered (#4416).
+            // DocumentTitle composes the same "Page N" and degrades honestly.
             Label(
-                page.pageThumbnailLabel.map { "Page \($0)" } ?? page.name,
+                DocumentTitle.displayName(for: page),
                 systemImage: "doc.richtext"
             )
             .font(.subheadline)

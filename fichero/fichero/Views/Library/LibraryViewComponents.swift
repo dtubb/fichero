@@ -241,7 +241,7 @@ struct MailStyleRow: View {
     }
 
     private var rowAccessibilityLabel: String {
-        let name = document.pageThumbnailLabel ?? document.name
+        let name = DocumentTitle.displayName(for: document)  // #4416: `?? name` spoke a storage name
         if document.docType == .folder { return "\(name), folder" }
         if let fileType = document.fileType { return "\(name), \(fileType.rawValue)" }
         return name
