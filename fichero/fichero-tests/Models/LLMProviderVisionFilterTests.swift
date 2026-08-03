@@ -123,74 +123,77 @@ final class LLMProviderVisionFilterTests: XCTestCase {
     }
 }
 
-/// #4187 — deriving `hasVisionNodes` from the workflow's nodes + the tool
-/// registry, mirroring the engine's preflight rule (usesLLM && category ==
-/// "vision"). Unknown tools and a missing registry fail OPEN (false → no
-/// filtering); the engine is the enforcement point.
-final class WorkflowSidebarItemVisionTests: XCTestCase {
+/// #3804 — "does this workflow need a vision model?" is the SERVER's answer,
+/// read from `requires_vision`. The client used to recompute it from its own
+/// node list (`WorkflowSidebarItem.requiresVisionModel`), which could only
+/// see the parent's nodes: a workflow that delegates its vision work to a
+/// `sub_workflow` child looked text-only, so the Run menu offered text-only
+/// models the engine's preflight then rejected. The engine descends into
+/// children (cycle-guarded); the client must not second-guess it.
+final class WorkflowRequiresVisionWireTests: XCTestCase {
 
-    private func tool(_ name: String, category: String, usesLLM: Bool) -> ToolInfo {
-        ToolInfo(
-            name: name, displayName: name, description: "", category: category,
-            icon: "gear", color: "blue", inputPorts: [], outputPorts: [],
-            usesLLM: usesLLM, supportsBatch: false, supportsStreaming: false,
-            supportsStructuredOutput: false, sortOrder: 0
+    private func responseJSON(
+        nodes: String = "[]",
+        requiresVisionKey: String = ""
+    ) -> Data {
+        Data("""
+        {"id":"wf-1","name":"Parent","description":"",
+         "provider":"openai","model":"gpt-4o",
+         "nodes":\(nodes),"edges":[],
+         "folder_path":"/","sort_order":0,
+         "is_system":false,"untested":false\(requiresVisionKey)}
+        """.utf8)
+    }
+
+    /// THE case the client computation got wrong: the parent's own nodes are
+    /// a text tool and a sub_workflow reference — nothing here `usesLLM` in
+    /// the "vision" category — yet the workflow requires vision because the
+    /// child does. Only the server can see that.
+    func testVisionRequirementLivingOnlyInAChildIsReported() throws {
+        let parentNodes = """
+        [{"id":"n1","tool":"summarize_file"},
+         {"id":"n2","tool":"sub_workflow","workflow_ref":"child-with-transcribe"}]
+        """
+        let resp = try JSONDecoder().decode(
+            WorkflowResponse.self,
+            from: responseJSON(nodes: parentNodes, requiresVisionKey: ",\"requires_vision\":true")
+        )
+        XCTAssertTrue(
+            resp.requiresVision,
+            "A parent whose vision node lives in a sub_workflow child must still require vision."
+        )
+
+        let item = WorkflowSidebarItem(name: resp.name, requiresVision: resp.requiresVision)
+        XCTAssertTrue(item.requiresVision)
+        XCTAssertNil(
+            LLMProvider(id: "p", name: "P", models: ["m"], available: true, supportsVision: false)
+                .runMenuEntry(requiresVision: item.requiresVision),
+            "A text-only provider must drop out of the Run menu for a vision workflow."
         )
     }
 
-    private func node(tool: String) -> [String: AnyCodable] {
-        ["tool": AnyCodable(tool)]
+    func testTextOnlyWorkflowDoesNotRequireVision() throws {
+        let resp = try JSONDecoder().decode(
+            WorkflowResponse.self,
+            from: responseJSON(
+                nodes: "[{\"id\":\"n1\",\"tool\":\"summarize_file\"}]",
+                requiresVisionKey: ",\"requires_vision\":false"
+            )
+        )
+        XCTAssertFalse(resp.requiresVision)
     }
 
-    func testVisionLLMToolRequiresVisionModel() {
-        let registry = ["transcribe": tool("transcribe", category: "vision", usesLLM: true)]
-        XCTAssertTrue(WorkflowSidebarItem.requiresVisionModel(
-            nodes: [node(tool: "transcribe")], toolRegistry: registry
-        ))
+    /// Absent key (older engine) must fail OPEN to an unfiltered menu, never
+    /// hide models the user could legitimately pick. The engine stays the
+    /// enforcement point.
+    func testAbsentRequiresVisionFailsOpen() throws {
+        let resp = try JSONDecoder().decode(WorkflowResponse.self, from: responseJSON())
+        XCTAssertFalse(resp.requiresVision)
     }
 
-    func testTextToolDoesNotRequireVisionModel() {
-        let registry = ["summarize": tool("summarize", category: "text", usesLLM: true)]
-        XCTAssertFalse(WorkflowSidebarItem.requiresVisionModel(
-            nodes: [node(tool: "summarize")], toolRegistry: registry
-        ))
-    }
-
-    func testVisionCategoryWithoutLLMDoesNotRequireVisionModel() {
-        let registry = ["resize": tool("resize", category: "vision", usesLLM: false)]
-        XCTAssertFalse(WorkflowSidebarItem.requiresVisionModel(
-            nodes: [node(tool: "resize")], toolRegistry: registry
-        ))
-    }
-
-    func testUnknownToolAndEmptyRegistryFailOpen() {
-        XCTAssertFalse(WorkflowSidebarItem.requiresVisionModel(
-            nodes: [node(tool: "mystery")], toolRegistry: [:]
-        ))
-    }
-
-    func testMixedNodesRequireVisionWhenAnyVisionNodePresent() {
-        let registry = [
-            "summarize": tool("summarize", category: "text", usesLLM: true),
-            "transcribe": tool("transcribe", category: "vision", usesLLM: true)
-        ]
-        XCTAssertTrue(WorkflowSidebarItem.requiresVisionModel(
-            nodes: [node(tool: "summarize"), node(tool: "transcribe")],
-            toolRegistry: registry
-        ))
-    }
-
-    func testToolLookupIsCaseInsensitive() {
-        // The registry is keyed by lowercased tool name (see
-        // loadToolRegistry); node tool ids may differ in case.
-        let registry = ["transcribe": tool("Transcribe", category: "Vision", usesLLM: true)]
-        XCTAssertTrue(WorkflowSidebarItem.requiresVisionModel(
-            nodes: [node(tool: "Transcribe")], toolRegistry: registry
-        ))
-    }
-
-    func testHasVisionNodesDefaultsFalseOnDecode() throws {
-        // hasVisionNodes is client-derived, never wire data.
+    /// Decoding a sidebar row without the key keeps the same fail-open
+    /// default, so a persisted pre-#3804 row does not start hiding models.
+    func testSidebarItemDefaultsFalseWhenKeyAbsent() throws {
         let json = Data("""
         {"id":"w1","name":"W","node_count":1,"edge_count":0,"is_enabled":true,
          "folder_path":"/","sort_order":0,"is_system":false,"untested":false,
@@ -198,7 +201,35 @@ final class WorkflowSidebarItemVisionTests: XCTestCase {
         """.utf8)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let item = try decoder.decode(WorkflowSidebarItem.self, from: json)
-        XCTAssertFalse(item.hasVisionNodes)
+        XCTAssertFalse(try decoder.decode(WorkflowSidebarItem.self, from: json).requiresVision)
+    }
+
+    /// The deleted client computation must stay deleted. A future edit that
+    /// re-derives vision from the node list would silently reintroduce the
+    /// sub-workflow blind spot, and nothing else in the suite would notice —
+    /// the parent's nodes decode fine, they just answer the wrong question.
+    func testNoClientSideVisionDerivationRemains() throws {
+        let app = try AppSource.root()
+        var offenders: [String] = []
+        let walker = FileManager.default.enumerator(atPath: app.path)
+        while let relative = walker?.nextObject() as? String {
+            guard relative.hasSuffix(".swift") else { continue }
+            let source = try String(
+                contentsOf: app.appendingPathComponent(relative), encoding: .utf8
+            )
+            // The old derivation's two fingerprints: the removed helper, and
+            // the category test it performed inline.
+            if source.contains("requiresVisionModel(")
+                || source.contains("hasVisionNodes") {
+                offenders.append(relative)
+            }
+        }
+        XCTAssertEqual(
+            offenders, [],
+            "Client-side vision derivation is back in \(offenders) — it cannot see "
+            + "sub_workflow children, so it will disagree with the engine's preflight. "
+            + "Read `requires_vision` off the workflow response instead."
+        )
     }
 }
+

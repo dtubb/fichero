@@ -65,6 +65,13 @@ struct WorkflowResponse: Codable {
     /// which callers must read as `true`: a workflow whose capability we
     /// cannot determine keeps its override controls rather than losing them.
     let acceptsModelOverride: Bool?
+    /// Server-computed answer to "does running this need a vision model?",
+    /// from the same `workflow_requires_vision` rule the engine's preflight
+    /// enforces — which descends into `sub_workflow` children (cycle-guarded).
+    /// The client cannot compute this from its own node list, because a
+    /// parent's vision requirement can live entirely in a child. Absent
+    /// (old server) means `false`, which fails OPEN to an unfiltered menu.
+    var requiresVision: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
@@ -74,6 +81,7 @@ struct WorkflowResponse: Codable {
         case isUntested = "untested"
         case directRunnable = "direct_runnable"
         case acceptsModelOverride = "accepts_model_override"
+        case requiresVision = "requires_vision"
     }
 }
 

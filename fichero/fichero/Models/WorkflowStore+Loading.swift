@@ -52,10 +52,7 @@ extension WorkflowStore {
                     acceptsModelOverride: workflow.acceptsModelOverride ?? true,
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date(),
-                    hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
-                        nodes: workflow.nodes,
-                        toolRegistry: toolRegistry
-                    )
+                    requiresVision: workflow.requiresVision
                 )
             }
             isConnected = true

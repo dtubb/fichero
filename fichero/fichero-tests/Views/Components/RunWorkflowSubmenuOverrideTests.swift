@@ -100,18 +100,28 @@ final class RunWorkflowSubmenuOverrideTests: XCTestCase {
         // fooled by formatting the way brace-matching can.
         var constructions = 0
         var carried = 0
+        var carriedVision = 0
         for file in storeFiles {
             let source = try String(
                 contentsOf: models.appendingPathComponent(file), encoding: .utf8
             )
             constructions += source.components(separatedBy: "WorkflowSidebarItem(").count - 1
             carried += source.components(separatedBy: "acceptsModelOverride:").count - 1
+            carriedVision += source.components(separatedBy: "requiresVision:").count - 1
         }
         XCTAssertGreaterThanOrEqual(constructions, 6, "Expected every known store rebuild to be scanned.")
         XCTAssertEqual(
             carried, constructions,
             "A WorkflowStore path builds a WorkflowSidebarItem without acceptsModelOverride — "
             + "it will silently default to true and re-offer overrides the engine ignores."
+        )
+        // Same defect class, same shape: `requires_vision` (#3804) is the
+        // server's answer and every rebuild must carry it, or the Run menu
+        // stops filtering to vision models until the next full load.
+        XCTAssertEqual(
+            carriedVision, constructions,
+            "A WorkflowStore path builds a WorkflowSidebarItem without requiresVision — "
+            + "it will silently default to false and stop filtering the model submenu."
         )
     }
 

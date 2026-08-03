@@ -42,11 +42,8 @@ extension WorkflowStore {
                 createdAt: Date(),
                 updatedAt: Date(),
                 // An edit can change which tools the workflow uses, so this
-                // is recomputed rather than carried over from the old row.
-                hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
-                    nodes: response.nodes,
-                    toolRegistry: toolRegistry
-                )
+                // is taken from the fresh response, not the old row.
+                requiresVision: response.requiresVision
             )
 
             // Update existing or add new
@@ -86,11 +83,8 @@ extension WorkflowStore {
                 createdAt: Date(),
                 updatedAt: Date(),
                 // An edit can change which tools the workflow uses, so this
-                // is recomputed rather than carried over from the old row.
-                hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
-                    nodes: response.nodes,
-                    toolRegistry: toolRegistry
-                )
+                // is taken from the fresh response, not the old row.
+                requiresVision: response.requiresVision
             )
 
             // Update in local array
@@ -140,7 +134,7 @@ extension WorkflowStore {
                 acceptsModelOverride: old.canOverrideModel,
                 createdAt: old.createdAt,
                 updatedAt: Date(),
-                hasVisionNodes: old.hasVisionNodes
+                requiresVision: old.requiresVision
             )
         }
     }

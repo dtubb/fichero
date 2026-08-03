@@ -532,7 +532,8 @@ extension WorkflowService {
             isSystem: derived.isSystem,
             isUntested: derived.isUntested,
             directRunnable: derived.directRunnable,
-            acceptsModelOverride: derived.acceptsModelOverride
+            acceptsModelOverride: derived.acceptsModelOverride,
+            requiresVision: derived.requiresVision
         )
     }
 
@@ -545,6 +546,9 @@ extension WorkflowService {
         var isUntested = false
         var directRunnable = true
         var acceptsModelOverride = true
+        // Not permissive-by-default in the same sense: `false` here means "do
+        // not filter the model menu", which is the permissive outcome.
+        var requiresVision = false
     }
 
     private static func derivedFlags(
@@ -558,7 +562,8 @@ extension WorkflowService {
             isSystem: (dict["is_system"] as? Bool) ?? false,
             isUntested: (dict["untested"] as? Bool) ?? false,
             directRunnable: (dict["direct_runnable"] as? Bool) ?? true,
-            acceptsModelOverride: (dict["accepts_model_override"] as? Bool) ?? true
+            acceptsModelOverride: (dict["accepts_model_override"] as? Bool) ?? true,
+            requiresVision: (dict["requires_vision"] as? Bool) ?? false
         )
     }
 

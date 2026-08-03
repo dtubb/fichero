@@ -44,7 +44,7 @@ struct RunWorkflowSubmenuItems: View {
             Menu(workflow.name) {
                 Button("Default") { action(workflow.id, nil, nil) }
                 ForEach(providerCache.providers.filter { $0.available }) { provider in
-                    switch provider.runMenuEntry(requiresVision: workflow.hasVisionNodes) {
+                    switch provider.runMenuEntry(requiresVision: workflow.requiresVision) {
                     case .providerOnly:
                         Button(provider.name) { action(workflow.id, provider.id, nil) }
                     case .models(let models):

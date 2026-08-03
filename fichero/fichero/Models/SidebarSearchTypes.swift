@@ -110,14 +110,17 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     var acceptsModelOverride: Bool?
     var createdAt: Date
     var updatedAt: Date
-    /// Derived client-side at load (#4187), not wire data — deliberately NOT
-    /// in CodingKeys. True when any node's tool uses an LLM in the "vision"
-    /// category, mirroring the engine's preflight rule. Used only to FILTER
-    /// the Run Workflow model submenu to vision-capable models; the engine
-    /// remains the enforcement point, so `false` (e.g. after a failed tool
-    /// registry fetch) fails OPEN to an unfiltered menu — never harden this
-    /// into a client-side gate.
-    var hasVisionNodes: Bool = false
+    /// The SERVER's answer to "does running this need a vision model?", read
+    /// from `requires_vision` on the workflow response — never recomputed
+    /// here. The client used to derive it from its own node list, which got
+    /// the sub-workflow case wrong: a parent whose only vision node lives in
+    /// a `sub_workflow` child looked text-only, so the Run menu offered
+    /// text-only models the engine then rejected (#3804). The engine's
+    /// `workflow_requires_vision` descends into children with a cycle guard.
+    /// Used only to FILTER the Run Workflow model submenu; the engine remains
+    /// the enforcement point, so `false` (old server, absent key) fails OPEN
+    /// to an unfiltered menu — never harden this into a client-side gate.
+    var requiresVision: Bool = false
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -132,6 +135,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case isUntested = "untested"
         case isDirectlyRunnable = "direct_runnable"
         case acceptsModelOverride = "accepts_model_override"
+        case requiresVision = "requires_vision"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -151,7 +155,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         acceptsModelOverride: Bool = true,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        hasVisionNodes: Bool = false
+        requiresVision: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -167,23 +171,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.acceptsModelOverride = acceptsModelOverride
         self.createdAt = createdAt
         self.updatedAt = updatedAt
-        self.hasVisionNodes = hasVisionNodes
-    }
-
-    /// Engine parity (#4187): a workflow needs a vision-capable model iff any
-    /// node's tool `usesLLM` and sits in the "vision" category — the same
-    /// rule `validate_workflow_llm_preflight` enforces server-side. Unknown
-    /// tools (registry miss) contribute `false`: the filter fails open and
-    /// the engine still rejects a genuinely bad pick.
-    static func requiresVisionModel(
-        nodes: [[String: AnyCodable]],
-        toolRegistry: [String: ToolInfo]
-    ) -> Bool {
-        nodes.contains { node in
-            guard let tool = node["tool"]?.value as? String,
-                  let info = toolRegistry[tool.lowercased()] else { return false }
-            return info.usesLLM && info.category.lowercased() == "vision"
-        }
+        self.requiresVision = requiresVision
     }
 
     /// Display name with the trust label appended (never stored in `name`).
