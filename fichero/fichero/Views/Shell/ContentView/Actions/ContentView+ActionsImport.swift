@@ -120,6 +120,16 @@ extension ContentView {
         }
     }
 
+    /// Delete the `fichero-drop-UUID` directories an external drop created
+    /// (#4459). Best-effort: a directory the OS already reaped is not an error,
+    /// and failing an import because its scratch space could not be tidied
+    /// would be the tail wagging the dog.
+    static func removeTemporaryDropDirectories(_ directories: [URL]) {
+        for directory in directories {
+            try? FileManager.default.removeItem(at: directory)
+        }
+    }
+
     /// Drop this app's OWN drag export before anything can import it (#4401),
     /// returning only the genuinely external URLs.
     ///
@@ -132,19 +142,6 @@ extension ContentView {
     /// directory this app writes for its own drag export, which makes it a copy
     /// of a document already in the library. Importing that is the duplication
     /// the whole issue is about.
-    ///
-    /// Delete the `fichero-drop-UUID` directories an external drop created
-    /// (#4459).
-    ///
-    /// Best-effort by design: a directory the OS already reaped is not an
-    /// error, and failing an import because its scratch space could not be
-    /// tidied would be the tail wagging the dog.
-    static func removeTemporaryDropDirectories(_ directories: [URL]) {
-        for directory in directories {
-            try? FileManager.default.removeItem(at: directory)
-        }
-    }
-
     private func externalURLsRefusingOwnDragExports(_ urls: [URL]) -> [URL] {
         let (external, internalExports) = partitionFicheroInternalDragExports(urls)
         guard !internalExports.isEmpty else { return external }
