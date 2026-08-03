@@ -28,6 +28,14 @@ from fichero_server.models.knowledge import (
 )
 from fichero_server.llm import LLMConfig
 from fichero_server.models import Document
+from fichero_server.workflows.curation_guard import (
+    CurationSource,
+    audited_row_ids,
+    clear_conflict,
+    record_conflict,
+    resolve_curation,
+    stamp,
+)
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._entity_writer import (
     _apply_entity_resolution_rules,
@@ -184,11 +192,28 @@ async def merge_dedup_only(
         "claims_suppressed": 0,
         "claims_pruned_trivial": 0,
         "claim_merges": 0,
+        # Curation survival (#4415). A re-run must not regenerate over a
+        # correction, and must say when it declined to and why — a preserved
+        # row that reports nothing is indistinguishable from a row that was
+        # quietly overwritten.
+        "entities_curated_preserved": 0,
+        "claims_curated_preserved": 0,
+        "conflicts_recorded": 0,
+        "conflicts_cleared": 0,
     }
     touched_entity_ids: list[str] = []
     touched_claim_ids: list[str] = []
 
     entities = _scoped_entities(db, scoped_doc_ids)
+
+    # Batched: resolves the provenance of every unmarked row in one pass over
+    # the audit tables, where a query per row would run thousands of times on a
+    # real folder. Claims are deliberately NOT hoisted up here to share the
+    # call — the entity merge below repoints `claim.entity_ids`, and a claim
+    # list read before that holds stale ids, which silently breaks the
+    # duplicate-grouping key further down.
+    audited_ids = audited_row_ids(db, {entity.id for entity in entities})
+
     summary["entities_examined"] = len(entities)
     await emit_progress_event(
         progress_callback,
@@ -202,10 +227,57 @@ async def merge_dedup_only(
 
     for entity in entities:
         resolved = _apply_entity_resolution_rules(db, entity.canonical_name, entity.entity_type)
+
+        # A hand-merged or hand-approved entity is a durable statement that the
+        # extractor got this wrong. The rules still RUN — an improved rule set
+        # may have something to say — but they may not overwrite: the proposal
+        # is recorded beside the row instead, so the disagreement is visible
+        # and decidable rather than silently resolved in either direction.
+        curation = resolve_curation(entity, audited_ids=audited_ids)
+        if curation.is_protected:
+            if resolved is None:
+                agrees = entity.curation_state == _REJECTED_ENTITY_STATE
+                proposal: dict | None = {"curation_state": _REJECTED_ENTITY_STATE.value}
+                reason = "no entity-resolution rule matched; tool would suppress"
+            else:
+                target_name, target_type = resolved
+                agrees = (
+                    target_name == entity.canonical_name and target_type == entity.entity_type
+                )
+                proposal = {
+                    "merge_into_canonical_name": target_name,
+                    "merge_into_entity_type": getattr(target_type, "value", target_type),
+                }
+                reason = "entity-resolution rule would merge this entity elsewhere"
+
+            if agrees:
+                conflict_changed = clear_conflict(entity)
+                summary["conflicts_cleared"] += int(conflict_changed)
+            else:
+                conflict_changed = record_conflict(entity, proposal=proposal, reason=reason)
+                summary["conflicts_recorded"] += 1
+
+            # Write down the verdict we derived from the audit tables so the
+            # next run reads it off the row instead of re-deriving it.
+            stamp_changed = stamp(
+                entity,
+                source=curation.source,
+                actor=curation.actor,
+                basis=curation.basis,
+            )
+
+            if conflict_changed or stamp_changed:
+                entity.updated_at = utc_now()
+                db.save(entity)
+                touched_entity_ids.append(entity.id)
+            summary["entities_curated_preserved"] += 1
+            continue
+
         if resolved is None:
             if entity.curation_state != _REJECTED_ENTITY_STATE:
                 entity.curation_state = _REJECTED_ENTITY_STATE
                 entity.updated_at = utc_now()
+                stamp(entity, source=CurationSource.tool, basis="merge_dedup_only")
                 db.save(entity)
                 touched_entity_ids.append(entity.id)
                 summary["entities_suppressed"] += 1
@@ -259,7 +331,9 @@ async def merge_dedup_only(
         message="Applied entity-resolution rules",
     )
 
+    # Read AFTER the entity merges so `entity_ids` reflect the repointing.
     claims = _scoped_claims(db, scoped_doc_ids)
+    audited_ids = audited_row_ids(db, {claim.id for claim in claims})
     summary["claims_examined"] = len(claims)
     await emit_progress_event(
         progress_callback,
@@ -279,6 +353,65 @@ async def merge_dedup_only(
             predicate_verb=claim.predicate_verb,
             object_phrase=claim.object_phrase,
         )
+
+        # A corrected claim outranks both the suppression rules and the
+        # trivial-claim pruner. Same contract as entities: compute, decline to
+        # overwrite, record the disagreement where it can be seen.
+        curation = resolve_curation(claim, audited_ids=audited_ids)
+        if curation.is_protected:
+            proposal: dict | None = None
+            reason = ""
+            if action is not None:
+                next_state, next_confidence = _claim_target_state(claim, action)
+                if claim.curation_state != next_state or claim.confidence != next_confidence:
+                    proposal = {
+                        "curation_state": next_state.value,
+                        "confidence": next_confidence,
+                    }
+                    reason = "claim-suppression rule would demote this claim"
+            if proposal is None and is_trivial_claim(claim):
+                next_confidence = min(claim.confidence, 0.2)
+                if (
+                    claim.curation_state != ClaimCurationState.rejected
+                    or claim.confidence != next_confidence
+                ):
+                    proposal = {
+                        "curation_state": ClaimCurationState.rejected.value,
+                        "confidence": next_confidence,
+                    }
+                    reason = "trivial-claim pruner would reject this claim"
+
+            if proposal is None:
+                conflict_changed = clear_conflict(claim)
+                summary["conflicts_cleared"] += int(conflict_changed)
+            else:
+                conflict_changed = record_conflict(claim, proposal=proposal, reason=reason)
+                summary["conflicts_recorded"] += 1
+
+            stamp_changed = stamp(
+                claim,
+                source=curation.source,
+                actor=curation.actor,
+                basis=curation.basis,
+            )
+
+            if conflict_changed or stamp_changed:
+                claim.updated_at = utc_now()
+                db.save(claim)
+                touched_claim_ids.append(claim.id)
+            summary["claims_curated_preserved"] += 1
+
+            key = (
+                claim.source_document_id,
+                claim.source_page_label,
+                claim.subject_canonical,
+                claim.predicate_verb,
+                claim.object_phrase,
+                tuple(sorted(claim.entity_ids or [])),
+            )
+            duplicate_groups.setdefault(key, []).append(claim)
+            continue
+
         if action is not None:
             next_state, next_confidence = _claim_target_state(claim, action)
             if (
@@ -288,6 +421,7 @@ async def merge_dedup_only(
                 claim.curation_state = next_state
                 claim.confidence = next_confidence
                 claim.updated_at = utc_now()
+                stamp(claim, source=CurationSource.tool, basis="merge_dedup_only")
                 db.save(claim)
                 touched_claim_ids.append(claim.id)
                 summary["claims_suppressed"] += 1
@@ -301,6 +435,7 @@ async def merge_dedup_only(
                 claim.curation_state = ClaimCurationState.rejected
                 claim.confidence = next_confidence
                 claim.updated_at = utc_now()
+                stamp(claim, source=CurationSource.tool, basis="merge_dedup_only")
                 db.save(claim)
                 touched_claim_ids.append(claim.id)
                 summary["claims_pruned_trivial"] += 1
@@ -320,7 +455,30 @@ async def merge_dedup_only(
         if len(live_claims) < 2:
             continue
         survivor = min(live_claims, key=lambda claim: (claim.created_at, claim.id))
-        absorbed = [claim for claim in live_claims if claim.id != survivor.id]
+
+        # Absorbing a curated claim destroys it just as surely as rewriting its
+        # curation_state — it stops being a live row. A corrected claim is
+        # therefore never in the absorbed set; the duplicate it "should" have
+        # folded into is recorded as a disagreement instead.
+        absorbed = []
+        for claim in live_claims:
+            if claim.id == survivor.id:
+                continue
+            claim_curation = resolve_curation(claim, audited_ids=audited_ids)
+            if claim_curation.is_protected:
+                if record_conflict(
+                    claim,
+                    proposal={"merge_into_claim_id": survivor.id},
+                    reason="claim deduplication would absorb this claim",
+                ):
+                    claim.updated_at = utc_now()
+                    db.save(claim)
+                    touched_claim_ids.append(claim.id)
+                summary["conflicts_recorded"] += 1
+                summary["claims_curated_preserved"] += 1
+                continue
+            absorbed.append(claim)
+
         if not absorbed:
             continue
         # Imported here rather than at module scope: cycle via api.main (#3950).
@@ -368,4 +526,8 @@ def _empty_summary() -> dict[str, int]:
         "claims_suppressed": 0,
         "claims_pruned_trivial": 0,
         "claim_merges": 0,
+        "entities_curated_preserved": 0,
+        "claims_curated_preserved": 0,
+        "conflicts_recorded": 0,
+        "conflicts_cleared": 0,
     }

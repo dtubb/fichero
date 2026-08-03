@@ -46,6 +46,12 @@ def test_merge_dedup_preset_applies_rules_and_is_idempotent(tmp_path: Path):
         "claims_suppressed": 1,
         "claims_pruned_trivial": 1,
         "claim_merges": 1,
+        # #4415 curation-survival counters: nothing here was curated by a
+        # person, so a re-run is free to act and preserves nothing.
+        "entities_curated_preserved": 0,
+        "claims_curated_preserved": 0,
+        "conflicts_recorded": 0,
+        "conflicts_cleared": 0,
     }
 
     second = asyncio.run(
@@ -65,6 +71,12 @@ def test_merge_dedup_preset_applies_rules_and_is_idempotent(tmp_path: Path):
         "claims_suppressed": 0,
         "claims_pruned_trivial": 0,
         "claim_merges": 0,
+        # #4415 curation-survival counters: nothing here was curated by a
+        # person, so a re-run is free to act and preserves nothing.
+        "entities_curated_preserved": 0,
+        "claims_curated_preserved": 0,
+        "conflicts_recorded": 0,
+        "conflicts_cleared": 0,
     }
 
     canonical = db.get(KnowledgeEntity, "ent-john")
