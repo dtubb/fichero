@@ -62,8 +62,15 @@ enum AppSource {
 
     /// The `fichero/fichero` directory, found by walking up rather than by
     /// counting path components.
-    static func root(from filePath: StaticString = #filePath) throws -> URL {
-        let start = URL(fileURLWithPath: "\(filePath)")
+    /// `String`, not `StaticString`. `#filePath` satisfies both, but only
+    /// `String` also accepts a synthesised path — and the test that proves
+    /// depth-independence has to synthesise one, because there is no real file
+    /// at every nesting level to call from.
+    ///
+    /// A `StaticString` parameter would make the walk untestable at the exact
+    /// property it exists to guarantee.
+    static func root(from filePath: String = #filePath) throws -> URL {
+        let start = URL(fileURLWithPath: filePath)
         var directory = start.deletingLastPathComponent()
 
         while directory.path != "/" {
@@ -88,7 +95,7 @@ enum AppSource {
     /// copies made a moved tree look like a deleted file.
     static func text(
         _ relativePath: String,
-        from filePath: StaticString = #filePath
+        from filePath: String = #filePath
     ) throws -> String {
         let url = try root(from: filePath).appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
