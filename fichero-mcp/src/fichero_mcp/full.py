@@ -202,7 +202,12 @@ def run_workflow(input: WorkflowRunInput) -> WorkflowRunOutput:
     with _client() as client:
         out = client.run_workflow(
             input.workflow_id,
-            {"files": [input.doc_id]},
+            # `selected_doc_ids` is the key the RECEIVER reads — the Files
+            # source node, the CLI and SwiftUI all read it. `files` is read by
+            # nothing, so #4467 made the engine reject it rather than complete
+            # green over zero documents. This tool was never updated to match,
+            # so every run_workflow call 422s today (#4465/#4480).
+            {"selected_doc_ids": [input.doc_id]},
             force_new=input.force_new,
             skip_cache=input.skip_cache,
         )

@@ -89,7 +89,7 @@ def test_run_workflow_builds_execute_body(monkeypatch):
 
     assert seen[0] == {
         "workflow_id": "wf-1",
-        "inputs": {"files": ["doc-9"]},
+        "inputs": {"selected_doc_ids": ["doc-9"]},
         "force_new": False,
         "skip_cache": True,
     }
