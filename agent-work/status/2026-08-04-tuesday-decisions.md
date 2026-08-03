@@ -299,3 +299,54 @@ tends to produce technically-uniform names that no historian would choose.
 
 Read the table in
 `agent-work/status/2026-08-03-workflow-menu-vs-engine-audit.md` finding 5.
+
+---
+
+## 12. Model comparison: two questions, one of them mis-named (#4341)
+
+`#4341` shipped a real workflow-diff: run the same page through two workflows
+and see WHICH LINES disagree — `left: "firmado Ospina" / right: "firmado
+Ocampo"`, not a similarity score. Ann can find weak spots without reading
+10,000 pages.
+
+That exposed an older surface, `/api/ai/model-comparison`. I asked whether it
+should be retired. **The caller inventory says no, and changed the
+recommendation:**
+
+- **Swift: an entire feature.** `ModelComparisonStore/Service/Types`, a whole
+  `Views/Chat/ModelComparison/` directory, plus wiring in `LibraryManager`,
+  `SidebarItemBuilder`, `ChatView`, `ContentView+Navigation`.
+- **`NodeComparisonSheet` is reachable from the Workflow Editor**, and
+  `compare-node`/`compare-node/apply` are how a user picks a model for a node
+  and applies it. **That is a model picker, not a comparison viewer, and it
+  must not be retired at all.**
+- **CLI: 4 hand-written commands.** **Tests: 11 files**, including contract
+  fixtures — so removal touches the contract baseline, not just code.
+- MCP: zero callers. It is also registered as a workflow tool, so a USER's
+  saved workflow could contain a `model_comparison` node — data we cannot grep.
+
+**The actual problem is naming, not existence.** It answers "which model is
+fastest and cheapest for this prompt" — a real question. But it is *named and
+shaped* as if it answered "is the ensemble better than plain HTR", so a user
+looking for the second lands on the first and gets a scoreboard.
+
+**Your call:** keep it, rename the user-facing surface to what it does (model
+and cost picking), and point anything called "compare workflows" at the new
+endpoint. Deleting it would remove a working model picker.
+
+## 13. #3905 is only PARTLY unblocked — the honest gap
+
+The comparison gives #3906 (standardise ensemble + critical-review) what it
+needs: "run with review, run without, diff" is now one call.
+
+**#3905 (validate the paleography ensemble against gold CER) is NOT
+unblocked**, and the lane was precise about why rather than claiming victory:
+
+- This diffs two RUNS. A gold transcription is not a run and has no artifacts,
+  so there is nothing to pair it against.
+- CER is character-level; this diff is line-level. CER is not computed
+  anywhere in the codebase.
+
+So #3905 needs a gold-text side (either ingest gold as artifacts, or teach the
+comparison a text-vs-run mode) plus an actual CER metric. Neither is large.
+Neither is done. Recorded so nobody assumes #3905 is ready.
