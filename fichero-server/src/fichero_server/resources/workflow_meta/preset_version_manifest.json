@@ -72,8 +72,8 @@
   "sha256": "675a77517d8c9ebc55a440ff68bfbba065e187a2509fd01807027ff301558fc8"
  },
  "group_same_documents.json": {
-  "preset_version": 2,
-  "sha256": "047b51b4b8cda3c44aa5dc3c2a13a3968e1354bcf2329262ad8bfc2670f40e41"
+  "preset_version": 3,
+  "sha256": "ebf0a5f4f72cced17874d4c452f5bbd764aae7142ef912824cfaa4f3f03cb4d5"
  },
  "ner_per_page_local.json": {
   "preset_version": 3,
