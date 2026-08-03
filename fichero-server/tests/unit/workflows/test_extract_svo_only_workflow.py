@@ -66,6 +66,8 @@ def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
         )
         assert not first.get("error")
         first_summary = first["outputs"]["extract-svo"]["summary"]
+        # #2092: the run reports which language each document was extracted in.
+        assert first_summary.pop("languages_used") == {"English": 2}
         assert first_summary == {
             "documents_processed": 2,
             "entities_processed": 4,
@@ -81,6 +83,7 @@ def test_extract_svo_preset_persists_claims_and_is_idempotent(tmp_path: Path):
         )
         assert not second.get("error")
         second_summary = second["outputs"]["extract-svo"]["summary"]
+        assert second_summary.pop("languages_used") == {"English": 2}
         assert second_summary == {
             "documents_processed": 2,
             "entities_processed": 4,

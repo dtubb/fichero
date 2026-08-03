@@ -2730,6 +2730,87 @@ def _action_set_document_date(
     return doc.model_dump(mode="json"), spec
 
 
+class DocumentSetLanguageParams(BaseModel):
+    """Params for document.set_language — the user's language override (#2092).
+
+    Three distinct assertions, deliberately not collapsed:
+
+    - ``language="Spanish"`` — this document is in Spanish.
+    - ``undeterminable=True`` — "I looked and I cannot tell". A real finding,
+      and one that must survive re-extraction like any other correction.
+    - both omitted — clear the user's assertion, back to whatever detection
+      last found (or to never-determined).
+    """
+
+    doc_id: str = Field(description="Document id to set the language of")
+    language: str | None = Field(
+        default=None, description="Canonical language name, e.g. 'Spanish'."
+    )
+    undeterminable: bool = Field(
+        default=False,
+        description="The language cannot be determined from this document.",
+    )
+
+
+@action(
+    "document.set_language",
+    DocumentSetLanguageParams,
+    domains=["document"],
+    undoable=True,
+    invert=_invert_restore_from_snapshot,
+)
+def _action_set_document_language(
+    db: Database, params: DocumentSetLanguageParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """User curation of a document's language — audited + undoable.
+
+    Persistent like the other curation: ``source: user`` on the row IS the
+    rule. ``language_identification`` still runs and still detects, but may not
+    overwrite this; a disagreeing detection is reported in that tool's result
+    rather than silently applied. Same mechanism as ``document.set_date``, not
+    a second one.
+    """
+    from fichero_server.core.timeutil import utc_now as _utc_now
+    from fichero_server.llm.language_policy import set_user_language
+
+    doc = db.get(Document, params.doc_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"Document not found: {params.doc_id}")
+    before = doc.model_dump(mode="json")
+
+    if params.undeterminable:
+        set_user_language(doc, None)
+    elif params.language is None:
+        # Clearing the assertion, not asserting that it is unknown. Back to
+        # never-determined so detection is free to run again.
+        doc.language = None
+        doc.language_meta = None
+    else:
+        language = params.language.strip()
+        if not language:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "language must be a language name, or omit it with "
+                    "undeterminable=true to record that it cannot be told."
+                ),
+            )
+        set_user_language(doc, language)
+
+    doc.updated_at = _utc_now()
+    db.save(doc)
+
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=[doc.id],
+        before=before,
+        after=doc.model_dump(mode="json"),
+        emit_type="document.updated",
+        document_ids=[doc.id],
+    )
+    return doc.model_dump(mode="json"), spec
+
+
 @action(
     "document.move",
     DocumentMoveParams,

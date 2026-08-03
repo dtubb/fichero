@@ -210,6 +210,59 @@ def migrate_document_table(conn) -> None:
         logger.warning(f"Documents migration check failed: {e}")
 
 
+def migrate_document_language_fields(conn) -> None:
+    """Add `language` / `language_meta` to documents (#2092).
+
+    The Pydantic Document model gained both fields, so an existing library
+    would fail every `INSERT OR REPLACE INTO documents` with a DuckDB Binder
+    Error until the columns exist — the same failure mode `sort_order` hit.
+
+    BACKFILL: both columns are left NULL for every existing row, on purpose.
+
+    NULL `language_meta` is not an absence of data, it is a statement:
+    "nothing has ever determined this document's language". Writing 'English'
+    into it would be a fabrication, and on this archive — Spanish-language
+    colonial material — a fabrication that is usually wrong while looking
+    exactly like a real answer. There is no correct value to backfill because
+    the fact was never recorded at ingest; the honest backfill is to say so and
+    let the language-identification pass fill it in. Note that this is distinct
+    from `language_meta["status"] == "unknown"`, which means detection DID run
+    and could not tell. A user needs those apart: the first says "run it", the
+    second says "this one needs a person".
+
+    Idempotent: skips columns that already exist, and skips entirely if the
+    table has not been created yet (first launch materialises the current
+    schema directly).
+    """
+    try:
+        table_exists = (
+            conn.execute("""
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_name = 'documents'
+        """).fetchone()[0]
+            > 0
+        )
+        if not table_exists:
+            logger.debug("Documents table does not exist, skipping language migration")
+            return
+
+        result = conn.execute("PRAGMA table_info('documents')").fetchall()
+        columns = {row[1] for row in result}
+
+        if "language" not in columns:
+            logger.info("Migrating documents table: adding language column...")
+            conn.execute("ALTER TABLE documents ADD COLUMN language VARCHAR")
+
+        if "language_meta" not in columns:
+            logger.info("Migrating documents table: adding language_meta column...")
+            conn.execute("ALTER TABLE documents ADD COLUMN language_meta JSON")
+
+        logger.info("Documents language migration completed")
+
+    except Exception as e:
+        logger.warning(f"Documents language migration check failed: {e}")
+
+
 def migrate_saved_search_table(conn) -> None:
     """Migrate saved_searches table to add missing columns."""
     try:
