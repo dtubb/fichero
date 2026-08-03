@@ -419,3 +419,46 @@ and reversing it later means reprocessing.
 geometry records that it could not, rather than silently omitting it. So
 whichever option you pick, "no geometry" stays distinguishable from "geometry
 not attempted".
+
+---
+
+# ANSWERED by Daniel, Monday 2026-08-03 morning
+
+## 15 — Geometry storage: **word-level everywhere.** DECIDED.
+
+That is what shipped, so no change: word rects captured on the first pass in
+all vision workflows, ~103 KB per dense page. Accepted as the dominant storage
+cost at scale, in exchange for a line resolving to exact words rather than
+approximately. Do not "optimise" this into line-level later without asking —
+it was chosen knowingly.
+
+## 10 — `(Untested)` on 38 of 39 presets: **validate the presets, drop the label.** DECIDED.
+
+Not invert, not delete-and-forget. The presets get actually validated and then
+the label goes.
+
+**Open tension I must raise before spending:** most preset validation needs
+paid providers, and the authorisation granted today is for ONE gold-page
+ensemble run only. So the program splits:
+- validate everything reachable on-device or from fixtures first, free;
+- then come back with a per-preset cost estimate for the rest.
+
+Do not interpret "validate the presets" as standing spend authorisation.
+
+## Paid providers: **ONE gold-page run authorised.** SCOPED.
+
+One run of the fixed ensemble against `dialogo_lengua_page_18`, ~8 vision calls,
+flash tier. Purpose: does the paid ensemble now beat free on-device OCR
+(CER 0.398)? That is #3905's acceptance criterion and the answer decides
+whether the ensemble is worth its cost at all.
+
+**This authorisation is spent once and does not renew.** The previous
+unauthorised spend happened because `$vision_*` reads `apple` in `db/app.py`
+while alias resolution reads the real app database — a probe expected to be
+on-device went to OpenRouter. Confirm the provider before the call, not after.
+
+## Release: **no hurry — tomorrow morning.** SCHEDULED.
+
+Not cutting a DMG today. The Aug 2 artifact predates all 159 commits and should
+not be tested against; the click-list applies to a build cut tomorrow morning
+with everything in it.
