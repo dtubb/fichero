@@ -236,3 +236,14 @@ all 16 local snapshots still reference those blocks. The reclaim is real but
 deferred. That is the same effect as the DerivedData note above, now measured
 twice, so treat "deleting things does not free space today" as expected on this
 machine rather than a symptom.
+
+## Verify-then-close (fix landed and shipped; needs ten seconds each)
+
+- **#4408 canvas pan** — two-finger scroll on the canvas. Fix `e4bfe9ede` is in
+  tag v2026.08.02, so it is in your build. Space-drag should still work too.
+  Pans? Close it. Doesn't? It is a real regression and outranks the backlog.
+
+Why these are listed rather than closed: a landed commit proves code changed,
+not that the feature works. #3390, #702 and #570 were each closed on a real
+commit while PDF drag-drop stayed broken from other sources — which is how
+#2386 survived three fixes.
