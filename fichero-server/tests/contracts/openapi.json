@@ -58744,6 +58744,11 @@
             "type": "integer",
             "title": "Total Results"
           },
+          "rendered_total": {
+            "type": "integer",
+            "title": "Rendered Total",
+            "default": 0
+          },
           "search_type": {
             "type": "string",
             "title": "Search Type"
