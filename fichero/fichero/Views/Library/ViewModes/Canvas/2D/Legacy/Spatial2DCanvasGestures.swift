@@ -48,7 +48,18 @@ extension Spatial2DCanvas {
                 if resizeOrigin == nil {
                     resizeOrigin = persistedItemSize(for: item)
                     resizeItemId = item.id
-                    selectedNodeIds = [item.id]
+                    // Same rule as beginning a drag (#4436): grabbing a resize
+                    // handle on an item that is ALREADY selected keeps the
+                    // selection. This was a bare replace, so resizing one card
+                    // of a marqueed group silently threw the group away.
+                    if !selectedNodeIds.contains(item.id) {
+                        CanvasTapSelection.tap(
+                            item.id,
+                            selection: &selectedNodeIds,
+                            anchor: &canvasSelectionAnchor,
+                            modifiers: []
+                        )
+                    }
                 }
                 guard let origin = resizeOrigin else { return }
                 let scale = effectiveZoom
@@ -122,9 +133,19 @@ extension Spatial2DCanvas {
                         height: panOffset.height + value.translation.height
                     )
                 case .marquee:
+                    // Through the shared grammar (#4436): this replaced the
+                    // selection wholesale, so a ⇧-marquee discarded what it was
+                    // meant to extend. It also wrote a SECOND `marqueeSelection`
+                    // set that the chips OR-ed into their own `isSelected` — a
+                    // separate opinion about what "selected" draws as, which is
+                    // how the canvas ended up looking selected while the rest of
+                    // the app thought nothing was.
                     let box = rect(from: value.startLocation, to: value.location)
-                    marqueeSelection = nodesIntersecting(box, layout: layout, in: size)
-                    selectedNodeIds = marqueeSelection
+                    CanvasTapSelection.marquee(
+                        nodesIntersecting(box, layout: layout, in: size),
+                        selection: &selectedNodeIds,
+                        anchor: &canvasSelectionAnchor
+                    )
                     marqueeRect = nil
                 }
             }

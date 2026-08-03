@@ -220,4 +220,109 @@ enum SelectionGrammar {
     static func clear() -> Result {
         Result(selection: [], anchor: nil, cursor: nil)
     }
+
+    // MARK: - Marquee
+
+    /// Rubber-band selection over a surface with NO inherent order (#4436).
+    ///
+    /// The canvases were assigning the marqueed ids straight over the top of
+    /// whatever was selected, so a ⇧-marquee threw away the selection it was
+    /// meant to extend — the other half of #4409 from the one already fixed
+    /// ("published one of five"). In Finder both ⇧ and ⌘ ADD to the selection
+    /// during a rubber-band; a plain drag replaces.
+    ///
+    /// A plain marquee that swept up nothing is a click on empty space, and
+    /// clears — the same thing the background tap does, so the two gestures
+    /// cannot disagree.
+    ///
+    /// The anchor is the LEXICALLY smallest id, not `ids.first`: this surface
+    /// has no visual order to take a topmost from, and `Set.first` is hash
+    /// order, which would make the same drag leave a different anchor on
+    /// different runs. Deterministic beats meaningful when meaningful is not
+    /// available; the ordered choice belongs to #4460.
+    static func marquee(
+        ids: Set<String>,
+        selection: Set<String>,
+        modifiers: Modifiers
+    ) -> Result {
+        let combined = modifiers.isEmpty ? ids : selection.union(ids)
+        guard let anchor = combined.min() else { return clear() }
+        return Result(selection: combined, anchor: anchor, cursor: anchor)
+    }
+
+    // MARK: - Reconciling a selection changed outside the grammar
+
+    /// Recover the anchor and cursor after something OTHER than this grammar
+    /// wrote the selection (#4436).
+    ///
+    /// This exists for exactly one caller: the native `Table`, which owns its
+    /// own clicks. That is deliberate — `NSTableView` already implements these
+    /// same Finder rules, and taking the clicks back would cost column
+    /// drag-reorder, the native keyboard loop and its accessibility. What the
+    /// Table does NOT own is `selectionAnchor` / `selectionCursor`, which the
+    /// SHARED arrow-key path reads. So the anchor is reconstructed from the
+    /// set change rather than re-derived from the new selection alone.
+    ///
+    /// Deriving it from `current` alone is what the old table code did, and it
+    /// cannot express rule 1: a ⌘-click that DESELECTED a row must still move
+    /// the anchor there, and that row is by definition ABSENT from `current`.
+    /// The symmetric difference is the only place it survives.
+    ///
+    /// When many rows changed at once (a ⇧-range, ⌘A) the anchor is held still
+    /// per rule 2 as long as it is still selected, and the cursor goes to the
+    /// selected row FURTHEST from it in visual order — which for a contiguous
+    /// range is exactly the moving end, growing or shrinking. For a
+    /// discontiguous ⌘-built set "furthest" is a convention rather than a
+    /// truth, but it is a deterministic, visual-order convention, which is more
+    /// than `Set` iteration offered.
+    static func reconcile(
+        from previous: Set<String>,
+        to current: Set<String>,
+        anchor: String?,
+        in ids: [String]
+    ) -> Result {
+        if current.isEmpty { return clear() }
+
+        let changed = previous.symmetricDifference(current)
+
+        // ONE NAMED AMBIGUITY, because a set difference cannot resolve it and
+        // pretending otherwise is how a "fix" ships a new wrong answer.
+        //
+        // Collapsing a multi-selection with a PLAIN click ({a,b} → {a}) and
+        // ⌘-clicking the second row of a pair OFF ({a,c} → {a}) produce the
+        // IDENTICAL before/after pair: one row left the set, one row remains.
+        // The acted row is `a` in the first case and `c` in the second, and
+        // nothing in the sets says which.
+        //
+        // Resolved toward the plain click, which is far more frequent, and
+        // whose wrong answer would be worse: it would leave the anchor on a
+        // row the user just DESELECTED while a different row sits highlighted.
+        // The ⌘ case's cost is that ⌘-deselecting down to exactly one row puts
+        // the anchor on the survivor rather than on the row switched off — and
+        // the survivor is at least visible and selected, unlike the #4377
+        // failure this whole type exists to prevent. The next click of either
+        // kind corrects it.
+        if current.count == 1, let survivor = current.first, previous.contains(survivor) {
+            return Result(selection: current, anchor: survivor, cursor: survivor)
+        }
+
+        if changed.count == 1, let acted = changed.first {
+            return Result(selection: current, anchor: acted, cursor: acted)
+        }
+
+        let topmost = current.compactMap { ids.firstIndex(of: $0) }.min().map { ids[$0] }
+        let heldAnchor = anchor.flatMap { current.contains($0) ? $0 : nil } ?? topmost
+        guard let heldAnchor, let anchorIndex = ids.firstIndex(of: heldAnchor) else {
+            // Nothing selected is in `ids` — outline child rows, say, whose ids
+            // are not document ids. Fall back to the lexical minimum so the
+            // result is at least deterministic instead of hash-ordered.
+            let fallback = current.min()
+            return Result(selection: current, anchor: fallback, cursor: fallback)
+        }
+        let cursor = current
+            .compactMap { ids.firstIndex(of: $0) }
+            .max { abs($0 - anchorIndex) < abs($1 - anchorIndex) }
+            .map { ids[$0] }
+        return Result(selection: current, anchor: heldAnchor, cursor: cursor ?? heldAnchor)
+    }
 }

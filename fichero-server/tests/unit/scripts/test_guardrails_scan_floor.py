@@ -221,6 +221,13 @@ FLOORED_CHECKS: dict[str, dict] = {
         "files": {},
         "extra_scripts": [],
     },
+    "check_selection_grammar.py": {
+        "dirs": [
+            "fichero/fichero/Views/Library/ViewModes",
+            "fichero/fichero/Views/Library",
+        ],
+        "files": {}, "extra_scripts": [],
+    },
     "check_feature_flags.py": {
         "dirs": ["fichero/fichero/Models"],
         "files": {},

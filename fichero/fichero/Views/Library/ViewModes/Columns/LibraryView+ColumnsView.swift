@@ -160,10 +160,11 @@ extension LibraryView {
             }
         }
         // Click in a column's empty space deselects, like Finder (#4160).
+        // Through `apply(clear())`, not three assignments: list and icon mode
+        // already clear this way, and three modes hand-writing the same three
+        // fields is how one of them ends up writing only two (#4436).
         .onTapGesture {
-            selection.removeAll()
-            selectionAnchor = nil
-            selectionCursor = nil
+            apply(SelectionGrammar.clear())
         }
     }
 
@@ -231,6 +232,19 @@ extension LibraryView {
         handleTap(doc)
     }
 
+    /// Land the columns cursor on one row of the newly-active column.
+    ///
+    /// ←/→ are DELIBERATELY not `SelectionGrammar.click`: they change which
+    /// column is active, which changes the ordered list itself, so there is no
+    /// list for a ⇧-range to span — a range across two columns has no meaning,
+    /// the same reason `click` degrades to a single selection for an id it
+    /// cannot find. What they must still do is move all three fields together,
+    /// which is what this goes through `apply` for (#4436).
+    private func selectColumnRow(_ id: String) {
+        apply(SelectionGrammar.Result(selection: [id], anchor: id, cursor: id))
+        listScrollTarget = id
+    }
+
     /// Columns-mode arrow handling: ↑/↓/Home/End run the SHARED cursor logic
     /// over the active column's ids; → descends into the selected folder,
     /// ← re-activates the parent column (path preserved, Finder semantics).
@@ -245,25 +259,21 @@ extension LibraryView {
             columnsPath = MillerColumnModel.descend(path: path, atDepth: depth, into: doc.id)
             columnsActiveDepth = depth + 1
             if let firstChild = columnsChildren[doc.id]?.first {
-                selection = [firstChild.id]
-                selectionAnchor = firstChild.id
-                selectionCursor = firstChild.id
-                listScrollTarget = firstChild.id
+                selectColumnRow(firstChild.id)
             } else {
                 // Children not fetched yet — the column opens empty and the
                 // .task fills it; selection stays on the folder until then.
-                selection = [doc.id]
+                // This branch used to write ONLY `selection`, leaving the
+                // anchor and cursor pointing at the row you came from, so the
+                // next ⇧-click extended from a different column (#4436).
+                selectColumnRow(doc.id)
             }
             return .handled
         case .left:
             guard depth > 0 else { return .handled }
             columnsActiveDepth = depth - 1
             // The parent column's cursor is the path segment that opened us.
-            let parentId = path[depth - 1]
-            selection = [parentId]
-            selectionAnchor = parentId
-            selectionCursor = parentId
-            listScrollTarget = parentId
+            selectColumnRow(path[depth - 1])
             return .handled
         default:
             return .ignored   // ↑/↓/page/home/end fall through to the shared handler

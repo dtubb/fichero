@@ -15,7 +15,9 @@ enum CanvasIntent {
     /// nil clears selection. `modifiers` carries ⌘/⇧ so this surface can use
     /// the shared `SelectionGrammar` instead of its own rule (#4436).
     case tap(id: String?, modifiers: SelectionGrammar.Modifiers)
-    case marquee(ids: Set<String>)                // rubber-band multi-select
+    /// Rubber-band multi-select. `modifiers` carries ⌘/⇧ because in Finder a
+    /// modifier-marquee ADDS to the selection rather than replacing it (#4436).
+    case marquee(ids: Set<String>, modifiers: SelectionGrammar.Modifiers)
     case dragBegan(id: String)
     case dragMoved(id: String, position: SIMD3<Double>)
     case dragEnded(id: String, position: SIMD3<Double>, dropTarget: CanvasDropTarget?, modifiers: CanvasDropModifiers)
@@ -125,8 +127,8 @@ final class CanvasInteractionController {
         switch intent {
         case .tap(let id, let modifiers):
             select(id, modifiers: modifiers)
-        case .marquee(let ids):
-            selectMany(ids)
+        case .marquee(let ids, let modifiers):
+            selectMany(ids, modifiers: modifiers)
         case .dragBegan(let id):
             beginDrag(id)
         case .dragMoved(let id, let position):
@@ -150,11 +152,38 @@ final class CanvasInteractionController {
     /// because `SelectionGrammar` is pure and keeps no state (#4436).
     private(set) var selectionAnchor: String?
 
+    /// The selection the NEXT gesture starts from.
+    ///
+    /// The binding is the shared library selection and is authoritative for
+    /// everything it can represent. The controller used to ignore it entirely —
+    /// it wrote `selection.wrappedValue` on every gesture and never read it
+    /// back — so `selectionSet` was a second copy that went stale the moment
+    /// selection happened anywhere else. Select three rows in List, switch to
+    /// Canvas, ⌘-click a fourth card, and the three vanished: the grammar was
+    /// applied to an empty set (#4436).
+    ///
+    /// The union is not belt-and-braces. A STANDALONE CANVAS ITEM has no
+    /// document id, and `LibraryView.librarySelection(forCanvasNodeIds:)` drops
+    /// every id it cannot map, so the binding round-trip cannot carry one.
+    /// Those ids are kept locally and merged back; taking the binding alone
+    /// would make ⌘-clicking two notes together impossible.
+    private var currentSelection: Set<String> {
+        let unrepresentable = selectionSet.filter {
+            SpatialLibraryProjector.documentId(fromNodeId: $0) == nil
+        }
+        return selection.wrappedValue.union(unrepresentable)
+    }
+
     func select(_ id: String?, modifiers: SelectionGrammar.Modifiers = []) {
         guard let id else {
-            selectionSet = []
-            selectionAnchor = nil
-            selection.wrappedValue = []
+            // Empty-space click. Through `clear()` rather than three
+            // assignments, for the same reason list, icon and columns modes
+            // all do: three surfaces hand-writing the same three fields is
+            // how one of them ends up writing only two (#4436).
+            let cleared = SelectionGrammar.clear()
+            selectionSet = cleared.selection
+            selectionAnchor = cleared.anchor
+            selection.wrappedValue = cleared.selection
             return
         }
         // ⇧ is deliberately NOT routed. Its branch builds a range by indexing an
@@ -169,7 +198,7 @@ final class CanvasInteractionController {
         let result = SelectionGrammar.click(
             id: id,
             in: [],
-            selection: selectionSet,
+            selection: currentSelection,
             anchor: selectionAnchor,
             modifiers: modifiers.contains(.command) ? .command : []
         )
@@ -198,11 +227,22 @@ final class CanvasInteractionController {
         #endif
     }
 
-    func selectMany(_ ids: Set<String>) {
-        selectionSet = ids
-        // Was `ids.first` — a marquee over five cards published ONE of them,
-        // chosen arbitrarily by Set ordering (#4409).
-        selection.wrappedValue = ids
+    /// Rubber-band selection, through the ONE grammar (#4436).
+    ///
+    /// This used to assign `ids` over the top of whatever was selected and
+    /// touch neither the anchor nor the existing set, so a ⇧-marquee discarded
+    /// the selection it was meant to extend — the half of #4409 that survived
+    /// the "published one of five" fix (the `ids.first` that caused THAT is
+    /// gone and stays gone; `SelectionGrammar.marquee` returns the whole set).
+    func selectMany(_ ids: Set<String>, modifiers: SelectionGrammar.Modifiers = []) {
+        let result = SelectionGrammar.marquee(
+            ids: ids,
+            selection: currentSelection,
+            modifiers: modifiers
+        )
+        selectionSet = result.selection
+        selectionAnchor = result.anchor
+        selection.wrappedValue = result.selection
     }
 
     // MARK: Drag machine
@@ -214,6 +254,10 @@ final class CanvasInteractionController {
         dragOriginPosition = layoutStore.layout(for: scopeId).first { $0.itemId == id }
             .map { SIMD3<Double>($0.x, $0.y, $0.z) }
         dragCurrentPosition = nil
+        // Grabbing a card that is ALREADY part of the selection keeps the
+        // selection — Finder never collapses a multi-selection to the one item
+        // you happened to grab. Grabbing an unselected card selects just it.
+        guard !currentSelection.contains(id) else { return }
         select(id)
     }
 

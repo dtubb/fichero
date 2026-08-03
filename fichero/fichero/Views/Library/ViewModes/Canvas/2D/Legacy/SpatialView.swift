@@ -26,6 +26,11 @@ struct Spatial2DCanvas: View {
     /// whichever `Set` ordering happened to yield first.
     @Binding var selectedNodeIds: Set<String>
 
+    /// The row a ⌘-click extends from. Held here because `SelectionGrammar` is
+    /// pure and keeps no state, and this renderer has no
+    /// `CanvasInteractionController` to hold it for them (#4436).
+    @State var canvasSelectionAnchor: String?
+
     /// Observable layout store. When non-nil (together with `folderScopeId`)
     /// the canvas becomes interactive and persists positions through it.
     var layoutStore: CanvasLayoutStore?
@@ -72,9 +77,6 @@ struct Spatial2DCanvas: View {
     @State var canvasMode: CanvasMode = .pan
     /// Live marquee rectangle in screen space (nil when not marqueeing).
     @State var marqueeRect: CGRect?
-    /// Multi-selection accumulated by the marquee (in addition to the single
-    /// `selectedNodeId` tap-selection binding).
-    @State var marqueeSelection: Set<String> = []
 
     let nodeDiameter: CGFloat = 14
     /// Non-private so the position-projection extension (in
@@ -240,7 +242,14 @@ struct Spatial2DCanvas: View {
         let chipView = nodeChip(node, loadThumbnail: loadThumbnail)
             .position(point)
             .zIndex(dragItemId == node.id ? 1 : 0)
-            .onTapGesture { selectedNodeIds = [node.id] }
+            // Through the shared grammar (#4436): this was a bare replace, so
+            // ⌘-click could not add a second card to the selection here even
+            // though every list mode has done that for two releases.
+            .onTapGesture {
+                CanvasTapSelection.tap(
+                    node.id, selection: &selectedNodeIds, anchor: &canvasSelectionAnchor
+                )
+            }
         if isInteractive {
             chipView.gesture(dragGesture(for: node, base: base, in: size))
         } else {
@@ -266,7 +275,11 @@ struct Spatial2DCanvas: View {
     }
 
     func nodeChip(_ node: SpatialNode, loadThumbnail: Bool) -> some View {
-        let isSelected = selectedNodeIds.contains(node.id) || marqueeSelection.contains(node.id)
+        // ONE source of "is this selected" (#4436). This used to OR in a
+        // private `marqueeSelection`, so a marqueed chip drew selected while
+        // the inspector, toolbar and every selection-driven command saw a
+        // different set.
+        let isSelected = selectedNodeIds.contains(node.id)
         return HStack(spacing: 5) {
             // Image / PDF-page nodes render their actual thumbnail (#1744);
             // non-source nodes keep the kind-coloured icon glyph. When zoomed
@@ -324,7 +337,11 @@ struct Spatial2DCanvas: View {
         }
         .position(point)
         .zIndex(dragItemId == item.id ? 2 : 1)
-        .onTapGesture { selectedNodeIds = [item.id] }
+        .onTapGesture {
+            CanvasTapSelection.tap(
+                item.id, selection: &selectedNodeIds, anchor: &canvasSelectionAnchor
+            )
+        }
         if isInteractive {
             card.gesture(itemDragGesture(for: item, base: base))
         } else {

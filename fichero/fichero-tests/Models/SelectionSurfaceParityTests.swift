@@ -1,0 +1,398 @@
+@testable import Fichero
+import FicheroAPIClient
+import Foundation
+import SwiftUI
+import Testing
+
+/// #4436: every library surface must answer the same gesture the same way.
+///
+/// `SelectionGrammarTests` is the table of RULES. This is the table of
+/// SURFACES: for each gesture, the grammar's answer is computed once and every
+/// surface that implements that gesture is required to match it. The four modes
+/// each had their own copy and they disagreed about the anchor — a suite that
+/// only tested the grammar would have been green throughout, because the
+/// grammar was never the thing that was wrong.
+///
+/// A fifth mode fails here as soon as it is added, because `everySurface` below
+/// is the enumeration, and each surface is exercised through its own real entry
+/// point rather than through the grammar directly. A mode that reimplements the
+/// rules cannot pass by importing the type.
+@MainActor
+struct SelectionSurfaceParityTests {
+    private typealias Modifiers = SelectionGrammar.Modifiers
+
+    /// The canvas surfaces speak node ids and have no ordered list, so the
+    /// shared vocabulary is orderless ids that survive both spaces.
+    private static let ids = ["doc:a", "doc:b", "doc:c", "doc:d"]
+
+    // MARK: - Surfaces under test
+
+    /// One surface, reduced to what every surface has: apply a click, then
+    /// report the selection and the anchor it left behind.
+    private struct Surface {
+        let name: String
+        /// (existing selection, existing anchor, clicked id, modifiers)
+        /// -> (selection, anchor)
+        let click: (Set<String>, String?, String, Modifiers) -> (Set<String>, String?)
+    }
+
+    /// The grammar itself — the reference answer every surface is compared to.
+    private static func reference(
+        _ selection: Set<String>, _ anchor: String?, _ id: String, _ modifiers: Modifiers
+    ) -> (Set<String>, String?) {
+        let result = SelectionGrammar.click(
+            id: id, in: [], selection: selection, anchor: anchor, modifiers: modifiers
+        )
+        return (result.selection, result.anchor)
+    }
+
+    /// The RealityKit canvas, driven through `CanvasInteractionController`.
+    private static func canvasController(
+        _ selection: Set<String>, _ anchor: String?, _ id: String, _ modifiers: Modifiers
+    ) -> (Set<String>, String?) {
+        let box = SelectionBox(selection)
+        let controller = CanvasInteractionController(
+            layoutStore: NullLayoutStore(),
+            itemStore: NullItemStore(),
+            scopeId: "scope",
+            selection: box.binding
+        )
+        // Seed the anchor the way the surface really acquires one — by having
+        // acted on that row — rather than by poking private state.
+        if let anchor {
+            controller.select(anchor, modifiers: selection.contains(anchor) ? [] : .command)
+            box.value = selection
+        }
+        controller.select(id, modifiers: modifiers)
+        return (box.value, controller.selectionAnchor)
+    }
+
+    /// The legacy renderers, driven through `CanvasTapSelection`.
+    private static func legacyCanvas(
+        _ selection: Set<String>, _ anchor: String?, _ id: String, _ modifiers: Modifiers
+    ) -> (Set<String>, String?) {
+        var live = selection
+        var liveAnchor = anchor
+        CanvasTapSelection.tap(id, selection: &live, anchor: &liveAnchor, modifiers: modifiers)
+        return (live, liveAnchor)
+    }
+
+    /// The native `Table`, which does the click itself and then reconciles.
+    /// Its "click" is simulated by applying the grammar's SET (what AppKit
+    /// would produce — AppKit implements the same rules) and then asking
+    /// `reconcile` to recover the anchor from nothing but the set change.
+    /// That is exactly the information the real `onChange` has.
+    private static func tableReconcile(
+        _ selection: Set<String>, _ anchor: String?, _ id: String, _ modifiers: Modifiers
+    ) -> (Set<String>, String?) {
+        let appKitResult = SelectionGrammar.click(
+            id: id, in: ids, selection: selection, anchor: anchor, modifiers: modifiers
+        )
+        let reconciled = SelectionGrammar.reconcile(
+            from: selection, to: appKitResult.selection, anchor: anchor, in: ids
+        )
+        return (reconciled.selection, reconciled.anchor)
+    }
+
+    private static let everySurface: [Surface] = [
+        Surface(name: "SelectionGrammar (list, icon, columns, entities)", click: reference),
+        Surface(name: "CanvasInteractionController (canvas 2D / space 3D)", click: canvasController),
+        Surface(name: "CanvasTapSelection (legacy canvas renderers)", click: legacyCanvas),
+        Surface(name: "Table + SelectionGrammar.reconcile", click: tableReconcile)
+    ]
+
+    // MARK: - The gestures every surface must agree on
+
+    private struct Gesture {
+        let name: String
+        let selection: Set<String>
+        let anchor: String?
+        let clicked: String
+        let modifiers: Modifiers
+    }
+
+    private static let gestures: [Gesture] = [
+        Gesture(name: "plain click on an unselected row replaces",
+                selection: ["doc:a"], anchor: "doc:a", clicked: "doc:c", modifiers: []),
+        Gesture(name: "plain click on the already-selected row keeps just it",
+                selection: ["doc:a", "doc:b"], anchor: "doc:a", clicked: "doc:a", modifiers: []),
+        Gesture(name: "⌘-click ADDS to the selection",
+                selection: ["doc:a"], anchor: "doc:a", clicked: "doc:c", modifiers: .command),
+        Gesture(name: "⌘-click on a selected row DESELECTS it and keeps the rest",
+                selection: ["doc:a", "doc:b", "doc:c"], anchor: "doc:a",
+                clicked: "doc:c", modifiers: .command),
+        Gesture(name: "⌘-click builds a discontiguous set",
+                selection: ["doc:a", "doc:c"], anchor: "doc:c", clicked: "doc:d", modifiers: .command),
+        Gesture(name: "⌘-click with nothing selected selects one",
+                selection: [], anchor: nil, clicked: "doc:b", modifiers: .command)
+    ]
+
+    @Test("Every surface answers the same click the same way")
+    func surfacesAgreeOnClick() {
+        for gesture in Self.gestures {
+            let (expectedSelection, expectedAnchor) = Self.reference(
+                gesture.selection, gesture.anchor, gesture.clicked, gesture.modifiers
+            )
+            for surface in Self.everySurface {
+                let (selection, anchor) = surface.click(
+                    gesture.selection, gesture.anchor, gesture.clicked, gesture.modifiers
+                )
+                #expect(
+                    selection == expectedSelection,
+                    "\(surface.name) disagreed about the SELECTION for: \(gesture.name)"
+                )
+                #expect(
+                    anchor == expectedAnchor,
+                    "\(surface.name) disagreed about the ANCHOR for: \(gesture.name)"
+                )
+            }
+        }
+    }
+
+    /// Rule 1, isolated, because it is the one a second implementation always
+    /// gets wrong: the anchor follows a ⌘-click that DESELECTED the row.
+    /// Deriving the anchor from the resulting selection alone cannot express
+    /// it — the acted-on row is not in that set.
+    @Test("A ⌘-click that deselects still moves the anchor, on every surface")
+    func deselectingClickMovesTheAnchorEverywhere() {
+        for surface in Self.everySurface {
+            let (selection, anchor) = surface.click(
+                ["doc:a", "doc:b", "doc:c"], "doc:a", "doc:c", .command
+            )
+
+            #expect(selection == ["doc:a", "doc:b"], "\(surface.name)")
+            #expect(anchor == "doc:c", "\(surface.name) left the anchor where the user was NOT")
+        }
+    }
+
+    /// The ONE place a surface is allowed to differ, pinned so it is a decision
+    /// rather than a drift: the native `Table` reconstructs the acted row from
+    /// the set change, and ⌘-deselecting down to EXACTLY ONE remaining row is
+    /// indistinguishable from plain-clicking that row. It resolves toward the
+    /// plain click, which is far more frequent.
+    ///
+    /// This asserts the difference EXISTS and is bounded — the anchor lands on
+    /// a visible, selected row, which is the property #4377 was about. If
+    /// someone later teaches the Table its acted row for real, this test fails
+    /// and should be deleted, which is the right way for a documented
+    /// limitation to end.
+    @Test("Table: ⌘-deselecting down to one row anchors on the survivor, by design")
+    func tableCannotDistinguishTheLastDeselect() {
+        let (selection, anchor) = Self.tableReconcile(["doc:a", "doc:c"], "doc:a", "doc:c", .command)
+        let (_, grammarAnchor) = Self.reference(["doc:a", "doc:c"], "doc:a", "doc:c", .command)
+
+        #expect(selection == ["doc:a"])
+        #expect(anchor == "doc:a")
+        #expect(grammarAnchor == "doc:c")
+        #expect(anchor != grammarAnchor, "the documented divergence closed — delete this test")
+        #expect(selection.contains(anchor ?? ""), "the anchor must still be a selected, visible row")
+    }
+
+    // MARK: - Marquee
+
+    @Test("A plain marquee replaces; ⇧ and ⌘ ADD, as in Finder")
+    func marqueeModifiers() {
+        let existing: Set<String> = ["doc:a"]
+
+        #expect(
+            SelectionGrammar.marquee(ids: ["doc:c", "doc:d"], selection: existing, modifiers: [])
+                .selection == ["doc:c", "doc:d"]
+        )
+        #expect(
+            SelectionGrammar.marquee(ids: ["doc:c"], selection: existing, modifiers: .shift)
+                .selection == ["doc:a", "doc:c"]
+        )
+        #expect(
+            SelectionGrammar.marquee(ids: ["doc:c"], selection: existing, modifiers: .command)
+                .selection == ["doc:a", "doc:c"]
+        )
+    }
+
+    @Test("A plain marquee that caught nothing clears — the same as an empty-space click")
+    func emptyMarqueeClears() {
+        let result = SelectionGrammar.marquee(ids: [], selection: ["doc:a"], modifiers: [])
+
+        #expect(result == SelectionGrammar.clear())
+    }
+
+    @Test("A marquee leaves a DETERMINISTIC anchor, never Set hash order")
+    func marqueeAnchorIsDeterministic() {
+        let ids: Set<String> = ["doc:d", "doc:b", "doc:a", "doc:c"]
+
+        // Ten runs: `Set.first` varies across launches, `.min()` cannot.
+        let anchors = (0..<10).map { _ in
+            SelectionGrammar.marquee(ids: ids, selection: [], modifiers: []).anchor
+        }
+
+        #expect(Set(anchors) == ["doc:a"])
+    }
+
+    @Test("The canvas marquee publishes the WHOLE set and remembers an anchor (#4409)")
+    func canvasMarqueePublishesEverything() {
+        let box = SelectionBox([])
+        let controller = CanvasInteractionController(
+            layoutStore: NullLayoutStore(), itemStore: NullItemStore(),
+            scopeId: "scope", selection: box.binding
+        )
+
+        controller.selectMany(["doc:a", "doc:b", "doc:c"])
+
+        #expect(box.value == ["doc:a", "doc:b", "doc:c"])
+        // The anchor was never set by the old `selectMany`, so a ⌘-click after
+        // a marquee had nothing to extend from.
+        #expect(controller.selectionAnchor == "doc:a")
+    }
+
+    // MARK: - The canvas must READ the shared selection, not just write it
+
+    /// The defect that made "four implementations" cost something: the
+    /// controller wrote the binding on every gesture and never read it, so a
+    /// selection made in ANY other mode was invisible to it.
+    @Test("⌘-clicking on the canvas extends a selection made in another mode")
+    func canvasStartsFromTheSharedSelection() {
+        // Three rows selected in list mode, then the user switches to canvas.
+        let box = SelectionBox(["doc:a", "doc:b", "doc:c"])
+        let controller = CanvasInteractionController(
+            layoutStore: NullLayoutStore(), itemStore: NullItemStore(),
+            scopeId: "scope", selection: box.binding
+        )
+
+        controller.select("doc:d", modifiers: .command)
+
+        #expect(box.value == ["doc:a", "doc:b", "doc:c", "doc:d"])
+    }
+
+    /// The shared binding cannot represent a STANDALONE CANVAS ITEM — those ids
+    /// have no `doc:` prefix, so `librarySelection(forCanvasNodeIds:)` drops
+    /// them. Reading the binding alone would therefore make ⌘-clicking two
+    /// notes together impossible, which is why the controller merges the ids
+    /// the round trip cannot carry.
+    @Test("⌘-clicking two canvas items together still works, though the binding drops them")
+    func canvasItemsSurviveTheBindingRoundTrip() {
+        let box = SelectionBox([])
+        let controller = CanvasInteractionController(
+            layoutStore: NullLayoutStore(), itemStore: NullItemStore(),
+            scopeId: "scope", selection: box.binding
+        )
+
+        controller.select("item-1")
+        controller.select("item-2", modifiers: .command)
+
+        #expect(controller.selectionSet == ["item-1", "item-2"])
+    }
+
+    @Test("Grabbing an already-selected card does not collapse the selection")
+    func dragKeepsAMultiSelection() {
+        let box = SelectionBox(["doc:a", "doc:b"])
+        let controller = CanvasInteractionController(
+            layoutStore: NullLayoutStore(), itemStore: NullItemStore(),
+            scopeId: "scope", selection: box.binding
+        )
+
+        controller.beginDrag("doc:b")
+
+        #expect(box.value == ["doc:a", "doc:b"])
+    }
+
+    @Test("Grabbing an UNSELECTED card selects just it")
+    func dragOnAnUnselectedCardSelectsIt() {
+        let box = SelectionBox(["doc:a"])
+        let controller = CanvasInteractionController(
+            layoutStore: NullLayoutStore(), itemStore: NullItemStore(),
+            scopeId: "scope", selection: box.binding
+        )
+
+        controller.beginDrag("doc:c")
+
+        #expect(box.value == ["doc:c"])
+    }
+
+    // MARK: - reconcile: the Table's half of the contract
+
+    @Test("Emptying the selection clears the anchor and cursor rather than leaving them stale")
+    func reconcileClearsWhenNothingIsSelected() {
+        let result = SelectionGrammar.reconcile(
+            from: ["doc:a"], to: [], anchor: "doc:a", in: Self.ids
+        )
+
+        // The old table handler returned early here, leaving both fields
+        // pointing at a row that was no longer selected.
+        #expect(result == SelectionGrammar.clear())
+    }
+
+    @Test("A many-row change holds the anchor still and moves only the cursor (rule 2)")
+    func reconcileHoldsTheAnchorForARange() {
+        // ⇧-click from a down to c, then re-extended to d: the anchor must not
+        // move, or reversing direction mid-extend can never shrink.
+        let grown = SelectionGrammar.reconcile(
+            from: ["doc:a"], to: ["doc:a", "doc:b", "doc:c"], anchor: "doc:a", in: Self.ids
+        )
+        #expect(grown.anchor == "doc:a")
+        #expect(grown.cursor == "doc:c")
+
+        // Shrinking by more than one row is unambiguously a range operation —
+        // a single-row change would be indistinguishable from a ⌘-deselect,
+        // which rule 1 claims first.
+        let shrunk = SelectionGrammar.reconcile(
+            from: ["doc:a", "doc:b", "doc:c", "doc:d"], to: ["doc:a", "doc:b"],
+            anchor: "doc:a", in: Self.ids
+        )
+        #expect(shrunk.anchor == "doc:a")
+        #expect(shrunk.cursor == "doc:b")
+    }
+
+    @Test("An anchor that left the selection is replaced by the topmost VISIBLE row")
+    func reconcileRecoversAStaleAnchor() {
+        let result = SelectionGrammar.reconcile(
+            from: ["doc:a", "doc:d"], to: ["doc:b", "doc:c", "doc:d"], anchor: "doc:a", in: Self.ids
+        )
+
+        // Never `Set.first` — that is hash order, which would make the same
+        // gesture extend differently on different runs.
+        #expect(result.anchor == "doc:b")
+    }
+}
+
+// MARK: - Minimal seams
+
+/// A settable box behind a `Binding`, standing in for `LibraryView.selection`.
+@MainActor
+private final class SelectionBox {
+    var value: Set<String>
+
+    init(_ value: Set<String>) { self.value = value }
+
+    var binding: Binding<Set<String>> {
+        Binding(get: { self.value }, set: { self.value = $0 })
+    }
+}
+
+@MainActor
+private final class NullLayoutStore: CanvasLayoutPersisting {
+    var loadError: String?
+    func layout(for scopeId: String) -> [CanvasItemLayout] { [] }
+    func saveLayout(folderId: String, items: [CanvasItemLayout]) async -> Bool { true }
+}
+
+@MainActor
+private final class NullItemStore: CanvasItemMutating {
+    var loadError: String?
+    func items(for scopeId: String) -> [CanvasItemDisplay] { [] }
+    func createItem(
+        folderId: String,
+        kind: Components.Schemas.CanvasItemKind,
+        text: String?,
+        sourceItemId: String?,
+        targetItemId: String?
+    ) async -> CanvasItemDisplay? { nil }
+    // swiftlint:disable:next function_parameter_count
+    func updateItem(
+        folderId: String,
+        itemId: String,
+        kind: Components.Schemas.CanvasItemKind?,
+        text: String?,
+        sourceItemId: String?,
+        targetItemId: String?
+    ) async -> Bool { true }
+    func deleteItem(folderId: String, itemId: String) async -> Bool { true }
+}
