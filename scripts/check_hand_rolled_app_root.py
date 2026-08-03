@@ -171,10 +171,26 @@ def _self_test() -> list[str]:
     return failures
 
 
+# Directories holding code we did not write and cannot fix: SwiftPM's vendored
+# checkouts and build products. swift-nio-http2 resolves a path by counting
+# components in one of its benchmarks, which is a true match for the pattern
+# and none of our business.
+#
+# This exclusion matters more than it looks. These paths only exist after
+# someone runs a build or a spec regen, so the check passes in a fresh worktree
+# and fails in a used one -- and a guardrail that fires on vendored code, for
+# reasons the reader cannot act on, is a guardrail somebody switches off. A
+# disabled check is worse than an absent one: it still looks present.
+VENDORED = (".build", "DerivedData", "Pods", ".swiftpm")
+
+
 def _swift_files() -> list[Path]:
     files: list[Path] = []
     for root in SCAN_ROOTS:
-        files.extend(sorted(root.rglob("*.swift")))
+        for path in sorted(root.rglob("*.swift")):
+            if any(part in VENDORED for part in path.parts):
+                continue
+            files.append(path)
     return files
 
 
