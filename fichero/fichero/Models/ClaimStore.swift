@@ -168,8 +168,22 @@ final class ClaimStore: ObservableDomainStore {
         await reload()
     }
 
-    /// Edit a claim in place (EditClaimSheet, #1135). Returns the updated claim
-    /// so callers can update not-yet-migrated surfaces. Refreshes the scope.
+    /// Edit a claim in place (`InlineClaimEditor`, #1135). Returns the updated
+    /// claim so callers can update not-yet-migrated surfaces.
+    ///
+    /// **Updates the one row, never the list** (#4393, #4389). This used to end
+    /// in `await reload()` like every other action here, and for a patch that is
+    /// wrong twice over. The server has just handed back the authoritative
+    /// updated claim, so re-fetching 500 rows asks a question already answered;
+    /// and replacing the whole array re-renders every row, which loses scroll
+    /// position and selection at the exact moment the user is mid-edit. An edit
+    /// that makes the list jump reads as an edit that failed.
+    ///
+    /// A patch cannot move a claim out of the current scope — neither
+    /// `source_document_id` nor `entity_ids` is patchable — so the row that was
+    /// there is still there. When the id is genuinely absent (the claim was
+    /// edited from a surface holding a different scope) this falls back to a
+    /// reload rather than silently dropping the result on the floor.
     @discardableResult
     func patch(
         claimId: String,
@@ -199,7 +213,11 @@ final class ClaimStore: ObservableDomainStore {
             speakerName: speakerName,
             speakerEntityId: speakerEntityId
         )
-        await reload()
+        if let index = claims.firstIndex(where: { $0.id == claimId }) {
+            claims[index] = updated
+        } else {
+            await reload()
+        }
         return updated
     }
 
