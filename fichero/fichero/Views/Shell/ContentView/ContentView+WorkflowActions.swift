@@ -272,6 +272,10 @@ extension ContentView {
                     inputs: ["selected_doc_ids": docIds],
                     providerOverride: providerOverride,
                     modelOverride: modelOverride,
+                    // These ids came from the user's explicit selection, so
+                    // they ARE the scope — nothing for the server to expand,
+                    // and nothing left for this client to get wrong (#4414).
+                    selection: WorkflowRunScope.documents(docIds),
                     onAccepted: { acceptedResponse in
                         let threadId = acceptedResponse.threadId
                         executionObserver.promoteExecution(

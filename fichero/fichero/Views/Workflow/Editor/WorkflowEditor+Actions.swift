@@ -101,6 +101,11 @@ extension WorkflowEditor {
             let response = try await workflowStreamService.execute(
                 workflowId: workflowId,
                 inputs: ["selected_doc_ids": selectedIds],
+                // The one call site that can honestly claim a container: when
+                // nothing is selected, `resolveRunScope` widens to the folder
+                // and sends its single id as `kind=collection` for the server
+                // to expand. Every other path has already expanded (#4414).
+                selection: scope.selection,
                 onAccepted: { acceptedResponse in
                     let threadId = acceptedResponse.threadId
                     executionObserver.promoteExecution(

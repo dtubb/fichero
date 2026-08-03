@@ -85,6 +85,11 @@ extension SidebarItemRow {
                 inputs: ["selected_doc_ids": request.docIds],
                 providerOverride: request.providerOverride,
                 modelOverride: request.modelOverride,
+                // `WorkflowRunTargetResolver` already expanded any folder into
+                // its descendants before we got here, so `documents` is the
+                // only honest claim — `kind=folder` with N ids is refused at
+                // the boundary, and rightly (#4414).
+                selection: WorkflowRunScope.documents(request.docIds),
                 onAccepted: { acceptedResponse in
                     let threadId = acceptedResponse.threadId
                     observer.promoteExecution(

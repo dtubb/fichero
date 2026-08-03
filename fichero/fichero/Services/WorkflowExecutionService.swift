@@ -115,6 +115,21 @@ class WorkflowExecutionService {
     // MARK: - Execute Workflow
 
     /// Execute a workflow with optional interrupt points
+    ///
+    /// - Parameter selection: WHAT the user pointed at, declared (#4414). The
+    ///   server has validated this since #4397, but every shipping call site
+    ///   sent ids untyped inside `inputs["selected_doc_ids"]`, so the boundary
+    ///   adapter re-derived them as `kind=documents` and a folder run was
+    ///   indistinguishable from a 47-document run. An engine-side guarantee the
+    ///   client routes around is not a guarantee.
+    ///
+    ///   `inputs` still carries `selected_doc_ids` alongside it, and that is
+    ///   not belt-and-braces: `executor.py:318` and `runtime.py:159` build the
+    ///   run's initial state from the untyped inputs, and NOTHING in the server
+    ///   reads `request.selection` after the boundary validator. The typed
+    ///   field is what makes a wrong request rejectable; the legacy key is
+    ///   still what makes the run happen. Dropping it here would execute
+    ///   against nothing.
     func executeAccepted(
         workflowId: String,
         inputs: [String: Any] = [:],
@@ -122,7 +137,8 @@ class WorkflowExecutionService {
         interruptBefore: [String] = [],
         interruptAfter: [String] = [],
         providerOverride: String? = nil,
-        modelOverride: String? = nil
+        modelOverride: String? = nil,
+        selection: Components.Schemas.WorkflowSelection? = nil
     ) async throws -> ExecuteAcceptedResponse {
         let inputsPayload = Components.Schemas.ExecuteWorkflowRequest.InputsPayload(
             additionalProperties: try objectContainer(fromJSON: inputs)
@@ -134,7 +150,8 @@ class WorkflowExecutionService {
             interruptBefore: interruptBefore,
             interruptAfter: interruptAfter,
             providerOverride: (providerOverride?.isEmpty == false) ? providerOverride : nil,
-            modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil
+            modelOverride: (modelOverride?.isEmpty == false) ? modelOverride : nil,
+            selection: selection
         )
 
         isExecuting = true

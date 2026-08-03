@@ -42,6 +42,22 @@ final class BatchStore {
     /// verify the folder→selected_doc_ids mapping directly — the generated client sends the
     /// POST body as a URLSession upload task whose body a URLProtocol stub cannot read.
     /// `runFolderBatch` calls this unchanged; behavior is identical.
+    ///
+    /// STILL UNTYPED, deliberately, and it is the one path #4414 could not
+    /// close from the client (#4500). Two reasons, both server-side:
+    ///
+    ///   1. `CreateBatchRequest.items` is `list[dict[str, Any]]` — there is no
+    ///      `selection` field to send. Adding one is a contract change.
+    ///   2. `BatchManager.execute_batch` never builds an
+    ///      `ExecuteWorkflowRequest`, so a batch item does not pass through
+    ///      `_derive_selection` or `_reject_unread_target_keys` at all. Batch
+    ///      runs get no scope validation of any kind.
+    ///
+    /// And this builder is the exact shape the typed contract exists to
+    /// forbid: it expands each folder into `folder.documentIds` here, in the
+    /// client, which is the division of labour #4396 was about. It cannot be
+    /// fixed by relabelling — `kind=folder` with N ids is refused — only by
+    /// letting the server expand the folder, which needs the field first.
     static func makeFolderItems(
         _ folders: [(id: String, documentIds: [String])]
     ) -> [[String: any Sendable]] {
