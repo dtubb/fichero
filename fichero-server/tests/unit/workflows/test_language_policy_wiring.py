@@ -174,6 +174,21 @@ def test_svo_and_entity_tools_resolve_through_the_policy():
         assert hasattr(module, "configured_policy")
 
 
+def test_the_two_detectors_agree_on_one_vocabulary():
+    """`multilingual` returns ISO codes; `lang_detect` and the policy speak names.
+
+    `language_identification` records the NAME, so a document written by the
+    detector resolves against a policy written by a user. If these drifted, a
+    library set to "Spanish" would silently stop matching documents detected as
+    `es` — an invisible mismatch, not an error.
+    """
+    from fichero_server.llm.multilingual import SUPPORTED_LANGUAGES
+
+    assert SUPPORTED_LANGUAGES["es"] == "Spanish"
+    assert SUPPORTED_LANGUAGES["en"] == "English"
+    assert parse_policy("Spanish").permits(SUPPORTED_LANGUAGES["es"])
+
+
 def test_a_per_document_override_beats_the_global_default_end_to_end():
     from fichero_server.llm.language_policy import resolve_language, set_user_language
 
