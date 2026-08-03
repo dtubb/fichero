@@ -120,12 +120,16 @@ def _build_workflow_with_checkpointer(
     )
 
 
-def _validate_workflow_for_execution(workflow: Workflow) -> None:
+def _validate_workflow_for_execution(
+    workflow: Workflow,
+    request: "ExecuteWorkflowRequest | None" = None,
+) -> None:
     """Fail fast on malformed workflows before spawning a background run."""
     # Imported here rather than at module scope: pulls langgraph + every tool (#3950).
     from fichero_server.workflows.builder import build_graph  # noqa: PLC0415
     from fichero_server.workflows.runtime import to_workflow_def  # noqa: PLC0415
     from fichero_server.workflows.validation import (  # noqa: PLC0415
+        validate_run_eligibility,
         validate_workflow_connections,
         validate_workflow_preflight,
     )
@@ -134,6 +138,17 @@ def _validate_workflow_for_execution(workflow: Workflow) -> None:
     errors = [
         *validate_workflow_connections(workflow_def),
         *validate_workflow_preflight(workflow_def),
+        # #3804: the menu used to be the ONLY thing checking these, so every
+        # other client could run an internal component, or ask for a
+        # provider/model override the engine would silently discard. Checked
+        # here so no client can bypass it.
+        *validate_run_eligibility(
+            name=workflow.name,
+            config=getattr(workflow, "config", None),
+            nodes=workflow.nodes,
+            provider_override=getattr(request, "provider_override", None),
+            model_override=getattr(request, "model_override", None),
+        ),
     ]
 
     if not workflow_def.nodes:
@@ -292,7 +307,7 @@ async def execute_workflow(
                 detail=f"Workflow not found in this library: {request.workflow_id}",
             )
 
-        _validate_workflow_for_execution(workflow)
+        _validate_workflow_for_execution(workflow, request)
 
         logger.debug(
             "[EXECUTE] workflow=%s id=%s nodes=%s edges=%s",
