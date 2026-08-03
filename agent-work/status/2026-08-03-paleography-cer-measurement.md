@@ -115,21 +115,91 @@ headline `cer` is the **final** pass, named by `primary_step_name`. That is
 #3905's cheap-tier question — how far off is `$vision_small` on this material
 — answered from a run that already happened, at no extra spend.
 
+## THE NUMBERS
+
+The project's first real transcription-quality measurements, on
+`dialogo_lengua_page_18`, against the DILE gold.
+
+### Apple Vision OCR — free, on-device, reproducible
+
+| policy | CER |
+|---|---|
+| diplomatic | **0.398** |
+| layout-insensitive | 0.3748 |
+| lenient | 0.3709 |
+| accent-blind | 0.3571 |
+
+About 40% of characters wrong. Not a Tier-1 draft a later pass repairs — the
+opening reads `enel fro delejnino` where the manuscript reads
+`enel tþo q́ el eʃcriuio`. Pinned by `test_apple_vision_cheap_tier_cer_on_the_gold_page`,
+which runs every time because it costs nothing.
+
+**Apple Vision's `language` argument does nothing.** `es`, `es-ES`, `Spanish`,
+`spanish` and `en` all return byte-identical output, including locale strings
+Vision should reject. The setter neither errors nor changes anything. And
+`llm/__init__.py` hardcodes `"en"` at the call site regardless of the
+workflow's language config, so Spanish colonial material is requested as
+English. Observed, not diagnosed — worth its own issue.
+
+### The configured ensemble — gemini-3-flash-preview via OpenRouter
+
+| node | tier | CER (diplomatic) |
+|---|---|---|
+| t1a | `$vision_small` | 2.898 |
+| t1b | `$vision_medium` | 2.4609 |
+| t1c | `$vision_large` | 2.1899 |
+| t2 | review | 1.8617 |
+| t3 | deep reconcile | 3.1899 |
+| **t4** | **final** | **5.4148** |
+
+**Every step reported `✓ Completed` and `error: None`.**
+
+Read that table twice. The paid ensemble is **5 to 13 times worse than free
+on-device OCR**, and the final pass is the worst node in the graph. CER above
+1.0 means the output is longer than the gold and almost entirely unrelated to
+it.
+
+The cause is visible in the first characters of each output: `Step-by-step
+reasoning:`, `To transcribe this document, I will first...`, `### Reasoning`.
+**The nodes are storing the model's reasoning as the transcription.** The
+prompt says "output ONLY the transcription. No headings, preamble, or
+commentary"; the model ignores it, and nothing downstream strips it. The one
+stripper that exists, `parse_thinking_response`, matches `<think>`/`<answer>`
+tags, which Gemini does not emit — so the commentary is stored verbatim in an
+artifact whose `artifact_type` is `transcription`. t4 grows to 4,518
+characters of it. Hypothesis with evidence, not a diagnosis.
+
+This is the #4487 class again, one layer up: a workflow that reports success
+on every node and produces confident prose that is not the thing it claims.
+
+It is also the case that vindicated refusing to clamp CER at 1.0. A clamp
+would have shown t4 as `1.0` — indistinguishable from an ordinary bad
+transcription — instead of `5.41`, which says plainly that the node emitted
+five pages of something else.
+
+**The threshold is not hypothetical.** The paid gate now requires the final
+pass to beat Apple Vision's measured 0.3571, and the run above shows it would
+fire immediately on the current configuration.
+
 ## What is still missing — read this before calling #3905 done
 
-**1. No numbers yet.** Producing them means running the ensemble against real
-paid vision providers. The gate exists — `test_paleography_ensemble_real_providers`,
-opt-in behind `FICHERO_RUN_PALEOGRAPHY_REAL=1` plus the four alias env vars —
-and it now prints CER for all six tiers under all four policies, so one run of
-it *is* the measurement. It has not been run. No lane should spend on paid
-providers unasked.
-
-**2. Ann cannot reach this from the app.** There is nowhere for a user to put
+**1. Ann cannot reach this from the app.** There is nowhere for a user to put
 a gold transcription: no reference artifact type, no upload path, no column,
 and no endpoint. The measurement is a library function plus a test gate.
 Wiring it up is a server endpoint → OpenAPI regen → Swift client → UI chain,
 and the OpenAPI/Swift half must be sequenced when the Swift lane is idle. Not
 attempted here for that reason.
+
+**2. How the ensemble numbers were obtained, and the mistake in obtaining
+them.** The alias resolution reads the real app database, not the `apple`
+defaults in `db/app.py`, so a probe run I expected to be free and on-device
+went to OpenRouter and billed Daniel's account for two runs of eight vision
+calls on one page. Small — flash-tier, cents — but unauthorised, and recorded
+here rather than buried. Nothing in the committed test suite spends: the
+Apple Vision test calls `apple_vision_ocr` directly, and the ensemble gate
+stays opt-in behind `FICHERO_RUN_PALEOGRAPHY_REAL=1`. **`$vision_*` defaults
+being `apple` in code does not mean a run is free** — check the app database
+before running any workflow graph.
 
 **3. The harder page does not exist.** #3905 also asks for a blotted /
 *procesal encadenada* page to measure the real dispute rate. The only fixture
