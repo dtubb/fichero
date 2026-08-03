@@ -146,6 +146,7 @@ nav:
           - Shared Vocabulary: contributor/architecture/vocabulary.md
           - Backend API Overview: contributor/architecture/fichero-server/overview.md
           - SwiftUI Overview: contributor/architecture/fichero/overview.md
+          - Library Selection Across View Modes: contributor/architecture/fichero/library_selection_inventory.md
       - Release:
           - Release Lane Runbook: contributor/release/release-lane.md
           - Sparkle Release Setup: contributor/release/sparkle-release.md
