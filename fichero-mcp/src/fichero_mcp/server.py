@@ -204,7 +204,14 @@ def fichero_get_note(note_id: str) -> Note:
 # -- workflows -------------------------------------------------------------
 @mcp.tool()
 def fichero_workflow_list() -> Any:
-    """List available workflows."""
+    """List available workflows.
+
+    Each entry carries the engine's own run eligibility (#3804):
+    ``direct_runnable`` false means it is an internal component that only runs
+    inside a parent workflow — ``fichero_workflow_run`` will refuse it — and
+    ``requires_vision`` true means the run needs a vision-capable model.
+    Read these; do not infer them from the node list.
+    """
     with _client() as client:
         return client.list_workflows()
 

@@ -103,8 +103,8 @@ def parse_sub_workflow_config(config: Mapping[str, Any]) -> SubWorkflowConfig:
     return SubWorkflowConfig.model_validate(dict(config))
 
 
-def _resolve_from_library_db(workflow_ref: str, library_path: str) -> WorkflowDef | None:
-    """Resolve a child workflow from the library's workflow store (#4324).
+def _resolve_from_database(workflow_ref: str, db: Any) -> WorkflowDef | None:
+    """Resolve a child workflow from an already-open library database (#4324).
 
     A user who edits a seeded sub-workflow component (e.g. tweaks the Spanish
     Script child passes' prompts) edits the DB row — the shipped JSON is only
@@ -112,11 +112,9 @@ def _resolve_from_library_db(workflow_ref: str, library_path: str) -> WorkflowDe
     name match preferring the seeded (is_system/is_template) row, so a user's
     same-named duplicate never hijacks a preset reference.
     """
-    from fichero_server.db import db_manager
     from fichero_server.models import Workflow
     from fichero_server.workflows.runtime import to_workflow_def
 
-    db = db_manager.get_database(library_path)
     stored = db.get(Workflow, workflow_ref)
     if stored is None:
         matches = [w for w in db.all(Workflow) if w.name == workflow_ref]
@@ -130,6 +128,13 @@ def _resolve_from_library_db(workflow_ref: str, library_path: str) -> WorkflowDe
     if stored is None or not (getattr(stored, "nodes", None) or []):
         return None
     return to_workflow_def(stored)
+
+
+def _resolve_from_library_db(workflow_ref: str, library_path: str) -> WorkflowDef | None:
+    """``_resolve_from_database`` for callers that only hold a library path."""
+    from fichero_server.db import db_manager
+
+    return _resolve_from_database(workflow_ref, db_manager.get_database(library_path))
 
 
 def _resolve_from_global_defaults(workflow_ref: str) -> WorkflowDef | None:
@@ -214,6 +219,44 @@ def resolve_sub_workflow_ref(workflow_ref: str, state: State | None = None) -> W
     except Exception:
         return None
     return None
+
+
+def sub_workflow_resolver_for_db(db: Any) -> WorkflowResolver:
+    """Child-workflow resolver for API surfaces that hold an open library DB.
+
+    Validation and the answers served to clients have to see the SAME child a
+    run would see, or a workflow's answer changes depending on which surface
+    asked. Routes hold a ``Database``, not a library path, so this is the seam
+    they pass to :func:`validate_workflow_preflight` and
+    :func:`workflow_requires_vision`; resolution order matches
+    :func:`resolve_sub_workflow_ref` (library row, then global defaults, then
+    shipped preset JSON).
+
+    Results are memoised per resolver because a name-miss costs a full
+    ``db.all(Workflow)`` scan and listing a library re-asks about the same
+    shared children once per parent workflow.
+    """
+    cache: dict[str, WorkflowDef | None] = {}
+
+    def resolve(workflow_ref: str) -> WorkflowDef | None:
+        if workflow_ref in cache:
+            return cache[workflow_ref]
+        resolved: WorkflowDef | None = None
+        try:
+            resolved = _resolve_from_database(workflow_ref, db)
+        except Exception as exc:
+            logger.warning(
+                "Sub-workflow DB resolution failed for %r (%s); "
+                "falling back to defaults and shipped presets",
+                workflow_ref,
+                exc,
+            )
+        if resolved is None:
+            resolved = resolve_sub_workflow_ref(workflow_ref)
+        cache[workflow_ref] = resolved
+        return resolved
+
+    return resolve
 
 
 def _value_matches_data_type(value: Any, data_type: DataType) -> bool:

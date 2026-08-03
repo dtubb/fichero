@@ -188,6 +188,11 @@ def document_knowledge_graph(input: DocumentInput, include_children: bool = Fals
 
 @mcp.tool()
 def list_workflows() -> Any:
+    """List workflows with the engine's run eligibility (#3804).
+
+    ``direct_runnable`` false = internal component, refused by ``run_workflow``;
+    ``requires_vision`` true = the run needs a vision-capable model.
+    """
     with _client() as client:
         return client.list_workflows()
 

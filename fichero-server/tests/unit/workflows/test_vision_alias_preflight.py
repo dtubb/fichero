@@ -289,12 +289,34 @@ def test_spanish_script_subworkflow_parent_is_valid_and_passes_preflight(monkeyp
     # transcription to the child via a sub_workflow node.  Vision-tier alias
     # resolution is tested separately in
     # test_spanish_script_v2_child_resolves_distinct_vision_tiers.
+    #
+    # The vision-TIER defaults are configured here, not just a plain vision
+    # category default, because preflight now descends into the child (#3804)
+    # and the child's passes resolve $vision_small/$medium/$large. Before the
+    # descent this fixture passed while leaving those aliases unresolvable —
+    # i.e. the test asserted the parent was fine on a host where the run it
+    # starts could not have worked.
     monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
     monkeypatch.setattr(
         "fichero_server.db.app.get_app_db",
         lambda: _fake_db(
+            settings={
+                "default_vision_small_provider": "apple",
+                "default_vision_small_model": "apple-vision-small",
+                "default_vision_medium_provider": "apple",
+                "default_vision_medium_model": "apple-vision-medium",
+                "default_vision_large_provider": "apple",
+                "default_vision_large_model": "apple-vision-large",
+            },
             category_defaults={"vision": ("apple", "apple-vision")},
-            models_by_provider={"apple": [_model("apple-vision", ["vision"])]},
+            models_by_provider={
+                "apple": [
+                    _model("apple-vision", ["vision"]),
+                    _model("apple-vision-small", ["vision"]),
+                    _model("apple-vision-medium", ["vision"]),
+                    _model("apple-vision-large", ["vision"]),
+                ]
+            },
         ),
     )
     path = (

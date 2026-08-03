@@ -601,10 +601,26 @@ class TestLoadPresetFiles:
             and edge["target_port"] == "files"
             for edge in parent_data["edges"]
         )
-        assert validate_workflow_preflight(
+        # Preflight now descends into the child (#3804), so the parent's result
+        # depends on whether this HOST has the vision tiers the child resolves
+        # ($vision_small/$medium/$large) — which a bare test environment does
+        # not. Same treatment as the ensemble-gate test above: assert the
+        # structural failures are absent, and leave full resolution to
+        # test_vision_alias_preflight.py, where AI Defaults are mocked.
+        errors = validate_workflow_preflight(
             parent,
             workflow_resolver=lambda ref: child if ref == child.name else None,
-        ) == []
+        )
+        assert not any("cycle" in err for err in errors), errors
+        assert not any("output_mapping" in err for err in errors), errors
+        assert not any("could not be resolved" in err for err in errors), errors
+        # Non-vacuous: the descent reached the child, so any error present must
+        # name it — a resolver that silently returned nothing would leave this
+        # list empty and prove nothing.
+        assert all(
+            "(sub_workflow) ->" in err or "no Default vision" in err
+            for err in errors
+        ), errors
 
     def test_catalogue_inputs_route_via_transcribe_not_user_aggregate(self):
         """Catalogue + extract_all + merge_extracts read directly from

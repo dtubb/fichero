@@ -55,6 +55,7 @@ from fichero_server.api.routes.ai.provider_models import ProviderResponse
 from fichero_server.models.hermeneutics import Interpretation
 from fichero_server.api.routes.search import SearchResponse
 from fichero_server.api.routes.system.settings import AIDefaults
+from fichero_server.api.routes.workflow.workflows import WorkflowResponse
 from fichero_server.api.routes.workflow_execution.schemas import (
     ExecuteAcceptedResponse,
     ExecutionStatusResponse,
@@ -73,7 +74,6 @@ from fichero_server.models import (
     LibraryCreateResponse,
     LibraryRegistryResponse,
     LibrarySnapshot,
-    Workflow,
 )
 
 # https, not http (#4468): the engine MANDATES TLS on TCP (engine_manager
@@ -687,11 +687,22 @@ class FicheroClient:
             return Document.model_validate(raw)
 
     # -- workflows ---------------------------------------------------------
-    def list_workflows(self) -> list[Workflow]:
+    def list_workflows(self) -> list[WorkflowResponse]:
+        """List workflows as the API returns them — run eligibility included.
+
+        Parsed as ``WorkflowResponse``, not the storage model ``Workflow``
+        (#3804): the storage model has no ``direct_runnable`` field, so Pydantic
+        silently dropped the engine's run-eligibility answers and every CLI/MCP
+        list offered internal components the engine refuses to run. The
+        surfaces read the engine's answer; they never recompute it.
+        """
         raw = self.request("GET", "/api/workflows")
         # Extract items from envelope format
         items = raw.get("items", raw) if isinstance(raw, dict) else raw
-        return [Workflow.model_validate(w) for w in _expect_list(items, "/api/workflows")]
+        return [
+            WorkflowResponse.model_validate(w)
+            for w in _expect_list(items, "/api/workflows")
+        ]
 
     def run_workflow(
         self,
