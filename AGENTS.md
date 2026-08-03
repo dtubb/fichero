@@ -377,7 +377,9 @@ either**. If a client needs logic, the logic belongs in the engine.
   `integrations`/`mcp-servers` need `alpha`). The app spawns its engine at its own
   build tier, so it never notices; a hand-started engine at the default tier 404s
   the entire workflow/KG surface, which reads as "the CLI is broken" (#4470,
-  found live in #4465). A gated route 404s with no hint a tier would reveal it.
+  found live in #4465). A gated route's 404 now NAMES the tier that would expose
+  it (`install_tier_aware_not_found`, api/main.py) — route-raised 404s such as
+  "Document not found" pass through unchanged.
   Route registration is therefore a poor signal of whether a feature is *usable* —
   the UI is flag-gated separately.
 - **What ships to a user** is decided by `FeatureManager.resetToV001()` in
