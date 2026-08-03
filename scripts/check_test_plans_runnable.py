@@ -338,7 +338,35 @@ def main() -> int:
     print(f"  ✓ {runnable} plan(s) name real targets that support their platform and hold tests.")
     if blocked:
         print(f"  ~ {len(blocked)} plan(s) known-unrunnable and filed; this guard watches them.")
+    print(INVOCATIONS)
     return 0
+
+
+#: How to actually RUN each plan. Printed on success because this is where
+#: somebody checking "can the iPad plan run" is already looking, and the first
+#: person to try had to find the working invocation by trial: the plan was
+#: associated with the MAC schemes only, so `-scheme "…iOS"` failed outright and
+#: the only way through was borrowing a Mac scheme with an iPad destination
+#: (#4505). A plan that is runnable and undiscoverable is barely better than one
+#: that is not runnable.
+INVOCATIONS = """
+  To run them:
+    iPad   xcodebuild test -project fichero/fichero.xcodeproj \\
+             -scheme 'Fichero (Dev Local iOS)' -testPlan fichero-ipad \\
+             -destination 'platform=iOS Simulator,name=iPad Pro 13-inch (M5)'
+    Mac    xcodebuild test -project fichero/fichero.xcodeproj \\
+             -scheme 'Fichero (Dev Local)' -testPlan fichero-tests \\
+             -destination 'platform=macOS'
+
+  The simulator NAME is machine-specific and goes stale with every Xcode
+  release — this one was verified against `xcrun simctl list devices available
+  | grep iPad` rather than guessed, because the first draft of this line said
+  M4 and no such device exists here. If the destination is rejected, list them
+  again; do not assume the plan is broken.
+
+  The iOS schemes' TEST action builds Debug, not Alpha: `@testable import`
+  needs ENABLE_TESTABILITY, which only Debug and Dev Embedded set. Alpha, Beta
+  and Release are distribution configurations and must stay untestable."""
 
 
 if __name__ == "__main__":
