@@ -9,6 +9,15 @@ its newest entry. **19 have no fix commit and are left alone.**
 Counts: A = 7 verify-then-close, B = 1 contradicted, C = 4 unclear, D = 19
 untouched.
 
+**A second sweep (section F) covers 41 more issues** across Engine, Sharing,
+Workflow and Settings, and explicitly names the 65 it skipped.
+
+Total examined: **72 open issues. 16 have a fix that is in a shipped build and
+are still open** — 5 in section A, 11 in F1 — of which #3364 is a decision
+rather than a verification. A further 5 (#4377, #4458, #4459, and the
+#970/#1834/#2104 trio on one commit) are fixed but **not in any release**, so
+testing them against v2026.08.02 would produce false failures.
+
 I examined none of the Engine, Sharing, Chat, Workflow or Settings milestones.
 
 **Nothing here is closed. I am not authorised to close anything, and none of
@@ -114,6 +123,92 @@ it stays green either way.
 **If you want to keep double-click-opens**, #3364 should be closed as
 superseded rather than left open, since it currently reads as an unfixed bug
 against deliberate, tested behaviour.
+
+---
+
+## F. Second sweep — Engine, Sharing, Workflow, Settings
+
+**Coverage, stated rather than implied:** I examined **41 open issues** across
+six milestones: Workflow View (252), Engine — Connection & Startup
+Bulletproofing (110), Sharing & Pairing (263), Settings (126), Settings —
+Models & Providers — HPC (240), Settings IA v2 (257).
+
+**I skipped 65 open issues** in thirteen further Engine milestones — Bugs-Tests
+(82, 235), Performance (239), Onboarding (132), Device Pairing (96), Accounts
+(133), Multi-Library (218), Remote/Self-Hosting (74), Embed iOS (216), Embed
+Mac (217), AI (90), Library-Engine (165), Inspector-Artifacts (247). A short
+honest table beat a long speculative one twice, so I stopped at what I could
+check properly. The Agent View milestones (191, 228, 139) were triaged in an
+earlier pass and are not re-covered here.
+
+**Nothing is closed and nothing is verified.** What follows establishes only
+that a commit *claiming* each fix exists and which build carries it.
+
+### F1. Fix shipped, issue still open (11)
+
+| # | Milestone | Fix commit | Shipped in |
+|---|---|---|---|
+| **3362** | Connection | `c9121a262` sync sandbox bootstrap token on startup | v2026.07.13.4-beta |
+| **3366** | Settings | `e79ca8ccd` route app menu settings into the settings window | v2026.07.13.4-beta |
+| **3403** | Connection | `df634cbdf` delay live-updates paused state until repeated failures | v2026.07.13.4-beta |
+| **4037** | Connection | `7dcb410db` loopback-owner for the in-memory ASGI transport | v2026.07.21-beta |
+| **3791** | Sharing | `f8358d842` accept `https://fichero.app/pair` universal links + AASA | v2026.07.23 |
+| **3928** | Connection | `ff7481c1c` move port preflight waits off main | v2026.07.26 |
+| **4186** | Workflow | `3cf4dd0b5` drop the duplicate virtual workflow tree | v2026.07.29 |
+| **4306** | Workflow | `489b077a0` translate runs against the owning library | v2026.08.02 |
+| **4309** | Workflow | `d87b373ae` capture typed OCR geometry on every vision pass | v2026.08.02 |
+| **4329** | Workflow | `82d8b88fb` OCR overlay + in-place HTML/SVG/Markdown renditions | v2026.08.02 |
+| **4478** | Workflow | `76595815b` `file→files` joins `PORT_CONVERSIONS` | v2026.08.02 |
+
+**Three have been shipped since 13 July.** #3362, #3366 and #3403 have been
+fixed and in a build for three weeks while staying open.
+
+**These are mostly not click-tests.** Unlike section A, the Engine entries are
+verified with the CLI or a targeted pytest, not by clicking — #3362 and #4037
+are auth/transport, #3928 is launch timing. Only #3366 (Settings menu routing)
+and #4186 (duplicate workflow tree in the sidebar) are visible in the UI.
+
+### F2. Fixed on `main`, NOT in any release (3)
+
+**#970, #1834, #2104** — all three closed by one commit, `65ae3b675`
+*"every word's rect was computed by Vision and thrown away"*. It is on `main`
+and in **no tag**. Same trap as #4377/#4458/#4459: testing these against
+v2026.08.02 gives a false failure.
+
+#970 also carries `f7611693d` *"mark #970 blocked"* — an **older** commit. The
+blocker was lifted by the later fix and the label was never updated.
+
+### F3. Unclear — do not act without reading (3)
+
+| # | Why unclear |
+|---|---|
+| **3968** | Its commits enable embedded-launch UI tests, and `9f410a53f` says in its own subject `[COMPILES; embedded run UNVERIFIED]`. Whether the tests actually run is the issue, and the commit declines to claim it |
+| **3949** | Only a `test:` commit and a merge. No implementation commit found |
+| **3678** | Settings IA v2 — only `docs:` commits. For a design issue the docs may BE the deliverable, which is a judgement about intent, not code |
+
+### F4. No fix commit (24)
+
+31, 1659, 3778, 3929, 3931, 3979, 3982, 3989, 3993, 4328, 4330, 4339, 4342,
+4344, 4368, 4370 have no referencing commit at all.
+
+3947, 3980, 4277, 4310, 4312, 4340, 4343, 4369 have only **incidental**
+mentions — a commit whose subject names a *different* issue. Per the section-B
+correction, that is no evidence, so they sit here rather than in a
+"contradicted" section.
+
+### A refinement to check 2
+
+`git tag --contains <sha> | head -1` is wrong. This repo carries `archive/*`
+tags, and for five of the eleven entries above the first line was an archive
+tag, which reports nothing about what shipped. Filter to release tags and take
+the earliest:
+
+```
+git tag --contains <sha> | grep -E '^v20' | sort -V | head -1
+```
+
+Unfiltered, #3366 reads `archive/inmemory-transport-streaming-seam`; filtered,
+it reads v2026.07.13.4-beta — three weeks in Daniel's hands.
 
 ---
 
