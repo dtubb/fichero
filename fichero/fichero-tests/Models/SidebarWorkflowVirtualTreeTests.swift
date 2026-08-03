@@ -19,9 +19,7 @@ import XCTest
 final class SidebarWorkflowVirtualTreeTests: XCTestCase {
 
     private func builderSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("../fichero/Models/SidebarItemBuilder.swift")
+        let url = try AppSource.root().appendingPathComponent("Models/SidebarItemBuilder.swift")
         return try String(contentsOf: url, encoding: .utf8)
     }
 

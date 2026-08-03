@@ -23,10 +23,7 @@ final class NodeProviderModelSelectorVisionModeTests: XCTestCase {
     }
 
     private static func source() throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent("Views/Workflow/Nodes/NodeProviderModelSelector.swift")
         return try String(contentsOf: url, encoding: .utf8)
     }

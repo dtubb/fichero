@@ -100,12 +100,8 @@ struct CanvasZoomRangeTests {
 
     @Test("the renderer no longer clamps to fixed constants")
     func rendererUsesDerivedBounds() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(
-                "fichero/Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift")
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
 
         #expect(source.contains("CanvasZoomRange.clamp("))

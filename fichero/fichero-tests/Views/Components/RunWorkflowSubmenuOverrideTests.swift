@@ -87,12 +87,7 @@ final class RunWorkflowSubmenuOverrideTests: XCTestCase {
     /// next full load. Asserting on every construction site rather than the
     /// six known ones so a new one cannot reintroduce the omission.
     func testEveryStoreRebuildCarriesTheFlag() throws {
-        let models = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Models")
+        let models = try AppSource.root().appendingPathComponent("Models")
 
         let storeFiles = try FileManager.default
             .contentsOfDirectory(atPath: models.path)

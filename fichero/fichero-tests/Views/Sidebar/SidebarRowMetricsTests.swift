@@ -83,12 +83,7 @@ final class SidebarRowMetricsTests: XCTestCase {
     /// (#4447's lesson): a fourth row site with its own literal is the same bug,
     /// and naming only the known three would not see it.
     func testNoSidebarRowWritesItsOwnInsetLiteral() throws {
-        let sidebar = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Sidebar")
+        let sidebar = try AppSource.root().appendingPathComponent("Views/Sidebar")
 
         let files = try FileManager.default
             .subpathsOfDirectory(atPath: sidebar.path)

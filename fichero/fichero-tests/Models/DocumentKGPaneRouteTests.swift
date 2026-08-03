@@ -197,10 +197,7 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     }
 
     func testReaderPaneCachesBootstrapScriptBetweenUpdates() throws {
-        let fixtureBase = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let fixtureBase = try AppSource.root()
         let relativePaths = [
             "Views/Reader/Knowledge/DocumentKGWebPane.swift",
             "Views/Reader/Knowledge/DocumentKGWebPaneCoordinatoriOS.swift",

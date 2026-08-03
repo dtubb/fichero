@@ -11,10 +11,7 @@ import XCTest
 final class DocumentStoreAndSidebarTypesTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
@@ -570,11 +567,7 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     /// once. A THIRD surface fabricating a local file URL would have passed
     /// silently. Verified zero occurrences app-wide before landing.
     func testNoViewAnywhereInventsALocalFileURL() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views")
+        let root = try AppSource.root().appendingPathComponent("Views")
 
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }

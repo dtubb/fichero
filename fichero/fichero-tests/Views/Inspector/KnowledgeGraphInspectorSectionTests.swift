@@ -7,19 +7,13 @@ import XCTest
 final class KnowledgeGraphInspectorSectionTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    private static func swiftFiles(under relativeDir: String) -> [URL] {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+    private static func swiftFiles(under relativeDir: String) throws -> [URL] {
+        let root = try AppSource.root()
             .appendingPathComponent(relativeDir)
         return FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }
@@ -39,7 +33,7 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
     /// avoids banning those. Verified zero occurrences in both directories
     /// before landing.
     func testNoKnowledgeGraphSurfaceAnywhereTouchesRawNetworking() throws {
-        let files = Self.swiftFiles(under: "Views/Inspector/Knowledge")
+        let files = try Self.swiftFiles(under: "Views/Inspector/Knowledge")
             + Self.swiftFiles(under: "Views/Library/ViewModes/Graph/Ontology")
         XCTAssertFalse(files.isEmpty, "the sweep must actually read files")
 

@@ -39,9 +39,7 @@ final class ToolbarFeatureFlagInjectionBoundaryTests: XCTestCase {
     }
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let baseURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("../fichero")
+        let baseURL = try AppSource.root()
         return try String(contentsOf: baseURL.appendingPathComponent(relativePath), encoding: .utf8)
     }
 }

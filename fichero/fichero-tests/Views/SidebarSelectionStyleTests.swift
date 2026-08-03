@@ -82,17 +82,13 @@ struct SidebarSelectionStyleTests {
 
     // MARK: - Structural: no second selection language in the sidebar
 
-    private static var sidebarRoot: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Sidebar")
+    private static func sidebarRoot() throws -> URL {
+        try AppSource.root().appendingPathComponent("Views/Sidebar")
     }
 
     private static func sidebarSwiftFiles() throws -> [URL] {
         guard let enumerator = FileManager.default.enumerator(
-            at: sidebarRoot,
+            at: try sidebarRoot(),
             includingPropertiesForKeys: nil
         ) else { return [] }
         var files: [URL] = []
@@ -130,11 +126,7 @@ struct SidebarSelectionStyleTests {
     }
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }

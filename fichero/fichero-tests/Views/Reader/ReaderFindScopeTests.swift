@@ -20,12 +20,7 @@ import Testing
 /// behavioural half needs a build.
 struct ReaderFindScopeTests {
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }

@@ -186,10 +186,7 @@ struct SessionStorePhaseTests {
         // (which includes failed probes after phaseAfterUnresolvedProbes) must
         // never present sign-in chrome. Verified at the source level because
         // SessionStore.phase has a private setter.
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Models/SessionStore.swift")
+        let url = try AppSource.root().appendingPathComponent("Models/SessionStore.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         #expect(source.contains("var requiresAuthUI: Bool {"))
         #expect(source.contains("phase == .needsLogin || phase == .needsOwnerSetup"))

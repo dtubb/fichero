@@ -16,12 +16,7 @@ struct ToolbarGroupingTests {
         // stripping three lands on `fichero-tests` and every read resolved to
         // fichero-tests/fichero/... — a path that cannot exist. Every test here
         // failed with NSCocoaErrorDomain "no such file" while the app was fine.
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }

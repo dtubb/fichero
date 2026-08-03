@@ -58,10 +58,7 @@ final class MillerColumnModelTests: XCTestCase {
     // MARK: - Parity bar (source guard, mirrors LibraryListKeyboardTests)
 
     func testColumnsModeMeetsTheSharedInteractionBar() throws {
-        let base = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Library")
+        let base = try AppSource.root().appendingPathComponent("Views/Library")
         let columns = try String(
             contentsOf: base.appendingPathComponent("ViewModes/Columns/LibraryView+ColumnsView.swift"),
             encoding: .utf8
@@ -89,10 +86,7 @@ final class MillerColumnModelTests: XCTestCase {
     }
 
     func testPreviewColumnReusesThePreviewSurfaceForSingleNonFolderSelection() throws {
-        let base = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Library")
+        let base = try AppSource.root().appendingPathComponent("Views/Library")
         let columns = try String(
             contentsOf: base.appendingPathComponent("ViewModes/Columns/LibraryView+ColumnsView.swift"),
             encoding: .utf8

@@ -19,10 +19,7 @@ import XCTest
 final class EngineWebViewSchemeHandlerRoutingTests: XCTestCase {
 
     private static func source(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }

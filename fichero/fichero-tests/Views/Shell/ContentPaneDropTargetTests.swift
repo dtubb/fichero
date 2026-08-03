@@ -93,12 +93,8 @@ final class ContentPaneDropTargetTests: XCTestCase {
         let layout = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
         XCTAssertFalse(layout.contains("ContentDropTargetView {"))
 
-        let bridge = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Shell/ContentView/ContentDropTargetView.swift")
+        let bridge = try AppSource.root()
+            .appendingPathComponent("Views/Shell/ContentView/ContentDropTargetView.swift")
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: bridge.path),
             "ContentDropTargetView is back; see this file's header for why it cannot receive drops"

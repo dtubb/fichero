@@ -173,10 +173,7 @@ final class FeatureTierBadgeGlyphTests: XCTestCase {
 
     func testBadgedLabelUsesGlyphNotBrackets() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("fichero/App/Menus/ViewMenuCommands.swift"),
+            contentsOf: try AppSource.root().appendingPathComponent("App/Menus/ViewMenuCommands.swift"),
             encoding: .utf8
         )
         XCTAssertTrue(source.contains("tierBadgeGlyph)\""))
@@ -190,11 +187,7 @@ final class FeatureTierBadgeGlyphTests: XCTestCase {
     /// literal bracket-interpolation shape rather than naming sites by hand.
     /// Verified zero occurrences app-wide before landing.
     func testNoFileAnywhereBracketsATierBadge() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let root = try AppSource.root()
 
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }

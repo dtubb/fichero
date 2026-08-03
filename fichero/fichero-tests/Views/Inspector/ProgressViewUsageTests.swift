@@ -9,10 +9,7 @@ import XCTest
 /// `Views/` directory.
 final class ProgressViewUsageTests: XCTestCase {
     func testNoIndeterminateProgressViewUsesAFixedFrame() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views")
+        let root = try AppSource.root().appendingPathComponent("Views")
 
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }
@@ -51,10 +48,7 @@ final class ProgressViewUsageTests: XCTestCase {
     /// as "this guard is now vacuous", not with a raw NSCocoaErrorDomain
     /// error that reads like a harness problem.
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         guard FileManager.default.fileExists(atPath: url.path) else {
             XCTFail("appSource: no file at \(relativePath) — this guard is now vacuous, not passing")

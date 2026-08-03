@@ -78,10 +78,7 @@ final class WorkflowRunProviderCacheTests: XCTestCase {
     // MARK: - Regression: every mutation path invalidates
 
     func testEveryProviderMutationEndpointInvalidatesTheRunMenus() throws {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Services/ProviderAPIService.swift")
+        let url = try AppSource.root().appendingPathComponent("Services/ProviderAPIService.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
 
         // One invalidation per successful mutation: create/update/delete
@@ -104,10 +101,7 @@ final class WorkflowRunProviderCacheTests: XCTestCase {
     /// already-registered consumer) must drop the run-menu cache on it, and
     /// on resync (reconnect may have missed provider events).
     func testWorkflowStoreDropsRunMenuCacheOnProviderEvents() throws {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Models/WorkflowStore.swift")
+        let url = try AppSource.root().appendingPathComponent("Models/WorkflowStore.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
 
         XCTAssertTrue(

@@ -5,10 +5,7 @@ import XCTest
 @MainActor
 final class DocumentInspectorTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let root = try AppSource.root()
         return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
     }
 
