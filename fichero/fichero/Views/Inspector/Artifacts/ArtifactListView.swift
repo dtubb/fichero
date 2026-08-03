@@ -161,6 +161,12 @@ struct ArtifactListView: View {
             )
         )
             .tag(artifact.id)
+            // Row target BEFORE the gestures (#4386). `inspectorListRowTarget()`
+            // is what widens the row to full width and sets its hit shape;
+            // anything attached before it claims only the label's own bounds,
+            // which sit left of centre in a wide row. `DocumentInspectorEntitiesTab`
+            // already had this order — these two did not.
+            .inspectorListRowTarget()
             .draggable(LibraryItemDrag(
                 kind: .artifact,
                 id: artifact.id,
@@ -169,7 +175,6 @@ struct ArtifactListView: View {
                     ? artifact.content ?? artifact.artifactTypeDisplayName
                     : artifact.artifactTypeDisplayName
             ))
-            .inspectorListRowTarget()
             .onTapGesture(count: 2) {
                 guard let onOpenInWindow else { return }
                 focused.select(artifact.id, in: store.items)
