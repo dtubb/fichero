@@ -231,8 +231,12 @@ struct InspectorAttributeChoiceStoreTests {
     /// defaults, and one test's choice must not leak into the next.
     private func makeStore(_ name: String = #function) -> InspectorAttributeChoiceStore {
         let suite = "fichero.tests.attributeChoices.\(name)"
-        UserDefaults.standard.removePersistentDomain(forName: suite)
-        return InspectorAttributeChoiceStore(defaults: UserDefaults(suiteName: suite)!)
+        // Cleared through the SUITE's own instance, never `UserDefaults
+        // .standard` (#4221): in a test host `.standard` IS the app's own
+        // domain, so that call reaches the developer's running app.
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return InspectorAttributeChoiceStore(defaults: defaults)
     }
 
     @Test("with no choice made, the prototype inherits the empty default")
@@ -316,8 +320,8 @@ struct InspectorAttributeChoiceStoreTests {
     @Test("a choice survives being reloaded from storage")
     func choiceIsPersisted() {
         let suite = "fichero.tests.attributeChoices.persist"
-        UserDefaults.standard.removePersistentDomain(forName: suite)
         let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
         InspectorAttributeChoiceStore(defaults: defaults)
             .setChosen([.pageCount, .fileSize], forPrototype: "diary")
 
@@ -340,8 +344,8 @@ struct InspectorAttributeChoiceStoreTests {
     @Test("an unknown stored attribute is dropped, not fatal")
     func unknownStoredAttributeIsDropped() {
         let suite = "fichero.tests.attributeChoices.unknown"
-        UserDefaults.standard.removePersistentDomain(forName: suite)
         let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
         defaults.set(
             ["diary": ["state", "attributeFromTheFuture"]],
             forKey: InspectorAttributeChoiceStore.storageKey)
