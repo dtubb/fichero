@@ -45,14 +45,22 @@ enum ConnectionPresentation {
         /// A configured remote host or a paired Mac. Another machine entirely.
         case remote
 
-        /// Pure: strategy → ownership, so the release-vs-debug-vs-remote
-        /// branching is testable without a launch or a build flag.
+        /// Strategy → ownership for the surfaces that only render a TITLE.
+        ///
+        /// Delegates to the full `resolve(strategy:transportMode:portResolution:)`
+        /// so there is exactly one derivation (#4400); a `nil` port resolution
+        /// reads as "not adopted", which is what a launch that has not resolved
+        /// a port yet honestly means. Surfaces that offer an ACTION must use
+        /// `EmbeddedBackendService.connectionOwnership` instead — the live
+        /// value knows whether this launch adopted somebody else's engine.
         static func resolve(
             _ strategy: EngineConfig.EngineProvisioningStrategy
         ) -> EngineOwnership {
-            if strategy.spawnsBundledEngine { return .appManaged }
-            if strategy.connectsToRemoteHost { return .remote }
-            return .externalLocal
+            resolve(
+                strategy: strategy,
+                transportMode: EngineConfig.transportMode(for: strategy),
+                portResolution: nil
+            )
         }
 
         /// The live ownership for this build/launch. Impure boundary around

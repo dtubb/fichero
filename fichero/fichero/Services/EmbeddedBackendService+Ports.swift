@@ -24,7 +24,7 @@ extension EmbeddedBackendService {
     /// engine reached via UDS/in-process is this app's local development engine and
     /// must die with the app; ordinary HTTPS Debug / remote / user-approved port
     /// adoption remains external and is left running.
-    static func engineOwnership(
+    nonisolated static func engineOwnership(
         strategy: EngineConfig.EngineProvisioningStrategy,
         transportMode: TransportMode,
         portResolution: PortResolution?
