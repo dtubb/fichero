@@ -974,6 +974,55 @@ def _same_structured_claim(a: KnowledgeClaim, b: KnowledgeClaim) -> bool:
     return SequenceMatcher(None, a.text, b.text).ratio() >= 0.92
 
 
+def claim_identity_snapshot(claim: KnowledgeClaim) -> dict:
+    """The fields dedup identifies a claim by, as a plain dict.
+
+    Taken before a person edits a claim so the reading they corrected away
+    from stays comparable against a later extraction (#4499). Plain JSON so it
+    round-trips through ``metadata`` untouched.
+    """
+    return {
+        "text": claim.text,
+        "entity_ids": sorted(claim.entity_ids or []),
+        "svo_subject": claim.svo_subject or claim.subject_canonical,
+        "svo_verb": claim.svo_verb or claim.predicate_canonical or claim.predicate_verb,
+        "svo_object": claim.svo_object or claim.object_phrase,
+    }
+
+
+def _matches_claim_identity(
+    identity: dict,
+    *,
+    entity_ids: set[str],
+    text: str,
+    svo_subject: str | None,
+    svo_verb: str | None,
+    svo_object: str | None,
+) -> bool:
+    """Return True when an incoming save duplicates the reading in ``identity``.
+
+    One comparison, shared by live-row dedup and the superseded-reading guard:
+    two rules for "is this the same claim?" would eventually disagree, and the
+    disagreement would show up as exactly the duplicate this guard exists to
+    prevent.
+    """
+    if set(identity.get("entity_ids") or []) != entity_ids:
+        return False
+
+    incoming_key = _normalized_claim_svo_key(svo_subject, svo_verb, svo_object)
+    prior_key = _normalized_claim_svo_key(
+        identity.get("svo_subject"),
+        identity.get("svo_verb"),
+        identity.get("svo_object"),
+    )
+    if incoming_key is not None and prior_key is not None:
+        return incoming_key == prior_key
+
+    from difflib import SequenceMatcher
+
+    return SequenceMatcher(None, identity.get("text") or "", text).ratio() >= 0.9
+
+
 def _same_claim_identity(
     prior: KnowledgeClaim,
     *,
@@ -984,21 +1033,141 @@ def _same_claim_identity(
     svo_object: str | None,
 ) -> bool:
     """Return True when an incoming save would duplicate ``prior``."""
-    if set(prior.entity_ids) != entity_ids:
+    return _matches_claim_identity(
+        claim_identity_snapshot(prior),
+        entity_ids=entity_ids,
+        text=text,
+        svo_subject=svo_subject,
+        svo_verb=svo_verb,
+        svo_object=svo_object,
+    )
+
+
+def _same_assertion_slot(
+    identity: dict,
+    *,
+    entity_ids: set[str],
+    svo_subject: str | None,
+    svo_verb: str | None,
+    svo_object: str | None,
+) -> bool:
+    """True when two readings answer the same question with different answers.
+
+    Same entities, same subject, same verb — a different object. That is a
+    genuine disagreement about one span ("firmado Ocampo" vs "firmado
+    Osorio"), as distinct from an unrelated claim that happens to sit on the
+    same page. Kept narrow on purpose: a wider rule would swallow new claims
+    the extractor is right to add.
+    """
+    if set(identity.get("entity_ids") or []) != entity_ids:
         return False
 
-    incoming_key = _normalized_claim_svo_key(svo_subject, svo_verb, svo_object)
-    prior_key = _normalized_claim_svo_key(
-        prior.svo_subject or prior.subject_canonical,
-        prior.svo_verb or prior.predicate_canonical or prior.predicate_verb,
-        prior.svo_object or prior.object_phrase,
+    prior_subject = _normalized_match_key(identity.get("svo_subject") or "")
+    prior_verb = _normalized_match_key(identity.get("svo_verb") or "")
+    prior_object = _normalized_match_key(identity.get("svo_object") or "")
+    incoming_subject = _normalized_match_key(svo_subject or "")
+    incoming_verb = _normalized_match_key(svo_verb or "")
+    incoming_object = _normalized_match_key(svo_object or "")
+
+    if not all((prior_subject, prior_verb, prior_object)):
+        return False
+    if not all((incoming_subject, incoming_verb, incoming_object)):
+        return False
+
+    return (
+        prior_subject == incoming_subject
+        and prior_verb == incoming_verb
+        and prior_object != incoming_object
     )
-    if incoming_key is not None and prior_key is not None:
-        return incoming_key == prior_key
 
-    from difflib import SequenceMatcher
 
-    return SequenceMatcher(None, prior.text, text).ratio() >= 0.9
+def _corrected_claim_for_incoming(
+    db: Database,
+    *,
+    source_document_id: str,
+    source_page_label: Optional[str],
+    entity_ids: set[str],
+    text: str,
+    svo_subject: Optional[str],
+    svo_verb: Optional[str],
+    svo_object: Optional[str],
+) -> tuple[KnowledgeClaim, str] | None:
+    """Find the corrected claim an incoming extraction is really about (#4499).
+
+    ``save_claim``'s ordinary dedup keys on the row's *current* text and SVO.
+    The moment a person edits a claim, that key changes — so a re-extraction
+    reproducing the pre-edit reading matches nothing, is filed as a new claim,
+    and the correction ends up stored alongside the thing it corrected. The
+    archive then asserts both readings of one span and records nothing about
+    which one the historian rejected.
+
+    So the comparison is made against the readings she corrected *away* from
+    as well as the one the row now holds (:func:`superseded_identities`,
+    written by the claim-patch route). Returns the claim plus one of:
+
+    - ``"agrees"`` — the re-run reproduces her edit. Nothing to add; any
+      standing disagreement no longer holds and is cleared.
+    - ``"superseded"`` — the re-run reproduces a reading she rejected. Not
+      re-added. This is not news: it is the same machine reading she already
+      overruled once.
+    - ``"conflict"`` — the re-run offers a *third* answer for the same span.
+      Her value stands, the candidate is recorded beside it (#4415's shape) so
+      the disagreement is surfaced rather than resolved behind her back.
+
+    Deliberately not scoped by provider/model: a person's correction outranks
+    every extractor, not merely the one that produced the row. Deliberately
+    limited to rows carrying a superseded reading — i.e. rows actually edited
+    — so this cannot suppress claims the extractor is right to add.
+    """
+    from fichero_server.workflows.curation_guard import (
+        read_curation,
+        superseded_identities,
+    )
+
+    candidates: list[tuple[KnowledgeClaim, list[dict]]] = []
+    for prior in db.query(KnowledgeClaim, source_document_id=source_document_id):
+        if (
+            source_page_label
+            and prior.source_page_label
+            and prior.source_page_label != source_page_label
+        ):
+            continue
+        history = superseded_identities(prior)
+        if not history or not read_curation(prior).is_protected:
+            continue
+        candidates.append((prior, history))
+
+    if not candidates:
+        return None
+
+    identity_kwargs = {
+        "entity_ids": entity_ids,
+        "svo_subject": svo_subject,
+        "svo_verb": svo_verb,
+        "svo_object": svo_object,
+    }
+
+    # Agreement and rejected-reading matches are both exact-identity answers,
+    # so they are settled before any disagreement is declared: a row that both
+    # matches one reading and differs on another is a match, not a conflict.
+    for prior, _history in candidates:
+        if _same_claim_identity(prior, text=text, **identity_kwargs):
+            return prior, "agrees"
+
+    for prior, history in candidates:
+        for identity in history:
+            if _matches_claim_identity(identity, text=text, **identity_kwargs):
+                return prior, "superseded"
+
+    for prior, history in candidates:
+        current = claim_identity_snapshot(prior)
+        if any(
+            _same_assertion_slot(identity, **identity_kwargs)
+            for identity in (current, *history)
+        ):
+            return prior, "conflict"
+
+    return None
 
 
 def _find_cross_source_canonical_claim(
@@ -1804,9 +1973,59 @@ def save_claim(
                 svo_verb=incoming_svo_verb or sv,
                 svo_object=incoming_svo_object,
             ):
+                # The extractor reproduced this row's current value, so any
+                # disagreement recorded against it on an earlier run has been
+                # abandoned and must not haunt the row (#4499).
+                from fichero_server.workflows.curation_guard import clear_conflict
+
+                clear_conflict(prior)
                 prior.mention_count += 1
                 db.save(prior)
                 return prior.id
+
+    # A claim a person has corrected is not re-derivable from its current
+    # text (#4499): the edit changed the very key dedup matches on. Compare
+    # against what she corrected away from before writing anything new.
+    if source_document_id:
+        corrected = _corrected_claim_for_incoming(
+            db,
+            source_document_id=source_document_id,
+            source_page_label=source_page_label,
+            entity_ids=entity_ids_set,
+            text=text,
+            svo_subject=incoming_svo_subject,
+            svo_verb=incoming_svo_verb or sv,
+            svo_object=incoming_svo_object,
+        )
+        if corrected is not None:
+            from fichero_server.workflows.curation_guard import (
+                clear_conflict,
+                record_conflict,
+            )
+
+            prior, outcome = corrected
+            if outcome == "conflict":
+                record_conflict(
+                    prior,
+                    proposal={
+                        "text": text,
+                        "svo_subject": incoming_svo_subject,
+                        "svo_verb": incoming_svo_verb or sv,
+                        "svo_object": incoming_svo_object,
+                        "provider": provider,
+                        "model": model,
+                    },
+                    reason="re-extraction disagrees with an edited claim",
+                )
+            else:
+                if outcome == "agrees":
+                    # The extractor now produces her value, so a disagreement
+                    # recorded earlier no longer holds. A rejected reading
+                    # turning up again settles nothing and clears nothing.
+                    clear_conflict(prior)
+                prior.mention_count += 1
+            db.save(prior)
+            return prior.id
 
     suppression_action = _claim_suppression_action(
         db,

@@ -15,6 +15,13 @@ this project keeps hitting:
   in agreement with the row.
 - **The stage still RUNS; it may not overwrite.** An improved extractor is
   still allowed to compute and to *offer* a better answer.
+- **What was corrected away from is remembered too** (#4499). A stamp says a
+  person asserted the row; it cannot say what they rejected, and a claim's
+  dedup key is its text and SVO — the very thing an edit changes. So the
+  rejected readings are kept on the row (``superseded``) and an extraction is
+  matched against those as well as the current value. Otherwise a re-run
+  reproducing the pre-edit reading matches nothing, is filed as a new claim,
+  and the archive asserts both the correction and the thing it corrected.
 - **Disagreement is recorded, never silently resolved.** Neither the user's
   value nor the new candidate is discarded: the candidate lands in
   ``extraction_conflict`` and is surfaced in the run summary. A disagreement
@@ -47,6 +54,7 @@ from fichero_server.core.timeutil import utc_now
 # Key under `metadata` on the row the record governs. One mechanism.
 CURATION_KEY = "curation"
 CONFLICT_KEY = "extraction_conflict"
+SUPERSEDED_KEY = "superseded"
 
 
 class CurationSource(str, Enum):
@@ -69,6 +77,11 @@ class CurationSource(str, Enum):
     destroys curation. Callers resolve ``unknown`` against the audit tables
     (:func:`resolve_curation`) rather than defaulting it either way.
     """
+
+    @property
+    def is_curated(self) -> bool:
+        """True when a workflow tool may not overwrite a value from here."""
+        return self in PROTECTED_SOURCES
 
 
 #: Sources a workflow tool may not overwrite. ``unknown`` is in this set on
@@ -243,11 +256,15 @@ def stamp(
         "asserted_at": utc_now().isoformat(),
         "basis": basis or "stamped",
     }
-    # Preserve an outstanding conflict: stamping provenance is not the same
-    # act as resolving a disagreement, and dropping it here would silently
-    # discard the extractor's candidate.
-    if isinstance(existing, dict) and CONFLICT_KEY in existing:
-        marker[CONFLICT_KEY] = existing[CONFLICT_KEY]
+    # Preserve an outstanding conflict and the readings already corrected
+    # away from: stamping provenance is not the same act as resolving a
+    # disagreement or un-rejecting a reading. Dropping either here would
+    # silently discard the extractor's candidate, or let a second edit erase
+    # the first edit's protection — a guard that decays after one use.
+    if isinstance(existing, dict):
+        for carried in (CONFLICT_KEY, SUPERSEDED_KEY):
+            if carried in existing:
+                marker[carried] = existing[carried]
 
     if isinstance(existing, dict):
         # `asserted_at` alone must not count as a change, or every run rewrites
@@ -304,6 +321,52 @@ def clear_conflict(row: Any) -> bool:
     metadata[CURATION_KEY] = marker
     row.metadata = metadata
     return True
+
+
+def record_superseded(row: Any, *, identity: dict) -> bool:
+    """Remember the value a person corrected away from. True if changed.
+
+    A stamp says "a person asserted this row"; it does not say *what they
+    rejected*. Without that, a re-extraction that reproduces the pre-edit
+    reading is unrecognisable — its text no longer matches the row it
+    corrected, so ordinary dedup files it as a new claim and the archive ends
+    up asserting both the correction and the thing corrected (#4499).
+
+    The rejected readings accumulate on the row they govern, same as the
+    stamp: a second correction adds a second entry, so a guard that worked
+    once keeps working after the third re-run.
+    """
+    if not identity:
+        return False
+
+    metadata = _next_metadata(row)
+    existing = metadata.get(CURATION_KEY)
+    marker = dict(existing) if isinstance(existing, dict) else {"source": CurationSource.unknown.value}
+
+    prior = marker.get(SUPERSEDED_KEY)
+    history = [entry for entry in prior if isinstance(entry, dict)] if isinstance(prior, list) else []
+    if any(entry == identity for entry in history):
+        # Already recorded — re-recording would churn the row on every save.
+        return False
+
+    marker[SUPERSEDED_KEY] = [*history, identity]
+    metadata[CURATION_KEY] = marker
+    row.metadata = metadata
+    return True
+
+
+def superseded_identities(row: Any) -> list[dict]:
+    """Readings a person has corrected away from on this row, oldest first."""
+    metadata = getattr(row, "metadata", None)
+    if not isinstance(metadata, dict):
+        return []
+    marker = metadata.get(CURATION_KEY)
+    if not isinstance(marker, dict):
+        return []
+    entries = marker.get(SUPERSEDED_KEY)
+    if not isinstance(entries, list):
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
 
 
 def has_conflict(row: Any) -> bool:
