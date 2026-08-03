@@ -222,3 +222,17 @@ on its own. That is your call to make, not one to make for you overnight.
 **Cost of the deletion:** the first Xcode build Tuesday is a cold build, so
 budget 30-40 minutes rather than the usual few. This was the trade: a gate that
 can actually start, against one slow build.
+
+**Update, 02:40.** I also deleted ~27 GB of stale Xcode iOS DeviceSupport (five
+OS versions your iPhone no longer runs) and 4 GB of pip cache. Kept the current
+iPhone build and the iPad one, since iPad testing is live work (#4472).
+
+**One consequence:** the first time you connect an iPhone running an OS other
+than 26.6 (23G5057c), Xcode re-extracts its symbols before the device is usable.
+That is automatic and takes a few minutes. Nothing is broken.
+
+Free space did not move when I deleted it — 19 GB before, 19 GB after — because
+all 16 local snapshots still reference those blocks. The reclaim is real but
+deferred. That is the same effect as the DerivedData note above, now measured
+twice, so treat "deleting things does not free space today" as expected on this
+machine rather than a symptom.
