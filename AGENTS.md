@@ -370,7 +370,8 @@ either**. If a client needs logic, the logic belongs in the engine.
 
 - **Route tiers.** `FICHERO_FEATURE_TIER` (`release` | `beta` | `alpha` | `dev`,
   default `release`) in `api/main.py`, table in `api/feature_tiers_generated.py`.
-  **Twenty route groups are tier-gated**, and a default (release) engine registers
+  **21 route groups are tier-gated** (checked by `scripts/check_agents_route_tier_claim.py`),
+  and a default (release) engine registers
   only `/api/ingest` and `/api/search` of them — `workflows`, `workflow-execution`,
   `kg`, `claims`, `activity`, `providers`, `models`, `chat`, `research`, `mcp` and
   the rest need `beta`+ (`iiif`/`schedules`/`triggers` need `dev`,
