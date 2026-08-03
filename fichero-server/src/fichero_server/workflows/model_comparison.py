@@ -411,13 +411,25 @@ class ModelComparisonEngine:
         # Imported here rather than at module scope: pulls langchain_core (#3950).
         # AppleUnavailableError is caught below — an `except` clause is a global
         # lookup, so the name must be bound in this scope before the try.
-        from fichero_server.llm import AppleUnavailableError, resolve_model_alias  # noqa: PLC0415
+        from fichero_server.llm import (  # noqa: PLC0415
+            AppleUnavailableError,
+            _is_local_or_builtin_provider,
+            _local_runtime_missing,
+            resolve_model_alias,
+        )
 
         try:
             return await self._invoke_model(spec, prompt, system_prompt, timeout_seconds), None
-        except AppleUnavailableError:
+        except AppleUnavailableError as exc:
             provider, model = resolve_model_alias("$large", "")
             if provider == spec.provider and model == spec.model:
+                raise
+            # #4502: this path resolves $large DIRECTLY, so it never passed
+            # through `_iter_fallback_configs` and never consulted the paid
+            # gate. A missing on-device runtime must not become a billed call
+            # here either — same rule, same predicate, so the two paths cannot
+            # drift into disagreeing about what is free.
+            if _local_runtime_missing(exc) and not _is_local_or_builtin_provider(provider):
                 raise
             fallback_spec = ModelSpec(
                 provider=provider,
