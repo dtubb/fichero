@@ -146,6 +146,16 @@ pairing code on the Mac and enter it on the phone. *Same wifi alone will not
 work.* Steps 1–6 in
 `agent-work/status/2026-08-03-pairing-verification-requirements.md`.
 
+**Silent-failure ledger: net +3 today** (246 → 249 only-log broad handlers).
+Five were added by today's work, two were removed by it. That is the honest
+summary of a day spent on exactly this: the codebase got slightly *noisier*
+about its own failures in count, while the ones that mattered — a vision fanout
+transcribing nothing, catalogue deleting corrections, MCP running on zero
+documents — were removed. Of the five new ones, three are legitimate (a
+migration matching its neighbours' convention, terminal-path bookkeeping that
+must never fail a run, and a resolver that genuinely falls back to shipped
+presets) and two are covered by a different validator. None needed fixing.
+
 **The four Box libraries** — you are checking those yourself.
 
 **The second full engine suite** was still running when this was written. The

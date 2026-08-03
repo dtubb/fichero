@@ -57,6 +57,7 @@ db/migrations/schema.py::migrate_activity_tables 1
 db/migrations/schema.py::migrate_canvas_layout_table 1
 db/migrations/schema.py::migrate_catalogue_chunk_artifact_type 1
 db/migrations/schema.py::migrate_checkpoint_tables 1
+db/migrations/schema.py::migrate_document_language_fields 1
 db/migrations/schema.py::migrate_document_table 1
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_known_libraries_table 1
@@ -76,6 +77,7 @@ errors.py::log_and_recover.decorator.wrapper 1
 execution/batch.py::BatchManager.execute_batch.execute_item._settle_item_documents 1
 execution/chaining.py::ChainExecutor._emit_event 1
 execution/runner.py::_run_workflow_in_background 4
+execution/runner.py::_run_workflow_in_background._close_in_flight_steps 1
 execution/runner.py::_run_workflow_in_background._finalize_documents 2
 importers/ingest.py::_create_pdf_page_children 3
 importers/ingest.py::_extract_file_metadata 1
@@ -143,6 +145,7 @@ workflows/executor.py::WorkflowExecutor._emit_event 1
 workflows/registry.py::enrich_node_with_ports 1
 workflows/runtime.py::apply_default_provider_model 1
 workflows/subworkflow.py::resolve_sub_workflow_ref 2
+workflows/subworkflow.py::sub_workflow_resolver_for_db.resolve 1
 workflows/subworkflow.py::validate_sub_workflow_references.refs_for 1
 workflows/task_workers.py::TaskWorkersMixin._do_reindex 1
 workflows/task_workers.py::TaskWorkersMixin._do_repair 1
@@ -157,12 +160,12 @@ workflows/tools/_workflow_change_emit.py::emit_workflow_document_changes_for_db 
 workflows/tools/_workflow_change_emit.py::emit_workflow_kg_changes 1
 workflows/tools/_workflow_change_emit.py::emit_workflow_kg_changes_for_db 1
 workflows/tools/catalogue.py::_build_data_from_claims 1
-workflows/tools/catalogue.py::catalogue 4
+workflows/tools/catalogue.py::catalogue 3
 workflows/tools/classify_script.py::classify_script 1
 workflows/tools/cleanup.py::_apply_groups 2
 workflows/tools/cleanup.py::_descendant_doc_ids 1
 workflows/tools/cleanup.py::_live_entities 1
-workflows/tools/cleanup.py::_replace_artifact 2
+workflows/tools/cleanup.py::_replace_artifact 1
 workflows/tools/extract_all.py::_persist_additional_entities 1
 workflows/tools/extract_all.py::_records_from_selected_documents.add_doc 1
 workflows/tools/extract_all.py::_run_two_stage 2
@@ -179,4 +182,6 @@ workflows/tools/vision_base.py::_propagate_to_page_children 1
 workflows/tools/vision_base.py::process_vision 1
 workflows/tools/vision_base.py::process_vision._process_file 3
 workflows/types.py::ToolDef.get_prompt 1
+workflows/validation.py::validate_workflow_llm_preflight.visit 1
+workflows/validation.py::workflow_requires_vision.visit 1
 workflows/workflow_store.py::WorkflowStore.import_all 1
