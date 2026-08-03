@@ -247,3 +247,27 @@ Why these are listed rather than closed: a landed commit proves code changed,
 not that the feature works. #3390, #702 and #570 were each closed on a real
 commit while PDF drag-drop stayed broken from other sources — which is how
 #2386 survived three fixes.
+
+## Do NOT test these on your current build — the fix is not in it
+
+`v2026.08.02` is what you have. These three landed after the tag, so they are
+on `integration` and not in your app. Testing them now and finding them broken
+tells you nothing:
+
+- **#4377** library multi-select (shift-click range, ⌘-click toggle, arrow+shift)
+- **#4458** content-pane drop scoped to detailColumn
+- **#4459** sidebar drop reports a loader failure instead of vanishing
+
+Check them on a build cut from `integration`, or after the next release.
+
+## Needs your decision, not a click
+
+- **#3364 double-click.** Commented on the issue. It asks that double-click
+  focus the current window; `7d2d2fc4c` binds it to open-in-tab instead — and
+  cites #3364 as the *precedent* for the behaviour #3364 was filed to remove.
+  Open-in-tab has tests and has shipped. Which do you want?
+- **#4348 artifact vanished after a transcribe run.** Genuinely unanswerable
+  without your machine: it needs the Dev Local library and the specific
+  2026-07-30 run to tell "gone" from "unlisted". Re-running a transcribe to
+  reproduce is paid, so nobody did. Three of the four store sites were read and
+  are clean for stated reasons.
