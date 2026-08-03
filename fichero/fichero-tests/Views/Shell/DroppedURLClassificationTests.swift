@@ -27,9 +27,11 @@ import XCTest
 /// not the standard (#4473). The untested shapes are named in the commit.
 final class DroppedURLClassificationTests: XCTestCase {
 
-    private func classify(_ urls: [URL]) -> (
-        libraryURLs: [URL], importURLs: [URL], remoteURLs: [URL]
-    ) {
+    /// Returns the named type rather than the tuple it replaced: the members
+    /// are spelled the same, so every assertion below reads unchanged, and a
+    /// third bucket added later cannot be silently dropped by a tuple that
+    /// still lists two.
+    private func classify(_ urls: [URL]) -> DroppedURLs {
         DroppedURLs.classify(urls)
     }
 
