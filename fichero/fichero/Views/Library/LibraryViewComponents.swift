@@ -164,7 +164,7 @@ struct MailStyleRow: View {
                             .lineLimit(2, reservesSpace: true)
                             .truncationMode(.middle)
                             // Middle-truncated titles reveal in full on hover.
-                            .help(document.pageThumbnailLabel ?? document.name)
+                            .help(DocumentTitle.displayName(for: document))
                     }
 
                     if document.isLinked {

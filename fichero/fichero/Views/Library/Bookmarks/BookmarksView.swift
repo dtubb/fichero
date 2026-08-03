@@ -28,7 +28,7 @@ struct BookmarksView: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(isWorking || trimmedName.isEmpty)
             }
-            .help("Bookmark “\(document.name)”")
+            .help("Bookmark “\(DocumentTitle.displayName(for: document))”")
 
             Divider()
 

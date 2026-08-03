@@ -81,7 +81,9 @@ private struct PageImageGridCell: View {
             // behavior without fighting it (this grid isn't inside a List).
             .onTapGesture(count: 2, perform: onOpen)
             .onTapGesture(perform: onSelect)
-            .accessibilityLabel(page.name)
+            // #4416: a page's raw `name` is the upload temp filename — VoiceOver
+            // would read `fichero_upload_c84fgjke.pdf` for every page in the grid.
+            .accessibilityLabel(DocumentTitle.displayName(for: page))
             .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

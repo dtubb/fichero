@@ -183,7 +183,11 @@ extension LibraryView {
                     onCancel: cancelRename
                 )
             } else {
-                Text(doc.pageThumbnailLabel ?? doc.name)
+                // #4416: `pageThumbnailLabel ?? doc.name` reads like a defence
+                // and is not one — the label is nil exactly when a page has no
+                // sequence, so it fell through to the storage filename in the
+                // one case it was supposed to cover.
+                Text(DocumentTitle.displayName(for: doc))
                     .font(.body)
                     .foregroundStyle(
                         isActiveColumn && selection.contains(doc.id)
@@ -192,7 +196,7 @@ extension LibraryView {
                     )
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(doc.pageThumbnailLabel ?? doc.name)
+                    .help(DocumentTitle.displayName(for: doc))
             }
             Spacer(minLength: 0)
             if doc.docType == .folder {
@@ -204,7 +208,11 @@ extension LibraryView {
         .padding(.vertical, 3)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(doc.docType == .folder ? "\(doc.name), folder" : doc.name)
+        .accessibilityLabel(
+            doc.docType == .folder
+                ? "\(DocumentTitle.displayName(for: doc)), folder"
+                : DocumentTitle.displayName(for: doc)
+        )
         .accessibilityAddTraits(selection.contains(doc.id) ? .isSelected : [])
         .accessibilityIdentifier("libraryColumnRow.\(doc.id)")
     }

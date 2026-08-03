@@ -71,7 +71,9 @@ struct DocumentDetailWindow: View {
         // timing instead of a jump-cut when the followed document changes.
         .background(Color(platformColor: .windowBackgroundColor))
         .animation(FrameAnimation.crossfade, value: shownDocument?.id)
-        .navigationTitle(shownDocument?.name ?? "Document")
+        // #4416: the window title is a render like any other — the raw `name`
+        // of a page is the engine's upload temp filename.
+        .navigationTitle(shownDocument.map { DocumentTitle.displayName(for: $0) } ?? "Document")
         .navigationSubtitle(activeLibrary?.displayName ?? "")
         .toolbar {
             ToolbarItem(placement: .automatic) {

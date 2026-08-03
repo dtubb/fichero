@@ -99,7 +99,9 @@ extension ContentView {
                 .navigationDestination(item: $pushedReaderDocument) { doc in
                     previewView
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .navigationTitle(doc.name)
+                        // The pushed reader is the "reader tab" #4416 named:
+                        // `doc.name` for a page is the upload temp filename.
+                        .navigationTitle(DocumentTitle.displayName(for: doc))
                         #if !os(macOS)
                         // A pushed reader is a detail screen: keep the title bar
                         // compact (inline) rather than the default large title.

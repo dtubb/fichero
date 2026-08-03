@@ -135,7 +135,7 @@ struct DocumentThumbnailView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
                     // Middle-truncated labels reveal in full on hover (#4160).
-                    .help(document.pageThumbnailLabel ?? document.name)
+                    .help(DocumentTitle.displayName(for: document))
             }
         }
         .frame(width: 100 * scale)

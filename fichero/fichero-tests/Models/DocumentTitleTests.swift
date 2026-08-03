@@ -204,16 +204,112 @@ struct DocumentTitleTests {
             .joined(separator: "\n")
     }
 
-    /// The sweep, as a guardrail: no view renders a `Document`'s raw `name`.
+    // MARK: - The sweep, as a guardrail
+
+    /// Display APIs — anything whose argument reaches a human, by eye or by
+    /// VoiceOver. A window title and a tooltip are renders as surely as a
+    /// `Text` is; the first sweep looked only for `Text(…)` and so let a
+    /// `navigationTitle` and four `help`/`accessibilityLabel` calls through.
+    static let displayAPIs = [
+        "Text(", "Label(", "LabeledContent(",
+        ".help(", ".navigationTitle(", ".navigationSubtitle(",
+        ".accessibilityLabel(", ".accessibilityValue(",
+        ".confirmationDialog(", ".alert(", ".searchable("
+    ]
+
+    /// Spellings this codebase uses for a `Document`-typed binding. Kept to
+    /// known names on purpose: a bare `.name` would flag `provider.name` and
+    /// `workflow.name`, which are real names their owners chose.
+    static let documentBindings = [
+        "document", "doc", "page", "parent", "leaf", "child",
+        "shownDocument", "selectedDocument", "pushedReaderDocument"
+    ]
+
+    /// Whether `line` renders a `Document`'s raw `name` through a display API.
     ///
-    /// #4416 was reported on the island, but the same `Text(document.name)`
-    /// appeared in the reader, the inspector header, the thumbnail grids, the
-    /// editor header, chat scope and four pickers — twelve surfaces that would
-    /// each show `fichero_upload_…pdf` for a page. Fixing the reported one and
-    /// leaving eleven is how a defect class survives being fixed.
+    /// Deliberately line-scoped: the display call and its argument are written
+    /// together, and matching per line is what lets the failure name a spot a
+    /// human can go fix.
+    static func rendersARawName(_ line: String) -> Bool {
+        // Renaming EDITS the real name — the one place the raw value is right.
+        guard !line.contains("editingName") else { return false }
+        guard Self.displayAPIs.contains(where: line.contains) else { return false }
+
+        return Self.documentBindings.contains { binding in
+            Self.mentions("\(binding).name", in: line)
+                || Self.mentions("\(binding)?.name", in: line)
+        }
+    }
+
+    /// Substring match on whole-identifier boundaries, so `document.name`
+    /// does not also match `subdocument.name` or `document.nameComponents`.
+    private static func mentions(_ needle: String, in line: String) -> Bool {
+        var searchStart = line.startIndex
+        while let found = line.range(of: needle, range: searchStart..<line.endIndex) {
+            let beforeOK = found.lowerBound == line.startIndex || {
+                let before = line[line.index(before: found.lowerBound)]
+                return !before.isLetter && !before.isNumber && before != "." && before != "_"
+            }()
+            let afterOK = found.upperBound == line.endIndex || {
+                let after = line[found.upperBound]
+                return !after.isLetter && !after.isNumber && after != "_"
+            }()
+            if beforeOK, afterOK { return true }
+            searchStart = found.upperBound
+        }
+        return false
+    }
+
+    /// The matcher fires. A guardrail that cannot fail is not a guardrail, and
+    /// this one is a heuristic over source text — the thing most likely to rot
+    /// into vacuous truth. Every shape that actually escaped the first sweep is
+    /// listed here, so a future narrowing of the matcher fails HERE, loudly,
+    /// rather than going quiet over the whole app.
+    @Test("the raw-name matcher catches every shape that escaped the first sweep")
+    func theMatcherFires() {
+        let offenders = [
+            "Text(document.name)",
+            "Text(doc.name)",
+            "Text(doc.pageThumbnailLabel ?? doc.name)",
+            ".navigationTitle(doc.name)",
+            ".navigationTitle(shownDocument?.name ?? \"Document\")",
+            ".help(document.pageThumbnailLabel ?? document.name)",
+            ".help(\"Bookmark “\\(document.name)”\")",
+            ".accessibilityLabel(page.name)",
+            ".accessibilityLabel(doc.docType == .folder ? \"\\(doc.name), folder\" : doc.name)"
+        ]
+        for line in offenders {
+            #expect(Self.rendersARawName(line), Comment(rawValue: "missed: \(line)"))
+        }
+
+        let allowed = [
+            "Text(DocumentTitle.displayName(for: document))",
+            ".navigationTitle(DocumentTitle.displayName(for: doc))",
+            "TextField(\"Name\", text: $editingName)",
+            "Text(provider.name)",                     // a provider's own name
+            "Text(workflow.name)",                     // a workflow's own name
+            "let name = document.name",                // not a render
+            "Text(subdocument.nameComponents.first)"   // not `document.name`
+        ]
+        for line in allowed {
+            #expect(!Self.rendersARawName(line), Comment(rawValue: "false positive: \(line)"))
+        }
+    }
+
+    /// No view renders a `Document`'s raw `name`.
     ///
-    /// The rename field is the deliberate exception and is not a render: it
-    /// binds `$editingName`, because renaming edits the real name.
+    /// #4416 was reported on the island. The same read appeared in the reader,
+    /// the inspector header, three grids, the editor header, chat scope, four
+    /// pickers, the focused-document window, the pushed compact reader, the
+    /// bookmark tooltip and the PDF page grid's VoiceOver label. Fixing the
+    /// reported one and leaving the rest is how a defect class survives being
+    /// fixed — so this reads the directory rather than a fixture list, and a
+    /// view written next week is covered the day it exists.
+    ///
+    /// Two of the escapes were `pageThumbnailLabel ?? name`, which reads as a
+    /// defence and is not one: the label is `nil` exactly when a page has no
+    /// sequence — the case with no page number to show — so it fell through to
+    /// the storage name precisely when it mattered.
     @Test("no view renders a document's raw name")
     func noViewRendersARawDocumentName() throws {
         let root = URL(fileURLWithPath: #filePath)
@@ -229,12 +325,13 @@ struct DocumentTitleTests {
 
         var offenders: [String] = []
         for file in files {
-            let source = Self.codeOnly(try String(contentsOf: file, encoding: .utf8))
-            for raw in ["Text(document.name)", "Text(doc.name)"] where source.contains(raw) {
-                offenders.append("\(file.lastPathComponent): \(raw)")
+            let lines = Self.codeOnly(try String(contentsOf: file, encoding: .utf8))
+                .split(separator: "\n", omittingEmptySubsequences: false)
+            for (index, line) in lines.enumerated() where Self.rendersARawName(String(line)) {
+                offenders.append("\(file.lastPathComponent):\(index + 1) \(line.trimmingCharacters(in: .whitespaces))")
             }
         }
-        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: ", ")))
+        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: "\n")))
     }
 
     /// "One function builds a document title, and every surface uses it."
