@@ -62411,6 +62411,11 @@
             "type": "boolean",
             "title": "Accepts Model Override",
             "default": true
+          },
+          "requires_vision": {
+            "type": "boolean",
+            "title": "Requires Vision",
+            "default": false
           }
         },
         "type": "object",
