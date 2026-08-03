@@ -56,9 +56,14 @@ struct SidebarDropFeedbackTests {
 
     @Test("alias naming follows the Finder same-folder rule")
     func aliasNamingRule() {
-        #expect(sidebarAliasName(sourceName: "Paper", sourceParentId: "f1", targetParentId: "f1") == "Paper alias")
-        #expect(sidebarAliasName(sourceName: "Paper", sourceParentId: "f1", targetParentId: "f2") == "Paper")
-        #expect(sidebarAliasName(sourceName: "Loose", sourceParentId: nil, targetParentId: nil) == "Loose alias")
+        // Takes a Document, not a String: #116 removed the String slot precisely
+        // so no caller could pass a raw storage filename. The name now comes from
+        // the same DocumentTitle ladder every display surface uses.
+        let inF1 = Document(id: "d1", docType: .file, name: "Paper", parentId: "f1")
+        let loose = Document(id: "d2", docType: .file, name: "Loose")
+        #expect(sidebarAliasName(source: inF1, targetParentId: "f1") == "Paper alias")
+        #expect(sidebarAliasName(source: inF1, targetParentId: "f2") == "Paper")
+        #expect(sidebarAliasName(source: loose, targetParentId: nil) == "Loose alias")
     }
 
     @Test("insertion drops route ⌥/⌘⌥ through the positioned executor")
