@@ -345,3 +345,40 @@ class TestTheOneLegacyTestedPresetIsConfigurationDependent:
             "if HTR has become configuration-independent, this recorded gap is "
             "closed — delete this test and say so"
         )
+
+
+class TestDelegationIsNotSilentlyFree:
+    """A preset whose cost lives in a child (#4503).
+
+    "Transcribe Spanish Script (19th-20th C.)" runs `sub_workflow` and nothing
+    else that resolves a provider. Read naively it has zero model nodes, so the
+    first version of this preview called it free under any configuration — a
+    confident wrong answer about a preset that delegates its entire cost.
+
+    That is this module's own defect class reproduced one level down: the
+    answer is real, and it is somewhere the reader is not looking. Until
+    delegation is followed, the honest answer is UNKNOWN, and unknown is not
+    free.
+    """
+
+    def test_a_delegating_preset_is_not_reported_free(self, on_device_db):
+        from fichero_server.workflows.default_workflows import _load_preset_files
+
+        preset = next(
+            p for p in _load_preset_files()
+            if p["name"] == "Transcribe Spanish Script (19th-20th C.)"
+        )
+        preview = preview_preset_providers(preset)
+        assert not preview.is_free, (
+            "a preset that delegates its work was reported free — its cost is "
+            "in the child workflow, which this preview does not follow"
+        )
+        assert preview.unresolved_nodes
+        assert "delegat" in (preview.unresolved_nodes[0].error or "")
+
+    def test_a_sub_workflow_node_says_why_it_is_unknown(self, on_device_db):
+        """An unexplained 'unresolved' would just move the confusion."""
+        preview = preview_workflow_providers(_wf([_node("child", "sub_workflow")]))
+        node = preview.nodes[0]
+        assert node.source is ResolutionSource.unresolved
+        assert "does not follow delegation" in (node.error or "")

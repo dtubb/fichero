@@ -227,6 +227,23 @@ def resolve_node_provider(
     node_id = getattr(node_def, "id", "") or ""
     tool_def = get_tool_def(tool)
 
+    # Delegation: the node calls no model ITSELF, but the workflow it delegates
+    # to may call many. Reporting that as "no model" would produce a confident
+    # "free" for a preset whose entire cost lives in a child — the same defect
+    # this module exists to stop, one level down. Reported as unresolved, which
+    # is not free, because unknown is the honest answer until the child is
+    # followed too.
+    if tool == "sub_workflow":
+        return NodeProviderResolution(
+            node_id=node_id, tool=tool, uses_model=True, tier_requested=None,
+            provider=None, model=None, source=ResolutionSource.unresolved,
+            billable=None,
+            error=(
+                "delegates to a sub-workflow; this preview does not follow "
+                "delegation, so the cost of the child is unknown from here"
+            ),
+        )
+
     # A node that calls no model is free under EVERY configuration — the only
     # thing in this system that can honestly be called free from the file alone.
     if not (tool_def and getattr(tool_def, "uses_llm", False)):
