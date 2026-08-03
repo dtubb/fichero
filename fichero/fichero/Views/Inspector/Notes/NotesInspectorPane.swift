@@ -41,7 +41,14 @@ struct NotesInspectorPane: View {
                     },
                     onLoadLinks: { noteId in
                         try? await noteStore.links(for: noteId)
-                    }
+                    },
+                    // #4502: following a link is just selecting that note in
+                    // the list beside it — the detail pane follows the same
+                    // `focused.id` it already follows, so there is no second
+                    // navigation path to keep in step. The torn-off window
+                    // (`:154`) passes nothing and its links stay plain text,
+                    // because it has no list to select in.
+                    onOpenLink: { noteId in focused.id = noteId }
                 )
             }
             Divider()

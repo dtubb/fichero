@@ -7,27 +7,31 @@ struct DocumentInspectorMetadataTab: View {
     @State private var selectedKey: String?
 
     var body: some View {
-        List(selection: $selectedKey) {
+        // NOT a `List`, for the reason its neighbour already documents: this
+        // view is hosted inside `SourceInfoView`'s `ScrollView`, and a SwiftUI
+        // `List` collapses to zero height inside a `ScrollView` (#2107). That
+        // is why `DocumentInspectorInfoTab` was rewritten to plain stacks; this
+        // tab was the same shape and never got the treatment, so the metadata
+        // body rendered at zero height while the Info block above it looked
+        // fine (#4502).
+        //
+        // Rows are `Button`s rather than the tap gestures the Info tab used.
+        // Same progressive disclosure, but a button is focusable, reachable by
+        // keyboard, announced as a button by VoiceOver, and gives a real touch
+        // target on iPad — none of which a bare `.onTapGesture` on a stack row
+        // does.
+        VStack(alignment: .leading, spacing: 0) {
             if let path = document.path {
-                MetadataAttributeRow(
-                    name: "Path",
-                    summary: abbreviate(path),
-                    fullValue: path,
-                    isSelected: selectedKey == pathRowTag
-                )
-                .tag(pathRowTag)
+                metadataRow(tag: pathRowTag, name: "Path", value: path)
             }
 
             ForEach(filteredKeys, id: \.self) { key in
                 if let entry = document.metadata[key] {
-                    let formatted = formatMetadataValue(key: key, value: entry.value)
-                    MetadataAttributeRow(
+                    metadataRow(
+                        tag: key,
                         name: formatMetadataKey(key),
-                        summary: abbreviate(formatted),
-                        fullValue: formatted,
-                        isSelected: selectedKey == key
+                        value: formatMetadataValue(key: key, value: entry.value)
                     )
-                    .tag(key)
                 }
             }
 
@@ -38,8 +42,28 @@ struct DocumentInspectorMetadataTab: View {
                     .italic()
             }
         }
-        .listStyle(.inset)
         .onChange(of: document.id) { _, _ in selectedKey = nil }
+    }
+
+    /// One metadata row: selecting it expands the full value, selecting it
+    /// again collapses it. The toggle is deliberate — with no `List` there is
+    /// no row deselection to fall back on, and a row that could only ever open
+    /// would leave the user no way to close it.
+    @ViewBuilder
+    private func metadataRow(tag: String, name: String, value: String) -> some View {
+        Button {
+            selectedKey = (selectedKey == tag) ? nil : tag
+        } label: {
+            MetadataAttributeRow(
+                name: name,
+                summary: abbreviate(value),
+                fullValue: value,
+                isSelected: selectedKey == tag
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selectedKey == tag ? [.isSelected] : [])
     }
 
     // MARK: - Helpers

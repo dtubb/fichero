@@ -10,6 +10,15 @@ struct NoteDetailView: View {
     /// Loads a note's backlinks + forward links (#1433). Nil hides the Links
     /// section — used by the torn-off note window, which has no store scope.
     var onLoadLinks: ((String) async -> NoteLinks?)?
+    /// Selects a linked note by id (#4502). Nil leaves the links as plain text,
+    /// which is what the torn-off window needs — it has no list to select in.
+    ///
+    /// Optional rather than always-on for the reason #4421 states as a standing
+    /// rule: where something cannot work, render it as absent rather than as a
+    /// button that does nothing. Until this existed the links were ALWAYS
+    /// inert — a note's cross-references were displayed and could not be
+    /// followed, in the surface whose whole purpose is following them.
+    var onOpenLink: ((String) -> Void)?
 
     @State private var draftBody = ""
     @State private var draftId: String?
@@ -250,18 +259,46 @@ private extension NoteDetailView {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 ForEach(notes) { note in
-                    HStack(spacing: 6) {
-                        Image(systemName: "note.text")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Text(linkedNoteTitle(note))
-                            .font(.caption)
-                            .lineLimit(1)
-                        Spacer(minLength: 0)
-                    }
+                    linkRow(note)
                 }
             }
         }
+    }
+
+    /// One linked note. A `Button` when it can actually be followed, plain text
+    /// when it cannot — never a control that looks live and does nothing.
+    ///
+    /// `Button` rather than `.onTapGesture`, deliberately: the row is then
+    /// focusable, reachable by keyboard, announced as a button by VoiceOver,
+    /// and a real touch target on iPad. Several inspector rows use a bare tap
+    /// gesture on a stack and get none of that (recorded in the #4502
+    /// inventory); this is the shape they should move to.
+    @ViewBuilder
+    private func linkRow(_ note: NoteItem) -> some View {
+        let title = linkedNoteTitle(note)
+        if let onOpenLink, let id = note.id {
+            Button { onOpenLink(id) } label: {
+                linkLabel(title)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open linked note: \(title)")
+        } else {
+            linkLabel(title)
+        }
+    }
+
+    @ViewBuilder
+    private func linkLabel(_ title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "note.text")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.caption)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
     }
 
     /// A linked note's display title: its `title`, else the first line of its
