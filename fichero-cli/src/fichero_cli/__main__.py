@@ -3868,6 +3868,148 @@ def engine_restart(
     restart(port=port, workers=workers, host=host)
 
 
+# =============================================================================
+# Cost preview (#4503) — ask before you run, not after you are billed
+# =============================================================================
+
+#: AIDefaults field -> the app-database key the resolver reads. Explicit rather
+#: than derived by string munging: a silently-missed tier would resolve to the
+#: wrong layer and report the wrong price, which is the defect this command
+#: exists to prevent.
+_AI_DEFAULT_KEYS = {
+    "vision_provider": "default_vision_provider",
+    "vision_model": "default_vision_model",
+    "vision_small_provider": "default_vision_small_provider",
+    "vision_small_model": "default_vision_small_model",
+    "vision_medium_provider": "default_vision_medium_provider",
+    "vision_medium_model": "default_vision_medium_model",
+    "vision_large_provider": "default_vision_large_provider",
+    "vision_large_model": "default_vision_large_model",
+    "text_provider": "default_text_provider",
+    "text_model": "default_text_model",
+    "small_provider": "default_small_provider",
+    "small_model": "default_small_model",
+    "medium_provider": "default_medium_provider",
+    "medium_model": "default_medium_model",
+    "large_provider": "default_large_provider",
+    "large_model": "default_large_model",
+}
+
+
+def _server_defaults(client) -> dict:
+    """The SERVER's AI defaults, over HTTP.
+
+    Deliberately not this machine's app database. The server may be remote, and
+    a preview that reads local configuration would confidently describe the
+    wrong computer — the same "answer is somewhere the reader is not looking"
+    failure the preview exists to end.
+    """
+    settings = client.get_settings()
+    return {
+        key: value
+        for field, key in _AI_DEFAULT_KEYS.items()
+        if (value := getattr(settings, field, None))
+    }
+
+
+@workflow_app.command("preview-cost")
+def workflow_preview_cost(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="Workflow name or id."),
+) -> None:
+    """Show what a workflow would REALLY call, and whether it costs money.
+
+    Run this before running a workflow you have not run before. A preset names
+    a TIER; the app database picks the PROVIDER, so "is this free?" cannot be
+    answered by reading the preset — twice on 2026-08-03 that gap cost money.
+
+    Makes no model calls: it resolves configuration only.
+    """
+    from fichero_server.workflows.provider_preview import (  # noqa: PLC0415
+        preview_workflow_providers,
+        using_defaults,
+    )
+
+    def _run(client):
+        workflow_id = _resolve_workflow(client, name)
+        # `WorkflowResponse.nodes` are already NodeDef — the same shape the
+        # builder hands the resolver — so the preview describes the server's
+        # stored definition, not a local preset file that may differ from it.
+        stored = next(
+            (w for w in client.list_workflows() if w.id == workflow_id), None
+        )
+        if stored is None:
+            raise FicheroError(f"Workflow not found after resolving: {name}")
+        defaults = _server_defaults(client)
+        with using_defaults(defaults):
+            preview = preview_workflow_providers(stored)
+        return {
+            "workflow": preview.workflow_name,
+            "free": preview.is_free,
+            "would_cost_money": preview.would_cost_money,
+            "surprises": [
+                {
+                    "node": n.node_id,
+                    "tool": n.tool,
+                    "provider": n.provider,
+                    "model": n.model,
+                    "decided_by": n.source.value,
+                }
+                for n in preview.surprises
+            ],
+            "nodes": [
+                {
+                    "node": n.node_id,
+                    "tool": n.tool,
+                    "uses_model": n.uses_model,
+                    "provider": n.provider,
+                    "model": n.model,
+                    "billable": n.billable,
+                    "decided_by": n.source.value,
+                    "error": n.error,
+                }
+                for n in preview.nodes
+            ],
+        }
+
+    try:
+        with _client(ctx) as client:
+            data = _run(client)
+    except FicheroError as exc:
+        _report_fichero_error(ctx, exc)
+
+    if ctx.obj["json"]:
+        typer.echo(render(data, as_json=True))
+        return
+
+    typer.echo(f"Workflow: {data['workflow']}")
+    verdict = "FREE" if data["free"] else "COSTS MONEY"
+    typer.echo(f"Verdict:  {verdict}")
+    if data["surprises"]:
+        # Its own block, not a column: a billable node that looks free from the
+        # preset is the shape that cost money, and a column is how it hid.
+        typer.echo("")
+        typer.echo("SURPRISES — billable, and NOT visible in the workflow definition:")
+        for s in data["surprises"]:
+            typer.echo(
+                f"  ! {s['node']} ({s['tool']}) -> {s['provider']}/{s['model']}"
+                f"  [decided by: {s['decided_by']}]"
+            )
+    typer.echo("")
+    typer.echo(f"{'node':<22} {'tool':<20} {'provider':<14} {'billable':<9} decided by")
+    for n in data["nodes"]:
+        if not n["uses_model"]:
+            typer.echo(f"{n['node'][:22]:<22} {n['tool'][:20]:<20} {'-':<14} {'no model':<9} -")
+            continue
+        billable = "PAID" if n["billable"] else ("?" if n["billable"] is None else "free")
+        typer.echo(
+            f"{n['node'][:22]:<22} {n['tool'][:20]:<20} "
+            f"{(n['provider'] or '?')[:14]:<14} {billable:<9} {n['decided_by']}"
+        )
+        if n["error"]:
+            typer.echo(f"    ({n['error']})")
+
+
 def main() -> None:
     """Console entry point."""
     app()
