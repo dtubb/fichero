@@ -80,6 +80,10 @@ class WorkflowStreamService {
         inputs: [String: Any] = [:],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
+        /// What the user pointed at, declared rather than inferred (#4414).
+        /// Forwarded verbatim; see `executeAccepted` for why `inputs` still
+        /// carries the ids too.
+        selection: Components.Schemas.WorkflowSelection? = nil,
         onAccepted: ((ExecuteAcceptedResponse) -> Void)? = nil,
         onEvent: ((WorkflowStreamEvent) -> Void)? = nil,
         // #4457: `subscribe()` has always forwarded this to `startStream`;
@@ -97,7 +101,8 @@ class WorkflowStreamService {
             workflowId: workflowId,
             inputs: inputs,
             providerOverride: providerOverride,
-            modelOverride: modelOverride
+            modelOverride: modelOverride,
+            selection: selection
         )
 
         currentThreadId = acceptedResponse.threadId

@@ -111,6 +111,9 @@ extension LibraryView {
             inputs: ["selected_doc_ids": request.docIds],
             providerOverride: request.providerOverride,
             modelOverride: request.modelOverride,
+            // `selectedDocumentIdsForBatch` is the user's multi-selection, so
+            // the ids are the scope (#4414).
+            selection: WorkflowRunScope.documents(request.docIds),
             onAccepted: { acceptedResponse in
                 let acceptedThreadId = acceptedResponse.threadId
                 executionObserver.promoteExecution(

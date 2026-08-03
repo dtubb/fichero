@@ -126,7 +126,13 @@ struct ZoomableImagePreview: View {
     // OCR text-box overlay (#4309): the transcription pass's word/line boxes
     // rendered over the page image, fetched from the artifact API on demand.
     // The loader lives in OCRGeometryOverlay.swift to keep this body lean.
-    @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = false
+    /// ON by default (#4418). Apple Vision is wrong on roughly two characters
+    /// in five of this material and cannot be tuned better (#4497), so the
+    /// boxes are how a reader sees WHICH two — a page with no boxes over half
+    /// its text is a page the transcription never read. Shipping that
+    /// default-off left a switch nobody would find, which the standing rule
+    /// calls worse than absent.
+    @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     @State var ocrGeometry: OCRGeometry?
 
     @State var scale: CGFloat = 1.0
