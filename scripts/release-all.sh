@@ -262,7 +262,26 @@ echo "── Engine: rebuild current Briefcase stage ──"
 if [ "$SKIP_DMG" = false ]; then
   echo
   echo "── DMG: build + Developer ID sign ──"
-  "$ROOT_DIR/scripts/build-release-dmg.sh" --skip-backend
+  # #4491: the APP is notarized and stapled INSIDE this script, between signing
+  # and image creation, because steps 3-6 there seal the staged directory into a
+  # read-only image — a ticket added afterwards would not be inside it. Two
+  # notarization round trips per release, and both are needed: the DMG's ticket
+  # vouches for the download, the app's ticket vouches for the copy in
+  # /Applications after the DMG is thrown away.
+  #
+  # Threaded through --notarize-app rather than read from the environment so a
+  # direct `build-release-dmg.sh` still just builds a DMG and never blocks on
+  # Apple, and so --skip-notarize means the same thing at both stages.
+  DMG_ARGS=(--skip-backend)
+  # `if`, not `[ … ] && …`. This script is `set -euo pipefail`, so a bare
+  # test-and-append whose test fails IS a failing statement and would abort the
+  # release the moment somebody passed --skip-notarize. Written the short way
+  # first, here and in notarize.sh — the same mistake twice in ten minutes,
+  # which is why it is spelled out rather than quietly corrected.
+  if [ "$SKIP_NOTARIZE" = false ]; then
+    DMG_ARGS+=(--notarize-app)
+  fi
+  "$ROOT_DIR/scripts/build-release-dmg.sh" "${DMG_ARGS[@]}"
 fi
 
 if [ "$SKIP_NOTARIZE" = false ]; then

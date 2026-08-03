@@ -4,6 +4,7 @@ set -euo pipefail
 # Build a styled installer DMG containing Fichero.app + Applications symlink.
 # Two-phase build: writable DMG → style with AppleScript → compress to UDZO.
 # Usage: scripts/build-release-dmg.sh [--skip-backend] [--skip-app-build]
+#                                     [--notarize-app]
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE_DIR="$ROOT_DIR/build/releases/dmg-stage"
@@ -19,9 +20,13 @@ SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fi
 
 EXTRA_ARGS=()
 SKIP_APP_BUILD=false
+# OFF by default so a direct `build-release-dmg.sh` still just builds a DMG and
+# never blocks on Apple. release-all.sh opts in (unless --skip-notarize).
+NOTARIZE_APP=false
 for arg in "$@"; do
   case "$arg" in
     --skip-app-build) SKIP_APP_BUILD=true ;;
+    --notarize-app) NOTARIZE_APP=true ;;
     *) EXTRA_ARGS+=("$arg") ;;
   esac
 done
@@ -201,6 +206,28 @@ if ! codesign --verify --deep --strict "$APP" >/dev/null 2>&1; then
   exit 1
 fi
 echo "  Re-signed + verified: $APP_NAME"
+
+# ── 2c. Notarize + staple the APP, before it is sealed into the DMG (#4491) ──
+# Order is the whole point. The DMG was notarized and stapled, the app inside it
+# never was — so the copy dragged to /Applications carried no ticket of its own.
+# Online that is invisible because Gatekeeper asks Apple; offline there is
+# nothing local to verify against and the app may refuse to launch. Every
+# release cut from this repo has shipped that way.
+#
+# It has to happen HERE: steps 3-6 below seal this directory into a read-only
+# image, and a ticket added afterwards would not be inside it. Stapling the app
+# after the DMG exists would staple a different copy.
+#
+# Costs a second notarization round trip (~5-10 min). That is the price of an
+# app that opens on a plane.
+if [ "$NOTARIZE_APP" = true ]; then
+  echo "[2c/6] Notarize + staple the app (before it is sealed into the DMG)"
+  "$ROOT_DIR/scripts/notarize.sh" "$APP"
+else
+  echo "[2c/6] Skipping app notarization (--notarize-app not passed)"
+  echo "        The DMG will contain an UNSTAPLED app: fine for a local test"
+  echo "        build, NOT fit to ship — see #4491."
+fi
 
 # ── 3. Create volume icon ───────────────────────────────────────────────────
 echo "[3/6] Create volume icon"
