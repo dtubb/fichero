@@ -158,11 +158,11 @@ extension EntityKindRow {
             ClaimCurationBadge(state: curationState)
         }
 
-        if showConfidence, let confidence {
-            // #4394: was `String(format: "%.2f")`, which rendered an
-            // uncalibrated model self-report as a two-decimal measurement,
-            // unlabelled, in the densest part of the inspector.
-            let band = ConfidenceBand.band(for: confidence)
+        // #4394: was `String(format: "%.2f")`, which rendered an uncalibrated
+        // model self-report as a two-decimal measurement, unlabelled, in the
+        // densest part of the inspector. `recorded` also keeps "no confidence
+        // was recorded" rendering as nothing rather than as a number.
+        if showConfidence, let band = ConfidenceBand.recorded(confidence) {
             Text(band.badgeText)
                 .font(.caption2)
                 .foregroundStyle(.secondary)

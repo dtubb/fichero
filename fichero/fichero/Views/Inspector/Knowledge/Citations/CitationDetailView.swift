@@ -76,9 +76,11 @@ struct CitationDetailView: View {
             if let detector = citation.detector, !detector.isEmpty {
                 LabeledContent("Detector", value: detector)
             }
-            if let confidence = citation.confidence {
-                // Labelled already, but the value still implied precision (#4394).
-                LabeledContent("Confidence", value: ConfidenceBand.band(for: confidence).label)
+            // Labelled already, but the value still implied precision (#4394).
+            // No recorded confidence shows no row — an empty "Confidence" field
+            // reads as a measurement of zero.
+            if let band = ConfidenceBand.recorded(citation.confidence) {
+                LabeledContent("Confidence", value: band.label)
             }
             if let target = citation.targetDocumentId, !target.isEmpty {
                 LabeledContent("Target", value: target)

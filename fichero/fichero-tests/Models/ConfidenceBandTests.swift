@@ -62,6 +62,105 @@ struct ConfidenceBandTests {
         }
     }
 
+    // MARK: - Absent is not 0.5
+
+    /// **The defect, stated as the test that catches it.**
+    ///
+    /// "No confidence was recorded" and "the model said 0.5" are different
+    /// facts, and a historian deciding whether to trust or delete a claim
+    /// would act differently on each. This fails the moment they collapse to
+    /// the same rendering — which is exactly what `confidence ?? 0.5` does,
+    /// and `?? 0.5` is the tidy-looking edit somebody will eventually make.
+    @Test("an absent confidence does not render as a recorded 0.5")
+    func absentDoesNotRenderAsARecordedHalf() {
+        let absent = ConfidenceBand.recorded(nil)
+        let half = ConfidenceBand.recorded(0.5)
+
+        #expect(absent?.badgeText != half?.badgeText)
+        #expect(absent?.label != half?.label)
+        #expect(absent?.help != half?.help)
+    }
+
+    /// The chosen rendering for absence, named so a future change to it is a
+    /// deliberate decision rather than a side effect: NOTHING. Not a
+    /// placeholder, not a dash, not a midpoint. A badge shown for a value
+    /// nobody produced cannot be told apart from one that was, and #4421's
+    /// standing rule is that a half-working affordance is worse than an
+    /// absent one.
+    @Test("an absent confidence renders nothing at all")
+    func absentRendersNothing() {
+        #expect(ConfidenceBand.recorded(nil) == nil)
+    }
+
+    /// The other half: a value that IS there still bands, so "renders
+    /// nothing" cannot be satisfied by rendering nothing for everything.
+    @Test("a recorded confidence still bands")
+    func recordedStillBands() {
+        #expect(ConfidenceBand.recorded(0.5) == .medium)
+        #expect(ConfidenceBand.recorded(0.0) == .low)
+        #expect(ConfidenceBand.recorded(1.0) == .high)
+    }
+
+    /// A recorded 0.0 is a fact — the model scored it and scored it lowest.
+    /// It must not be swallowed as if it were absent, which is the mirror of
+    /// the reported bug and the failure a naive `if confidence > 0` check
+    /// would introduce while looking like a fix.
+    @Test("a recorded zero is not treated as absent")
+    func recordedZeroIsNotAbsent() {
+        #expect(ConfidenceBand.recorded(0.0) != nil)
+        #expect(ConfidenceBand.recorded(0.0)?.badgeText != ConfidenceBand.recorded(nil)?.badgeText)
+    }
+
+    // MARK: - Absent is not zero when ranking either
+
+    /// Sorting with `confidence ?? 0` is the same silent substitution wearing
+    /// different clothes: it ranks a claim nobody scored exactly where it
+    /// ranks a claim the model scored 0.0.
+    @Test("unrecorded does not rank as a recorded zero")
+    func unrecordedDoesNotRankAsZero() {
+        #expect(ConfidenceBand.ordersBefore(0.0, nil) == true)
+        #expect(ConfidenceBand.ordersBefore(nil, 0.0) == false)
+    }
+
+    /// Recorded values rank by value, strongest first — the existing
+    /// behaviour, which the fix must not disturb.
+    @Test("recorded values still rank strongest first")
+    func recordedValuesRankStrongestFirst() {
+        #expect(ConfidenceBand.ordersBefore(0.9, 0.5) == true)
+        #expect(ConfidenceBand.ordersBefore(0.5, 0.9) == false)
+    }
+
+    /// `nil` means "no opinion, use your own tiebreak" — not "equal", and not
+    /// "before". Two unrecorded claims fall through to the name ordering
+    /// rather than landing in whatever order they arrived, which is what makes
+    /// the list stable.
+    @Test("ties defer to the caller instead of inventing an order")
+    func tiesDeferToTheCaller() {
+        #expect(ConfidenceBand.ordersBefore(nil, nil) == nil)
+        #expect(ConfidenceBand.ordersBefore(0.7, 0.7) == nil)
+    }
+
+    /// The comparator has to be a strict weak ordering or `sorted(by:)` is
+    /// free to misbehave. Asymmetry across every interesting pair — including
+    /// the absent ones, which are the new cases — is the property that
+    /// guarantees it.
+    @Test("the ordering is asymmetric across every pair")
+    func theOrderingIsAsymmetric() {
+        let values: [Double?] = [nil, 0.0, 0.4, 0.5, 0.75, 1.0]
+        for left in values {
+            for right in values {
+                let forward = ConfidenceBand.ordersBefore(left, right)
+                let backward = ConfidenceBand.ordersBefore(right, left)
+                let pair = Comment(rawValue: "\(String(describing: left)) vs \(String(describing: right))")
+                if let forward, let backward {
+                    #expect(forward != backward, pair)
+                } else {
+                    #expect(forward == nil && backward == nil, pair)
+                }
+            }
+        }
+    }
+
     // MARK: - Banding
 
     @Test("the bands cover the range in order")
@@ -129,16 +228,69 @@ struct ConfidenceBandTests {
     /// survives — the same lesson as #4416's twelve surfaces.
     @Test("every confidence surface renders a band, not a decimal")
     func everyConfidenceSurfaceBands() throws {
-        let surfaces = [
-            "Views/Inspector/Knowledge/EntityKindRow+ClaimBlock.swift",
-            "Views/Inspector/Source/Info/DocumentInspectorInfoTab+Citations.swift",
-            "Views/Inspector/Knowledge/Citations/CitationListView.swift",
-            "Views/Inspector/Knowledge/Citations/CitationDetailView.swift"
-        ]
-        for surface in surfaces {
+        for surface in Self.badgeSurfaces {
             let source = try Self.codeOnly(Self.appSource(surface))
-            #expect(source.contains("ConfidenceBand.band(for:"), Comment(rawValue: surface))
+            #expect(source.contains("ConfidenceBand."), Comment(rawValue: surface))
         }
+    }
+
+    /// The four surfaces that render a model-reported confidence.
+    private static let badgeSurfaces = [
+        "Views/Inspector/Knowledge/EntityKindRow+ClaimBlock.swift",
+        "Views/Inspector/Source/Info/DocumentInspectorInfoTab+Citations.swift",
+        "Views/Inspector/Knowledge/Citations/CitationListView.swift",
+        "Views/Inspector/Knowledge/Citations/CitationDetailView.swift"
+    ]
+
+    /// Each of them must route absence through `recorded(_:)` rather than
+    /// through its own `if let`. Four private `if let`s are four places the
+    /// distinction can be lost independently, and three of them would still be
+    /// green when the fourth broke — the shape that let this defect exist in
+    /// four surfaces at once in the first place.
+    @Test("every confidence surface routes absence through one seam")
+    func everySurfaceRoutesAbsenceThroughOneSeam() throws {
+        for surface in Self.badgeSurfaces {
+            let source = try Self.codeOnly(Self.appSource(surface))
+            #expect(source.contains("ConfidenceBand.recorded("), Comment(rawValue: surface))
+        }
+    }
+
+    /// A real directory sweep, not a named-file list: nowhere in the knowledge
+    /// surfaces may a confidence be defaulted with `??`.
+    ///
+    /// `confidence ?? 0.5` and `confidence ?? 0` are the two shapes this issue
+    /// is about — one substitutes a rendering, the other substitutes a rank —
+    /// and both look tidy enough to survive review. A named-file list would
+    /// not see a fifth surface added next month; this does.
+    ///
+    /// Scoped to the KG / citation surfaces on purpose. A user's OWN
+    /// interpretation confidence (Views/Inspector/Notes) is a value a person
+    /// typed on a slider, not a model's self-report, and seeding an editor
+    /// with a default the user can see and change is not the same act as
+    /// printing an invented number as if it were recorded.
+    @Test("no knowledge surface defaults a confidence with ??")
+    func noKnowledgeSurfaceDefaultsAConfidence() throws {
+        let roots = ["Views/Inspector/Knowledge", "Views/Inspector/Source"]
+        var scanned = 0
+        var offenders: [String] = []
+
+        for root in roots {
+            let directory = try AppSource.root().appendingPathComponent(root)
+            let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)?
+                .compactMap { $0 as? URL }
+                .filter { $0.pathExtension == "swift" } ?? []
+            for file in files {
+                scanned += 1
+                let source = Self.codeOnly(try String(contentsOf: file, encoding: .utf8))
+                if source.range(of: #"[Cc]onfidence\s*\?\?"#, options: .regularExpression) != nil {
+                    offenders.append(file.lastPathComponent)
+                }
+            }
+        }
+
+        #expect(scanned > 0, "the sweep must actually read files")
+        let message = "a confidence is defaulted with ?? in: \(offenders.joined(separator: ", "))"
+        #expect(offenders.isEmpty, Comment(rawValue: message))
     }
 
     /// #4447: the four named surfaces above prove EACH ONE bands, but a fifth

@@ -111,9 +111,9 @@ private struct CitationRow: View {
                 }
             }
             Spacer(minLength: 4)
-            if let confidence = citation.confidence {
-                // Same self-reported signal as the claim badge (#4394).
-                let band = ConfidenceBand.band(for: confidence)
+            // Same self-reported signal as the claim badge, and the same rule
+            // for absence: no recorded confidence renders no badge (#4394).
+            if let band = ConfidenceBand.recorded(citation.confidence) {
                 Text(band.badgeText)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)

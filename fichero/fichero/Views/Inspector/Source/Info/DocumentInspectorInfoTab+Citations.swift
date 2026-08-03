@@ -95,9 +95,9 @@ struct CitationGraphPanel: View {
                         .foregroundStyle(.tertiary)
                 }
                 Spacer(minLength: 4)
-                if let confidence = item.confidence {
-                    // Same self-reported signal as the claim badge (#4394).
-                    let band = ConfidenceBand.band(for: confidence)
+                // Same self-reported signal as the claim badge, and the same
+                // rule for absence: no recorded confidence, no badge (#4394).
+                if let band = ConfidenceBand.recorded(item.confidence) {
                     Text(band.badgeText)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)

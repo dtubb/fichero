@@ -102,13 +102,16 @@ extension KnowledgeGraphInspectorSection {
                 ))
             }
             guard !items.isEmpty else { return nil }
+            // #4394: was `confidence ?? 0` on both sides, which ranked a claim
+            // nobody scored exactly where it ranked a claim the model scored
+            // 0.0 — "we don't know" rendered as "we know it is worthless", and
+            // the two then interleaved under the name tiebreak. `ordersBefore`
+            // keeps unrecorded out of the ranking instead of giving it a value.
             let sorted = items.sorted { lhs, rhs in
-                let leftConfidence = lhs.confidence ?? 0
-                let rightConfidence = rhs.confidence ?? 0
-                if leftConfidence == rightConfidence {
-                    return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+                if let ordered = ConfidenceBand.ordersBefore(lhs.confidence, rhs.confidence) {
+                    return ordered
                 }
-                return leftConfidence > rightConfidence
+                return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
             }
             return (kind, sorted)
         }
