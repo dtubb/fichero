@@ -498,6 +498,121 @@ def validate_workflow_preflight(
     ]
 
 
+# =============================================================================
+# Run eligibility (#3804)
+#
+# What the Run Workflow menu may OFFER and what the engine will actually DO
+# with the offer have to be the same answer, so they are the same function.
+# They were not: `config.internal` was read in exactly one place — the list
+# response formatter — which meant the SwiftUI menu was the only thing
+# enforcing it, and the CLI, MCP, Shortcuts and a bare POST all walked past.
+# Anything here is served to clients AND re-checked at execute time. Never
+# re-derive either rule in a client.
+# =============================================================================
+
+
+def workflow_is_direct_runnable(config: dict | None) -> bool:
+    """False for components that only make sense inside a parent workflow.
+
+    Two markers, either one excludes the workflow from a top-level run:
+    - ``config.internal`` — explicit flag on preset components (#4324).
+    - ``config.input_contract`` — the component consumes contract inputs from
+      a parent ``sub_workflow`` node, not a document selection.
+    """
+    config = config or {}
+    return not bool(config.get("internal") or config.get("input_contract"))
+
+
+def _node_tool(node: object) -> str:
+    """Tool name from either a stored node dict or a :class:`NodeDef`."""
+    if isinstance(node, dict):
+        return str(node.get("tool") or "")
+    return str(getattr(node, "tool", "") or "")
+
+
+def workflow_override_target_tools(nodes: list | None) -> list[str]:
+    """Tools a run-level provider/model override would actually change.
+
+    Mirrors the filter the runner applies (``uses_llm`` only, so source and
+    transform nodes keep their configuration). Deliberately does NOT descend
+    into ``sub_workflow`` children: the runner cannot reach them either, and
+    this function's job is to report what the engine will really do, not what
+    would be nice. A delegating parent therefore reports zero targets, which
+    is what makes the refusal below correct.
+    """
+    return [
+        tool
+        for node in (nodes or [])
+        if (tool := _node_tool(node)) and (td := TOOL_DEFS.get(tool)) and td.uses_llm
+    ]
+
+
+def workflow_sub_workflow_refs(nodes: list | None) -> list[str]:
+    """Names/ids of the child workflows a workflow delegates to."""
+    refs = []
+    for node in nodes or []:
+        if _node_tool(node) != "sub_workflow":
+            continue
+        config = node.get("config") if isinstance(node, dict) else getattr(node, "config", None)
+        ref = (config or {}).get("workflow_ref")
+        if ref:
+            refs.append(str(ref))
+    return refs
+
+
+def workflow_accepts_model_override(nodes: list | None) -> bool:
+    """True when a run-level provider/model override would change something."""
+    return bool(workflow_override_target_tools(nodes))
+
+
+def validate_run_eligibility(
+    *,
+    name: str,
+    config: dict | None,
+    nodes: list | None,
+    provider_override: str | None = None,
+    model_override: str | None = None,
+) -> list[str]:
+    """Reject top-level runs the engine cannot honestly perform (#3804).
+
+    Two refusals, both the #4467 shape — raise loudly rather than proceed as
+    though the request had been honoured:
+
+    1. An internal component asked to run on its own. It has no selection to
+       work from; whatever it produced would not be what was asked for.
+    2. A provider/model override that no node would accept. Silently dropping
+       it means the run reports success having ignored the only instruction
+       that distinguished it from ``Default``.
+    """
+    errors: list[str] = []
+
+    if not workflow_is_direct_runnable(config):
+        errors.append(
+            f"Workflow '{name}' is an internal component and cannot be run on "
+            "its own — it takes contract inputs from a parent 'sub_workflow' "
+            "node, not a document selection. Run the parent workflow instead."
+        )
+
+    wants_override = bool((provider_override or "").strip() or (model_override or "").strip())
+    if wants_override and not workflow_override_target_tools(nodes):
+        refs = workflow_sub_workflow_refs(nodes)
+        if refs:
+            delegates = ", ".join(f"'{ref}'" for ref in refs)
+            reason = (
+                f"all of its model work happens inside sub-workflow {delegates}, "
+                "which a run-level override does not reach"
+            )
+        else:
+            reason = "none of its nodes use a language or vision model"
+        errors.append(
+            f"Workflow '{name}' cannot apply the requested provider/model "
+            f"override: {reason}. Re-run without the override, or set the "
+            "provider and model on the nodes themselves. (#3804)"
+        )
+
+    return errors
+
+
 def get_compatible_tools(target_port: PortDef) -> list[ToolDef]:
     """Get tools that can connect to a specific target port.
 

@@ -154,6 +154,11 @@ class WorkflowResponse(BaseModel):
     # workflows (is_system=False) are never flagged.
     untested: bool = False
     direct_runnable: bool = True
+    # False = a run-level provider/model override would change NOTHING, so the
+    # Run menu must not offer one (#3804). The engine refuses such a run rather
+    # than discarding the pick, and both answers come from the same function —
+    # never re-derive this client-side.
+    accepts_model_override: bool = True
 
 
 def _workflow_untested(wf) -> bool:
@@ -170,15 +175,25 @@ def _workflow_untested(wf) -> bool:
 def _workflow_direct_runnable(wf) -> bool:
     """Internal components are not directly runnable from Run menus.
 
-    Two markers, either one excludes the workflow:
-    - ``config.internal`` — explicit flag on preset components (#4324); the
-      component is only meaningful when invoked by a parent ``sub_workflow``
-      node, regardless of where it lives in the folder tree.
-    - ``config.input_contract`` — sub-workflow components require contract
-      inputs, not document selection.
+    Thin wrapper over the engine rule (#3804): this used to be the rule's ONLY
+    reader, which made the SwiftUI menu the only enforcement point and let the
+    CLI, MCP and a bare POST run components that cannot work standalone. The
+    execute path now checks the same function.
     """
-    config = getattr(wf, "config", None) or {}
-    return not bool(config.get("internal") or config.get("input_contract"))
+    from fichero_server.workflows.validation import workflow_is_direct_runnable
+
+    return workflow_is_direct_runnable(getattr(wf, "config", None))
+
+
+def _workflow_accepts_model_override(wf) -> bool:
+    """True when a run-level provider/model override would change something.
+
+    Same function the execute path uses to decide whether to refuse the run
+    (#3804), so what the menu offers and what the engine honours cannot drift.
+    """
+    from fichero_server.workflows.validation import workflow_accepts_model_override
+
+    return workflow_accepts_model_override(getattr(wf, "nodes", None))
 
 
 class WorkflowListResponse(BaseModel):
@@ -570,6 +585,7 @@ def _workflow_to_response(workflow: "Workflow") -> WorkflowResponse:  # noqa: F8
         sort_order=workflow.sort_order,
         untested=_workflow_untested(workflow),
         direct_runnable=_workflow_direct_runnable(workflow),
+        accepts_model_override=_workflow_accepts_model_override(workflow),
     )
 
 
@@ -622,19 +638,7 @@ async def create_workflow(
             origin_user=actor,
         )
 
-        return WorkflowResponse(
-            id=db_workflow.id,
-            name=db_workflow.name,
-            description=db_workflow.description,
-            provider=db_workflow.provider,
-            model=db_workflow.model,
-            format=db_workflow.format,
-            nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
-            edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
-            folder_path=db_workflow.folder_path,
-            sort_order=db_workflow.sort_order,
-            untested=_workflow_untested(db_workflow),
-        )
+        return _workflow_to_response(db_workflow)
     except Exception as e:
         logger.exception("Failed to create workflow")
         raise HTTPException(status_code=500, detail=str(e))
@@ -735,19 +739,7 @@ async def import_workflow(
             origin_user=actor,
         )
 
-        return WorkflowResponse(
-            id=db_workflow.id,
-            name=db_workflow.name,
-            description=db_workflow.description,
-            provider=db_workflow.provider,
-            model=db_workflow.model,
-            format=db_workflow.format,
-            nodes=[_dict_to_node_def(n) for n in db_workflow.nodes],
-            edges=[_dict_to_edge_def(e) for e in db_workflow.edges],
-            folder_path=db_workflow.folder_path,
-            sort_order=db_workflow.sort_order,
-            untested=_workflow_untested(db_workflow),
-        )
+        return _workflow_to_response(db_workflow)
     except HTTPException:
         raise
     except Exception as e:
@@ -1027,19 +1019,7 @@ async def update_workflow(
             len(existing.edges),
         )
 
-        return WorkflowResponse(
-            id=existing.id,
-            name=existing.name,
-            description=existing.description,
-            provider=existing.provider,
-            model=existing.model,
-            format=existing.format,
-            nodes=[_dict_to_node_def(n) for n in existing.nodes],
-            edges=[_dict_to_edge_def(e) for e in existing.edges],
-            folder_path=existing.folder_path,
-            sort_order=existing.sort_order,
-            untested=_workflow_untested(existing),
-        )
+        return _workflow_to_response(existing)
     except HTTPException:
         raise
     except Exception as e:
@@ -1118,19 +1098,7 @@ async def patch_workflow(
             origin_user=actor,
         )
 
-        return WorkflowResponse(
-            id=workflow.id,
-            name=workflow.name,
-            description=workflow.description,
-            provider=workflow.provider,
-            model=workflow.model,
-            format=workflow.format,
-            nodes=[_dict_to_node_def(n) for n in workflow.nodes],
-            edges=[_dict_to_edge_def(e) for e in workflow.edges],
-            folder_path=workflow.folder_path,
-            sort_order=workflow.sort_order,
-            untested=_workflow_untested(workflow),
-        )
+        return _workflow_to_response(workflow)
     except HTTPException:
         raise
     except Exception as e:
@@ -1252,19 +1220,7 @@ async def duplicate_workflow(
             origin_user=actor,
         )
 
-        return WorkflowResponse(
-            id=new_workflow.id,
-            name=new_workflow.name,
-            description=new_workflow.description,
-            provider=new_workflow.provider,
-            model=new_workflow.model,
-            format=new_workflow.format,
-            nodes=[_dict_to_node_def(n) for n in new_workflow.nodes],
-            edges=[_dict_to_edge_def(e) for e in new_workflow.edges],
-            folder_path=new_workflow.folder_path,
-            sort_order=new_workflow.sort_order,
-            untested=_workflow_untested(new_workflow),
-        )
+        return _workflow_to_response(new_workflow)
     except HTTPException:
         raise
     except Exception as e:
