@@ -1,28 +1,22 @@
-#if os(iOS)
 @testable import Fichero
-import SwiftUI
 import XCTest
 
-/// The inspector claims the #4502 audit could not check, now that iPad can run
-/// tests at all (#4505).
+/// Every inspector action must have a route that exists without a mouse (#4505).
 ///
-/// Read the split honestly, because it is the point of this file. Of the five
-/// things the audit marked unverifiable:
+/// These live in the MAC test target, not the iPad one, and that placement is
+/// the point rather than a compromise. They read SOURCE — which affordances a
+/// file mounts — via `AppSource`, which resolves the tree from `#filePath`. On
+/// a simulator that path exists because it is the same machine; on a real iPad
+/// it does not. A source-reading test in a device-capable target is a test that
+/// silently stops working the moment somebody runs it on hardware.
 ///
-///  * **Reachability of an action** (double-click, delete) is a fact about the
-///    SOURCE — which affordances are mounted — and a unit test on iPad can
-///    assert it without rendering. Those are here, and they run on iPad.
-///  * **44pt touch targets** and **whether a long-press menu actually opens**
-///    are facts about the RENDERED view and the gesture system. Nothing in a
-///    unit test can see them. Asserting a string about them would be worse than
-///    admitting they are unchecked, so they are NOT here — see
-///    `unverifiableWithoutAUITestTarget` at the bottom, which records exactly
-///    that rather than leaving it implied.
-///
-/// These run on iPad rather than in `FicheroTests` deliberately: a claim about
-/// what iPad users can reach, verified on macOS, is how the audit ended up with
-/// five unverifiable items in the first place.
-final class IPadInspectorReachabilityTests: XCTestCase {
+/// So the split is: facts about SOURCE are checked here (and swept repo-wide by
+/// `scripts/check_touch_reachable_actions.py`); facts that need an iPad at
+/// RUNTIME live in `FicheroIPadTests`. The first version of this file put both
+/// in the iPad target, which would not even have compiled there — `AppSource`
+/// belongs to `fichero-tests` and the iPad target has its own synchronized
+/// folder.
+final class InspectorTouchReachabilityTests: XCTestCase {
 
     // MARK: - Every action needs a route that exists without a mouse
 
@@ -98,17 +92,6 @@ final class IPadInspectorReachabilityTests: XCTestCase {
             .joined(separator: "\n")
     }
 
-    /// And the helper it now uses genuinely works here — the one assertion in
-    /// this file that exercises behaviour rather than source, and the reason
-    /// running on iPad is not ceremony.
-    func testThePasteboardHelperWorksOnIPad() {
-        let unique = "fichero-\(UUID().uuidString)"
-
-        PlatformPasteboard.writeString(unique)
-
-        XCTAssertEqual(PlatformPasteboard.string(), unique)
-    }
-
     // MARK: - Delete
 
     /// Delete on the artifact list is `onDeleteCommand` (a hardware ⌫, absent
@@ -152,4 +135,3 @@ final class IPadInspectorReachabilityTests: XCTestCase {
         )
     }
 }
-#endif
