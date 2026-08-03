@@ -60,6 +60,13 @@ def test_empty_summary_is_all_zero_with_expected_keys() -> None:
         "claims_suppressed",
         "claims_pruned_trivial",
         "claim_merges",
+        # #4415: a run reports what it declined to overwrite and why. These
+        # belong in the empty summary too, so the shape does not depend on
+        # whether any curated row happened to be in scope.
+        "entities_curated_preserved",
+        "claims_curated_preserved",
+        "conflicts_recorded",
+        "conflicts_cleared",
     }
     assert set(summary) == expected_keys
     assert all(value == 0 for value in summary.values())
