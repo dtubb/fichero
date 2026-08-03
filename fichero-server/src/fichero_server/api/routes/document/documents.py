@@ -1392,23 +1392,38 @@ async def purge_document(
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
 ):
-    """Permanently delete a document subtree."""
-    to_delete_ids, claims_deleted, entities_pruned, _docs, _arts = (
-        await _run_document_write(
-            purge_document_impl, db, doc_id, library_path=ctx.library_path
-        )
-    )
-    logger.info(
-        "Purged document subtree: root=%s total=%s kg_claims_deleted=%s kg_entities_pruned=%s",
-        doc_id,
-        len(to_delete_ids),
-        claims_deleted,
-        entities_pruned,
-    )
-    _emit_document_change_ctx(
+    """Permanently delete a document subtree.
+
+    Routed through the audited action layer like its four siblings — move,
+    duplicate, delete, restore (#4488). It was the only one calling its impl
+    directly and hand-rolling an emit, which left the write surface audited in
+    INVERSE proportion to consequence: delete is soft and has a tested undo
+    path, purge is permanent destruction of a subtree, and purge was the one
+    operation leaving no row saying who did it. For an archive, "who
+    permanently destroyed this and when" is the question an audit log exists
+    to answer.
+
+    The `document.purge` action already existed and simply had no caller, so
+    this is wiring, not new capability. The hand-rolled emit is DELETED rather
+    than left beside the audited one: the action's ChangeSpec emits the same
+    `document.deleted` for the same ids, and two emit paths for one operation
+    is the defect class this codebase keeps hitting.
+    """
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.purge",
+        {"doc_id": doc_id},
         ctx,
-        event_type="document.deleted",
-        document_ids=to_delete_ids,
+    )
+    payload = getattr(result, "result", result) or {}
+    logger.info(
+        "Purged document subtree: root=%s total=%s kg_claims_deleted=%s kg_entities_pruned=%s actor=%s",
+        doc_id,
+        len(payload.get("deleted_document_ids") or []),
+        payload.get("kg_claims_deleted"),
+        payload.get("kg_entities_pruned"),
+        ctx.actor,
     )
 
 
