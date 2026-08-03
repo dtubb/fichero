@@ -73,6 +73,7 @@ enum LibrarySelectionStyle {
 // MARK: - Mail-Style Row (like Apple Mail)
 
 struct MailStyleRow: View {
+    @Environment(DocumentStore.self) private var documentStore
     let document: Document
     let isSelected: Bool
     /// Mail-style selection (#4191): the focused selection tints the TITLE
@@ -114,18 +115,15 @@ struct MailStyleRow: View {
             rowThumbnail
                 .padding(.top, 2)
 
-            // Status indicator: spinner while processing, dot otherwise (#518).
-            // Live indicator pairs with LibraryView's processing-poll timer so
-            // the user sees motion + status flips without manual refresh.
+            // Status indicator (#518), now resolved by the SAME rule as the
+            // sidebar (#4417): this read `document.status == .processing`, so a
+            // folder spun because its CONTENTS were working — the claim the
+            // sidebar stopped making. See LibraryActivityIndicator.
             Group {
-                if document.status == .processing {
-                    ProgressView()
-                        .scaleEffect(0.55)
-                        .frame(width: 10, height: 10)
+                if LibraryActivityIndicator.isIdle(document, in: documentStore) {
+                    Circle().fill(statusColor).frame(width: 10, height: 10)
                 } else {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 10, height: 10)
+                    LibraryActivityIndicator(document: document)
                 }
             }
             .padding(.top, 5)
@@ -363,16 +361,14 @@ struct DocumentThumbnail: View {
 struct ProgressCell: View {
     let document: Document
 
+    @Environment(DocumentStore.self) private var documentStore
+
     var body: some View {
         switch document.status {
         case .processing:
-            HStack(spacing: 6) {
-                ProgressView()
-                    .scaleEffect(0.6)
-                Text("...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            // #4417: a container whose CHILDREN are busy now reads as
+            // "Processing contents — 3 of 4 done" here too, not as "...".
+            LibraryActivityIndicator(document: document, showsSummaryText: true)
         case .completed:
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
