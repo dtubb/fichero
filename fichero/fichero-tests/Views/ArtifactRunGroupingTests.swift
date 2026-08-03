@@ -151,7 +151,7 @@ extension ArtifactRunGroupingTests {
             artifact(id: "f", runId: "run-2", sequence: 9, createdAt: base)
         ]
 
-        let landed = ArtifactRunGroup.groups(from: items).flatMap(\.artifacts).map(\.id)
+        let landed = ArtifactRunGrouping.groups(from: items).flatMap(\.artifacts).map(\.id)
 
         XCTAssertEqual(
             Set(landed), Set(items.map(\.id)),
@@ -172,7 +172,7 @@ extension ArtifactRunGroupingTests {
         let after = artifact(id: "new", runId: "run-1", sequence: 0, createdAt: base)
 
         for items in [[before], [after]] {
-            let landed = ArtifactRunGroup.groups(from: items).flatMap(\.artifacts).map(\.id)
+            let landed = ArtifactRunGrouping.groups(from: items).flatMap(\.artifacts).map(\.id)
             XCTAssertEqual(landed, ["new"], "present before and after the regroup")
         }
     }
@@ -182,6 +182,6 @@ extension ArtifactRunGroupingTests {
     func testTheTotalityCheckWouldNoticeADroppedArtifact() {
         let items = [artifact(id: "only", runId: "run-1", sequence: 0, createdAt: base)]
 
-        XCTAssertEqual(ArtifactRunGroup.groups(from: items).flatMap(\.artifacts).count, 1)
+        XCTAssertEqual(ArtifactRunGrouping.groups(from: items).flatMap(\.artifacts).count, 1)
     }
 }
