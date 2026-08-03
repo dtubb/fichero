@@ -25,13 +25,12 @@ import XCTest
 /// presents as a sync bug, and gets investigated as one.
 final class ClaimStoreRoutingTests: XCTestCase {
 
+    /// Was a hand-counted root that landed ONE LEVEL DEEP — the same mistake as
+    /// `WorkflowStreamEndReconciliationTests`, in the opposite direction, in a
+    /// file written the same day (#4493). Only the sweep's population floor
+    /// made mine legible; this helper makes the arithmetic unnecessary.
     private static func appSource(_ relativePath: String) throws -> String {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()  // Models
-            .deletingLastPathComponent()  // fichero-tests
-            .deletingLastPathComponent()  // fichero (the repo's Swift root)
-            .appendingPathComponent("fichero")
-        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
+        try AppSource.text(relativePath)
     }
 
     // MARK: - Inspector bulk curation and merge
@@ -129,11 +128,7 @@ final class ClaimStoreRoutingTests: XCTestCase {
     /// `pruneTrivialClaims` is excluded by name and by the recorded reason
     /// above.
     func testNoViewWritesClaimsThroughAServiceDirectly() throws {
-        let viewsRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views")
+        let viewsRoot = try AppSource.root().appendingPathComponent("Views")
 
         let banned = [
             "entityService.patchClaim(",
