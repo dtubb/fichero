@@ -348,7 +348,24 @@ extension ContentView {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         } else {
-            let total = store.searchStats?.totalResults ?? store.results.count
+            // #4403: this read `searchStats.totalResults`, which is the
+            // DOCUMENT leg alone — so a query matching six artifacts and no
+            // documents said "3 results" above a section headed "Artifacts (6)".
+            //
+            // It now reads the SAME `SearchHitCounts` the body renders from:
+            // `transientSearchHitCounts` counts `searchResultDocuments`,
+            // `artifactHits`, `entityHits` and `claimHits` — the four arrays the
+            // sections below are built out of. Header and body are therefore one
+            // value from one source, and cannot disagree by construction.
+            //
+            // Deliberately NOT the server's new `rendered_total`, which is also
+            // correct arithmetic but is a SECOND source of truth for one number:
+            // it would have to be kept in step with whatever the client actually
+            // renders, and "two places compute the same thing" is the defect
+            // class this issue belongs to. rendered_total remains available and
+            // is worth using as a server/client AGREEMENT check — a different
+            // job from deciding what the header says.
+            let total = transientSearchHitCounts.total
             Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
                 .font(.callout)
                 .foregroundStyle(.secondary)
