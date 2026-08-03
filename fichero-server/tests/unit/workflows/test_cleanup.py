@@ -364,8 +364,20 @@ class TestReplaceArtifact:
         from fichero_server.models import Artifact
 
         db = MagicMock()
-        prior = MagicMock(spec=Artifact)
-        db.query.return_value = [prior]
+        # A real Artifact, not a mock: the sweep now asks the curation guard
+        # whether a person corrected this row (#4415 wiring), which reads the
+        # row's id and marker field. A MagicMock answers every attribute, so
+        # it cannot tell "unstamped machine output" from anything else — the
+        # mock would pass whatever the guard did.
+        prior = Artifact(
+            id="prior-people-clean",
+            document_id="folder-1",
+            artifact_type="people_clean",
+            content="stale",
+        )
+        db.query.side_effect = lambda model, **kwargs: (
+            [prior] if model is Artifact else []
+        )
 
         _replace_artifact(
             db,
@@ -387,7 +399,7 @@ class TestReplaceArtifact:
 
     def test_handles_no_prior_artifacts(self):
         db = MagicMock()
-        db.query.return_value = []
+        db.query.side_effect = lambda model, **kwargs: []
         _replace_artifact(
             db,
             container_id="f",
