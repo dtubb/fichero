@@ -227,27 +227,33 @@ extension LibraryView {
     @ViewBuilder
     private var deleteConfirmationMessage: some View {
         if documentsToDelete.count == 1, let doc = documentsToDelete.first {
+            // #4416: the raw `name` is the engine's upload temp name for every
+            // page child, and this is the last thing shown before a delete the
+            // user cannot undo. Naming the file `fichero_upload_c84fgjke.pdf`
+            // here asks them to confirm the destruction of something they have
+            // no way to recognise.
+            let title = DocumentTitle.displayName(for: doc)
             switch doc.ingestMode {
             case .link:
                 if let path = doc.path {
                     Text(
-                        "Remove the Fichero reference to \"\(doc.name)\"? "
+                        "Remove the Fichero reference to \"\(title)\"? "
                             + "The original file at \(path) will stay on disk."
                     )
                 } else {
                     Text(
-                        "Remove the Fichero reference to \"\(doc.name)\"? "
+                        "Remove the Fichero reference to \"\(title)\"? "
                             + "The original file will stay on disk."
                     )
                 }
             case .copy:
                 Text(
-                    "Delete Fichero's copy of \"\(doc.name)\"? "
+                    "Delete Fichero's copy of \"\(title)\"? "
                         + "The file you imported from is untouched."
                 )
             case .move:
                 Text(
-                    "Permanently delete \"\(doc.name)\"? "
+                    "Permanently delete \"\(title)\"? "
                         + "This file was moved into Fichero, so there's no other copy."
                 )
             }

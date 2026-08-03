@@ -158,7 +158,11 @@ struct DocumentThumbnailView: View {
     }
 
     private var tileAccessibilityLabel: String {
-        let name = document.pageThumbnailLabel ?? document.name
+        // The visible label three lines above composes through DocumentTitle;
+        // this one did not, so VoiceOver read `fichero_upload_c84fgjke.pdf`
+        // for the tile a sighted user saw as "Page 1" (#4416). Two readings of
+        // the same tile is worse than one wrong one.
+        let name = DocumentTitle.displayName(for: document)
         if document.docType == .folder { return "\(name), folder" }
         if let fileType = document.fileType { return "\(name), \(fileType.rawValue)" }
         return name

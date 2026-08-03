@@ -216,11 +216,42 @@ struct DocumentTitleTests {
         "activeLocationDocument"
     ]
 
+    /// Whether `expression` IS a raw `Document.name`, rather than merely
+    /// containing one.
+    ///
+    /// Two accepted forms, and the second is the one that kept escaping:
+    ///
+    /// - the expression begins with the raw name (`doc.name`, `doc.name + x`);
+    /// - a `??` chain whose LAST RESORT is the raw name
+    ///   (`doc.pageThumbnailLabel ?? doc.name`).
+    ///
+    /// The `??` form reads as a defence and is not one. `pageThumbnailLabel` is
+    /// `nil` exactly when a page has no sequence — the case with no page number
+    /// to show — so it falls through to the storage name *precisely when it
+    /// matters*. That is stated in this file's own doc comment as a lesson
+    /// learned from #4416, and the matcher written alongside it still could not
+    /// see the shape.
+    ///
+    /// A haystack (`"\(doc.name) \(excerpt)"`) and a comparator
+    /// (`lhs.name.compare(…)`) match neither form and stay unflagged.
+    static func isRawNameExpression(_ expression: String) -> Bool {
+        expression
+            .components(separatedBy: "??")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .contains { segment in
+                Self.documentBindings.contains { binding in
+                    Self.startsWithRawName(segment, prefix: "\(binding).name")
+                        || Self.startsWithRawName(segment, prefix: "\(binding)?.name")
+                }
+            }
+    }
+
     /// Whether `line` renders a `Document`'s raw `name` through a display API.
     ///
-    /// Deliberately line-scoped: the display call and its argument are written
-    /// together, and matching per line is what lets the failure name a spot a
-    /// human can go fix.
+    /// Line-scoped by itself. `leaks(in:)` hands it a LOGICAL line — a display
+    /// call joined with its continuations — because SwiftUI wraps arguments
+    /// onto their own lines constantly, and a `Label(` on one line with its
+    /// `page.name` argument on the next reads as clean to a per-line matcher.
     static func rendersARawName(_ line: String) -> Bool {
         // Renaming EDITS the real name — the one place the raw value is right.
         guard !line.contains("editingName") else { return false }
@@ -270,10 +301,139 @@ struct DocumentTitleTests {
         let returned = String(trimmed.dropFirst("return ".count))
             .trimmingCharacters(in: .whitespaces)
 
-        return Self.documentBindings.contains { binding in
-            Self.startsWithRawName(returned, prefix: "\(binding).name")
-                || Self.startsWithRawName(returned, prefix: "\(binding)?.name")
+        return Self.isRawNameExpression(returned)
+    }
+
+    // MARK: - The shape a line cannot see: bound here, displayed there
+
+    /// The identifier `line` assigns to, and whether the value is a raw name.
+    ///
+    /// Covers `let x =`, `var x =` and a bare reassignment `x =`. The last one
+    /// matters in both directions: it can taint a name, and — the case that
+    /// caught a false positive in this matcher's own fixture — it can CLEAR
+    /// one, because `var name = doc.name` followed by
+    /// `name = DocumentTitle.displayName(for: doc)` renders the composed title,
+    /// not the raw one. A checker that flagged that would be crying wolf at
+    /// code that is already right.
+    ///
+    /// `nil` when the line assigns nothing — including `var x: String {`, which
+    /// has no `=` and is a computed property, and `if a.count == 1, let x = y`,
+    /// whose first `=` belongs to a comparison.
+    static func boundName(_ line: String) -> (name: String, isRaw: Bool)? {
+        var rest = line.trimmingCharacters(in: .whitespaces)
+        for keyword in ["let ", "var "] where rest.hasPrefix(keyword) {
+            rest = String(rest.dropFirst(keyword.count))
         }
+        guard let equals = rest.firstIndex(of: "="),
+              rest[rest.index(after: equals)...].first != "="  // `==`, a comparison
+        else { return nil }
+
+        var declared = String(rest[rest.startIndex..<equals])
+        if let colon = declared.firstIndex(of: ":") { declared = String(declared[..<colon]) }
+        let identifier = declared.trimmingCharacters(in: .whitespaces)
+        guard let first = identifier.first, first.isLetter || first == "_",
+              identifier.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" })
+        else { return nil }  // a destructure, a member assignment, or `+=`
+
+        let value = String(rest[rest.index(after: equals)...])
+            .trimmingCharacters(in: .whitespaces)
+        return (identifier, Self.isRawNameExpression(value))
+    }
+
+    /// Whether `line` opens a new member, and so ends the scope of any local
+    /// binding above it.
+    ///
+    /// Without this the taint set would be file-scoped, and a `let name =
+    /// doc.name` in one helper would flag a `Text(name)` in an unrelated one
+    /// fifty lines below — a false positive, and a check that cries wolf gets
+    /// disabled.
+    static func beginsAMember(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasSuffix("{") else { return false }
+        return trimmed.contains("func ") || trimmed.contains("var ")
+    }
+
+    /// How many lines of a wrapped call to join before giving up. A display
+    /// call whose argument list runs longer than this is not the shape being
+    /// hunted, and joining further only invents false positives.
+    static let continuationLimit = 8
+
+    /// `lines[index]` joined with its continuations when it opens a display
+    /// call it does not close. Any other line is returned as-is.
+    static func logicalLine(at index: Int, in lines: [String]) -> String {
+        var text = lines[index]
+        guard Self.displayAPIs.contains(where: text.contains) else { return text }
+
+        var depth = Self.parenDepth(text)
+        var cursor = index + 1
+        while depth > 0, cursor < lines.count, cursor - index <= Self.continuationLimit {
+            text += " " + lines[cursor].trimmingCharacters(in: .whitespaces)
+            depth += Self.parenDepth(lines[cursor])
+            cursor += 1
+        }
+        return text
+    }
+
+    private static func parenDepth(_ line: String) -> Int {
+        line.reduce(0) { depth, character in
+            character == "(" ? depth + 1 : (character == ")" ? depth - 1 : depth)
+        }
+    }
+
+    /// Every raw-name leak in one file's lines, as `(line index, shape)`.
+    ///
+    /// File-scoped on purpose. The two line-scoped matchers above answer
+    /// "is THIS line a leak", and a display name that is bound on one line and
+    /// used on another is a leak that no single line contains. This pass
+    /// carries the binding forward — within its member — so
+    ///
+    ///     let name = document.pageThumbnailLabel ?? document.name
+    ///     …
+    ///     return name
+    ///
+    /// is caught, which is exactly `tileAccessibilityLabel`: the tile's visible
+    /// `Text` was fixed to compose through `DocumentTitle`, and the VoiceOver
+    /// label three lines below it was not. Sighted users read "Page 1" while
+    /// VoiceOver said `fichero_upload_c84fgjke.pdf`, on the same tile.
+    static func leaks(in lines: [String]) -> [(index: Int, shape: String)] {
+        var tainted: Set<String> = []
+        var found: [(index: Int, shape: String)] = []
+
+        for (index, line) in lines.enumerated() {
+            if Self.beginsAMember(line) { tainted.removeAll() }
+            if line.contains("editingName") { continue }
+
+            // Renders is tested BEFORE the assignment branch: `let label =
+            // Text(doc.name)` is both, and it is the leak that matters.
+            let logical = Self.logicalLine(at: index, in: lines)
+            if Self.rendersARawName(logical) { found.append((index, "renders")); continue }
+
+            if let bound = Self.boundName(line) {
+                if bound.isRaw { tainted.insert(bound.name) } else { tainted.remove(bound.name) }
+                continue
+            }
+
+            if Self.producesARawName(line) { found.append((index, "produces")); continue }
+            guard !tainted.isEmpty else { continue }
+
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("return "),
+               tainted.contains(where: {
+                   Self.startsWithRawName(
+                       String(trimmed.dropFirst("return ".count))
+                           .trimmingCharacters(in: .whitespaces),
+                       prefix: $0)
+               }) {
+                found.append((index, "returns a name bound above"))
+                continue
+            }
+
+            if Self.displayAPIs.contains(where: logical.contains),
+               tainted.contains(where: { Self.mentions($0, in: logical) }) {
+                found.append((index, "renders a name bound above"))
+            }
+        }
+        return found
     }
 
     /// `expression` begins with exactly `prefix` as a whole identifier, so
@@ -377,6 +537,98 @@ struct DocumentTitleTests {
         }
     }
 
+    /// The file-scoped pass fires on the three shapes no single line contains.
+    ///
+    /// Each fixture is the real code, copied from the file it was found in, so
+    /// a later narrowing fails HERE rather than going quiet over 907 files.
+    @Test("the file-scoped pass catches a wrapped call, a bound name, and a ?? fallback")
+    func theFileScopedPassFires() {
+        // LibraryThumbnailViews.tileAccessibilityLabel — bound, then returned.
+        let boundThenReturned = [
+            "    private var tileAccessibilityLabel: String {",
+            "        let name = document.pageThumbnailLabel ?? document.name",
+            "        if document.docType == .folder { return \"\\(name), folder\" }",
+            "        return name",
+            "    }"
+        ]
+        #expect(
+            Self.leaks(in: boundThenReturned).map(\.index) == [3],
+            "a name bound above and returned below is still a leaked name")
+
+        // LibraryView+TableColumns — a Label whose argument wrapped onto its
+        // own line, which is how it survived a per-line matcher.
+        let wrappedCall = [
+            "            Label(",
+            "                page.pageThumbnailLabel.map { \"Page \\($0)\" } ?? page.name,",
+            "                systemImage: \"doc.richtext\"",
+            "            )"
+        ]
+        #expect(
+            Self.leaks(in: wrappedCall).map(\.index) == [0],
+            "a display call reports at the line a human opens, not at its argument")
+
+        // A binding rendered rather than returned.
+        #expect(
+            Self.leaks(in: [
+                "    var body: some View {",
+                "        let name = doc.name",
+                "        Text(name)"
+            ]).map(\.index) == [2])
+    }
+
+    /// The other half of the same guardrail: what it must NOT say.
+    ///
+    /// A check that cries wolf gets disabled, so the shapes that are already
+    /// right are pinned as firmly as the shapes that are wrong.
+    @Test("the file-scoped pass stays quiet on composed titles and out-of-scope bindings")
+    func theFileScopedPassStaysQuiet() {
+        // The fixed shapes must go quiet, or the sweep below is unpassable.
+        #expect(Self.leaks(in: [
+            "    private var tileAccessibilityLabel: String {",
+            "        let name = DocumentTitle.displayName(for: document)",
+            "        return name",
+            "    }"
+        ]).isEmpty)
+        #expect(Self.leaks(in: [
+            "            Label(",
+            "                DocumentTitle.displayName(for: page),",
+            "                systemImage: \"doc.richtext\"",
+            "            )"
+        ]).isEmpty)
+
+        // A binding cannot leak past the member it was declared in, and a
+        // rebinding to a composed title clears it.
+        #expect(Self.leaks(in: [
+            "    private var searchHaystack: String {",
+            "        let name = doc.name",
+            "        return \"\\(name) \\(excerpt)\"",
+            "    }",
+            "    private var title: some View {",
+            "        Text(name)",
+            "    }"
+        ]).isEmpty, "a binding in one member must not flag an identifier in the next")
+        #expect(Self.leaks(in: [
+            "    var body: some View {",
+            "        var name = doc.name",
+            "        name = DocumentTitle.displayName(for: doc)",
+            "        Text(name)"
+        ]).isEmpty, "a reassignment to a composed title clears the taint")
+    }
+
+    /// `??` is what the matcher was blind to, stated on its own.
+    @Test("a ?? fallback to a raw name is a raw name")
+    func fallbackToARawNameIsARawName() {
+        #expect(Self.isRawNameExpression("document.pageThumbnailLabel ?? document.name"))
+        #expect(Self.isRawNameExpression("page.pageThumbnailLabel.map { \"Page \\($0)\" } ?? page.name"))
+        #expect(Self.isRawNameExpression("doc.name"))
+        #expect(Self.isRawNameExpression("doc?.name ?? \"Untitled\""))
+
+        #expect(!Self.isRawNameExpression("DocumentTitle.displayName(for: doc)"))
+        #expect(!Self.isRawNameExpression("provider.name ?? \"\""))
+        #expect(!Self.isRawNameExpression("\"\\(doc.name) \\(excerpt)\""))
+        #expect(!Self.isRawNameExpression("doc.nameComponents.first ?? doc.title"))
+    }
+
     /// No view renders a `Document`'s raw `name`.
     ///
     /// #4416 was reported on the island. The same read appeared in the reader,
@@ -399,57 +651,88 @@ struct DocumentTitleTests {
     /// `Services/` build display strings too, and were scanned by nothing.
     /// "587 files scanned" sounded like coverage; it was the count of one
     /// directory.
-    static let sweptDirectories = ["Views", "Models", "Services"]
+    /// `App/` and `Intents/` join them: an App Intent's dialog and an app-level
+    /// window title are read by a human as surely as a `Text` is. `Resources/`
+    /// holds no Swift and is deliberately absent — a directory with no files
+    /// would trip the per-directory floor below.
+    static let sweptDirectories = ["Views", "Models", "Services", "App", "Intents"]
 
-    @Test("no view renders a document's raw name")
-    func noViewRendersARawDocumentName() throws {
-        let offenders = try Self.sweep(Self.rendersARawName)
-        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: "\n")))
-    }
-
-    /// No helper manufactures a display string out of a raw `Document.name`.
+    /// The whole class, in one sweep: rendered, produced, or bound-then-used.
     ///
-    /// The companion to the render sweep, and the one that would have caught
-    /// what #4416 missed: `ActivityProgressView.documentNameForPath` returned a
-    /// page child's storage name into a `Text`, and `selectionStatusText`
-    /// returned one into the detail-pane status line — on the very surface
-    /// #4416 was reported from.
-    @Test("no helper manufactures a display name from a document's raw name")
-    func noHelperProducesARawDocumentName() throws {
-        let offenders = try Self.sweep(Self.producesARawName)
-        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: "\n")))
+    /// One test rather than three, because the pass that carries a binding
+    /// across lines cannot be split by shape without running the file three
+    /// times. Each offender names its own shape, so the failure still says
+    /// which matcher fired and where.
+    @Test("no surface renders, produces, or binds a document's raw name")
+    func noSurfaceLeaksARawDocumentName() throws {
+        let scan = try Self.sweep()
+
+        // Population floor (#4487): a sweep that read no files, or read them
+        // and never once saw the token it hunts, is BLIND rather than clean —
+        // and blind reports success forever. `.name` on a document binding is
+        // ubiquitous and legitimate in most of its uses; zero of them means the
+        // reader changed, not the app.
+        #expect(
+            scan.filesRead > 500,
+            Comment(rawValue: "BLIND: read \(scan.filesRead) files across \(Self.sweptDirectories)"))
+        #expect(
+            scan.rawNameMentions > 0,
+            "BLIND: not one document `.name` seen in the whole app source")
+
+        #expect(
+            scan.offenders.isEmpty,
+            Comment(rawValue: """
+                A document's raw `name` is the engine's storage artifact for every page child \
+                (#4416). Compose through `DocumentTitle.displayName(for:parent:)` instead.
+
+                \(scan.offenders.joined(separator: "\n"))
+                """))
     }
 
-    /// Read every swept directory and report each line `matches` accepts, as
-    /// `file:line source` a human can go open.
-    private static func sweep(_ matches: (String) -> Bool) throws -> [String] {
-        let root = try AppSource.root()
+    private struct Scan {
         var offenders: [String] = []
         var filesRead = 0
+        var rawNameMentions = 0
+    }
+
+    /// Read every swept directory and report each leak as `file:line (shape)
+    /// source` a human can go open.
+    private static func sweep() throws -> Scan {
+        let root = try AppSource.root()
+        var scan = Scan()
 
         for directory in Self.sweptDirectories {
             let files = FileManager.default
                 .enumerator(at: root.appendingPathComponent(directory), includingPropertiesForKeys: nil)?
                 .compactMap { $0 as? URL }
-                .filter { $0.pathExtension == "swift" } ?? []
+                .filter { $0.pathExtension == "swift" }
+                // Vendored and built copies of the tree exist only in a worktree
+                // that has been built in, so a sweep that counts them reports a
+                // different population on two machines.
+                .filter { !$0.path.contains("/.build/") && !$0.path.contains("/DerivedData/") } ?? []
             // Per-directory, not just overall: a renamed directory would
             // otherwise drop out of the sweep while the total stayed healthy.
             #expect(!files.isEmpty, Comment(rawValue: "swept nothing in \(directory)/"))
-            filesRead += files.count
+            scan.filesRead += files.count
 
             for file in files {
                 let lines = Self.codeOnly(try String(contentsOf: file, encoding: .utf8))
                     .split(separator: "\n", omittingEmptySubsequences: false)
-                for (index, line) in lines.enumerated() where matches(String(line)) {
-                    offenders.append(
-                        "\(file.lastPathComponent):\(index + 1) "
-                        + line.trimmingCharacters(in: .whitespaces))
+                    .map(String.init)
+
+                scan.rawNameMentions += lines.filter { line in
+                    Self.documentBindings.contains { Self.mentions("\($0).name", in: line) }
+                }.count
+
+                for leak in Self.leaks(in: lines) {
+                    scan.offenders.append(
+                        "\(file.lastPathComponent):\(leak.index + 1) (\(leak.shape)) "
+                        + lines[leak.index].trimmingCharacters(in: .whitespaces))
                 }
             }
         }
 
-        #expect(filesRead > 0, "the sweep must actually read files")
-        return offenders
+        return scan
     }
 
     /// "One function builds a document title, and every surface uses it."
