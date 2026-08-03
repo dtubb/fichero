@@ -58,13 +58,14 @@ struct CitationListView: View {
         let citation = item.citation
         CitationRow(item: item)
             .tag(item.id)
+            // Row target BEFORE the gesture (#4386) — see ArtifactListView.
+            .inspectorListRowTarget()
             .draggable(CitationDragID(
                 id: citation.id ?? "",
                 sourceDocumentId: citation.sourceDocumentId,
                 targetDocumentId: citation.targetDocumentId,
                 text: citation.targetCitationText
             ))
-            .inspectorListRowTarget()
             .contextMenu {
                 if let onOpenInWindow {
                     Button("Open in Window") {
