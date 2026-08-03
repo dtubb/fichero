@@ -25,7 +25,7 @@ final class LibraryActivityAgreementTests: XCTestCase {
 
     /// The defect, stated directly: a container with busy children is NOT
     /// itself processing, whatever its own status record says.
-    func testAContainerWithBusyChildrenDoesNotShowTheLeafSpinner() {
+    func testAContainerWithBusyChildrenDoesNotShowTheLeafSpinner() throws {
         let activity = ContainerActivity.resolve(
             isSelfProcessing: true,
             busyChildren: 1,
@@ -36,7 +36,11 @@ final class LibraryActivityAgreementTests: XCTestCase {
             activity.showsLeafSpinner,
             "busy children must win over own-status; that is the whole issue"
         )
-        XCTAssertEqual(activity.progress, 0.75, accuracy: 0.001)
+        // `progress` is Double? — nil means "no determinate fraction to show".
+        // Unwrapping here asserts BOTH that a fraction exists and that it is
+        // right; XCTAssertEqual against an optional silently accepted nil.
+        let progress = try XCTUnwrap(activity.progress)
+        XCTAssertEqual(progress, 0.75, accuracy: 0.001)
     }
 
     /// And a genuine leaf keeps its spinner — the fix must not be "never spin",
