@@ -125,10 +125,8 @@ struct SidebarDragIDTests {
     @Test("plain-text markdown flavor is exported for editors")
     func plainTextFlavorExists() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+            contentsOf: try AppSource.root()
+                .appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift"),
             encoding: .utf8
         )
         #expect(source.contains("DataRepresentation(exportedContentType: .utf8PlainText)"))
@@ -137,10 +135,8 @@ struct SidebarDragIDTests {
     @Test("in-process id flavor survives for the move pipeline")
     func ownProcessIdFlavorSurvives() throws {
         let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+            contentsOf: try AppSource.root()
+                .appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift"),
             encoding: .utf8
         )
         #expect(source.contains(".visibility(.ownProcess)"))

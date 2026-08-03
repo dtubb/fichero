@@ -64,11 +64,8 @@ struct LibraryInputScopeTests {
     /// only the row-ORDINAL handlers are meaningless there.
     @Test("delete and focused actions survive in spatial modes")
     func deleteAndFocusedActionsSurvive() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Library/LibraryView+KeyboardShortcuts.swift")
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Library/LibraryView+KeyboardShortcuts.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }

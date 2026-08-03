@@ -187,16 +187,6 @@ struct DocumentTitleTests {
 
     // MARK: - Every surface reads the same composer
 
-    private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
-            .appendingPathComponent(relativePath)
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-
     private static func codeOnly(_ source: String) -> String {
         source
             .split(separator: "\n", omittingEmptySubsequences: false)
@@ -312,11 +302,7 @@ struct DocumentTitleTests {
     /// the storage name precisely when it mattered.
     @Test("no view renders a document's raw name")
     func noViewRendersARawDocumentName() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views")
+        let root = try AppSource.root().appendingPathComponent("Views")
 
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }
@@ -339,13 +325,13 @@ struct DocumentTitleTests {
     @Test("the title and the breadcrumb both compose through DocumentTitle")
     func bothSurfacesComposeThroughDocumentTitle() throws {
         let state = try Self.codeOnly(
-            Self.appSource("Views/Shell/ContentView/ContentView+StateDisplay.swift"))
+            AppSource.text("Views/Shell/ContentView/ContentView+StateDisplay.swift"))
         #expect(state.contains("DocumentTitle.windowTitle("))
         #expect(state.contains("DocumentTitle.displayName("))
         // The old composer, in its exact code form.
         #expect(!state.contains("\"\\(pageLabel) — \\($0.name)\""))
 
-        let breadcrumb = try Self.codeOnly(Self.appSource("Models/BreadcrumbBuilder.swift"))
+        let breadcrumb = try Self.codeOnly(AppSource.text("Models/BreadcrumbBuilder.swift"))
         #expect(breadcrumb.contains("DocumentTitle.displayName("))
         #expect(!breadcrumb.contains("Segment(name: $0.name"))
         #expect(!breadcrumb.contains("path.insert(doc.name"))

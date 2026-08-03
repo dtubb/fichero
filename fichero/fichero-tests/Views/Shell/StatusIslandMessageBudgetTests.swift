@@ -45,11 +45,8 @@ struct StatusIslandMessageBudgetTests {
     @Test("the island still declares the width the budget was derived from")
     func declaredWidthMatchesTheDerivation() throws {
         #expect(StatusIslandMessage.declaredMaxWidth == 260)
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Shell/Toolbar/StatusIslandToolbarItem.swift")
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Shell/Toolbar/StatusIslandToolbarItem.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         #expect(source.contains("maxWidth: StatusIslandMessage.declaredMaxWidth"))
         // The renderer's truncation is a backstop, never the length policy.

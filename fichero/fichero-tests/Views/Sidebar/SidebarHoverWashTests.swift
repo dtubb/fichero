@@ -46,12 +46,7 @@ final class SidebarHoverWashTests: XCTestCase {
     /// failure the trailing affordance already avoids by staying in the layout
     /// and toggling opacity instead of appearing.
     func testHoverChangesOnlyAFillAndNeverAMetric() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift")
+        let url = try AppSource.root().appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         XCTAssertFalse(source.isEmpty, "SidebarItemRow.swift is empty — this guard measures nothing")
 
@@ -72,12 +67,7 @@ final class SidebarHoverWashTests: XCTestCase {
     /// `.background`, not `.overlay` — an overlay would tint the label itself
     /// and make hovered text read as disabled.
     func testTheWashSitsBehindTheRowContent() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift")
+        let url = try AppSource.root().appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
 
         let washRange = try XCTUnwrap(source.range(of: "LibrarySelectionStyle.hoverFill"))

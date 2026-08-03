@@ -23,11 +23,7 @@ import Testing
 struct CanvasLayoutOptimisticPublishTests {
 
     private static func storeSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Models/CanvasLayoutStore.swift")
+        let url = try AppSource.root().appendingPathComponent("Models/CanvasLayoutStore.swift")
         return try String(contentsOf: url, encoding: .utf8)
     }
 

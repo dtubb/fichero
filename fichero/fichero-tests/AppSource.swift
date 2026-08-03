@@ -88,6 +88,22 @@ enum AppSource {
         throw NotFound(startedFrom: start.path, landmark: landmark)
     }
 
+    /// A SIBLING target's root — `fichero-api-client`, `fichero-ui-tests` —
+    /// anchored on the same landmark walk rather than counted separately.
+    ///
+    /// Without this, a test that needs the generated client goes straight back
+    /// to `deletingLastPathComponent()` chains, because `root()` alone cannot
+    /// express "next to the app target". One resolver with two shapes beats two
+    /// resolvers, which is how the class came back the first time.
+    static func sibling(
+        _ name: String,
+        from filePath: String = #filePath
+    ) throws -> URL {
+        try root(from: filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent(name)
+    }
+
     /// The text of an app source file, relative to the app target root.
     ///
     /// Failures are separated on purpose: a missing ROOT is `NotFound` above,

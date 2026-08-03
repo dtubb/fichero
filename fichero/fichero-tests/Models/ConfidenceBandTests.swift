@@ -112,11 +112,7 @@ struct ConfidenceBandTests {
     // MARK: - Structural: every confidence surface bands
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
@@ -154,11 +150,7 @@ struct ConfidenceBandTests {
     /// app-wide before landing, so this cannot be a false-red on day one).
     @Test("nowhere in the app does a confidence render as a raw decimal")
     func noSurfaceAnywhereFormatsARawConfidence() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views")
+        let root = try AppSource.root().appendingPathComponent("Views")
 
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }

@@ -5,23 +5,17 @@ import XCTest
 final class AnnotationServiceTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    private static func appRoot() -> URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+    private static func appRoot() throws -> URL {
+        try AppSource.root()
     }
 
-    private static func swiftFiles(under relativeDir: String, namePrefix: String? = nil) -> [URL] {
-        let root = appRoot().appendingPathComponent(relativeDir)
+    private static func swiftFiles(under relativeDir: String, namePrefix: String? = nil) throws -> [URL] {
+        let root = try appRoot().appendingPathComponent(relativeDir)
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
             .compactMap { $0 as? URL }
             .filter { $0.pathExtension == "swift" } ?? []
@@ -81,7 +75,7 @@ final class AnnotationServiceTests: XCTestCase {
     /// about the Inspector surface as a whole, so this sweeps the directory.
     /// Verified zero occurrences under `Views/Inspector/` before landing.
     func testNoInspectorPaneAnywhereHandRollsASplitView() throws {
-        let files = Self.swiftFiles(under: "Views/Inspector")
+        let files = try Self.swiftFiles(under: "Views/Inspector")
         XCTAssertFalse(files.isEmpty, "the sweep must actually read files")
 
         var offenders: [String] = []
@@ -103,8 +97,8 @@ final class AnnotationServiceTests: XCTestCase {
     /// Inspector VIEW ever touches networking directly (that's the service
     /// layer's job). Verified zero occurrences in both scopes before landing.
     func testNoAnnotationServiceFileOrInspectorViewTouchesRawNetworking() throws {
-        let serviceFiles = Self.swiftFiles(under: "Services", namePrefix: "AnnotationService")
-        let inspectorFiles = Self.swiftFiles(under: "Views/Inspector")
+        let serviceFiles = try Self.swiftFiles(under: "Services", namePrefix: "AnnotationService")
+        let inspectorFiles = try Self.swiftFiles(under: "Views/Inspector")
         XCTAssertFalse(serviceFiles.isEmpty, "the sweep must actually read files")
         XCTAssertFalse(inspectorFiles.isEmpty, "the sweep must actually read files")
 

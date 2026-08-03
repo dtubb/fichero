@@ -16,17 +16,13 @@ import Testing
 /// the invariant is structural, costs nothing, and needs no engine.
 struct NoFullWindowLoginTests {
     /// Root of the app target's sources (fichero/fichero).
-    private static var appSourceRoot: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+    private static func appSourceRoot() throws -> URL {
+        try AppSource.root()
     }
 
     /// Every Swift source in the app target.
     private static func appSources() throws -> [(path: String, source: String)] {
-        let root = appSourceRoot
+        let root = try appSourceRoot()
         guard let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: nil

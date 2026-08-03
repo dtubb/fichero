@@ -10,10 +10,7 @@ final class LibraryItemDragTests: XCTestCase {
     }
 
     func testExternalFileDragsSuggestTheDocumentName() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let root = try AppSource.root()
         for path in ["Models/Document.swift", "Views/Sidebar/ItemRow/SidebarItemRow.swift"] {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
             XCTAssertTrue(source.contains(".suggestedFileName(\\.name)"), path)
@@ -21,10 +18,7 @@ final class LibraryItemDragTests: XCTestCase {
     }
 
     func testLibrarySurfacesUseCommonDragPayload() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let root = try AppSource.root()
         // LibraryView+DisplayModes.swift / LibraryView+TableMapViews.swift were
         // renamed/split; the doc-drag marker now lives in both IconMode and
         // ListView, and the page-drag marker in TableColumns.

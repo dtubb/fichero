@@ -114,7 +114,7 @@ final class MenuShortcutBoundaryTests: XCTestCase {
 
     /// Every `.swift` path under the app target, relative to `fichero/fichero/`.
     private static func appSwiftFiles() throws -> [String] {
-        let root = Self.appRoot.standardizedFileURL
+        let root = try Self.appRoot().standardizedFileURL
         guard let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: nil
@@ -129,13 +129,11 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         return paths
     }
 
-    private static var appRoot: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("../fichero")
+    private static func appRoot() throws -> URL {
+        try AppSource.root()
     }
 
     private static func appSource(_ relativePath: String) throws -> String {
-        try String(contentsOf: appRoot.appendingPathComponent(relativePath), encoding: .utf8)
+        try String(contentsOf: appRoot().appendingPathComponent(relativePath), encoding: .utf8)
     }
 }

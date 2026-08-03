@@ -23,14 +23,11 @@ import XCTest
 /// `URLSession(` (the call form) and the pinning symbols, not the bare word.
 final class EntityServiceTransportRoutingTests: XCTestCase {
 
-    private static let servicesDir: String = {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+    private static func servicesDir() throws -> String {
+        try AppSource.root()
             .appendingPathComponent("Services")
             .path
-    }()
+    }
 
     /// The smallest believable number of `EntityService*.swift` files.
     ///
@@ -58,15 +55,16 @@ final class EntityServiceTransportRoutingTests: XCTestCase {
     /// added later inherits it instead of being remembered.
     private static func entityServiceSources() throws -> [String] {
         let fm = FileManager.default
-        let entries = try fm.contentsOfDirectory(atPath: servicesDir)
+        let dir = try servicesDir()
+        let entries = try fm.contentsOfDirectory(atPath: dir)
         let sources = entries
             .filter { $0.hasPrefix("EntityService") && $0.hasSuffix(".swift") }
             .sorted()
-            .map { (servicesDir as NSString).appendingPathComponent($0) }
+            .map { (dir as NSString).appendingPathComponent($0) }
 
         XCTAssertGreaterThanOrEqual(
             sources.count, minimumSourceCount,
-            "found only \(sources.count) EntityService*.swift files under \(servicesDir) — "
+            "found only \(sources.count) EntityService*.swift files under \(dir) — "
                 + "the files moved or were renamed, so these transport guards are "
                 + "asserting over nothing rather than over a clean service"
         )
@@ -138,7 +136,7 @@ final class EntityServiceTransportRoutingTests: XCTestCase {
     /// `streamLines` that folds the middleware stack around the shared
     /// transport. ~90 concern-extension callers go through this helper.
     func testMainEntityServiceRoutesEndpointDataThroughClientRequestData() throws {
-        let path = (Self.servicesDir as NSString).appendingPathComponent("EntityService.swift")
+        let path = (try Self.servicesDir() as NSString).appendingPathComponent("EntityService.swift")
         let source = try Self.readSource(path)
         XCTAssertTrue(
             source.contains("client.requestData("),
@@ -156,7 +154,7 @@ final class EntityServiceTransportRoutingTests: XCTestCase {
     /// knowledge-consistency mandate — no hand-rolled URLSession). Pinning a
     /// representative op catches a regression that drops the generated path.
     func testMainEntityServiceCallsGeneratedClientOps() throws {
-        let path = (Self.servicesDir as NSString).appendingPathComponent("EntityService.swift")
+        let path = (try Self.servicesDir() as NSString).appendingPathComponent("EntityService.swift")
         let source = try Self.readSource(path)
         XCTAssertTrue(
             source.contains("client.api."),

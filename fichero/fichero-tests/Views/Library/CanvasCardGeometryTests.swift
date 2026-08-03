@@ -69,10 +69,7 @@ final class CanvasCardGeometryTests: XCTestCase {
     // MARK: - All three renderers consume the shared geometry
 
     func testAllThreeRenderersRouteCardShapeThroughTheSharedGeometry() throws {
-        let base = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Library/ViewModes/Canvas")
+        let base = try AppSource.root().appendingPathComponent("Views/Library/ViewModes/Canvas")
         for relative in [
             "3D/SpaceSceneView.swift",
             "3D/CanvasScene3DRenderer.swift",

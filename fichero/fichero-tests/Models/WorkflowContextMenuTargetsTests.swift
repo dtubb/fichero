@@ -2,15 +2,12 @@
 import XCTest
 
 final class WorkflowContextMenuTargetsTests: XCTestCase {
-    private var sidebarPresentationURL: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
+    private func sidebarPresentationURL() throws -> URL {
+        try AppSource.root().appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
     }
 
     func testSidebarContextMenuResolvesFileAndFolderTargetsBeforeShowingWorkflowMenu() throws {
-        let source = try String(contentsOf: sidebarPresentationURL)
+        let source = try String(contentsOf: sidebarPresentationURL())
 
         XCTAssertTrue(source.contains("WorkflowRunTargetResolver.resolve"))
         XCTAssertFalse(source.contains("if case .document(let doc) = item.itemType"))
@@ -30,7 +27,7 @@ final class WorkflowContextMenuTargetsTests: XCTestCase {
     }
 
     func testSidebarWorkflowExecutorSendsAllResolvedTargetsInOneRequest() throws {
-        let source = try String(contentsOf: sidebarWorkflowURL)
+        let source = try String(contentsOf: sidebarWorkflowURL())
 
         XCTAssertTrue(source.contains("func runWorkflowOnDocuments("))
         XCTAssertTrue(source.contains("docIds: [String]"))
@@ -38,7 +35,7 @@ final class WorkflowContextMenuTargetsTests: XCTestCase {
     }
 
     func testLibraryContextMenuResolvesClickedFolderBeforeBatchWorkflow() throws {
-        let source = try String(contentsOf: libraryContextMenuURL)
+        let source = try String(contentsOf: libraryContextMenuURL())
 
         XCTAssertTrue(source.contains("WorkflowRunTargetResolver.resolve"))
         XCTAssertTrue(source.contains("selectedDocumentIdsForBatch = resolution.targetIds"))
@@ -52,17 +49,11 @@ final class WorkflowContextMenuTargetsTests: XCTestCase {
         XCTAssertTrue(source.contains("resolution.ignoredSelection"))
     }
 
-    private var sidebarWorkflowURL: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift")
+    private func sidebarWorkflowURL() throws -> URL {
+        try AppSource.root().appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+Workflow.swift")
     }
 
-    private var libraryContextMenuURL: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Library/LibraryView+ContextMenu.swift")
+    private func libraryContextMenuURL() throws -> URL {
+        try AppSource.root().appendingPathComponent("Views/Library/LibraryView+ContextMenu.swift")
     }
 }

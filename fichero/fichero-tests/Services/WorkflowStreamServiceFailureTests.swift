@@ -5,10 +5,7 @@ import XCTest
 final class WorkflowStreamServiceFailureTests: XCTestCase {
 
     private static func source() throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent("Services/WorkflowStreamService.swift")
         return try String(contentsOf: url, encoding: .utf8)
     }
