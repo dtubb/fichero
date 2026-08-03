@@ -264,3 +264,38 @@ nothing. It usually needs `sudo killall -9 testmanagerd` or a reboot.
 **Honest gate state at close:** `main` builds green (RC=0, repeatedly) and the
 released DMG is verified. The full gate has NOT passed — five legs red, of
 which the Swift ones did not run at all, and the others are addressed.
+
+---
+
+## 10. What does `(Untested)` mean? (#3804, audit finding 4)
+
+38 of 39 shipped workflow presets carry an `(Untested)` label. A warning on
+almost everything is not a warning — it is wallpaper. Users learn to read past
+it, which means the one preset that genuinely deserves the flag gets the same
+glance as the 37 that are merely unvalidated.
+
+This is the same shape as the empty-allowlist problem from #4487: a mechanism
+that appears to be reporting something while measuring nothing.
+
+**Your call, and it is a product decision, not a code fix:**
+- (a) Validate the presets and remove the label from the ones that pass —
+  honest, but it is 38 validations of real work.
+- (b) Invert it: label the tested ones `(Verified)` and let unlabelled mean
+  unknown. Cheap, and it stops the label lying, but it admits most presets are
+  unverified rather than hiding it behind a uniform warning.
+- (c) Drop the label entirely and track preset validation somewhere that is not
+  the menu.
+
+I have not guessed. Whichever you pick is a small change; picking wrong and
+having the menu mislead for another month is not.
+
+## 11. Workflow naming and grouping pass (#3804, audit finding 5)
+
+The audit found naming/grouping inconsistencies across the 39 presets in 10
+folders and deliberately ranked them last, because they are cosmetic next to
+the enforcement bugs. They also want your eye rather than an agent's — these
+are the names Ann and other users read, and consistency imposed by an agent
+tends to produce technically-uniform names that no historian would choose.
+
+Read the table in
+`agent-work/status/2026-08-03-workflow-menu-vs-engine-audit.md` finding 5.
