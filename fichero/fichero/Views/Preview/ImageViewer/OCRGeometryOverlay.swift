@@ -5,14 +5,12 @@ import SwiftUI
 /// A sibling of `BoundingBoxOverlay` (user annotation regions): this layer
 /// renders the OCR geometry captured on the vision pass — normalized
 /// top-left-origin `[x, y, w, h]` rects — inside the currently visible
-/// zoom/pan window. Hovering a box highlights it and shows its recognized
-/// text, previewing the transcript↔image link the geometry stores.
+/// zoom/pan window — showing where the transcription believes text is, which
+/// is what makes it checkable rather than merely trusted.
 struct OCRGeometryOverlay: View {
     let geometry: OCRGeometry
     /// Normalized sub-rect of the image currently visible (zoom/pan window).
     let visible: CGRect
-
-    @State private var hoveredBoxID: String?
 
     /// Words when the pass produced them; lines otherwise (never both at
     /// once — nested rectangles read as clutter, not structure).
@@ -28,29 +26,35 @@ struct OCRGeometryOverlay: View {
                     if let rect = BoundingBoxGeometry.viewRect(
                         normalized: box.bbox, in: geo.size, visible: visible
                     ) {
-                        let isHovered = hoveredBoxID == box.id
                         RoundedRectangle(cornerRadius: 1.5)
-                            .stroke(
-                                isHovered ? Color.orange : Color.accentColor.opacity(0.8),
-                                lineWidth: isHovered ? 1.5 : 1
-                            )
-                            .background(
-                                (isHovered ? Color.orange : Color.accentColor)
-                                    .opacity(isHovered ? 0.22 : 0.08)
-                            )
+                            .stroke(Color.accentColor.opacity(0.8), lineWidth: 1)
+                            .background(Color.accentColor.opacity(0.08))
                             .frame(width: rect.width, height: rect.height)
                             .offset(x: rect.minX, y: rect.minY)
-                            .onHover { inside in
-                                hoveredBoxID = inside ? box.id : (isHovered ? nil : hoveredBoxID)
-                            }
-                            .help(box.text)
                             .accessibilityLabel("Recognized text: \(box.text)")
                     }
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
-        .allowsHitTesting(true)
+        // The layer is now ON by default (#4418), which changes what
+        // hit-testing costs. On a dense page the boxes cover most of the
+        // image, and each one has an opaque `.background`, so an interactive
+        // overlay would swallow every drag meant for pan or for drawing a
+        // region — on exactly the transcribed pages where both matter most.
+        // Its sibling `BoundingBoxOverlay` sidesteps this by only mounting
+        // when armed; this layer is always mounted, so it must be inert.
+        //
+        // The cost is the hover tooltip that showed a box's recognised text.
+        // Worth it: the boxes' POSITIONS are what make a transcription
+        // checkable — where Vision found text and where it found none — and
+        // the recognised text itself is already in the reader beside the page.
+        // The accessibility labels below survive, so VoiceOver still reads it.
+        //
+        // ponytail: inert layer. If the tooltip is wanted back, it needs a
+        // hover-only hit region (`.contentShape(.hoverEffect, …)`) rather than
+        // flipping this to true, which is where the drag-swallowing came from.
+        .allowsHitTesting(false)
     }
 }
 

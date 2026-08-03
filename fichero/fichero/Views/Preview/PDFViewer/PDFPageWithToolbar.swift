@@ -85,7 +85,10 @@ struct PDFPageWithToolbar: View {
     // after the #4418 split, and `private` in Swift is FILE-scoped, not
     // type-scoped — an extension in another file cannot see it.
     @Environment(ArtifactService.self) var artifactService: ArtifactService?
-    @AppStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = false
+    /// ON by default (#4418) — same reasoning as the image surface: geometry
+    /// that exists but is never drawn is geometry nobody can check a
+    /// transcription against.
+    @AppStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     @State var ocrGeometry: OCRGeometry?
     @State private var isDrawingRegion = false
     @State private var pendingTool: ReaderAnnotationTool = .highlight
