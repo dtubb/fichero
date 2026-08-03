@@ -29,6 +29,13 @@ rather than ``True`` for runs recorded before that column existed.
 **One capture path.** Everything here is derived from #4284's per-step records
 and the artifact rows they already join. No new table, no second recorder, no
 scraping a "response" back out of final state.
+
+``summarise_side``, ``incomparable_reason``, ``artifact_ref``, ``order_key``
+and ``diff_text`` are public rather than private because
+``transcription_accuracy`` (#3905) scores a run against a paleographer's gold
+text and must refuse in exactly this shape, for exactly these reasons. A
+second implementation of "this side cannot be trusted" is how two answers
+about the same broken run start to disagree.
 """
 
 from __future__ import annotations
@@ -243,7 +250,7 @@ def _resolved_ids(scope: dict[str, Any] | None) -> list[str] | None:
     return [str(i) for i in ids]
 
 
-def _summarise(side: RunSide) -> SideSummary:
+def summarise_side(side: RunSide) -> SideSummary:
     resolved = _resolved_ids(side.resolved_scope)
     return SideSummary(
         thread_id=side.thread_id,
@@ -261,7 +268,7 @@ def _summarise(side: RunSide) -> SideSummary:
     )
 
 
-def _incomparable_reason(label: str, side: RunSide) -> str | None:
+def incomparable_reason(label: str, side: RunSide) -> str | None:
     """Why this side's output cannot stand as one half of a comparison."""
     status = (side.status or "").strip() or "unknown"
     if status in COMPARABLE_RUN_STATUSES:
@@ -482,7 +489,7 @@ def diff_structured(
 # ---------------------------------------------------------------------------
 
 
-def _ref(artifact: Any, document_names: dict[str, str]) -> ArtifactRef:
+def artifact_ref(artifact: Any, document_names: dict[str, str]) -> ArtifactRef:
     content = getattr(artifact, "content", None) or ""
     document_id = str(getattr(artifact, "document_id", "") or "")
     return ArtifactRef(
@@ -504,7 +511,7 @@ def _pair_key(artifact: Any) -> tuple[str, str]:
     )
 
 
-def _order_key(artifact: Any) -> tuple[int, str]:
+def order_key(artifact: Any) -> tuple[int, str]:
     sequence = getattr(artifact, "sequence", None)
     created = getattr(artifact, "created_at", None)
     return (sequence if sequence is not None else 0, str(created or ""))
@@ -515,7 +522,7 @@ def _group(artifacts: Sequence[Any]) -> dict[tuple[str, str], list[Any]]:
     for artifact in artifacts:
         grouped.setdefault(_pair_key(artifact), []).append(artifact)
     for items in grouped.values():
-        items.sort(key=_order_key)
+        items.sort(key=order_key)
     return grouped
 
 
@@ -542,8 +549,8 @@ def _compare_artifacts(
         document_id=document_id,
         document_name=document_names.get(document_id),
         artifact_type=str(getattr(left, "artifact_type", "") or ""),
-        left=_ref(left, document_names),
-        right=_ref(right, document_names),
+        left=artifact_ref(left, document_names),
+        right=artifact_ref(right, document_names),
         identical=not (text_diff or set_diffs or value_diffs),
         text_diff=text_diff,
         set_differences=set_diffs,
@@ -577,11 +584,11 @@ def compare_runs(
         )
 
     names = dict(document_names or {})
-    summary_left = _summarise(left)
-    summary_right = _summarise(right)
+    summary_left = summarise_side(left)
+    summary_right = summarise_side(right)
     same_input, input_note = _input_verdict(left, right)
 
-    reason = _incomparable_reason("Left", left) or _incomparable_reason("Right", right)
+    reason = incomparable_reason("Left", left) or incomparable_reason("Right", right)
     if reason:
         return RunComparison(
             left=summary_left,
@@ -610,8 +617,8 @@ def compare_runs(
             )
         # A workflow that produced three passes where the other produced one is
         # itself a difference; the surplus is reported, never dropped.
-        only_left.extend(_ref(a, names) for a in left_items[paired:])
-        only_right.extend(_ref(a, names) for a in right_items[paired:])
+        only_left.extend(artifact_ref(a, names) for a in left_items[paired:])
+        only_right.extend(artifact_ref(a, names) for a in right_items[paired:])
 
     difference_count = (
         sum(1 for c in compared if not c.identical) + len(only_left) + len(only_right)
