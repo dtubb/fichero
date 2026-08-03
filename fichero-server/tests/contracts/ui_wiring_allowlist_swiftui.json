@@ -128,7 +128,6 @@
     "/api/tasks/{task_id}/result": "baseline: not yet wired",
     "/api/workflow-execution/cache": "baseline: not yet wired",
     "/api/workflow-execution/cache/stats": "baseline: not yet wired",
-    "/api/workflow-execution/comparisons": "#4341 run comparison - engine diff landed 2026-08-03; SwiftUI surface in flight under EPIC #4312 (activity-view run detail). Drop this entry when the comparison view calls it.",
     "/api/workflow-execution/threads/{thread_id}/diagram.png": "baseline: not yet wired",
     "/api/workflow-execution/threads/{thread_id}/diagram.svg": "#2628 thread graph SVG is returned for backend/CLI/export flows; Activity has no SwiftUI SVG viewer yet (#2638/#2640)",
     "/api/workflow-execution/workflows/{workflow_id}/cache": "baseline: not yet wired",

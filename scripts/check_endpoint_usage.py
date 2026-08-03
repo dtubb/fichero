@@ -37,7 +37,6 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
-    'GET /api/workflow-execution/comparisons': "#4341 run comparison - engine diff landed 2026-08-03; the SwiftUI surface is in flight under EPIC #4312. Remove when the activity-view run detail calls it.",
     'GET /api/entities/digest': "CLI/engine-only: the app renders the entity digest via the WebKit document view, not this endpoint; the dead Swift entityDigest() wrapper was removed in #3765.",
     'DELETE /api/chains/executions/{execution_id}': "#1920 baseline - cli-only",
     'DELETE /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
