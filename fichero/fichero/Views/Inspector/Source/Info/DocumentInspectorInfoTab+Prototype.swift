@@ -6,6 +6,15 @@ import SwiftUI
 struct DocumentPrototypePicker: View {
     let documentId: String
     let initialKey: String?
+    /// The entity service of the library that OWNS `documentId`, handed down by
+    /// the inspector rather than looked up here (#4461).
+    ///
+    /// This reached for `LibraryManager.shared.globalLibrary?.entityService`,
+    /// which is the #4306 shape: it listed the global library's prototypes and
+    /// assigned against the global database, where a non-global document does
+    /// not exist. Nil when no library resolves — the picker then shows its
+    /// empty state instead of quietly editing another library.
+    let entityService: EntityService?
 
     @State private var selectedKey: String?
     @State private var prototypes: [Components.Schemas.ClassificationValue] = []
@@ -61,14 +70,14 @@ struct DocumentPrototypePicker: View {
         }
         .task {
             selectedKey = initialKey
-            if let svc = LibraryManager.shared.globalLibrary?.entityService {
+            if let svc = entityService {
                 prototypes = (try? await svc.listDocumentPrototypes()) ?? []
             }
         }
     }
 
     private func assign(_ key: String?) async {
-        guard let svc = LibraryManager.shared.globalLibrary?.entityService else { return }
+        guard let svc = entityService else { return }
         isAssigning = true
         defer { isAssigning = false }
         if let key {

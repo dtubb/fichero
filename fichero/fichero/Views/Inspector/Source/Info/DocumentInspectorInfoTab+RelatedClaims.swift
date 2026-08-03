@@ -19,6 +19,15 @@ private let relatedClaimsLogger = Logger(
 /// Ontology Browser Tools menu.
 struct RelatedClaimsPanel: View {
     let documentId: String
+    /// The library that OWNS `documentId`, handed down by the inspector rather
+    /// than looked up here (#4461).
+    ///
+    /// Both the claim fetch and the source-name resolution reached for
+    /// `LibraryManager.shared.globalLibrary` — the #4306 shape, and a sibling
+    /// of it in the very same Info tab. In a non-global library the panel
+    /// listed claims from a database this document is not in, so it showed
+    /// either nothing or another library's claims as this document's.
+    let library: LibraryManager.LibraryReference?
 
     @State private var related: [EntityService.SimilarClaim] = []
     @State private var sourceDocNames: [String: String] = [:]
@@ -78,7 +87,7 @@ struct RelatedClaimsPanel: View {
 
     @MainActor
     private func load() async {
-        guard let library = LibraryManager.shared.globalLibrary else {
+        guard let library else {
             related = []
             return
         }
@@ -130,9 +139,7 @@ struct RelatedClaimsPanel: View {
     }
 
     private func resolveSourceDocNames(for ids: Set<String>) {
-        guard let library = LibraryManager.shared.globalLibrary,
-              !ids.isEmpty
-        else { return }
+        guard let library, !ids.isEmpty else { return }
         var resolved: [String: String] = [:]
         for id in ids {
             if let doc = library.documentStore.currentDocuments.first(where: { $0.id == id }) {

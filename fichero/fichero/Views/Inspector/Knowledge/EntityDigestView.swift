@@ -382,8 +382,18 @@ struct EntityDigestContent: View {
     /// just `currentDocuments`, so an off-page source resolves to its title
     /// instead of a raw hash. Falls back to the id only when the document isn't
     /// in any store (that residual case needs a title on the claim payload).
+    ///
+    /// The store comes from the library that owns this digest's `entityService`
+    /// (#4461), not from `globalLibrary`. Reaching for global here was the
+    /// #4306 shape in its quietest form: a non-global document is absent from
+    /// the global store, so every source name degraded to a raw hash id — and
+    /// that is exactly what this function returns when a document is genuinely
+    /// missing, so the wrong scope was indistinguishable from the honest
+    /// not-found.
     private func docName(for docId: String) -> String {
-        guard let store = LibraryManager.shared.globalLibrary?.documentStore else { return docId }
+        guard let store = LibraryManager.shared
+            .library(owningService: entityService)?.documentStore
+        else { return docId }
         let all = store.currentDocuments + store.collections + store.sidebarDocuments
         guard let doc = all.first(where: { $0.id == docId }) else { return docId }
         // Not `doc.name` (#4416 sibling, found in passing): a page child's name

@@ -109,7 +109,7 @@ struct DocumentInspectorInfoTab: View {
     @ViewBuilder
     private var provenanceSections: some View {
         infoSection("Related Claims") {
-            RelatedClaimsPanel(documentId: document.id)
+            RelatedClaimsPanel(documentId: document.id, library: currentLibrary)
         }
 
         infoSection("Workflow History") {
@@ -202,7 +202,8 @@ struct DocumentInspectorInfoTab: View {
             ) {
                 DocumentPrototypePicker(
                     documentId: document.id,
-                    initialKey: document.prototypeKey
+                    initialKey: document.prototypeKey,
+                    entityService: currentLibrary?.entityService
                 )
             }
         }

@@ -24,7 +24,13 @@ extension LibraryView {
         editingName = ""
 
         Task {
-            guard let library = libraryManager.globalLibrary else { return }
+            // The WINDOW's library, not the global one (#4461). This renamed
+            // through `globalLibrary.documentStore` while the user was looking
+            // at whatever library the window shows — a WRITE against the wrong
+            // database, and the same reach as #4306 except it mutates. The
+            // correct accessor already existed on this very type
+            // (`LibraryView+ContextMenu`); the rename simply never used it.
+            guard let library = activeLibraryReference else { return }
             do {
                 _ = try await library.documentStore.renameDocument(doc, to: newName)
             } catch {

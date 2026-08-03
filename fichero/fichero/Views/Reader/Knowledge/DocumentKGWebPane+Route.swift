@@ -22,15 +22,22 @@ extension DocumentKGPaneRoute {
     }
 
     /// The `FicheroClient` whose transport the KG page's scheme handler funnels
-    /// through — the open library matching `libraryPath`, falling back to the
-    /// Global library. Its `currentLibraryPath` is already set to `libraryPath`,
-    /// so `requestData` applies the correct library scoping automatically.
+    /// through: the open library rooted at `libraryPath`, and nothing else. Its
+    /// `currentLibraryPath` is already set to `libraryPath`, so `requestData`
+    /// applies the correct library scoping automatically.
+    ///
+    /// The Global-library fallback that used to close this function was the
+    /// only wrong-scope risk here (#4461). The path match already covers the
+    /// global library — it is an open library like any other — so the fallback
+    /// could only ever fire when `libraryPath` named NO open library: a stale
+    /// path, or a library closed out from under the pane. In that case it
+    /// served the global library's knowledge graph for a document that is not
+    /// in it, which reads as a real but wrong answer. Returning nil instead
+    /// leaves the scheme handler unregistered, and the pane shows its own
+    /// load-failure page — an honest failure rather than another library's data.
     @MainActor
     static func webViewClient(libraryPath: String, libraryManager: LibraryManager) -> FicheroClient? {
-        if let match = libraryManager.openLibraries.first(where: { $0.url.path == libraryPath }) {
-            return match.ficheroClient
-        }
-        return libraryManager.globalLibrary?.ficheroClient
+        libraryManager.library(atPath: libraryPath)?.ficheroClient
     }
 
     /// No availability gate (2026-07-27, approved): the pane once refused
