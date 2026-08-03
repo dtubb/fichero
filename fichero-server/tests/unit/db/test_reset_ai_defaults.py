@@ -244,3 +244,93 @@ class TestResetAIDefaults:
 
         defaults = app_db.get_ai_defaults()
         assert "default_primary_language" not in defaults
+
+
+# =============================================================================
+# #3905 / #4502 — the vision tiers stay on-device, and the reason is measured
+# =============================================================================
+
+
+class TestTheVisionTiersStayOnDevice:
+    """Every existing check compares the seeded settings TO the factory table.
+
+    That is a consistency check, not a values check: flipping
+    `FACTORY_AI_DEFAULTS` to a paid provider keeps all of them green while
+    silently putting every fresh install on someone's bill. These pin the
+    values, and record the measurement that justifies them so a future change
+    has to argue with a number rather than an opinion.
+
+    Measured 2026-08-03 on `dialogo_lengua_page_18`, one authorised run of the
+    shipped Ensemble preset against openrouter/google/gemini-3-flash-preview
+    (accent-blind CER, lower is better):
+
+        free Apple Vision, whole page   0.3571
+        free Apple Vision, ensemble tiles 0.4586
+        paid ensemble t2 (best tier)    0.3971
+        paid ensemble t4 (THE OUTPUT)   0.8814
+
+    t4 is the pass whose text becomes the page. It is 2.47x worse than free
+    on-device OCR of the same page, and 1.92x worse than free OCR of the very
+    same tiles the paid model was given. Paying for that is paying to be wrong.
+    """
+
+    VISION_TIER_KEYS = (
+        "default_vision_provider",
+        "default_vision_small_provider",
+        "default_vision_medium_provider",
+        "default_vision_large_provider",
+    )
+
+    def test_every_vision_tier_defaults_to_apple(self):
+        from fichero_server.db.app import FACTORY_AI_DEFAULTS
+
+        for key in self.VISION_TIER_KEYS:
+            assert FACTORY_AI_DEFAULTS[key] == "apple", (
+                f"{key} is no longer on-device. A fresh install would send "
+                "vision work to a paid provider that measured 0.8814 CER on "
+                "the gold page against 0.3571 for free Apple Vision (#3905)"
+            )
+
+    def test_every_vision_tier_defaults_to_apple_vision_the_model(self):
+        from fichero_server.db.app import FACTORY_AI_DEFAULTS
+
+        for key in (k.replace("_provider", "_model") for k in self.VISION_TIER_KEYS):
+            assert FACTORY_AI_DEFAULTS[key] == "apple-vision", (
+                f"{key} is not apple-vision — a provider of 'apple' with some "
+                "other model would satisfy the check above while still not "
+                "being the tier that was measured"
+            )
+
+    def test_no_factory_default_names_a_paid_provider(self):
+        """The whole table, not just vision. A keyless install must be able to
+        run every default workflow (#4325), and any cloud name here breaks
+        that as surely as it starts costing money."""
+        from fichero_server.db.app import FACTORY_AI_DEFAULTS
+
+        paid = {
+            "openrouter", "openai", "anthropic", "google", "groq", "together",
+            "deepseek", "mistral", "dashscope", "xai", "perplexity",
+            "fireworks", "deepl",
+        }
+        offenders = {
+            key: value
+            for key, value in FACTORY_AI_DEFAULTS.items()
+            if key.endswith("_provider") and value in paid
+        }
+        assert not offenders, (
+            f"factory defaults name paid providers: {offenders}. A fresh "
+            "install with no API keys must still run every default workflow"
+        )
+
+    def test_a_reset_puts_a_paid_vision_override_back_on_device(self, app_db):
+        """The user-facing recovery path for exactly the state this was found
+        in: a stored override had every vision tier on a paid model, so the
+        'small' tier a user expects to be free was billing."""
+        app_db.set_setting("default_vision_small_provider", "openrouter")
+        app_db.set_setting("default_vision_small_model", "google/gemini-3-flash-preview")
+
+        app_db.reset_ai_defaults()
+
+        defaults = app_db.get_ai_defaults()
+        assert defaults["default_vision_small_provider"] == "apple"
+        assert defaults["default_vision_small_model"] == "apple-vision"

@@ -412,6 +412,43 @@ def _real_provider_ready() -> bool:
     )
 
 
+# =============================================================================
+# #3905 ANSWERED — measured 2026-08-03, one authorised run
+# =============================================================================
+#
+# Provider: openrouter / google/gemini-3-flash-preview, pinned via env on all
+# of $vision_small, $vision_medium, $vision_large. 12 billable image calls
+# (6 tier nodes x 2 Zoom tiles) — NOT the ~8 estimated; the review tiers send
+# images too.
+#
+# Accent-blind CER by tier (lower is better):
+#     t1a 0.5829   t1b 0.4343   t1c 0.6529
+#     t2  0.3971   t3  0.6129   t4  0.8814
+#
+# Against the free baselines on the same page:
+#     Apple Vision, whole page      0.3571
+#     Apple Vision, the same tiles  0.4586
+#
+# Two findings, both worth more than the headline:
+#
+# 1. THE PAID ENSEMBLE LOSES. t4 is the pass whose text becomes the page, and
+#    at 0.8814 it is 2.47x worse than free on-device OCR of the page and 1.92x
+#    worse than free OCR of the very tiles the paid model was handed. So the
+#    like-for-like comparison does not rescue it: it loses on both.
+#
+# 2. THE ENSEMBLE DEGRADES ITSELF. Quality peaks at t2 (0.3971 — genuinely
+#    competitive, and better than free OCR of the same tiles) and then falls
+#    off a cliff through t3 (0.6129) to t4 (0.8814). The "deep reconcile" and
+#    "expand semi-diplomatic" passes do not refine the transcription, they
+#    destroy it. t4's diplomatic CER of 1.0321 means more edits than there are
+#    characters. Whatever this preset is worth, its LAST TWO STEPS are
+#    negative value, and that is a preset bug rather than a model verdict.
+#
+# #4496 fixed the commentary contamination that produced 2.19-5.41, and that
+# fix holds — nothing here is a preamble leaking into the artifact. This is
+# the model genuinely reading the page worse than Apple Vision does.
+
+
 @pytest.mark.skipif(
     not _real_provider_ready(),
     reason=(
@@ -420,7 +457,11 @@ def _real_provider_ready() -> bool:
     ),
 )
 def test_paleography_ensemble_real_providers(tmp_path: Path) -> None:
-    """Opt-in paid gate: real manuscript, real graph, real configured models."""
+    """Opt-in paid gate: real manuscript, real graph, real configured models.
+
+    Last run 2026-08-03 FAILED, correctly — see the block above. The gate is
+    doing its job; the assertion below is the finding, not a flake.
+    """
     workflow = _paleography_workflow()
     library_path, document = _seed_manuscript(tmp_path)
     state = build_initial_state(
