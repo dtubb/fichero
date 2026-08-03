@@ -138,8 +138,23 @@ extension FeatureManager {
         case "release":
             return .release
         default:
+            // Returns NIL, not `.dev` (#4470). This is the branch that made the
+            // fail-closed default added to `activeBuildTier` ineffective: an
+            // unrecognised value resolved to `.dev` — the WIDEST surface — and
+            // the caller's `.release` fallback never ran, because a non-nil
+            // answer looks like a successful resolution.
+            //
+            // The value that reaches here in practice is the literal
+            // `$(FICHERO_FEATURE_TIER)`: `Info.plist` ships the unsubstituted
+            // placeholder when the build setting is missing. So the most likely
+            // real configuration failure was also the one that unlocked
+            // everything.
+            //
+            // "I do not recognise this" is not an answer, and it must not be
+            // dressed as one. The caller decides what to do with nil, and the
+            // caller now fails closed.
             warnUnknownFeatureTierOnce(rawValue)
-            return .dev
+            return nil
         }
     }
 

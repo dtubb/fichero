@@ -216,10 +216,25 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
                 .appendingPathComponent("LibraryWindow.swift"),
             encoding: .utf8
         )
+        // Each conjunct separately, because the real gate is LINE-WRAPPED:
+        // #4017b added a `libraryIsLoadedAndEmpty` condition and the one-line
+        // spelling this used to match no longer exists. The property is that
+        // all three guards are present in the presentation binding — not that
+        // they fit on one line, which is a formatting accident.
+        // "SOME sheet binding carries all three guards" — the property, stated
+        // without depending on which sheet comes first or how the condition is
+        // wrapped. Two narrower drafts of this were wrong before it: keying on
+        // the FIRST binding hit AddProvider, and keying on the first segment
+        // mentioning `firstRunSheetArmed` hit its own `@State` declaration.
+        let gateIsPresent = source
+            .components(separatedBy: ".sheet(isPresented: Binding(")
+            .contains { segment in
+                segment.contains("firstRunSheetArmed")
+                    && segment.contains("appState.isBackendRunning")
+                    && segment.contains("!featureManager.firstRunCompleted")
+            }
         XCTAssertTrue(
-            source.contains(
-                "firstRunSheetArmed && appState.isBackendRunning && !featureManager.firstRunCompleted"
-            ),
+            gateIsPresent,
             "LibraryWindow's first-run sheet must be gated on firstRunSheetArmed "
                 + "so it never presents in the same update cycle that flips "
                 + "isBackendRunning — that cycle mounts ContentView and runs the "

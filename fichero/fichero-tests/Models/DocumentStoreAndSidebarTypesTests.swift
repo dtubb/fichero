@@ -51,7 +51,11 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     func testDocumentStoreLoadsSidebarRootsThroughGeneratedService() throws {
         let source = try Self.appSource("Models/DocumentStore.swift")
 
-        XCTAssertTrue(source.contains("documentService.getRoots()"))
+        // `documentService.getRoots` WITHOUT the closing paren: the assertion
+        // is that roots come from the generated service, and #3322 added a
+        // `sort:` argument to that same call. Pinning the empty argument list
+        // pinned the spelling, not the routing.
+        XCTAssertTrue(source.contains("documentService.getRoots"))
         XCTAssertFalse(source.contains("api.get(\"/documents\""))
         XCTAssertFalse(source.contains("api.post(\"/documents\""))
     }
