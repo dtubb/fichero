@@ -187,7 +187,23 @@ def test_translate_document_runs_translate_workflow():
         if request.method == "GET" and request.url.path == "/api/workflows":
             return httpx.Response(
                 200,
-                json=[{"id": "wf-t", "name": "Translate"}],
+                # Full WorkflowResponse shape, as the real endpoint sends
+                # it — the CLI reads direct_runnable from here (#3804).
+                json=[
+                    {
+                            "id": "wf-t",
+                            "name": "Translate",
+                            "description": "",
+                            "provider": "",
+                            "model": "",
+                            "format": "nodes",
+                            "nodes": [],
+                            "edges": [],
+                            "folder_path": "/",
+                            "sort_order": 0,
+                            "direct_runnable": True,
+                        }
+                ],
             )
         if request.method == "POST" and request.url.path == "/api/workflow-execution/execute":
             payload = json.loads(request.content)

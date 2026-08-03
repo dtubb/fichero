@@ -153,6 +153,11 @@ def _line(item: Any, indent: int) -> str:
     detail = _first(item, _DETAIL_KEYS)
     if detail:
         text += f"  [{detail}]"
+    # #3804: the engine refuses to run an internal component standalone, so a
+    # plain list of names is a control that lies — every entry looks runnable.
+    # The flag is read from the response, never re-derived here.
+    if item.get("direct_runnable") is False:
+        text += "  (component — run the parent workflow)"
     return f"{pad}- {text}"
 
 

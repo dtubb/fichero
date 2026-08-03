@@ -1948,22 +1948,41 @@ def workflow_list(ctx: typer.Context) -> None:
 
 
 def _resolve_workflow(client: FicheroClient, name: str) -> str:
-    """Resolve a workflow name (or ID) to its ID.
+    """Resolve a workflow name (or ID) to the ID of a workflow that can be RUN.
 
-    ``list_workflows()`` now returns ``list[Workflow]`` (typed Pydantic
+    ``list_workflows()`` returns ``list[WorkflowResponse]`` (typed Pydantic
     instances), so this matches by attribute access — not dict access.
+
+    A component the engine refuses to run standalone is refused here too
+    (#3804), reading the server's ``direct_runnable`` rather than re-deriving
+    it: the CLI used to resolve the name happily and hand the id to an execute
+    call the engine rejects with a 400, which reads as a CLI bug rather than
+    the deliberate refusal it is.
     """
     workflows = client.list_workflows()
     needle = name.lower()
+    matched = None
     for workflow in workflows:
         if (workflow.name or "").lower() == needle:
-            return workflow.id
-    for workflow in workflows:
-        if workflow.id == name:
-            return name
-    raise FicheroError(
-        f"No workflow named '{name}'. Run 'fichero workflow list' to see options."
-    )
+            matched = workflow
+            break
+    if matched is None:
+        for workflow in workflows:
+            if workflow.id == name:
+                matched = workflow
+                break
+    if matched is None:
+        raise FicheroError(
+            f"No workflow named '{name}'. Run 'fichero workflow list' to see options."
+        )
+    if getattr(matched, "direct_runnable", True) is False:
+        raise FicheroError(
+            f"Workflow '{matched.name}' is an internal component and cannot be "
+            "run on its own — it takes its inputs from a parent workflow's "
+            "'sub_workflow' node, not a document. Run the parent workflow "
+            "instead; 'fichero workflow list' marks which workflows are runnable."
+        )
+    return matched.id
 
 
 def _poll_activity_for_terminal(

@@ -47,13 +47,9 @@ EXPECTED_TOOLS = {
     "fichero_workspace_surface_claim",
     "fichero_workspace_add_note",
     "fichero_reveal_location",
-<<<<<<< HEAD:fichero-server/tests/unit/mcp/test_mcp_server.py
     # Audited KG writes (#4469): these call /api/mcp/tools/knowledge/*, the
-    # routes that write MutationLog with the request actor and previously had
-    # zero callers.
-=======
-    # audited KG writes (#4469) — the MutationLog-backed mutation surface
->>>>>>> origin/lane/lane-plan:fichero-mcp/tests/test_mcp_server.py
+    # MutationLog-backed routes that record the request actor and previously
+    # had zero callers.
     "fichero_kg_entity_upsert",
     "fichero_kg_claim_create",
 }
@@ -122,11 +118,53 @@ def test_health_hits_health_endpoint(monkeypatch):
 
 
 def test_workflow_list_hits_workflows_endpoint(monkeypatch):
-    # list_workflows() returns list[Workflow]; mock serves a list shape.
+    # list_workflows() returns list[WorkflowResponse]; mock serves a list shape.
     with _mock_client(monkeypatch, body=[]) as seen:
         mcp_server.fichero_workflow_list()
     assert seen[0].method == "GET"
     assert seen[0].url.path == "/api/workflows"
+
+
+def _workflow_item(workflow_id: str, name: str, **overrides) -> dict:
+    """One item as /api/workflows actually serves it."""
+    item = {
+        "id": workflow_id,
+        "name": name,
+        "description": "",
+        "provider": "",
+        "model": "",
+        "format": "nodes",
+        "nodes": [],
+        "edges": [],
+        "folder_path": "/",
+        "sort_order": 0,
+        "untested": False,
+        "direct_runnable": True,
+        "accepts_model_override": True,
+        "requires_vision": False,
+    }
+    item.update(overrides)
+    return item
+
+
+def test_workflow_list_tells_the_agent_what_it_cannot_run(monkeypatch):
+    """#3804: the engine refuses to run an internal component standalone. The
+    list parsed items into the STORAGE model, which has no direct_runnable, so
+    Pydantic dropped the refusal and an agent reading this tool saw only names
+    — every one of which looked runnable. An agent cannot be expected to obey
+    a rule it is never shown."""
+    body = [
+        _workflow_item("wf-parent", "Transcribe Spanish Script", requires_vision=True),
+        _workflow_item("wf-child", "Spanish Script Passes", direct_runnable=False),
+    ]
+    with _mock_client(monkeypatch, body=body):
+        workflows = mcp_server.fichero_workflow_list()
+
+    assert len(workflows) == 2, "fixture must contain a runnable AND a component"
+    by_name = {w.name: w for w in workflows}
+    assert by_name["Spanish Script Passes"].direct_runnable is False
+    assert by_name["Transcribe Spanish Script"].direct_runnable is True
+    assert by_name["Transcribe Spanish Script"].requires_vision is True
 
 
 def test_docs_get_builds_path(monkeypatch):
@@ -162,19 +200,13 @@ def test_workflow_run_builds_execute_body(monkeypatch):
 
     with _mock_client(monkeypatch, handler=handler):
         mcp_server.fichero_workflow_run("wf-1", "doc-9", skip_cache=True)
-<<<<<<< HEAD:fichero-server/tests/unit/mcp/test_mcp_server.py
     # `selected_doc_ids`, NOT `inputs: {"files": [...]}` (#4467). This
     # assertion previously pinned the BUG: the Files-source node, the CLI and
     # SwiftUI all read `selected_doc_ids`, nothing read `files`, so every MCP
     # workflow run resolved to zero documents and completed green. A test
     # asserting the shape the sender happened to send, rather than the shape
-    # the receiver reads, cannot tell those apart.
-=======
-    # #4480: THIS assertion, stale in the server tree, PINNED the #4467 bug —
-    # it asserted the {"files": [...]} wire shape that made every MCP-run
-    # workflow a silent no-op, staying green while the product was broken.
-    # The engine reads selected_doc_ids (and now 422s the old shape).
->>>>>>> origin/lane/lane-plan:fichero-mcp/tests/test_mcp_server.py
+    # the receiver reads, cannot tell those apart. Duplicated copies of this
+    # file are what let the stale assertion survive (#4480) — there is one now.
     assert seen[0] == {
         "workflow_id": "wf-1",
         "inputs": {"selected_doc_ids": ["doc-9"]},

@@ -146,7 +146,25 @@ def test_client_split_chapters_runs_default_workflow():
         if request.url.path == "/api/workflows":
             return httpx.Response(
                 200,
-                json={"items": [{"id": "wf-split", "name": "Split Chapters"}]},
+                # The real /api/workflows serves a full WorkflowResponse,
+                # including the engine's run-eligibility answers (#3804).
+                json={
+                    "items": [
+                        {
+                            "id": "wf-split",
+                            "name": "Split Chapters",
+                            "description": "",
+                            "provider": "",
+                            "model": "",
+                            "format": "nodes",
+                            "nodes": [],
+                            "edges": [],
+                            "folder_path": "/",
+                            "sort_order": 0,
+                            "direct_runnable": True,
+                        }
+                    ]
+                },
             )
         payload = json.loads(request.content)
         assert payload["workflow_id"] == "wf-split"

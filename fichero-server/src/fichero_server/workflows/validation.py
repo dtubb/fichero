@@ -19,7 +19,10 @@ from fichero_server.workflows.types import (
 )
 from fichero_server.workflows.registry import TOOL_DEFS, enrich_node_with_ports
 from fichero_server.llm import LLMConfig
-from fichero_server.workflows.subworkflow import validate_sub_workflow_references
+from fichero_server.workflows.subworkflow import (
+    resolve_sub_workflow_ref,
+    validate_sub_workflow_references,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -358,128 +361,188 @@ def _require_generative_model(tool_def: ToolDef, node: NodeDef, llm_config: LLMC
     )
 
 
+def _preflight_node_error(node: NodeDef, llm_config: LLMConfig) -> str | None:
+    """Policy-check ONE node's resolved model; message on refusal, else None.
+
+    Split out of :func:`validate_workflow_llm_preflight` so the same check can
+    be applied to a child workflow's nodes without a second copy of the rule.
+    """
+    tool_def = TOOL_DEFS.get(node.tool)
+    if not (tool_def and tool_def.uses_llm):
+        return None
+
+    capability = _required_llm_capability(tool_def)
+    node_provider, node_model = _node_provider_model(node)
+    profile_ref = _node_model_profile_ref(node)
+    kind = "vision" if capability == "vision" else "llm"
+
+    try:
+        # Runs first and for EVERY resolution shape (#4345): a tool that
+        # parses the model's answer is unusable on a recognition-only
+        # model no matter which branch below would have resolved it.
+        _require_generative_model(tool_def, node, llm_config)
+
+        if profile_ref:
+            from fichero_server.llm import (
+                enforce_local_only_provider,
+                resolve_model_profile_for_capability,
+            )
+
+            profile_config = resolve_model_profile_for_capability(
+                profile_ref,
+                base_config=llm_config,
+                required_capability=capability,
+            )
+            enforce_local_only_provider(
+                profile_config.provider,
+                profile_config.model,
+                kind=kind,
+            )
+            _require_provider_credentials(profile_config.provider)
+            return None
+
+        if node_provider or node_model:
+            provider = node_provider or llm_config.provider
+            model = node_model or llm_config.model
+            from fichero_server.llm import (
+                enforce_local_only_provider,
+                resolve_model_alias_for_capability,
+            )
+
+            provider, model = resolve_model_alias_for_capability(
+                provider,
+                model,
+                required_capability=capability,
+            )
+            enforce_local_only_provider(provider, model, kind=kind)
+            _require_provider_credentials(provider)
+            return None
+
+        provider = llm_config.provider
+        model = llm_config.model
+        from fichero_server.llm import extract_model_profile_reference
+
+        workflow_profile_ref = extract_model_profile_reference(provider)
+        if workflow_profile_ref:
+            from fichero_server.llm import (
+                enforce_local_only_provider,
+                resolve_model_profile_for_capability,
+            )
+
+            profile_config = resolve_model_profile_for_capability(
+                workflow_profile_ref,
+                base_config=llm_config,
+                required_capability=capability,
+            )
+            enforce_local_only_provider(
+                profile_config.provider,
+                profile_config.model,
+                kind=kind,
+            )
+            _require_provider_credentials(profile_config.provider)
+            return None
+
+        if not (provider and model):
+            try:
+                from fichero_server.db.app import get_app_db
+
+                app_db = get_app_db()
+                cat_default = app_db.get_default_model_for_category(
+                    tool_def.category
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Workflow preflight category default lookup failed for %s: %s",
+                    node.tool,
+                    exc,
+                )
+                cat_default = None
+            if cat_default:
+                provider, model = cat_default
+
+        if provider or model:
+            from fichero_server.llm import (
+                enforce_local_only_provider,
+                resolve_model_alias_for_capability,
+            )
+
+            provider, model = resolve_model_alias_for_capability(
+                provider,
+                model,
+                required_capability=capability,
+            )
+            enforce_local_only_provider(provider, model, kind=kind)
+            _require_provider_credentials(provider)
+    except Exception as exc:
+        node_label = node.label or node.id or node.tool
+        return f"Node '{node_label}' ({node.tool}): {exc}"
+    return None
+
+
 def validate_workflow_llm_preflight(
     workflow: WorkflowDef,
     workflow_llm_config: LLMConfig | None = None,
+    *,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
 ) -> list[str]:
-    """Resolve LLM aliases and policy-check workflow nodes without execution."""
+    """Resolve LLM aliases and policy-check workflow nodes without execution.
+
+    Descends into ``sub_workflow`` children (#3804). The check used to stop at
+    the parent's own nodes, so a delegating parent — whose model work happens
+    ENTIRELY inside its children — passed preflight unconditionally and then
+    failed mid-run on exactly the bad model pick this function exists to catch.
+    A workflow that delegates is not a workflow with no model requirements.
+
+    A child is checked against ITS OWN workflow-level provider/model, because
+    that is what ``build_graph`` gives it: ``sub_workflow`` builds the child
+    graph fresh, and neither the parent's workflow config nor a run-level
+    override reaches it (the same fact ``workflow_override_target_tools``
+    reports). Using the parent's config here would report refusals for a
+    resolution the run would never perform.
+
+    Cycle guard: every reference is visited at most once. Children may legally
+    be shared between parents and a malformed pair can reference each other;
+    ``validate_sub_workflow_references`` is what REPORTS a cycle, so this
+    function only has to not hang on one.
+    """
+    resolver = workflow_resolver or (lambda ref: resolve_sub_workflow_ref(ref))
     errors: list[str] = []
-    llm_config = workflow_llm_config or LLMConfig(
-        provider=workflow.provider,
-        model=workflow.model,
+    visited = {key for key in (workflow.id, workflow.name) if key}
+
+    def visit(current: WorkflowDef, llm_config: LLMConfig, prefix: str) -> None:
+        for node in current.nodes:
+            error = _preflight_node_error(node, llm_config)
+            if error:
+                errors.append(f"{prefix}{error}")
+
+        for node_label, ref in _sub_workflow_node_refs(current.nodes):
+            if ref in visited:
+                continue
+            visited.add(ref)
+            try:
+                child = resolver(ref)
+            except Exception as exc:
+                logger.debug(
+                    "Workflow preflight could not resolve sub-workflow %r: %s",
+                    ref,
+                    exc,
+                )
+                continue
+            if child is None:
+                continue
+            visited.update(key for key in (child.id, child.name) if key)
+            visit(
+                child,
+                LLMConfig(provider=child.provider, model=child.model),
+                f"{prefix}Node '{node_label}' (sub_workflow) -> ",
+            )
+
+    visit(
+        workflow,
+        workflow_llm_config
+        or LLMConfig(provider=workflow.provider, model=workflow.model),
+        "",
     )
-
-    for node in workflow.nodes:
-        tool_def = TOOL_DEFS.get(node.tool)
-        if not (tool_def and tool_def.uses_llm):
-            continue
-
-        capability = _required_llm_capability(tool_def)
-        node_provider, node_model = _node_provider_model(node)
-        profile_ref = _node_model_profile_ref(node)
-        kind = "vision" if capability == "vision" else "llm"
-
-        try:
-            # Runs first and for EVERY resolution shape (#4345): a tool that
-            # parses the model's answer is unusable on a recognition-only
-            # model no matter which branch below would have resolved it.
-            _require_generative_model(tool_def, node, llm_config)
-
-            if profile_ref:
-                from fichero_server.llm import (
-                    enforce_local_only_provider,
-                    resolve_model_profile_for_capability,
-                )
-
-                profile_config = resolve_model_profile_for_capability(
-                    profile_ref,
-                    base_config=llm_config,
-                    required_capability=capability,
-                )
-                enforce_local_only_provider(
-                    profile_config.provider,
-                    profile_config.model,
-                    kind=kind,
-                )
-                _require_provider_credentials(profile_config.provider)
-                continue
-
-            if node_provider or node_model:
-                provider = node_provider or llm_config.provider
-                model = node_model or llm_config.model
-                from fichero_server.llm import (
-                    enforce_local_only_provider,
-                    resolve_model_alias_for_capability,
-                )
-
-                provider, model = resolve_model_alias_for_capability(
-                    provider,
-                    model,
-                    required_capability=capability,
-                )
-                enforce_local_only_provider(provider, model, kind=kind)
-                _require_provider_credentials(provider)
-                continue
-
-            provider = llm_config.provider
-            model = llm_config.model
-            from fichero_server.llm import extract_model_profile_reference
-
-            workflow_profile_ref = extract_model_profile_reference(provider)
-            if workflow_profile_ref:
-                from fichero_server.llm import (
-                    enforce_local_only_provider,
-                    resolve_model_profile_for_capability,
-                )
-
-                profile_config = resolve_model_profile_for_capability(
-                    workflow_profile_ref,
-                    base_config=llm_config,
-                    required_capability=capability,
-                )
-                enforce_local_only_provider(
-                    profile_config.provider,
-                    profile_config.model,
-                    kind=kind,
-                )
-                _require_provider_credentials(profile_config.provider)
-                continue
-
-            if not (provider and model):
-                try:
-                    from fichero_server.db.app import get_app_db
-
-                    app_db = get_app_db()
-                    cat_default = app_db.get_default_model_for_category(
-                        tool_def.category
-                    )
-                except Exception as exc:
-                    logger.debug(
-                        "Workflow preflight category default lookup failed for %s: %s",
-                        node.tool,
-                        exc,
-                    )
-                    cat_default = None
-                if cat_default:
-                    provider, model = cat_default
-
-            if provider or model:
-                from fichero_server.llm import (
-                    enforce_local_only_provider,
-                    resolve_model_alias_for_capability,
-                )
-
-                provider, model = resolve_model_alias_for_capability(
-                    provider,
-                    model,
-                    required_capability=capability,
-                )
-                enforce_local_only_provider(provider, model, kind=kind)
-                _require_provider_credentials(provider)
-        except Exception as exc:
-            node_label = node.label or node.id or node.tool
-            errors.append(f"Node '{node_label}' ({node.tool}): {exc}")
-
     return errors
 
 
@@ -488,9 +551,18 @@ def validate_workflow_preflight(
     workflow_llm_config: LLMConfig | None = None,
     workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
 ) -> list[str]:
-    """Validate LLM alias/capability/privacy policy before execution."""
+    """Validate LLM alias/capability/privacy policy before execution.
+
+    ``workflow_resolver`` reaches BOTH halves: the model preflight now descends
+    into children too, and a resolver that finds a different child than the
+    reference check would is the drift this parameter exists to prevent.
+    """
     return [
-        *validate_workflow_llm_preflight(workflow, workflow_llm_config),
+        *validate_workflow_llm_preflight(
+            workflow,
+            workflow_llm_config,
+            workflow_resolver=workflow_resolver,
+        ),
         *validate_sub_workflow_references(
             workflow,
             workflow_resolver=workflow_resolver,
@@ -547,17 +619,80 @@ def workflow_override_target_tools(nodes: list | None) -> list[str]:
     ]
 
 
-def workflow_sub_workflow_refs(nodes: list | None) -> list[str]:
-    """Names/ids of the child workflows a workflow delegates to."""
-    refs = []
+def _sub_workflow_node_refs(nodes: list | None) -> list[tuple[str, str]]:
+    """``(node label, workflow_ref)`` for every ``sub_workflow`` node.
+
+    The one place that reads a delegation out of a node, so descent and
+    reporting cannot disagree about which children a workflow has.
+    """
+    refs: list[tuple[str, str]] = []
     for node in nodes or []:
         if _node_tool(node) != "sub_workflow":
             continue
-        config = node.get("config") if isinstance(node, dict) else getattr(node, "config", None)
+        if isinstance(node, dict):
+            config = node.get("config")
+            label = str(node.get("label") or node.get("id") or "sub_workflow")
+        else:
+            config = getattr(node, "config", None)
+            label = str(
+                getattr(node, "label", "") or getattr(node, "id", "") or "sub_workflow"
+            )
         ref = (config or {}).get("workflow_ref")
         if ref:
-            refs.append(str(ref))
+            refs.append((label, str(ref)))
     return refs
+
+
+def workflow_sub_workflow_refs(nodes: list | None) -> list[str]:
+    """Names/ids of the child workflows a workflow delegates to."""
+    return [ref for _label, ref in _sub_workflow_node_refs(nodes)]
+
+
+def workflow_requires_vision(
+    nodes: list | None,
+    *,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
+) -> bool:
+    """True when running this workflow needs a vision-capable model (#3804).
+
+    Server-computed and served on the workflow response so surfaces READ the
+    answer instead of recomputing it. The SwiftUI sidebar kept its own copy of
+    this rule over the parent's nodes alone, which gets the delegating case
+    exactly backwards: a parent whose only node is ``sub_workflow`` reports
+    "no vision needed" while the run it starts cannot proceed without a vision
+    model. Same rule, same descent, same cycle guard as the model preflight —
+    which is the point: one mechanism, not two.
+    """
+    resolver = workflow_resolver or (lambda ref: resolve_sub_workflow_ref(ref))
+    visited: set[str] = set()
+
+    def visit(current_nodes: list | None) -> bool:
+        for node in current_nodes or []:
+            tool_def = TOOL_DEFS.get(_node_tool(node))
+            if (
+                tool_def
+                and tool_def.uses_llm
+                and _required_llm_capability(tool_def) == "vision"
+            ):
+                return True
+
+        for _label, ref in _sub_workflow_node_refs(current_nodes):
+            if ref in visited:
+                continue
+            visited.add(ref)
+            try:
+                child = resolver(ref)
+            except Exception as exc:
+                logger.debug("requires_vision could not resolve %r: %s", ref, exc)
+                continue
+            if child is None:
+                continue
+            visited.update(key for key in (child.id, child.name) if key)
+            if visit(child.nodes):
+                return True
+        return False
+
+    return visit(nodes)
 
 
 def workflow_accepts_model_override(nodes: list | None) -> bool:

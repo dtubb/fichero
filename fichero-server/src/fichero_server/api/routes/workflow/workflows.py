@@ -159,6 +159,12 @@ class WorkflowResponse(BaseModel):
     # than discarding the pick, and both answers come from the same function —
     # never re-derive this client-side.
     accepts_model_override: bool = True
+    # True = some node in this workflow OR in a sub-workflow it delegates to
+    # needs a vision-capable model (#3804). Computed by the engine because the
+    # client copy of this rule read the parent's nodes only, so a delegating
+    # parent — the case where the whole vision requirement lives in a child —
+    # was reported as needing nothing.
+    requires_vision: bool = False
 
 
 def _workflow_untested(wf) -> bool:
@@ -194,6 +200,20 @@ def _workflow_accepts_model_override(wf) -> bool:
     from fichero_server.workflows.validation import workflow_accepts_model_override
 
     return workflow_accepts_model_override(getattr(wf, "nodes", None))
+
+
+def _workflow_requires_vision(wf, workflow_resolver) -> bool:
+    """Whether this workflow — or any sub-workflow it runs — needs vision.
+
+    Served so the app can stop deriving it from the node list: that copy read
+    the parent only and answered "no" for every delegating workflow (#3804).
+    """
+    from fichero_server.workflows.validation import workflow_requires_vision
+
+    return workflow_requires_vision(
+        getattr(wf, "nodes", None),
+        workflow_resolver=workflow_resolver,
+    )
 
 
 class WorkflowListResponse(BaseModel):
@@ -571,7 +591,23 @@ def create_workflow_impl(db: Database, workflow: WorkflowDef) -> "Workflow":  # 
     return db_workflow
 
 
-def _workflow_to_response(workflow: "Workflow") -> WorkflowResponse:  # noqa: F821
+def _workflow_to_response(
+    workflow: "Workflow",  # noqa: F821
+    db: Database | None = None,
+    *,
+    workflow_resolver=None,
+) -> WorkflowResponse:
+    """Serialize a stored workflow, including the engine's run-eligibility answers.
+
+    ``db`` is what lets ``requires_vision`` see the CHILD workflows this
+    library actually holds (a user-edited component is a DB row, not the
+    shipped JSON). Pass ``workflow_resolver`` instead when serializing many
+    workflows, so the shared children are resolved once rather than per parent.
+    """
+    from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+    if workflow_resolver is None and db is not None:
+        workflow_resolver = sub_workflow_resolver_for_db(db)
     return WorkflowResponse(
         id=workflow.id,
         name=workflow.name,
@@ -586,6 +622,7 @@ def _workflow_to_response(workflow: "Workflow") -> WorkflowResponse:  # noqa: F8
         untested=_workflow_untested(workflow),
         direct_runnable=_workflow_direct_runnable(workflow),
         accepts_model_override=_workflow_accepts_model_override(workflow),
+        requires_vision=_workflow_requires_vision(workflow, workflow_resolver),
     )
 
 
@@ -638,7 +675,7 @@ async def create_workflow(
             origin_user=actor,
         )
 
-        return _workflow_to_response(db_workflow)
+        return _workflow_to_response(db_workflow, db)
     except Exception as e:
         logger.exception("Failed to create workflow")
         raise HTTPException(status_code=500, detail=str(e))
@@ -739,7 +776,7 @@ async def import_workflow(
             origin_user=actor,
         )
 
-        return _workflow_to_response(db_workflow)
+        return _workflow_to_response(db_workflow, db)
     except HTTPException:
         raise
     except Exception as e:
@@ -847,8 +884,14 @@ async def list_workflows(
                 for w in list_global_default_workflows(folder_path)
                 if w.id not in present
             ]
+        # One resolver for the whole list: the shipped components are shared
+        # between parents, and resolving them per parent means a full workflow
+        # scan per repeat.
+        from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
+
+        resolver = sub_workflow_resolver_for_db(db)
         items = [
-            _workflow_to_response(workflow)
+            _workflow_to_response(workflow, db, workflow_resolver=resolver)
             for workflow in sorted(workflows, key=lambda w: w.sort_order)
         ]
         return WorkflowListResponse(items=items, count=len(items))
@@ -870,7 +913,7 @@ async def get_workflow(
                 status_code=404, detail=f"Workflow not found: {workflow_id}"
             )
 
-        return _workflow_to_response(workflow)
+        return _workflow_to_response(workflow, db)
     except HTTPException:
         raise
     except Exception as e:
@@ -1019,7 +1062,7 @@ async def update_workflow(
             len(existing.edges),
         )
 
-        return _workflow_to_response(existing)
+        return _workflow_to_response(existing, db)
     except HTTPException:
         raise
     except Exception as e:
@@ -1098,7 +1141,7 @@ async def patch_workflow(
             origin_user=actor,
         )
 
-        return _workflow_to_response(workflow)
+        return _workflow_to_response(workflow, db)
     except HTTPException:
         raise
     except Exception as e:
@@ -1220,7 +1263,7 @@ async def duplicate_workflow(
             origin_user=actor,
         )
 
-        return _workflow_to_response(new_workflow)
+        return _workflow_to_response(new_workflow, db)
     except HTTPException:
         raise
     except Exception as e:

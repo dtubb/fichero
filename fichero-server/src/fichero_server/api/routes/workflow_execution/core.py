@@ -123,11 +123,21 @@ def _build_workflow_with_checkpointer(
 def _validate_workflow_for_execution(
     workflow: Workflow,
     request: "ExecuteWorkflowRequest | None" = None,
+    db: "Database | None" = None,
 ) -> None:
-    """Fail fast on malformed workflows before spawning a background run."""
+    """Fail fast on malformed workflows before spawning a background run.
+
+    ``db`` resolves sub-workflow children the same way the list response does,
+    so preflight sees the child THIS library holds — a user who edits a shared
+    component edits a DB row, and validating the shipped JSON instead would
+    pass a run that then executes something else.
+    """
     # Imported here rather than at module scope: pulls langgraph + every tool (#3950).
     from fichero_server.workflows.builder import build_graph  # noqa: PLC0415
     from fichero_server.workflows.runtime import to_workflow_def  # noqa: PLC0415
+    from fichero_server.workflows.subworkflow import (  # noqa: PLC0415
+        sub_workflow_resolver_for_db,
+    )
     from fichero_server.workflows.validation import (  # noqa: PLC0415
         validate_run_eligibility,
         validate_workflow_connections,
@@ -135,9 +145,10 @@ def _validate_workflow_for_execution(
     )
 
     workflow_def = to_workflow_def(workflow)
+    resolver = sub_workflow_resolver_for_db(db) if db is not None else None
     errors = [
         *validate_workflow_connections(workflow_def),
-        *validate_workflow_preflight(workflow_def),
+        *validate_workflow_preflight(workflow_def, workflow_resolver=resolver),
         # #3804: the menu used to be the ONLY thing checking these, so every
         # other client could run an internal component, or ask for a
         # provider/model override the engine would silently discard. Checked
@@ -307,7 +318,7 @@ async def execute_workflow(
                 detail=f"Workflow not found in this library: {request.workflow_id}",
             )
 
-        _validate_workflow_for_execution(workflow, request)
+        _validate_workflow_for_execution(workflow, request, db)
 
         logger.debug(
             "[EXECUTE] workflow=%s id=%s nodes=%s edges=%s",

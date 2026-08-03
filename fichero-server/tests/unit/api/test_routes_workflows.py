@@ -161,6 +161,49 @@ class TestListWorkflows:
         assert by_name["Internal Child"]["direct_runnable"] is False
         assert by_name["Direct Workflow"]["direct_runnable"] is True
 
+    def test_list_reports_vision_need_that_lives_only_in_a_child(self, client, db):
+        """#3804: the parent has no vision node of its own — its whole model
+        requirement is inside the component it delegates to. The app derived
+        this from the parent's node list and answered "no", which is how a run
+        that cannot start without vision was offered as if it could."""
+        child = _make_workflow(
+            db,
+            "Vision Component",
+            is_system=True,
+            config={"internal": True},
+            nodes=[{"id": "vision", "tool": "transcribe"}],
+        )
+        _make_workflow(
+            db,
+            "Delegating Parent",
+            is_system=True,
+            nodes=[
+                {
+                    "id": "delegate",
+                    "tool": "sub_workflow",
+                    "config": {
+                        "workflow_ref": child.id,
+                        "input_contract": [{"id": "files", "data_type": "files"}],
+                        "output_contract": [],
+                    },
+                }
+            ],
+        )
+        _make_workflow(
+            db,
+            "Text Only",
+            is_system=True,
+            nodes=[{"id": "text", "tool": "summarize_file"}],
+        )
+
+        response = client.get("/api/workflows")
+
+        assert response.status_code == 200
+        by_name = {item["name"]: item for item in response.json()["items"]}
+        assert by_name["Delegating Parent"]["requires_vision"] is True
+        assert by_name["Vision Component"]["requires_vision"] is True
+        assert by_name["Text Only"]["requires_vision"] is False
+
     def test_list_marks_internal_flagged_presets_not_directly_runnable(self, client, db):
         """#4324: config.internal excludes a component from Run menus by flag,
         regardless of folder placement or whether it declares a contract."""

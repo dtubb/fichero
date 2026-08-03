@@ -60,7 +60,12 @@ TOOLS: list[types.Tool] = [
     # Workflow tools
     types.Tool(
         name="fichero_list_workflows",
-        description="List saved workflow definitions",
+        description=(
+            "List saved workflow definitions, each with the engine's run "
+            "eligibility: direct_runnable=false is an internal component that "
+            "cannot be run on its own, requires_vision=true needs a "
+            "vision-capable model."
+        ),
         inputSchema={
             "type": "object",
             "properties": {
