@@ -30,6 +30,7 @@ reading, and the tests check the two agree.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -291,6 +292,71 @@ def preview_workflow_providers(
             for node in (getattr(workflow_def, "nodes", None) or [])
         ],
     )
+
+
+class _ExplicitDefaults:
+    """An app-database stand-in built from a tier->(provider, model) mapping.
+
+    Exists so a preview can describe a configuration OTHER than this process's
+    own — specifically the SERVER's, fetched over HTTP. Without it the only way
+    to answer "what will the server call?" is to read the local app database
+    and hope the two match, which is the assumption that cost money twice.
+
+    It answers the same three questions `_resolve_node_llm_config_inner` asks
+    of the real app database, so the resolution path is unchanged; only where
+    the defaults come from differs.
+    """
+
+    def __init__(self, defaults: dict[str, str]):
+        self._defaults = {k: v for k, v in (defaults or {}).items() if v}
+
+    def get_setting(self, key: str):
+        return self._defaults.get(key)
+
+    def get_default_model_for_category(self, category: str):
+        provider = self._defaults.get(f"default_{category}_provider") or self._defaults.get(
+            "default_vision_provider" if category == "vision" else "default_text_provider"
+        )
+        model = self._defaults.get(f"default_{category}_model") or self._defaults.get(
+            "default_vision_model" if category == "vision" else "default_text_model"
+        )
+        return (provider, model) if provider and model else None
+
+    def get_default_model(self):
+        provider = self._defaults.get("default_text_provider")
+        model = self._defaults.get("default_text_model")
+        return (provider, model) if provider and model else None
+
+    def list_providers(self):
+        return []
+
+    def list_models(self, _provider_id):
+        return []
+
+
+@contextmanager
+def using_defaults(defaults: dict[str, str] | None):
+    """Resolve against ``defaults`` instead of this process's app database.
+
+    A context manager rather than a parameter threaded through every function:
+    the defaults are consumed deep inside the runner's own resolver, and
+    passing them down would mean forking that function — the one thing this
+    module must not do, because a preview that disagrees with the runner is
+    worse than none.
+    """
+    if not defaults:
+        yield
+        return
+
+    import fichero_server.db.app as app_module
+
+    original = app_module.get_app_db
+    stand_in = _ExplicitDefaults(defaults)
+    app_module.get_app_db = lambda: stand_in
+    try:
+        yield
+    finally:
+        app_module.get_app_db = original
 
 
 def preview_preset_providers(preset: dict) -> WorkflowProviderPreview:
