@@ -298,8 +298,13 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         return entity
     }
 
+    // Promoted `private` -> internal: the selection decorator in
+    // `CanvasOrtho2DRenderer+Selection.swift` needs it. Swift `private` is
+    // FILE-scoped, so a type spanning sibling extension files loses access in
+    // both directions -- the same reason the members in
+    // KnowledgeGraphInspectorSection carry this note.
     /// The page-image source id for a source-node placeable, nil otherwise.
-    private func sourceId(of placeable: CanvasPlaceable) -> String? {
+    func sourceId(of placeable: CanvasPlaceable) -> String? {
         guard case .node(let node) = placeable.content,
               node.nodeType == .source,
               let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }
