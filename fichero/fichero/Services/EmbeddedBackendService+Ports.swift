@@ -54,6 +54,22 @@ extension EmbeddedBackendService {
     /// on it — a cross-file reference a private nested type can't satisfy.
     enum PortResolution: Equatable { case spawnOurs, adoptExisting }
 
+    /// Is port 8765 ours? Only on the HTTPS transport (#4400). The pre-flight
+    /// predates UDS: a `.releaseEmbedded` engine binds a socket in the app
+    /// container — "no TCP port, no TLS" (`__main__.py`) — so in a shipping
+    /// build 8765 is somebody else's, and adopting its holder strands the
+    /// client on a socket nobody serves. `PortPreflightTransportTests` has the
+    /// full dead end.
+    static func portPreflightApplies(transportMode: TransportMode) -> Bool {
+        switch transportMode {
+        case .https: return true
+        case .uds: return false          // container socket; 8765 is not ours
+        #if os(macOS)
+        case .inMemory: return false     // no socket and no port to conflict on
+        #endif
+        }
+    }
+
     /// The three port-conflict outcomes (#3111), separated from the lsof/kill
     /// syscalls so every branch is unit-testable.
     enum PortConflictAction: Equatable {
@@ -318,6 +334,12 @@ extension EmbeddedBackendService {
         // silently killing. 2.4.5(iii) stays satisfied by the existing design —
         // stop() SIGTERMs our own child on quit, and the engine self-terminates
         // when FICHERO_PARENT_PID dies.
+        // #4400, and MAS is where the dead end was worst: no holder PID means
+        // no "Stop it", so Quit was the only way out of the adopt-then-time-out
+        // loop. No sweep to preserve here, so this guard is the whole pre-flight.
+        guard Self.portPreflightApplies(transportMode: EngineConfig.transportMode) else {
+            return .spawnOurs
+        }
         guard Self.portIsAcceptingConnections(8765) else { return .spawnOurs }
 
         if pendingPortConflictResolution == .useIt {
@@ -332,9 +354,16 @@ extension EmbeddedBackendService {
         pendingPortConflictResolution = nil
         throw BackendError.portConflict(pid: nil)
         #else
+        // The sweep runs on EVERY transport, deliberately: an engine this app
+        // spawned in a previous session is ours to reap whichever way it was
+        // reached, and reaping it is what frees a stale socket (#4400).
         await Task.detached(priority: .userInitiated) {
             Self.terminateOrphanEngines()
         }.value
+        // Below here is all about 8765, which a UDS engine never binds.
+        guard Self.portPreflightApplies(transportMode: EngineConfig.transportMode) else {
+            return .spawnOurs
+        }
         await Self.waitForPortToClear(8765, timeout: 3.0)
         let holder = await Task.detached(priority: .userInitiated) {
             Self.pidOnPort(8765).map(Int.init)
