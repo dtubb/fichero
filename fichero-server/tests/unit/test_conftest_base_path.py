@@ -109,6 +109,12 @@ def test_pytest_sessionstart_noops_without_timeout(monkeypatch) -> None:
 
 
 def test_pytest_sessionfinish_cancels_only_when_armed(monkeypatch) -> None:
+    # sessionfinish is ONE hook since the 2026-08-02 shadowing fix: cancel
+    # first, then the perf-ratchet flush. This test covers the cancel, so the
+    # ratchet must be pinned OFF — under the gate's FICHERO_PERF_RATCHET=1
+    # the flush would run against session=None and fail for reasons that
+    # have nothing to do with the property under test.
+    monkeypatch.delenv("FICHERO_PERF_RATCHET", raising=False)
     conftest = _load_conftest_module()
     calls: list[str] = []
 

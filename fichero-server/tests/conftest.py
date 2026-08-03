@@ -836,6 +836,33 @@ def pytest_runtest_logreport(report):
 
 _QUERY_RATCHET_BLIND_EXITCODE = 4
 
+#: Pristine reference for detecting a mocked DB layer (#4487, the 173-zero
+#: incident). Route-shape tests patch ``db_manager.get_database`` (the
+#: ``mock_db`` fixture) — the route runs, the query counter sees NOTHING,
+#: and recording that request's 0 as the endpoint's best-ever is an absence
+#: recorded as a measurement: POST /api/library acquired "best 0" and every
+#: real run regressed against it. "Exercised" means the INSTRUMENT was in
+#: the request's path, not merely that the route returned.
+#:
+#: Two traps here, both caught by this fix's own paired test before it ever
+#: shipped: (1) db_manager is an INSTANCE, so ``db_manager.get_database``
+#: mints a fresh bound-method object per access — ``is`` against a captured
+#: bound method is ALWAYS False, disabling the ratchet the polite way.
+#: (2) monkeypatch's undo restores the ORIGINAL BOUND METHOD as an
+#: instance-dict shadow, so "no instance attribute" is false forever after
+#: the first mock_db test. The stable identity is the underlying function:
+#: a real bound method's ``__func__`` is the pristine class function (even
+#: when it lives in the instance dict as a restored shadow); a mock lambda
+#: or MagicMock has no matching ``__func__``.
+_REAL_GET_DATABASE_FUNC = type(db_manager).get_database
+
+
+def _db_layer_is_real() -> bool:
+    return (
+        getattr(db_manager.get_database, "__func__", None)
+        is _REAL_GET_DATABASE_FUNC
+    )
+
 
 @app.middleware("http")
 async def _count_queries_per_request(request, call_next):
@@ -850,7 +877,13 @@ async def _count_queries_per_request(request, call_next):
     # Populated by Starlette's router once the request has been matched; None
     # for a 404 with no matching route, which has nothing to ratchet.
     route = request.scope.get("route")
-    if route is not None:
+    if route is not None and _db_layer_is_real():
+        # A request served while the DB layer is monkeypatched measured
+        # nothing — write NO bar (a genuine zero through the REAL layer,
+        # e.g. /api/health, still records: refusing to write 0 would be the
+        # wrong fix). ponytail: this catches the one observed vector
+        # (mock_db); a test that mocks a db some other way and still routes
+        # real requests would need its own guard.
         import perf_ratchet
 
         perf_ratchet.note_query_count(
@@ -898,6 +931,17 @@ def pytest_sessionfinish(session, exitstatus):
         _deadlock_dump_armed = False
 
     if not _ratchet_enabled():
+        return
+
+    # DECISION (#4434 fallout, the 173-zero incident): an INTERRUPTED run
+    # writes NO bars. Every bar a partial run writes is a claim made by a
+    # session that did not finish — the killed-at-34% harvest is exactly
+    # what this line prevents recurring. Failing-but-completed runs still
+    # write: a completed measurement is a measurement, and bars are only
+    # ever written for endpoints/tests actually exercised. (A SIGKILLed run
+    # never reaches this hook at all, so this covers the Ctrl-C/UI-stop
+    # path that does.)
+    if exitstatus == 2:  # pytest ExitCode.INTERRUPTED
         return
     import perf_ratchet
 
