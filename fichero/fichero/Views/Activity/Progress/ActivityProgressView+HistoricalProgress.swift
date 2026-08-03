@@ -183,15 +183,29 @@ extension ActivityProgressView {
         .padding(.vertical, 2)
     }
 
+    /// The user-facing name for a run's input path.
+    ///
+    /// Not `doc.name` (#4416, found by the producer guardrail in #4393): a page
+    /// child's `name` is the engine's upload temp file, so a workflow run over
+    /// a scanned page listed `fichero_upload_c84fgjke.pdf` in its history —
+    /// unrecognisable next to the `18590129.pdf` the sidebar showed for the
+    /// same material. The render site here was already clean; the raw name was
+    /// produced one call frame above it, which is exactly the shape the
+    /// line-scoped sweep could not see.
     private func documentNameForPath(_ filePath: String) -> String {
         guard !filePath.isEmpty else { return "Unknown" }
 
-        let filename = (filePath as NSString).lastPathComponent
-
-        for doc in documentStore.currentDocuments where doc.path == filePath {
-            return doc.name
+        let all = documentStore.currentDocuments
+        if let doc = all.first(where: { $0.path == filePath }) {
+            return DocumentTitle.displayName(for: doc, parent: doc.parentId.flatMap { parentId in
+                all.first(where: { $0.id == parentId })
+            })
         }
 
-        return filename
+        // Nothing loaded matches. The path's last component is the user's own
+        // filename for everything except an upload temp — and that one is a
+        // storage artifact, never shown.
+        let filename = (filePath as NSString).lastPathComponent
+        return DocumentTitle.isStorageName(filename) ? DocumentTitle.placeholder : filename
     }
 }

@@ -149,11 +149,29 @@ extension ContentView {
         }
     }
 
+    /// What the detail pane says is selected.
+    ///
+    /// Not `activeLocationDocument?.name` (#4416, found by the producer
+    /// guardrail in #4393). `toolbarTitle`, ten lines up in this same file, was
+    /// fixed to compose through `DocumentTitle` — and this one was not, so the
+    /// title bar and the status line under it disagreed about the name of the
+    /// same page: `18590129.pdf` above, `fichero_upload_c84fgjke.pdf` below.
+    /// A raw name reached here because it was produced, not rendered, and the
+    /// #4416 sweep only looked at renders.
+    ///
+    /// The parent is the sidebar-selected document, which is what makes a page
+    /// with no metadata title resolve to its parent's name rather than
+    /// `Untitled`.
     var selectionStatusText: String {
         if browserSelection.count > 1 {
             return "\(browserSelection.count) items selected"
         }
-        return activeLocationDocument?.name ?? toolbarTitle
+        guard let active = activeLocationDocument else { return toolbarTitle }
+        return DocumentTitle.displayName(
+            for: active,
+            parent: active.parentId.flatMap { parentId in
+                documentStore.currentDocuments.first(where: { $0.id == parentId })
+            })
     }
 
 }

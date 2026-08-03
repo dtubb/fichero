@@ -212,7 +212,8 @@ struct DocumentTitleTests {
     /// `workflow.name`, which are real names their owners chose.
     static let documentBindings = [
         "document", "doc", "page", "parent", "leaf", "child",
-        "shownDocument", "selectedDocument", "pushedReaderDocument"
+        "shownDocument", "selectedDocument", "pushedReaderDocument",
+        "activeLocationDocument"
     ]
 
     /// Whether `line` renders a `Document`'s raw `name` through a display API.
@@ -229,6 +230,62 @@ struct DocumentTitleTests {
             Self.mentions("\(binding).name", in: line)
                 || Self.mentions("\(binding)?.name", in: line)
         }
+    }
+
+    /// Whether `line` MANUFACTURES a display string out of a `Document`'s raw
+    /// `name` — a helper that returns it, for a `Text(…)` one hop away.
+    ///
+    /// ## The blind spot this closes
+    ///
+    /// `rendersARawName` is line-scoped, and that was stated as a virtue: the
+    /// display call and its argument are written together. They are — *when the
+    /// argument is the value*. They are not when the argument is a call:
+    ///
+    ///     Text(documentNameForPath(filePath))      // no `.name` on this line
+    ///     …
+    ///     private func documentNameForPath(…) -> String {
+    ///         for doc in … { return doc.name }     // no display API on this line
+    ///     }
+    ///
+    /// Neither line trips the matcher, so the sweep that "scanned 587 files"
+    /// and reported the whole app clean was reporting on a shape the app had
+    /// already moved past. #4416 fixed every place that *rendered* a raw name
+    /// and left the places that *produce* one, which is the same defect one
+    /// call frame up — and exactly the class the original fix set out to kill.
+    ///
+    /// Honest about what it is: a heuristic. It fires on a returned expression
+    /// that BEGINS with a document binding, so a search haystack
+    /// (`return "\(doc.name) \(excerpt)"`) and a comparator
+    /// (`return lhs.name.compare(…)`) are not display strings and are not
+    /// flagged. It does NOT cover a raw name assigned into a model field
+    /// (`SidebarItem(name: doc.pageThumbnailLabel ?? doc.name)`) — that is a
+    /// real remaining leak, but changing it changes what the sidebar calls
+    /// every page, which is a design call and not a guardrail's to make
+    /// silently. It is reported rather than quietly allowlisted, because an
+    /// allowlist is how a known leak becomes a forgotten one.
+    static func producesARawName(_ line: String) -> Bool {
+        guard !line.contains("editingName") else { return false }
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("return ") else { return false }
+        let returned = String(trimmed.dropFirst("return ".count))
+            .trimmingCharacters(in: .whitespaces)
+
+        return Self.documentBindings.contains { binding in
+            Self.startsWithRawName(returned, prefix: "\(binding).name")
+                || Self.startsWithRawName(returned, prefix: "\(binding)?.name")
+        }
+    }
+
+    /// `expression` begins with exactly `prefix` as a whole identifier, so
+    /// `doc.nameComponents.first` is not read as `doc.name`. Same boundary rule
+    /// as `mentions`, anchored at the start because that is what distinguishes
+    /// "the value IS the name" from "the name is one ingredient".
+    private static func startsWithRawName(_ expression: String, prefix: String) -> Bool {
+        guard expression.hasPrefix(prefix) else { return false }
+        let after = expression.index(expression.startIndex, offsetBy: prefix.count)
+        guard after < expression.endIndex else { return true }
+        let next = expression[after]
+        return !next.isLetter && !next.isNumber && next != "_"
     }
 
     /// Substring match on whole-identifier boundaries, so `document.name`
@@ -286,6 +343,40 @@ struct DocumentTitleTests {
         }
     }
 
+    /// The producer matcher fires, on the two shapes that actually survived
+    /// #4416 by hiding one call frame above a `Text(…)`.
+    ///
+    /// A guardrail added to close a blind spot has to prove it closes THAT
+    /// blind spot, not a nearby one — so the offenders here are the real lines,
+    /// copied from the files they were found in, and the allowed list is every
+    /// nearby shape that must keep working. Without this, narrowing the matcher
+    /// later would go quiet instead of failing.
+    @Test("the raw-name producer matcher catches helpers that manufacture a name")
+    func theProducerMatcherFires() {
+        let offenders = [
+            "            return doc.name",                            // ActivityProgressView
+            "        return activeLocationDocument?.name ?? toolbarTitle",  // ContentView
+            "return document.name",
+            "        return page?.name ?? \"Untitled\""
+        ]
+        for line in offenders {
+            #expect(Self.producesARawName(line), Comment(rawValue: "missed: \(line)"))
+        }
+
+        let allowed = [
+            "return DocumentTitle.displayName(for: doc)",
+            "return \"\\(doc.name) \\(excerpt)\"",           // a search haystack, not a render
+            "return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending",
+            "return BookmarkItem(id: id, name: doc.name)",  // assignment, not a returned name
+            "return doc.nameComponents.first",              // not `doc.name`
+            "return provider.name",                         // a provider's own name
+            "let title = doc.name"                          // not a returned display string
+        ]
+        for line in allowed {
+            #expect(!Self.producesARawName(line), Comment(rawValue: "false positive: \(line)"))
+        }
+    }
+
     /// No view renders a `Document`'s raw `name`.
     ///
     /// #4416 was reported on the island. The same read appeared in the reader,
@@ -300,24 +391,65 @@ struct DocumentTitleTests {
     /// defence and is not one: the label is `nil` exactly when a page has no
     /// sequence — the case with no page number to show — so it fell through to
     /// the storage name precisely when it mattered.
+    /// Directories a user-facing name can be decided in.
+    ///
+    /// The second half of the same blind spot. The first sweep read `Views/`
+    /// only, on the reasoning that rendering happens in views — true of the
+    /// `Text(…)` call and false of the string it is handed. `Models/` and
+    /// `Services/` build display strings too, and were scanned by nothing.
+    /// "587 files scanned" sounded like coverage; it was the count of one
+    /// directory.
+    static let sweptDirectories = ["Views", "Models", "Services"]
+
     @Test("no view renders a document's raw name")
     func noViewRendersARawDocumentName() throws {
-        let root = try AppSource.root().appendingPathComponent("Views")
+        let offenders = try Self.sweep(Self.rendersARawName)
+        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: "\n")))
+    }
 
-        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)?
-            .compactMap { $0 as? URL }
-            .filter { $0.pathExtension == "swift" } ?? []
-        #expect(!files.isEmpty, "the sweep must actually read files")
+    /// No helper manufactures a display string out of a raw `Document.name`.
+    ///
+    /// The companion to the render sweep, and the one that would have caught
+    /// what #4416 missed: `ActivityProgressView.documentNameForPath` returned a
+    /// page child's storage name into a `Text`, and `selectionStatusText`
+    /// returned one into the detail-pane status line — on the very surface
+    /// #4416 was reported from.
+    @Test("no helper manufactures a display name from a document's raw name")
+    func noHelperProducesARawDocumentName() throws {
+        let offenders = try Self.sweep(Self.producesARawName)
+        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: "\n")))
+    }
 
+    /// Read every swept directory and report each line `matches` accepts, as
+    /// `file:line source` a human can go open.
+    private static func sweep(_ matches: (String) -> Bool) throws -> [String] {
+        let root = try AppSource.root()
         var offenders: [String] = []
-        for file in files {
-            let lines = Self.codeOnly(try String(contentsOf: file, encoding: .utf8))
-                .split(separator: "\n", omittingEmptySubsequences: false)
-            for (index, line) in lines.enumerated() where Self.rendersARawName(String(line)) {
-                offenders.append("\(file.lastPathComponent):\(index + 1) \(line.trimmingCharacters(in: .whitespaces))")
+        var filesRead = 0
+
+        for directory in Self.sweptDirectories {
+            let files = FileManager.default
+                .enumerator(at: root.appendingPathComponent(directory), includingPropertiesForKeys: nil)?
+                .compactMap { $0 as? URL }
+                .filter { $0.pathExtension == "swift" } ?? []
+            // Per-directory, not just overall: a renamed directory would
+            // otherwise drop out of the sweep while the total stayed healthy.
+            #expect(!files.isEmpty, Comment(rawValue: "swept nothing in \(directory)/"))
+            filesRead += files.count
+
+            for file in files {
+                let lines = Self.codeOnly(try String(contentsOf: file, encoding: .utf8))
+                    .split(separator: "\n", omittingEmptySubsequences: false)
+                for (index, line) in lines.enumerated() where matches(String(line)) {
+                    offenders.append(
+                        "\(file.lastPathComponent):\(index + 1) "
+                        + line.trimmingCharacters(in: .whitespaces))
+                }
             }
         }
-        #expect(offenders.isEmpty, Comment(rawValue: offenders.joined(separator: "\n")))
+
+        #expect(filesRead > 0, "the sweep must actually read files")
+        return offenders
     }
 
     /// "One function builds a document title, and every surface uses it."
