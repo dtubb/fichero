@@ -198,6 +198,30 @@ struct SpaceSceneView: View {
         .simultaneousGesture(cameraDragGesture)
         .simultaneousGesture(cameraZoomGesture)
         .simultaneousGesture(nodeDragGesture)
+        // #4408 named the 3D view too, and it had NO scroll handler at all —
+        // exactly the state the 2D canvas was in. Panning required holding
+        // Option and dragging, and on iPad there is no Option, so the spatial
+        // view could not be panned there by any means.
+        //
+        // The same two bridges as the 2D canvas, feeding the same
+        // `panCameraIncrementally` — a second INPUT to one camera model, not a
+        // second camera path.
+        #if canImport(AppKit)
+        .overlay {
+            CanvasScrollPanView { delta in
+                panCameraIncrementally(by: delta)
+                persistViewport()
+            }
+            .allowsHitTesting(false)
+        }
+        #else
+        .overlay {
+            CanvasTouchPanView { delta in
+                panCameraIncrementally(by: delta)
+                persistViewport()
+            }
+        }
+        #endif
         #if canImport(AppKit)
         .onModifierKeysChanged(mask: .option) { _, modifiers in
             optionHeld = modifiers.contains(.option)
@@ -332,19 +356,59 @@ private extension SpaceSceneView {
         orbitPitch = min(1.15, max(-1.15, start.angles.y + deltaY * 0.008))
     }
 
+    /// A named type rather than a 3-tuple: three unlabelled components of a
+    /// camera basis is exactly the shape that gets destructured wrongly, and
+    /// SwiftLint's `large_tuple` says so.
+    struct CameraPanBasis {
+        let right: SIMD3<Float>
+        let upVector: SIMD3<Float>
+        let speed: Float
+    }
+
+    /// The camera's right/up basis and distance-scaled pan speed, at the
+    /// current orbit. ONE definition, because #4408 adds a second input to this
+    /// pan and a second copy of this maths would drift from the first — which
+    /// is the shape of nearly everything found in this codebase today.
+    private var panBasis: CameraPanBasis {
+        let yaw = Float(orbitYaw)
+        let pitch = Float(orbitPitch)
+        return CameraPanBasis(
+            right: SIMD3<Float>(cos(yaw), 0, -sin(yaw)),
+            upVector: SIMD3<Float>(-sin(yaw) * sin(pitch), cos(pitch), -cos(yaw) * sin(pitch)),
+            speed: Float(cameraDistance) * 0.0022
+        )
+    }
+
     /// Translate the look-at target across the camera's right/up plane (Option-
-    /// drag). Speed scales with distance so the pan feels constant at any zoom.
+    /// drag). Absolute from the baseline captured when the drag began, so there
+    /// is no start-jump. Speed scales with distance so the pan feels constant
+    /// at any zoom.
     private func panCamera(with translation: CGSize) {
         let start = panDragStart ?? (lookAtTarget, translation)
         if panDragStart == nil { panDragStart = start }
         let deltaX = Float(translation.width - start.translation.width)
         let deltaY = Float(translation.height - start.translation.height)
-        let yaw = Float(orbitYaw)
-        let pitch = Float(orbitPitch)
-        let right = SIMD3<Float>(cos(yaw), 0, -sin(yaw))
-        let upVector = SIMD3<Float>(-sin(yaw) * sin(pitch), cos(pitch), -cos(yaw) * sin(pitch))
-        let speed = Float(cameraDistance) * 0.0022
-        lookAtTarget = start.target + (-right * deltaX + upVector * deltaY) * speed
+        let basis = panBasis
+        lookAtTarget = start.target + (-basis.right * deltaX + basis.upVector * deltaY) * basis.speed
+    }
+
+    /// The same pan, driven by an INCREMENTAL delta (#4408).
+    ///
+    /// Scroll and two-finger touch arrive as increments, not as a translation
+    /// from a baseline, so they cannot use `panCamera(with:)` — feeding it a
+    /// delta would re-seed `panDragStart` on every event and pan by nothing.
+    /// This shares `panBasis` instead: one camera model, two input shapes.
+    ///
+    /// Note it does NOT share `Canvas2DProjection.cameraPanDelta` with the 2D
+    /// canvas, and cannot: that converts a screen translation through an
+    /// ORTHOGRAPHIC `orthoScale`/`viewHeight`, while this is a perspective
+    /// orbit camera panning along its own basis scaled by distance-to-target.
+    /// Same gesture, genuinely different projections — forcing one function
+    /// over both would be uniformity that is wrong rather than shared.
+    func panCameraIncrementally(by delta: CGSize) {
+        let basis = panBasis
+        lookAtTarget += (-basis.right * Float(delta.width)
+            + basis.upVector * Float(delta.height)) * basis.speed
     }
 
     private var cameraZoomGesture: some Gesture {

@@ -145,6 +145,18 @@ struct CanvasSceneView: View {
                 }
                 .allowsHitTesting(false)
             }
+            #else
+            // iPad: TWO fingers pan (#4408). The macOS half above wired scroll;
+            // touch has no scroll and no Space key, and one finger is already
+            // the marquee — so before this there was no way to pan a spatial
+            // canvas on iPad at all. Two fingers is a different touch COUNT
+            // from every gesture here, so it cannot steal one, and it feeds the
+            // SAME `scrollPanCamera` the scroll path does.
+            .overlay {
+                CanvasTouchPanView { delta in
+                    scrollPanCamera(by: delta, in: geo.size)
+                }
+            }
             #endif
             .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }   // background → clear
             .overlay { marqueeOverlay }
