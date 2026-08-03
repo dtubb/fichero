@@ -9,7 +9,7 @@
  },
  "catalogue_stage_1_import_artifacts.json": {
   "preset_version": 1,
-  "sha256": "5a108c261978dc135022a221289da052b730a71e5ce93f710e07d7c975ba0141"
+  "sha256": "2e607ab37ebbc8c96c2f97cf63d62a3b0bc2d8e2ce13db1d3292e1b68e4757a6"
  },
  "catalogue_stage_2_extract_entities.json": {
   "preset_version": 1,
@@ -21,11 +21,11 @@
  },
  "catalogue_stage_4_merge_dedup.json": {
   "preset_version": 1,
-  "sha256": "0a940c75edc18f1903ddd26af0bdabcd377981b09a2aecc4df5b99d410c69f9e"
+  "sha256": "805ad30a4f2cf1abc53784e6b9d727d02f4c0ea2656e0c17ed16f70bbb681ed9"
  },
  "catalogue_stage_5_kg_persist.json": {
   "preset_version": 1,
-  "sha256": "51df73d76a959c7cec8f4b3e78fc6387fa330f5d38eec971a31f2e23a69372f3"
+  "sha256": "294f107f105c7969c0eaf36b626fea2bcb598b8ddae03434373076a4c95528f2"
  },
  "catalogue_stage_6_catalogue.json": {
   "preset_version": 1,
@@ -53,11 +53,11 @@
  },
  "enhance_images.json": {
   "preset_version": 1,
-  "sha256": "a349ad5bee8961514432386914394a0bea079e1f60f06f2059ab85b6b477c8e2"
+  "sha256": "5841fe4c6dd973335e08d7094927de34ea3f135ccb586f841e11ba880d6ac774"
  },
  "export_to_desktop.json": {
   "preset_version": 2,
-  "sha256": "c5d2e7e95959ec20d0dab99cb78c42325f293d1f0579b6581f93b2729d069221"
+  "sha256": "22a9fae5952301b4d84d949c900a8ff91ffdbeefab0b3e4074c9800a82ab9c9f"
  },
  "extract_geo.json": {
   "preset_version": 1,
@@ -69,11 +69,11 @@
  },
  "fuzzy_clean_images.json": {
   "preset_version": 1,
-  "sha256": "9b2850762130faf86fcff270cc2b484fa96603ea1dd48f4489eeadbc11caf7c9"
+  "sha256": "675a77517d8c9ebc55a440ff68bfbba065e187a2509fd01807027ff301558fc8"
  },
  "group_same_documents.json": {
   "preset_version": 2,
-  "sha256": "1bebfd741a26e0df7e2ebd846c341cc877aed9077d824e175a83adae06c97773"
+  "sha256": "047b51b4b8cda3c44aa5dc3c2a13a3968e1354bcf2329262ad8bfc2670f40e41"
  },
  "ner_per_page_local.json": {
   "preset_version": 3,
@@ -81,31 +81,31 @@
  },
  "prepare_images_for_ocr.json": {
   "preset_version": 1,
-  "sha256": "a8050b097f41dea468382f4b6dbe2bc802bc096b6d63eabc961e155d397dc87d"
+  "sha256": "3c60e5cfa97c824c51d4028fb150ab6a3d9c10267c0827590ba678916f171ad6"
  },
  "recombine_segments.json": {
   "preset_version": 1,
-  "sha256": "5bd7370a8ffd4425787dd37685e10b3c5796f65bb2ce2a6b80fcc0d3e4edc09f"
+  "sha256": "ff99641090d620de5c675418d3fda889becf516ccc41f5c25f7c05fe1da4002a"
  },
  "remove_background_images.json": {
   "preset_version": 1,
-  "sha256": "56d7fafde9d94c802a6059c803e71770dc249f7b64af24b8f992940201ebc1cf"
+  "sha256": "d124fc921ed259ff0476662cea43a6cf93d64ab631d93a6e28f9b690c8406610"
  },
  "rotate_auto_orient_images.json": {
   "preset_version": 2,
-  "sha256": "c9377328a37dfdb30e18341e1d4259e06737403ee0a1c9e4789db903e8632d38"
+  "sha256": "aa7d41c4a31265b63584fd108fb0dc0805fca71d3baea2e2985919b5cac0ea2a"
  },
  "segment_images.json": {
   "preset_version": 1,
-  "sha256": "cf68cdb8b47c1b0d61b101b17ecc10265749d26265a103e3dbe21e2376630b17"
+  "sha256": "5047282511677370e0e2162325924364f11a9a5ad73e21941d81649f43606508"
  },
  "split_chapters.json": {
   "preset_version": 1,
-  "sha256": "28500862ee71473c9902f55a620a306e88dcbac9953beb96a51f8dccc66ae2b8"
+  "sha256": "224e7a6c0c2a7386aeec09a414e0fdf027b3ebeea7622f7f86bf8785e4b76fac"
  },
  "split_images.json": {
   "preset_version": 1,
-  "sha256": "823c049f84ab385a3f0fc6a1e7fbffbd5d4bf86360c0d9404b4bf596f4f03cb0"
+  "sha256": "916b1693c75a995e8fff0dad444d16c21fdeb6c52a0a6d4af195d1cba383c518"
  },
  "transcribe_auto_detect.json": {
   "preset_version": 5,

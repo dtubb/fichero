@@ -15,7 +15,8 @@
   ],
   "config": {
     "preset_version": 1,
-    "stage": "merge_dedup"
+    "stage": "merge_dedup",
+    "tested": true
   },
   "nodes": [
     {

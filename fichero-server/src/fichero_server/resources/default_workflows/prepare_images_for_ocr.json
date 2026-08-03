@@ -5,9 +5,16 @@
   "is_template": true,
   "is_system": true,
   "folder_path": "/Transcribe",
-  "tags": ["preset", "transcribe", "ocr", "images", "preparation"],
+  "tags": [
+    "preset",
+    "transcribe",
+    "ocr",
+    "images",
+    "preparation"
+  ],
   "config": {
-    "preset_version": 1
+    "preset_version": 1,
+    "tested": true
   },
   "nodes": [
     {

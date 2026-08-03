@@ -35,6 +35,27 @@ _PRESETS_DIR = (
 )
 _HTR_PRESET = "transcribe_htr.json"
 
+#: The deterministic presets validated by #4501 phase 1 (2026-08-03): each run
+#: through the real graph, with its terminal node checked to have produced what
+#: the preset claims — not merely that the run exited 0. They call no model at
+#: all, which is what makes them free to validate under ANY configuration.
+_GROUP_A_VALIDATED_FILES = {
+    "catalogue_stage_1_import_artifacts.json",
+    "catalogue_stage_4_merge_dedup.json",
+    "catalogue_stage_5_kg_persist.json",
+    "enhance_images.json",
+    "export_to_desktop.json",
+    "fuzzy_clean_images.json",
+    "group_same_documents.json",
+    "prepare_images_for_ocr.json",
+    "recombine_segments.json",
+    "remove_background_images.json",
+    "rotate_auto_orient_images.json",
+    "segment_images.json",
+    "split_chapters.json",
+    "split_images.json",
+}
+
 
 class TestToolTestedFlag:
     """The `tested` flag defaults to False and only the HTR chain is True."""
@@ -135,14 +156,26 @@ class TestPresetUntestedFlag:
         parsed = [json.loads(p.read_text()) for p in self._preset_files()]
         assert len(parsed) == len(self._preset_files())
 
-    def test_only_htr_preset_is_tested(self):
+    def test_only_deliberately_validated_presets_are_tested(self):
+        """The tested set is an explicit allowlist, not a floor.
+
+        Was `== {_HTR_PRESET}` — correct while HTR was the only validated
+        preset, obsolete once #4501 phase 1 validated the 14 deterministic
+        ones. Widened by ENUMERATION rather than relaxed to `>=`: the point of
+        this assertion is that a preset cannot acquire `config.tested` without
+        someone editing this list, which a floor would allow silently. Adding a
+        name here is the deliberate act of claiming it was validated.
+        """
         tested = {
             p.name
             for p in self._preset_files()
             if self._is_tested(json.loads(p.read_text()))
         }
-        assert tested == {_HTR_PRESET}, (
-            f"exactly the HTR preset must carry config.tested=true; got {tested}"
+        expected = {_HTR_PRESET} | _GROUP_A_VALIDATED_FILES
+        assert tested == expected, (
+            "config.tested must match the validated allowlist exactly. "
+            f"unexpected={sorted(tested - expected)} "
+            f"missing={sorted(expected - tested)}"
         )
 
     def test_htr_preset_name_and_flag(self):
@@ -179,3 +212,97 @@ class TestWorkflowUntestedResponse:
         # is_system=False → never flagged, even with no config.
         assert self._untested(is_system=False, config={}) is False
         assert self._untested(is_system=False, config=None) is False
+
+
+# =============================================================================
+# #4501 phase 1 — the deterministic presets are validated, and stay that way
+# =============================================================================
+
+
+class TestGroupADeterministicPresetsAreTested:
+    """The 14 presets that call NO model, validated 2026-08-03 by running each
+    through the real graph and checking its terminal node actually produced
+    what the preset claims to produce — not merely that the run exited 0.
+    #4496 is why that distinction matters: it ran green end to end while
+    storing the model's commentary as the transcription.
+
+    These are the only presets that are free to validate under ANY
+    configuration. Every other preset leaves provider/model unset on its
+    model-using nodes, so what it costs depends on the user's app defaults —
+    see agent-work/status/2026-08-03-preset-triage.md.
+    """
+
+    GROUP_A = {
+        "1 · Import → Artifacts",
+        "4 · Merge / Dedup",
+        "5 · KG Persist / Finalize",
+        "Enhance Images",
+        "Export to Desktop (MD + DOCX + XLSX)",
+        "Fuzzy Clean Images",
+        "Group Same Documents",
+        "Prepare Images for OCR",
+        "Recombine Segments",
+        "Remove Background Images",
+        "Rotate / Auto-Orient Images",
+        "Segment Images",
+        "Split Chapters",
+        "Split Images",
+    }
+
+    def _presets(self):
+        from fichero_server.workflows.default_workflows import _load_preset_files
+
+        return {p["name"]: p for p in _load_preset_files()}
+
+    def test_every_validated_preset_carries_config_tested(self):
+        presets = self._presets()
+        missing = [
+            name
+            for name in sorted(self.GROUP_A)
+            if not (presets.get(name, {}).get("config") or {}).get("tested")
+        ]
+        assert not missing, (
+            f"these presets were validated but lost config.tested: {missing}. "
+            "The UI derives '(Untested)' from that key, so dropping it puts the "
+            "warning back on a preset that has been checked"
+        )
+
+    def test_no_group_a_preset_calls_a_model(self):
+        """What makes this group free under ANY configuration. If a model-using
+        tool is added to one, its cost silently becomes a function of the
+        user's app defaults and the validation above no longer covers it."""
+        model_tools = {
+            "transcribe", "transcribe_review", "convert", "classify_script",
+            "table_extract", "describe", "catalogue", "citations_extract",
+            "clean_text", "extract_all", "extract_entities_only", "extract_geo",
+            "extract_svo_only", "text_translate", "text_translate_review",
+            "translate",
+        }
+        presets = self._presets()
+        for name in sorted(self.GROUP_A):
+            tools = {
+                node.get("tool")
+                for node in presets[name].get("nodes", [])
+                if node.get("tool")
+            }
+            offending = tools & model_tools
+            assert not offending, (
+                f"{name!r} now uses {sorted(offending)}, which calls a model. "
+                "It is no longer free under any configuration — re-triage it "
+                "before leaving config.tested set"
+            )
+
+    def test_the_untested_label_is_no_longer_wallpaper(self):
+        """The point of the exercise. 38 of 39 carrying the same warning meant
+        the one preset that might deserve it got the same glance as the 37
+        merely unchecked."""
+        presets = self._presets()
+        untested = [
+            name
+            for name, p in presets.items()
+            if not (p.get("config") or {}).get("tested")
+        ]
+        assert len(untested) < len(presets) - 10, (
+            f"{len(untested)} of {len(presets)} presets still carry (Untested); "
+            "the label is still wallpaper"
+        )

@@ -15,7 +15,8 @@
   ],
   "config": {
     "preset_version": 1,
-    "stage": "import_artifacts"
+    "stage": "import_artifacts",
+    "tested": true
   },
   "nodes": [
     {

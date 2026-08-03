@@ -5,9 +5,17 @@
   "is_template": true,
   "is_system": true,
   "folder_path": "/Image Editing",
-  "tags": ["preset", "image-editing", "enhance", "contrast", "denoise", "ocr"],
+  "tags": [
+    "preset",
+    "image-editing",
+    "enhance",
+    "contrast",
+    "denoise",
+    "ocr"
+  ],
   "config": {
-    "preset_version": 1
+    "preset_version": 1,
+    "tested": true
   },
   "nodes": [
     {
