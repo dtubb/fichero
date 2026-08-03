@@ -23,6 +23,7 @@ from fichero_server.execution.cancellation import (
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.registry import get_tool_def
+from fichero_server.workflows.run_steps import close_open_steps
 
 from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest, SSEEvent
 
@@ -775,6 +776,36 @@ async def _run_workflow_in_background(
         "steps": [],
     }  # Capture progress for historical viewing
 
+    def _close_in_flight_steps(status: str, error: str | None) -> None:
+        """Settle timeline entries still marked running when the run ends.
+
+        #4284: a run that dies or is cancelled inside a node leaves that
+        node's entry at status='running'. The record then claims a step is
+        running for a run that ended, and — worse — the step that actually
+        broke looks exactly like every step that never started. Best-effort:
+        this is bookkeeping and must never be the thing that fails a run.
+        """
+        try:
+            closed = close_open_steps(
+                progress_timeline,
+                status=status,
+                error=error,
+                completed_at=datetime.now(timezone.utc),
+            )
+            if closed:
+                logger.info(
+                    "Closed %d in-flight timeline step(s) as %s for %s",
+                    closed,
+                    status,
+                    thread_id,
+                )
+        except Exception as close_exc:  # pragma: no cover - defensive
+            logger.warning(
+                "Could not close in-flight timeline steps for %s: %s",
+                thread_id,
+                close_exc,
+            )
+
     async def log_execution(message: str) -> None:
         """Log a message to both console and execution log, and stream via SSE."""
         timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3]
@@ -835,6 +866,10 @@ async def _run_workflow_in_background(
             * 1000,
             partial_results_preserved=True,
         )
+        # #4284: the node that was in flight when the user hit stop must not
+        # stay 'running' in the record forever — a cancelled run whose steps
+        # all still claim to be running cannot tell you where it stopped.
+        _close_in_flight_steps("cancelled", None)
         progress_timeline["events"] = _workflow_event_timeline(event_queue)
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
@@ -1833,6 +1868,9 @@ async def _run_workflow_in_background(
                 },
             )
         )
+        # #4284: mark the step that was in flight as failed, so the record
+        # names where the systemic failure landed.
+        _close_in_flight_steps("failed", failure_message)
         progress_timeline["events"] = _workflow_event_timeline(event_queue)
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
@@ -1880,6 +1918,10 @@ async def _run_workflow_in_background(
                 },
             )
         )
+        # #4284: mark the step that was in flight as failed rather than
+        # leaving it 'running' — the failing step must be the one the
+        # activity view can point at.
+        _close_in_flight_steps("failed", str(e))
         progress_timeline["events"] = _workflow_event_timeline(event_queue)
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
