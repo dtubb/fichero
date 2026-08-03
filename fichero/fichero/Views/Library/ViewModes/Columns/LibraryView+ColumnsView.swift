@@ -151,7 +151,7 @@ extension LibraryView {
                     .draggable(libraryItemDrag(for: doc))
                     .modifier(LibraryFolderCellDrop(
                         isFolder: doc.docType == .folder,
-                        onDropItems: { items in moveDraggedItems(items, into: doc) }
+                        onDropProviders: { providers in handleFolderCellDrop(providers, into: doc) }
                     ))
                     .onTapGesture(count: 2) { handleDoubleClick(doc) }
                     .onTapGesture { handleColumnTap(doc, depth: depth) }

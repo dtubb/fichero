@@ -211,8 +211,8 @@ extension LibraryView {
             .draggable(libraryItemDrag(for: document))
             .modifier(LibraryFolderCellDrop(
                 isFolder: document.docType == .folder,
-                onDropItems: { items in
-                    moveDraggedItems(items, into: document)
+                onDropProviders: { providers in
+                    handleFolderCellDrop(providers, into: document)
                 }
             ))
             .modifier(LibraryRowHoverWash(enabled: !selection.contains(document.id)))

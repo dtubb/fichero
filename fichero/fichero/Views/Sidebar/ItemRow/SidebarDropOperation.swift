@@ -56,6 +56,20 @@ struct SidebarDropModifiers {
 /// Finder's modifier-drag grammar for DOCUMENT payloads — the one kind with
 /// targeted duplicate + alias endpoints: plain = move, ⌥ = copy,
 /// ⌘⌥ = make alias at the destination. Other kinds always move.
+///
+/// This is THE grammar. Every surface that accepts a library-item drag routes
+/// through it — sidebar rows, sidebar insertion lines, and (since #4475) the
+/// library folder cells in all four view modes. The library cell used to always
+/// move, so a user who learned ⌥-copy in the sidebar was silently wrong in the
+/// pane where the documents actually are.
+///
+/// Modifier state is sampled ONCE per drop, at the drop entry point, and the
+/// sampled `SidebarDropModifiers` is passed down (#4475 C). Nothing below an
+/// entry point may call `.current()` itself: two functions re-reading live
+/// modifier flags at different instants is the "two things nothing forces to
+/// agree" shape this whole family of bugs is made of. The single exception is
+/// hover highlighting (`targetedDropOperation`), which is not a drop and MUST
+/// re-read so the cursor badge tracks the key being pressed mid-drag.
 func sidebarDropOperation(
     optionHeld: Bool,
     commandHeld: Bool,
@@ -189,51 +203,109 @@ func sidebarApplyInsertionDropOperation(
     store.reorderChildrenOptimistically(orderedIds: newOrder)
 }
 
-extension SidebarItemRow {
-    /// Option-drag copy executor for drops ONTO a folder: deep-copies the
-    /// document into the target through the audited `document.duplicate`
-    /// action (the same invokeAction path document.delete uses). The engine
-    /// enforces cycle/lock rules and keeps the name for cross-folder copies
-    /// (Finder suffixes only same-folder copies).
-    @discardableResult
-    func copyDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
-        guard let library else { return false }
+// MARK: - The one drop executor for a library item onto a folder (#4475)
+
+/// What applying one resolved operation to one dragged document actually did.
+/// `.failed` carries a reportable reason — a drop that silently does nothing is
+/// the defect this pair of issues is about, so there is no "nothing happened"
+/// case to fall into.
+enum LibraryItemDropOutcome: Equatable {
+    case applied
+    case failed(String)
+}
+
+/// Apply one resolved `SidebarDropOperation` to one document, into one folder.
+///
+/// Both surfaces call THIS: the sidebar row drop and the library folder cell.
+/// They previously had separate executors, which is why ⌥ meant "duplicate" in
+/// the sidebar and meant nothing in the library — there was no single place
+/// saying what a drag of a library item DOES, so the two implementations were
+/// free to disagree and did.
+///
+/// Deliberately does NOT refresh the store: callers apply several of these per
+/// drop and refresh once at the end. Refreshing per item would re-render the
+/// whole list once per dragged document.
+@MainActor
+func applyLibraryItemDropOperation(
+    _ operation: SidebarDropOperation,
+    documentId: String,
+    intoFolderId: String,
+    library: LibraryManager.LibraryReference
+) async -> LibraryItemDropOutcome {
+    switch operation {
+    case .move:
+        do {
+            _ = try await library.documentStore.moveDocument(documentId, toParent: intoFolderId)
+            return .applied
+        } catch {
+            return .failed(error.localizedDescription)
+        }
+
+    case .copy:
+        // Deep-copies through the audited `document.duplicate` action (the same
+        // invokeAction path document.delete uses). The engine enforces
+        // cycle/lock rules and keeps the name for cross-folder copies (Finder
+        // suffixes only same-folder copies).
         do {
             _ = try await library.actionsService.invokeAction(
                 name: "document.duplicate",
-                params: DocumentDuplicateActionParams(docId: documentId, parentId: folderId)
+                params: DocumentDuplicateActionParams(docId: documentId, parentId: intoFolderId)
             )
-            await library.documentStore.refresh()
-            return true
+            return .applied
         } catch {
-            sidebarRowLogger.error("⌥-copy failed: \(error.localizedDescription)")
-            sidebarState.dropErrorMessage = error.localizedDescription
-            return false
+            return .failed(error.localizedDescription)
         }
-    }
 
-    /// ⌘⌥-drag alias executor for drops ONTO a folder: a real engine alias
-    /// node (bookmarks surface, #2591) inside the target.
-    @discardableResult
-    func aliasDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
-        guard let library else { return false }
-        let store = library.documentStore
-        let source = sidebarFindDocument(id: documentId, in: store)
+    case .alias:
+        // A real engine alias node (bookmarks surface, #2591) inside the target.
+        let source = sidebarFindDocument(id: documentId, in: library.documentStore)
         let name = sidebarAliasName(
             sourceName: source?.name ?? "Item",
             sourceParentId: source?.parentId,
-            targetParentId: folderId
+            targetParentId: intoFolderId
         )
         // Aliasing an alias targets the ORIGINAL (no alias chains).
         let targetId = (source?.isAlias == true ? source?.aliasTargetId : nil) ?? documentId
         let created = await library.bookmarkService.createBookmark(
-            targetId: targetId, name: name, parentId: folderId
+            targetId: targetId, name: name, parentId: intoFolderId
         )
-        if created {
-            await store.refresh()
-        } else {
-            sidebarState.dropErrorMessage = "Couldn’t create the alias."
+        return created ? .applied : .failed("Couldn’t create the alias.")
+    }
+}
+
+extension SidebarItemRow {
+    /// Option-drag copy executor for drops ONTO a folder. Thin wrapper over the
+    /// shared executor: keeps this row's error reporting and store refresh.
+    @discardableResult
+    func copyDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
+        guard let library else { return false }
+        switch await applyLibraryItemDropOperation(
+            .copy, documentId: documentId, intoFolderId: folderId, library: library
+        ) {
+        case .applied:
+            await library.documentStore.refresh()
+            return true
+        case .failed(let reason):
+            sidebarRowLogger.error("⌥-copy failed: \(reason)")
+            sidebarState.dropErrorMessage = reason
+            return false
         }
-        return created
+    }
+
+    /// ⌘⌥-drag alias executor for drops ONTO a folder.
+    @discardableResult
+    func aliasDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
+        guard let library else { return false }
+        switch await applyLibraryItemDropOperation(
+            .alias, documentId: documentId, intoFolderId: folderId, library: library
+        ) {
+        case .applied:
+            await library.documentStore.refresh()
+            return true
+        case .failed(let reason):
+            sidebarRowLogger.error("⌘⌥-alias failed: \(reason)")
+            sidebarState.dropErrorMessage = reason
+            return false
+        }
     }
 }

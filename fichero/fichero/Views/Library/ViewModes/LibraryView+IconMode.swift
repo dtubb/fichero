@@ -91,8 +91,8 @@ extension LibraryView {
                                 // drop moves INTO it — not the viewed folder.
                                 .modifier(LibraryFolderCellDrop(
                                     isFolder: doc.docType == .folder,
-                                    onDropItems: { items in
-                                        moveDraggedItems(items, into: doc)
+                                    onDropProviders: { providers in
+                                        handleFolderCellDrop(providers, into: doc)
                                     }
                                 ))
                                 .onTapGesture(count: 2) {

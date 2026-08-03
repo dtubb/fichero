@@ -482,6 +482,11 @@ struct LibraryView: View {
             .sheet(item: $bookmarkPickerDocument) { document in
                 BookmarksView(document: document, onOpen: { openDocument($0) })
             }
+            // A failed drop onto a folder cell must SAY so (#4474). It used to
+            // be logged only, so a refused move looked exactly like one that
+            // worked. Extracted as a modifier rather than an inline `.alert`
+            // because this body is already near the type-checker's limit.
+            .modifier(LibraryDropAlertModifier(windowState: windowState))
             .focusedSceneValue(\.runWorkflowOnSelection, runWorkflowOnSelectionAction)
             // Data-menu Import… while the LIBRARY pane (not the sidebar) has
             // focus (#4452). Deliberately the narrow `libraryImportAction`

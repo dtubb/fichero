@@ -24,14 +24,7 @@ extension SidebarItemRow {
         // the visual from imitating one.
         isDropTargeted = false
 
-        let capabilities = providers.map {
-            SidebarDropProviderCapabilities(
-                canLoadURL: $0.canLoadObject(ofClass: URL.self),
-                canLoadString: $0.canLoadObject(ofClass: NSString.self),
-                registeredTypeIdentifiers: $0.registeredTypeIdentifiers
-            )
-        }
-        let hasFileURL = capabilities.contains(where: \.canLoadURL)
+        let capabilities = sidebarDropCapabilities(of: providers)
         // Worth trying to read an id? Capabilities alone can no longer decide
         // the ROUTE (#4401) — since #4123 an internal document drag also vends
         // a file — so they only decide whether to attempt the read.
@@ -39,22 +32,13 @@ extension SidebarItemRow {
         let capabilityRoute = classifySidebarDropProviders(capabilities)
         guard mightBeInternal || capabilityRoute == .externalFiles else { return false }
 
-        // Read FIRST, route second. Every provider is asked for a string,
-        // including ones that can also vend a URL — that inclusion is the fix,
-        // because the document drags this bug destroyed vend both.
+        // Read FIRST, route second — via the SHARED reader, which is also what
+        // the library folder cell now uses (#4474). The plumbing used to be
+        // inline here, so the library pane could not reuse it without copying
+        // it, and a copied classifier is how the library section header ended
+        // up with a second divergent routing rule (#4401).
         Task {
-            var loadedIDs: [String] = []
-            for provider in providers where provider.canLoadObject(ofClass: NSString.self) {
-                if let string = try? await Self.loadString(from: provider) {
-                    loadedIDs.append(string)
-                }
-            }
-            let payload = classifySidebarDropPayload(
-                loadedIDs: loadedIDs,
-                hasFileURL: hasFileURL,
-                carriesOwnProcessFlavor: mightBeInternal
-            )
-            switch payload {
+            switch await readSidebarDropPayload(providers) {
             case .internalItems(let ids):
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
 
@@ -77,22 +61,6 @@ extension SidebarItemRow {
             }
         }
         return true
-    }
-
-    /// Async helper to unwrap a plain-text NSItemProvider into a String.
-    /// Matches the `loadURL` helper's pattern on `SidebarItemRow+DropHandlers`.
-    private static func loadString(from provider: NSItemProvider) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            _ = provider.loadObject(ofClass: NSString.self) { value, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let nsString = value as? NSString {
-                    continuation.resume(returning: nsString as String)
-                } else {
-                    continuation.resume(throwing: NSError(domain: "SidebarRowDrop", code: -1))
-                }
-            }
-        }
     }
 
     @ViewBuilder
@@ -151,9 +119,15 @@ extension SidebarItemRow {
     /// ⌥/⌘⌥ insertion handling — true when the drop was consumed as a
     /// copy/alias (see `sidebarApplyInsertionDropOperation`).
     private func handleNonMoveInsertion(
-        bareIds: [String], parentId: String, offset: Int, children: [SidebarItem]
+        bareIds: [String], parentId: String, offset: Int, children: [SidebarItem],
+        modifiers: SidebarDropModifiers
     ) -> Bool {
-        let operation = sidebarDropOperation(modifiers: .current(), kind: .document)
+        // Modifiers arrive already sampled from the drop entry point (#4475 C).
+        // This used to call `.current()` itself, one frame later than the folder
+        // drop path did. Both happened to agree, which is exactly the shape that
+        // produced this family of bugs — so the rule is now structural: below an
+        // entry point you take the sample you are given.
+        let operation = sidebarDropOperation(modifiers: modifiers, kind: .document)
         guard operation != .move, let library else { return false }
         let request = SidebarInsertionDropRequest(
             operation: operation, bareIds: bareIds, parentId: parentId,
@@ -176,6 +150,9 @@ extension SidebarItemRow {
         at offset: Int,
         into children: [SidebarItem]
     ) {
+        // The drop entry point: sample modifier state ONCE, here, and pass it
+        // down (#4475 C).
+        let modifiersAtDrop = SidebarDropModifiers.current()
         guard case .document(let parentDoc) = item.itemType,
               parentDoc.docType == .folder,
               let store = documentStore else {
@@ -194,7 +171,8 @@ extension SidebarItemRow {
         // aliases into THIS folder at this offset; plain drops keep the
         // transactional move below.
         if handleNonMoveInsertion(
-            bareIds: bareIds, parentId: parentDoc.id, offset: offset, children: children
+            bareIds: bareIds, parentId: parentDoc.id, offset: offset, children: children,
+            modifiers: modifiersAtDrop
         ) {
             return
         }

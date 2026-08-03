@@ -37,7 +37,10 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # cursor) runs through body-level key handlers, and a per-column List
     # would own per-column selection, breaking the single shared set. The
     # constraint is stated in-file at the collection site.
-    "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#aba65b4662": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file)",
+    # Hash re-baselined by #4474: the drop closure inside this block changed
+    # from `moveDraggedItems` to the unified `handleFolderCellDrop`. Same
+    # sanctioned violation, same lines — only the content hash moved.
+    "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#8a607a3970": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     # Same two content hashes as the +Views.swift entries they replace — only
     # the PATH moved. The file was split at its own MARK boundary when

@@ -14,35 +14,54 @@ final class LibraryGridDropTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    func testFolderCellsAreDropTargetsInIconAndListModes() throws {
+    // #4474/#4475 UPDATED these three. What #4124 established — folder cells
+    // are real drop targets, only the hovered one highlights, self-drops and
+    // non-document payloads are refused — is all still true and still pinned.
+    // What changed is HOW, and the old assertions pinned the how:
+    //
+    //   - `.dropDestination(for: LibraryItemDrag.self)` was the #4474 bug. A
+    //     destination typed on the library's payload matches a sidebar drag not
+    //     at all, so dragging a sidebar row onto a folder cell did nothing.
+    //   - `moveDraggedItems` always moved, which is the #4475 B bug.
+    //   - the non-document exclusion moved into the shared classifier, so it is
+    //     now made once for every surface instead of once per destination.
+    //
+    // The behavioural replacements live in `LibraryDropPairingTests`.
+
+    func testFolderCellsAreDropTargetsInEveryViewMode() throws {
         for file in [
             "Views/Library/ViewModes/LibraryView+IconMode.swift",
             "Views/Library/ViewModes/LibraryView+ListView.swift",
-            "Views/Library/ViewModes/LibraryView+TableColumns.swift"
+            "Views/Library/ViewModes/LibraryView+TableColumns.swift",
+            "Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift"
         ] {
             let source = try Self.appSource(file)
             XCTAssertTrue(source.contains("LibraryFolderCellDrop("), file)
-            XCTAssertTrue(source.contains("moveDraggedItems(items, into:"), file)
+            XCTAssertTrue(source.contains("handleFolderCellDrop(providers"), file)
         }
     }
 
     func testDropTargetHighlightsOnlyTheHoveredCell() throws {
         let source = try Self.appSource("Views/Library/ViewModes/LibraryView+CellDrop.swift")
         // Per-cell @State — the whole-pane isTargeted was the all-cells
-        // highlight bug.
+        // highlight bug. Unchanged by #4474.
         XCTAssertTrue(source.contains("@State private var isTargeted"))
-        XCTAssertTrue(source.contains("dropDestination(for: LibraryItemDrag.self)"))
-        // Moves route through the ONE existing executor, and failures are
-        // logged, never silently swallowed.
-        XCTAssertTrue(source.contains("documentStore.moveDocument(id, toParent: folder.id)"))
-        XCTAssertTrue(source.contains("moves failed"))
+        // Untyped now, so BOTH in-app drag shapes reach it.
+        XCTAssertTrue(source.contains(".onDrop(of: SidebarItemRow.dropTypes"))
+        // Moves route through the ONE shared executor, and failures are now
+        // REPORTED, not merely logged.
+        XCTAssertTrue(source.contains("applyLibraryItemDropOperation("))
+        XCTAssertTrue(source.contains("windowState.dropErrorMessage ="))
     }
 
-    func testSelfDropsAndNonDocumentPayloadsAreRejected() throws {
+    func testSelfDropsAndNonFolderTargetsAreRejected() throws {
         let source = try Self.appSource("Views/Library/ViewModes/LibraryView+CellDrop.swift")
-        XCTAssertTrue(source.contains(".filter { $0 != folder.id }"))
-        XCTAssertTrue(source.contains("case .artifact, .note, .annotation:"))
+        XCTAssertTrue(source.contains("$0 != folder.id"))
         XCTAssertTrue(source.contains("guard folder.docType == .folder"))
+        // The artifact/note/annotation exclusion now lives in the shared
+        // classifier — one exclusion for every surface, not one per destination.
+        let classifier = try Self.appSource("Views/Sidebar/ItemRow/SidebarDropClassification.swift")
+        XCTAssertTrue(classifier.contains("case .artifact, .note, .annotation:"))
     }
 }
 

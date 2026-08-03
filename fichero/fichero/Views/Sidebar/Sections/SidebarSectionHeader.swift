@@ -167,29 +167,16 @@ struct LibrarySectionHeader: View {
     private func handleLibraryHeaderDrop(_ providers: [NSItemProvider]) -> Bool {
         guard !providers.isEmpty else { return false }
 
-        let capabilities = providers.map {
-            SidebarDropProviderCapabilities(
-                canLoadURL: $0.canLoadObject(ofClass: URL.self),
-                canLoadString: $0.canLoadObject(ofClass: NSString.self),
-                registeredTypeIdentifiers: $0.registeredTypeIdentifiers
-            )
-        }
+        let capabilities = sidebarDropCapabilities(of: providers)
         let hasFileURL = capabilities.contains(where: \.canLoadURL)
         let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
         guard mightBeInternal || hasFileURL else { return false }
 
+        // Reads through the SHARED reader, like the row path and the library
+        // folder cell. This used to be a third hand-rolled copy of the same
+        // provider plumbing.
         Task {
-            var loadedIDs: [String] = []
-            for provider in providers where provider.canLoadObject(ofClass: NSString.self) {
-                if let string = try? await Self.loadString(from: provider) {
-                    loadedIDs.append(string)
-                }
-            }
-            switch classifySidebarDropPayload(
-                loadedIDs: loadedIDs,
-                hasFileURL: hasFileURL,
-                carriesOwnProcessFlavor: mightBeInternal
-            ) {
+            switch await readSidebarDropPayload(providers) {
             case .internalItems(let ids):
                 guard let onSidebarItemDrop else { return }
                 await MainActor.run { onSidebarItemDrop(ids) }
@@ -232,20 +219,6 @@ struct LibrarySectionHeader: View {
             return
         }
         _ = await MainActor.run { onFileDrop(urls) }
-    }
-
-    private static func loadString(from provider: NSItemProvider) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            _ = provider.loadObject(ofClass: NSString.self) { value, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let nsString = value as? NSString {
-                    continuation.resume(returning: nsString as String)
-                } else {
-                    continuation.resume(throwing: NSError(domain: "LibraryHeaderDrop", code: -1))
-                }
-            }
-        }
     }
 
     private static func loadURL(from provider: NSItemProvider) async throws -> URL {

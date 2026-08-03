@@ -226,6 +226,9 @@ extension SidebarView {
         into items: [SidebarItem],
         libraryId: UUID?
     ) {
+        // The drop entry point: sample modifier state ONCE, here, and pass the
+        // sampled value down (#4475 C). Nothing below re-reads live flags.
+        let modifiersAtDrop = SidebarDropModifiers.current()
         guard let libraryId = libraryId,
               let library = libraryManager.getLibrary(id: libraryId) else { return }
 
@@ -237,7 +240,7 @@ extension SidebarView {
         // Finder modifier grammar at the insertion line: ⌥ copies, ⌘⌥ makes
         // aliases — both land at exactly this offset; plain drops keep the
         // existing transactional move below.
-        let operation = sidebarDropOperation(modifiers: .current(), kind: .document)
+        let operation = sidebarDropOperation(modifiers: modifiersAtDrop, kind: .document)
         if operation != .move {
             let request = SidebarInsertionDropRequest(
                 operation: operation, bareIds: bareIds, parentId: nil,

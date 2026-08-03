@@ -12,6 +12,13 @@ class WindowState {
     /// Currently selected tab
     var selectedTab: String = "library"
 
+    /// Why the last drop onto a library folder cell failed, or nil (#4474).
+    /// Rendered by `LibraryView`'s drop alert. The sidebar has the same surface
+    /// in `SidebarState.dropErrorMessage`; the library pane had none at all, so
+    /// a failed cell drop was logged and otherwise looked exactly like a drop
+    /// that had worked.
+    var dropErrorMessage: String?
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }
