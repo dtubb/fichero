@@ -85,7 +85,8 @@ extension DocumentInspectorEntitiesTab {
                     hiddenKindsCSV = ""
                 }
                 #if os(macOS)
-                .buttonStyle(.link)
+                .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
                 #endif
                 .font(.caption)
             }

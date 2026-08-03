@@ -119,7 +119,8 @@ private struct ArtifactProvenanceSection: View {
                     // `.link` is macOS-only; `.borderless` is the cross-platform
                     // accent-tinted equivalent on iOS/iPadOS (iOS build gate).
                     #if os(macOS)
-                    .buttonStyle(.link)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
                     #else
                     .buttonStyle(.borderless)
                     #endif
@@ -151,7 +152,8 @@ private struct ArtifactProvenanceSection: View {
                         Label("View Run", systemImage: "point.3.connected.trianglepath.dotted")
                     }
                     #if os(macOS)
-                    .buttonStyle(.link)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
                     #else
                     .buttonStyle(.borderless)
                     #endif

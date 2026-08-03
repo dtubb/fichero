@@ -110,7 +110,11 @@ struct RunArtifactRow: View {
             } else {
                 Button("Show Full") { Task { await loadFull() } }
                     .font(.caption2)
-                    .buttonStyle(.link)
+                    // `.link` is macOS-only. `.plain` reads the same here — the
+                    // caption font and accent colour already carry the affordance
+                    // — and works on both platforms.
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
                     .disabled(apiClient == nil)
             }
         }
