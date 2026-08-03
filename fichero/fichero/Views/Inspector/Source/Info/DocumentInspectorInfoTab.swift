@@ -14,6 +14,9 @@ struct DocumentInspectorInfoTab: View {
     @State var libraryAuthzError: String?
     @State var isLoadingLibraryAuthz = false
     @State private var selectedAttribute: InspectorAttribute?
+    /// The per-prototype chooser's answers (#4481). Observed, not copied, so a
+    /// choice made here is the same choice in every other open inspector.
+    let choiceStore = InspectorAttributeChoiceStore.shared
     /// Geo points the engine derived for this document (#3055) — shown only when present.
     @State private var geoPoints: [Components.Schemas.DocGeoPoint] = []
 
@@ -35,6 +38,10 @@ struct DocumentInspectorInfoTab: View {
                 .padding(.bottom, 8)
 
             VStack(alignment: .leading, spacing: 16) {
+                // Unconditional, and first: the only way any of the sections
+                // below can ever appear (#4481).
+                attributesChooser
+
                 statusSection
                 classSection
                 sharingSection
@@ -310,9 +317,18 @@ struct DocumentInspectorInfoTab: View {
         }
     }
 
-    /// The attributes this document shows, resolved as data (#4422).
-    private var visibleAttributes: [InspectorAttribute] {
-        InspectorAttributeVisibility.visibleAttributes(for: document)
+    /// The attributes this document shows, resolved as data (#4422) from the
+    /// prototype's chosen set (#4481).
+    ///
+    /// `chosen:` had no caller until now, so the resolver took its `nil` branch
+    /// — `defaultVisible`, which is empty — for every document that ever
+    /// existed. The default is unchanged and still nothing; what changed is
+    /// that a user can now answer.
+    var visibleAttributes: [InspectorAttribute] {
+        InspectorAttributeVisibility.visibleAttributes(
+            for: document,
+            chosen: choiceStore.chosen(forPrototype: document.prototypeKey)
+        )
     }
 
     // MARK: - Metadata helpers
