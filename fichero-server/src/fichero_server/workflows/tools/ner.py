@@ -7,6 +7,7 @@ from typing import Any
 from fichero_server.kg.ner import ExtractedEntity
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.ner.providers import get_ner_provider
+from fichero_server.llm.language_policy import describe, resolve_language
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.types import DataType, PortDef, State
 
@@ -88,9 +89,18 @@ async def ner(
     provider_name = inputs.get("provider") or "llm"
     model_name = inputs.get("model") or None
     provider = get_ner_provider(provider_name, model_name)
-    language = inputs.get("language")
-    if language and str(language).lower() == "auto":
-        language = None
+    # #2092: `auto` used to mean "send no language hint at all", so NER had no
+    # language concept and the library's language policy never reached it. It
+    # now means "ask the policy" — an explicit value on the node still wins, and
+    # a genuinely unknown language still sends no hint (which is correct: a
+    # hint we cannot justify is worse than none).
+    documents = inputs.get("documents") or []
+    resolution = resolve_language(
+        requested=inputs.get("language"),
+        document=documents[0] if documents else None,
+        text=text,
+    )
+    language = resolution.language
 
     entities = await provider.extract(
         text,
@@ -109,5 +119,8 @@ async def ner(
         "results": [],
         "artifacts": [],
         "cached": False,
+        # Say what language was assumed, so an `unknown` run is legible as one
+        # rather than looking identical to a confident run (#2092).
+        **describe(resolution),
     }
 

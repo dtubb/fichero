@@ -52,6 +52,9 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
     )
     assert not first.get("error")
     first_summary = first["outputs"]["extract-entities"]["summary"]
+    # #2092: the run reports which language each document was extracted in.
+    # Popped so the counts below stay the subject of this assertion.
+    assert first_summary.pop("languages_used") == {"English": 2}
     assert first_summary == {
         "documents_processed": 2,
         "entity_mentions_processed": 4,
@@ -67,6 +70,7 @@ def test_extract_entities_preset_persists_entities_and_is_idempotent(tmp_path: P
     )
     assert not second.get("error")
     second_summary = second["outputs"]["extract-entities"]["summary"]
+    assert second_summary.pop("languages_used") == {"English": 2}
     assert second_summary == {
         "documents_processed": 2,
         "entity_mentions_processed": 4,
@@ -133,6 +137,7 @@ def test_extract_entities_tool_accepts_singleton_document_payload_without_unpack
         )
 
     assert result["count"] == 1
+    assert result["summary"].pop("languages_used") == {"English": 1}
     assert result["summary"] == {
         "documents_processed": 1,
         "entity_mentions_processed": 2,

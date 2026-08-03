@@ -267,6 +267,28 @@ class Document(BaseModel):
         description="HistoricalDate metadata: status, calendar_system, precision, display, source, confidence.",
     )
 
+    # Language of the document (#2092). The language the document IS IN, which
+    # is what transcription, SVO extraction and entity extraction must be told;
+    # it is not the language the user wants output in. Mirrors the date fields
+    # above deliberately, including their three-way honesty:
+    #   language_meta is None                -> nothing has ever determined it
+    #   language_meta["status"] == "unknown" -> it was examined and cannot be told
+    #   language_meta["status"] == "known"   -> `language` holds the answer
+    # Those three call for different responses from a user and must never be
+    # collapsed into a null that reads as English. `language_meta["source"]` is
+    # extracted | detected | metadata | user; `user` marks a human correction,
+    # which is a persistent curation rule and survives re-extraction (same rule
+    # as date_meta["source"] == "user"). Resolution lives in
+    # llm/language_policy.py — read it there, never inline.
+    language: str | None = Field(
+        default=None,
+        description="Canonical name of the language this document is written in (#2092).",
+    )
+    language_meta: dict[str, Any] | None = Field(
+        default=None,
+        description="Language provenance: status (known|unknown), source, confidence, basis. None = never determined.",
+    )
+
     # Workspace folders (#1313). A workspace is a normal folder document with
     # curated items layered on top of its child documents; views consume the
     # same folder hierarchy instead of a separate Mind Palace room tree.

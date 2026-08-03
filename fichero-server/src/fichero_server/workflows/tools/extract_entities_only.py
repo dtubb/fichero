@@ -15,11 +15,18 @@ import asyncio
 import itertools
 import logging
 import os
+from collections import defaultdict
 from typing import Any, Iterator
 
 from fichero_server.db import db_manager
 from fichero_server.models.knowledge import KnowledgeEntity
 from fichero_server.llm import LLMConfig, chat_structured_with_fallback
+from fichero_server.llm.language_policy import (
+    UNKNOWN,
+    configured_policy,
+    prompt_language,
+    resolve_language,
+)
 from fichero_server.models import Artifact, Document
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools._entity_writer import upsert_entity
@@ -231,7 +238,15 @@ async def extract_entities_only(
         }
     records = itertools.chain([first_record], records)
 
-    instructions = _build_entity_only_instructions(inputs.get("output_language", "auto"))
+    # #2092. Was `_build_entity_only_instructions(inputs.get("output_language",
+    # "auto"))` — the unresolved config value, so the default wrote "Write in
+    # auto." into the system prompt and the library's language policy never
+    # reached entity extraction. Resolved per document; instructions are cached
+    # per language so a single-language corpus still builds one string.
+    policy = configured_policy()
+    instructions_by_language: dict[str, str] = {}
+    languages_used: dict[str, int] = defaultdict(int)
+
     progress_callback = inputs.get("__progress_callback")
     max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
     extraction_sem = asyncio.Semaphore(max_in_flight)
@@ -260,6 +275,19 @@ async def extract_entities_only(
             total,
             message=f"Extracting step-2 entities for {doc_name}",
         )
+
+        resolution = resolve_language(
+            requested=inputs.get("output_language"),
+            document=documents[record["index"]],
+            text=record["text"] or "",
+            policy=policy,
+        )
+        languages_used[resolution.language or UNKNOWN] += 1
+        instruction_key = prompt_language(resolution)
+        instructions = instructions_by_language.get(instruction_key)
+        if instructions is None:
+            instructions = _build_entity_only_instructions(instruction_key)
+            instructions_by_language[instruction_key] = instructions
 
         async with extraction_sem:
             extraction = await chat_structured_with_fallback(
@@ -325,5 +353,7 @@ async def extract_entities_only(
         "entities_created": created,
         "entities_reused": reused,
         "entities_suppressed": suppressed,
+        # Per-document language actually used, `unknown` included (#2092).
+        "languages_used": dict(languages_used),
     }
     return {"summary": summary, "count": processed}

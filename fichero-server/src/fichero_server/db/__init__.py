@@ -700,6 +700,7 @@ class Database(DatabaseEmbeddingMixin):
         # Migrate tables if needed
         from fichero_server.db.migrations.schema import (
             migrate_canvas_layout_table,
+            migrate_document_language_fields,
             migrate_document_table,
             migrate_workflow_table,
             migrate_saved_search_table,
@@ -711,6 +712,7 @@ class Database(DatabaseEmbeddingMixin):
             migrate_reference_provenance_table,
         )
         migrate_document_table(self.conn)
+        migrate_document_language_fields(self.conn)
         migrate_workflow_table(self.conn)
         migrate_saved_search_table(self.conn)
         migrate_provider_refs_table(self.conn)

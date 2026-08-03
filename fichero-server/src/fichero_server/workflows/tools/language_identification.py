@@ -9,9 +9,20 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from fichero_server.db import db_manager
 from fichero_server.llm import LLMConfig
+from fichero_server.models import Document
+from fichero_server.core.timeutil import utc_now
 from fichero_server.llm.multilingual import detect_language, SUPPORTED_LANGUAGES
+from fichero_server.llm.language_policy import (
+    UNKNOWN,
+    DetectionOutcome,
+    apply_detected_language,
+)
 from fichero_server.workflows.registry import register_tool
+from fichero_server.workflows.tools._workflow_change_emit import (
+    emit_workflow_document_changes,
+)
 from fichero_server.workflows.tools.llm_base import (
     BASE_INPUT_PORTS,
     BASE_OUTPUT_PORTS,
@@ -99,6 +110,44 @@ def _to_markdown(primary: str, languages: list[dict[str, Any]], model: str) -> s
     return "\n".join(lines)
 
 
+def _record_on_document(
+    documents: list, library_path: str, language: str | None, confidence: float | None
+) -> DetectionOutcome:
+    """Write the detected language onto the document it came from (#2092).
+
+    Detection used to dead-end in an artifact: the tool knew the language and
+    the document never learned it, so "language of the document" had nothing to
+    read. It now persists through :func:`apply_detected_language`, which refuses
+    to overwrite a language a user set — that is a correction, and a correction
+    re-extraction erases is not a correction. Mirrors ``date_extract``'s
+    user-pinned handling rather than introducing a second rule.
+    """
+    if not documents or not library_path:
+        return DetectionOutcome(applied=False, reason="no document to record against")
+
+    raw = documents[0]
+    doc_id = raw.get("id") if isinstance(raw, dict) else getattr(raw, "id", None)
+    if not doc_id:
+        return DetectionOutcome(applied=False, reason="document has no id")
+
+    db = db_manager.get_database(library_path)
+    document = db.get(Document, doc_id)
+    if document is None:
+        return DetectionOutcome(applied=False, reason=f"document {doc_id} not found")
+
+    outcome = apply_detected_language(
+        document,
+        language,
+        confidence=confidence,
+        basis="language_identification workflow tool",
+    )
+    if outcome.applied:
+        document.updated_at = utc_now()
+        db.save(document)
+        emit_workflow_document_changes(str(library_path), document_ids=[doc_id])
+    return outcome
+
+
 @register_tool(
     name="language_identification",
     display_name="Language Identification",
@@ -141,8 +190,30 @@ async def language_identification(
         result = detect_language(chunk)
         by_lang_conf[result.language].append(float(result.confidence))
 
+    # No signal is not English. This used to do `by_lang_conf["en"].append(0.0)`
+    # — a fabricated primary language at confidence zero, indistinguishable
+    # downstream from a real detection. Unknown is now returned as unknown
+    # (#2092), and recorded on the document as "examined, undeterminable".
     if not by_lang_conf:
-        by_lang_conf["en"].append(0.0)
+        payload = {
+            "primary_language": None,
+            "language_status": UNKNOWN,
+            "languages": [],
+            "model": "multilingual.detect_language",
+            "chunk_size_chars": chunk_size,
+            "chunks_analyzed": len(chunks),
+            "basis": "no language signal in this document's text",
+        }
+        _record_on_document(documents, state.get("library_path", ""), None, None)
+        markdown = "# Language Identification\n\n- Primary language: `unknown`\n"
+        return {
+            "text": markdown,
+            "value": payload,
+            "texts": [markdown],
+            "values": [payload],
+            "results": [{"text": markdown, "value": payload}],
+            "artifacts": [],
+        }
 
     aggregated: list[dict[str, Any]] = []
     for code, confidences in by_lang_conf.items():
@@ -158,8 +229,20 @@ async def language_identification(
     languages = aggregated[:max_languages]
     primary = languages[0]["code"]
 
+    primary_name = SUPPORTED_LANGUAGES.get(primary, primary)
+    outcome = _record_on_document(
+        documents, state.get("library_path", ""), primary_name, languages[0]["confidence"]
+    )
+
     payload = {
         "primary_language": primary,
+        "language_status": "known",
+        "language_recorded": outcome.applied,
+        "language_record_reason": outcome.reason,
+        # A detected language that disagrees with the user's is surfaced, never
+        # resolved silently — a disagreement the user cannot see is a fact they
+        # cannot correct (same rule as date_extract's user-pinned conflicts).
+        "language_conflict": outcome.conflict,
         "languages": languages,
         "model": "multilingual.detect_language",
         "chunk_size_chars": chunk_size,

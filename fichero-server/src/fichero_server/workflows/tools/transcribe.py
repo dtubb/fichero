@@ -22,6 +22,12 @@ from fichero_server.workflows.tools.vision_base import (
     process_vision,
 )
 from fichero_server.llm import LLMConfig
+from fichero_server.llm.language_policy import (
+    UNKNOWN,
+    LanguageResolution,
+    configured_policy,
+    resolve_language,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +48,12 @@ TOOL_CONFIG = VisionToolConfig(
 TRANSCRIBE_CONFIG = {
     "language": {
         "type": "string",
-        "default": "en-US",
-        "description": "Language locale",
+        # `auto` defers to the library's language policy and the document's own
+        # recorded language (#2092). It used to default to `en-US`, which meant
+        # every transcription asserted English unless a user went looking for
+        # this field — the setting existed but the default overrode it.
+        "default": "auto",
+        "description": "Language locale, or 'auto' to follow the library's language policy",
     },
     "return_boxes": {
         "type": "boolean",
@@ -63,6 +73,53 @@ TRANSCRIBE_CONFIG = {
 # =============================================================================
 
 
+def _resolve_transcribe_language(
+    requested: str | None,
+    documents: list[Any] | None,
+) -> LanguageResolution:
+    """Decide what language this transcription run is in (#2092).
+
+    Transcription used to hardcode ``en-US``: the config default was ``en-US``
+    and ``normalize_vision_language("")`` also returns ``en-US``, so the
+    library's language policy had no effect on the very first step of the
+    chain. On a Spanish-language colonial archive that does not read as
+    slightly-degraded output — the model is told the page is English and
+    produces confident English-shaped readings of Spanish text.
+
+    ``process_vision`` transcribes a batch under ONE prompt, so this resolves at
+    batch level. When the selected documents do not agree on a language the
+    answer is UNKNOWN rather than the majority: a prompt that asserts Spanish
+    over an English page is the same error in the other direction, and the
+    batch-level guess is the part we cannot justify. Per-page language means
+    running the node per page, which the graph already supports.
+    """
+    policy = configured_policy()
+    docs = list(documents or [])
+
+    if not docs:
+        return resolve_language(requested=requested, policy=policy, detect=False)
+
+    resolutions = [
+        resolve_language(requested=requested, document=doc, policy=policy, detect=False)
+        for doc in docs
+    ]
+    distinct = {r.language for r in resolutions if r.is_known}
+    if len(distinct) == 1 and all(r.is_known for r in resolutions):
+        return resolutions[0]
+    if len(distinct) > 1:
+        return LanguageResolution(
+            language=None,
+            status=UNKNOWN,
+            source="policy",
+            basis=(
+                "the selected documents are in different languages "
+                f"({', '.join(sorted(str(item) for item in distinct))}); transcribe "
+                "them separately to give each its own language"
+            ),
+        )
+    return resolutions[0]
+
+
 def _build_prompt(language: str, return_boxes: bool) -> str:
     """Build the transcription prompt.
 
@@ -72,10 +129,21 @@ def _build_prompt(language: str, return_boxes: bool) -> str:
     "notes" or "summaries" pollutes downstream extraction with hallucinated
     or duplicated content.
     """
-    language = normalize_vision_language(language)
+    # `auto` / empty means no language was established. Say so, rather than
+    # asserting one: "Language: en-US" over a Spanish page is an instruction to
+    # misread it (#2092). Telling the model to follow the source is the honest
+    # instruction and the better one on unlabelled archival material.
+    if not language or language.strip().lower() in {"auto", UNKNOWN}:
+        language_line = (
+            "Language: transcribe in the language of the source. Do not "
+            "translate, and do not assume the document is in English."
+        )
+    else:
+        language_line = f"Language: {normalize_vision_language(language)}"
+
     prompt = f"""Transcribe the text visible on this image.
 
-Language: {language}
+{language_line}
 
 Rules:
 - Output ONLY the transcription. No headings, no preamble, no commentary,
@@ -122,7 +190,9 @@ Additionally, return bounding box coordinates as JSON:
 
 def build_transcribe_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
-    language = normalize_vision_language(config.get("language", "en"))
+    # `auto` is passed through, not normalised to a locale — the preview then
+    # shows the same "language of the source" wording the run will use (#2092).
+    language = config.get("language", "auto")
     return_boxes = config.get("return_boxes", False)
     return _build_prompt(language, return_boxes)
 
@@ -148,12 +218,12 @@ def build_transcribe_prompt(config: dict) -> str:
     config_schema=merge_config_schema(VISION_CONFIG_SCHEMA, TRANSCRIBE_CONFIG),
     config_defaults={
         "vision_mode": "auto",
-        "language": "en-US",
+        "language": "auto",
         "return_boxes": False,
         "update_page_content": True,
         "save_to_db": True,
     },
-    default_prompt=_build_prompt("en-US", False),
+    default_prompt=_build_prompt("auto", False),
     prompt_builder=build_transcribe_prompt,
     sort_order=10,
 )
@@ -176,7 +246,12 @@ async def transcribe(
 
     # Get transcribe-specific config
     vision_mode = inputs.get("vision_mode", "auto")
-    language = normalize_vision_language(inputs.get("language", "en"))
+    # #2092: was `normalize_vision_language(inputs.get("language", "en"))`,
+    # i.e. English unless the node said otherwise, with the library's language
+    # policy never consulted. Now the node value is a REQUEST that the policy
+    # resolves; an explicit locale on the node still wins.
+    resolution = _resolve_transcribe_language(inputs.get("language"), documents)
+    language = resolution.language or UNKNOWN
     return_boxes = inputs.get("return_boxes", False)
     update_page_content = inputs.get("update_page_content", True)
 
@@ -204,7 +279,11 @@ async def transcribe(
         tool_config=tool_config,
         # Vision-specific
         vision_mode=vision_mode,
-        language=language,
+        # Apple Vision needs a concrete recognition locale and has no "unknown"
+        # — it keeps its historical en-US fallback. That is an OCR hint, not a
+        # claim about the document, and unlike the prompt above it does not
+        # instruct a model to read Spanish as English.
+        language=normalize_vision_language(resolution.language),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
         force_ocr=inputs.get(
             "force_ocr",

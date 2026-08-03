@@ -1192,6 +1192,25 @@ def normalize_vision_language(language: str | None) -> str:
 
     normalized = raw.replace("_", "-")
     lowered = normalized.lower()
+    # The language policy (#2092) speaks canonical language NAMES — that is what
+    # lang_detect returns and what prompts read naturally. Apple Vision needs a
+    # locale. Without this the resolver's "Spanish" reached the recognition
+    # request as the literal string "spanish", which Vision does not know, so a
+    # correctly-resolved Spanish page would OCR worse than before the policy
+    # existed. Names and locales meet here, once.
+    language_names = {
+        "english": "en-US",
+        "spanish": "es-ES",
+        "castilian": "es-ES",
+        "español": "es-ES",
+        "french": "fr-FR",
+        "german": "de-DE",
+        "italian": "it-IT",
+        "portuguese": "pt-BR",
+    }
+    if lowered in language_names:
+        return language_names[lowered]
+
     legacy_aliases = {
         "en": "en-US",
         "es": "es-ES",

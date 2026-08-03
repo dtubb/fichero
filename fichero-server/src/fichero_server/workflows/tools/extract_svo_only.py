@@ -22,6 +22,12 @@ from typing import Any
 from fichero_server.db import db_manager
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.llm import LLMConfig
+from fichero_server.llm.language_policy import (
+    UNKNOWN,
+    configured_policy,
+    prompt_language,
+    resolve_language,
+)
 from fichero_server.models import Document
 from fichero_server.workflows.registry import register_tool
 from fichero_server.workflows.tools.extract_all import (
@@ -186,9 +192,16 @@ async def extract_svo_only(
         if claim.source_document_id in selected_doc_ids
     )
 
-    claim_instructions = _build_per_entity_claim_instructions(
-        inputs.get("output_language", "auto")
-    )
+    # #2092. This used to be `_build_per_entity_claim_instructions(
+    # inputs.get("output_language", "auto"))` — the raw config value, never
+    # resolved, so the default put the literal word "auto" into the prompt
+    # ("Write in auto.") and the library's language policy had no effect on SVO
+    # extraction at all. Resolved PER DOCUMENT now, which is what makes
+    # "language of the document" mean something on a mixed corpus.
+    policy = configured_policy()
+    instructions_by_language: dict[str, str] = {}
+    languages_used: dict[str, int] = defaultdict(int)
+
     progress_callback = inputs.get("__progress_callback")
     max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
     extraction_sem = asyncio.Semaphore(max_in_flight)
@@ -200,6 +213,19 @@ async def extract_svo_only(
         doc_id = record["doc_id"]
         doc_name = record.get("doc_name") or doc_id or f"document-{index + 1}"
         page_entities = entities_by_doc.get(doc_id) or {}
+
+        resolution = resolve_language(
+            requested=inputs.get("output_language"),
+            document=documents[record["index"]],
+            text=record["text"] or "",
+            policy=policy,
+        )
+        languages_used[resolution.language or UNKNOWN] += 1
+        instruction_key = prompt_language(resolution)
+        claim_instructions = instructions_by_language.get(instruction_key)
+        if claim_instructions is None:
+            claim_instructions = _build_per_entity_claim_instructions(instruction_key)
+            instructions_by_language[instruction_key] = claim_instructions
 
         await emit_progress_event(
             progress_callback,
@@ -265,5 +291,10 @@ async def extract_svo_only(
         "claims_extracted": claims_extracted,
         "claims_created": claims_created,
         "claims_reused": max(0, claims_extracted - claims_created),
+        # Which language each document was actually extracted in, including how
+        # many resolved to `unknown`. Reported rather than swallowed: a run that
+        # silently processed 40 Spanish pages as English is indistinguishable
+        # from a good run unless the run says what it did (#2092).
+        "languages_used": dict(languages_used),
     }
     return {"summary": summary, "count": len(records)}
