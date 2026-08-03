@@ -20271,6 +20271,62 @@
         }
       }
     },
+    "/api/workflow-execution/comparisons": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Compare Workflow Runs",
+        "description": "Diff what two runs produced from the same input.\n\nPairs each side's artifacts on (document, artifact type) and reports where\nthey disagree: line-level differences for transcriptions, and for\nextraction which entities or claims each side found that the other missed.\n\nCosts nothing extra \u2014 both runs already happened. Producing a fresh pair\nmeans executing the same input twice, i.e. roughly double the model spend\nof a single run; that is stated in `cost_notice` so a client can say it\nplainly at the point a user triggers one.\n\nIf either run failed, was cancelled, or is still going, the response comes\nback with `comparable=false`, a reason naming which side, and\n`identical=null` \u2014 an empty diff from a broken run must never read the same\nas an empty diff from two runs that agreed.",
+        "operationId": "compare_workflow_runs_api_workflow_execution_comparisons_get",
+        "parameters": [
+          {
+            "name": "left",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Thread id of the first run",
+              "title": "Left"
+            },
+            "description": "Thread id of the first run"
+          },
+          {
+            "name": "right",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Thread id of the second run",
+              "title": "Right"
+            },
+            "description": "Thread id of the second run"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunComparisonResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflow-execution/workflows/{workflow_id}/visualization": {
       "get": {
         "tags": [
@@ -35528,6 +35584,60 @@
         "title": "Artifact",
         "description": "Output from any processing step - versioned and chainable.\n\nArtifacts are results from AI/ML processing:\n- Transcription (OCR text)\n- Entities (people, places, dates)\n- Summary\n- Translation\n- Grouping suggestions (which pages belong together)\n- Segmentation suggestions (regions within a page)\n\nVersioning: Multiple versions can exist for the same document.\nChaining: One artifact can be derived from another (OCR \u2192 cleaned text).\n\nStructural artifacts (grouping, segmentation) suggest changes that\nbecome Document structure when user approves."
       },
+      "ArtifactComparisonResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "document_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Name"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type"
+          },
+          "left": {
+            "$ref": "#/components/schemas/ComparisonArtifactRefResponse"
+          },
+          "right": {
+            "$ref": "#/components/schemas/ComparisonArtifactRefResponse"
+          },
+          "identical": {
+            "type": "boolean",
+            "title": "Identical"
+          },
+          "text_diff": {
+            "$ref": "#/components/schemas/TextDiffResponse",
+            "nullable": true
+          },
+          "set_differences": {
+            "items": {
+              "$ref": "#/components/schemas/SetDifferenceResponse"
+            },
+            "type": "array",
+            "title": "Set Differences"
+          },
+          "value_differences": {
+            "items": {
+              "$ref": "#/components/schemas/ValueDifferenceResponse"
+            },
+            "type": "array",
+            "title": "Value Differences"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "artifact_type",
+          "left",
+          "right",
+          "identical"
+        ],
+        "title": "ArtifactComparisonResponse"
+      },
       "ArtifactCreateRequest": {
         "properties": {
           "document_id": {
@@ -39985,6 +40095,54 @@
         "title": "CompareRequest",
         "description": "Request to compare models."
       },
+      "ComparisonArtifactRefResponse": {
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "title": "Artifact Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "document_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Document Name"
+          },
+          "artifact_type": {
+            "type": "string",
+            "title": "Artifact Type",
+            "default": ""
+          },
+          "step_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Step Name"
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
+          "content_chars": {
+            "type": "integer",
+            "title": "Content Chars",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "document_id"
+        ],
+        "title": "ComparisonArtifactRefResponse"
+      },
       "ComparisonHistoryResponse": {
         "properties": {
           "history": {
@@ -40088,6 +40246,74 @@
         ],
         "title": "ComparisonResultResponse",
         "description": "Result of comparing multiple models on the same prompt."
+      },
+      "ComparisonSideResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "workflow_id": {
+            "type": "string",
+            "title": "Workflow Id"
+          },
+          "workflow_name": {
+            "type": "string",
+            "title": "Workflow Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Duration Ms"
+          },
+          "artifact_count": {
+            "type": "integer",
+            "title": "Artifact Count",
+            "default": 0
+          },
+          "steps_total": {
+            "type": "integer",
+            "title": "Steps Total",
+            "default": 0
+          },
+          "steps_failed": {
+            "type": "integer",
+            "title": "Steps Failed",
+            "default": 0
+          },
+          "steps_not_run": {
+            "type": "integer",
+            "title": "Steps Not Run",
+            "default": 0
+          },
+          "steps_produced_nothing": {
+            "type": "integer",
+            "title": "Steps Produced Nothing",
+            "default": 0
+          },
+          "resolved_document_count": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Resolved Document Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "workflow_id",
+          "workflow_name",
+          "status"
+        ],
+        "title": "ComparisonSideResponse"
       },
       "ComparisonToolInfo": {
         "properties": {
@@ -41804,6 +42030,19 @@
             "nullable": true,
             "title": "Date Meta",
             "description": "HistoricalDate metadata: status, calendar_system, precision, display, source, confidence."
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language",
+            "description": "Canonical name of the language this document is written in (#2092)."
+          },
+          "language_meta": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Language Meta",
+            "description": "Language provenance: status (known|unknown), source, confidence, basis. None = never determined."
           },
           "is_workspace": {
             "type": "boolean",
@@ -56841,6 +57080,81 @@
         ],
         "title": "RotateOperationRequest"
       },
+      "RunComparisonResponse": {
+        "properties": {
+          "left": {
+            "$ref": "#/components/schemas/ComparisonSideResponse"
+          },
+          "right": {
+            "$ref": "#/components/schemas/ComparisonSideResponse"
+          },
+          "comparable": {
+            "type": "boolean",
+            "title": "Comparable",
+            "description": "False when either run did not complete. Read this BEFORE `identical`: an empty diff from a broken run means nothing."
+          },
+          "incomparable_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Incomparable Reason"
+          },
+          "same_input": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Same Input",
+            "description": "Whether both runs resolved to the same documents (#4384). None means unrecorded, which is not the same claim as True."
+          },
+          "input_note": {
+            "type": "string",
+            "title": "Input Note",
+            "default": ""
+          },
+          "identical": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Identical",
+            "description": "None whenever the comparison could not be made."
+          },
+          "difference_count": {
+            "type": "integer",
+            "title": "Difference Count",
+            "default": 0
+          },
+          "compared": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactComparisonResponse"
+            },
+            "type": "array",
+            "title": "Compared"
+          },
+          "only_left": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonArtifactRefResponse"
+            },
+            "type": "array",
+            "title": "Only Left"
+          },
+          "only_right": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonArtifactRefResponse"
+            },
+            "type": "array",
+            "title": "Only Right"
+          },
+          "cost_notice": {
+            "type": "string",
+            "title": "Cost Notice",
+            "default": "Comparing means running the same input twice, so a fresh comparison costs roughly double a single run. Comparing two runs that already happened costs nothing extra."
+          }
+        },
+        "type": "object",
+        "required": [
+          "left",
+          "right",
+          "comparable"
+        ],
+        "title": "RunComparisonResponse"
+      },
       "RunStatus": {
         "type": "string",
         "enum": [
@@ -58769,6 +59083,53 @@
         ],
         "title": "SetAttributesResponse"
       },
+      "SetDifferenceResponse": {
+        "properties": {
+          "field_name": {
+            "type": "string",
+            "title": "Field Name"
+          },
+          "only_left": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Only Left"
+          },
+          "only_right": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Only Right"
+          },
+          "shared_count": {
+            "type": "integer",
+            "title": "Shared Count",
+            "default": 0
+          },
+          "only_left_count": {
+            "type": "integer",
+            "title": "Only Left Count",
+            "default": 0
+          },
+          "only_right_count": {
+            "type": "integer",
+            "title": "Only Right Count",
+            "default": 0
+          },
+          "labels_truncated": {
+            "type": "boolean",
+            "title": "Labels Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_name"
+        ],
+        "title": "SetDifferenceResponse"
+      },
       "SetLibraryRoleRequest": {
         "properties": {
           "user": {
@@ -60040,6 +60401,100 @@
           "label"
         ],
         "title": "TaxonomyItem"
+      },
+      "TextDiffResponse": {
+        "properties": {
+          "left_chars": {
+            "type": "integer",
+            "title": "Left Chars"
+          },
+          "right_chars": {
+            "type": "integer",
+            "title": "Right Chars"
+          },
+          "similarity": {
+            "type": "number",
+            "title": "Similarity",
+            "description": "Secondary. The named differences are the answer; a ratio alone does not say which line to check."
+          },
+          "differences": {
+            "items": {
+              "$ref": "#/components/schemas/TextDifferenceResponse"
+            },
+            "type": "array",
+            "title": "Differences"
+          },
+          "difference_count": {
+            "type": "integer",
+            "title": "Difference Count",
+            "default": 0
+          },
+          "differences_truncated": {
+            "type": "boolean",
+            "title": "Differences Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "left_chars",
+          "right_chars",
+          "similarity"
+        ],
+        "title": "TextDiffResponse"
+      },
+      "TextDifferenceResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "changed | added | removed"
+          },
+          "left_start_line": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Left Start Line"
+          },
+          "right_start_line": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Right Start Line"
+          },
+          "left_lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Left Lines"
+          },
+          "right_lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Right Lines"
+          },
+          "left_line_count": {
+            "type": "integer",
+            "title": "Left Line Count",
+            "default": 0
+          },
+          "right_line_count": {
+            "type": "integer",
+            "title": "Right Line Count",
+            "default": 0
+          },
+          "lines_truncated": {
+            "type": "boolean",
+            "title": "Lines Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "TextDifferenceResponse"
       },
       "ThreadDeletedResponse": {
         "properties": {
@@ -61633,6 +62088,29 @@
         ],
         "title": "ValidationError"
       },
+      "ValueDifferenceResponse": {
+        "properties": {
+          "field_name": {
+            "type": "string",
+            "title": "Field Name"
+          },
+          "left": {
+            "type": "string",
+            "nullable": true,
+            "title": "Left"
+          },
+          "right": {
+            "type": "string",
+            "nullable": true,
+            "title": "Right"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_name"
+        ],
+        "title": "ValueDifferenceResponse"
+      },
       "VectorRepairResponse": {
         "properties": {
           "added": {
@@ -62468,6 +62946,11 @@
             "nullable": true,
             "title": "Run Id"
           },
+          "workflow_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow Id"
+          },
           "step_name": {
             "type": "string",
             "nullable": true,
@@ -62478,6 +62961,16 @@
             "nullable": true,
             "title": "Node Name"
           },
+          "provider": {
+            "type": "string",
+            "nullable": true,
+            "title": "Provider"
+          },
+          "model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Model"
+          },
           "sequence": {
             "type": "integer",
             "nullable": true,
@@ -62487,6 +62980,26 @@
             "type": "string",
             "nullable": true,
             "title": "Created At"
+          },
+          "content_chars": {
+            "type": "integer",
+            "title": "Content Chars",
+            "default": 0
+          },
+          "content_preview": {
+            "type": "string",
+            "nullable": true,
+            "title": "Content Preview"
+          },
+          "content_truncated": {
+            "type": "boolean",
+            "title": "Content Truncated",
+            "default": false
+          },
+          "has_structured_data": {
+            "type": "boolean",
+            "title": "Has Structured Data",
+            "default": false
           }
         },
         "type": "object",
@@ -62496,7 +63009,7 @@
           "document_id"
         ],
         "title": "WorkflowRunArtifactResponse",
-        "description": "Artifact produced by a workflow run, with navigation targets."
+        "description": "Artifact produced by a workflow run, with navigation targets.\n\nCarries the whole provenance chain (#4284): which run, which step, which\nworkflow, which document it was derived from, and which provider/model\nproduced it. An artifact that cannot be traced back to all of those is a\nfile, not a record."
       },
       "WorkflowRunProvenanceListResponse": {
         "properties": {
@@ -62678,6 +63191,13 @@
             "type": "array",
             "title": "Run Artifacts"
           },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunStepResponse"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
           "diagram_svg_url": {
             "type": "string",
             "nullable": true,
@@ -62693,6 +63213,97 @@
         ],
         "title": "WorkflowRunResponse",
         "description": "Response with workflow run data (code, logs, etc.)."
+      },
+      "WorkflowRunStepResponse": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "node_name": {
+            "type": "string",
+            "title": "Node Name"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started At"
+          },
+          "completed_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Completed At"
+          },
+          "duration_ms": {
+            "type": "number",
+            "nullable": true,
+            "title": "Duration Ms"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          },
+          "skip_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Skip Reason"
+          },
+          "terminated_by_run": {
+            "type": "boolean",
+            "title": "Terminated By Run",
+            "default": false
+          },
+          "files_total": {
+            "type": "integer",
+            "title": "Files Total",
+            "default": 0
+          },
+          "files_succeeded": {
+            "type": "integer",
+            "title": "Files Succeeded",
+            "default": 0
+          },
+          "files_failed": {
+            "type": "integer",
+            "title": "Files Failed",
+            "default": 0
+          },
+          "artifact_count": {
+            "type": "integer",
+            "title": "Artifact Count",
+            "default": 0
+          },
+          "produced_nothing": {
+            "type": "boolean",
+            "title": "Produced Nothing",
+            "default": false
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunArtifactResponse"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "node_id",
+          "node_name",
+          "tool",
+          "status"
+        ],
+        "title": "WorkflowRunStepResponse",
+        "description": "One step of a run: planned, observed, and what it produced (#4284)."
       },
       "WorkflowSelection": {
         "properties": {

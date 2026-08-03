@@ -12887,6 +12887,22 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("compare-runs")
+    def workflow_execution_compare_runs_get(
+        ctx: typer.Context,
+        left: str = typer.Option(..., "--left", help="Query parameter: left."),
+        right: str = typer.Option(..., "--right", help="Query parameter: right."),
+    ) -> None:
+        """Compare Workflow Runs (GET /api/workflow-execution/comparisons)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/workflow-execution/comparisons"
+            params = {
+                "left": left,
+                "right": right,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("execute")
     def workflow_execution_execute_post(
         ctx: typer.Context,

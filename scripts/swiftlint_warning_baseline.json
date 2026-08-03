@@ -1,6 +1,6 @@
 {
   "swift.lint_warnings": {
-    "count": 73,
-    "note": "seeded from swiftlint 0.63.2 on 2026-08-01, commit fc14c6365 at 74; tightened to 73 on 2026-08-03 by the #4474/#4475 drag unification, verified live"
+    "count": 72,
+    "note": "seeded from swiftlint 0.63.2 on 2026-08-01, commit fc14c6365 at 74; 73 on 2026-08-03 (#4474/#4475 drag unification); 72 on 2026-08-03 after the #4284/#4341 spec regen. Verified live at each step. NOTE: check_swiftlint_warning_ratchet.py REWRITES this file when the count improves, so it appears dirty after any run -- that is the tool, not an uncommitted edit."
   }
 }

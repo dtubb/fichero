@@ -8844,6 +8844,27 @@
         "response_model": "CacheStatsResponse"
       },
       {
+        "method": "GET",
+        "path": "/workflow-execution/comparisons",
+        "operation_id": "compare_workflow_runs_api_workflow_execution_comparisons_get",
+        "summary": "Compare Workflow Runs",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "left",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "right",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "RunComparisonResponse"
+      },
+      {
         "method": "POST",
         "path": "/workflow-execution/execute",
         "operation_id": "execute_workflow_api_workflow_execution_execute_post",
