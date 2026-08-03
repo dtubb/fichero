@@ -193,6 +193,7 @@ extension EmbeddedBackendService {
         logger.info(
             "DEBUG mode: adopting external engine over \(dialTarget, privacy: .public) (engine not bundled in Debug)"
         )
+        try requireServedSocket(transportMode: EngineConfig.transportMode)  // #4400
         do {
             try await waitForBackend(timeout: debugExternalReadinessTimeout)
             if currentEngineOwnership == .ownedEmbedded {
