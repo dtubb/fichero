@@ -58,10 +58,27 @@ class MLXRuntime:
         self._provision_task: asyncio.Task[None] | None = None
         self._job: RuntimeProvisionJob | None = None
 
+    def is_provisioned(self) -> bool:
+        """Whether this runtime can actually run mlx_lm.
+
+        NOT just "the venv exists" (#4504). ``_provision`` creates the venv
+        first and pip-installs mlx-lm second, so between those two steps
+        ``python_path().exists()`` is already True while ``import mlx_lm``
+        still fails. Any interruption in that window -- a timeout, a lost
+        network, a quit -- leaves a runtime that reports itself ready and is
+        not. Observed directly: a provisioning run killed at the 10-minute mark
+        left exactly that state, and ``status()`` said provisioned.
+
+        The metadata file is written as the LAST step of a successful
+        provision, so its presence is the honest signal, and it already records
+        the version we installed.
+        """
+        return self.python_path().exists() and bool(self._metadata().get("mlx_lm_version"))
+
     def status(self) -> dict[str, object]:
         python_path = self.python_path()
         return {
-            "provisioned": python_path.exists(),
+            "provisioned": self.is_provisioned(),
             "mlx_lm_version": self._metadata().get("mlx_lm_version"),
             "disk_usage_bytes": self._disk_usage_bytes(),
             "python_path": str(python_path) if python_path.exists() else None,
@@ -101,9 +118,12 @@ class MLXRuntime:
         return self.status()
 
     def require_python_path(self) -> Path:
-        python_path = self.python_path()
-        if python_path.exists():
-            return python_path
+        # Same question as `status()`, so it must use the same answer (#4504).
+        # Checking only for the venv here let a half-provisioned runtime through
+        # the gate, and the failure then surfaced from `mlx_lm server` as a bare
+        # "No module named mlx_lm" with no hint that provisioning was the cause.
+        if self.is_provisioned():
+            return self.python_path()
         raise RuntimeError(
             "MLX runtime is not provisioned. Call POST /api/local-inference/runtime/provision "
             "or enable Local Models in Settings before starting oMLX."

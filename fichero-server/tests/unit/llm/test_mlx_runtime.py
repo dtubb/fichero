@@ -102,3 +102,36 @@ def test_runtime_prefix_is_separate_from_engine_env(tmp_path: Path, monkeypatch:
 
     assert runtime.runtime_dir != Path(sys.prefix)
     assert runtime.runtime_dir not in Path(sys.prefix).parents
+
+
+def test_a_venv_without_mlx_lm_is_not_provisioned(tmp_path):
+    """The half-provisioned window is not "ready" (#4504).
+
+    `_provision` creates the venv first and pip-installs mlx-lm second, so
+    between those steps the venv python exists while `import mlx_lm` still
+    fails. Anything that interrupts that window -- a timeout, a dropped
+    network, a quit -- used to leave a runtime reporting itself provisioned and
+    then failing at `mlx_lm server` with a bare "No module named mlx_lm".
+
+    Observed for real: a provisioning run killed at ten minutes left exactly
+    this state on disk, and `status()` said provisioned.
+    """
+    runtime = MLXRuntime(tmp_path / "mlx-runtime")
+    _touch_python(runtime.runtime_dir)
+
+    assert runtime.python_path().exists()
+    assert runtime.status()["provisioned"] is False
+    with pytest.raises(RuntimeError, match="not provisioned"):
+        runtime.require_python_path()
+
+
+def test_a_completed_provision_is_provisioned(tmp_path):
+    """And the whole thing must still say yes when it really is ready -- the
+    other half of the assertion, so the fix cannot be "always return False"."""
+    runtime = MLXRuntime(tmp_path / "mlx-runtime")
+    _touch_python(runtime.runtime_dir)
+    runtime._write_metadata()
+
+    assert runtime.status()["provisioned"] is True
+    assert runtime.status()["mlx_lm_version"] == MLX_LM_VERSION
+    assert runtime.require_python_path() == runtime.python_path()
