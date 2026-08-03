@@ -21,6 +21,11 @@ enum CanvasIntent {
     case dragBegan(id: String)
     case dragMoved(id: String, position: SIMD3<Double>)
     case dragEnded(id: String, position: SIMD3<Double>, dropTarget: CanvasDropTarget?, modifiers: CanvasDropModifiers)
+    /// A committed corner-handle resize (#4409). `position` rides along because
+    /// a placeable being resized may have NO saved layout row yet — it is
+    /// sitting in its default grid slot — and writing a size-only row would
+    /// default x/y/z to the origin and teleport the card there.
+    case resize(id: String, size: CGSize, position: SIMD3<Double>)
     case addItem(kind: Components.Schemas.CanvasItemKind, position: SIMD3<Double>)
     case editItem(id: String, text: String)
     case deleteItem(id: String)
@@ -135,6 +140,8 @@ final class CanvasInteractionController {
             dragMoved(id: id, position: position)
         case .dragEnded(let id, let position, let dropTarget, let modifiers):
             Task { await endDrag(id: id, position: position, dropTarget: dropTarget, modifiers: modifiers) }
+        case .resize(let id, let size, let position):
+            Task { await resizeItem(id: id, to: size, at: position) }
         case .addItem(let kind, let position):
             Task { await addItem(kind: kind, position: position) }
         case .editItem(let id, let text):
@@ -333,47 +340,41 @@ final class CanvasInteractionController {
         )
     }
 
-    // MARK: Move + undo (#3084)
-
-    /// Persist a single item's snapped position — the undo/redo primitive and any
-    /// programmatic move. Reuses the exactly-one-row persist.
-    @discardableResult
-    func moveItem(id: String, to worldPosition: SIMD3<Double>) async -> Bool {
-        await persistSingleRow(id: id, to: snap(worldPosition), rollbackTo: nil)
-    }
-
-    /// Register a drag move with the window `UndoManager` (position before/after,
-    /// #3084). The canonical move pattern: undoing moves back to `from` and
-    /// re-registers the inverse, so redo replays the move — repeatable both ways.
-    func registerMoveUndo(id: String, origin: SIMD3<Double>, destination: SIMD3<Double>, undoManager: UndoManager?) {
-        guard let undoManager, origin != destination else { return }
-        undoManager.registerUndo(withTarget: self) { controller in
-            // UndoManager invokes the handler on the thread that called undo()
-            // (main, for UI), so assume main-actor isolation to reach the
-            // @MainActor controller. Undoing moves back to `origin` and registers
-            // the inverse, so redo replays the move — repeatable both directions.
-            MainActor.assumeIsolated {
-                Task { await controller.moveItem(id: id, to: origin) }
-                controller.registerMoveUndo(id: id, origin: destination, destination: origin, undoManager: undoManager)
-            }
-        }
-        undoManager.setActionName("Move")
-    }
-
     // MARK: Persistence — exactly one row
 
-    /// Persist ONE row's position through `saveLayout`: patch the dragged/added
-    /// id in place (or append it) and leave every other row untouched — NOT the
-    /// pin-all-visible-nodes batch (#3084's save-poison). On failure, snap back.
+    /// Persist ONE row's position (and optionally its size) through
+    /// `saveLayout`: patch the dragged/added/resized id in place (or append it)
+    /// and leave every other row untouched — NOT the pin-all-visible-nodes
+    /// batch (#3084's save-poison). On failure, snap back.
+    ///
+    /// `size` is nil for a move, which must NOT clear a `w`/`h` the user set —
+    /// a move that silently reset a card's size would be the same class of
+    /// silent-loss as the z-clobber `draggedWorldPosition` guards against.
+    /// Internal, not private: `CanvasInteractionController+Undo.swift` persists
+    /// moves and resizes through this same one-row path, and Swift's `private`
+    /// is FILE-scoped. Nothing outside this type may call it.
     @discardableResult
-    private func persistSingleRow(id: String, to position: SIMD3<Double>, rollbackTo origin: SIMD3<Double>?) async -> Bool {
+    func persistSingleRow(
+        id: String,
+        to position: SIMD3<Double>,
+        size: CGSize? = nil,
+        rollbackTo origin: SIMD3<Double>?
+    ) async -> Bool {
         var rows = layoutStore.layout(for: scopeId)
         if let index = rows.firstIndex(where: { $0.itemId == id }) {
             rows[index].x = position.x
             rows[index].y = position.y
             rows[index].z = position.z
+            if let size {
+                rows[index].w = Double(size.width)
+                rows[index].h = Double(size.height)
+            }
         } else {
-            rows.append(CanvasItemLayout(itemId: id, x: position.x, y: position.y, z: position.z))
+            rows.append(CanvasItemLayout(
+                itemId: id,
+                x: position.x, y: position.y, z: position.z,
+                w: size.map { Double($0.width) }, h: size.map { Double($0.height) }
+            ))
         }
         let succeeded = await layoutStore.saveLayout(folderId: scopeId, items: rows)
         if !succeeded, let origin {
@@ -382,7 +383,7 @@ final class CanvasInteractionController {
         return succeeded
     }
 
-    private func snap(_ point: SIMD3<Double>) -> SIMD3<Double> {
+    func snap(_ point: SIMD3<Double>) -> SIMD3<Double> {
         SIMD3<Double>(SpatialNode.snap(point.x), SpatialNode.snap(point.y), SpatialNode.snap(point.z))
     }
 }

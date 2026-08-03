@@ -42,10 +42,13 @@ struct CanvasSceneView: View {
     /// LibraryView which owns the document store. `(nodeId, containerNodeId)`.
     var moveIntoContainer: (String, String) -> Void = { _, _ in }
 
-    @Environment(\.undoManager) private var undoManager
+    // These three are internal, not private, for the same reason as the resize
+    // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
+    // FILE-scoped in Swift.
+    @Environment(\.undoManager) var undoManager
 
-    @State private var renderer = CanvasOrtho2DRenderer()
-    @State private var controller: CanvasInteractionController?
+    @State var renderer = CanvasOrtho2DRenderer()
+    @State var controller: CanvasInteractionController?
 
     // Camera-pan bookkeeping.
     @State private var panBaseline: CGSize = .zero
@@ -62,6 +65,13 @@ struct CanvasSceneView: View {
     @State private var optionHeld = false
     @State private var spaceHeld = false
     @State private var marqueeRect: CGRect?
+
+    // Resize-handle drag state (#4409). Internal, not private: the gesture that
+    // reads it lives in `CanvasSceneView+Resize.swift` and Swift's `private` is
+    // FILE-scoped.
+    @State var resizeHandle: (itemId: String, corner: CanvasSelectionFrame.Corner)?
+    @State var resizeOriginSize: CGSize?
+    @State var resizeLiveSize: CGSize?
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 
@@ -112,6 +122,12 @@ struct CanvasSceneView: View {
             // Plain drag on a card MOVES the card (#4290). It is disabled only
             // while Space is held, which is the deliberate "move the view"
             // gesture — so the two can never contend for the same drag.
+            // Resize is attached alongside the card drag rather than above it.
+            // Ordering between two `highPriorityGesture`s is not something to
+            // rely on, so the two are made mutually exclusive BY SUBJECT
+            // instead: each guards on whether the targeted entity is a resize
+            // handle, so exactly one of them ever acts on a given drag.
+            .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
             .gesture(panOrMarquee(in: geo.size))
@@ -198,6 +214,11 @@ struct CanvasSceneView: View {
             .targetedToAnyEntity()
             .onEnded { value in
                 let id = value.entity.name
+                // A tap on the frame or a handle is not a tap on a placeable:
+                // decoration entities carry synthetic names that match nothing
+                // in the scene, so dispatching one would select a placeable
+                // that does not exist and silently clear the real selection.
+                guard !CanvasSelectionFrame.isDecoration(id) else { return }
                 controller?.dispatch(.tap(
                     id: id.isEmpty ? nil : id,
                     modifiers: CanvasInteractionController.liveSelectionModifiers()
@@ -214,6 +235,10 @@ struct CanvasSceneView: View {
             .onChanged { value in
                 let id = value.entity.name
                 guard !id.isEmpty else { return }
+                // A drag that started on a resize handle belongs to
+                // `resizeDrag`. Without this the same gesture would ALSO move
+                // the card, so resizing would drag the thing being resized.
+                guard !CanvasSelectionFrame.isDecoration(id) else { return }
                 if draggingNodeId == nil {
                     draggingNodeId = id
                     let startScene = value.entity.position(relativeTo: nil)
@@ -271,6 +296,10 @@ struct CanvasSceneView: View {
     private func panOrMarquee(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 6)
             .onChanged { value in
+                // A live resize is a drag too, and it starts on a handle rather
+                // than on a card — so `draggingNodeId` is nil and the marquee
+                // would rubber-band across the board while the user resizes.
+                guard resizeHandle == nil else { marqueeRect = nil; return }
                 guard draggingNodeId == nil else { marqueeRect = nil; return }
                 if spaceHeld {
                     panCamera(by: value.translation, in: size)
@@ -281,7 +310,7 @@ struct CanvasSceneView: View {
                 }
             }
             .onEnded { _ in
-                if draggingNodeId == nil, !spaceHeld, let rect = marqueeRect {
+                if resizeHandle == nil, draggingNodeId == nil, !spaceHeld, let rect = marqueeRect {
                     // ⇧/⌘ held while rubber-banding ADDS to the selection
                     // (#4436) — read at .onEnded, the moment the marquee
                     // commits, exactly as the tap path reads them.

@@ -23,12 +23,26 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     private let log = Logger(subsystem: "app.fichero.fichero", category: "CanvasScene3DRenderer")
 
     let root = Entity()
-    private let placeablesRoot = Entity()
+    let placeablesRoot = Entity()
     private let edgesRoot = Entity()
+    /// Selection decoration, owned separately for the same reason as 2D
+    /// (#4409): drawing it inside `makeCard` forced a card REBUILD on every
+    /// selection change, which dropped the loaded page texture and flashed the
+    /// flat base colour. The affordances differ — 3D draws NO resize handles,
+    /// because an axis-handle gizmo in a perspective scene is a separate design
+    /// decision and an affordance that does nothing is worse than none — but
+    /// the MODEL is shared, which is what #4409 asks for.
+    let decorator = CanvasSelectionDecorator(
+        showsHandles: false, accentColor: .controlAccentColorCompat3D
+    )
     let camera = PerspectiveCamera()
 
-    private var placeablesById: [String: CanvasPlaceable] = [:]
-    private var selection: Set<String> = []
+    /// Internal rather than private, as are `placeablesRoot` and `decorator`:
+    /// the selection half of this renderer lives in
+    /// `CanvasScene3DRenderer+Selection.swift` and Swift's `private` is
+    /// FILE-scoped, so an extension in another file cannot see it.
+    var placeablesById: [String: CanvasPlaceable] = [:]
+    var selection: Set<String> = []
     private var appliedState = CanvasSceneState.empty
 
     // Orbit camera state (renderer-local, ported from the proven #3088 rig).
@@ -57,6 +71,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     init() {
         root.addChild(placeablesRoot)
         root.addChild(edgesRoot)
+        root.addChild(decorator.root)
         updateCamera()
     }
 
@@ -64,6 +79,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     func apply(_ ops: [CanvasSceneOp]) {
         for operation in ops { applyOne(operation) }
+        if !ops.isEmpty { refreshSelectionDecoration() }
     }
 
     func reconcile(to newState: CanvasSceneState) {
@@ -147,6 +163,9 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// drag feedback; the controller persists the snapped row on release.
     func liveMove(id: String, toWorld world: SIMD3<Double>) {
         placeablesRoot.findEntity(named: id)?.position = Canvas3DProjection.scenePosition(world)
+        // The frame travels with the card, or dragging a selected card looks
+        // like losing the selection.
+        if selection.contains(id) { refreshSelectionDecoration() }
     }
 
     /// The placeable dropped ONTO at `world` (nearest by world proximity,
@@ -210,15 +229,16 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         case .setEdges(let edges):
             rebuildEdges(edges)
         case .setSelection(let newSelection):
-            let changed = selection.symmetricDifference(newSelection)
+            // No card is touched. This used to `reskinCard` the symmetric
+            // difference, destroying and rebuilding a textured card just to
+            // add or remove an outline — #4409's blue flash (#4409).
             selection = newSelection
-            for id in changed { reskinCard(id) }
         }
     }
 
     // MARK: - Cards
 
-    private static let defaultCardSize = CGSize(width: 0.8, height: 0.6)
+    static let defaultCardSize = CGSize(width: 0.8, height: 0.6)
 
     private func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
@@ -247,27 +267,13 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         entity.components.set(CollisionComponent(shapes: [.generateBox(size: SIMD3<Float>(width, height, depth))]))
         entity.components.set(HoverEffectComponent())
 
-        if selection.contains(placeable.id) {
-            entity.addChild(makeSelectionOutline(width: width, height: height, depth: depth))
-        }
+        // No selection decoration on the card, deliberately — see `decorator`.
         if case .node(let node) = placeable.content,
            let sourceId = node.sourceId, !sourceId.isEmpty,
            node.nodeType == .source, detailTier >= .thumbnail {
             loadThumbnail(sourceId: sourceId, into: entity)
         }
         return entity
-    }
-
-    /// A slightly larger accent box sitting just behind a selected card — the 3D
-    /// selection frame (a CHILD entity, so it doesn't replace the card's model).
-    private func makeSelectionOutline(width: Float, height: Float, depth: Float) -> ModelEntity {
-        let mesh = MeshResource.generateBox(
-            size: SIMD3<Float>(width + 0.06, height + 0.06, depth * 0.5),
-            cornerRadius: (width + 0.06) * 0.1
-        )
-        let outline = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: PlatformColor.controlAccentColorCompat3D)])
-        outline.position = SIMD3<Float>(0, 0, -depth)   // behind the card face
-        return outline
     }
 
     private func loadThumbnail(sourceId: String, into entity: ModelEntity) {
@@ -291,7 +297,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     }
 
     /// The page-image source id for a source-node placeable, nil otherwise.
-    private func sourceId(of placeable: CanvasPlaceable) -> String? {
+    func sourceId(of placeable: CanvasPlaceable) -> String? {
         guard case .node(let node) = placeable.content,
               node.nodeType == .source,
               let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }

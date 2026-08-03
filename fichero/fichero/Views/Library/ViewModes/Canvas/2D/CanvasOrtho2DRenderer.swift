@@ -27,14 +27,34 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// Added to the `RealityView` content once, then mutated in place.
     let root = Entity()
-    private let placeablesRoot = Entity()
+    let placeablesRoot = Entity()
     private let edgesRoot = Entity()
+    /// Selection decoration — frames, the set frame and resize handles.
+    ///
+    /// A SEPARATE object owning a SEPARATE root, never children of the cards,
+    /// and that is the whole fix for #4409's blue flash: see
+    /// `CanvasSelectionDecorator` for what the old card-owned arrangement cost.
+    let decorator = CanvasSelectionDecorator(
+        showsHandles: true, accentColor: .controlAccentColorCompat
+    )
     let camera = Entity()
 
     /// Live placeable metadata (positions/content/size) so `.setEdges` can look
-    /// up endpoints and reskins can rebuild a single card without a store round-trip.
-    private var placeablesById: [String: CanvasPlaceable] = [:]
-    private var selection: Set<String> = []
+    /// up endpoints and reskins can rebuild a single card without a store
+    /// round-trip.
+    ///
+    /// Internal rather than private, as are `selection` and the members below
+    /// it: the selection / resize half of this renderer lives in
+    /// `CanvasOrtho2DRenderer+Selection.swift` and Swift's `private` is
+    /// FILE-scoped, so an extension in another file cannot see it. The same
+    /// trade `LibraryView+CanvasModes.swift` made when #4353 forced that split.
+    var placeablesById: [String: CanvasPlaceable] = [:]
+    var selection: Set<String> = []
+    /// Live card size while a resize handle is being dragged — visual feedback
+    /// only, cleared by the `.resize` op the release persists. Stored here
+    /// because an extension cannot hold state; used from
+    /// `CanvasOrtho2DRenderer+Selection.swift`.
+    var liveSizeOverride: (id: String, size: CGSize)?
     /// The last state applied to the scene — the `from` side of every diff so a
     /// store change reconciles to a minimal op list instead of a rebuild.
     private var appliedState = CanvasSceneState.empty
@@ -61,6 +81,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     init() {
         root.addChild(placeablesRoot)
         root.addChild(edgesRoot)
+        root.addChild(decorator.root)
         applyOrthoScale()
         // Top-down: camera on +Z looking down −Z at the z=0 content plane.
         camera.position = SIMD3<Float>(0, 0, 10)
@@ -70,6 +91,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     func apply(_ ops: [CanvasSceneOp]) {
         for operation in ops { applyOne(operation) }
+        // Decoration is derived from the cards, so it settles ONCE after the
+        // whole op list rather than per-op: a batch that moves three selected
+        // cards must not draw the set frame three times on its way to the
+        // right answer.
+        if !ops.isEmpty { refreshSelectionDecoration() }
     }
 
     /// Set by the host when a scope opens: the FIRST reconcile that produces any
@@ -145,6 +171,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// resulting reconcile settles the card at its final (snapped) spot.
     func liveMove(id: String, toWorld world: SIMD3<Double>) {
         placeablesRoot.findEntity(named: id)?.position = Canvas2DProjection.scenePosition(world)
+        // The frame belongs to the card, so it travels with it mid-drag —
+        // otherwise dragging a selected card leaves its selection behind,
+        // which reads as the selection having been lost.
+        if selection.contains(id) { refreshSelectionDecoration() }
     }
 
     /// The placeable dropped ONTO at `world` (nearest by world proximity,
@@ -214,7 +244,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
             }
         case .resize(let id, let size):
             placeablesById[id]?.size = size
-            reskinCard(id)
+            // Mesh + collision IN PLACE, keeping the materials — a `reskinCard`
+            // here would drop the loaded page texture and flash the base colour
+            // for exactly the same reason selection used to (#4409).
+            resizeCardInPlace(id)
         case .updateContent(let id):
             reskinCard(id)
         case .remove(let id):
@@ -223,15 +256,19 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         case .setEdges(let edges):
             rebuildEdges(edges)
         case .setSelection(let newSelection):
-            let changed = selection.symmetricDifference(newSelection)
+            // NOTHING happens to the cards. This used to `reskinCard` every id
+            // in the symmetric difference — destroying and rebuilding a
+            // textured card to add or remove a decoration — which is #4409's
+            // blue flash and the no-wholesale-re-render rule broken at card
+            // granularity. `refreshSelectionDecoration` (called once by
+            // `apply`) redraws the frames instead.
             selection = newSelection
-            for id in changed { reskinCard(id) }   // only the cards whose state flipped
         }
     }
 
     // MARK: - Cards
 
-    private static let defaultCardSize = CGSize(width: 1.0, height: 0.75)
+    static let defaultCardSize = CGSize(width: 1.0, height: 0.75)
 
     private func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
@@ -240,17 +277,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     }
 
     private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
-        let size = placeable.size ?? Self.defaultCardSize
-        // Source cards take their page's true aspect once the texture has
-        // loaded (#4193), area-normalized to the configured card footprint;
-        // the fallback keeps the configured shape until then so cards don't
-        // jump mid-load. makeCard consults the memo so selection reskins
-        // keep the true shape instead of snapping back.
-        let (width, height) = CanvasCardGeometry.dimensions(
-            area: Float(size.width) * Float(size.height),
-            aspect: sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) },
-            fallback: Float(size.width) / Float(size.height)
-        )
+        let (width, height) = cardDimensions(placeable)
         let mesh = MeshResource.generatePlane(width: width, height: height, cornerRadius: min(width, height) * 0.08)
         let entity = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: baseColor(for: placeable.content))])
         entity.name = placeable.id
@@ -259,9 +286,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         entity.components.set(CollisionComponent(shapes: [.generateBox(size: SIMD3<Float>(width, height, 0.02))]))
         entity.components.set(HoverEffectComponent())
 
-        if selection.contains(placeable.id) {
-            entity.addChild(makeSelectionRing(width: width, height: height))
-        }
+        // NO selection decoration here, deliberately: a card that knows whether
+        // it is selected must be rebuilt when that changes, and rebuilding a
+        // textured card is #4409's blue flash. `CanvasSelectionVisualGuardTests`
+        // pins this absence.
         if case .node(let node) = placeable.content,
            let sourceId = node.sourceId, !sourceId.isEmpty,
            node.nodeType == .source, detailTier >= .thumbnail {
@@ -276,15 +304,6 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
               node.nodeType == .source,
               let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }
         return sourceId
-    }
-
-    /// An accent border behind a selected card (slightly larger, drawn behind).
-    private func makeSelectionRing(width: Float, height: Float) -> ModelEntity {
-        let inset: Float = 0.06
-        let mesh = MeshResource.generatePlane(width: width + inset, height: height + inset, cornerRadius: (width + inset) * 0.1)
-        let ring = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: PlatformColor.controlAccentColorCompat)])
-        ring.position = SIMD3<Float>(0, 0, -0.01)   // just behind the card
-        return ring
     }
 
     /// Load the page thumbnail through the storage service (never raw URLSession)
