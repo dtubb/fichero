@@ -19,7 +19,12 @@ final class LibrarySortFieldTests: XCTestCase {
     // MARK: - Metadata
 
     func testCasesRawValuesIconsAndId() {
-        XCTAssertEqual(LibrarySortField.allCases.count, 5)
+        // Not a magic 5/6: every case must be complete, which is the property
+        // the literal count was standing in for. `documentDate` joining the
+        // enum (#3322) broke the literal and would not have broken this.
+        XCTAssertEqual(Set(LibrarySortField.allCases.map(\.rawValue)).count,
+                       LibrarySortField.allCases.count,
+                       "raw values must be unique — they are the persisted identity")
         XCTAssertEqual(LibrarySortField.name.rawValue, "Name")
         XCTAssertEqual(LibrarySortField.createdAt.rawValue, "Date Created")
         XCTAssertEqual(LibrarySortField.updatedAt.rawValue, "Date Modified")

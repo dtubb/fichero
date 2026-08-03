@@ -51,7 +51,11 @@ final class ContentPaneDropTargetTests: XCTestCase {
     /// a destination that exists but never reaches the handler protects nothing.
     func testContentPaneDropIsMountedOnTheDetailColumnAndCallsTheHandler() throws {
         let body = try Self.detailColumnBody()
-        XCTAssertTrue(body.contains(".onDrop(of: [.item])"))
+        // `.onDrop(of: [.item]` unclosed: `isTargeted:` is load-bearing —
+        // without it Swift resolves to `.onDrop(of:delegate:)` and rejects the
+        // closure — so requiring the immediate `)` forbade the only spelling
+        // that compiles.
+        XCTAssertTrue(body.contains(".onDrop(of: [.item]"))
         XCTAssertTrue(body.contains("handleContentPaneExternalDrop(providers)"))
     }
 
