@@ -122,3 +122,66 @@ final class ArtifactRunGroupingTests: XCTestCase {
         )
     }
 }
+
+// MARK: - Totality: an artifact cannot vanish into the grouping (#4348)
+
+extension ArtifactRunGroupingTests {
+
+    /// Every artifact reaches exactly one section, for EVERY shape the field
+    /// can take — not just the one arrangement the fixture above happens to use.
+    ///
+    /// #4348 reports an artifact appearing and then vanishing. The issue's own
+    /// prime suspect is this grouping: an artifact whose `runId`/`sequence`
+    /// arrives in a SECOND update could be regrouped into a section that is
+    /// collapsed or off-screen — present in the store, absent from the eye.
+    ///
+    /// Reading the code says that cannot happen: `groups(from:)` partitions on
+    /// `normalized(runId)`, so every artifact lands in a run group or in
+    /// `earlier`, and both are returned. This asserts the property rather than
+    /// the reading, across the shapes that regrouping actually produces —
+    /// including the mid-flight one where `runId` is present but `sequence` is
+    /// not yet.
+    func testEveryArtifactShapeReachesExactlyOneSection() {
+        let items: [Artifact] = [
+            artifact(id: "a", runId: "run-1", sequence: 0, createdAt: base),
+            artifact(id: "b", runId: "run-1", sequence: nil, createdAt: base),   // mid-flight
+            artifact(id: "c", runId: nil, sequence: 3, createdAt: base),         // legacy
+            artifact(id: "d", runId: "", sequence: nil, createdAt: base),        // empty
+            artifact(id: "e", runId: "   ", sequence: 1, createdAt: base),       // whitespace
+            artifact(id: "f", runId: "run-2", sequence: 9, createdAt: base)
+        ]
+
+        let landed = ArtifactRunGroup.groups(from: items).flatMap(\.artifacts).map(\.id)
+
+        XCTAssertEqual(
+            Set(landed), Set(items.map(\.id)),
+            "an artifact that reaches no section is invisible while perfectly saved"
+        )
+        XCTAssertEqual(
+            landed.count, items.count,
+            "and none may be duplicated into two sections either"
+        )
+    }
+
+    /// The regrouping step itself: the same artifact before and after its
+    /// `runId` lands must be present BOTH times. Vanishing between two renders
+    /// is the reported symptom, so both renders are asserted rather than the
+    /// end state alone.
+    func testAnArtifactSurvivesGainingItsRunIdInASecondUpdate() {
+        let before = artifact(id: "new", runId: nil, sequence: nil, createdAt: base)
+        let after = artifact(id: "new", runId: "run-1", sequence: 0, createdAt: base)
+
+        for items in [[before], [after]] {
+            let landed = ArtifactRunGroup.groups(from: items).flatMap(\.artifacts).map(\.id)
+            XCTAssertEqual(landed, ["new"], "present before and after the regroup")
+        }
+    }
+
+    /// And the counter is not vacuous: a grouping that returned nothing would
+    /// pass a "no duplicates" check trivially.
+    func testTheTotalityCheckWouldNoticeADroppedArtifact() {
+        let items = [artifact(id: "only", runId: "run-1", sequence: 0, createdAt: base)]
+
+        XCTAssertEqual(ArtifactRunGroup.groups(from: items).flatMap(\.artifacts).count, 1)
+    }
+}
