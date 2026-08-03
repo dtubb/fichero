@@ -134,3 +134,45 @@ def test_pytest_sessionfinish_cancels_only_when_armed(monkeypatch) -> None:
     conftest.pytest_sessionfinish(session=None, exitstatus=0)
     assert calls == ["cancel"]
     assert conftest._deadlock_dump_armed is False
+
+
+def test_apple_marker_skips_when_capability_absent(monkeypatch) -> None:
+    """The revived marker path must be SHOWN to fire (#4487).
+
+    The requires_apple_* skip logic was dead for weeks inside a shadowed
+    pytest_collection_modifyitems, over a population of zero marked tests —
+    two defects concealing each other. Now that both are alive (the SVO live
+    test is the first subscriber), prove the mechanism itself: an item
+    carrying the keyword gets a skip marker when the probe is False, and no
+    marker when the probe is True.
+    """
+    conftest = _load_conftest_module()
+
+    class _Item:
+        def __init__(self, keywords):
+            self.keywords = keywords
+            self.markers = []
+            self.obj = None
+            self.nodeid = "stub::test"  # read by the known-spec xfail pass
+
+        def add_marker(self, marker):
+            self.markers.append(marker)
+
+    monkeypatch.setattr(conftest, "_APPLE_INTELLIGENCE_OK", False)
+    monkeypatch.setattr(conftest, "_APPLE_VISION_OK", True)
+    marked = _Item({"requires_apple_intelligence": True})
+    unmarked = _Item({})
+    conftest.pytest_collection_modifyitems(config=None, items=[marked, unmarked])
+    assert any(m.name == "skip" for m in marked.markers), (
+        "requires_apple_intelligence did not skip with the probe False — "
+        "the marker mechanism is dead again"
+    )
+    assert not unmarked.markers, "an unmarked test acquired a marker"
+
+    monkeypatch.setattr(conftest, "_APPLE_INTELLIGENCE_OK", True)
+    available = _Item({"requires_apple_intelligence": True})
+    conftest.pytest_collection_modifyitems(config=None, items=[available])
+    assert not any(m.name == "skip" for m in available.markers), (
+        "the marker skipped even though the capability is PRESENT — "
+        "over-skipping hides a runnable test"
+    )
