@@ -56,12 +56,15 @@ PLAN_PLATFORMS: dict[str, set[str]] = {
 }
 
 # Plans known to be unrunnable, keyed to the issue that must land first.
-BLOCKED: dict[str, str] = {
-    # No test target in the project supports iPadOS: FicheroTests and
-    # FicheroUITests both inherit SDKROOT=macosx and set no SUPPORTED_PLATFORMS.
-    # Fixing this is a project-file change, not a plan change.
-    "fichero-ipad.xctestplan": "#4472",
-}
+#
+# EMPTY, and that is the point of the entry that used to be here. The iPad plan
+# was blocked on #4472 because no test target in the project supported iPadOS —
+# FicheroTests and FicheroUITests both inherit SDKROOT=macosx and declare no
+# SUPPORTED_PLATFORMS. `FicheroIPadTests` now does, so the entry is gone rather
+# than kept "just in case": this guard fails just as loudly on a stale BLOCKED
+# entry as on an unlisted broken plan, because an allowlist that cannot go stale
+# is a record and one that can is a mute button.
+BLOCKED: dict[str, str] = {}
 
 # An SDKROOT with no SUPPORTED_PLATFORMS override implies this platform set.
 SDK_PLATFORMS: dict[str, set[str]] = {

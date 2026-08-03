@@ -19,6 +19,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		FE1DAD000000000000000040 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 700 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 500;
+			remoteInfo = Fichero;
+		};
 		A10521AD2EFDC92400B28C3E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 700 /* Project object */;
@@ -54,6 +61,7 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
@@ -100,6 +108,13 @@
 			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
+		FE1DAD000000000000000020 /* fichero-ipad-tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			path = "fichero-ipad-tests";
+			sourceTree = "<group>";
+		};
 		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -109,7 +124,24 @@
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
+/* Begin PBXSourcesBuildPhase section */
+		FE1DAD000000000000000030 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		FE1DAD000000000000000031 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		300 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
@@ -185,6 +217,7 @@
 				100 /* Fichero.app */,
 				FEED00000000000000000260 /* Fichero.app */,
 				A10521A92EFDC92400B28C3E /* FicheroTests.xctest */,
+				FE1DAD000000000000000010 /* FicheroIPadTests.xctest */,
 				A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */,
 			);
 			name = Products;
@@ -304,6 +337,27 @@
 			productReference = 100 /* Fichero.app */;
 			productType = "com.apple.product-type.application";
 		};
+		FE1DAD000000000000000070 /* FicheroIPadTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FE1DAD000000000000000060 /* Build configuration list for PBXNativeTarget "FicheroIPadTests" */;
+			buildPhases = (
+				FE1DAD000000000000000030 /* Sources */,
+				FE1DAD000000000000000031 /* Frameworks */,
+				FE1DAD000000000000000032 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FE1DAD000000000000000041 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				FE1DAD000000000000000020 /* fichero-ipad-tests */,
+			);
+			name = FicheroIPadTests;
+			productName = FicheroIPadTests;
+			productReference = FE1DAD000000000000000010 /* FicheroIPadTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		A10521A82EFDC92400B28C3E /* FicheroTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */;
@@ -392,6 +446,9 @@
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 500;
 					};
+					FE1DAD000000000000000070 = {
+						TestTargetID = 500;
+					};
 					A10521C02EFDC94100B28C3E = {
 						CreatedOnToolsVersion = 16.4;
 						TestTargetID = 500;
@@ -418,12 +475,20 @@
 				500 /* Fichero */,
 				FEED00000000000000000261 /* Fichero (App Store) */,
 				A10521A82EFDC92400B28C3E /* FicheroTests */,
+				FE1DAD000000000000000070 /* FicheroIPadTests */,
 				A10521C02EFDC94100B28C3E /* FicheroUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		FE1DAD000000000000000032 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		520 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
@@ -1022,6 +1087,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		FE1DAD000000000000000041 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 500 /* Fichero */;
+			targetProxy = FE1DAD000000000000000040 /* PBXContainerItemProxy */;
+		};
 		A10521AE2EFDC92400B28C3E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 500 /* Fichero */;
@@ -1035,6 +1105,150 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		FE1DAD000000000000000050 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Debug;
+		};
+		FE1DAD000000000000000051 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Release;
+		};
+		FE1DAD000000000000000052 /* Alpha */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Alpha;
+		};
+		FE1DAD000000000000000053 /* Beta */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = Beta;
+		};
+		FE1DAD000000000000000054 /* Dev Embedded */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = "Dev Embedded";
+		};
+		FE1DAD000000000000000055 /* Alpha Embedded */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = "Alpha Embedded";
+		};
+		FE1DAD000000000000000056 /* Beta Embedded */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = "Beta Embedded";
+		};
+		FE1DAD000000000000000057 /* Release Local */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.fichero.fichero.ipadtests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 2;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Fichero.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Fichero";
+			};
+			name = "Release Local";
+		};
 		20969FA93000614800D06A60 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -2865,6 +3079,20 @@
 				FE7E000100000000000000B2 /* Alpha Embedded */,
 				FE7E000100000000000000B3 /* Beta Embedded */,
 				FE7E000100000000000000B4 /* Release Local */,
+			);
+			defaultConfigurationName = Release;
+		};
+		FE1DAD000000000000000060 /* Build configuration list for PBXNativeTarget "FicheroIPadTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FE1DAD000000000000000050 /* Debug */,
+				FE1DAD000000000000000051 /* Release */,
+				FE1DAD000000000000000052 /* Alpha */,
+				FE1DAD000000000000000053 /* Beta */,
+				FE1DAD000000000000000054 /* Dev Embedded */,
+				FE1DAD000000000000000055 /* Alpha Embedded */,
+				FE1DAD000000000000000056 /* Beta Embedded */,
+				FE1DAD000000000000000057 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
