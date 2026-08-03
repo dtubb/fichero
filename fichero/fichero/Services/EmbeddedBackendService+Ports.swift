@@ -60,7 +60,7 @@ extension EmbeddedBackendService {
     /// build 8765 is somebody else's, and adopting its holder strands the
     /// client on a socket nobody serves. `PortPreflightTransportTests` has the
     /// full dead end.
-    static func portPreflightApplies(transportMode: TransportMode) -> Bool {
+    nonisolated static func portPreflightApplies(transportMode: TransportMode) -> Bool {
         switch transportMode {
         case .https: return true
         case .uds: return false          // container socket; 8765 is not ours
