@@ -62406,6 +62406,11 @@
             "type": "boolean",
             "title": "Direct Runnable",
             "default": true
+          },
+          "accepts_model_override": {
+            "type": "boolean",
+            "title": "Accepts Model Override",
+            "default": true
           }
         },
         "type": "object",
