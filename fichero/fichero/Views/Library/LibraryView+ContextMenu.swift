@@ -193,7 +193,9 @@ extension LibraryView {
         Task { @MainActor in
             let created = await library.bookmarkService.createBookmark(
                 targetId: targetId,
-                name: "\(document.name) alias",
+                // #116: the fourth raw-name write, and the one OUTSIDE the
+                // sidebar — a sidebar-scoped audit could not have found it.
+                name: AliasName.forAlias(of: document, targetParentId: document.parentId),
                 parentId: document.parentId
             )
             if created {

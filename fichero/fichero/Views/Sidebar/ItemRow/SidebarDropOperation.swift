@@ -121,8 +121,14 @@ func sidebarFindDocument(id: String, in store: DocumentStore) -> Document? {
 
 /// Finder naming: an alias created BESIDE its original is "<name> alias";
 /// one dropped elsewhere keeps the plain name (same rule as copies).
-func sidebarAliasName(sourceName: String, sourceParentId: String?, targetParentId: String?) -> String {
-    sourceParentId == targetParentId ? "\(sourceName) alias" : sourceName
+///
+/// #116: this took a bare `sourceName: String`, and both callers handed it
+/// `source?.name` — the raw storage name, written straight into the engine as a
+/// new row. Taking the DOCUMENT instead means the name is composed by the same
+/// ladder every display surface uses, and there is no `String` parameter left
+/// for a caller to fill with an upload id.
+func sidebarAliasName(source: Document?, targetParentId: String?) -> String {
+    AliasName.forAlias(of: source, targetParentId: targetParentId)
 }
 
 /// One non-move insertion-line drop: what to do, with what, and where.
@@ -173,11 +179,7 @@ func sidebarApplyInsertionDropOperation(
             }
         case .alias:
             let source = sidebarFindDocument(id: id, in: store)
-            let name = sidebarAliasName(
-                sourceName: source?.name ?? "Item",
-                sourceParentId: source?.parentId,
-                targetParentId: parentId
-            )
+            let name = sidebarAliasName(source: source, targetParentId: parentId)
             // Aliasing an alias targets the ORIGINAL (no alias chains).
             let targetId = (source?.isAlias == true ? source?.aliasTargetId : nil) ?? id
             let created = await library.bookmarkService.createBookmark(
@@ -259,11 +261,7 @@ func applyLibraryItemDropOperation(
     case .alias:
         // A real engine alias node (bookmarks surface, #2591) inside the target.
         let source = sidebarFindDocument(id: documentId, in: library.documentStore)
-        let name = sidebarAliasName(
-            sourceName: source?.name ?? "Item",
-            sourceParentId: source?.parentId,
-            targetParentId: intoFolderId
-        )
+        let name = sidebarAliasName(source: source, targetParentId: intoFolderId)
         // Aliasing an alias targets the ORIGINAL (no alias chains).
         let targetId = (source?.isAlias == true ? source?.aliasTargetId : nil) ?? documentId
         let created = await library.bookmarkService.createBookmark(

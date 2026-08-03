@@ -102,8 +102,12 @@ extension SidebarView {
         guard let targetId = doc.aliasTargetId,
               let libraryId,
               let library = libraryManager.getLibrary(id: libraryId) else {
+            // #116/#4416: raw `doc.name` here named the alias by its storage
+            // filename in an alert — the same shape as the delete-confirmation
+            // leak, on a message the user can only act on if it names the thing
+            // they recognise.
             sidebarState.aliasErrorMessage =
-                "The original item for “\(doc.name)” can’t be found."
+                "The original item for “\(DocumentTitle.displayName(for: doc))” can’t be found."
             return
         }
         Task { @MainActor in
@@ -121,7 +125,7 @@ extension SidebarView {
                     "Dangling alias \(doc.id): target \(targetId) unavailable — \(error.localizedDescription)"
                 )
                 sidebarState.aliasErrorMessage =
-                    "The original item for “\(doc.name)” can’t be found."
+                    "The original item for “\(DocumentTitle.displayName(for: doc))” can’t be found."
             }
         }
     }

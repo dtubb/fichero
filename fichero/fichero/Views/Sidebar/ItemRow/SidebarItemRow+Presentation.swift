@@ -223,7 +223,9 @@ extension SidebarItemRow {
             Task { @MainActor in
                 let created = await library.bookmarkService.createBookmark(
                     targetId: targetId,
-                    name: "\(doc.name) alias",
+                    // #116: was "\(doc.name) alias" — a storage filename
+                    // written INTO the engine, not merely onto the screen.
+                    name: AliasName.forAlias(of: doc, targetParentId: doc.parentId),
                     parentId: doc.parentId
                 )
                 if created {

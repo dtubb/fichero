@@ -98,8 +98,17 @@ struct FileMenuCommands: View {
                 // Open the focused sidebar's selected row (#2496): keyboard/menu
                 // parity with double-click, the trailing affordance, and the row
                 // context menu. Disabled (not hidden) without a sidebar selection.
+                // #116: macOS ONLY, and this gate is the fix. The two actions
+                // behind these buttons have bodies that are entirely
+                // `#if os(macOS)` (WindowOpener does not exist on iOS), so on
+                // iPad these rendered as ENABLED File-menu commands with real
+                // key equivalents that did nothing at all — the same empty-body
+                // shape as the Copy Name button in #4505, one indirection out.
+                // Absent beats a command that cannot work (#4421).
+                #if os(macOS)
                 FocusedOpenInNewTabButton()
                 FocusedOpenInNewWindowButton()
+                #endif
             }
 
             Divider()

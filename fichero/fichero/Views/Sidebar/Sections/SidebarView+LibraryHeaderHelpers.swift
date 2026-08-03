@@ -186,6 +186,38 @@ struct LibraryHeaderRow: View {
     }
 
     var body: some View {
+        // #116: the `if !isGlobal` used to sit INSIDE `.contextMenu`, so
+        // right-clicking the Global library header opened a real, EMPTY menu —
+        // a panel with nothing in it, which reads as broken rather than as
+        // "nothing applies here". The condition is now outside, so no menu is
+        // attached at all: the right-click does nothing visible, which is
+        // #4421's rule (absent beats present-and-useless). The Global library
+        // genuinely cannot be renamed, shared or closed.
+        if isGlobal {
+            header
+        } else {
+            header.contextMenu { libraryContextMenu }
+        }
+    }
+
+    @ViewBuilder
+    private var libraryContextMenu: some View {
+        Button("Rename Library…", action: onRename)
+            .disabled(!canWrite)
+        // Owners share from here — same sheet as the sidebar sharing badge
+        // (#3149). Gated on multi-user mode + write access.
+        if EngineConfig.multiuserEnabled {
+            Button("Share Library…", action: onShare)
+                .disabled(!canWrite)
+        }
+        Divider()
+        // Close removes the library from the sidebar + the global registry
+        // WITHOUT deleting the .fichero package on disk (#1661). Stays enabled
+        // for viewers — it's a local sidebar op, not a library mutation.
+        Button("Close Library", action: onClose)
+    }
+
+    private var header: some View {
         LibrarySectionHeader(
             library: library,
             itemCount: totalCount,
@@ -200,24 +232,6 @@ struct LibraryHeaderRow: View {
             onTap: onTap
         )
         .help(canWrite ? "" : Self.readOnlyHelp)
-        .contextMenu {
-            if !isGlobal {
-                Button("Rename Library…", action: onRename)
-                    .disabled(!canWrite)
-                // Owners share from here — same sheet as the sidebar sharing
-                // badge (#3149). Gated on multi-user mode + write access.
-                if EngineConfig.multiuserEnabled {
-                    Button("Share Library…", action: onShare)
-                        .disabled(!canWrite)
-                }
-                Divider()
-                // Close removes the library from the sidebar + the global
-                // registry WITHOUT deleting the .fichero package on disk (#1661).
-                // Stays enabled for viewers — it's a local sidebar op, not a
-                // library mutation.
-                Button("Close Library", action: onClose)
-            }
-        }
         .task(id: library.id) {
             guard EngineConfig.multiuserEnabled, !isGlobal else {
                 snapshot = nil
