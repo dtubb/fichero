@@ -36,8 +36,17 @@ extension WorkflowStore {
                 folderPath: response.folderPath,
                 sortOrder: response.sortOrder,
                 isSystem: response.isSystem,
+                isUntested: response.isUntested,
+                isDirectlyRunnable: response.directRunnable ?? true,
+                acceptsModelOverride: response.acceptsModelOverride ?? true,
                 createdAt: Date(),
-                updatedAt: Date()
+                updatedAt: Date(),
+                // An edit can change which tools the workflow uses, so this
+                // is recomputed rather than carried over from the old row.
+                hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
+                    nodes: response.nodes,
+                    toolRegistry: toolRegistry
+                )
             )
 
             // Update existing or add new
@@ -71,8 +80,17 @@ extension WorkflowStore {
                 folderPath: response.folderPath,
                 sortOrder: response.sortOrder,
                 isSystem: response.isSystem,
+                isUntested: response.isUntested,
+                isDirectlyRunnable: response.directRunnable ?? true,
+                acceptsModelOverride: response.acceptsModelOverride ?? true,
                 createdAt: Date(),
-                updatedAt: Date()
+                updatedAt: Date(),
+                // An edit can change which tools the workflow uses, so this
+                // is recomputed rather than carried over from the old row.
+                hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
+                    nodes: response.nodes,
+                    toolRegistry: toolRegistry
+                )
             )
 
             // Update in local array
@@ -113,8 +131,16 @@ extension WorkflowStore {
                 folderPath: response.folderPath,
                 sortOrder: old.sortOrder,
                 isSystem: old.isSystem,
+                // Rebuilding from `old` silently dropped these three, so a
+                // folder move reverted the row to defaults until the next
+                // full load — a pinned workflow got its override submenu back
+                // and an untested preset lost its label (#4494).
+                isUntested: old.isUntested,
+                isDirectlyRunnable: old.canRunDirectly,
+                acceptsModelOverride: old.canOverrideModel,
                 createdAt: old.createdAt,
-                updatedAt: Date()
+                updatedAt: Date(),
+                hasVisionNodes: old.hasVisionNodes
             )
         }
     }

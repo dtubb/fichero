@@ -28,8 +28,15 @@ extension WorkflowStore {
                 folderPath: response.folderPath,
                 sortOrder: response.sortOrder,
                 isSystem: response.isSystem,
+                isUntested: response.isUntested,
+                isDirectlyRunnable: response.directRunnable ?? true,
+                acceptsModelOverride: response.acceptsModelOverride ?? true,
                 createdAt: Date(),
-                updatedAt: Date()
+                updatedAt: Date(),
+                hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
+                    nodes: response.nodes,
+                    toolRegistry: toolRegistry
+                )
             )
 
             // Add to local array

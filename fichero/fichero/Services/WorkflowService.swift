@@ -518,15 +518,7 @@ extension WorkflowService {
         }
         // Extract is_system + untested via JSON round-trip since the generated
         // client can lag schema changes (both are derived backend response fields).
-        var isSystem = false
-        var isUntested = false
-        var directRunnable = true
-        if let data = try? JSONEncoder().encode(workflow),
-           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            isSystem = (dict["is_system"] as? Bool) ?? false
-            isUntested = (dict["untested"] as? Bool) ?? false
-            directRunnable = (dict["direct_runnable"] as? Bool) ?? true
-        }
+        let derived = Self.derivedFlags(from: workflow)
         return WorkflowResponse(
             id: workflow.id,
             name: workflow.name,
@@ -537,9 +529,36 @@ extension WorkflowService {
             edges: edgeDicts,
             folderPath: workflow.folderPath,
             sortOrder: workflow.sortOrder,
-            isSystem: isSystem,
-            isUntested: isUntested,
-            directRunnable: directRunnable
+            isSystem: derived.isSystem,
+            isUntested: derived.isUntested,
+            directRunnable: derived.directRunnable,
+            acceptsModelOverride: derived.acceptsModelOverride
+        )
+    }
+
+    /// Backend-derived response flags, read via JSON round-trip rather than
+    /// the generated properties because the generated client can lag a schema
+    /// change. Every default here is the permissive one: an absent key means
+    /// UNKNOWN, and unknown must never remove a control the user had.
+    private struct DerivedFlags {
+        var isSystem = false
+        var isUntested = false
+        var directRunnable = true
+        var acceptsModelOverride = true
+    }
+
+    private static func derivedFlags(
+        from workflow: Components.Schemas.WorkflowResponse
+    ) -> DerivedFlags {
+        guard let data = try? JSONEncoder().encode(workflow),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return DerivedFlags()
+        }
+        return DerivedFlags(
+            isSystem: (dict["is_system"] as? Bool) ?? false,
+            isUntested: (dict["untested"] as? Bool) ?? false,
+            directRunnable: (dict["direct_runnable"] as? Bool) ?? true,
+            acceptsModelOverride: (dict["accepts_model_override"] as? Bool) ?? true
         )
     }
 

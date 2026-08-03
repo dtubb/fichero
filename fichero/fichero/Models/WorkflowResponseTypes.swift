@@ -60,6 +60,11 @@ struct WorkflowResponse: Codable {
     // True = shipped preset not yet validated end-to-end; UI appends "(Untested)".
     var isUntested: Bool = false
     let directRunnable: Bool?
+    /// False = this workflow pins its own provider/model, so a per-run
+    /// override would be silently ignored. Optional + absent means unknown,
+    /// which callers must read as `true`: a workflow whose capability we
+    /// cannot determine keeps its override controls rather than losing them.
+    let acceptsModelOverride: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, provider, model, nodes, edges
@@ -68,6 +73,7 @@ struct WorkflowResponse: Codable {
         case isSystem = "is_system"
         case isUntested = "untested"
         case directRunnable = "direct_runnable"
+        case acceptsModelOverride = "accepts_model_override"
     }
 }
 

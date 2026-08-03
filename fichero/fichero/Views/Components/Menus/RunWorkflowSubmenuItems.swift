@@ -34,25 +34,32 @@ struct RunWorkflowSubmenuItems: View {
 
     @ViewBuilder
     private func workflowEntry(_ workflow: WorkflowSidebarItem) -> some View {
-        // Vision workflows only list vision-capable overrides (#4187), read
-        // from the server-resolved per-model capability — the engine owns the
-        // tri-state fallback and the UI filter is an affordance, not a gate.
-        Menu(workflow.name) {
-            Button("Default") { action(workflow.id, nil, nil) }
-            ForEach(providerCache.providers.filter { $0.available }) { provider in
-                switch provider.runMenuEntry(requiresVision: workflow.hasVisionNodes) {
-                case .providerOnly:
-                    Button(provider.name) { action(workflow.id, provider.id, nil) }
-                case .models(let models):
-                    Menu(provider.name) {
-                        ForEach(models, id: \.self) { model in
-                            Button(model) { action(workflow.id, provider.id, model) }
+        // A workflow that pins its own provider/model ignores any override the
+        // menu would send, so offering one is a lie about what the run will do
+        // (#4494). Collapse it to a single Button that runs the default.
+        if workflow.canOverrideModel {
+            // Vision workflows only list vision-capable overrides (#4187), read
+            // from the server-resolved per-model capability — the engine owns the
+            // tri-state fallback and the UI filter is an affordance, not a gate.
+            Menu(workflow.name) {
+                Button("Default") { action(workflow.id, nil, nil) }
+                ForEach(providerCache.providers.filter { $0.available }) { provider in
+                    switch provider.runMenuEntry(requiresVision: workflow.hasVisionNodes) {
+                    case .providerOnly:
+                        Button(provider.name) { action(workflow.id, provider.id, nil) }
+                    case .models(let models):
+                        Menu(provider.name) {
+                            ForEach(models, id: \.self) { model in
+                                Button(model) { action(workflow.id, provider.id, model) }
+                            }
                         }
+                    case nil:
+                        EmptyView()
                     }
-                case nil:
-                    EmptyView()
                 }
             }
+        } else {
+            Button(workflow.name) { action(workflow.id, nil, nil) }
         }
     }
 

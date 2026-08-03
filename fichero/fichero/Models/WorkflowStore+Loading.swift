@@ -49,6 +49,7 @@ extension WorkflowStore {
                     isSystem: workflow.isSystem,
                     isUntested: workflow.isUntested,
                     isDirectlyRunnable: workflow.directRunnable ?? true,
+                    acceptsModelOverride: workflow.acceptsModelOverride ?? true,
                     createdAt: Date(),  // Backend doesn't return these yet
                     updatedAt: Date(),
                     hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(

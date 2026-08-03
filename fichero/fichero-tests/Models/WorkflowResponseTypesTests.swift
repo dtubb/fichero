@@ -84,7 +84,8 @@ final class WorkflowResponseTypesTests: XCTestCase {
             "sort_order": 3,
             "is_system": true,
             "untested": false,
-            "direct_runnable": false
+            "direct_runnable": false,
+            "accepts_model_override": false
         }
         """.data(using: .utf8)!
         let resp = try JSONDecoder().decode(WorkflowResponse.self, from: json)
@@ -92,6 +93,27 @@ final class WorkflowResponseTypesTests: XCTestCase {
         XCTAssertEqual(resp.sortOrder, 3)
         XCTAssertTrue(resp.isSystem)
         XCTAssertEqual(resp.directRunnable, false)
+        // #4494: a `false` on the wire must survive decode. Before the spec
+        // carried this key the client read nothing and every workflow looked
+        // overridable — the failure this asserts against.
+        XCTAssertEqual(resp.acceptsModelOverride, false)
+    }
+
+    /// Absence is UNKNOWN, not "no". A workflow whose override capability we
+    /// cannot determine must keep its controls; defaulting to false would
+    /// silently delete a working submenu on any older engine (#4494).
+    func testWorkflowResponseAbsentModelOverrideDecodesAsUnknown() throws {
+        let json = """
+        {
+            "id": "wf-1", "name": "Test", "description": "",
+            "provider": "openai", "model": "gpt-4o",
+            "nodes": [], "edges": [],
+            "folder_path": "/", "sort_order": 0,
+            "is_system": false, "untested": false
+        }
+        """.data(using: .utf8)!
+        let resp = try JSONDecoder().decode(WorkflowResponse.self, from: json)
+        XCTAssertNil(resp.acceptsModelOverride)
     }
 
     // MARK: - NodeExecutionStatus raw values

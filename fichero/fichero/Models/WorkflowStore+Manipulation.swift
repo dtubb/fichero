@@ -28,8 +28,19 @@ extension WorkflowStore {
             folderPath: response.folderPath,
             sortOrder: response.sortOrder,
             isSystem: workflows[index].isSystem,  // Preserve system flag
+            // A rename must not change what the workflow can DO. These came
+            // back on the response and were being discarded, so renaming a
+            // pinned workflow handed it an override submenu it ignores
+            // (#4494); same shape as the move path.
+            isUntested: response.isUntested,
+            isDirectlyRunnable: response.directRunnable ?? true,
+            acceptsModelOverride: response.acceptsModelOverride ?? true,
             createdAt: workflows[index].createdAt,  // Preserve original dates
-            updatedAt: Date()
+            updatedAt: Date(),
+            hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
+                nodes: response.nodes,
+                toolRegistry: toolRegistry
+            )
         )
 
         // Update the local array
@@ -53,8 +64,15 @@ extension WorkflowStore {
             folderPath: response.folderPath,
             sortOrder: response.sortOrder,
             isSystem: response.isSystem,
+            isUntested: response.isUntested,
+            isDirectlyRunnable: response.directRunnable ?? true,
+            acceptsModelOverride: response.acceptsModelOverride ?? true,
             createdAt: Date(),
-            updatedAt: Date()
+            updatedAt: Date(),
+            hasVisionNodes: WorkflowSidebarItem.requiresVisionModel(
+                nodes: response.nodes,
+                toolRegistry: toolRegistry
+            )
         )
 
         // Add to local array

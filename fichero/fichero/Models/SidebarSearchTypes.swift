@@ -104,6 +104,10 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     // True = shipped preset not yet validated end-to-end; UI appends "(Untested)".
     var isUntested: Bool
     var isDirectlyRunnable: Bool?
+    /// False = the workflow pins its own provider/model, so the Run menu must
+    /// not offer overrides that the engine would ignore. Absent = unknown, and
+    /// unknown keeps the submenu (see `canOverrideModel`).
+    var acceptsModelOverride: Bool?
     var createdAt: Date
     var updatedAt: Date
     /// Derived client-side at load (#4187), not wire data — deliberately NOT
@@ -127,6 +131,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case isSystem = "is_system"
         case isUntested = "untested"
         case isDirectlyRunnable = "direct_runnable"
+        case acceptsModelOverride = "accepts_model_override"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -143,6 +148,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         isSystem: Bool = false,
         isUntested: Bool = false,
         isDirectlyRunnable: Bool = true,
+        acceptsModelOverride: Bool = true,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         hasVisionNodes: Bool = false
@@ -158,6 +164,7 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         self.isSystem = isSystem
         self.isUntested = isUntested
         self.isDirectlyRunnable = isDirectlyRunnable
+        self.acceptsModelOverride = acceptsModelOverride
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.hasVisionNodes = hasVisionNodes
@@ -185,4 +192,9 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
     }
 
     var canRunDirectly: Bool { isDirectlyRunnable ?? true }
+
+    /// Whether the Run menu should offer provider/model overrides. Unknown
+    /// (nil) means yes: losing a control is worse than offering one the
+    /// engine may ignore, and the engine remains the enforcement point.
+    var canOverrideModel: Bool { acceptsModelOverride ?? true }
 }
