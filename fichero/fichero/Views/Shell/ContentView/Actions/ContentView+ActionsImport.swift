@@ -145,6 +145,28 @@ extension ContentView {
         return external
     }
 
+    /// Say so when a dropped link is refused, rather than letting the drop do
+    /// nothing (#2386).
+    ///
+    /// Downloading a remote URL is a real feature with its own failure surface —
+    /// redirects, auth walls, content-type sniffing, a partial file on a dropped
+    /// connection — and is NOT built here. What is built here is honesty: a
+    /// remote URL is recognised as remote and SAID SO, instead of being handed
+    /// to the importer as a file path that does not exist. A drop that explains
+    /// itself is a smaller lie than one that silently does nothing.
+    ///
+    /// Lives on the view, not on `DroppedURLs`: it needs `importError` and the
+    /// file's logger, and keeping them out of the value type is what lets
+    /// `DroppedURLs.classify` be tested without a window.
+    private func reportRefusedRemoteURLs(_ remoteURLs: [URL]) {
+        guard !remoteURLs.isEmpty else { return }
+        logger.warning("Refusing \(remoteURLs.count) remote URL(s): link import is not implemented")
+        importError = """
+            Importing from a web link isn't supported yet. \
+            Download the file first, then drop it here.
+            """
+    }
+
     func handleFileDrop(urls: [URL]) {
         logger.info("Files dropped: \(urls.map { $0.lastPathComponent })")
 
@@ -260,7 +282,11 @@ extension ContentView {
 
 // MARK: - Helper Extension
 
-private extension URL {
+// `internal`, not `private`: `DroppedURLs.classify` is a pure static in its own
+// file and cannot see a file-scoped helper. Swift's `private` is FILE-scoped, so
+// splitting the classifier out took this away from it — which `swiftc -parse`
+// does not catch, only a real build does.
+extension URL {
     var isFicheroLibraryPackage: Bool {
         guard pathExtension.localizedCaseInsensitiveCompare("fichero") == .orderedSame else {
             return false
