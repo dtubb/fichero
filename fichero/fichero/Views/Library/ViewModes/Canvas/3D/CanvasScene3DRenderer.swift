@@ -60,6 +60,12 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// out as it goes" and "everything fits" are the same place.
     private var arrangementSpan: Float = 1
 
+    /// Set by the host when a scope opens: the FIRST reconcile that produces
+    /// any content frames it, once, then clears the flag — the same shape the
+    /// 2D renderer uses, for the same reason. Consumed inside `reconcile` so it
+    /// cannot fire before the placeables it is meant to frame exist.
+    var needsFitOnNextContent = false
+
     var detailTier: CanvasDetailTier = .thumbnail
     var onIntent: ((CanvasIntent) -> Void)?
     var isDragSuppressed: ((String) -> Bool)?
@@ -85,6 +91,11 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     func reconcile(to newState: CanvasSceneState) {
         apply(CanvasSceneDiff.compute(from: appliedState, to: newState))
         appliedState = newState
+        refreshArrangementSpan()
+        if needsFitOnNextContent, !placeablesById.isEmpty {
+            needsFitOnNextContent = false
+            fit()
+        }
     }
 
     /// Drag-onto-item target picking is #3086 (needs a scene raycast); tap/drag
@@ -98,23 +109,41 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     }
 
     func fit() {
-        let points = placeablesById.values.map { Canvas3DProjection.scenePosition($0.position) }
-        guard !points.isEmpty else {
+        guard let bounds = currentBounds else {
             lookAt = .zero
             arrangementSpan = Self.itemExtent
             distance = Self.defaultDistance
             updateCamera()
             return
         }
-        let xValues = points.map(\.x), yValues = points.map(\.y), zValues = points.map(\.z)
-        lookAt = SIMD3<Float>(
-            (xValues.min()! + xValues.max()!) / 2,
-            (yValues.min()! + yValues.max()!) / 2,
-            (zValues.min()! + zValues.max()!) / 2
+        lookAt = bounds.center
+        // Before `setDistance`, which clamps against it.
+        arrangementSpan = bounds.span
+        setDistance(bounds.span * 1.4)
+    }
+
+    private var currentBounds: (center: SIMD3<Float>, span: Float)? {
+        CanvasArrangementBounds.of(
+            placeablesById.values.map { Canvas3DProjection.scenePosition($0.position) },
+            itemExtent: Self.itemExtent
         )
-        let span = max(xValues.max()! - xValues.min()!, yValues.max()! - yValues.min()!, zValues.max()! - zValues.min()!, 1)
-        arrangementSpan = span
-        setDistance(span * 1.4)
+    }
+
+    /// Re-derive the zoom-out ceiling from the arrangement as it stands now.
+    ///
+    /// #4411's fix replaced the 2.2…16 constants with content-derived bounds
+    /// but left `arrangementSpan` assigned in exactly one place — `fit()`,
+    /// which had no caller. So the span stayed at one item's extent forever and
+    /// `maxDistance` collapsed to `defaultDistance`: precisely where the camera
+    /// starts. Zoom IN reached a page, and zoom OUT did nothing at all, which
+    /// is a narrower ceiling than the constant it replaced.
+    ///
+    /// Deliberately does NOT re-clamp `distance`. Widening the range never
+    /// invalidates where the camera already is, and narrowing it — items
+    /// deleted — would yank the view without the user asking for it; the next
+    /// pinch clamps into the new range on its own.
+    private func refreshArrangementSpan() {
+        arrangementSpan = currentBounds?.span ?? Self.itemExtent
     }
 
     // MARK: - Camera (view drives these from orbit/pan/zoom gestures)

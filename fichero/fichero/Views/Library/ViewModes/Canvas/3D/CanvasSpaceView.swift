@@ -121,6 +121,12 @@ struct CanvasSpaceView: View {
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
             .task(id: folderScopeId) {
                 configureController()
+                // Frame the arrangement once this scope has content (#4411).
+                // The camera parked at a fixed distance showed part of an
+                // origin-anchored grid, and — worse — the zoom-OUT ceiling
+                // derives from the arrangement's span, which nothing computed
+                // until something asked to fit. Same shape as the 2D canvas.
+                renderer.needsFitOnNextContent = true
                 guard let folderId = folderScopeId else { return }
                 await layoutStore?.loadLayout(folderId: folderId)
                 await itemStore?.loadItems(folderId: folderId)

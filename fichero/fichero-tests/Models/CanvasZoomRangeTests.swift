@@ -107,8 +107,42 @@ struct CanvasZoomRangeTests {
         #expect(source.contains("CanvasZoomRange.clamp("))
         #expect(!source.contains("minDistance: Float = 2.2"))
         #expect(!source.contains("maxDistance: Float = 16"))
-        // The span must actually be recorded, or the derived ceiling is stuck
-        // at its fallback and nothing changes for a large arrangement.
-        #expect(source.contains("arrangementSpan = span"))
+    }
+
+    /// The span must be refreshed as content changes, not assigned once in a
+    /// method nothing calls.
+    ///
+    /// This guard used to read `source.contains("arrangementSpan = span")`,
+    /// which passed — the assignment was there, inside `fit()`, and `fit()` had
+    /// no caller anywhere in the app. So the span stayed at one item's extent,
+    /// `maxDistance` collapsed to `defaultDistance`, and zoom-OUT was clamped
+    /// to exactly where the camera starts: a NARROWER ceiling than the 16 this
+    /// fix removed. A textual check that the mechanism exists says nothing
+    /// about whether it runs.
+    @Test("the zoom ceiling is re-derived as the arrangement changes")
+    func spanIsRefreshedOnReconcile() throws {
+        let source = try Self.rendererSource()
+
+        // Refreshed on every reconcile, not only when something asks to fit.
+        let reconcile = try #require(source.components(separatedBy: "func reconcile(").last)
+        #expect(reconcile.contains("refreshArrangementSpan()"))
+    }
+
+    /// `fit()` is the honest version of a maximum: frame everything, whatever
+    /// its extent. It is reachable only if a host asks for it.
+    @Test("fit has a caller — the host asks for it when a scope opens")
+    func fitIsReachable() throws {
+        #expect(try Self.rendererSource().contains("needsFitOnNextContent"))
+
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Library/ViewModes/Canvas/3D/CanvasSpaceView.swift")
+        let host = try String(contentsOf: url, encoding: .utf8)
+        #expect(host.contains("renderer.needsFitOnNextContent = true"))
+    }
+
+    private static func rendererSource() throws -> String {
+        let url = try AppSource.root()
+            .appendingPathComponent("Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift")
+        return try String(contentsOf: url, encoding: .utf8)
     }
 }
