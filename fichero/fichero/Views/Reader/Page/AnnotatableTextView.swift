@@ -33,7 +33,34 @@ struct AnnotatableTextView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
 
-    func makeNSView(context: Context) -> NSScrollView {
+    /// Build the reader's scroll view + text view, configured so the text
+    /// WRAPS to the pane and the pane has exactly one scroll axis (#4385).
+    ///
+    /// Factored out of `makeNSView` so the wrap contract can be measured
+    /// directly. `NSViewRepresentable.Context` cannot be constructed in a test,
+    /// so as long as this configuration lived inside `makeNSView` the only
+    /// thing a test could check was that the source file contained the right
+    /// words — which is not the same as the text actually wrapping. The reader
+    /// is where the historian works, and an OCR page that arrives as one
+    /// 4000-character line is the normal case on a handwriting corpus, not an
+    /// edge case, so the contract is worth measuring rather than asserting.
+    ///
+    /// The three properties that make it hold, and why each is load-bearing:
+    ///
+    /// - `hasHorizontalScroller = false` hides the scroller but does NOT stop
+    ///   the overflow, so it is the weakest of the three and cannot be the only
+    ///   one. The issue is explicit that a hidden scrollbar over a still-wide
+    ///   document is not a fix.
+    /// - `isHorizontallyResizable = false` is what makes the scroll view size
+    ///   the text view to the visible width instead of letting it grow to its
+    ///   content. It is also the default for a programmatically created
+    ///   `NSTextView`, which is exactly why it is set explicitly here: an
+    ///   invariant that survives only because nobody has typed the opposite is
+    ///   not an invariant.
+    /// - `widthTracksTextView = true` passes that width down to the text
+    ///   container, which is what the layout manager actually wraps against.
+    @MainActor
+    static func makeWrappingTextScrollView() -> (scrollView: NSScrollView, textView: NSTextView) {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -42,16 +69,22 @@ struct AnnotatableTextView: NSViewRepresentable {
         scrollView.borderType = .noBorder
 
         let textView = NSTextView()
-        textView.delegate = context.coordinator
         textView.isEditable = false
         textView.isSelectable = true
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.lineFragmentPadding = 0
 
-        context.coordinator.textView = textView
         scrollView.documentView = textView
+        return (scrollView, textView)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let (scrollView, textView) = Self.makeWrappingTextScrollView()
+        textView.delegate = context.coordinator
+        context.coordinator.textView = textView
         context.coordinator.apply(text: text, highlights: highlights, font: scaledFont)
         return scrollView
     }
