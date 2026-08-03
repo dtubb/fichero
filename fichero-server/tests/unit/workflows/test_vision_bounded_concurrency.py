@@ -103,7 +103,7 @@ async def test_files_overlap_and_peak_inflight_capped_by_semaphore(tmp_path):
     inflight = 0
     peak = 0
 
-    async def _vision(images, prompt, config):
+    async def _vision(images, prompt, config, *, language=None):
         nonlocal inflight, peak
         inflight += 1
         peak = max(peak, inflight)
@@ -141,7 +141,7 @@ async def test_results_ordered_by_input_index_despite_out_of_order_completion(
     n_files = 6
     files = [str(tmp_path / f"img{i}.png") for i in range(n_files)]
 
-    async def _vision(images, prompt, config):
+    async def _vision(images, prompt, config, *, language=None):
         idx = _index_from_images(images)
         # Earlier files sleep longer -> they finish LAST.
         await asyncio.sleep(0.01 * (n_files - idx))
@@ -162,7 +162,7 @@ async def test_one_file_failing_does_not_kill_the_others(tmp_path):
     failing = 2
     files = [str(tmp_path / f"img{i}.png") for i in range(n_files)]
 
-    async def _vision(images, prompt, config):
+    async def _vision(images, prompt, config, *, language=None):
         idx = _index_from_images(images)
         await asyncio.sleep(0.01)
         if idx == failing:

@@ -133,6 +133,27 @@ def _vision_breaker_threshold() -> int:
     return int(os.getenv("FICHERO_VISION_BREAKER_THRESHOLD", "5"))
 
 
+#: Python's own wording for "you called this function wrong". Narrow on
+#: purpose: a TypeError raised INSIDE a provider call (bad payload, wrong type
+#: in a response) is a data problem that should still degrade to an empty page,
+#: exactly as before. Only a mismatch in how WE invoked the callable is a bug
+#: worth failing the file for — there is no fallback that makes a wrong call
+#: right, and swallowing it produces a green run over zero transcriptions.
+_CALL_SIGNATURE_ERROR_MARKERS = (
+    "unexpected keyword argument",
+    "required positional argument",
+    "positional arguments but",
+    "missing 1 required",
+    "takes no arguments",
+)
+
+
+def _is_call_signature_error(message: str) -> bool:
+    """True when a TypeError says the CALL was malformed, not the data."""
+    lowered = (message or "").lower()
+    return any(marker in lowered for marker in _CALL_SIGNATURE_ERROR_MARKERS)
+
+
 def _is_non_retriable_provider_error(message: str) -> bool:
     """Provider errors that should fail immediately without retries."""
     msg = (message or "").lower()
@@ -2880,6 +2901,37 @@ async def process_vision(
             )
             texts.append("")
             values.append(None)
+        except TypeError as e:
+            # A signature mismatch is OUR bug, not a provider failure, and the
+            # broad handler below would turn it into an empty page and a
+            # warning — every file "processed", nothing transcribed, run green
+            # (#4504). #4497 added `language=` to `vision()`; five call doubles
+            # did not follow, and the swallow is why that shipped for hours as
+            # a passing suite. Provider errors still degrade gracefully; a call
+            # we got wrong fails loudly, because there is no fallback that
+            # makes a wrong call right.
+            if _is_call_signature_error(str(e)):
+                logger.error(
+                    "Vision call signature mismatch on %s — this is a bug in "
+                    "the caller, not the provider: %s",
+                    Path(file_path).name,
+                    e,
+                )
+                raise
+            err = str(e)
+            if _is_non_retriable_provider_error(err):
+                msg = f"Vision processing failed for {Path(file_path).name} with non-retriable provider/auth/quota error: {err}"
+                logger.error(msg)
+                _log_vision_warning(msg, file_path)
+            else:
+                msg = f"Vision processing failed for {Path(file_path).name}: {e}"
+                logger.error(msg)
+                _log_vision_warning(msg, file_path)
+            results.append(
+                {"file": file_path, "text": "", "value": None, "error": err}
+            )
+            texts.append("")
+            values.append(None)
         except Exception as e:
             err = str(e)
             if _is_non_retriable_provider_error(err):
@@ -2937,6 +2989,31 @@ async def process_vision(
         try:
             async with _vision_sem:
                 return await _process_file(file_index, file_path)
+        except TypeError as exc:
+            # The inner handler deliberately re-raises a malformed CALL (#4504).
+            # This outer net is here so one file's failure cannot abort its
+            # siblings — but catching the re-raise here would undo that and
+            # restore the silent no-op one level up, which is exactly how the
+            # #4497 breakage stayed green. A caller bug is not per-file, it is
+            # every file, so isolating it protects nothing and hides everything.
+            if _is_call_signature_error(str(exc)):
+                raise
+            err = str(exc)
+            logger.error(
+                "Vision per-file task crashed for %s: %s",
+                Path(file_path).name,
+                err,
+            )
+            return {
+                "results": [
+                    {"file": file_path, "text": "", "value": None, "error": err}
+                ],
+                "texts": [""],
+                "values": [None],
+                "artifact_ids": [],
+                "output_files": [],
+                "page_records": [],
+            }
         except Exception as exc:  # defensive: _process_file already isolates
             # per-file errors via its own try/except, but never let an
             # unexpected escape abort the sibling files.

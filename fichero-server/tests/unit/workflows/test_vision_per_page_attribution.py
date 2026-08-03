@@ -57,7 +57,7 @@ async def test_per_page_fanout_calls_llm_once_per_page_and_attributes_doc_ids(
 
     call_log: list[dict] = []
 
-    async def _vision(images, prompt, config):
+    async def _vision(images, prompt, config, *, language=None):
         call_log.append({"images": list(images)})
         return f"Transcribed page {len(call_log)}"
 
@@ -120,7 +120,7 @@ async def test_blank_page_in_per_page_fanout_cloud_provider_no_crash(tmp_path):
 
     call_count = 0
 
-    async def _blank_vision(images, prompt, config):
+    async def _blank_vision(images, prompt, config, *, language=None):
         nonlocal call_count
         call_count += 1
         return ""  # simulate blank page — LLM returns nothing

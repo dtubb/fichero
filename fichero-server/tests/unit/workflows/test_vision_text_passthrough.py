@@ -246,7 +246,7 @@ async def test_process_vision_uses_page_aligned_context(tmp_path: Path) -> None:
     for file in files:
         file.write_bytes(b"image")
 
-    async def review(images, prompt, config):
+    async def review(images, prompt, config, *, language=None):
         del images, config
         assert not ({"draft page 1", "draft page 2"} <= set(prompt.splitlines()))
         return "review 1" if "draft page 1" in prompt else "review 2"
