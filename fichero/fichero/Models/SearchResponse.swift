@@ -19,6 +19,12 @@ struct SearchResponse: Codable {
     // request into (always shown — AI = instrument), and any failure.
     let compiledQuery: Components.Schemas.CompiledQuery?
     let compilationError: String?
+    /// The engine's own count of every leg it returned (#4505). `nil` when the
+    /// field is absent — an older engine. DELIBERATELY not used for the header,
+    /// which stays derived from the arrays actually rendered (#4403); this
+    /// exists only so a disagreement can be noticed instead of silently
+    /// shrinking the results.
+    let renderedTotal: Int?
 
     enum CodingKeys: String, CodingKey {
         case results
@@ -35,6 +41,7 @@ struct SearchResponse: Codable {
         case suggestions
         case compiledQuery = "compiled_query"
         case compilationError = "compilation_error"
+        case renderedTotal = "rendered_total"
     }
 
     init(
@@ -51,7 +58,8 @@ struct SearchResponse: Codable {
         filtersApplied: [String: String]?,
         suggestions: [String]?,
         compiledQuery: Components.Schemas.CompiledQuery? = nil,
-        compilationError: String? = nil
+        compilationError: String? = nil,
+        renderedTotal: Int? = nil
     ) {
         self.results = results
         self.entityHits = entityHits
@@ -67,6 +75,7 @@ struct SearchResponse: Codable {
         self.suggestions = suggestions
         self.compiledQuery = compiledQuery
         self.compilationError = compilationError
+        self.renderedTotal = renderedTotal
     }
 
     init(from decoder: Decoder) throws {
@@ -96,5 +105,8 @@ struct SearchResponse: Codable {
             Components.Schemas.CompiledQuery.self, forKey: .compiledQuery
         )
         compilationError = try container.decodeIfPresent(String.self, forKey: .compilationError)
+        // decodeIfPresent, so an absent field stays nil rather than becoming a
+        // zero the agreement check would read as a claim (#4505/#4394).
+        renderedTotal = try container.decodeIfPresent(Int.self, forKey: .renderedTotal)
     }
 }

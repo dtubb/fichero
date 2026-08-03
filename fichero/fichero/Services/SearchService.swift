@@ -258,8 +258,14 @@ class SearchService {
             filtersApplied: filtersApplied,
             suggestions: generated.suggestions,
             compiledQuery: generated.compiledQuery,
-            compilationError: generated.compilationError
+            compilationError: generated.compilationError,
+            renderedTotal: generated.renderedTotal
         )
+        // #4505: the ONE place both numbers are known — the engine's claim and
+        // what decoded. Checked at the response boundary, not in a view: a leg
+        // lost in transit or dropped by a decode failure is gone before any
+        // view sees it, and the header deliberately never reads this (#4403).
+        .reportingSearchAgreement()
     }
 
     /// Convert generated SearchResult to manual SearchResult type
