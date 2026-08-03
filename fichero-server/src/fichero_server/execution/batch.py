@@ -191,6 +191,30 @@ class BatchEvent:
     timestamp: datetime = field(default_factory=utc_now)
 
 
+def _validate_batch_item_inputs(inputs: dict[str, Any], workflow_id: str) -> None:
+    """Refuse a stored batch item the execute boundary would reject (#4500).
+
+    Constructs the item as an `ExecuteWorkflowRequest` — the same model every
+    other run path is validated by — so this adds a second CALL SITE for one
+    validator, not a second validator. Two validators for one concept is the
+    defect class this codebase keeps hitting.
+
+    Raises rather than skipping: an item whose targeting resolves to nothing
+    must fail loudly and be visible as a failed item, not complete green having
+    processed nothing (#4467).
+    """
+    from fichero_server.api.routes.workflow_execution.schemas import (
+        ExecuteWorkflowRequest,
+    )
+
+    try:
+        ExecuteWorkflowRequest(workflow_id=workflow_id, inputs=dict(inputs or {}))
+    except Exception as exc:
+        raise ValueError(
+            f"batch item inputs would not pass workflow execution validation: {exc}"
+        ) from exc
+
+
 class BatchManager:
     """
     Manages batch workflow executions.
@@ -635,6 +659,20 @@ class BatchManager:
                 try:
                     # Execute with LangGraph
                     config = {"configurable": {"thread_id": item.thread_id}}
+                    # #4500: validation used to happen only at CREATE time, in
+                    # `CreateBatchRequest`. Execute is a DIFFERENT ENTRY POINT —
+                    # it reads STORED items — so a batch persisted before that
+                    # validation existed, or written by any other path, ran here
+                    # unchecked and could resolve zero documents while reporting
+                    # success. That is #4467's shape at batch scale, and worse,
+                    # because nobody watches a batch.
+                    #
+                    # Re-runs the SAME validator rather than a second copy of
+                    # its rules: the item's inputs are constructed as an
+                    # `ExecuteWorkflowRequest`, exactly as at create time, so
+                    # whatever that boundary refuses is refused here too and
+                    # anything added to it later is inherited.
+                    _validate_batch_item_inputs(item.inputs, batch.workflow_id)
                     initial_state = build_initial_state(
                         item.inputs,
                         library_path=str(Path(self.db_path).parent),
