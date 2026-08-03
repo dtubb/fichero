@@ -56,9 +56,35 @@ struct SidebarDropFeedbackTests {
 
     @Test("alias naming follows the Finder same-folder rule")
     func aliasNamingRule() {
-        #expect(sidebarAliasName(sourceName: "Paper", sourceParentId: "f1", targetParentId: "f1") == "Paper alias")
-        #expect(sidebarAliasName(sourceName: "Paper", sourceParentId: "f1", targetParentId: "f2") == "Paper")
-        #expect(sidebarAliasName(sourceName: "Loose", sourceParentId: nil, targetParentId: nil) == "Loose alias")
+        // #116: this took a bare `sourceName: String`, and both production
+        // callers handed it `source?.name` — a raw storage name written into
+        // the engine as a new row. The parameter is now the Document itself,
+        // so there is no String slot a caller can fill with an upload id.
+        let inF1 = Document(parentId: "f1", name: "Paper")
+        let loose = Document(parentId: nil, name: "Loose")
+
+        #expect(sidebarAliasName(source: inF1, targetParentId: "f1") == "Paper alias")
+        #expect(sidebarAliasName(source: inF1, targetParentId: "f2") == "Paper")
+        #expect(sidebarAliasName(source: loose, targetParentId: nil) == "Loose alias")
+    }
+
+    /// The reason the signature changed: a storage filename must never be the
+    /// name a NEW row is created with. Display leaks are fixed retroactively by
+    /// changing the composer; a persisted one needs a human to rename the row.
+    @Test("an alias is never created named after a storage filename")
+    func aliasNeverPersistsAStorageName() {
+        let upload = Document(parentId: "f1", name: "fichero_upload_9f2a3c.pdf")
+
+        let name = sidebarAliasName(source: upload, targetParentId: "f1")
+
+        #expect(!name.contains("fichero_upload"))
+        #expect(name == "\(DocumentTitle.placeholder) alias")
+    }
+
+    /// A missing source is not a crash and not an empty name.
+    @Test("a missing source still yields a usable name")
+    func aMissingSourceIsHandled() {
+        #expect(!sidebarAliasName(source: nil, targetParentId: "f1").isEmpty)
     }
 
     @Test("insertion drops route ⌥/⌘⌥ through the positioned executor")
