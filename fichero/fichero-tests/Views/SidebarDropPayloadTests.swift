@@ -176,7 +176,7 @@ struct SidebarDropPayloadTests {
         // the classifier for a route.
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift")
         let body = source.components(separatedBy: "func handleRowDrop(").dropFirst().first ?? ""
-        #expect(body.contains("readSidebarDropPayload(providers)"))
+        #expect(body.contains("readSidebarDropPayload(providers"))
 
         let reader = try Self.appSource("Views/Sidebar/ItemRow/SidebarDropProviderReader.swift")
         let readerBody = reader.components(separatedBy: "func readSidebarDropPayload(")

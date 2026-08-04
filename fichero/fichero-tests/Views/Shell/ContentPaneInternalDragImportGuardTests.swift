@@ -165,7 +165,7 @@ final class ContentPaneInternalDragImportGuardTests: XCTestCase {
         let body = try Self.importSource()
             .components(separatedBy: "func handleContentPaneExternalDrop(")[1]
             .components(separatedBy: "\n    func handleFileDrop")[0]
-        let readIndex = try XCTUnwrap(body.range(of: "readSidebarDropPayload(providers)"))
+        let readIndex = try XCTUnwrap(body.range(of: "readSidebarDropPayload(providers"))
         let loadIndex = try XCTUnwrap(body.range(of: "ExternalFileDropLoader.loadAnyFileURL"))
         XCTAssertTrue(
             readIndex.lowerBound < loadIndex.lowerBound,

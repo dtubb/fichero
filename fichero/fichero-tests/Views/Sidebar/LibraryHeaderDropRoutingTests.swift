@@ -225,7 +225,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
         // path and the folder cell use, and THAT is the one place allowed to
         // classify. The pin follows: header → shared reader → classifier.
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarSectionHeader.swift")
-        XCTAssertTrue(source.contains("readSidebarDropPayload(providers)"))
+        XCTAssertTrue(source.contains("readSidebarDropPayload(providers"))
         XCTAssertTrue(source.contains("sidebarDropMightCarryInternalID("))
         XCTAssertFalse(
             source.contains("classifySidebarDropPayload("),
