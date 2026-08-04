@@ -320,16 +320,34 @@ class WorkflowExecutionService {
 
     // MARK: - Pause / Cancel
 
-    func pauseWorkflow(threadId: String) async throws {
-        // pause/cancel are app-wide (operate on a thread by id, no library
-        // header in their OpenAPI signature) — unlike the other thread ops.
+    /// Signal a pause. Returns WHAT THE ENGINE SAID (#4402).
+    ///
+    /// This used to return `Void`: the 200 body was decoded by the generated
+    /// client and then dropped on the floor. That mattered because these two
+    /// endpoints are *politely* 200 — a thread the engine has never heard of
+    /// (a row left behind by a killed engine) answers `status="not_running"`
+    /// with a 200, not a 404. Discarding the body made "I have no such run"
+    /// indistinguishable from "pausing now", so the caller went on to poll the
+    /// stale row's status, got `running` back from the database forever, and
+    /// the spinner never stopped. The button looked dead because the ONLY
+    /// signal that would have explained it was thrown away.
+    ///
+    /// pause/cancel are app-wide (they operate on a thread by id, with no
+    /// library header in their OpenAPI signature) — unlike the other thread ops.
+    @discardableResult
+    func pauseWorkflow(threadId: String) async throws -> RunControlOutcome {
         let response = try await client.api.pauseWorkflowApiWorkflowExecutionThreadsThreadIdPausePost(
             path: .init(threadId: threadId)
         )
 
         switch response {
-        case .ok:
-            logger.info("Pause requested for workflow thread: \(threadId)")
+        case .ok(let okResponse):
+            let raw = try okResponse.body.json.status
+            let outcome = try Self.controlOutcome(fromRawStatus: raw)
+            logger.info(
+                "Pause for thread \(threadId): engine said '\(raw)' → \(String(describing: outcome))"
+            )
+            return outcome
         case .undocumented(let statusCode, let payload):
             let detail = await EngineErrorDetail.message(from: payload)
             throw WorkflowExecutionError.serverError(statusCode, detail ?? "Pause workflow failed")
@@ -338,14 +356,22 @@ class WorkflowExecutionService {
         }
     }
 
-    func cancelWorkflow(threadId: String) async throws {
+    /// Signal a cancel. Returns WHAT THE ENGINE SAID — see `pauseWorkflow` for
+    /// why the discarded body was the whole of #4402.
+    @discardableResult
+    func cancelWorkflow(threadId: String) async throws -> RunControlOutcome {
         let response = try await client.api.cancelWorkflowApiWorkflowExecutionThreadsThreadIdCancelPost(
             path: .init(threadId: threadId)
         )
 
         switch response {
-        case .ok:
-            logger.info("Cancel requested for workflow thread: \(threadId)")
+        case .ok(let okResponse):
+            let raw = try okResponse.body.json.status
+            let outcome = try Self.controlOutcome(fromRawStatus: raw)
+            logger.info(
+                "Cancel for thread \(threadId): engine said '\(raw)' → \(String(describing: outcome))"
+            )
+            return outcome
         case .undocumented(let statusCode, let payload):
             let detail = await EngineErrorDetail.message(from: payload)
             throw WorkflowExecutionError.serverError(statusCode, detail ?? "Cancel workflow failed")
@@ -354,8 +380,52 @@ class WorkflowExecutionService {
         }
     }
 
-    func stopWorkflow(threadId: String) async throws {
+    @discardableResult
+    func stopWorkflow(threadId: String) async throws -> RunControlOutcome {
         try await cancelWorkflow(threadId: threadId)
+    }
+
+    /// Parse the pause/cancel `status` string into a typed outcome.
+    ///
+    /// Deliberately tolerant of BOTH response vocabularies, because the engine
+    /// is changing underneath this in parallel:
+    ///
+    /// * The shape shipping today answers only with the request verbs
+    ///   (`pause_requested` / `cancel_requested`), `already_terminal`, or
+    ///   `not_running`.
+    /// * The shape landing alongside this settles stale rows in the database
+    ///   itself and answers with the run's new lifecycle status (`cancelled`,
+    ///   `paused`, `failed`, …).
+    ///
+    /// Both must work from the same build, so both are mapped here rather than
+    /// gated on a version.
+    ///
+    /// An UNRECOGNISED status throws. It would be easy to fall through to
+    /// `.requested` and let the poll sort it out — that is exactly the silent
+    /// substitution that produced #4402, and a new engine verb must announce
+    /// itself as a visible error rather than as a control that quietly does
+    /// nothing. `nonisolated` so tests can exercise it off the main actor.
+    nonisolated static func controlOutcome(fromRawStatus raw: String) throws -> RunControlOutcome {
+        switch raw.lowercased() {
+        case "pause_requested", "cancel_requested", "stop_requested":
+            return .requested
+        case "not_running":
+            return .notRunning
+        case "already_terminal":
+            return .alreadyTerminal
+        case "running", "accepted":
+            return .settled(.running)
+        case "paused":
+            return .settled(.paused)
+        case "completed", "complete", "success", "succeeded":
+            return .settled(.completed)
+        case "failed", "error":
+            return .settled(.failed)
+        case "cancelled", "canceled", "stopped", "deleted":
+            return .settled(.cancelled)
+        default:
+            throw WorkflowExecutionError.unrecognizedControlStatus(raw)
+        }
     }
 }
 
@@ -421,9 +491,12 @@ enum ExecutionStatus: String, Codable {
 
 // MARK: - Errors
 
-enum WorkflowExecutionError: LocalizedError {
+enum WorkflowExecutionError: LocalizedError, Equatable {
     case invalidResponse
     case serverError(Int, String)
+    /// The engine answered a pause/cancel with a `status` this build does not
+    /// know (#4402). Loud on purpose — see `controlOutcome(fromRawStatus:)`.
+    case unrecognizedControlStatus(String)
 
     var errorDescription: String? {
         switch self {
@@ -431,6 +504,39 @@ enum WorkflowExecutionError: LocalizedError {
             return "Invalid response from server"
         case let .serverError(code, message):
             return "Server error (\(code)): \(message)"
+        case let .unrecognizedControlStatus(raw):
+            return "The engine answered with an unrecognized run status: '\(raw)'"
         }
     }
+}
+
+// MARK: - Run-control outcome (#4402)
+
+/// What a pause/cancel POST actually reported.
+///
+/// The engine answers these politely — a run it has never heard of comes back
+/// **200** with `status="not_running"`, not 404. Until #4402 the Swift side
+/// decoded that body and discarded it, which is why Stop and Pause looked dead:
+/// the one signal that said "there is nothing here to stop" was the one signal
+/// nobody read.
+enum RunControlOutcome: Equatable, Sendable {
+    /// The engine accepted the request and will act on it asynchronously
+    /// (`pause_requested` / `cancel_requested`). The run's own stream or a
+    /// status refresh carries the transition.
+    case requested
+
+    /// The engine settled the run there and then and reported its new
+    /// lifecycle status. No poll needed — this IS the authoritative answer.
+    case settled(WorkflowStatus)
+
+    /// The run had already finished before the request arrived. The row is
+    /// real, so its true terminal state is worth fetching.
+    case alreadyTerminal
+
+    /// **The engine has no such run.** Typically a row left behind by a killed
+    /// engine: the database still says `running`, the process that would have
+    /// answered for it is gone, and no event will ever settle it. Polling its
+    /// status returns `running` forever, which is precisely how a row spins
+    /// after its workflow has stopped (#4346). The client must settle it.
+    case notRunning
 }

@@ -8,7 +8,13 @@ struct WorkflowExecutionState {
     var error: String?
 }
 
-enum WorkflowStatus {
+/// Conformances are DECLARED, not left implicit. A no-payload enum does get
+/// them for free, but `RunControlOutcome` and `RunControlDisposition` carry a
+/// `WorkflowStatus` and synthesise their own `Equatable`/`Sendable` from it —
+/// so the day someone gives one of these cases an associated value, the failure
+/// should be here, on the case that broke it, rather than in two unrelated
+/// types that mysteriously stop conforming (#4402).
+enum WorkflowStatus: Equatable, Hashable, Sendable {
     case idle
     case running
     case paused
