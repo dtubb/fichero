@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2B74FF6939F4567FD9A0EAAF /* PaneContentPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143703232D96234354950564 /* PaneContentPlan.swift */; };
-		2DDECD4DFA50283E5A60F1D1 /* PaneContentPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143703232D96234354950564 /* PaneContentPlan.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
@@ -66,7 +64,6 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		143703232D96234354950564 /* PaneContentPlan.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PaneContentPlan.swift; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -178,7 +175,6 @@
 		22EFCE1C87FC1487EC1CBF7F /* Shell */ = {
 			isa = PBXGroup;
 			children = (
-				143703232D96234354950564 /* PaneContentPlan.swift */,
 			);
 			name = Shell;
 			path = Shell;
@@ -1024,7 +1020,6 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				2DDECD4DFA50283E5A60F1D1 /* PaneContentPlan.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1045,7 +1040,6 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				2B74FF6939F4567FD9A0EAAF /* PaneContentPlan.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
