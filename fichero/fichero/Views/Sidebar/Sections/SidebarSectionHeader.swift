@@ -80,9 +80,19 @@ struct LibrarySectionHeader: View {
             // Merging them removes the question of which modifier wins, which
             // is not something source review can answer and not something to
             // leave load-bearing.
-            .onDrop(of: SidebarItemRow.dropTypes, isTargeted: $isDropTargeted) { providers in
-                handleLibraryHeaderDrop(providers)
-            }
+            //
+            // The DELEGATE form for the same reason the rows use it (#4401
+            // reopened): the closure form cannot propose an operation, so
+            // SwiftUI proposed `.copy` and the cursor showed a `+` over a drop
+            // this handler performs as a move to the library root.
+            .onDrop(
+                of: SidebarItemRow.dropTypes,
+                delegate: LibraryItemDropDelegate(
+                    acceptedTypes: SidebarItemRow.dropTypes,
+                    isTargeted: $isDropTargeted,
+                    onDropProviders: { handleLibraryHeaderDrop($0) }
+                )
+            )
             // Sidebar plan Step 10 (#584): VoiceOver label reads e.g.
             // "Global, library, 42 documents". Hint guides users toward the
             // Finder-drop behaviour that isn't obvious without visual cues.
