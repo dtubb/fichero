@@ -25,6 +25,11 @@ SWIFT_DIR = ROOT / "fichero" / "fichero"
 RULE_DOC = "agents/ROADMAP.md"
 
 KNOWN_VIOLATIONS: dict[str, str] = {
+    # #4524's decision-point citations: Apple-doc quotes ("Window scene's
+    # title is listed…automatically") full of backticked symbols read as code
+    # to the regex; they are the documented-vs-empirical record Daniel asked
+    # for, not commented-out code.
+    "fichero/fichero/FicheroApp.swift#933da2d3d8": "#4524 doc citations",
     # Prose explaining the debounce starvation fix; the words "class"/"for"/
     # "import" in ordinary sentences trip the code-like regex.
     "fichero/fichero/Models/ObservableDomainStore.swift#099e95cd6d": "#4223 false positive (prose)",

@@ -238,7 +238,7 @@ class TestTheScopeInvariants:
 
     def test_upper_bound_passes_descendants_of_a_selected_container(self):
         child = _file("child", parent_id="folder-x")
-        _assert_selection_upper_bound([("folder-x", child)], ["folder-x"])
+        assert _assert_selection_upper_bound([("folder-x", child)], ["folder-x"]) is None
 
     def test_empty_resolution_raises_before_the_upper_bound(self):
         db = _db_with([])

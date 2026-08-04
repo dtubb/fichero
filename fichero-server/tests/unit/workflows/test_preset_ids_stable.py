@@ -49,7 +49,7 @@ class TestDeterministicPresetIds:
         assert preset_workflow_id("Transcribe") != preset_workflow_id("Catalogue")
 
     def test_the_id_is_a_valid_uuid(self):
-        uuid.UUID(preset_workflow_id("Transcribe"))  # raises if not
+        assert uuid.UUID(preset_workflow_id("Transcribe")).version == 5
 
     def test_fresh_seed_uses_the_deterministic_id_for_every_preset(self):
         db = _empty_db()
