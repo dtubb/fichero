@@ -155,18 +155,23 @@ final class ClaimStore: ObservableDomainStore {
         await reload()
     }
 
-    /// Transition a single claim's lifecycle state (review-queue actions), then
-    /// refresh.
-    func transition(claimId: String, to state: String) async throws {
-        _ = try await entityService.transitionClaim(claimId, state: state)
-        await reload()
-    }
-
-    /// Batch-transition multiple claims' lifecycle state, then refresh.
-    func batchTransition(claimIds: [String], to state: String) async throws {
-        _ = try await entityService.batchTransitionClaims(claimIds: claimIds, state: state)
-        await reload()
-    }
+    // `transition` / `batchTransition` / `unmerge` were removed here: three write
+    // actions with zero callers, ever. On a store whose whole purpose is being
+    // THE write path, an uncalled action is worse than ordinary dead code — it
+    // advertises a route nobody has taken, so the next person adding a
+    // review-queue action wires one up believing it was proven. The lifecycle
+    // transitions the review queue actually performs go through `patch`.
+    //
+    // `entityService.transitionClaim` / `batchTransitionClaims` /
+    // `kgCurationService.unmergeClaims` still exist and are still banned in views
+    // by ClaimStoreRoutingTests. If a surface ever needs one, add the store action
+    // back with its caller in the same commit, so it is never again a route that
+    // exists only in theory.
+    //
+    // `unmerge` in particular was here for TODO(#1689), the claim-unmerge UI that
+    // has not been built. Whoever builds it adds the action back alongside the
+    // view that calls it — that is four lines, and it is the commit where the
+    // behaviour can actually be tested.
 
     /// Edit a claim in place (`InlineClaimEditor`, #1135). Returns the updated
     /// claim so callers can update not-yet-migrated surfaces.
@@ -221,8 +226,12 @@ final class ClaimStore: ObservableDomainStore {
         return updated
     }
 
-    /// Merge `absorbedIds` into `survivorId`, then refresh. Returns the audit
-    /// response so callers can offer unmerge.
+    /// Merge `absorbedIds` into `survivorId`, then refresh.
+    ///
+    /// Returns the audit response, which carries the audit id an unmerge needs.
+    /// The one caller discards it today — the unmerge UI is TODO(#1689) — so this
+    /// is a return value kept for a caller that does not exist yet, deliberately:
+    /// the id is not recoverable from anywhere else once the response is dropped.
     @discardableResult
     func merge(
         absorbedIds: [String],
@@ -232,14 +241,6 @@ final class ClaimStore: ObservableDomainStore {
             survivorId: survivorId,
             absorbedIds: absorbedIds
         )
-        await reload()
-        return response
-    }
-
-    /// Reverse a prior claim merge by its audit id, then refresh.
-    @discardableResult
-    func unmerge(auditId: String) async throws -> Components.Schemas.ClaimAuditResponse {
-        let response = try await kgCurationService.unmergeClaims(auditId: auditId)
         await reload()
         return response
     }
