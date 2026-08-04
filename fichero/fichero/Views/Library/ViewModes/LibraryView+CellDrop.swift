@@ -35,18 +35,26 @@ private let cellDropLogger = Logger(
 /// untouched. Per-cell `isTargeted` state = only the hovered folder highlights.
 struct LibraryFolderCellDrop: ViewModifier {
     let isFolder: Bool
-    let onDropProviders: ([NSItemProvider]) -> Bool
+    let onDropProviders: @MainActor ([NSItemProvider]) -> Bool
 
     @State private var isTargeted = false
 
     func body(content: Content) -> some View {
         if isFolder {
             content
-                // `isTargeted:` is load-bearing — without it Swift resolves to
-                // `.onDrop(of:delegate:)` and rejects the closure.
-                .onDrop(of: SidebarItemRow.dropTypes, isTargeted: $isTargeted) { providers in
-                    onDropProviders(providers)
-                }
+                // A delegate, deliberately: it is the only drop form that can
+                // say what the drop will DO, and the closure form always said
+                // copy over a cell that moves (#4401 reopened — dragging TIFs
+                // from Inbox onto a folder showed a plus badge). See
+                // LibraryItemDropDelegate for the whole account.
+                .onDrop(
+                    of: SidebarItemRow.dropTypes,
+                    delegate: LibraryItemDropDelegate(
+                        acceptedTypes: SidebarItemRow.dropTypes,
+                        isTargeted: $isTargeted,
+                        onDropProviders: onDropProviders
+                    )
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.accentColor, lineWidth: 2)

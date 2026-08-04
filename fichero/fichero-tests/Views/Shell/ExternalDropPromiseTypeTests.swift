@@ -13,17 +13,21 @@ import XCTest
 /// `loadFileRepresentation(forTypeIdentifier:)` against the provider's own
 /// advertised UTI, which reads them.
 ///
-/// The root content-pane drop target keeps `.dropDestination(for: URL.self)`
-/// (NOT the robust loader) — DELIBERATELY. `.onDrop(of:)` was tried, but a
-/// review found `DropTargetModifiers` attaches where
-/// `decoratedNavigationSplitColumn` mounts it, wrapping the WHOLE
-/// `NavigationSplitView` (sidebar column included, not just the content
-/// pane) — `.onDrop` at that scope risks stealing hit-testing from every
-/// nested sidebar row. Nobody could click-test a live build to rule that
-/// out, so the swap was reverted. The sidebar row's OWN `.onDrop` (a single
-/// leaf view, not a container wrapping other clickable rows) is a
-/// different, already-safe case and is UNCHANGED — that's what these
-/// tests lock.
+/// `DropTargetModifiers` now carries NO drop target at all (#4458). It attaches
+/// where `decoratedNavigationSplitColumn` mounts it, wrapping the WHOLE
+/// `NavigationSplitView` — sidebar column included — and every target ever put
+/// there shadowed the scoped ones beneath it. The content-pane drop lives on
+/// `detailColumn`, which `ContentPaneDropTargetTests` locks.
+///
+/// This test used to assert the opposite of `DroppedURLClassificationTests`'
+/// guard on the same file: one demanded `.dropDestination(for: URL.self)` be
+/// PRESENT, the other demanded it be ABSENT. Both were in the suite at once,
+/// so at least one had been failing since `6a11a9fc2` — which is its own
+/// finding about reading a suite's result rather than its intent.
+///
+/// The sidebar row's OWN `.onDrop` (a single leaf view, not a container
+/// wrapping other clickable rows) is a different, already-safe case and is
+/// UNCHANGED in scope — that's what these tests lock.
 final class ExternalDropPromiseTypeTests: XCTestCase {
     private static func appSource(_ relativePath: String) throws -> String {
         let url = try AppSource.root()
@@ -41,16 +45,29 @@ final class ExternalDropPromiseTypeTests: XCTestCase {
         XCTAssertTrue(source.contains("for identifier in utis"))
     }
 
-    func testContentPaneDropStaysOnTransferableForHitTestingSafety() throws {
+    /// The window-wide modifier must carry NO drop target, in EITHER spelling.
+    ///
+    /// Naming just one is how this regressed: the reverted `.onDrop` was named
+    /// in a 40-line comment while nothing enforced its absence, and
+    /// `6a11a9fc2` put it straight back.
+    func testTheWindowWideModifierCarriesNoDropTargetAtAll() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentViewModifiers.swift")
-        // .onDrop at this container scope was tried and reverted — see the
-        // comment on DropTargetModifiers for why. Locks the revert so a
-        // future edit doesn't silently reintroduce the risk without the
-        // live click-test that would justify it.
-        XCTAssertTrue(source.contains(".dropDestination(for: URL.self)"))
-        XCTAssertFalse(source.contains(".onDrop(of: [.item]"))
+        let code = source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("///") }
+            .joined(separator: "\n")
+        XCTAssertFalse(
+            code.contains(".onDrop("),
+            "an .onDrop here sits above every sidebar row and folder cell (#4458)"
+        )
+        XCTAssertFalse(
+            code.contains(".dropDestination("),
+            "a Transferable target here is the #4401 hollow-copy path (#4458)"
+        )
         // The reasoning must stay attached to the code, not just this test.
-        XCTAssertTrue(source.contains("hit-testing from every"))
+        XCTAssertTrue(source.contains("hit-testing"))
+        XCTAssertTrue(source.contains("Do not re-add a drop target"))
     }
 
     func testSidebarRowDropDelegatesToTheSameSharedLoader() throws {

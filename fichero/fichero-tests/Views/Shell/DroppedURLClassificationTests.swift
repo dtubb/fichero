@@ -124,6 +124,17 @@ final class DroppedURLClassificationTests: XCTestCase {
             "the window-level drop must take providers, so it can be offered the "
                 + "same droppables every other surface accepts (#2386 / #4458)"
         )
-        XCTAssertTrue(source.contains("handleProviderDrop"))
+        // …and the provider path it was replaced by is NOT here either. #2386
+        // put it on the WHOLE `NavigationSplitView`, which is the scope #4458
+        // exists to undo; the provider handler lives on `detailColumn`, where
+        // `ContentPaneDropTargetTests` pins it. Asserting the handler's
+        // presence in this file is what let the wrong scope read as fixed.
+        let layout = try AppSource.text(
+            "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift"
+        )
+        XCTAssertTrue(
+            layout.contains("handleContentPaneExternalDrop(providers)"),
+            "the provider path must still be reached — from the detail column"
+        )
     }
 }

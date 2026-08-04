@@ -180,12 +180,7 @@ extension SidebarItemRow {
                         isDropTargeted, stronger: isFolder, operation: targetedDropOperation
                     )
             }
-            .onDrop(
-                of: Self.dropTypes,
-                isTargeted: $isDropTargeted
-            ) { providers in
-                handleRowDrop(providers)
-            }
+            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             .contextMenu { rowContextMenu }
         } else if isFolder {
             folderLabel
@@ -218,12 +213,7 @@ extension SidebarItemRow {
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true, operation: targetedDropOperation)
-            .onDrop(
-                of: Self.dropTypes,
-                isTargeted: $isDropTargeted
-            ) { providers in
-                handleRowDrop(providers)
-            }
+            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             .contextMenu { rowContextMenu }
     }
 
@@ -233,12 +223,20 @@ extension SidebarItemRow {
     private var leafLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: false, operation: targetedDropOperation)
-            .onDrop(
-                of: Self.dropTypes,
-                isTargeted: $isDropTargeted
-            ) { providers in
-                handleRowDrop(providers)
-            }
+            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             .contextMenu { rowContextMenu }
+    }
+
+    /// One delegate for all three row shapes (#4401). `.onDrop(of:isTargeted:)`
+    /// cannot propose an operation, so every sidebar row painted a `+` copy
+    /// badge over what the handler then performed as a MOVE. The delegate form
+    /// is the only one that can answer `dropUpdated`; the accepted types, the
+    /// providers, the handler and the `isTargeted` binding are unchanged.
+    private var rowDropDelegate: LibraryItemDropDelegate {
+        LibraryItemDropDelegate(
+            acceptedTypes: Self.dropTypes,
+            isTargeted: $isDropTargeted,
+            onDropProviders: { handleRowDrop($0) }
+        )
     }
 }

@@ -43,8 +43,10 @@ final class LibraryGridDropTests: XCTestCase {
         // Per-cell @State — the whole-pane isTargeted was the all-cells
         // highlight bug. Unchanged by #4474.
         XCTAssertTrue(source.contains("@State private var isTargeted"))
-        // Untyped now, so BOTH in-app drag shapes reach it.
-        XCTAssertTrue(source.contains(".onDrop(of: SidebarItemRow.dropTypes"))
+        // Untyped now, so BOTH in-app drag shapes reach it. The types moved to
+        // the next line when the cell took a `DropDelegate` (#4401 reopened:
+        // the closure form cannot propose `.move`, so the cursor showed `+`).
+        XCTAssertTrue(source.contains("of: SidebarItemRow.dropTypes"))
         // Moves route through the ONE shared executor, and failures are now
         // REPORTED, not merely logged.
         XCTAssertTrue(source.contains("applyLibraryItemDropOperation("))
