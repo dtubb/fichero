@@ -119,8 +119,19 @@ struct SidebarDragID: Transferable {
     }
 
     static var transferRepresentation: some TransferRepresentation {
-        // In-process id flavor — the sidebar move pipeline's payload
-        // (#623/#711). FIRST, and it must stay first (#4401).
+        // THE in-app payload (#4401 multi-drag): the id as a DataRepresentation
+        // of the named custom type. A DataRepresentation because a multi-item
+        // drag session drops ProxyRepresentations with .ownProcess visibility
+        // (observed live: three dragged rows arrived as [public.data] only,
+        // String:false) while data-style flavors survive. Default visibility —
+        // external apps ignore an undeclared identifier; the file/RTF exports
+        // below remain what they see. Read by name in readSidebarDropPayload.
+        DataRepresentation(exportedContentType: .ficheroDragItem) { item in
+            Data(item.id.utf8)
+        }
+        // In-process id STRING flavor — the sidebar move pipeline's payload
+        // (#623/#711), still what single-item drags and chat read. FIRST among
+        // the string flavors, and it must stay ahead of the transcript (#4401).
         //
         // It used to be last, so that "external consumers prefer the real
         // representations above instead of a doc:<uuid> clipping". That

@@ -62,7 +62,7 @@ final class LibraryDropPairingTests: XCTestCase {
     func testSidebarRowPayloadResolvesToAnInternalMove() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:\(docUUID)"],
-            hasFileURL: true,          // #4123: internal document drags DO vend a file
+            hasExternalPayload: true,          // #4123: internal document drags DO vend a file
             carriesOwnProcessFlavor: true
         )
         XCTAssertEqual(payload, .internalItems(["doc:\(docUUID)"]))
@@ -75,7 +75,7 @@ final class LibraryDropPairingTests: XCTestCase {
         for kind in [LibraryItemDrag.Kind.document, .page, .group] {
             let payload = classifySidebarDropPayload(
                 loadedIDs: [try libraryDragJSON(kind: kind, id: docUUID)],
-                hasFileURL: true,
+                hasExternalPayload: true,
                 carriesOwnProcessFlavor: true
             )
             XCTAssertEqual(
@@ -91,7 +91,7 @@ final class LibraryDropPairingTests: XCTestCase {
         let other = "99999999-8888-7777-6666-555555555555"
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:\(docUUID)", try libraryDragJSON(kind: .document, id: other)],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
         XCTAssertEqual(payload, .internalItems(["doc:\(docUUID)", "doc:\(other)"]))
@@ -104,7 +104,7 @@ final class LibraryDropPairingTests: XCTestCase {
         for kind in [LibraryItemDrag.Kind.artifact, .note, .annotation] {
             let payload = classifySidebarDropPayload(
                 loadedIDs: [try libraryDragJSON(kind: kind, id: docUUID)],
-                hasFileURL: false,
+                hasExternalPayload: false,
                 carriesOwnProcessFlavor: true
             )
             XCTAssertNotEqual(
@@ -118,7 +118,7 @@ final class LibraryDropPairingTests: XCTestCase {
     /// external drop look internal.
     func testExternalFileDragStillClassifiesAsExternal() {
         let payload = classifySidebarDropPayload(
-            loadedIDs: [], hasFileURL: true, carriesOwnProcessFlavor: false
+            loadedIDs: [], hasExternalPayload: true, carriesOwnProcessFlavor: false
         )
         XCTAssertEqual(payload, .externalFiles)
     }
@@ -128,7 +128,7 @@ final class LibraryDropPairingTests: XCTestCase {
     func testUnreadableInternalDragIsRefusedNotImported() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["just a transcript, no id"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
         XCTAssertEqual(payload, .unreadableInternal)

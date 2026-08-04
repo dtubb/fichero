@@ -49,7 +49,7 @@ struct SidebarDropPayloadTests {
     func internalDragThatAlsoVendsAFileIsAMove() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:marshall-1"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
         #expect(payload == .internalItems(["doc:marshall-1"]))
@@ -61,10 +61,10 @@ struct SidebarDropPayloadTests {
     /// silently re-routing moves.
     @Test("an internal id wins over every external signal")
     func internalIDWinsOverExternalSignals() {
-        for hasFileURL in [true, false] {
+        for hasExternalPayload in [true, false] {
             let payload = classifySidebarDropPayload(
                 loadedIDs: ["doc:a", "doc:b"],
-                hasFileURL: hasFileURL,
+                hasExternalPayload: hasExternalPayload,
                 carriesOwnProcessFlavor: true
             )
             #expect(payload == .internalItems(["doc:a", "doc:b"]))
@@ -76,7 +76,7 @@ struct SidebarDropPayloadTests {
     func everyInternalIDIsCarried() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:a", "not-ours", "doc:b"],
-            hasFileURL: false,
+            hasExternalPayload: false,
             carriesOwnProcessFlavor: true
         )
         #expect(payload == .internalItems(["doc:a", "doc:b"]))
@@ -88,7 +88,7 @@ struct SidebarDropPayloadTests {
     func finderFileDragImports() {
         let payload = classifySidebarDropPayload(
             loadedIDs: [],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: false
         )
         #expect(payload == .externalFiles)
@@ -98,7 +98,7 @@ struct SidebarDropPayloadTests {
     func finderDragWithTextImports() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["Scan.pdf"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: false
         )
         #expect(payload == .externalFiles)
@@ -113,7 +113,7 @@ struct SidebarDropPayloadTests {
     func unreadableInternalDragRefuses() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["some transcript that is not an id"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
         #expect(payload == .unreadableInternal)
@@ -123,7 +123,7 @@ struct SidebarDropPayloadTests {
     @Test("an unreadable internal drag with no id at all also refuses")
     func unreadableInternalWithNoStringsRefuses() {
         #expect(
-            classifySidebarDropPayload(loadedIDs: [], hasFileURL: true, carriesOwnProcessFlavor: true)
+            classifySidebarDropPayload(loadedIDs: [], hasExternalPayload: true, carriesOwnProcessFlavor: true)
                 == .unreadableInternal
         )
     }
@@ -137,13 +137,13 @@ struct SidebarDropPayloadTests {
             [], ["doc:a"], ["doc:a", "doc:b"], ["not-an-id"], ["", "doc:"], ["transcript text"]
         ]
         for ids in idSets {
-            for hasFileURL in [true, false] {
+            for hasExternalPayload in [true, false] {
                 let payload = classifySidebarDropPayload(
                     loadedIDs: ids,
-                    hasFileURL: hasFileURL,
+                    hasExternalPayload: hasExternalPayload,
                     carriesOwnProcessFlavor: true
                 )
-                #expect(payload != .externalFiles, "ids: \(ids), hasFileURL: \(hasFileURL)")
+                #expect(payload != .externalFiles, "ids: \(ids), hasExternalPayload: \(hasExternalPayload)")
             }
         }
     }
@@ -151,7 +151,7 @@ struct SidebarDropPayloadTests {
     @Test("an empty drop is unsupported, not an import")
     func emptyDropIsUnsupported() {
         #expect(
-            classifySidebarDropPayload(loadedIDs: [], hasFileURL: false, carriesOwnProcessFlavor: false)
+            classifySidebarDropPayload(loadedIDs: [], hasExternalPayload: false, carriesOwnProcessFlavor: false)
                 == .unsupported
         )
     }

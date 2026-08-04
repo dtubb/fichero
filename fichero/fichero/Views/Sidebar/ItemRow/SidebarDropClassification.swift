@@ -9,6 +9,37 @@ import UniformTypeIdentifiers
 /// and it living inside one of those files is how the header ended up with a
 /// second, divergent copy of it.
 
+extension UTType {
+    /// The ONE in-app drag flavor (#4401 multi-drag, live-repro 2026-08-04).
+    ///
+    /// Why it exists: the in-process id used to ride a
+    /// `ProxyRepresentation(exporting: \.id).visibility(.ownProcess)` — and a
+    /// MULTI-item drag session does not deliver that flavor. Daniel's console,
+    /// dragging three sidebar rows onto a folder:
+    ///
+    ///     [0] UTIs: [public.data]  URL:false  String:false
+    ///
+    /// Only the `FileRepresentation(.data)` export survived the multi-item
+    /// bridging; the ownProcess proxy string vanished, so the reader had
+    /// nothing to read and the move was refused. Data-style representations
+    /// DO survive (public.data arrived), so the id now ships as a
+    /// `DataRepresentation` of this custom type at DEFAULT visibility — no
+    /// proxy, no visibility dependence. External apps ignore an identifier
+    /// they have no declaration for (the #623 Finder-artifact concern stays
+    /// solved by the real file/RTF exports beside it).
+    ///
+    /// `conformingTo: .data` keeps every existing `[.item]`/`[.data]` drop
+    /// list accepting these sessions. The identifier is named by BOTH the
+    /// export side (SidebarDragID, LibraryItemDrag) and the read side
+    /// (`readSidebarDropPayload`) — one representation, agreed on by name.
+    /// In-process only, so no Info.plist exported-type declaration is needed
+    /// for the round trip; add one if this flavor ever becomes cross-app.
+    static let ficheroDragItem = UTType(
+        exportedAs: "app.fichero.fichero.drag-item",
+        conformingTo: .data
+    )
+}
+
 enum SidebarDropProviderRoute: Equatable {
     case internalTextOnly
     case externalFiles
@@ -19,6 +50,34 @@ struct SidebarDropProviderCapabilities: Equatable {
     let canLoadURL: Bool
     let canLoadString: Bool
     let registeredTypeIdentifiers: [String]
+
+    /// This provider carries one of OUR OWN drag flavors: the named custom
+    /// type (#4401 multi-drag) or a plain-text registration (the single-drag
+    /// id proxy / `.draggable` String). Registration-based on purpose — the
+    /// `canLoadObject` probes over-answer (NSString bridges URLs) and
+    /// under-answer (a Finder FOLDER answers false to BOTH URL and NSString,
+    /// live-repro 2026-08-04), so they can never be the classifier.
+    var registersInternalFlavor: Bool {
+        registeredTypeIdentifiers.contains { identifier in
+            identifier == UTType.ficheroDragItem.identifier
+                || UTType(identifier)?.conforms(to: .plainText) == true
+        }
+    }
+
+    /// This provider is an EXTERNAL file-system-ish payload: it registers
+    /// something conforming to `public.item` or `public.url` (files, folders
+    /// — `public.folder` → `public.directory` → `public.item` — content-typed
+    /// drags like `public.jpeg`/`com.adobe.pdf`, raw `public.data`) and no
+    /// internal flavor. `ExternalFileDropLoader` can obtain a real file URL
+    /// from every one of these via `loadFileRepresentation` against the
+    /// registered identifier, regardless of what `canLoadObject` claims.
+    var registersExternalPayload: Bool {
+        guard !registersInternalFlavor else { return false }
+        return registeredTypeIdentifiers.contains { identifier in
+            guard let type = UTType(identifier) else { return false }
+            return type.conforms(to: .item) || type.conforms(to: .url)
+        }
+    }
 }
 
 /// What a sidebar drop actually carries (#4401).
@@ -155,12 +214,15 @@ func partitionFicheroInternalDragExports(
 ///
 /// - Parameters:
 ///   - loadedIDs: strings successfully loaded from the providers, in order.
-///   - hasFileURL: any provider could vend a file URL.
+///   - hasExternalPayload: any provider registers an external file-system-ish
+///     payload (`registersExternalPayload`) — files, folders, content-typed
+///     drags. NOT `canLoadObject(URL.self)`, which Finder folders answer
+///     false to (live-repro 2026-08-04).
 ///   - carriesOwnProcessFlavor: the drag advertises the in-process flavour, so
 ///     it started inside this app even if no id could be read.
 func classifySidebarDropPayload(
     loadedIDs: [String],
-    hasFileURL: Bool,
+    hasExternalPayload: Bool,
     carriesOwnProcessFlavor: Bool
 ) -> SidebarDropPayload {
     // Positive identification first, and it WINS over any file URL the drag
@@ -183,7 +245,7 @@ func classifySidebarDropPayload(
         // fall through to ingestion.
         return .unreadableInternal
     }
-    if hasFileURL {
+    if hasExternalPayload {
         return .externalFiles
     }
     return .unsupported
@@ -223,11 +285,7 @@ func classifySidebarDropPayload(
 /// bridging, so it holds even if the NSString readable list changes. Same
 /// heuristic as `dropInfoLooksLikeInAppDrag`, which already got this right.
 func sidebarDropMightCarryInternalID(_ providers: [SidebarDropProviderCapabilities]) -> Bool {
-    providers.contains { provider in
-        provider.registeredTypeIdentifiers.contains { identifier in
-            UTType(identifier)?.conforms(to: .plainText) == true
-        }
-    }
+    providers.contains(where: \.registersInternalFlavor)
 }
 
 /// Capability-shaped route. Still correct for what it answers, and still the

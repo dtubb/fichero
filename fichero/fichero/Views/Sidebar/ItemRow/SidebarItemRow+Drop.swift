@@ -38,7 +38,7 @@ extension SidebarItemRow {
         // it, and a copied classifier is how the library section header ended
         // up with a second divergent routing rule (#4401).
         Task {
-            switch await readSidebarDropPayload(providers) {
+            switch await readSidebarDropPayload(providers, surface: "sidebar-row(\(item.name))") {
             case .internalItems(let ids):
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
 

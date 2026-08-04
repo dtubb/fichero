@@ -90,6 +90,7 @@ struct LibrarySectionHeader: View {
                 delegate: LibraryItemDropDelegate(
                     acceptedTypes: SidebarItemRow.dropTypes,
                     isTargeted: $isDropTargeted,
+                    surface: "sidebar-library-header",
                     onDropProviders: { handleLibraryHeaderDrop($0) }
                 )
             )
@@ -178,15 +179,18 @@ struct LibrarySectionHeader: View {
         guard !providers.isEmpty else { return false }
 
         let capabilities = sidebarDropCapabilities(of: providers)
-        let hasFileURL = capabilities.contains(where: \.canLoadURL)
+        // Registration-based (#4401 live-repro): a Finder FOLDER answers
+        // canLoadObject(URL.self) == false, so the old canLoadURL guard
+        // silently dropped folder drags on the header.
+        let hasExternalPayload = capabilities.contains(where: \.registersExternalPayload)
         let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
-        guard mightBeInternal || hasFileURL else { return false }
+        guard mightBeInternal || hasExternalPayload else { return false }
 
         // Reads through the SHARED reader, like the row path and the library
         // folder cell. This used to be a third hand-rolled copy of the same
         // provider plumbing.
         Task {
-            switch await readSidebarDropPayload(providers) {
+            switch await readSidebarDropPayload(providers, surface: "sidebar-section-header") {
             case .internalItems(let ids):
                 guard let onSidebarItemDrop else { return }
                 await MainActor.run { onSidebarItemDrop(ids) }
