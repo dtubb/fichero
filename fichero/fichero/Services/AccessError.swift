@@ -1,4 +1,5 @@
 import Foundation
+import OpenAPIRuntime
 
 /// Typed taxonomy of the ways an authenticated engine request can fail (F5).
 ///
@@ -115,6 +116,13 @@ enum AccessError: LocalizedError, Equatable {
     /// pin rejection is nested under `NSUnderlyingErrorKey`, not on the top-level
     /// `URLError`), then the `URLError.Code` decides unreachable vs. other TLS.
     static func classify(_ error: Error) -> AccessError {
+        // An error that is ALREADY classified must survive the trip. Without
+        // this, a service that resolved a 403 into `.forbidden` had it re-read
+        // as `.transport` here — which is the retriable bucket, so a permission
+        // denial the engine will refuse identically forever was retried three
+        // times and then surfaced with the wrong case. Re-deriving a cause we
+        // were handed is inventing one.
+        if let already = error as? AccessError { return already }
         if containsTLSFailure(error as NSError) {
             return .tlsPinFailure
         }
@@ -147,6 +155,35 @@ enum AccessError: LocalizedError, Equatable {
             depth += 1
         }
         return false
+    }
+}
+
+// MARK: - Denials that arrive as an undocumented response
+
+extension AccessError {
+    /// Classify an `.undocumented` generated-client response, reading the
+    /// engine's own `detail` off the body (#4532).
+    ///
+    /// A service that switches on `.undocumented` has the status code AND the
+    /// body in hand. Throwing a bare "unexpected response" from there discards
+    /// a sentence the engine wrote for the user — which is how a library sitting
+    /// outside `_is_allowed_library_path` (api/main.py) 403s every request with
+    /// "Library path is not in an allowed location or not a .fichero package."
+    /// and the user sees an empty sidebar.
+    ///
+    /// Returns `nil` when the status is not an access denial, so the caller
+    /// still raises its own typed error carrying the real status code — never a
+    /// generic one.
+    static func denial(statusCode: Int, payload: UndocumentedPayload) async -> AccessError? {
+        classify(statusCode: statusCode, body: await collectDenialBody(payload))
+    }
+
+    /// Collect an undocumented response body so the structured-denial decoder
+    /// can read it. Bounded, so a hostile or huge error body can't be read
+    /// without limit.
+    static func collectDenialBody(_ payload: UndocumentedPayload, upTo maxBytes: Int = 64 * 1024) async -> Data? {
+        guard let body = payload.body else { return nil }
+        return try? await Data(collecting: body, upTo: maxBytes)
     }
 }
 

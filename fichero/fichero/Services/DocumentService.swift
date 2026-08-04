@@ -16,7 +16,9 @@ class DocumentService {
     var isProcessing: Bool = false
     var lastError: Error?
 
-    private let client: FicheroClient
+    // Internal, not private: `DocumentService+Roots.swift` is part of this type
+    // and a `private` member is invisible across files.
+    let client: FicheroClient
 
     init(ficheroClient: FicheroClient) {
         self.client = ficheroClient
@@ -290,26 +292,6 @@ extension DocumentService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
-        default:
-            throw DocumentServiceError.unexpectedResponse
-        }
-    }
-
-    /// Get root-level documents
-    /// - Parameter sort: Server-side ordering, or nil for the stored order.
-    /// - Returns: Array of root documents, in the order the server returned them.
-    func getRoots(sort: ListingSort? = nil) async throws -> [Document] {
-        logger.info("Fetching root documents sort: \(sort?.field ?? "default")")
-
-        let response = try await client.api.listRootsApiDocumentsRootsGet(.init(
-            query: .init(sortBy: sort?.field, sortDirection: sort?.direction)
-        ))
-
-        switch response {
-        case .ok(let okResponse):
-            let docs = try okResponse.body.json
-            logger.info("Found \(docs.count) root documents")
-            return try docs.items.map { try convertToDocument($0) }
         default:
             throw DocumentServiceError.unexpectedResponse
         }

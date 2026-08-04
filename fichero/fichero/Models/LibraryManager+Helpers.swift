@@ -269,8 +269,19 @@ extension LibraryManager {
         // Inbox creation which must never run against an unknown collections state.
         let store = library.documentStore
         guard Self.libraryLoadSucceeded(error: store.error, isConnected: store.isConnected) else {
+            // C3: say WHY, and say WHERE. "Library load failed" with no cause is
+            // what a library refused by the engine's path allowlist
+            // (`_is_allowed_library_path`, api/main.py) looked like from here —
+            // six identical lines and an unloaded library. The store already
+            // holds the engine's own sentence; log it, and the package path,
+            // because "not in an allowed location" means nothing without it.
             libraryManagerLogger.error(
-                "Library load failed — leaving unloaded for retry: \(library.displayName)"
+                """
+                Library load failed — leaving unloaded for retry: \
+                \(library.displayName, privacy: .public) at \
+                \(library.url.path, privacy: .public) — \
+                \(Self.loadFailureReason(error: store.error, isConnected: store.isConnected), privacy: .public)
+                """
             )
             return
         }
@@ -287,6 +298,24 @@ extension LibraryManager {
     /// Extracted so the load-gating decision is testable without the store.
     static func libraryLoadSucceeded(error: Error?, isConnected: Bool) -> Bool {
         error == nil && isConnected
+    }
+
+    /// Why a load did not succeed, in words (C3).
+    ///
+    /// `libraryLoadSucceeded` is a boolean that can be false for two different
+    /// reasons — a recorded error, or a store that simply never connected — and
+    /// a boolean false for two reasons is exactly what makes a log line
+    /// unactionable. This says which, and when there IS an error it repeats the
+    /// engine's own sentence rather than a label of our own invention.
+    /// Pure, so the wording is pinned by a test.
+    static func loadFailureReason(error: Error?, isConnected: Bool) -> String {
+        if let error {
+            return error.localizedDescription
+        }
+        if !isConnected {
+            return "the store never connected (no error was recorded)"
+        }
+        return "no failure recorded — this load should have succeeded"
     }
 
     /// Create the .fichero package directory structure

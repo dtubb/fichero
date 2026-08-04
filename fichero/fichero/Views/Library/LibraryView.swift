@@ -335,6 +335,7 @@ struct LibraryView: View {
             LibraryAccessDeniedView(
                 libraryName: libraryReference?.displayName ?? "this library",
                 error: denial,
+                libraryPath: libraryReference?.url.path,
                 identity: appState.identityStore,
                 onRetry: { onRetry() },
                 onSignIn: nil,

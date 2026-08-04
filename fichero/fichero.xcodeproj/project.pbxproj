@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1E62D77EC36B539229657FEE /* DocumentService+Roots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */; };
 		466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */; };
+		6670DE6D7028DF0A6BC7A01D /* DocumentService+Roots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */; };
 		9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
@@ -71,6 +73,7 @@
 		17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewLibraryPanel.swift; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProviderKeyStore.swift; sourceTree = "<group>"; };
+		905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentService+Roots.swift"; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
@@ -236,6 +239,7 @@
 			isa = PBXGroup;
 			children = (
 				20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */,
+				905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1051,6 +1055,7 @@
 			files = (
 				EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */,
 				B4E1A5D44C050539E13A341F /* ProviderKeyStore.swift in Sources */,
+				1E62D77EC36B539229657FEE /* DocumentService+Roots.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1073,6 +1078,7 @@
 			files = (
 				9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */,
 				466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */,
+				6670DE6D7028DF0A6BC7A01D /* DocumentService+Roots.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

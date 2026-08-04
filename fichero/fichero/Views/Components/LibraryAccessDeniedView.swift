@@ -15,6 +15,12 @@ import SwiftUI
 struct LibraryAccessDeniedView: View {
     let libraryName: String
     let error: AccessError
+    /// Where the library lives on disk (C3). Shown under the reason because the
+    /// engine's most common library denial is about the LOCATION — "Library path
+    /// is not in an allowed location or not a .fichero package." names no path,
+    /// so without this the user is told the place is wrong and not which place.
+    /// Optional: a denial that has nothing to do with location omits it.
+    var libraryPath: String?
     /// Who the current credential resolves to on this engine. Optional so the
     /// view still renders (with generic framing) if identity hasn't loaded.
     var identity: IdentityStore?
@@ -101,6 +107,14 @@ struct LibraryAccessDeniedView: View {
         } description: {
             VStack(spacing: 6) {
                 Text(error.errorDescription ?? "You don't have access to this library.")
+                if let libraryPath {
+                    Text(libraryPath)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                        .truncationMode(.middle)
+                }
                 if let whoText {
                     Text(whoText)
                         .font(.callout)
