@@ -80,7 +80,7 @@ def raw_transport_files(app_dir: Path = APP_DIR) -> dict[str, list[int]]:
     found: dict[str, list[int]] = {}
     for path in sorted(app_dir.rglob("*.swift")):
         s = str(path)
-        if "/fichero-tests/" in s or "/fichero-ui-tests/" in s:
+        if "/Tests/Unit/" in s or "/Tests/UI/" in s:
             continue
         rel = path.relative_to(app_dir).as_posix()
         code = _code(path.read_text(errors="ignore"))

@@ -396,7 +396,7 @@ enum EngineHarness {
             let url = URL(fileURLWithPath: env)
             if looksLikeRepo(url) { return url }
         }
-        // `#filePath` = <repo>/fichero/fichero-tests/EngineHarness.swift, so walking up
+        // `#filePath` = <repo>/fichero/Tests/Unit/general/EngineHarness.swift, so walking up
         // from it reaches the repo even when the test bundle lives in DerivedData.
         for start in [Bundle(for: _HarnessAnchor.self).bundleURL,
                       URL(fileURLWithPath: #filePath)] {

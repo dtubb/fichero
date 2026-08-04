@@ -12,20 +12,20 @@ review, bottom-up:
 
 | Layer | Lives in | Status |
 |---|---|---|
-| Pure unit (config decisions, parsers, builders, splice rules) | `fichero/fichero-tests/` + `fichero-server/tests/unit/` | built, healthy |
-| Store/service + stubbed transport (async state machines) | `fichero/fichero-tests/Services/`, `Transport/` | partial — one ad-hoc `MockTransportURLProtocol`; shared kit **(planned, #4241 step 1)** |
+| Pure unit (config decisions, parsers, builders, splice rules) | `fichero/Tests/Unit/general/` + `fichero-server/tests/unit/` | built, healthy |
+| Store/service + stubbed transport (async state machines) | `fichero/Tests/Unit/general/Services/`, `Transport/` | partial — one ad-hoc `MockTransportURLProtocol`; shared kit **(planned, #4241 step 1)** |
 | Engine pytest (pipelines, derivatives, fixtures) | `fichero-server/tests/unit/`, `integration/` | built |
-| App↔engine contract (in-process, no uvicorn/TLS) | `fichero/fichero-tests/Contract/` | built on spawned uvicorn; in-process `InMemoryEngineApp` harness **(planned, #4241 step 2)** |
+| App↔engine contract (in-process, no uvicorn/TLS) | `fichero/Tests/Unit/general/Contract/` | built on spawned uvicorn; in-process `InMemoryEngineApp` harness **(planned, #4241 step 2)** |
 | CLI unit (dispatch, connection resolution, transport selection) | `fichero-cli/tests/` | built |
 | MCP unit (tool schemas, connection, fail-closed auth) | `fichero-mcp/tests/` | built |
 | CLI leg (installed `fichero` binary, hermetic) | `fichero-server/tests/integration/test_cli_installed_roundtrip.py` | built |
 | MCP leg (shipped `fichero-mcp` tool surface) | `fichero-server/tests/integration/test_mcp_server_contract.py` | built |
-| XCUITest (shipping config only, ~8 flows) | `fichero/fichero-ui-tests/` | built |
+| XCUITest (shipping config only, ~8 flows) | `fichero/Tests/UI/general/` | built |
 
 ## Where a new test goes
 
-`fichero/fichero-tests/` mirrors `fichero/fichero/`: a test for
-`Views/Sidebar/…` goes in `fichero-tests/Views/Sidebar/`, a store test in
+`fichero/Tests/Unit/general/` mirrors `fichero/fichero/`: a test for
+`Views/Sidebar/…` goes in `Tests/Unit/general/Views/Sidebar/`, a store test in
 `Models/`, a service test in `Services/`. Two extra buckets that have no app
 mirror:
 
@@ -34,7 +34,7 @@ mirror:
 
 Harness files stay at the target root (`EngineHarness.swift`,
 `TestDefaults.swift`, `TestFixtures.swift`; `UITestEngineHarness.swift` and
-`RequiresEngine.swift` in `fichero-ui-tests/`). UI tests group by surface:
+`RequiresEngine.swift` in `Tests/UI/general/`). UI tests group by surface:
 `Launch/`, `Library/`, `Inspector/`.
 
 Rule: **new tests go in the folder matching the code under test.** Do not add
@@ -87,7 +87,7 @@ pdf = sample_file("multipage.pdf")               # raises if missing
 ```
 
 ```swift
-let pdf = try TestFixtures.sampleFile("multipage.pdf")  // fichero-tests
+let pdf = try TestFixtures.sampleFile("multipage.pdf")  // Tests/Unit/general
 ```
 
 Seeded libraries all come from ONE builder —

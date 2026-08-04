@@ -64,7 +64,7 @@ path like `~/code/fichero/.venv` into a doc or a script; it is only true on one 
 - **Risky diff?** Anything touching auth, file I/O, network, secrets, or keychain → run `/security-review`.
 
 **Testing manual: `docs/contributor/TESTING.md`.** The short version:
-`fichero/fichero-tests/` mirrors `fichero/fichero/` — a new test goes in the
+`fichero/Tests/Unit/general/` mirrors `fichero/fichero/` — a new test goes in the
 folder matching the code under test (plus `Transport/` and `Contract/`
 buckets); shared specimen files live in `test-fixtures/files/`, resolved ONLY
 via `tests/fixture_paths.py` (Python) or `TestFixtures.swift` (Swift); seeded

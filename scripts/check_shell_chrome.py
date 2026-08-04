@@ -78,7 +78,7 @@ def violations() -> dict[str, str]:
     found: dict[str, str] = {}
     for path in sorted(VIEWS_DIR.rglob("*.swift")):
         s = str(path)
-        if "/fichero-tests/" in s or "/fichero-ui-tests/" in s:
+        if "/Tests/Unit/" in s or "/Tests/UI/" in s:
             continue
         rel = path.relative_to(ROOT).as_posix()
         for idx, line in enumerate(_code(path.read_text(errors="ignore")).splitlines(), start=1):

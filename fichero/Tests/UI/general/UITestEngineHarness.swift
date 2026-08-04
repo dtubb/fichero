@@ -6,7 +6,7 @@
 //  through the app (#1230 follow-up: the data-dependent flows LibrarySmokeUITests
 //  deferred — "select a document, open the inspector, entities load").
 //
-//  Unlike the in-process `EngineHarness` in fichero-tests (which spins a TLS
+//  Unlike the in-process `EngineHarness` in Tests/Unit/general (which spins a TLS
 //  uvicorn on :8765 for XCTest round-trips), a UI test drives the app as a
 //  SEPARATE process, so the app — not the test — is the client. This harness
 //  therefore:

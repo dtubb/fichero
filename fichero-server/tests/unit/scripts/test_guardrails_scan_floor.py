@@ -217,7 +217,7 @@ FLOORED_CHECKS: dict[str, dict] = {
         "extra_scripts": [],
     },
     "check_mainactor_view_statics.py": {
-        "dirs": ["fichero/fichero", "fichero/fichero-tests"],
+        "dirs": ["fichero/fichero", "fichero/Tests/Unit"],
         "files": {},
         "extra_scripts": [],
     },
@@ -249,7 +249,7 @@ FLOORED_CHECKS: dict[str, dict] = {
         "dirs": ["fichero/fichero"], "files": {}, "extra_scripts": [],
     },
     "check_test_userdefaults_isolation.py": {
-        "dirs": ["fichero/fichero-tests", "fichero/fichero-ui-tests"],
+        "dirs": ["fichero/Tests/Unit", "fichero/Tests/UI"],
         "files": {}, "extra_scripts": [],
     },
     "check_tooltips.py": {
@@ -259,7 +259,7 @@ FLOORED_CHECKS: dict[str, dict] = {
         "dirs": ["fichero/fichero/Views"], "files": {}, "extra_scripts": [],
     },
     "check_appsource_paths.py": {
-        "dirs": ["fichero/fichero-tests", "fichero/fichero-ui-tests", "fichero/fichero"],
+        "dirs": ["fichero/Tests/Unit", "fichero/Tests/UI", "fichero/fichero"],
         "files": {}, "extra_scripts": [],
     },
     "check_folder_organization.py": {

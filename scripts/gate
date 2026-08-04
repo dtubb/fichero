@@ -70,15 +70,15 @@ XCODE_PROJECT="fichero/fichero.xcodeproj"
 UNIT_SCHEME="FicheroTests"
 UI_SCHEME="Fichero (Dev Local)"
 GATE_DERIVED="${GATE_DERIVED:-build/gate-derived}"
-SWIFT_TESTS_DIR="fichero/fichero-tests"
+SWIFT_TESTS_DIR="fichero/Tests/Unit"
 
 # ---------------------------------------------------------------------------
 # AREA TABLE (declarative — edit here, nothing else).
 # Columns (|-separated):
-#   area | Swift test-class filename PREFIXES under fichero/fichero-tests
+#   area | Swift test-class filename PREFIXES under fichero/Tests/Unit
 #        | engine pytest path globs (space separated; may be empty)
 # Swift prefixes resolve at run time by globbing <prefix>*.swift, so the table
-# survives the ongoing fichero-tests reorganisation without maintenance.
+# survives the ongoing test-tree reorganisation without maintenance.
 # ---------------------------------------------------------------------------
 area_table() {
   cat <<'EOF'

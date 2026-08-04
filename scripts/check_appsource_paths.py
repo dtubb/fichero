@@ -22,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = ROOT / "fichero" / "fichero"           # appSource() resolves here
-TEST_DIRS = [ROOT / "fichero" / "fichero-tests", ROOT / "fichero" / "fichero-ui-tests"]
+TEST_DIRS = [ROOT / "fichero" / "Tests" / "Unit", ROOT / "fichero" / "Tests" / "UI"]
 _APPSOURCE = re.compile(r'appSource(?:Root)?\(\s*"([^"]+)"')
 
 

@@ -15,7 +15,7 @@ keeps only what is specific to the app: its layout and key concepts.
 | `fichero.xcodeproj` | Xcode project (main target: `Fichero`) |
 | `fichero/` | App source — `App/`, `Views/`, `Models/`, `Services/`, `Intents/`, resources |
 | `fichero-api-client/` | Generated Swift OpenAPI client package (`Sources/FicheroAPIClient/` is generated — do not hand-edit) |
-| `fichero-tests/`, `fichero-ui-tests/` | Test target source folders |
+| `Tests/Unit/*`, `Tests/UI/*` | Test target source folders (general/mac/ios/ipad); plans in `Tests/plans/` |
 
 ### Source layout (`fichero/fichero/`)
 

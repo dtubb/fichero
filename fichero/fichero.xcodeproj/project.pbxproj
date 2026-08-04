@@ -67,10 +67,10 @@
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
-		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero.xctestplan; sourceTree = "<group>"; };
-		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-embedded.xctestplan"; sourceTree = "<group>"; };
-		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-ipad.xctestplan"; sourceTree = "<group>"; };
+		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-tests.xctestplan"; path = "Tests/plans/fichero-tests.xctestplan"; sourceTree = "<group>"; };
+		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = fichero.xctestplan; path = "Tests/plans/fichero.xctestplan"; sourceTree = "<group>"; };
+		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-embedded.xctestplan"; path = "Tests/plans/fichero-embedded.xctestplan"; sourceTree = "<group>"; };
+		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = "fichero-ipad.xctestplan"; path = "Tests/plans/fichero-ipad.xctestplan"; sourceTree = "<group>"; };
 		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000262 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
@@ -107,28 +107,48 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 			);
-			path = FicheroIOSTests;
+			name = "Tests-Unit-ios";
+			path = "Tests/Unit/ios";
 			sourceTree = "<group>";
 		};
 		A10521AA2EFDC92400B28C3E /* fichero-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 			);
-			path = "fichero-tests";
+			name = "Tests-Unit-general";
+			path = "Tests/Unit/general";
 			sourceTree = "<group>";
 		};
 		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 			);
-			path = "fichero-ui-tests";
+			name = "Tests-UI-general";
+			path = "Tests/UI/general";
 			sourceTree = "<group>";
 		};
 		FE1DAD000000000000000020 /* fichero-ipad-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 			);
-			path = "fichero-ipad-tests";
+			name = "Tests-Unit-ipad";
+			path = "Tests/Unit/ipad";
+			sourceTree = "<group>";
+		};
+		7E57AB000000000000000001 /* Tests-Unit-mac */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			name = "Tests-Unit-mac";
+			path = "Tests/Unit/mac";
+			sourceTree = "<group>";
+		};
+		7E57AB000000000000000002 /* Tests-UI-mac */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			name = "Tests-UI-mac";
+			path = "Tests/UI/mac";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -193,6 +213,8 @@
 				A10521C22EFDC94100B28C3E /* fichero-ui-tests */,
 				FE1DAD000000000000000020 /* fichero-ipad-tests */,
 				208ADA9A3022008200B83F96 /* FicheroIOSTests */,
+				7E57AB000000000000000001 /* Tests-Unit-mac */,
+				7E57AB000000000000000002 /* Tests-UI-mac */,
 				420 /* Products */,
 				D0C0989BFAD8F78903736127 /* fichero */,
 			);
@@ -296,6 +318,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10521AA2EFDC92400B28C3E /* fichero-tests */,
+				7E57AB000000000000000001 /* Tests-Unit-mac */,
 			);
 			name = FicheroTests;
 			productName = FicheroTests;
@@ -317,6 +340,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10521C22EFDC94100B28C3E /* fichero-ui-tests */,
+				7E57AB000000000000000002 /* Tests-UI-mac */,
 			);
 			name = FicheroUITests;
 			productName = FicheroUITests;

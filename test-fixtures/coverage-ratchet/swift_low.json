@@ -14,7 +14,7 @@
       "name": "FicheroTests.xctest",
       "lineCoverage": 0.99,
       "files": [
-        {"path": "fichero/fichero-tests/Models/DocumentStoreTests.swift", "lineCoverage": 0.99}
+        {"path": "fichero/Tests/Unit/general/Models/DocumentStoreTests.swift", "lineCoverage": 0.99}
       ]
     }
   ]

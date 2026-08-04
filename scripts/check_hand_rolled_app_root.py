@@ -3,7 +3,7 @@
 
 ## What went wrong that this prevents
 
-`fichero/fichero-tests/AppSource.swift` was written to eliminate one idiom:
+`fichero/Tests/Unit/general/AppSource.swift` was written to eliminate one idiom:
 resolving the app target's source directory by counting
 `deletingLastPathComponent()` calls up from `#filePath` and appending a
 hardcoded `"fichero"` suffix. The idiom appeared in 114 files in ten different
@@ -239,7 +239,7 @@ def main() -> int:
         "suffix. That answer is correct only for the file's current depth: "
         "move the file and it silently resolves somewhere else, failing later "
         "as a file-not-found in an unrelated assertion (#4493).\n\n"
-        "Use the shared helper in fichero/fichero-tests/AppSource.swift, which "
+        "Use the shared helper in fichero/Tests/Unit/general/AppSource.swift, which "
         "walks UP to a landmark instead of counting, and throws naming the "
         "path and the landmark when it cannot find the root:\n"
         "    try AppSource.root()                      // fichero/fichero\n"
@@ -275,5 +275,5 @@ def _require_scan_roots_4382(*roots):
 
 
 if __name__ == "__main__":
-    _require_scan_roots_4382(SCAN_ROOTS, ROOT / "fichero" / "fichero-tests" / "AppSource.swift")
+    _require_scan_roots_4382(SCAN_ROOTS, ROOT / "fichero" / "Tests" / "Unit" / "general" / "AppSource.swift")
     raise SystemExit(main())

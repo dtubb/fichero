@@ -57,14 +57,14 @@ unless File.exist?(File.join(repo_root, file_path))
 end
 
 # The TEST targets use Xcode 16 file-system-synchronized groups: every .swift
-# under fichero-tests/ and fichero-ui-tests/ is compiled by virtue of being in
+# under fichero/Tests/ is compiled by virtue of being in
 # the directory, with NO file reference in project.pbxproj (which is why those
 # targets list 0 sources while 248 test files exist on disk). Registering one
 # here would add a DUPLICATE explicit reference and rewrite the whole project
 # file for nothing. Just write the file — you are already done.
 if file_path.match?(%r{/fichero-(ui-)?tests/})
   puts "No action needed: #{file_path}"
-  puts "  fichero-tests/ and fichero-ui-tests/ are file-system-synchronized groups —"
+  puts "  fichero/Tests/ folders are file-system-synchronized groups —"
   puts "  Xcode compiles every .swift in them automatically. Do not register it."
   exit 0
 end

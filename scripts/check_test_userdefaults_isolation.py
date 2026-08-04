@@ -12,7 +12,7 @@ a killed process never reaches teardown, and on a loaded machine most runs die
 that way. Tests go through `EngineConfig.defaults`, which resolves to a
 throwaway suite inside a test process.
 
-SCOPE — deliberately `fichero-tests/` and `fichero-ui-tests/` ONLY, and that
+SCOPE — deliberately `fichero/Tests/Unit/` and `fichero/Tests/UI/` ONLY, and that
 scope has a KNOWN HOLE worth stating plainly.
 
 This check reports 0 violations while a test can still write the real domain,
@@ -44,8 +44,8 @@ from _check_floor import require_scan_floor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TESTS = ROOT / "fichero" / "fichero-tests"
-UI_TESTS = ROOT / "fichero" / "fichero-ui-tests"
+TESTS = ROOT / "fichero" / "Tests" / "Unit"
+UI_TESTS = ROOT / "fichero" / "Tests" / "UI"
 
 # Per-entry, with a reason. A file here is a decision, not an oversight.
 ALLOWLIST: dict[str, str] = {

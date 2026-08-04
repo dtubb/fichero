@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A test plan must be able to run, on the platform it claims, with tests in it (#4472).
 
-`fichero/fichero-ipad.xctestplan` existed for a month and never once ran. It was
+`fichero-ipad.xctestplan` (fichero/Tests/plans/) existed for a month and never once ran. It was
 created deliberately EMPTY — zero testTargets — as a build/install/launch smoke
 gate, which reports TEST SUCCEEDED having executed nothing. A later commit noticed
 "a plan with no targets can never fail" and put `FicheroTests` in it. That target
@@ -42,7 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _check_floor import require_scan_floor  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
-PLAN_DIR = REPO / "fichero"
+PLAN_DIR = REPO / "fichero" / "Tests" / "plans"
 PROJ = REPO / "fichero/fichero.xcodeproj/project.pbxproj"
 
 # Which platforms each plan claims to run on. A plan that is not listed FAILS:
@@ -307,7 +307,7 @@ def main() -> int:
     # #4487 scan floor on the PLAN population, not on the problems found: four
     # plans on 2026-08-03, and the goal state is zero problems, so a collapsed
     # glob must not look like success.
-    require_scan_floor(len(plans), 2, "xctestplan files under fichero/ (4 on 2026-08-03)")
+    require_scan_floor(len(plans), 2, "xctestplan files under fichero/Tests/plans/ (4 on 2026-08-03)")
     if not PROJ.is_file():
         print(f"BLIND: {PROJ} is missing — no targets to resolve against.", file=sys.stderr)
         return 2

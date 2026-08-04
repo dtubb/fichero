@@ -30,11 +30,11 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:fichero.xctestplan"
+            reference = "container:Tests/plans/fichero.xctestplan"
             default = "YES">
          </TestPlanReference>
          <TestPlanReference
-            reference = "container:fichero-ipad.xctestplan">
+            reference = "container:Tests/plans/fichero-ipad.xctestplan">
          </TestPlanReference>
       </TestPlans>
       <Testables>
