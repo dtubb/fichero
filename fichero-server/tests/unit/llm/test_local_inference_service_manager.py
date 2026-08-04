@@ -53,6 +53,51 @@ class FakeProcess:
         self.pid = None
 
 
+def _reap_spawned(processes: list[Any]) -> None:
+    """Kill any sidecar still alive. The net of last resort, not the happy path.
+
+    SIGKILL rather than the async ``stop()``: this runs during teardown, after
+    the test's event loop is gone, and graceful shutdown is what the test body
+    already asserts. Something that must run on interrupt cannot depend on a
+    loop still being there to await.
+    """
+    for process in processes:
+        pid = getattr(process, "pid", None)
+        if pid is None:
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            continue
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
+
+
+@pytest.fixture
+def reaped_sidecar():
+    """Guarantee a spawned sidecar dies on pass, fail, error and interrupt alike.
+
+    The ``stop()`` assertions stay in the test bodies -- they test real shutdown
+    behaviour and are the point of those tests. What a test body cannot provide
+    is the *guarantee*: any assertion failing before ``stop()`` returns early and
+    orphans a real OS process holding a loopback port. ``free_loopback_port()``
+    then hands the next run a different port, so the suite never notices, and the
+    leak accumulates across days -- landing precisely on the runs already going
+    badly. The subprocess's lifetime and the test's lifetime agreed only when the
+    test passed.
+    """
+    spawned: list[Any] = []
+
+    def track(process: Any) -> Any:
+        spawned.append(process)
+        return process
+
+    yield track
+    _reap_spawned(spawned)
+
+
 def write_fake_managed_server(tmp_path: Path) -> Path:
     script = tmp_path / "fake_mlx_server.py"
     script.write_text(
@@ -359,14 +404,16 @@ async def test_stop_resets_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_managed_process_starts_and_stops_real_sidecar(tmp_path: Path) -> None:
+async def test_managed_process_starts_and_stops_real_sidecar(tmp_path: Path, reaped_sidecar) -> None:
     script = write_fake_managed_server(tmp_path)
     port = free_loopback_port()
-    process = ManagedLocalInferenceProcess(
-        profile(
-            python_executable=sys.executable,
-            command=[str(script)],
-            base_url=f"http://127.0.0.1:{port}/v1",
+    process = reaped_sidecar(
+        ManagedLocalInferenceProcess(
+            profile(
+                python_executable=sys.executable,
+                command=[str(script)],
+                base_url=f"http://127.0.0.1:{port}/v1",
+            )
         )
     )
     manager = LocalInferenceServiceManager(
@@ -397,7 +444,9 @@ async def test_managed_process_starts_and_stops_real_sidecar(tmp_path: Path) -> 
 
 
 @pytest.mark.asyncio
-async def test_managed_process_surfaces_crash_error_and_allows_restart(tmp_path: Path) -> None:
+async def test_managed_process_surfaces_crash_error_and_allows_restart(
+    tmp_path: Path, reaped_sidecar
+) -> None:
     script = write_fake_managed_server(tmp_path)
     port = free_loopback_port()
     managed_profile = profile(
@@ -405,7 +454,10 @@ async def test_managed_process_surfaces_crash_error_and_allows_restart(tmp_path:
         command=[str(script)],
         base_url=f"http://127.0.0.1:{port}/v1",
     )
-    process = ManagedLocalInferenceProcess(managed_profile)
+    # This one spawns TWICE: the body SIGKILLs the first, then
+    # restart_after_crash() spawns a second whose assertions sit between the
+    # spawn and stop(). Tracking the object covers whichever pid is live.
+    process = reaped_sidecar(ManagedLocalInferenceProcess(managed_profile))
     manager = LocalInferenceServiceManager(
         managed_profile,
         process,
@@ -550,3 +602,45 @@ async def test_stderr_excerpt_survives_regardless_of_start_timeout(tmp_path: Pat
 def test_profile_validation_rejects_cloud_non_loopback_fallbacks(overrides: dict[str, Any]) -> None:
     with pytest.raises((ValidationError, ValueError)):
         profile(**overrides)
+
+
+def test_reaper_kills_a_sidecar_the_test_body_never_stopped() -> None:
+    """The finalizer must kill, not merely intend to.
+
+    This is the failure path the fixture exists for: a test that spawns a real
+    process and returns before stopping it, which is what every assertion
+    between start() and stop() risks. Without this, the reaper is a comment.
+    """
+    import subprocess
+
+    spawned = subprocess.Popen(  # noqa: S603 - fixture proving the reaper fires
+        [sys.executable, "-c", "import time; time.sleep(300)"]
+    )
+    os.kill(spawned.pid, 0)  # alive before the reaper runs
+
+    _reap_spawned([spawned])
+
+    with pytest.raises(ProcessLookupError):
+        os.kill(spawned.pid, 0)
+
+
+def test_one_cleanly_stopped_sidecar_does_not_strand_the_others() -> None:
+    """A cleanly stopped process reports pid None; that must not end the sweep.
+
+    A reaper that bailed on the first None would leak every process after it --
+    the exact shape of bug it exists to prevent, one level up.
+    """
+    import subprocess
+
+    class AlreadyStopped:
+        pid = None
+
+    survivor = subprocess.Popen(  # noqa: S603 - fixture proving the reaper fires
+        [sys.executable, "-c", "import time; time.sleep(300)"]
+    )
+    os.kill(survivor.pid, 0)
+
+    _reap_spawned([AlreadyStopped(), survivor])
+
+    with pytest.raises(ProcessLookupError):
+        os.kill(survivor.pid, 0)
