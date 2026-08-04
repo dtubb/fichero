@@ -279,6 +279,14 @@ extension ContentView {
                 syncFocusedDocumentSelection(newDoc)
                 handleDetailDocumentChange(newDoc)
             }
+            // #4518: the ONE teardown for "this window now shows a different
+            // library" — closing a library falls back to Global, and nothing
+            // else clears the per-document snapshots, so Preview/Reader/
+            // Inspector kept rendering "empty for THIS document" states for a
+            // document belonging to nothing.
+            .onChange(of: windowState.libraryId) { _, _ in
+                handleLibraryChange()
+            }
             #if canImport(AppKit)
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                 handleWillTerminate()
