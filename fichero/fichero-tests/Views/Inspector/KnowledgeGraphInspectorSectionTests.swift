@@ -543,7 +543,12 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         XCTAssertTrue(storeSource.contains("try await entityService.deleteEntity(entityId)"))
         XCTAssertTrue(claimsSource.contains("deleteActionButton(targetClaims: selectedClaims)"))
         XCTAssertTrue(claimsSource.contains("requestClaimDeleteAction: requestDeleteAction(for:)"))
-        XCTAssertTrue(claimsSource.contains("try await entityService.deleteClaim(claimId)"))
+        // Claim delete routes through ClaimStore now (the same observable-
+        // store discipline entity delete already followed): the view asks the
+        // store, the store makes the generated-client call.
+        XCTAssertTrue(claimsSource.contains("claimStore.delete(claimIds:"))
+        let claimStoreSource = try Self.appSource("Models/ClaimStore.swift")
+        XCTAssertTrue(claimStoreSource.contains("try await entityService.deleteClaim(claimId)"))
         XCTAssertTrue(rowSource.contains("Button(\"Delete…\", role: .destructive)"))
         XCTAssertTrue(rowSource.contains("requestClaimDeleteAction(targetClaims)"))
         XCTAssertTrue(serviceSource.contains("deleteEntityApiEntitiesEntityIdDelete"))
@@ -730,9 +735,15 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
         )
         let serviceSource = try Self.appSource("Services/KGCurationService.swift")
 
-        XCTAssertTrue(source.contains("batchSetClaimCurationState"))
-        XCTAssertTrue(source.contains("batchCreateClaimRules"))
-        XCTAssertTrue(source.contains("kgCurationService.mergeClaims"))
+        // Bulk curation and merge route through ClaimStore now; the store owns
+        // the generated kgCurationService calls (ClaimStoreRoutingTests pins
+        // the ban in the other direction — views must NOT call them).
+        XCTAssertTrue(source.contains("claimStore.setCuration("))
+        XCTAssertTrue(source.contains("claimStore.merge("))
+        let claimStore = try Self.appSource("Models/ClaimStore.swift")
+        XCTAssertTrue(claimStore.contains("kgCurationService.batchSetClaimCurationState("))
+        XCTAssertTrue(claimStore.contains("kgCurationService.batchCreateClaimRules("))
+        XCTAssertTrue(claimStore.contains("kgCurationService.mergeClaims("))
         XCTAssertTrue(source.contains("claimMergeActionMenu(targetClaims: selectedClaims, menuTitle: \"Merge\")"))
         XCTAssertTrue(source.contains("Menu(\"Prune trivial\")"))
         XCTAssertTrue(source.contains("kgCurationService.pruneTrivialClaims"))
