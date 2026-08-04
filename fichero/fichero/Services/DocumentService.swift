@@ -727,9 +727,12 @@ extension DocumentService {
 // MARK: - Type Conversion
 
 // Split into a same-file extension so the primary class body stays within
-// SwiftLint's type_body_length budget (#3030 added several ops). `private`
-// members remain file-scoped and accessible here.
-private extension DocumentService {
+// SwiftLint's type_body_length budget (#3030 added several ops). It was
+// `private` only because every caller lived in this file;
+// `DocumentService+Roots.swift` now calls `convertToDocument` too, so these are
+// internal — still confined to the app target. The split was always for the
+// lint budget, never for encapsulation.
+extension DocumentService {
     /// Convert generated Document to local Document
     func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
         // A field this converter forgets is a field the whole app does not have.

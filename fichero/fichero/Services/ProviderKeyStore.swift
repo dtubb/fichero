@@ -33,7 +33,11 @@ enum ProviderKeyStore {
     /// `AfterFirstUnlock`, matching the token store: the app can be relaunched
     /// or resumed before the user unlocks, and a key that cannot be read then
     /// would present as the very "no key" lie this whole change removes.
-    private static let accessibility = kSecAttrAccessibleAfterFirstUnlock
+    /// Computed, not a `static let`: `CFString` is not `Sendable`, so a stored
+    /// static is a strict-concurrency error. The Security constant it reads is
+    /// an immutable global, so re-reading it per use costs nothing and needs no
+    /// `nonisolated(unsafe)` escape hatch.
+    private static var accessibility: CFString { kSecAttrAccessibleAfterFirstUnlock }
 
     // MARK: - Read / write
 

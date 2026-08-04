@@ -138,15 +138,16 @@ extension EmbeddedBackendService {
                 logger.error("Engine exited during startup — surfacing immediately (#3930)")
                 throw BackendError.engineDidNotStart(diagnosis: diagnosis)
             case .foreignEngineServing(let pid):
+                // Built as one String first: an OSLogMessage is created at the
+                // interpolation site and cannot be joined with `+`.
+                let holder = "PID \(pid.map(String.init) ?? "unknown")"
                 logger.error(
-                    "Another engine (PID \(pid.map(String.init) ?? "unknown", privacy: .public)) already "
-                    + "serves this socket — our child is not the responder; not waiting out the cap"
+                    "Another engine (\(holder, privacy: .public)) already serves this socket — not our child; not waiting out the cap"
                 )
                 throw BackendError.engineDidNotStart(diagnosis: Self.foreignEngineDiagnosis(pid: pid))
             case .credentialRejected:
                 logger.warning(
-                    "Engine on this socket is serving but rejected the app's token — this is a "
-                    + "credential failure, not a start-up failure"
+                    "Engine on this socket is serving but rejected the app's token — this is a credential failure, not a start-up failure"
                 )
                 throw BackendError.engineDidNotStart(diagnosis: Self.credentialRejectedDiagnosis())
             case .neverBecameReady:

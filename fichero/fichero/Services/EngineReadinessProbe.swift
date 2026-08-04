@@ -91,9 +91,9 @@ struct EngineReadinessProbe {
             // reading the user can act on, and the transition log would demote a
             // repeated rejection to `.debug` where nobody sees it. Log it at
             // warning EVERY poll.
+            // One literal — an OSLogMessage cannot be built by concatenation.
             probeLogger.warning(
-                "readiness: health=\(healthCode, privacy: .public) → authRejected "
-                + "(engine reachable; it rejected the app's token)"
+                "readiness: health=\(healthCode, privacy: .public) → authRejected (engine reachable; it rejected the app's token)"
             )
             return .authRejected
         }
@@ -109,9 +109,11 @@ struct EngineReadinessProbe {
             // rather than letting the caller infer "never started" from silence.
             let who = health.pid.map(String.init) ?? "unknown"
             let echoed = health.nonce ?? "none"
+            // Built as one String first: an OSLogMessage cannot be assembled by
+            // concatenation, and the whole detail is safe to log publicly.
+            let detail = "nonce \(echoed) is not ours (\(expectedNonce)); responder PID \(who)"
             probeLogger.warning(
-                "readiness: health=200 but launch nonce is \(echoed, privacy: .public), not ours "
-                + "(\(expectedNonce, privacy: .public)) → identityMismatch; responder PID \(who, privacy: .public)"
+                "readiness: health=200 but \(detail, privacy: .public) → identityMismatch"
             )
             return .identityMismatch(pid: health.pid)
         }
