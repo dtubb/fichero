@@ -148,7 +148,20 @@ enum EngineHarness {
             setenv("FICHERO_AUTH_TOKEN", token, 1)
         }
 
-        let client = FicheroClient(baseURL: baseURL, libraryPath: libURL.path)
+        // #4511: `FicheroClient.makeTransport` refuses default-transport dials
+        // under a test host (FailFastTransport), because tests that dial an
+        // absent engine wedge the whole run. This harness is the deliberate
+        // exception — a LIVE contract walk against a running engine — and it
+        // declares that the way the guard's design intends: by explicitly
+        // injecting its session. The injected session is honoured unchanged
+        // (the guard exempts it); it is the same pinning-aware session the
+        // harness's own health probe uses. Accidental dials elsewhere still
+        // fail fast — nothing here widens the default.
+        let client = FicheroClient(
+            baseURL: baseURL,
+            libraryPath: libURL.path,
+            session: RemoteCertificatePinning.configuredSession()
+        )
         let engine = LiveEngine(
             client: client, libraryPath: libURL.path,
             expected: expected, ids: ids, spawned: spawned
