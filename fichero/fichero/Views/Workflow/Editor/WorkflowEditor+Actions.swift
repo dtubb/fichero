@@ -48,11 +48,44 @@ extension WorkflowEditor {
     }
 
     func runWorkflow() {
+        // Resolve the scope BEFORE anything is tracked or sent (#4523). If the
+        // run would widen beyond the selection, park it for the confirmation
+        // dialog instead of dispatching — `widensBeyondSelection` existed for
+        // exactly this and was consulted by nothing but a log line, which is
+        // how one selected TIF became a whole-folder run.
+        let scope = resolveRunScope()
+        if Self.runNeedsWideningConfirmation(scope) {
+            pendingWideningScope = scope
+            return
+        }
+        dispatchRun(scope)
+    }
+
+    /// Whether pressing Run must ask the user first (#4396 ask #3 / #4523):
+    /// true exactly when the resolved scope reaches beyond what the user
+    /// explicitly selected. Pure and `nonisolated` so tests exercise the gate
+    /// off-main (View statics inherit MainActor under the macOS 26 SDK, #4201).
+    nonisolated static func runNeedsWideningConfirmation(
+        _ scope: WorkflowRunScope.Resolution
+    ) -> Bool {
+        scope.widensBeyondSelection
+    }
+
+    /// Dispatch the run the user confirmed in the widening dialog. The parked
+    /// scope — not a re-resolution — is what runs: re-resolving after the
+    /// dialog could produce a different (unconfirmed) scope.
+    func confirmPendingWideningRun() {
+        guard let scope = pendingWideningScope else { return }
+        pendingWideningScope = nil
+        dispatchRun(scope)
+    }
+
+    private func dispatchRun(_ scope: WorkflowRunScope.Resolution) {
         isRunning = true
         let executionThreadId = beginWorkflowExecutionTracking()
 
         Task { @MainActor in
-            await performWorkflowRun(executionThreadId: executionThreadId)
+            await performWorkflowRun(executionThreadId: executionThreadId, scope: scope)
             isRunning = false
         }
     }
@@ -78,7 +111,10 @@ extension WorkflowEditor {
         return executionThreadId
     }
 
-    private func performWorkflowRun(executionThreadId initialThreadId: String) async {
+    private func performWorkflowRun(
+        executionThreadId initialThreadId: String,
+        scope: WorkflowRunScope.Resolution
+    ) async {
         var executionThreadId = initialThreadId
         do {
             try await autoSaveWorkflowBeforeRun()
@@ -87,7 +123,9 @@ extension WorkflowEditor {
             // Single source of truth: all events go through executionObserver
             let workflowId = editingWorkflow.id  // Capture ID before closure
 
-            let scope = resolveRunScope()
+            // The scope was resolved (and, when widening, CONFIRMED) before
+            // dispatch — never re-resolved here, where a selection change
+            // since the dialog could smuggle in a different scope (#4523).
             let selectedIds = scope.docIds
             warnIfNoInputResolved(selectedIds)
             // State the scope in the run record so a widened run is
