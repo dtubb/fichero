@@ -37,7 +37,11 @@ final class WorkflowStreamServiceFailureTests: XCTestCase {
 
         XCTAssertTrue(source.contains("streamTasks: [String: Task<Void, Never>]"))
         XCTAssertFalse(executeBody.contains(".cancel()"))
-        XCTAssertTrue(executeBody.contains("startStream(threadId: acceptedResponse.threadId"))
+        // Two pins, not one substring: 4cf3582c7 (#4457) rewrapped the call
+        // across lines when it gained onStreamEnd, and a single-line literal
+        // stopped matching a call whose shape is unchanged.
+        XCTAssertTrue(executeBody.contains("startStream("))
+        XCTAssertTrue(executeBody.contains("threadId: acceptedResponse.threadId"))
         XCTAssertTrue(source.contains("cancelStream(threadId: threadId)"))
     }
 }
