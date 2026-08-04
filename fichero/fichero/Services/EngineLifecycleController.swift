@@ -27,7 +27,10 @@ import SwiftUI
 @MainActor
 @Observable
 final class EngineLifecycleController {
-    private let logger = Logger(subsystem: "app.fichero.fichero", category: "EngineLifecycle")
+    // internal (not private) so the same-type extension in
+    // EngineLifecycleController+ProviderKeys.swift can log to the same
+    // category — one connect trail, not two (#4534).
+    let logger = Logger(subsystem: "app.fichero.fichero", category: "EngineLifecycle")
 
     /// The process half — spawn/watch/stop of the embedded (or adopted external)
     /// engine. One per app.
@@ -291,6 +294,19 @@ final class EngineLifecycleController {
         // embedded/local host (loopback has no stored expiry); a failed renew
         // keeps the old token (the expired → re-pair path is the safety net).
         await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host)
+        // #4534: push the app-owned provider keys to the engine, EVERY connect.
+        //
+        // This sits here rather than at a user action on purpose. The engine
+        // holds supplied keys in memory for its process lifetime only, so a
+        // respawn — including the #4064 supervised auto-restart, which reaches
+        // this same choke point via `connect(restart:)` — starts with none. A
+        // respawned engine silently holding no keys would be a brand-new
+        // silent failure of exactly the kind this program removed today.
+        //
+        // Every connect path funnels through here (start, retry, auto-restart),
+        // which is why it is the hook: reusing the existing supervisor rather
+        // than adding a second mechanism that would have to be remembered.
+        await supplyProviderKeysToEngine()
         // The one shared post-ready side-effect block (#3113); adopt is a no-op
         // on an embedded/local host, so no `usesExternal` branch here.
         let restorationStart = Date()

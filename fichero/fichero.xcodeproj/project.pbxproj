@@ -7,9 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		039A0E37C6C2F369627F9B65 /* EngineLifecycleController+ProviderKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */; };
+		466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */; };
+		87A0E5F6B4653AF4DDF44629 /* EngineLifecycleController+ProviderKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */; };
 		9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
+		B4E1A5D44C050539E13A341F /* ProviderKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
 		EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
@@ -51,7 +55,6 @@
 		A1624FF62F2EE5710019C019 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
-			dstSubfolder = None;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
@@ -59,7 +62,6 @@
 		FEED00000000000000000254 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			dstPath = "";
-			dstSubfolder = None;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 1;
@@ -68,8 +70,10 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EngineLifecycleController+ProviderKeys.swift"; sourceTree = "<group>"; };
 		17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewLibraryPanel.swift; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProviderKeyStore.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
@@ -78,7 +82,7 @@
 		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-ipad.xctestplan"; sourceTree = "<group>"; };
 		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		FEED00000000000000000262 /* Configs/Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
+		FEED00000000000000000262 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -110,21 +114,29 @@
 		};
 		208ADA9A3022008200B83F96 /* FicheroIOSTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = FicheroIOSTests;
 			sourceTree = "<group>";
 		};
 		A10521AA2EFDC92400B28C3E /* fichero-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-tests";
 			sourceTree = "<group>";
 		};
 		A10521C22EFDC94100B28C3E /* fichero-ui-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-ui-tests";
 			sourceTree = "<group>";
 		};
 		FE1DAD000000000000000020 /* fichero-ipad-tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "fichero-ipad-tests";
 			sourceTree = "<group>";
 		};
@@ -184,7 +196,7 @@
 				A16FDD642EFDCD17003296C0 /* fichero.xctestplan */,
 				A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */,
 				A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */,
-				FEED00000000000000000262 /* Configs/Version.xcconfig */,
+				FEED00000000000000000262 /* Version.xcconfig */,
 				20558E0F300BF97D001A5D3D /* fichero */,
 				A10521AA2EFDC92400B28C3E /* fichero-tests */,
 				A10521C22EFDC94100B28C3E /* fichero-ui-tests */,
@@ -223,6 +235,15 @@
 			path = ContentView;
 			sourceTree = "<group>";
 		};
+		8BCDA383103D21325C46621C /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */,
+				15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		B03A945CBEE23DEE5CD58F29 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -236,6 +257,7 @@
 			children = (
 				51E2488023D4166B8E8218D5 /* Views */,
 				B03A945CBEE23DEE5CD58F29 /* App */,
+				8BCDA383103D21325C46621C /* Services */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -276,6 +298,8 @@
 				CC0011223344556677889903 /* Embed Fichero Server */,
 			);
 			buildRules = (
+			);
+			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				20558E0F300BF97D001A5D3D /* fichero */,
@@ -367,6 +391,8 @@
 				SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */,
 			);
 			buildRules = (
+			);
+			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				20558E0F300BF97D001A5D3D /* fichero */,
@@ -473,6 +499,8 @@
 /* Begin PBXShellScriptBuildPhase section */
 		CC0011223344556677889902 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
 			inputPaths = (
 				"$(SRCROOT)/../.swiftlint.yml",
 				"$(SRCROOT)/fichero",
@@ -486,13 +514,13 @@
 				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
 				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
 				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				"fi",
+				fi,
 				"",
 				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
 				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				"else",
+				else,
 				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				"fi",
+				fi,
 				"",
 				"mkdir -p \"$DERIVED_FILE_DIR\"",
 				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
@@ -502,6 +530,8 @@
 		};
 		CC0011223344556677889903 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
 			inputFileListPaths = (
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
@@ -540,7 +570,7 @@
 				"",
 				"  exit 0",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -550,7 +580,7 @@
 				"",
 				"  exit 0",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -567,7 +597,7 @@
 				"",
 				"  exit 1",
 				"",
-				"fi",
+				fi,
 				"",
 				"",
 				"",
@@ -585,6 +615,8 @@
 		};
 		FEED00000000000000000255 /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
 			inputPaths = (
 				"$(SRCROOT)/../.swiftlint.yml",
 				"$(SRCROOT)/fichero",
@@ -598,13 +630,13 @@
 				"SWIFTLINT_BIN=\"${SWIFTLINT_PATH:-/opt/homebrew/bin/swiftlint}\"",
 				"if [ ! -x \"$SWIFTLINT_BIN\" ]; then",
 				"  SWIFTLINT_BIN=\"$(command -v swiftlint || true)\"",
-				"fi",
+				fi,
 				"",
 				"if [ -x \"$SWIFTLINT_BIN\" ]; then",
 				"  \"$SWIFTLINT_BIN\" lint --config \"$SRCROOT/../.swiftlint.yml\" \"$SRCROOT/fichero\"",
-				"else",
+				else,
 				"  echo \"warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint\"",
-				"fi",
+				fi,
 				"",
 				"mkdir -p \"$DERIVED_FILE_DIR\"",
 				"touch \"$DERIVED_FILE_DIR/swiftlint.done\"",
@@ -614,6 +646,8 @@
 		};
 		FEED00000000000000000256 /* Embed Fichero Server */ = {
 			isa = PBXShellScriptBuildPhase;
+			files = (
+			);
 			inputFileListPaths = (
 				"$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist",
 			);
@@ -646,12 +680,12 @@
 				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
 				"  echo \"Skipping engine embed (non-macOS platform ${PLATFORM_NAME})\"",
 				"  exit 0",
-				"fi",
+				fi,
 				"",
 				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
 				"  echo \"Skipping engine embed (FICHERO_EMBED_ENGINE=${FICHERO_EMBED_ENGINE}); use external backend on :8765\"",
 				"  exit 0",
-				"fi",
+				fi,
 				"",
 				"# Contents/Helpers, NOT Contents/Resources (#3749). TN2206 lists the",
 				"# designated code locations for nested executables — MacOS, Frameworks,",
@@ -685,7 +719,7 @@
 				"if [ ! -d \"$APP_DST\" ]; then",
 				"  echo \"error: no app bundle at $APP_DST (TARGET_BUILD_DIR/WRAPPER_NAME)\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"APP_DST=\"$(cd \"$APP_DST\" && pwd -P)\"",
 				"ENGINE_DST=\"$APP_DST/Contents/Helpers/Fichero Server.app\"",
 				"",
@@ -696,18 +730,18 @@
 				"if [ \"$(find \"$APP_DST\" -type f | head -1 | wc -l | tr -d \" \")\" -eq 0 ]; then",
 				"  echo \"error: find traverses nothing under $APP_DST — the strips and their checks would vacuously pass\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"echo \"  app bundle (resolved): $APP_DST\"",
 				"",
 				"if [ ! -d \"$ENGINE_SRC\" ]; then",
 				"  echo \"error: Fichero Server.app not found at $ENGINE_SRC — run 'briefcase build macOS --app server' in fichero-server/ first\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"if [ ! -f \"$ENGINE_ENTITLEMENTS\" ]; then",
 				"  echo \"error: App Store engine entitlements not found at $ENGINE_ENTITLEMENTS\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"echo \"Embedding engine (App Store, sandboxed): $ENGINE_SRC -> $ENGINE_DST\"",
 				"rm -rf \"$ENGINE_DST\"",
@@ -730,7 +764,7 @@
 				"if [ \"$archive_count\" -gt 0 ]; then",
 				"  find \"$APP_DST\" -name \"*.a\" -type f -delete",
 				"  echo \"  removed $archive_count static archive(s) from the app bundle — not signable code (90284)\"",
-				"fi",
+				fi,
 				"",
 				"# Remove debug-symbol bundles (.dSYM). REJECTED UPLOAD, codes 90277/90278: Briefcase",
 				"# ships PyObjCTest extensions with their *.cpython-312-darwin.so.dSYM beside them, and",
@@ -748,12 +782,12 @@
 				"if [ \"$dsym_count\" -gt 0 ]; then",
 				"  find \"$APP_DST\" -name \"*.dSYM\" -type d -exec rm -rf {} +",
 				"  echo \"  removed $dsym_count debug-symbol bundle(s) (.dSYM) from the app bundle — not runtime code (90277/90278)\"",
-				"fi",
+				fi,
 				"",
 				"if [ \"${CODE_SIGNING_ALLOWED}\" != \"YES\" ] || [ -z \"${EXPANDED_CODE_SIGN_IDENTITY}\" ]; then",
 				"  echo \"note: signing not configured for ${CONFIGURATION}; engine left as copied (ad-hoc)\"",
 				"  exit 0",
-				"fi",
+				fi,
 				"",
 				"# Sign inside-out. Mirrors scripts/build-release-dmg.sh step 2b, minus the",
 				"# hardened runtime and secure timestamp (neither applies to MAS).",
@@ -814,7 +848,7 @@
 				"if [ \"$sign_fails\" -gt 0 ]; then",
 				"  echo \"error: $sign_fails Mach-O binaries failed to sign\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"# Re-seal bundles innermost-first: longest path first guarantees a nested bundle",
 				"# is sealed before its parent, so the parent's seal hashes a correct child. The",
@@ -834,17 +868,17 @@
 				"if [ \"$bundle_fails\" -gt 0 ]; then",
 				"  echo \"error: $bundle_fails bundles failed to re-seal\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"# Fail the build here rather than at ingestion if the two-key rule was broken.",
 				"if ! codesign --verify --strict \"$ENGINE_DST\" >/dev/null 2>&1; then",
 				"  echo \"error: embedded engine signature is invalid after signing\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"if ! codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.inherit\"; then",
 				"  echo \"error: embedded engine is missing com.apple.security.inherit\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"# get-task-allow is incompatible with com.apple.security.inherit (Apple",
 				"# Entitlement Key Reference) and aborts the sandboxed engine child at",
 				"# launch. CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO (asserted by",
@@ -857,7 +891,7 @@
 				"  echo \"       get-task-allow is incompatible with com.apple.security.inherit and\" >&2",
 				"  echo \"       aborts the sandboxed engine child on launch (#3952).\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"# The two checks that App Store Connect ran for us, run here instead. Both of these",
 				"# rejections cost a full archive + upload + wait to discover; they cost seconds here.",
@@ -868,7 +902,7 @@
 				"  echo \"error: $remaining static archive(s) (.a) still in the engine — ingestion rejects these (90284)\" >&2",
 				"  find \"$APP_DST\" -name \"*.a\" -type f >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"# 90277/90278 — no debug-symbol bundles may remain.",
 				"remaining_dsym=$(find \"$APP_DST\" -name \"*.dSYM\" -type d | wc -l | tr -d \" \")",
@@ -876,7 +910,7 @@
 				"  echo \"error: $remaining_dsym .dSYM bundle(s) still in the engine — they carry com.apple.xcode.dsym identifiers and ingestion rejects them (90277/90278)\" >&2",
 				"  find \"$APP_DST\" -name \"*.dSYM\" -type d >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"# 90296 — EVERY nested executable must be sandboxed, not just the engine's own.",
 				"# This is the check that would have caught fm-bridge.",
@@ -895,7 +929,7 @@
 				"if [ \"$unsandboxed\" -gt 0 ]; then",
 				"  echo \"error: $unsandboxed nested executable(s) lack com.apple.security.app-sandbox\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"echo \"  engine signed sandboxed: $exec_count nested executable(s), all app-sandbox + inherit, no --deep, no .a\"",
 				"",
@@ -904,6 +938,8 @@
 		SBX00042F27F36000EC9EE1 /* Strip Sparkle Info.plist Keys */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
+			files = (
+			);
 			name = "Strip Sparkle Info.plist Keys";
 			shellPath = /bin/sh;
 			shellScript = (
@@ -930,14 +966,14 @@
 				"if [ ! -f \"$PLIST\" ]; then",
 				"  echo \"note: no Info.plist at $PLIST — nothing to strip\"",
 				"  exit 0",
-				"fi",
+				fi,
 				"",
 				"for KEY in SUFeedURL SUPublicEDKey SUEnableAutomaticChecks SUAllowsAutomaticUpdates SUScheduledCheckInterval; do",
 				"  if /usr/libexec/PlistBuddy -c \"Print :${KEY}\" \"$PLIST\" >/dev/null 2>&1; then",
 				"    /usr/libexec/PlistBuddy -c \"Delete :${KEY}\" \"$PLIST\"",
 				"    echo \"  removed ${KEY}\"",
 				"  fi",
-				"done",
+				done,
 				"",
 				"# Fail the build rather than ship a Sparkle key to App Review.",
 				"for KEY in SUFeedURL SUPublicEDKey; do",
@@ -945,7 +981,7 @@
 				"    echo \"error: ${KEY} is still present in the App Store Info.plist\" >&2",
 				"    exit 1",
 				"  fi",
-				"done",
+				done,
 				"",
 				"echo \"Sparkle Info.plist keys stripped from the App Store build\"",
 				"",
@@ -954,6 +990,8 @@
 		SBX00052F27F36000EC9EE1 /* Validate App Store Bundle */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
+			files = (
+			);
 			name = "Validate App Store Bundle";
 			shellPath = /bin/sh;
 			shellScript = (
@@ -977,30 +1015,30 @@
 				"",
 				"if [ \"${PLATFORM_NAME}\" != \"macosx\" ]; then",
 				"  exit 0",
-				"fi",
+				fi,
 				"",
 				"if [ \"${FICHERO_EMBED_ENGINE}\" != \"YES\" ]; then",
 				"  echo \"Skipping App Store bundle validation (no engine embedded in this configuration)\"",
 				"  exit 0",
-				"fi",
+				fi,
 				"",
 				"VALIDATOR=\"${SRCROOT}/../scripts/validate_mas_bundle.sh\"",
 				"if [ ! -f \"$VALIDATOR\" ]; then",
 				"  echo \"error: validator not found at $VALIDATOR\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"APP_DST=\"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\"",
 				"if [ ! -d \"$APP_DST\" ]; then",
 				"  echo \"error: no app bundle at $APP_DST\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 				"echo \"Validating the App Store bundle we just built:\"",
 				"if ! /bin/bash \"$VALIDATOR\" --structure-only \"$APP_DST\"; then",
 				"  echo \"error: the App Store bundle would be REJECTED by App Store Connect — see the failures above\" >&2",
 				"  exit 1",
-				"fi",
+				fi,
 				"",
 			);
 		};
@@ -1016,6 +1054,8 @@
 			isa = PBXSourcesBuildPhase;
 			files = (
 				EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */,
+				B4E1A5D44C050539E13A341F /* ProviderKeyStore.swift in Sources */,
+				87A0E5F6B4653AF4DDF44629 /* EngineLifecycleController+ProviderKeys.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1037,6 +1077,8 @@
 			isa = PBXSourcesBuildPhase;
 			files = (
 				9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */,
+				466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */,
+				039A0E37C6C2F369627F9B65 /* EngineLifecycleController+ProviderKeys.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
@@ -1065,7 +1107,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		208ADAA03022008700B83F96 /* Debug configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA03022008700B83F96 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1088,7 +1130,7 @@
 			};
 			name = Debug;
 		};
-		208ADAA13022008700B83F96 /* Alpha configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA13022008700B83F96 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1112,7 +1154,7 @@
 			};
 			name = Alpha;
 		};
-		208ADAA23022008700B83F96 /* Beta configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA23022008700B83F96 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1136,7 +1178,7 @@
 			};
 			name = Beta;
 		};
-		208ADAA33022008700B83F96 /* Release configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA33022008700B83F96 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1160,7 +1202,7 @@
 			};
 			name = Release;
 		};
-		208ADAA43022008700B83F96 /* Dev Embedded configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA43022008700B83F96 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1184,7 +1226,7 @@
 			};
 			name = "Dev Embedded";
 		};
-		208ADAA53022008700B83F96 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA53022008700B83F96 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1208,7 +1250,7 @@
 			};
 			name = "Alpha Embedded";
 		};
-		208ADAA63022008700B83F96 /* Beta Embedded configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA63022008700B83F96 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1232,7 +1274,7 @@
 			};
 			name = "Beta Embedded";
 		};
-		208ADAA73022008700B83F96 /* Release Local configuration for PBXNativeTarget "FicheroIOSTests" */ = {
+		208ADAA73022008700B83F96 /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1256,7 +1298,7 @@
 			};
 			name = "Release Local";
 		};
-		20969FA93000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroTests" */ = {
+		20969FA93000614800D06A60 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1265,7 +1307,7 @@
 			};
 			name = Alpha;
 		};
-		20969FAA3000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroTests" */ = {
+		20969FAA3000614800D06A60 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1274,7 +1316,7 @@
 			};
 			name = Beta;
 		};
-		20969FAB3000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
+		20969FAB3000614800D06A60 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1283,7 +1325,7 @@
 			};
 			name = "Dev Embedded";
 		};
-		20969FAC3000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
+		20969FAC3000614800D06A60 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1292,7 +1334,7 @@
 			};
 			name = "Alpha Embedded";
 		};
-		20969FAD3000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroTests" */ = {
+		20969FAD3000614800D06A60 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1301,7 +1343,7 @@
 			};
 			name = "Beta Embedded";
 		};
-		20969FAE3000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroTests" */ = {
+		20969FAE3000614800D06A60 /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1310,7 +1352,7 @@
 			};
 			name = "Release Local";
 		};
-		20969FAF3000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroUITests" */ = {
+		20969FAF3000614800D06A60 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1320,7 +1362,7 @@
 			};
 			name = Alpha;
 		};
-		20969FB03000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroUITests" */ = {
+		20969FB03000614800D06A60 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1330,7 +1372,7 @@
 			};
 			name = Beta;
 		};
-		20969FB13000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroUITests" */ = {
+		20969FB13000614800D06A60 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1340,7 +1382,7 @@
 			};
 			name = "Dev Embedded";
 		};
-		20969FB23000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroUITests" */ = {
+		20969FB23000614800D06A60 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1350,7 +1392,7 @@
 			};
 			name = "Alpha Embedded";
 		};
-		20969FB33000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroUITests" */ = {
+		20969FB33000614800D06A60 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1360,7 +1402,7 @@
 			};
 			name = "Beta Embedded";
 		};
-		20969FB43000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroUITests" */ = {
+		20969FB43000614800D06A60 /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1370,9 +1412,9 @@
 			};
 			name = "Release Local";
 		};
-		800 /* Debug configuration for PBXProject "fichero" */ = {
+		800 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1437,9 +1479,9 @@
 			};
 			name = Debug;
 		};
-		801 /* Release configuration for PBXProject "fichero" */ = {
+		801 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1496,9 +1538,9 @@
 			};
 			name = Release;
 		};
-		802 /* Alpha configuration for PBXProject "fichero" */ = {
+		802 /* Alpha */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1555,9 +1597,9 @@
 			};
 			name = Alpha;
 		};
-		803 /* Beta configuration for PBXProject "fichero" */ = {
+		803 /* Beta */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -1614,7 +1656,7 @@
 			};
 			name = Beta;
 		};
-		810 /* Debug configuration for PBXNativeTarget "Fichero" */ = {
+		810 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1674,7 +1716,7 @@
 			};
 			name = Debug;
 		};
-		811 /* Release configuration for PBXNativeTarget "Fichero" */ = {
+		811 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1749,7 +1791,7 @@
 			};
 			name = Release;
 		};
-		812 /* Alpha configuration for PBXNativeTarget "Fichero" */ = {
+		812 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1824,7 +1866,7 @@
 			};
 			name = Alpha;
 		};
-		813 /* Beta configuration for PBXNativeTarget "Fichero" */ = {
+		813 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -1899,7 +1941,7 @@
 			};
 			name = Beta;
 		};
-		A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521AF2EFDC92400B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1915,7 +1957,7 @@
 			};
 			name = Debug;
 		};
-		A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */ = {
+		A10521B02EFDC92400B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1931,7 +1973,7 @@
 			};
 			name = Release;
 		};
-		A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C82EFDC94100B28C3E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -1945,7 +1987,7 @@
 			};
 			name = Debug;
 		};
-		A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */ = {
+		A10521C92EFDC94100B28C3E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -1959,7 +2001,7 @@
 			};
 			name = Release;
 		};
-		FE1DAD000000000000000050 /* Debug configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000050 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1977,7 +2019,7 @@
 			};
 			name = Debug;
 		};
-		FE1DAD000000000000000051 /* Release configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000051 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -1995,7 +2037,7 @@
 			};
 			name = Release;
 		};
-		FE1DAD000000000000000052 /* Alpha configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000052 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2013,7 +2055,7 @@
 			};
 			name = Alpha;
 		};
-		FE1DAD000000000000000053 /* Beta configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000053 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2031,7 +2073,7 @@
 			};
 			name = Beta;
 		};
-		FE1DAD000000000000000054 /* Dev Embedded configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000054 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2049,7 +2091,7 @@
 			};
 			name = "Dev Embedded";
 		};
-		FE1DAD000000000000000055 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000055 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2067,7 +2109,7 @@
 			};
 			name = "Alpha Embedded";
 		};
-		FE1DAD000000000000000056 /* Beta Embedded configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000056 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2085,7 +2127,7 @@
 			};
 			name = "Beta Embedded";
 		};
-		FE1DAD000000000000000057 /* Release Local configuration for PBXNativeTarget "FicheroIPadTests" */ = {
+		FE1DAD000000000000000057 /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -2103,7 +2145,7 @@
 			};
 			name = "Release Local";
 		};
-		FE7E000100000000000000A1 /* Dev Embedded configuration for PBXNativeTarget "Fichero" */ = {
+		FE7E000100000000000000A1 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2163,7 +2205,7 @@
 			};
 			name = "Dev Embedded";
 		};
-		FE7E000100000000000000A2 /* Alpha Embedded configuration for PBXNativeTarget "Fichero" */ = {
+		FE7E000100000000000000A2 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2238,7 +2280,7 @@
 			};
 			name = "Alpha Embedded";
 		};
-		FE7E000100000000000000A3 /* Beta Embedded configuration for PBXNativeTarget "Fichero" */ = {
+		FE7E000100000000000000A3 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2313,7 +2355,7 @@
 			};
 			name = "Beta Embedded";
 		};
-		FE7E000100000000000000A4 /* Release Local configuration for PBXNativeTarget "Fichero" */ = {
+		FE7E000100000000000000A4 /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2388,9 +2430,9 @@
 			};
 			name = "Release Local";
 		};
-		FE7E000100000000000000B1 /* Dev Embedded configuration for PBXProject "fichero" */ = {
+		FE7E000100000000000000B1 /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -2455,9 +2497,9 @@
 			};
 			name = "Dev Embedded";
 		};
-		FE7E000100000000000000B2 /* Alpha Embedded configuration for PBXProject "fichero" */ = {
+		FE7E000100000000000000B2 /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -2514,9 +2556,9 @@
 			};
 			name = "Alpha Embedded";
 		};
-		FE7E000100000000000000B3 /* Beta Embedded configuration for PBXProject "fichero" */ = {
+		FE7E000100000000000000B3 /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -2573,9 +2615,9 @@
 			};
 			name = "Beta Embedded";
 		};
-		FE7E000100000000000000B4 /* Release Local configuration for PBXProject "fichero" */ = {
+		FE7E000100000000000000B4 /* Release Local */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FEED00000000000000000262 /* Configs/Version.xcconfig */;
+			baseConfigurationReference = FEED00000000000000000262 /* Version.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -2632,7 +2674,7 @@
 			};
 			name = "Release Local";
 		};
-		FEED00000000000000000257 /* Debug configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED00000000000000000257 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2694,7 +2736,7 @@
 			};
 			name = Debug;
 		};
-		FEED00000000000000000258 /* Alpha configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED00000000000000000258 /* Alpha */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2771,7 +2813,7 @@
 			};
 			name = Alpha;
 		};
-		FEED00000000000000000259 /* Beta configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED00000000000000000259 /* Beta */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2848,7 +2890,7 @@
 			};
 			name = Beta;
 		};
-		FEED0000000000000000025A /* Release configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED0000000000000000025A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2925,7 +2967,7 @@
 			};
 			name = Release;
 		};
-		FEED0000000000000000025B /* Dev Embedded configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED0000000000000000025B /* Dev Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -2987,7 +3029,7 @@
 			};
 			name = "Dev Embedded";
 		};
-		FEED0000000000000000025C /* Alpha Embedded configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED0000000000000000025C /* Alpha Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -3064,7 +3106,7 @@
 			};
 			name = "Alpha Embedded";
 		};
-		FEED0000000000000000025D /* Beta Embedded configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED0000000000000000025D /* Beta Embedded */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -3141,7 +3183,7 @@
 			};
 			name = "Beta Embedded";
 		};
-		FEED0000000000000000025E /* Release Local configuration for PBXNativeTarget "Fichero (App Store)" */ = {
+		FEED0000000000000000025E /* Release Local */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -3224,98 +3266,98 @@
 		208ADA9F3022008700B83F96 /* Build configuration list for PBXNativeTarget "FicheroIOSTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				208ADAA03022008700B83F96 /* Debug configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA13022008700B83F96 /* Alpha configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA23022008700B83F96 /* Beta configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA33022008700B83F96 /* Release configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA43022008700B83F96 /* Dev Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA53022008700B83F96 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA63022008700B83F96 /* Beta Embedded configuration for PBXNativeTarget "FicheroIOSTests" */,
-				208ADAA73022008700B83F96 /* Release Local configuration for PBXNativeTarget "FicheroIOSTests" */,
+				208ADAA03022008700B83F96 /* Debug */,
+				208ADAA13022008700B83F96 /* Alpha */,
+				208ADAA23022008700B83F96 /* Beta */,
+				208ADAA33022008700B83F96 /* Release */,
+				208ADAA43022008700B83F96 /* Dev Embedded */,
+				208ADAA53022008700B83F96 /* Alpha Embedded */,
+				208ADAA63022008700B83F96 /* Beta Embedded */,
+				208ADAA73022008700B83F96 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
 		600 /* Build configuration list for PBXNativeTarget "Fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				810 /* Debug configuration for PBXNativeTarget "Fichero" */,
-				812 /* Alpha configuration for PBXNativeTarget "Fichero" */,
-				813 /* Beta configuration for PBXNativeTarget "Fichero" */,
-				811 /* Release configuration for PBXNativeTarget "Fichero" */,
-				FE7E000100000000000000A1 /* Dev Embedded configuration for PBXNativeTarget "Fichero" */,
-				FE7E000100000000000000A2 /* Alpha Embedded configuration for PBXNativeTarget "Fichero" */,
-				FE7E000100000000000000A3 /* Beta Embedded configuration for PBXNativeTarget "Fichero" */,
-				FE7E000100000000000000A4 /* Release Local configuration for PBXNativeTarget "Fichero" */,
+				810 /* Debug */,
+				812 /* Alpha */,
+				813 /* Beta */,
+				811 /* Release */,
+				FE7E000100000000000000A1 /* Dev Embedded */,
+				FE7E000100000000000000A2 /* Alpha Embedded */,
+				FE7E000100000000000000A3 /* Beta Embedded */,
+				FE7E000100000000000000A4 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
 		710 /* Build configuration list for PBXProject "fichero" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				800 /* Debug configuration for PBXProject "fichero" */,
-				802 /* Alpha configuration for PBXProject "fichero" */,
-				803 /* Beta configuration for PBXProject "fichero" */,
-				801 /* Release configuration for PBXProject "fichero" */,
-				FE7E000100000000000000B1 /* Dev Embedded configuration for PBXProject "fichero" */,
-				FE7E000100000000000000B2 /* Alpha Embedded configuration for PBXProject "fichero" */,
-				FE7E000100000000000000B3 /* Beta Embedded configuration for PBXProject "fichero" */,
-				FE7E000100000000000000B4 /* Release Local configuration for PBXProject "fichero" */,
+				800 /* Debug */,
+				802 /* Alpha */,
+				803 /* Beta */,
+				801 /* Release */,
+				FE7E000100000000000000B1 /* Dev Embedded */,
+				FE7E000100000000000000B2 /* Alpha Embedded */,
+				FE7E000100000000000000B3 /* Beta Embedded */,
+				FE7E000100000000000000B4 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
 		A10521B12EFDC92400B28C3E /* Build configuration list for PBXNativeTarget "FicheroTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521AF2EFDC92400B28C3E /* Debug configuration for PBXNativeTarget "FicheroTests" */,
-				A10521B02EFDC92400B28C3E /* Release configuration for PBXNativeTarget "FicheroTests" */,
-				20969FA93000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroTests" */,
-				20969FAA3000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroTests" */,
-				20969FAB3000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroTests" */,
-				20969FAC3000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroTests" */,
-				20969FAD3000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroTests" */,
-				20969FAE3000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroTests" */,
+				A10521AF2EFDC92400B28C3E /* Debug */,
+				A10521B02EFDC92400B28C3E /* Release */,
+				20969FA93000614800D06A60 /* Alpha */,
+				20969FAA3000614800D06A60 /* Beta */,
+				20969FAB3000614800D06A60 /* Dev Embedded */,
+				20969FAC3000614800D06A60 /* Alpha Embedded */,
+				20969FAD3000614800D06A60 /* Beta Embedded */,
+				20969FAE3000614800D06A60 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
 		A10521C72EFDC94100B28C3E /* Build configuration list for PBXNativeTarget "FicheroUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A10521C82EFDC94100B28C3E /* Debug configuration for PBXNativeTarget "FicheroUITests" */,
-				A10521C92EFDC94100B28C3E /* Release configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FAF3000614800D06A60 /* Alpha configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FB03000614800D06A60 /* Beta configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FB13000614800D06A60 /* Dev Embedded configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FB23000614800D06A60 /* Alpha Embedded configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FB33000614800D06A60 /* Beta Embedded configuration for PBXNativeTarget "FicheroUITests" */,
-				20969FB43000614800D06A60 /* Release Local configuration for PBXNativeTarget "FicheroUITests" */,
+				A10521C82EFDC94100B28C3E /* Debug */,
+				A10521C92EFDC94100B28C3E /* Release */,
+				20969FAF3000614800D06A60 /* Alpha */,
+				20969FB03000614800D06A60 /* Beta */,
+				20969FB13000614800D06A60 /* Dev Embedded */,
+				20969FB23000614800D06A60 /* Alpha Embedded */,
+				20969FB33000614800D06A60 /* Beta Embedded */,
+				20969FB43000614800D06A60 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
 		FE1DAD000000000000000060 /* Build configuration list for PBXNativeTarget "FicheroIPadTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				FE1DAD000000000000000050 /* Debug configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000051 /* Release configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000052 /* Alpha configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000053 /* Beta configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000054 /* Dev Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000055 /* Alpha Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000056 /* Beta Embedded configuration for PBXNativeTarget "FicheroIPadTests" */,
-				FE1DAD000000000000000057 /* Release Local configuration for PBXNativeTarget "FicheroIPadTests" */,
+				FE1DAD000000000000000050 /* Debug */,
+				FE1DAD000000000000000051 /* Release */,
+				FE1DAD000000000000000052 /* Alpha */,
+				FE1DAD000000000000000053 /* Beta */,
+				FE1DAD000000000000000054 /* Dev Embedded */,
+				FE1DAD000000000000000055 /* Alpha Embedded */,
+				FE1DAD000000000000000056 /* Beta Embedded */,
+				FE1DAD000000000000000057 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
 		FEED0000000000000000025F /* Build configuration list for PBXNativeTarget "Fichero (App Store)" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				FEED00000000000000000257 /* Debug configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED00000000000000000258 /* Alpha configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED00000000000000000259 /* Beta configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025A /* Release configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025B /* Dev Embedded configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025C /* Alpha Embedded configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025D /* Beta Embedded configuration for PBXNativeTarget "Fichero (App Store)" */,
-				FEED0000000000000000025E /* Release Local configuration for PBXNativeTarget "Fichero (App Store)" */,
+				FEED00000000000000000257 /* Debug */,
+				FEED00000000000000000258 /* Alpha */,
+				FEED00000000000000000259 /* Beta */,
+				FEED0000000000000000025A /* Release */,
+				FEED0000000000000000025B /* Dev Embedded */,
+				FEED0000000000000000025C /* Alpha Embedded */,
+				FEED0000000000000000025D /* Beta Embedded */,
+				FEED0000000000000000025E /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};
