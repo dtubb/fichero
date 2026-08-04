@@ -72,12 +72,12 @@ def transport_banner(binding: TransportBinding, *, uds_path: str | None = None) 
     if binding.is_uds:
         socket_path = (uds_path or binding.address.removeprefix("unix:")).strip()
         lines += [
-            "  Dialled by: Fichero (Dev Local) — it sets "
-            f"FICHERO_FORCE_UDS_PATH={socket_path} — and the Release-embedded app, "
-            "which spawns its own engine on a socket in its container",
-            "  NOT dialled by: the schemes that leave FICHERO_FORCE_UDS_PATH unset "
-            f"(Dev/Alpha/Beta/Release Local, and the iOS variants) — those expect "
-            f"{APP_LOOPBACK_URL}; restart without --uds for them.",
+            "  Dialled by: every Mac Local scheme — they set "
+            f"FICHERO_FORCE_UDS_PATH={socket_path} — and the Embedded/App Store "
+            "builds, which spawn their own engine on a socket in their container",
+            "  NOT dialled by: the iOS and iPad schemes. A simulator or device "
+            f"cannot reach a socket in the Mac's container, so they use "
+            f"{APP_LOOPBACK_URL}; restart without --uds to serve them.",
         ]
         return "\n".join(lines)
 

@@ -90,25 +90,31 @@ def main() -> int:
         return 2
     uds_text = uds_section[1].split("return", 1)[0]
 
+    # The clause may wrap over several lines; take a window from each match.
+    lines = uds_text.splitlines()
+    not_dialled = ""
+    for i, line in enumerate(lines):
+        if "NOT dialled" in line:
+            not_dialled += "\n" + "\n".join(lines[i : i + 4])
+
     for scheme in sorted(forcing):
-        # Find the "NOT dialled by" clause in the UDS branch and check the
-        # scheme is not named there.
-        for line in uds_text.splitlines():
-            if "NOT dialled by" in line or "NOT dialled" in line:
-                # Continuation lines matter too; scan a small window.
-                pass
-        not_dialled = "\n".join(
-            line for line in uds_text.splitlines() if "NOT dialled" in line
-        )
-        # The clause may wrap; include the two following lines.
-        lines = uds_text.splitlines()
-        for i, line in enumerate(lines):
-            if "NOT dialled" in line:
-                not_dialled += "\n" + "\n".join(lines[i : i + 3])
-        if scheme in not_dialled:
+        # Match the full name AND the short form the prose actually uses.
+        # The first version of this check looked only for "Fichero (Alpha
+        # Local)" and passed a banner that said "Dev/Alpha/Beta/Release Local"
+        # — the abbreviation nobody thought to match. A detector that cannot
+        # see the bad case is the defect it exists to catch.
+        short = scheme.removeprefix("Fichero (").removesuffix(")")
+        family = short.removesuffix(" Local").removesuffix(" Embedded")
+        aliases = {scheme, short}
+        if short.endswith(" Local"):
+            # "Dev/Alpha/Beta/Release Local" style enumerations.
+            aliases.add(f"{family}/")
+            aliases.add(f"/{family}")
+        if any(alias in not_dialled for alias in aliases):
             violations.append(
                 f"{scheme} sets {UDS_KEY}=YES, so it DOES dial the socket — "
-                f"but the UDS banner lists it under 'NOT dialled by'"
+                f"but the UDS banner lists it under 'NOT dialled by' "
+                f"(matched as one of: {', '.join(sorted(aliases))})"
             )
 
     if violations:

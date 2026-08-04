@@ -82,6 +82,13 @@
             ReferencedContainer = "container:fichero.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "FICHERO_FORCE_UDS_PATH"
+            value = "/Users/danieltubb/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Alpha"
