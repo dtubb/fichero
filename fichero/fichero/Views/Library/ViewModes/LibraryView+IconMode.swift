@@ -90,7 +90,7 @@ extension LibraryView {
                                 // only the hovered folder highlights, and the
                                 // drop moves INTO it — not the viewed folder.
                                 .modifier(LibraryFolderCellDrop(
-                                    isFolder: doc.docType == .folder,
+                                    acceptsDrop: doc.acceptsItemDrops,
                                     onDropProviders: { providers in
                                         handleFolderCellDrop(providers, into: doc)
                                     }

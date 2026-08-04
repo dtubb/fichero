@@ -210,7 +210,7 @@ extension LibraryView {
             // previously only CHILD rows were draggable in table mode.
             .draggable(libraryItemDrag(for: document))
             .modifier(LibraryFolderCellDrop(
-                isFolder: document.docType == .folder,
+                acceptsDrop: document.acceptsItemDrops,
                 onDropProviders: { providers in
                     handleFolderCellDrop(providers, into: document)
                 }

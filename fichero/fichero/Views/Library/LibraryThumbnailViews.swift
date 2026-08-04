@@ -48,11 +48,27 @@ struct DocumentThumbnailView: View {
                     .fill(Color(.windowBackgroundColor))
                     .aspectRatio(3.0 / 4.0, contentMode: .fit)
 
-                // Show folder icon for folders, thumbnail for files.
-                if document.docType == .folder {
-                    Image(systemName: "folder.fill")
+                // Symbol for the nodes that HAVE no picture — folders and
+                // workflow mirrors — thumbnail for everything else.
+                //
+                // #4516: a workflow mirror is a `.file` with no `fileType`, so
+                // it fell through to a thumbnail fetch that returns nothing and
+                // rendered an empty well. The glyph comes from
+                // `Document.displaySymbol`, the same ladder the sidebar reads,
+                // so one node is one symbol in every view mode.
+                // #4514: a read-only system folder gets the sidebar's purple
+                // gear-badged treatment here too, rather than being
+                // indistinguishable from a folder the user may edit.
+                if document.docType == .folder || document.isWorkflowNode {
+                    Image(systemName: document.displaySymbol())
                         .font(.system(size: 48 * scale))
-                        .foregroundColor(.accentColor)
+                        // The grid has always drawn FILLED folders. That is a
+                        // rendering choice, not a different symbol, so it is
+                        // `.symbolVariant` on the shared glyph rather than a
+                        // second icon ladder that can drift from the sidebar's.
+                        .symbolVariant(.fill)
+                        .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
+                        .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
                 } else if document.fileType == .image {
                     // Scale-to-FIT (#4197, the user 2026-07-28): show the whole
                     // page letterboxed in the well; cropping a landscape

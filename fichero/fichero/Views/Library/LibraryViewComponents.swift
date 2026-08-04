@@ -132,10 +132,15 @@ struct MailStyleRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 // Title row
                 HStack {
-                    // Folder icon for folders
-                    if document.docType == .folder {
-                        Image(systemName: "folder.fill")
-                            .foregroundColor(.accentColor)
+                    // Folder / workflow-mirror glyph, from the one ladder the
+                    // sidebar reads (#4516) — a workflow mirror used to get no
+                    // glyph here at all. Purple + gear badge marks a read-only
+                    // system folder, same as the sidebar (#4514).
+                    if document.docType == .folder || document.isWorkflowNode {
+                        Image(systemName: document.displaySymbol())
+                            .symbolVariant(document.docType == .folder ? .fill : .none)
+                            .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
+                            .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
                     }
 
                     // PDF page rows show their page number (prefer an
@@ -169,6 +174,17 @@ struct MailStyleRow: View {
                         Image(systemName: "arrow.up.right.square")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                    }
+
+                    // #4514: the sidebar's trailing lock, on the same rows, in
+                    // the library pane. Xcode's locked-file convention — the
+                    // engine 403s any edit, and the row said nothing.
+                    if document.isLockedSystemNode {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .allowsHitTesting(false)
+                            .accessibilityLabel("Read-only")
                     }
 
                     Spacer()

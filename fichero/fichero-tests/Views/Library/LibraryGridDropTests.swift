@@ -158,10 +158,15 @@ final class SidebarLockedRowBadgeTests: XCTestCase {
         let url = try AppSource.root()
             .appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        // Reads the ITEM's ancestry answer, not the document's id shape: a
-        // re-homed legacy folder keeps its old id and would badge nothing
-        // (#4200). Behaviour is unchanged for seeded rows.
-        XCTAssertTrue(source.contains("item.isDefaultWorkflowFolder || doc.isWorkflowNode"))
+        // #4514: the predicate moved onto `Document.isLockedSystemNode` so the
+        // library views read the SAME one. The item's ancestry answer stays
+        // OR-ed in for a re-homed legacy folder, which keeps its old id and
+        // may predate the engine's `read_only` backfill (#4200).
+        //
+        // The predicate's own behaviour is tested in
+        // `DefaultWorkflowLockTests`, not by this string — a contains-check
+        // kept passing while the library views had no lock concept at all.
+        XCTAssertTrue(source.contains("item.isDefaultWorkflowFolder || doc.isLockedSystemNode"))
         XCTAssertTrue(source.contains("Image(systemName: \"lock.fill\")"))
         XCTAssertTrue(source.contains("accessibilityLabel(\"Read-only\")"))
     }
