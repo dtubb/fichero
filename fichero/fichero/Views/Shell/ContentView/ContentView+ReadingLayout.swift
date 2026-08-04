@@ -22,6 +22,35 @@ extension ContentView {
         documents.first { $0.docType == .page && ($0.sequence ?? 0) == index + 1 }
     }
 
+    /// Pure: the page children a reader page signal may resolve against.
+    ///
+    /// The reader's page children are NOT reliably in `currentDocuments`:
+    /// `currentDocuments` holds the children of the *browsed container*, so
+    /// when the selection is the folder that contains the PDF (the ordinary
+    /// way a PDF gets opened) the page children live only in `childrenCache`
+    /// — the same split #4357 already handles for per-page run progress.
+    /// Resolving a click against `currentDocuments` alone made every reader
+    /// page click fail with "found no page document" whenever the library
+    /// selection was the parent folder rather than the PDF itself.
+    ///
+    /// Candidates are scoped to the reader document's own page parent, so a
+    /// window browsing one container while reading another can never resolve
+    /// a click to a page of some *other* document that happens to share a
+    /// sequence number. With no reader document there is nothing to scope by,
+    /// so the legacy behavior (search the browsed container) is kept.
+    static func readerPageCandidates(
+        readerDocument: Document?,
+        childrenCache: [String: [Document]],
+        currentDocuments: [Document]
+    ) -> [Document] {
+        guard let doc = readerDocument else { return currentDocuments }
+        let parentId = (doc.docType == .page ? doc.parentId : doc.id) ?? doc.id
+        let cached = childrenCache[parentId] ?? []
+        let browsed = currentDocuments.filter { $0.parentId == parentId }
+        var seen = Set<String>()
+        return (cached + browsed).filter { seen.insert($0.id).inserted }
+    }
+
     /// Pure: the 0-based PDF page index for a page Document (1-based `sequence`),
     /// clamped to 0; non-page docs (or nil) resolve to the first page. (#3013)
     static func pdfPageIndex(for doc: Document?) -> Int {
@@ -50,17 +79,33 @@ extension ContentView {
     /// The one place a reader page signal is applied. `signal` decides how much
     /// of the window may move; everything else is identical between the two.
     private func applyReaderPageSignal(_ signal: ReaderPageSignal, pageIndex: Int) {
-        guard let match = Self.pageDocument(
-            atPDFIndex: pageIndex,
-            in: documentStore.currentDocuments
-        ) else {
+        let candidates = Self.readerPageCandidates(
+            readerDocument: detailDocument ?? pageFocusDocument,
+            childrenCache: documentStore.childrenCache,
+            currentDocuments: documentStore.currentDocuments
+        )
+        guard let match = Self.pageDocument(atPDFIndex: pageIndex, in: candidates) else {
             // Routine while scrolling — the transcript can report a page before
-            // its children have loaded — but a CLICK that resolves to nothing is
-            // a real failure the user just experienced as "that did nothing",
-            // so it says so rather than vanishing.
-            if signal == .clicked {
+            // its children have loaded — but a CLICK that resolves to nothing
+            // deserves a report. Which report depends on what actually
+            // happened: a document with page children where the index missed
+            // is a real resolution failure (the click "did nothing"); a
+            // document with NO page children anywhere (single-page imports,
+            // transcripts of unpaginated documents) has nothing to select, and
+            // calling that an error was the #4373 over-logging Daniel saw.
+            guard signal == .clicked else { return }
+            let pageChildCount = Self.pdfDocPageCount(in: candidates)
+            if pageChildCount > 0 {
                 readerPageActivationLogger.error(
-                    "Reader page click found no page document at index \(pageIndex, privacy: .public)"
+                    """
+                    Reader page click found no page document at index \
+                    \(pageIndex, privacy: .public) among \
+                    \(pageChildCount, privacy: .public) page children
+                    """
+                )
+            } else {
+                readerPageActivationLogger.debug(
+                    "Reader page click on a document with no page children — nothing to select"
                 )
             }
             return
