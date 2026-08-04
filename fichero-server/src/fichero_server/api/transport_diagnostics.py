@@ -72,20 +72,23 @@ def transport_banner(binding: TransportBinding, *, uds_path: str | None = None) 
     if binding.is_uds:
         socket_path = (uds_path or binding.address.removeprefix("unix:")).strip()
         lines += [
-            "  Dialled by: the Release-embedded app, or a Debug scheme that sets "
-            f"FICHERO_FORCE_UDS_PATH={socket_path}",
-            "  NOT dialled by: Fichero (Dev Local) — that scheme is debugExternal, "
-            f"which expects {APP_LOOPBACK_URL} and will never reach this socket",
-            f"  To use Dev Local instead, restart without --uds (serves {APP_LOOPBACK_URL}).",
+            "  Dialled by: Fichero (Dev Local) — it sets "
+            f"FICHERO_FORCE_UDS_PATH={socket_path} — and the Release-embedded app, "
+            "which spawns its own engine on a socket in its container",
+            "  NOT dialled by: the schemes that leave FICHERO_FORCE_UDS_PATH unset "
+            f"(Dev/Alpha/Beta/Release Local, and the iOS variants) — those expect "
+            f"{APP_LOOPBACK_URL}; restart without --uds for them.",
         ]
         return "\n".join(lines)
 
     lines.append(
-        "  Dialled by: Fichero (Dev Local) / any debugExternal or configuredRemote client"
+        "  Dialled by: any scheme that leaves FICHERO_FORCE_UDS_PATH unset — the "
+        "Local and iOS schemes, and any configuredRemote client"
     )
     lines.append(
-        "  NOT dialled by: a scheme with FICHERO_FORCE_UDS_PATH set, or the "
-        "Release-embedded app — both dial a Unix socket; restart with --uds for those."
+        "  NOT dialled by: Fichero (Dev Local) — it SETS FICHERO_FORCE_UDS_PATH and "
+        "dials that Unix socket, never this port. Nor the Release-embedded app. "
+        "Restart with --uds=<path> for either."
     )
     if binding.kind == "http" and f":{APP_LOOPBACK_PORT}" in binding.address:
         # Plain HTTP on the pinned port is reachable by nothing the app runs.
