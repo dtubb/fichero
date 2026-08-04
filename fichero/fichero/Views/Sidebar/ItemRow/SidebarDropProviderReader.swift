@@ -11,6 +11,18 @@ import UniformTypeIdentifiers
 // refused. The anti-pattern this exists to kill: a refusal that logs
 // nothing — the library-cell multi-drag died at AppKit validation with an
 // empty console, and silence is the one diagnostic that cannot be read.
+//
+// LEVELS ARE LOAD-BEARING (#4533). Every non-refusal line here was `.info`,
+// and macOS does not PERSIST `.info` or `.debug` — they live in a memory ring
+// buffer, so `log show` returns nothing for them once the session is over,
+// which is exactly when a drop report gets diagnosed. Measured on the live
+// build: `log show --info --debug --predicate 'category == "dragdrop"'`
+// returned zero rows over a window containing real drops.
+//
+// So the accepted path was invisible and only refusals survived, which makes
+// "refused" and "never arrived" indistinguishable after the fact — and those
+// need opposite fixes. Outcomes are now `.notice` (the default level, which
+// IS persisted); refusals stay `.error`. Nothing here may go back to `.info`.
 enum DragDropLog {
     static let logger = Logger(subsystem: "app.fichero.fichero", category: "dragdrop")
 
@@ -40,17 +52,19 @@ enum DragDropLog {
     static func entered(_ surface: String, providers: [NSItemProvider]) {
         for (index, provider) in providers.enumerated() {
             let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
-            logger.info("\(surface): drag entered — provider[\(index)/\(providers.count)] UTIs [\(utis)] [\(dropTag)]")
+            logger.notice(
+                "\(surface): drag entered — provider[\(index)/\(providers.count)] UTIs [\(utis)] [\(dropTag)]"
+            )
         }
         if providers.isEmpty {
-            logger.info("\(surface): drag entered with ZERO providers [\(dropTag)]")
+            logger.notice("\(surface): drag entered with ZERO providers [\(dropTag)]")
         }
     }
 
     /// A validation verdict, with the reason — especially the refusals.
     static func validated(_ surface: String, accepted: Bool, reason: String) {
         if accepted {
-            logger.info("\(surface): validate ACCEPTED — \(reason) [\(dropTag)]")
+            logger.notice("\(surface): validate ACCEPTED — \(reason) [\(dropTag)]")
         } else {
             logger.error("\(surface): validate REFUSED — \(reason) [\(dropTag)]")
         }
@@ -58,7 +72,7 @@ enum DragDropLog {
 
     /// What the drop actually did — target, operation, per-item outcome.
     static func performed(_ surface: String, outcome: String) {
-        logger.info("\(surface): perform — \(outcome) [\(dropTag)]")
+        logger.notice("\(surface): perform — \(outcome) [\(dropTag)]")
     }
 
     /// A perform-stage refusal, with the precise reason.

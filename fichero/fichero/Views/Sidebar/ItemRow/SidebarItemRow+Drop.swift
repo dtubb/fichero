@@ -14,7 +14,13 @@ extension SidebarItemRow {
         }
         #endif
 
-        guard !providers.isEmpty else { return false }
+        guard !providers.isEmpty else {
+            // #4533: was a bare `return false`. A drop that arrives carrying
+            // nothing is a real, reportable event — and silence here is
+            // indistinguishable from the drop never reaching this row.
+            DragDropLog.refused("sidebar-row", reason: "no providers in the drop")
+            return false
+        }
 
         // The drop is committed — end the hover feedback NOW (#4229). If the
         // row rebuilds mid-drag (tree reload) SwiftUI can drop the trailing
@@ -30,7 +36,17 @@ extension SidebarItemRow {
         // a file — so they only decide whether to attempt the read.
         let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
         let capabilityRoute = classifySidebarDropProviders(capabilities)
-        guard mightBeInternal || capabilityRoute == .externalFiles else { return false }
+        guard mightBeInternal || capabilityRoute == .externalFiles else {
+            // #4533: the single most common way a sidebar drop "does nothing".
+            // Name the payload shape that failed to route, or the next report
+            // is another round of guessing at UTIs.
+            DragDropLog.refused(
+                "sidebar-row",
+                reason: "payload routed to \(capabilityRoute) and carries no internal id — "
+                    + "UTIs [\(capabilities.flatMap(\.registeredTypeIdentifiers).joined(separator: ", "))]"
+            )
+            return false
+        }
 
         // Read FIRST, route second — via the SHARED reader, which is also what
         // the library folder cell now uses (#4474). The plumbing used to be
@@ -128,7 +144,19 @@ extension SidebarItemRow {
         // produced this family of bugs — so the rule is now structural: below an
         // entry point you take the sample you are given.
         let operation = sidebarDropOperation(modifiers: modifiers, kind: .document)
-        guard operation != .move, let library else { return false }
+        guard operation != .move, let library else {
+            // #4533: two different reasons shared one silent exit — a MOVE is
+            // declined here by design (insertion drops copy/alias only), but a
+            // missing library is a fault. Reporting them as one fact is how a
+            // fault reads as intended behaviour.
+            DragDropLog.refused(
+                "sidebar-insertion",
+                reason: operation == .move
+                    ? "insertion drop does not accept MOVE (operation=\(operation))"
+                    : "no library bound to this window"
+            )
+            return false
+        }
         let request = SidebarInsertionDropRequest(
             operation: operation, bareIds: bareIds, parentId: parentId,
             offset: offset, children: children
