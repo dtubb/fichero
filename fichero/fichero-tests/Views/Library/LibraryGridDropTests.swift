@@ -56,7 +56,16 @@ final class LibraryGridDropTests: XCTestCase {
     func testSelfDropsAndNonFolderTargetsAreRejected() throws {
         let source = try Self.appSource("Views/Library/ViewModes/LibraryView+CellDrop.swift")
         XCTAssertTrue(source.contains("$0 != folder.id"))
-        XCTAssertTrue(source.contains("guard folder.docType == .folder"))
+        // #4514 (9dce01288): the bare docType check became the ONE shared
+        // predicate — `acceptsItemDrops` is `.folder && !isReadOnly`, so a
+        // locked system folder now refuses drops here too, not just in the
+        // sidebar. The predicate itself is pinned below so a future edit
+        // cannot quietly widen it back to every folder.
+        XCTAssertTrue(source.contains("guard folder.acceptsItemDrops"))
+        let document = try Self.appSource("Models/Document.swift")
+        XCTAssertTrue(
+            document.contains("var acceptsItemDrops: Bool { docType == .folder && !isReadOnly }")
+        )
         // The artifact/note/annotation exclusion now lives in the shared
         // classifier — one exclusion for every surface, not one per destination.
         let classifier = try Self.appSource("Views/Sidebar/ItemRow/SidebarDropClassification.swift")
