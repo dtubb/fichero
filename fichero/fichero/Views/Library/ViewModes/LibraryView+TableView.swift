@@ -239,11 +239,18 @@ extension LibraryView {
             // scored every disclosed child row as absent and fell through to
             // the lexical-minimum fallback — deterministic, but not the visual
             // order it is supposed to be reasoning about.
+            // ...and with the MODIFIERS that were down when the Table changed
+            // the selection (#4531): a one-row ⇧-shrink and a one-row
+            // ⌘-deselect are the same set delta, and only the gesture says
+            // whether the anchor holds (range, rule 2) or follows (click,
+            // rule 1). `NSEvent.modifierFlags` is still the live state inside
+            // this onChange, the same seam `handleTap` reads.
             let reconciled = SelectionGrammar.reconcile(
                 from: oldSelection,
                 to: newSelection,
                 anchor: selectionAnchor,
-                in: visibleOutlineRowIds
+                in: visibleOutlineRowIds,
+                modifiers: currentSelectionModifiers
             )
             selectionAnchor = reconciled.anchor
             selectionCursor = reconciled.cursor

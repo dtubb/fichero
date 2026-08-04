@@ -256,6 +256,20 @@ struct ReaderTranscriptWrapTests {
     /// probe the PRE-FIX styling and requires it to go red.
     ///
     /// A guardrail nobody has watched fire is a guardrail nobody knows works.
+    ///
+    /// #4533 — where the pre-fix overflow actually SHOWS, established with a
+    /// standalone WKWebView probe over this exact reconstruction: the
+    /// container overflows enormously (measured 35225 against a 200pt pane),
+    /// but `.transcript-page-body` does NOT overflow ITSELF — `.transcript`
+    /// is `display: grid`, so with `max-width` stripped the page track
+    /// resolves to the item's min-content width and the body BOX balloons to
+    /// content width (scrollWidth == clientWidth ≈ 35164). A box that grows
+    /// does not overflow; its ancestors do. The old first assertion
+    /// (`transcriptOverflows`) therefore reported honest blindness while the
+    /// measurement was in fact seeing the bug one level up. The control now
+    /// reads the two signals that genuinely fire pre-fix and are quiet on the
+    /// shipped CSS: the container overflow, and the body box exceeding the
+    /// pane width.
     @Test("the same measurement catches the pre-fix styling")
     func theMeasurementCatchesThePreFixStyling() async throws {
         // The three edits that, together, are what the reader used to do:
@@ -270,14 +284,21 @@ struct ReaderTranscriptWrapTests {
             Self.transcriptPage(css: preFixCSS, body: Self.unbreakableOCRLine), width: 200)
 
         #expect(
-            measured.transcriptOverflows,
+            measured.containerOverflows,
             Comment(rawValue: """
-            the pre-fix styling did NOT overflow (\(measured.description)) — which \
-            means this measurement cannot detect the bug it exists to detect, and \
-            the passing tests above prove nothing
+            the pre-fix styling did NOT overflow the container \
+            (\(measured.description)) — this measurement cannot detect the bug \
+            it exists to detect, and the passing tests above prove nothing
             """)
         )
-        #expect(measured.containerOverflows, Comment(rawValue: measured.description))
+        #expect(
+            measured.bodyClientWidth > 200,
+            Comment(rawValue: """
+            pre-fix, the grid track resolves the body BOX to its content width, \
+            far past the 200pt pane — got \(measured.description); if this stays \
+            pane-sized the reconstruction stopped reproducing the defect
+            """)
+        )
     }
 }
 #endif
