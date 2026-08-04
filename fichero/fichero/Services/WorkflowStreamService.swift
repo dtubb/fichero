@@ -107,7 +107,7 @@ class WorkflowStreamService {
         // every run passes through, stating who sent what.
         let inputIds = (inputs["selected_doc_ids"] as? [String]) ?? []
         let selectionSummary = selection.map {
-            "\($0.kind.rawValue):\($0.ids.count) id(s) \($0.ids)"
+            "\($0.kind.rawValue):\($0.ids?.count ?? 0) id(s) \($0.ids ?? [])"
         } ?? "none"
         logger.info(
             """
