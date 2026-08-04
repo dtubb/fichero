@@ -92,9 +92,14 @@ extension ContentView {
             case .internalItems, .unreadableInternal:
                 logger.error("Content-pane drop came from inside the app; refusing to import")
                 await MainActor.run {
+                    // #4311: this claimed the item was "already in this
+                    // library", which this branch cannot know — a drag from
+                    // another OPEN library lands here too, and the payload
+                    // carries no library. It now states only what is true.
                     importError = """
-                        That item is already in this library. \
-                        Drop it on a folder to file it there.
+                        That item was dragged from inside Fichero, so it wasn't imported. \
+                        Drop it on a folder to file it, or — if it came from another \
+                        library — copying between libraries isn't supported yet.
                         """
                 }
                 return
@@ -161,9 +166,15 @@ extension ContentView {
         logger.error(
             "Refusing to import \(internalExports.count) item(s) dragged from inside the app"
         )
+        // #4311: same correction, and here the claim was even less supportable.
+        // This branch identifies our own export by the `fichero-drag-` PATH
+        // PREFIX, which every library's exports share — so it cannot tell which
+        // library the file came from, and "already in this library" was a
+        // guess presented as a fact.
         importError = """
-            That item is already in this library. \
-            Drop it on a folder to file it there.
+            That item was dragged from inside Fichero, so it wasn't imported. \
+            Drop it on a folder to file it, or — if it came from another \
+            library — copying between libraries isn't supported yet.
             """
         return external
     }
