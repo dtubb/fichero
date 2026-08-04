@@ -6,22 +6,92 @@ import OSLog
 private let probeLogger = Logger(subsystem: "app.fichero.fichero", category: "EngineReadinessProbe")
 
 /// #4539: the probe runs on a poll, and logging every green poll at `.info`
-/// buried the console under identical "health=200 registry=200 → ready"
-/// lines. Only TRANSITIONS are worth a line: not-ready → ready, ready →
-/// lost, or a leg changing its answer. Steady state logs at `.debug`, so
-/// `log stream --level debug` still shows the pulse when someone wants it.
+/// buried the console under identical "health=200 registry=200 → ready" lines.
+/// Only TRANSITIONS are worth a line: not-ready → ready, ready → lost, or a leg
+/// changing its answer.
+///
+/// The first fix demoted the steady line to `.debug` on the assumption that
+/// `.debug` is invisible. It is not — `.debug` is not PERSISTED, but it is fully
+/// visible in a live `log stream`, which is where these logs are actually read.
+/// So the demotion achieved the worst of both: a flood while someone is watching,
+/// and nothing at all afterwards when they want to know whether the engine was
+/// healthy. A steady state that emits ~600 identical lines per five minutes is
+/// not a log, it is a denial of service on the reader.
+///
+/// A transition log logs transitions. Steady state is SILENT, with one rollup
+/// every `steadyRollupInterval` saying how long it has held — at `.info`, so it
+/// is both rare enough to read live and persisted enough to answer "was it up?"
+/// after the fact.
+/// Internal, not private: `emission` is the decision this whole type exists to
+/// get right, and a `private` one cannot be reached by a test — which is how it
+/// shipped with an untested assumption about `.debug` in the first place.
 @MainActor
-private enum ProbeTransitionLog {
-    static var lastSummary: String?
+enum ProbeTransitionLog {
+    /// One rollup per five minutes. At the probe's 500ms steady-state poll that
+    /// is ~600 identical observations collapsed into one line.
+    static let steadyRollupInterval: TimeInterval = 300
 
-    static func log(_ summary: String) {
-        guard summary != lastSummary else {
-            probeLogger.debug("\(summary, privacy: .public) (steady)")
-            return
+    static var lastSummary: String?
+    /// When the CURRENT summary was first observed — the age the rollup reports.
+    static var steadySince: Date?
+    /// When we last said anything about the current summary, rollups included.
+    static var lastSpokeAt: Date?
+
+    /// What a poll should emit. Pure, so the quiet-in-between and the rollup
+    /// cadence are testable without a clock, an engine, or a log stream — the
+    /// `spawnWaitStep` pattern.
+    enum Emission: Equatable {
+        /// The reading changed. `previous` is what it was, or nil on the first.
+        case transition(previous: String?)
+        /// Unchanged, and it has been long enough to say so once.
+        case rollup(held: TimeInterval)
+        /// Unchanged and already reported. Say nothing.
+        case silent
+    }
+
+    static func emission(
+        summary: String,
+        lastSummary: String?,
+        steadySince: Date?,
+        lastSpokeAt: Date?,
+        now: Date,
+        interval: TimeInterval = steadyRollupInterval
+    ) -> Emission {
+        guard summary == lastSummary else { return .transition(previous: lastSummary) }
+        guard let lastSpokeAt, now.timeIntervalSince(lastSpokeAt) >= interval else { return .silent }
+        return .rollup(held: now.timeIntervalSince(steadySince ?? lastSpokeAt))
+    }
+
+    static func log(_ summary: String, now: Date = Date()) {
+        switch emission(
+            summary: summary,
+            lastSummary: lastSummary,
+            steadySince: steadySince,
+            lastSpokeAt: lastSpokeAt,
+            now: now
+        ) {
+        case .transition(let previous):
+            // One literal: an OSLogMessage is built at the interpolation site and
+            // cannot be assembled by concatenation.
+            let detail = summary + (previous.map { " (was: \($0))" } ?? "")
+            probeLogger.info("\(detail, privacy: .public)")
+            lastSummary = summary
+            steadySince = now
+            lastSpokeAt = now
+        case .rollup(let held):
+            let detail = "\(summary) — unchanged for \(Self.describe(held))"
+            probeLogger.info("\(detail, privacy: .public)")
+            lastSpokeAt = now
+        case .silent:
+            break
         }
-        let previous = lastSummary.map { " (was: \($0))" } ?? ""
-        probeLogger.info("\(summary, privacy: .public)\(previous, privacy: .public)")
-        lastSummary = summary
+    }
+
+    /// Whole minutes, or seconds under a minute. The rollup is about duration,
+    /// not precision, and "unchanged for 300.0000012s" reads as machine output.
+    static func describe(_ interval: TimeInterval) -> String {
+        let seconds = Int(interval.rounded())
+        return seconds < 60 ? "\(seconds)s" : "\(seconds / 60)m"
     }
 }
 
