@@ -503,6 +503,90 @@ final class EntityStoreTests: XCTestCase {
         }
     }
 
+    /// #4489: linking discarded its response and touched nothing locally, so
+    /// the link lived on the server and in the sheet's `@State` and nowhere
+    /// else — every local reader kept the pre-link entity indefinitely.
+    ///
+    /// This asserts DELIVERY, not that a call was made: the row the store hands
+    /// back afterwards must be the post-link one. `canonicalName` stands in for
+    /// the linked metadata because it is observable without reaching into the
+    /// generated metadata container — if the re-fetch did not land, the row
+    /// still reads "Adams".
+    func testAuthorityLinkPatchesTheLocalRowFromTheServer() async throws {
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        entities: [makeEntityJSON(id: "entity-1", name: "Adams")]
+                    )
+                ),
+                .init(
+                    method: "POST", path: "/api/kg/entity-curation/authority/link",
+                    statusCode: 200, body: Data("{}".utf8)
+                ),
+                .init(
+                    method: "GET", path: "/api/entities/entity-1",
+                    statusCode: 200,
+                    body: makeEntityResponse(id: "entity-1", name: "Douglas Adams")
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadEntities(forDocument: "doc-1")
+
+        try await store.linkAuthority(entityId: "entity-1", authority: "wikidata", authorityId: "Q42")
+
+        XCTAssertEqual(
+            store.entities(forDocument: "doc-1").map(\.canonicalName), ["Douglas Adams"],
+            "the linked entity must be re-read from the server, not left at its pre-link state"
+        )
+    }
+
+    /// The partial case, which is the one that matters. The link lands and the
+    /// re-fetch does not.
+    ///
+    /// The link is already persisted at that point, so throwing would tell the
+    /// user "Link failed" about work that succeeded and invite them to redo it.
+    /// A stale local row is the lesser wrong. Without this test the obvious
+    /// implementation — `try await getEntity` — looks correct and quietly
+    /// reports every successful link as a failure whenever the follow-up read
+    /// is refused.
+    func testAuthorityLinkStillSucceedsWhenTheFollowUpReadFails() async throws {
+        MockFicheroURLProtocol.configure(
+            responses: [
+                .init(
+                    method: "GET", path: "/api/documents/doc-1/inspector",
+                    statusCode: 200,
+                    body: makeDocumentInspectorResponse(
+                        entities: [makeEntityJSON(id: "entity-1", name: "Adams")]
+                    )
+                ),
+                .init(
+                    method: "POST", path: "/api/kg/entity-curation/authority/link",
+                    statusCode: 200, body: Data("{}".utf8)
+                ),
+                .init(
+                    method: "GET", path: "/api/entities/entity-1",
+                    statusCode: 500, body: Data()
+                )
+            ]
+        )
+
+        let store = makeStore()
+        await store.loadEntities(forDocument: "doc-1")
+
+        // Must NOT throw — the link itself succeeded.
+        try await store.linkAuthority(entityId: "entity-1", authority: "wikidata", authorityId: "Q42")
+
+        XCTAssertEqual(
+            store.entities(forDocument: "doc-1").map(\.canonicalName), ["Adams"],
+            "the row stays at its last known state rather than being cleared by a failed refresh"
+        )
+    }
+
     private func makeStore() -> EntityStore {
         // URLProtocol.registerClass alone does not intercept a custom
         // URLSessionConfiguration-based session — it must be listed in

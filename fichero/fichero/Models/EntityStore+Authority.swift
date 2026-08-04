@@ -57,11 +57,36 @@ extension EntityStore {
     /// Link `entityId` to a previously refreshed authority snapshot (#3757).
     /// Throws so the sheet can surface a precise message; a non-throwing call is
     /// success.
+    ///
+    /// #4489: this used to discard the response and touch nothing locally, so
+    /// the link existed only on the server and in the sheet's own `@State`.
+    /// The link IS readable — `/authority/link` appends to the entity's
+    /// `metadata["authority_links"]` and saves the row — but this store held a
+    /// `KnowledgeEntity` whose metadata predated the link, so every local
+    /// reader kept the pre-link entity indefinitely.
+    ///
+    /// The response is an audit record, not the entity, so it cannot patch the
+    /// row by itself. Re-fetch the one row that changed, exactly as `merge`
+    /// does for its survivor, rather than reloading a list to recover it.
     func linkAuthority(entityId: String, authority: String, authorityId: String) async throws {
         _ = try await entityService.linkAuthority(
             entityId: entityId,
             authority: authority,
             authorityId: authorityId
         )
+        // Best-effort, and deliberately not `try`. The link is already
+        // persisted; if the re-fetch fails, throwing here would report "Link
+        // failed" for a link that succeeded, and the sheet would tell the user
+        // to retry work that is already done. A stale local row is the lesser
+        // wrong, and the next load corrects it.
+        guard let linked = try? await entityService.getEntity(entityId) else { return }
+        if let index = libraryEntities.firstIndex(where: { $0.id == entityId }) {
+            libraryEntities[index] = linked
+        }
+        for documentId in entitiesByDocumentId.keys {
+            if let index = entitiesByDocumentId[documentId]?.firstIndex(where: { $0.id == entityId }) {
+                entitiesByDocumentId[documentId]?[index] = linked
+            }
+        }
     }
 }
