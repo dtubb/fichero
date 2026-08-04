@@ -74,17 +74,26 @@ class TestIngestFile:
 
         assert response.status_code == 200
 
-    def test_ingest_existing_file(self, client, tmp_path):
-        test_file = tmp_path / "sample.pdf"
-        test_file.write_bytes(b"%PDF-1.4")
-        doc = _make_document()
+    def test_ingest_existing_file(self, client, db, tmp_path):
+        """A real file in, a real document out (#4473).
 
-        with patch("fichero_server.importers.ingest.ingest_file", return_value=doc), \
-             patch("fichero_server.importers.ingest.IngestMode"):
-            r = client.post("/api/ingest/file", json={"path": str(test_file)})
+        This used to patch `ingest_file` — the function that does the importing —
+        and then assert only `status_code == 200`. It therefore passed on a build
+        where importing delivered nothing, which is the defect that let PDF
+        drag-drop stay broken across three fixes to how drops were *classified*
+        (#2386, #3390, #702, #570). Nothing is mocked now, and the assertion is
+        about the document that landed rather than the status of the request.
+        """
+        test_file = tmp_path / "sample.txt"
+        test_file.write_text("the file's actual contents")
 
-        # ingest_file is called and document returned
+        r = client.post("/api/ingest/file", json={"path": str(test_file)})
+
         assert r.status_code == 200
+        document_id = r.json()["id"]
+        stored = db.get(Document, document_id)
+        assert stored is not None, "route returned 200 but no document was stored"
+        assert stored.name == "sample.txt"
 
     def test_ingest_missing_file_returns_400(self, client, tmp_path):
         r = client.post("/api/ingest/file", json={"path": str(tmp_path / "missing.pdf")})
@@ -107,18 +116,29 @@ class TestIngestFile:
         assert r.status_code == 400
         assert "symlinked file" in r.json()["detail"].lower()
 
-    def test_ingest_file_copy_mode(self, client, tmp_path):
+    def test_ingest_file_copy_mode(self, client, db, tmp_path):
+        """Copy mode delivers a document AND copies the bytes into the library.
+
+        Previously this patched the importer out and asserted a 200, so it proved
+        neither half of its own name: not that a document arrived, and not that
+        `copy_mode` did anything. It would have passed had the flag been ignored
+        entirely (#4473).
+        """
         test_file = tmp_path / "doc.txt"
         test_file.write_text("hello")
-        doc = _make_document()
 
-        with patch("fichero_server.importers.ingest.ingest_file", return_value=doc), \
-             patch("fichero_server.importers.ingest.IngestMode"):
-            r = client.post("/api/ingest/file", json={
-                "path": str(test_file),
-                "copy_mode": True,
-            })
+        r = client.post("/api/ingest/file", json={
+            "path": str(test_file),
+            "copy_mode": True,
+        })
+
         assert r.status_code == 200
+        stored = db.get(Document, r.json()["id"])
+        assert stored is not None, "route returned 200 but no document was stored"
+        assert stored.name == "doc.txt"
+        # The bytes were actually read, not just a row written: a mocked importer
+        # cannot produce a size that matches the file on disk.
+        assert stored.file_size == len("hello")
 
     def test_ingest_pdf_link_mode_creates_page_children(self, client, db, tmp_path):
         pdf = tmp_path / "book.pdf"
