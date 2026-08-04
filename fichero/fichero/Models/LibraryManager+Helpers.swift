@@ -32,13 +32,28 @@ extension LibraryManager {
     /// with a trailing slash. `openLibrary`'s raw `URL ==` dedup therefore missed
     /// the match and opened a second Global.
     ///
-    /// Uses only platform normalization — `standardizedFileURL` (resolves `.`,
-    /// `..` and the trailing slash), `resolvingSymlinksInPath` (`/var` →
-    /// `/private/var`, where temporary libraries live) — plus the repo's existing
-    /// NFC path normalization (#3076), so an NFD variant of the same path is the
-    /// same library. No bespoke string munging.
+    /// Uses platform normalization — `standardizedFileURL` (resolves `.`, `..`
+    /// and the trailing slash), `resolvingSymlinksInPath` — plus the repo's
+    /// existing NFC path normalization (#3076), so an NFD variant of the same
+    /// path is the same library.
+    ///
+    /// One explicit rung the platform does NOT give (#4529):
+    /// `resolvingSymlinksInPath` resolves only components that EXIST and strips
+    /// `/private` only when the result names an existing file — so for a path
+    /// that is not on disk yet (or a registry row for a package on another
+    /// machine's clock), `/var/…` and `/private/var/…` stay two spellings of
+    /// one location. Those aliases are a fixed macOS triple (`/var`, `/tmp`,
+    /// `/etc` are symlinks into `/private`), and temporary libraries live under
+    /// `/var/folders/…`, so the `/private` prefix is folded away
+    /// deterministically here. `key(x) == key(y)` must answer "same package",
+    /// existence notwithstanding.
     static func canonicalLibraryKey(_ url: URL) -> String {
-        url.standardizedFileURL.resolvingSymlinksInPath().path.nfcNormalized
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path.nfcNormalized
+        for alias in ["/private/var/", "/private/tmp/", "/private/etc/"]
+        where path.hasPrefix(alias) {
+            return String(path.dropFirst("/private".count))
+        }
+        return path
     }
 
     // MARK: - Internal Helpers
@@ -134,19 +149,34 @@ extension LibraryManager {
 
     /// Pure set-diff between the app's open libraries and the backend registry
     /// (#3393). Extracted so the reconciliation logic is unit-testable without
-    /// LibraryReference / FileManager / network side effects. Paths are compared
-    /// NFC-normalized (backend keys the registry NFC, #3071/#3076).
+    /// LibraryReference / FileManager / network side effects.
+    ///
+    /// Identity is `canonicalLibraryKey` — the ONE answer to "is this the same
+    /// library" (#4517/#4529), not a second NFC-only rule. Comparing raw
+    /// NFC paths made `/var/folders/…` vs `/private/var/…` (where temporary
+    /// libraries live — `/var` is a symlink) read as two different libraries,
+    /// so one plan simultaneously DROPPED the open library and REOPENED the
+    /// same package, losing its UUID and every window bound to it; a trailing
+    /// slash did the same. A registry row listed twice is also planned once.
     static func registryReconciliation(
         openLibraries: [(id: UUID, path: String)],
         registryPaths: [String],
         globalLibraryId: UUID
     ) -> (pathsToOpen: [String], idsToDrop: [UUID]) {
-        let registrySet = Set(registryPaths.map(\.nfcNormalized))
-        let openSet = Set(openLibraries.map { $0.path.nfcNormalized })
+        let key: (String) -> String = { canonicalLibraryKey(URL(fileURLWithPath: $0)) }
+        let registrySet = Set(registryPaths.map(key))
+        let openSet = Set(openLibraries.map { key($0.path) })
 
-        let pathsToOpen = registryPaths.filter { !openSet.contains($0.nfcNormalized) }
+        var plannedOpens: Set<String> = []
+        var pathsToOpen: [String] = []
+        for path in registryPaths {
+            let candidate = key(path)
+            if !openSet.contains(candidate), plannedOpens.insert(candidate).inserted {
+                pathsToOpen.append(path)
+            }
+        }
         let idsToDrop = openLibraries
-            .filter { $0.id != globalLibraryId && !registrySet.contains($0.path.nfcNormalized) }
+            .filter { $0.id != globalLibraryId && !registrySet.contains(key($0.path)) }
             .map(\.id)
         return (pathsToOpen, idsToDrop)
     }

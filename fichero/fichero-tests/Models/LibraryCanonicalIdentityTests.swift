@@ -7,10 +7,11 @@ import XCTest
 /// the same library?", which #4517 answered with `canonicalLibraryKey` after a
 /// raw `URL ==` opened a second Global.
 ///
-/// The interesting part is that the answer is now given in TWO places with two
-/// different rules: `canonicalLibraryKey` (standardize → resolve symlinks →
-/// NFC) and `registryReconciliation` (NFC only). Everything below is pure, so
-/// it runs without the singleton, the filesystem or the network.
+/// Since #4529 there is ONE rule: `registryReconciliation` compares by
+/// `canonicalLibraryKey` (standardize → resolve symlinks → NFC → fold the
+/// fixed /private aliases) rather than keeping a second NFC-only comparison.
+/// Everything below is pure, so it runs without the singleton, the filesystem
+/// or the network.
 @MainActor
 final class LibraryCanonicalIdentityTests: XCTestCase {
 
@@ -136,57 +137,56 @@ final class LibraryCanonicalIdentityTests: XCTestCase {
         XCTAssertTrue(plan.idsToDrop.isEmpty)
     }
 
-    /// BUG (#see report): reconciliation compares RAW paths (NFC only) while
-    /// `canonicalLibraryKey` — added by #4517 for exactly this question —
-    /// additionally resolves symlinks and standardizes. A temporary library
-    /// lives under `/var/folders/…`, which is a symlink to `/private/var/…`;
-    /// whichever side reports the resolved form, the two spellings do not
-    /// match, so the reconciler simultaneously DROPS the open library and
-    /// schedules the same package to be opened again — a close-and-reopen that
-    /// loses the library's UUID, and with it every window bound to it.
+    /// FIXED (#4529): reconciliation now compares by `canonicalLibraryKey` —
+    /// the ONE identity function (#4517) — which also folds the fixed macOS
+    /// `/private` aliases away for paths that do not exist yet (the platform's
+    /// `resolvingSymlinksInPath` only resolves existing components). A
+    /// temporary library under `/var/folders/…` therefore matches its
+    /// `/private/var/…` registry spelling instead of being simultaneously
+    /// dropped and reopened — a close-and-reopen that lost the library's UUID
+    /// and every window bound to it.
     func testSymlinkedPathsMustNotDropAndReopenTheSameLibrary() {
         let id = UUID()
         let plan = reconcile(
             open: [(id, "/var/folders/zz/T/Untitled-1.fichero")],
             registry: ["/private/var/folders/zz/T/Untitled-1.fichero"]
         )
-        XCTExpectFailure(
-            "BUG: registryReconciliation compares raw paths instead of "
-            + "canonicalLibraryKey, so /var vs /private/var reads as two "
-            + "libraries and the open one is dropped and reopened."
-        ) {
-            XCTAssertTrue(plan.idsToDrop.isEmpty, "the library is already open")
-            XCTAssertTrue(plan.pathsToOpen.isEmpty, "it must not be opened a second time")
-        }
+        XCTAssertTrue(plan.idsToDrop.isEmpty, "the library is already open")
+        XCTAssertTrue(plan.pathsToOpen.isEmpty, "it must not be opened a second time")
     }
 
-    /// The same defect in its trailing-slash form: `canonicalLibraryKey`
-    /// standardizes it away, this comparison does not.
+    /// The same alias rule at the key level: both spellings of a not-yet-on-
+    /// disk temporary path give one key (#4529).
+    func testThePrivateVarAliasFoldsIntoOneKey() {
+        XCTAssertEqual(
+            key("/var/folders/zz/T/Untitled-1.fichero"),
+            key("/private/var/folders/zz/T/Untitled-1.fichero")
+        )
+        XCTAssertEqual(key("/tmp/A.fichero"), key("/private/tmp/A.fichero"))
+        XCTAssertNotEqual(
+            key("/private/anything-else/A.fichero"), key("/anything-else/A.fichero"),
+            "only the fixed /var,/tmp,/etc aliases fold — /private itself is not erased"
+        )
+    }
+
+    /// FIXED (#4529): the same defect in its trailing-slash form —
+    /// `canonicalLibraryKey` standardizes it away, and the reconciler now uses
+    /// that key.
     func testATrailingSlashInTheRegistryMustNotLookLikeANewLibrary() {
         let id = UUID()
         let plan = reconcile(
             open: [(id, "/tmp/A.fichero")], registry: ["/tmp/A.fichero/"]
         )
-        XCTExpectFailure(
-            "BUG: same library, one spelled with a trailing slash — the "
-            + "reconciler treats it as a different one."
-        ) {
-            XCTAssertTrue(plan.idsToDrop.isEmpty)
-            XCTAssertTrue(plan.pathsToOpen.isEmpty)
-        }
+        XCTAssertTrue(plan.idsToDrop.isEmpty)
+        XCTAssertTrue(plan.pathsToOpen.isEmpty)
     }
 
-    /// A registry listing the SAME path twice must not schedule two opens. The
-    /// duplicate is absorbed downstream by `openLibrary`'s canonical dedup, but
-    /// the plan itself is where the count is decided.
+    /// FIXED (#4529): a registry listing the SAME path twice schedules one
+    /// open. Was benign (absorbed by `openLibrary`'s canonical dedup), but the
+    /// plan itself is where the count is decided.
     func testADuplicatedRegistryEntryIsPlannedOnce() {
         let plan = reconcile(open: [], registry: ["/tmp/A.fichero", "/tmp/A.fichero"])
-        XCTExpectFailure(
-            "BUG (benign, absorbed by openLibrary's dedup): a duplicated "
-            + "registry row plans the same library to be opened twice."
-        ) {
-            XCTAssertEqual(plan.pathsToOpen, ["/tmp/A.fichero"])
-        }
+        XCTAssertEqual(plan.pathsToOpen, ["/tmp/A.fichero"])
     }
 
     /// A library the backend has closed is dropped, and its id — not its path
