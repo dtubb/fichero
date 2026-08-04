@@ -54,6 +54,12 @@ extension ContentView {
         // still selected (#4299).
         if BrowserSelectionPreviewPolicy.shouldClearBrowseContext(onSidebarItemChangeTo: newFolderId) {
             browserSelection.removeAll()
+            // #4523: a NEW library container is a new browse context, so the
+            // remembered run selection is stale scope — drop it. Navigation to
+            // workflow/chain/section rows does NOT reach this branch, which is
+            // the carve-out that lets "select a file, click the workflow, Run"
+            // keep the file as the run's scope instead of the whole folder.
+            windowState.preservedDocumentSelection = []
         }
 
         // Drive the inspector from sidebar selection so clicking a folder
@@ -114,12 +120,31 @@ extension ContentView {
         }
     }
 
+    /// The selection a workflow run honors from THIS window (#4523): the live
+    /// library-pane selection, or — when navigation already cleared it on the
+    /// way to the run surface — the preserved snapshot. One accessor so every
+    /// launch surface agrees; the editor's widening gate fires only when BOTH
+    /// are empty, which is the genuine run-on-everything case that must ask.
+    var effectiveWorkflowRunSelection: [String] {
+        browserSelection.isEmpty
+            ? windowState.preservedDocumentSelection
+            : Array(browserSelection)
+    }
+
     /// Handles `.onChange(of: browserSelection)`.
     /// Persists browser selection to @SceneStorage.
     func handleBrowserSelectionChange(_ newSelection: Set<String>) {
         // Persist browser selection to @SceneStorage
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
+        }
+        // #4523: remember every NON-empty selection so the run surfaces can
+        // honor it even after #712's clear-on-navigate empties
+        // `browserSelection` on the way to the workflow the user is about to
+        // run. An empty set does not overwrite — emptiness here is usually
+        // the navigation clear, not the user deselecting.
+        if !newSelection.isEmpty {
+            windowState.preservedDocumentSelection = Array(newSelection)
         }
         if isEntityLibrarySelection {
             guard let firstId = newSelection.first else {

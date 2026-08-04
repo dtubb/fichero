@@ -212,11 +212,15 @@ extension ContentView {
         providerOverride: String? = nil,
         modelOverride: String? = nil
     ) {
+        // #4523: read the WINDOW's effective selection (live, or preserved
+        // across the navigation that cleared it) — one accessor, every launch
+        // surface agrees on what "the selection" means.
+        let effective = effectiveWorkflowRunSelection
         let selectedIds = !preselectedIds.isEmpty
             ? preselectedIds
-            : (!browserSelection.isEmpty
-                ? Array(browserSelection)
-                : (detailDocument.map { [$0.id] } ?? []))
+            : (effective.isEmpty
+                ? (detailDocument.map { [$0.id] } ?? [])
+                : effective)
         guard !selectedIds.isEmpty else {
             workflowLogger.warning("runWorkflowOnSelection: no selection — nothing to run")
             importError = "Select one or more documents before running a workflow."

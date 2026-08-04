@@ -308,9 +308,17 @@ extension SidebarItemRow {
                 usedRowIdentityFallback: false
             )
         }
+        // #4523 LAW: the run's selection is the WINDOW's document selection,
+        // not just the sidebar's own. The library-pane selection (live or
+        // preserved across the navigation that cleared it, #712 carve-out)
+        // joins the sidebar's selected destinations, so right-clicking the
+        // selected file's row runs THAT file — never its peers.
+        let windowSelectionTargets = windowState.preservedDocumentSelection
+            .map { WorkflowRunTarget.file($0) }
         return WorkflowRunTargetResolver.resolve(
             clicked: clickedTarget,
-            selection: Set(selectedDestinations.compactMap(workflowRunTarget(for:))),
+            selection: Set(selectedDestinations.compactMap(workflowRunTarget(for:)))
+                .union(windowSelectionTargets),
             documents: documentStore?.sidebarDocuments ?? []
         )
     }

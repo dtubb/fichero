@@ -260,7 +260,7 @@ final class SidebarDropGrammarBoundaryTests: XCTestCase {
         let libraryRow = try dragJSON(kind: .document, id: "b", documentId: "b")
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:a", libraryRow, "doc:c"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
         XCTAssertEqual(payload, .internalItems(["doc:a", "doc:b", "doc:c"]))
@@ -273,7 +273,7 @@ final class SidebarDropGrammarBoundaryTests: XCTestCase {
         let annotation = try dragJSON(kind: .annotation, id: "ann-1", documentId: "doc-1")
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:keep", annotation],
-            hasFileURL: false,
+            hasExternalPayload: false,
             carriesOwnProcessFlavor: true
         )
         XCTAssertEqual(payload, .internalItems(["doc:keep"]))
@@ -287,7 +287,7 @@ final class SidebarDropGrammarBoundaryTests: XCTestCase {
         let annotation = try dragJSON(kind: .annotation, id: "ann-1", documentId: "doc-1")
         let payload = classifySidebarDropPayload(
             loadedIDs: [annotation],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
         XCTAssertEqual(payload, .unreadableInternal)

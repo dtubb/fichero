@@ -93,7 +93,7 @@ extension ContentView {
             // document from the sidebar into the content pane therefore made a
             // second, hollow copy of it. Positive identification first is the
             // same rule the sidebar row and the folder cell already follow.
-            switch await readSidebarDropPayload(providers) {
+            switch await readSidebarDropPayload(providers, surface: "content-pane") {
             case .internalItems, .unreadableInternal:
                 logger.error("Content-pane drop came from inside the app; refusing to import")
                 await MainActor.run {

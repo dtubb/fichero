@@ -12,6 +12,20 @@ class WindowState {
     /// Currently selected tab
     var selectedTab: String = "library"
 
+    /// The document selection a workflow run must honor (#4523 LAW: "a
+    /// workflow's scope is the CURRENT SELECTION at gesture time; selection
+    /// means the selected items, not their peers").
+    ///
+    /// Written by ContentView whenever the library-pane selection becomes
+    /// non-empty, and — deliberately — NOT cleared by sidebar navigation:
+    /// the #712 policy clears `browserSelection` the moment the user
+    /// navigates (for example to a workflow node, in order to run it), which
+    /// is exactly the moment the selection must be remembered. It IS cleared
+    /// when the user selects a different library container (the browse
+    /// context moved on, so a remembered selection would be stale scope).
+    /// Every run surface reads its effective selection through this.
+    var preservedDocumentSelection: [String] = []
+
     /// Why the last drop onto a library folder cell failed, or nil (#4474).
     /// Rendered by `LibraryView`'s drop alert. The sidebar has the same surface
     /// in `SidebarState.dropErrorMessage`; the library pane had none at all, so

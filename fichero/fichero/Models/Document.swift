@@ -144,6 +144,17 @@ struct LibraryItemDrag: Codable, Transferable {
     }
 
     static var transferRepresentation: some TransferRepresentation {
+        // THE in-app payload (#4401 multi-drag): the same JSON the string
+        // path decodes, as a DataRepresentation of the named custom type —
+        // multi-item drag sessions drop proxy/visibility-limited flavors but
+        // deliver data representations (see UTType.ficheroDragItem). This is
+        // also what lets LibraryItemDropDelegate VALIDATE a multi-item
+        // library drag at all: its accepted types match by identifier, and a
+        // session that only carried undeclared flavors was refused by AppKit
+        // before any of our code ran — dead silent (live-repro 2026-08-04).
+        DataRepresentation(exportedContentType: .ficheroDragItem) { item in
+            try JSONEncoder().encode(item)
+        }
         CodableRepresentation(contentType: .json)
         // Cross-app (#4123): a COPY of the source file, fetched through the
         // library's storage HTTP endpoint at export time — same path the

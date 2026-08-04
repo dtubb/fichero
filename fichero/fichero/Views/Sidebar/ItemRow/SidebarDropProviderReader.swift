@@ -1,5 +1,48 @@
 import Foundation
+import OSLog
 import UniformTypeIdentifiers
+
+// MARK: - ONE drag/drop instrument (Daniel's logging mandate, 2026-08-04)
+//
+// Every drop surface logs through here, category "dragdrop", so one Console
+// filter shows the whole story: what ENTERED (payload UTIs, item count),
+// what the VALIDATION decided and WHY, and what the PERFORM delivered or
+// refused. The anti-pattern this exists to kill: a refusal that logs
+// nothing — the library-cell multi-drag died at AppKit validation with an
+// empty console, and silence is the one diagnostic that cannot be read.
+enum DragDropLog {
+    static let logger = Logger(subsystem: "app.fichero.fichero", category: "dragdrop")
+
+    /// A drag session reached a surface: name it and dump the payload shape.
+    static func entered(_ surface: String, providers: [NSItemProvider]) {
+        for (index, provider) in providers.enumerated() {
+            let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
+            logger.info("\(surface): drag entered — provider[\(index)/\(providers.count)] UTIs [\(utis)]")
+        }
+        if providers.isEmpty {
+            logger.info("\(surface): drag entered with ZERO providers")
+        }
+    }
+
+    /// A validation verdict, with the reason — especially the refusals.
+    static func validated(_ surface: String, accepted: Bool, reason: String) {
+        if accepted {
+            logger.info("\(surface): validate ACCEPTED — \(reason)")
+        } else {
+            logger.error("\(surface): validate REFUSED — \(reason)")
+        }
+    }
+
+    /// What the drop actually did — target, operation, per-item outcome.
+    static func performed(_ surface: String, outcome: String) {
+        logger.info("\(surface): perform — \(outcome)")
+    }
+
+    /// A perform-stage refusal, with the precise reason.
+    static func refused(_ surface: String, reason: String) {
+        logger.error("\(surface): REFUSED — \(reason)")
+    }
+}
 
 // MARK: - Reading an in-app drop's payload from its providers (#4474)
 //
@@ -30,34 +73,76 @@ func sidebarDropCapabilities(of providers: [NSItemProvider]) -> [SidebarDropProv
 
 /// Read the drop, then classify it — in that order, which is the #4401 fix.
 ///
-/// Every provider is asked for a string, INCLUDING ones that can also vend a
-/// file URL: since #4123 an internal document drag advertises both, so deciding
-/// the route from capabilities alone re-imports internal moves.
+/// The load ladder per provider, most-authoritative first:
+///  1. `UTType.ficheroDragItem` — THE in-app flavor both drag types export
+///     (#4401 multi-drag). Loaded by identifier via the data-representation
+///     API, so it survives multi-item sessions that drop proxy flavors.
+///  2. A plain-text registration — the single-drag id proxy and legacy shape.
+/// A provider carrying neither is judged by `registersExternalPayload` —
+/// registration conformance to `public.item`/`public.url` — NOT by
+/// `canLoadObject(URL.self)`, which a Finder FOLDER answers false to
+/// (live-repro 2026-08-04: `[public.folder] URL:false String:false`).
 ///
 /// Returns `doc:`-prefixed ids for both in-app drag shapes — a sidebar row's
 /// `SidebarDragID` and a library row/tile/cell's `LibraryItemDrag` JSON — so a
-/// destination never has to know which pane the drag started in. That is the
-/// "one payload type for one concept" the #4474 brief asks for, resolved on the
-/// reading side where it is safe: the drag SOURCES are deliberately unchanged,
-/// because changing a source to satisfy one destination is how #4123 caused
-/// #4401, and chat still reads the first string representation (#4401/#4123).
+/// destination never has to know which pane the drag started in.
+///
+/// `surface` labels the DragDropLog trail: every read logs what arrived and
+/// what was decided, so a refused drop can never be silent again.
 @MainActor
-func readSidebarDropPayload(_ providers: [NSItemProvider]) async -> SidebarDropPayload {
+func readSidebarDropPayload(
+    _ providers: [NSItemProvider],
+    surface: String = "unlabelled"
+) async -> SidebarDropPayload {
+    DragDropLog.entered(surface, providers: providers)
     let capabilities = sidebarDropCapabilities(of: providers)
-    let hasFileURL = capabilities.contains(where: \.canLoadURL)
+    let hasExternalPayload = capabilities.contains(where: \.registersExternalPayload)
     let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
 
     var loadedIDs: [String] = []
-    for provider in providers where provider.canLoadObject(ofClass: NSString.self) {
-        if let string = try? await sidebarDropLoadString(from: provider) {
+    for provider in providers {
+        if provider.hasItemConformingToTypeIdentifier(UTType.ficheroDragItem.identifier) {
+            if let payload = try? await sidebarDropLoadFicheroItem(from: provider) {
+                loadedIDs.append(payload)
+                continue
+            }
+            DragDropLog.refused(surface, reason: "a fichero-drag-item flavor failed to load its data")
+        }
+        if provider.canLoadObject(ofClass: NSString.self),
+           let string = try? await sidebarDropLoadString(from: provider) {
             loadedIDs.append(string)
         }
     }
-    return classifySidebarDropPayload(
+    let payload = classifySidebarDropPayload(
         loadedIDs: loadedIDs,
-        hasFileURL: hasFileURL,
+        hasExternalPayload: hasExternalPayload,
         carriesOwnProcessFlavor: mightBeInternal
     )
+    DragDropLog.performed(
+        surface,
+        outcome: "classified \(providers.count) provider(s) as \(String(describing: payload)) "
+            + "(internalFlavor: \(mightBeInternal), externalPayload: \(hasExternalPayload), "
+            + "loaded \(loadedIDs.count) candidate string(s))"
+    )
+    return payload
+}
+
+/// Load the named in-app flavor's bytes as a UTF-8 string — the id for a
+/// `SidebarDragID`, the JSON for a `LibraryItemDrag`; the classifier already
+/// speaks both.
+@MainActor
+func sidebarDropLoadFicheroItem(from provider: NSItemProvider) async throws -> String {
+    try await withCheckedThrowingContinuation { continuation in
+        _ = provider.loadDataRepresentation(
+            forTypeIdentifier: UTType.ficheroDragItem.identifier
+        ) { data, error in
+            if let data, let string = String(data: data, encoding: .utf8), !string.isEmpty {
+                continuation.resume(returning: string)
+            } else {
+                continuation.resume(throwing: error ?? NSError(domain: "SidebarRowDrop", code: -2))
+            }
+        }
+    }
 }
 
 /// Unwrap a plain-text `NSItemProvider` into a String.

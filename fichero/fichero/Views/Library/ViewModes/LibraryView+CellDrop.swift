@@ -57,6 +57,7 @@ struct LibraryFolderCellDrop: ViewModifier {
                     delegate: LibraryItemDropDelegate(
                         acceptedTypes: SidebarItemRow.dropTypes,
                         isTargeted: $isTargeted,
+                        surface: "library-cell",
                         onDropProviders: onDropProviders
                     )
                 )
@@ -87,21 +88,18 @@ extension LibraryView {
     func handleFolderCellDrop(_ providers: [NSItemProvider], into folder: Document) -> Bool {
         // Re-asserted here, not only on the modifier: a refusal that lives
         // solely in the view's `if` is one call site away from being lost.
-        guard folder.acceptsItemDrops, !providers.isEmpty else { return false }
-
-        let capabilities = sidebarDropCapabilities(of: providers)
-        guard sidebarDropMightCarryInternalID(capabilities) else {
-            // No string flavour at all: a pure external file drag. Folder cells
-            // do not import — refusing lets the drop fall through to the content
-            // pane, which does. Unchanged behaviour, now by decision rather than
-            // as a side effect of the destination's static type.
+        guard folder.acceptsItemDrops, !providers.isEmpty else {
+            DragDropLog.refused(
+                "library-cell(\(folder.id))",
+                reason: folder.acceptsItemDrops ? "empty provider set" : "folder refuses drops (read-only)"
+            )
             return false
         }
 
         let operation = sidebarDropOperation(modifiers: .current(), kind: .document)
 
         Task { @MainActor in
-            let payload = await readSidebarDropPayload(providers)
+            let payload = await readSidebarDropPayload(providers, surface: "library-cell(\(folder.id))")
             switch payload {
             case .internalItems(let prefixedIDs):
                 await applyCellDrop(prefixedIDs, operation: operation, into: folder)
@@ -116,11 +114,89 @@ extension LibraryView {
                 windowState.dropErrorMessage =
                     "Couldn't read what was dragged. Nothing was moved or copied."
 
-            case .externalFiles, .unsupported:
-                break
+            case .externalFiles:
+                // #4525-adjacent live fix (2026-08-04): folder cells IMPORT
+                // external files into the hovered folder. The old
+                // claim-then-refuse (`return false` after the type list had
+                // already claimed the session) is the reentrancy anti-pattern
+                // — a surface either handles a payload or is transparent to
+                // it, and a folder cell that lights up under a Finder drag
+                // has promised to handle it.
+                await importExternalDrop(providers, into: folder)
+
+            case .unsupported:
+                DragDropLog.refused(
+                    "library-cell(\(folder.id))",
+                    reason: "payload classified unsupported — nothing readable, nothing importable"
+                )
             }
         }
         return true
+    }
+
+    /// Import a Finder-style drop into the hovered folder cell — the same
+    /// loader ladder and mode split (stable → link, temp-copy → copy) the
+    /// sidebar row uses, targeted at this folder.
+    private func importExternalDrop(_ providers: [NSItemProvider], into folder: Document) async {
+        guard let library = activeLibraryReference else {
+            DragDropLog.refused("library-cell(\(folder.id))", reason: "no active library reference")
+            return
+        }
+        var stableURLs: [URL] = []
+        var temporaryURLs: [URL] = []
+        for provider in providers {
+            if let url = try? await ExternalFileDropLoader.loadAnyFileURL(from: provider) {
+                if url.path.contains("/fichero-drop-") {
+                    temporaryURLs.append(url)
+                } else {
+                    stableURLs.append(url)
+                }
+            }
+        }
+        guard !stableURLs.isEmpty || !temporaryURLs.isEmpty else {
+            DragDropLog.refused(
+                "library-cell(\(folder.id))",
+                reason: "no provider yielded a file URL — nothing was imported"
+            )
+            windowState.dropErrorMessage = "Couldn't read the dropped item(s). Nothing was imported."
+            return
+        }
+        let temporaryDirectories = externalDropTemporaryDirectories(for: temporaryURLs)
+        defer {
+            for directory in temporaryDirectories {
+                try? FileManager.default.removeItem(at: directory)
+            }
+        }
+        windowState.dropErrorMessage = nil
+        do {
+            var outcomes: [ImportOutcome] = []
+            if !stableURLs.isEmpty {
+                outcomes.append(try await library.importService.importFiles(
+                    stableURLs, mode: .link, parentId: folder.id
+                ))
+            }
+            if !temporaryURLs.isEmpty {
+                outcomes.append(try await library.importService.importFiles(
+                    temporaryURLs, mode: .copy, parentId: folder.id
+                ))
+            }
+            await documentStore.refresh()
+            DragDropLog.performed(
+                "library-cell(\(folder.id))",
+                outcome: "imported \(stableURLs.count) linked + \(temporaryURLs.count) copied file(s) "
+                    + "into folder \(folder.id)"
+            )
+            if let message = ImportOutcome.merged(outcomes).partialFailureMessage {
+                windowState.dropErrorMessage = message
+            }
+        } catch {
+            DragDropLog.refused(
+                "library-cell(\(folder.id))",
+                reason: "import threw: \(error.localizedDescription)"
+            )
+            windowState.dropErrorMessage =
+                "Import failed: \(error.localizedDescription)"
+        }
     }
 
     /// Apply the resolved operation to each dragged document, then refresh

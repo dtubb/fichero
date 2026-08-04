@@ -36,14 +36,14 @@ final class CrossLibraryDropClassificationTests: XCTestCase {
 
     // MARK: - #4401 must not regress
 
-    /// A sidebar row drag. `hasFileURL` is TRUE on purpose: since #4123 an
+    /// A sidebar row drag. `hasExternalPayload` is TRUE on purpose: since #4123 an
     /// internal drag also advertises a real file, and the whole #4401 fix is
     /// that positive id identification WINS over that. If this ever returns
     /// `.externalFiles`, the hollow-duplicate bug is back.
     func testASidebarRowDragIsStillAMoveEvenThoughItAlsoOffersAFile() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:abc-123"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
 
@@ -57,7 +57,7 @@ final class CrossLibraryDropClassificationTests: XCTestCase {
 
         let payload = classifySidebarDropPayload(
             loadedIDs: [json],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
 
@@ -73,7 +73,7 @@ final class CrossLibraryDropClassificationTests: XCTestCase {
     func testAGenuineExternalDropIsStillAnImport() {
         let payload = classifySidebarDropPayload(
             loadedIDs: [],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: false
         )
 
@@ -86,7 +86,7 @@ final class CrossLibraryDropClassificationTests: XCTestCase {
     func testAnUnreadableInAppDragIsNeverAnImport() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["a transcript, not an id"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
 
@@ -139,7 +139,7 @@ final class CrossLibraryDropClassificationTests: XCTestCase {
         XCTAssertNil(decoded.libraryId)
         XCTAssertEqual(
             classifySidebarDropPayload(
-                loadedIDs: [json], hasFileURL: true, carriesOwnProcessFlavor: true
+                loadedIDs: [json], hasExternalPayload: true, carriesOwnProcessFlavor: true
             ),
             .internalItems(["doc:abc-123"]),
             "absent is not foreign — an unstated library must keep the existing move route"

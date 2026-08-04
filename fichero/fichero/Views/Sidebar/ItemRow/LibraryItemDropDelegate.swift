@@ -76,16 +76,31 @@ struct LibraryItemDropDelegate: DropDelegate {
     /// set, or it collects fewer providers than the drop was accepted for.
     let acceptedTypes: [UTType]
     let isTargeted: Binding<Bool>
+    /// Labels this surface in the shared "dragdrop" log so a refusal can
+    /// never be silent (the library-cell multi-drag died at AppKit type
+    /// matching with an EMPTY console, live-repro 2026-08-04).
+    var surface: String = "LibraryItemDropDelegate"
     /// Returns whether the drop was accepted, exactly as the `.onDrop` closure
     /// it replaces did. `@MainActor` because every handler it wraps is a method
     /// on a View, and `NSItemProvider` is not Sendable.
     let onDropProviders: @MainActor ([NSItemProvider]) -> Bool
 
     func validateDrop(info: DropInfo) -> Bool {
-        // `acceptedTypes` already gated which drags reach this delegate; a
-        // narrower answer here would REFUSE drops the closure form accepted,
-        // which is a worse regression than the badge this file fixes.
-        true
+        // TOPOLOGY RULE (#4520 reentrancy family): a surface either handles a
+        // payload or is TRANSPARENT to it. Transparency is achieved by the
+        // `of:` type list — a non-matching session "doesn't activate" this
+        // destination at all (documented, onDrop(of:delegate:)). A refusal
+        // HERE stays inside the session and fights ancestor targets (the
+        // observed "Reentrant message: kDragIPC…"), so this only answers
+        // false for a drop the surface OWNS but must visibly forbid — and it
+        // logs, because a refusal that logs nothing is the anti-pattern.
+        DragDropLog.validated(
+            surface,
+            accepted: true,
+            reason: "session matched accepted types "
+                + "[\(acceptedTypes.map(\.identifier).joined(separator: ", "))]"
+        )
+        return true
     }
 
     func dropEntered(info: DropInfo) {
@@ -112,6 +127,13 @@ struct LibraryItemDropDelegate: DropDelegate {
         // reason `handleRowDrop` does: a row that rebuilds mid-drag can lose
         // the trailing `dropExited` and keep the accent wash stuck on.
         isTargeted.wrappedValue = false
-        return onDropProviders(info.itemProviders(for: acceptedTypes))
+        let providers = info.itemProviders(for: acceptedTypes)
+        let accepted = onDropProviders(providers)
+        DragDropLog.performed(
+            surface,
+            outcome: "handler \(accepted ? "ACCEPTED" : "declined") "
+                + "\(providers.count) provider(s) collected for the accepted types"
+        )
+        return accepted
     }
 }

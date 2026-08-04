@@ -208,7 +208,7 @@ extension ContentView {
                         workflow: selectedWorkflow,
                         editingWorkflow: $editingWorkflow,
                         displayMode: .icon,
-                        selectedDocumentIds: Array(browserSelection)
+                        selectedDocumentIds: effectiveWorkflowRunSelection
                     )
                 }
             } else {
@@ -226,7 +226,7 @@ extension ContentView {
                             workflow: selectedWorkflow,
                             editingWorkflow: $editingWorkflow,
                             displayMode: .icon,
-                            selectedDocumentIds: Array(browserSelection)
+                            selectedDocumentIds: effectiveWorkflowRunSelection
                         )
                         .frame(maxWidth: .infinity)
                     } else {

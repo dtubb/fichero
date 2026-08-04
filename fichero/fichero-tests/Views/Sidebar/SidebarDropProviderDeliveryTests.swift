@@ -205,9 +205,123 @@ final class SidebarDropProviderDeliveryTests: XCTestCase {
         XCTAssertEqual(payload, .unreadableInternal)
     }
 
+    // MARK: - The 2026-08-04 live payload matrix, delivered
+
+    /// A provider registering ONLY the given identifier with raw bytes — the
+    /// shape real drag sessions produced live: in-app multi-item drags
+    /// (custom flavor / bare public.data), Finder folders (public.folder,
+    /// which answers FALSE to canLoadObject for both URL and NSString).
+    private func dataProvider(_ identifier: String, _ bytes: Data) -> NSItemProvider {
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(
+            forTypeIdentifier: identifier, visibility: .all
+        ) { completion in
+            completion(bytes, nil)
+            return nil
+        }
+        return provider
+    }
+
+    private func ficheroItemProvider(_ payload: String) -> NSItemProvider {
+        dataProvider(UTType.ficheroDragItem.identifier, Data(payload.utf8))
+    }
+
+    /// THE live bug (2026-08-04): three sidebar rows dragged together arrive
+    /// as providers that lost the ownProcess string proxy. With the named
+    /// custom flavor they deliver three moves, in drag order.
+    func testAThreeItemInAppDragDeliversThreeMoves() async {
+        let payload = await readSidebarDropPayload([
+            ficheroItemProvider("doc:a"),
+            ficheroItemProvider("doc:b"),
+            ficheroItemProvider("doc:c")
+        ])
+        XCTAssertEqual(payload, .internalItems(["doc:a", "doc:b", "doc:c"]))
+    }
+
+    /// The library pane's multi-item shape: the SAME custom flavor carrying
+    /// LibraryItemDrag JSON — one representation, both drag types.
+    func testAMultiItemLibraryPaneDragDeliversMoves() async throws {
+        let drag = LibraryItemDrag(kind: .document, id: "row-1", documentId: "pdf-9", text: "body")
+        let json = try XCTUnwrap(String(bytes: try JSONEncoder().encode(drag), encoding: .utf8))
+        let payload = await readSidebarDropPayload([
+            ficheroItemProvider(json),
+            ficheroItemProvider("doc:pdf-10")
+        ])
+        XCTAssertEqual(payload, .internalItems(["doc:pdf-9", "doc:pdf-10"]))
+    }
+
+    /// A Finder FOLDER's provider registers public.folder and answers FALSE
+    /// to canLoadObject for BOTH URL and NSString (live console) — the
+    /// object-class probes are the wrong instrument. Registration conformance
+    /// (public.folder → public.directory → public.item) routes it to import.
+    func testAFinderFolderDeliversExternalFiles() async {
+        let folderProvider = dataProvider(UTType.folder.identifier, Data("file:///Users/d/Box".utf8))
+        let payload = await readSidebarDropPayload([folderProvider])
+        XCTAssertEqual(payload, .externalFiles)
+    }
+
+    /// A content-typed drag with no file-url promise (Safari image-as-data,
+    /// Mail attachments) is external — importable, never "unsupported".
+    func testAnImageAsDataDragDeliversExternalFiles() async {
+        let payload = await readSidebarDropPayload([
+            dataProvider(UTType.jpeg.identifier, Data([0xFF, 0xD8]))
+        ])
+        XCTAssertEqual(payload, .externalFiles)
+    }
+
+    /// The dead legacy shape itself: bare public.data with no internal flavor
+    /// (Daniel's broken session). Under the new contract that CANNOT be an
+    /// in-app drag — both drag types always register the named flavor — so it
+    /// is an external data payload and routes to import instead of vanishing.
+    func testABareDataProviderIsExternalNotUnsupported() async {
+        let payload = await readSidebarDropPayload([
+            dataProvider(UTType.data.identifier, Data("bytes".utf8))
+        ])
+        XCTAssertEqual(payload, .externalFiles)
+    }
+
+    /// A mixed selection — internal flavor beside a real file — is a move;
+    /// the file is this app's own export riding along (#4123).
+    func testAMixedInternalAndFileSelectionIsAMove() async {
+        let payload = await readSidebarDropPayload([
+            ficheroItemProvider("doc:a"),
+            urlProvider("/var/folders/zz/fichero-drag-2/A.pdf")
+        ])
+        XCTAssertEqual(payload, .internalItems(["doc:a"]))
+    }
+
+    /// The export side keeps its promise: both drag types' transfer
+    /// representations NAME the custom flavor, so the multi-item shape above
+    /// is what real sessions carry. Source-pinned because Transferable
+    /// exports cannot be enumerated at runtime without a live drag session.
+    func testBothDragTypesExportTheNamedFlavor() throws {
+        let root = try AppSource.root()
+        let sidebarSource = try String(
+            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+            encoding: .utf8
+        )
+        let modelSource = try String(
+            contentsOf: root.appendingPathComponent("Models/Document.swift"),
+            encoding: .utf8
+        )
+        for source in [sidebarSource, modelSource] {
+            XCTAssertTrue(
+                source.contains("DataRepresentation(exportedContentType: .ficheroDragItem)"),
+                "a drag type stopped exporting the named in-app flavor — multi-item drags will die again"
+            )
+        }
+        XCTAssertTrue(
+            SidebarItemRow.dropTypes.contains(.ficheroDragItem),
+            "the accepted types must name the flavor the reader loads"
+        )
+    }
+
     // NOTE: `DropInfo` has no public initializer, so `LibraryItemDropDelegate`'s
     // own callbacks cannot be driven from a unit test at all. Everything the
     // delegate does that IS reachable — the badge rule and the type set it
     // collects — is covered by `LibraryItemDropProposalTests`; a live drag
     // remains the acceptance step for the callbacks themselves (#4473).
+    // Delivery THROUGH each surface's handler (sidebar row / library cell /
+    // pane background) is likewise DropInfo-gated; the per-shape delivery is
+    // pinned at the shared reader those handlers all call.
 }

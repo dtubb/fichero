@@ -35,7 +35,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
     func testInternalDocumentDragThatAlsoVendsAFileIsAMoveNotAnImport() {
         let payload = classifySidebarDropPayload(
             loadedIDs: ["doc:11111111-2222-3333-4444-555555555555"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         )
 
@@ -51,7 +51,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
     func testAFileURLAloneDoesNotOverrideAnInternalID() {
         guard case .internalItems = classifySidebarDropPayload(
             loadedIDs: ["some transcript text", "doc:abcd-1234"],
-            hasFileURL: true,
+            hasExternalPayload: true,
             carriesOwnProcessFlavor: true
         ) else {
             return XCTFail("an id anywhere in the payload must route to move")
@@ -63,7 +63,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
         XCTAssertEqual(
             classifySidebarDropPayload(
                 loadedIDs: [],
-                hasFileURL: true,
+                hasExternalPayload: true,
                 carriesOwnProcessFlavor: false
             ),
             .externalFiles
@@ -76,7 +76,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
         XCTAssertEqual(
             classifySidebarDropPayload(
                 loadedIDs: ["Marshall diary transcript, 1893…"],
-                hasFileURL: true,
+                hasExternalPayload: true,
                 carriesOwnProcessFlavor: true
             ),
             .unreadableInternal,
@@ -118,7 +118,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
         XCTAssertEqual(
             classifySidebarDropPayload(
                 loadedIDs: [libraryDragJSON()],
-                hasFileURL: true,
+                hasExternalPayload: true,
                 carriesOwnProcessFlavor: true
             ),
             .internalItems(["doc:11111111-2222-3333-4444-555555555555"]),
@@ -168,7 +168,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
         XCTAssertEqual(
             classifySidebarDropPayload(
                 loadedIDs: ["/Users/ann/Scans/Diary.pdf"],
-                hasFileURL: true,
+                hasExternalPayload: true,
                 carriesOwnProcessFlavor: false
             ),
             .externalFiles
