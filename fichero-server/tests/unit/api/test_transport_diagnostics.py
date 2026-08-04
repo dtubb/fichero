@@ -75,10 +75,12 @@ class TestTheUDSBannerNamesWhoCannotReachIt:
     def test_it_names_the_variable_a_client_must_set(self, banner):
         assert "FICHERO_FORCE_UDS_PATH=/tmp/fichero.sock" in banner
 
-    def test_it_names_dev_local_as_the_one_that_cannot_reach_it(self, banner):
-        """The whole point: the flag most likely to be copied from the help
-        text is the one that breaks the DEFAULT scheme."""
-        assert "Dev Local" in banner
+    def test_it_names_the_ios_schemes_as_the_ones_that_cannot_reach_it(self, banner):
+        """Since eaff33759 every Mac Local scheme dials the UDS socket; the
+        schemes a UDS banner must warn about are iOS/iPad, which cannot reach
+        a socket in the Mac's container and stay on the loopback HTTPS port."""
+        assert "every Mac Local scheme" in banner
+        assert "iOS" in banner
         assert APP_LOOPBACK_URL in banner
 
     def test_it_says_how_to_get_back_to_dev_local(self, banner):
@@ -120,7 +122,8 @@ class TestItActuallyGetsLogged:
 
         assert binding.is_uds
         assert "FICHERO_FORCE_UDS_PATH" in caplog.text
-        assert "Dev Local" in caplog.text
+        assert "every Mac Local scheme" in caplog.text
+        assert "iOS" in caplog.text
 
 
 class TestTheScriptsSayItToo:
