@@ -6,19 +6,20 @@ Inspector, Keyboard Navigation, Drag & Drop. Of those, 14 had a commit
 mentioning them on `origin/main`; I read the **full** log for each, not just
 its newest entry. **19 have no fix commit and are left alone.**
 
-Counts: A = 7 verify-then-close, B = 1 contradicted, C = 4 unclear, D = 19
+Counts: A = 8 verify-then-close, B = 1 contradicted, C = 4 unclear, D = 19
 untouched.
 
 **A second sweep (section F) covers 41 more issues** across Engine, Sharing,
 Workflow and Settings, and explicitly names the 65 it skipped.
 
-Total examined: **72 open issues. 16 have a fix that is in a shipped build and
-are still open** — 5 in section A, 11 in F1 — of which #3364 is a decision
+Total examined: **73 open issues. 17 have a fix that is in a shipped build and
+are still open** — 6 in section A, 11 in F1 — of which #3364 is a decision
 rather than a verification. A further 5 (#4377, #4458, #4459, and the
 #970/#1834/#2104 trio on one commit) are fixed but **not in any release**, so
 testing them against v2026.08.02 would produce false failures.
 
-I examined none of the Engine, Sharing, Chat, Workflow or Settings milestones.
+The first sweep (sections A-E) covers UI milestones only; section F covers
+Engine, Sharing, Workflow and Settings.
 
 **Nothing here is closed. I am not authorised to close anything, and none of
 this is a closure recommendation — it is a list of things to CLICK.**
@@ -48,6 +49,7 @@ fixes and had to be reopened. So: verify, then close. Never the reverse.
 | **4377** | library multi-select conventions | `38c834c90` | **NO** — committed 2026-08-03, after the tag | shift-click range, ⌘-click toggle, arrow+shift extend. **Not in Daniel's build** — check on a fresh build only | 1m |
 | **4376** | ⌘A in the focused surface | `ff8d592ae` | yes | Click a library row, ⌘A → all rows select. Click into a text field, ⌘A → selects the text, **not** the rows | 15s |
 | **4459** | sidebar drop vanishes on load failure | `18fdfaa62` | **NO** — 2026-08-01, after the tag | Drop a file the loader cannot read onto a sidebar folder. It must report, not vanish | 30s |
+| **4388** | 32pt serif headline in inspector entity detail | `23ef2431c` | yes | Open an entity in the inspector. The name should be a normal bold system headline, not a large serif | 10s |
 
 ## B. CONTRADICTED — the commit mentions the issue but does not fix it
 
@@ -209,6 +211,53 @@ git tag --contains <sha> | grep -E '^v20' | sort -V | head -1
 
 Unfiltered, #3366 reads `archive/inmemory-transport-streaming-seam`; filtered,
 it reads v2026.07.13.4-beta — three weeks in Daniel's hands.
+
+---
+
+## G. #4388 is fixed, and the font sweep it invites would break things
+
+**#4388 is landed and shipped.** `23ef2431c` (2026-08-01, in v2026.08.02)
+changed exactly the line the issue names:
+
+```
+-    .font(.system(size: 32, weight: .bold, design: .serif))
++    .font(.title)
++    .fontWeight(.bold)
+```
+
+No serif and no hardcoded point size remains anywhere in
+`EntityDigestView.swift`, and no `design: .serif` remains anywhere in the whole
+`Views/Inspector/` tree. It moves to section A as a ten-second look.
+
+### The part worth keeping
+
+Reading outward from it, `.font(.system(size:))` appears seven more times in
+the neighbouring ontology tree. **None of them is a font at all.**
+
+| File | Line | What it sizes |
+|---|---|---|
+| `OntologyBrowser+Detail.swift` | 49 | `Image(systemName: "person.crop.rectangle.stack")` |
+| `OntologyBrowser+List.swift` | 142 | `Image(systemName: "person.2" / "line.3.horizontal.decrease.circle")` |
+| `Entity/EntityDetailView.swift` | 278 | `Image(systemName: iconForEntityType)` |
+| `Entity/EntitySourceGroupsView.swift` | 55 | `Image(systemName: "doc.text")` |
+| `ForceDirectedGraphView.swift` | 78 | `Image(systemName: "circle.grid.3x3")` |
+| `Claim/ClaimSummaryCard+Details.swift` | 68 | `Image(systemName: "chevron.right")` |
+
+Six are SF Symbols in empty-state placeholders and disclosure chevrons, where
+`.font(.system(size:))` is the standard idiom for sizing a symbol. The seventh,
+`ClaimSummaryCardView.swift:102-110`, derives from
+`@AppStorage("editor.fontSize")` — a **user preference**. Replacing it with a
+semantic style would delete a setting the user can change.
+
+So a grep-driven "replace hardcoded sizes with semantic fonts" pass over this
+area would have resized six icons and broken one preference, while fixing
+nothing: the single genuine text violation was already gone two days earlier.
+That is why the blanket-sweep rule exists, stated as a measurement rather than
+a principle.
+
+**Zero text-font drift found outside the already-fixed line.** Nothing to do.
+
+---
 
 ---
 
