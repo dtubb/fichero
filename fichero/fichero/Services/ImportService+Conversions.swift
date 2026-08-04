@@ -10,30 +10,37 @@ import Foundation
 extension ImportService {
 
     func convertToDocument(_ generated: Components.Schemas.Document) throws -> Document {
-        // Same typed-first / extras-fallback pattern as
-        // DocumentService.convertToDocument — typed schema fields
-        // decode into typed properties, NOT additionalProperties. Reading
-        // typed fields only from extras silently returns nil and corrupts
-        // the local cache (#762, #774, audit on 2026-05-03).
-        let extras = generated.additionalProperties.value
-        let parentId = generated.parentId ?? (extras["parent_id"] as? String)
-        let fileType = generated.fileType?.rawValue ?? (extras["file_type"] as? String)
-        let sortOrder = extras["sort_order"] as? Int ?? 0
+        // The SECOND wire→model converter (the diagnosis called
+        // `DocumentService`'s the only one). It carried the identical defect:
+        // typed schema keys read out of `additionalProperties`, where the
+        // generated decoder guarantees they never are — so `sort_order` was
+        // always 0 and every freshly-imported row lost its position, its
+        // child count, and its prototype/alias/read-only identity until some
+        // later refresh replaced it. Fixed the same way, in the same commit,
+        // because one of two identical converters being right is how the class
+        // comes back (#4514/#4515/#4516).
+        let fileType = generated.fileType?.rawValue
 
         return Document(
             id: generated.id ?? UUID().uuidString,
-            parentId: parentId,
+            parentId: generated.parentId,
             docType: convertFromGeneratedDocType(generated.docType),
             fileType: fileType.flatMap { FileType(rawValue: $0) },
             name: generated.name,
-            path: generated.path ?? (extras["path"] as? String),
-            sequence: generated.sequence ?? (extras["sequence"] as? Int),
-            bbox: (generated.bbox?.value as? [Int]) ?? (extras["bbox"] as? [Int]),
+            path: generated.path,
+            sequence: generated.sequence,
+            bbox: generated.bbox?.value as? [Int],
             status: convertFromGeneratedStatus(generated.status),
             metadata: convertMetadata(generated.metadata),
-            pageContent: generated.pageContent ?? (extras["page_content"] as? String),
+            pageContent: generated.pageContent,
             excludeFromProcessing: generated.excludeFromProcessing ?? false,
-            sortOrder: sortOrder,
+            isWorkspace: generated.isWorkspace ?? false,
+            childCount: generated.childCount ?? 0,
+            sortOrder: generated.sortOrder ?? 0,
+            prototypeKey: generated.prototypeKey,
+            nodeKind: generated.nodeKind,
+            aliasTargetId: generated.aliasTargetId,
+            attributes: convertAttributes(generated.attributes),
             createdAt: generated.createdAt ?? Date(),
             updatedAt: generated.updatedAt ?? Date(),
             expectedThumbnailPath: generated.expectedThumbnailPath,
@@ -67,6 +74,20 @@ extension ImportService {
         guard let metadata = metadata else { return [:] }
         var result: [String: AnyCodable] = [:]
         for (key, value) in metadata.additionalProperties.value {
+            result[key] = AnyCodable(value ?? "")
+        }
+        return result
+    }
+
+    /// Prototype-scoped node attributes (`read_only`, `scope`, `system`, …) —
+    /// see `Document.isReadOnly`. A distinct generated payload type from
+    /// `MetadataPayload`, so the two cannot share one function.
+    private func convertAttributes(
+        _ attributes: Components.Schemas.Document.AttributesPayload?
+    ) -> [String: AnyCodable] {
+        guard let attributes = attributes else { return [:] }
+        var result: [String: AnyCodable] = [:]
+        for (key, value) in attributes.additionalProperties.value {
             result[key] = AnyCodable(value ?? "")
         }
         return result

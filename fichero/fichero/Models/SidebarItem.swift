@@ -188,8 +188,16 @@ struct SidebarItem: Identifiable, Hashable {
         isDefaultWorkflowFolder: Bool? = nil,
         parent: Document? = nil
     ) -> SidebarItem {
-        let isLockedSystemFolder = isDefaultWorkflowFolder
-            ?? (doc.docType == .folder && doc.hasDefaultWorkflowContainerID)
+        // `attributes.read_only` is the engine's own answer and arrives WITH
+        // the row, so it needs no tree context and no children cache — which
+        // is what removes #4514's "unlocked until loaded" flicker. The
+        // ancestry answer stays OR-ed in for legacy preset folders re-homed
+        // under the container before the flag was backfilled (#4200).
+        // Folder-scoped on purpose: a workflow MIRROR row is read-only too,
+        // but it is not a folder and must not claim this flag.
+        let isLockedSystemFolder = doc.docType == .folder
+            && (doc.isReadOnly
+                || (isDefaultWorkflowFolder ?? doc.hasDefaultWorkflowContainerID))
         return SidebarItem(
             id: "doc:\(doc.id)",
             // #116/#4416: this was `doc.pageThumbnailLabel ?? doc.name`, and the
@@ -214,13 +222,13 @@ struct SidebarItem: Identifiable, Hashable {
             // for any .file) — makes PDFs visually distinct (#574).
             // Workspace folders (#4308/#4335) read as workspaces, not plain
             // folders — one typed node vocabulary in the tree.
-            icon: isLockedSystemFolder
-                ? "folder.badge.gearshape"
-                : doc.isWorkspace
-                    ? "square.grid.2x2"
-                    : doc.isWorkflowNode
-                        ? ItemCategory.workflow.icon
-                        : (doc.fileType?.icon ?? doc.docType.icon),
+            //
+            // The ladder itself now lives on `Document.displaySymbol` so the
+            // library views render the SAME glyph for the same node (#4516).
+            // It used to be spelled out here, which is why a workflow mirror
+            // was a branch icon in the sidebar and an empty thumbnail well in
+            // the grid.
+            icon: doc.displaySymbol(treatAsLockedFolder: isLockedSystemFolder),
             category: .folder,
             itemType: .document(doc),
             children: children,

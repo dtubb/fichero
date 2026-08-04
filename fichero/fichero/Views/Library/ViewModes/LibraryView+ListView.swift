@@ -60,9 +60,10 @@ extension LibraryView {
         .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
         .id(doc.id)
         .draggable(libraryItemDrag(for: doc))
-        // Folder rows accept in-app item drops (#4124).
+        // Folder rows accept in-app item drops (#4124) — except read-only
+        // system folders, which the engine refuses anyway (#4514).
         .modifier(LibraryFolderCellDrop(
-            isFolder: doc.docType == .folder,
+            acceptsDrop: doc.acceptsItemDrops,
             onDropProviders: { providers in
                 handleFolderCellDrop(providers, into: doc)
             }

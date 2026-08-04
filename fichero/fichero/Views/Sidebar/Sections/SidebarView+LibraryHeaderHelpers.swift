@@ -80,8 +80,9 @@ extension SidebarView {
                         batch.urls, mode: .link, parentId: batch.parentId
                     ))
                 }
-                await library.documentStore.refresh()
-                try? await Task.sleep(for: .milliseconds(500))
+                // ONE trailing refresh (#4067/#4522) — see `handleImportedFiles`.
+                // The refresh+sleep+refresh that stood here redrew the whole
+                // sidebar forest a second time, half a second late.
                 await library.documentStore.refresh()
                 if let message = ImportOutcome.merged(outcomes).partialFailureMessage {
                     sidebarState.dropErrorMessage = message

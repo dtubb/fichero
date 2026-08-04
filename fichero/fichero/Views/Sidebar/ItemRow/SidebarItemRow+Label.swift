@@ -93,10 +93,12 @@ extension SidebarItemRow {
     /// workflow rows inside them.
     var rowIsLocked: Bool {
         if case .document(let doc) = item.itemType {
-            // `item.isDefaultWorkflowFolder`, not the document's id shape: a
-            // legacy folder RE-HOMED under the container keeps its old id, so
-            // only the tree builder's ancestry answer catches it (#4200).
-            return item.isDefaultWorkflowFolder || doc.isWorkflowNode
+            // `doc.isLockedSystemNode` is the shared predicate the library
+            // views read too (#4514) — one question, one answer, both panes.
+            // `item.isDefaultWorkflowFolder` stays OR-ed in for the legacy
+            // folder RE-HOMED under the container, which keeps its old id and
+            // may predate the engine's `read_only` backfill (#4200).
+            return item.isDefaultWorkflowFolder || doc.isLockedSystemNode
         }
         return false
     }

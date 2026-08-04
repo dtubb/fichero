@@ -750,56 +750,59 @@ extension DocumentService {
 private extension DocumentService {
     /// Convert generated Document to local Document
     func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
-        // Every field that's TYPED on the OpenAPI Document schema decodes
-        // into the typed property, NOT additionalProperties. Reading them
-        // from extras silently returns nil and corrupts the local cache.
-        // Verified with the Types.swift audit on 2026-05-03: parent_id,
-        // file_type, path, sequence, bbox, page_content,
-        // expected_thumbnail_path, expected_display_path are ALL typed.
-        // Always read typed-first; fall back to extras for legacy compat
-        // (and for any field we add to the schema that lags this list).
-        let extras = doc.additionalProperties.value
-        let parentId = doc.parentId ?? (extras["parent_id"] as? String)
-        // fileType is a typed enum (Components.Schemas.FileType?); take its
-        // raw value so the local Document's own FileType enum can decode it.
-        let fileType = doc.fileType?.rawValue ?? (extras["file_type"] as? String)
-        let path = doc.path ?? (extras["path"] as? String)
-        let sequence = doc.sequence ?? (extras["sequence"] as? Int)
-        // child_count isn't a typed field on Components.Schemas.Document (it lives
-        // on FolderViewsResponse); it arrives via additionalProperties.
-        let childCount = (extras["child_count"] as? Int) ?? 0
-        // #3322 historical date, read from `additionalProperties` — the same
-        // single path `child_count` above uses, rather than a typed read plus a
-        // fallback. One way in is the point: two ways to obtain one field is
-        // how they drift.
-        let dateOriginal = extras["date_original"] as? String
-        let dateJdn = extras["date_jdn"] as? Int
+        // A field this converter forgets is a field the whole app does not have.
+        //
+        // Every key TYPED on the schema decodes into its typed property and
+        // NEVER into `additionalProperties` — the generated decoder strips
+        // known keys first — so the `?? extras[…]` fallbacks that used to sit
+        // on these lines were dead code, not defence. They read as
+        // belt-and-braces and hid the neighbours with no read at all: #4515
+        // child_count, #4516 prototype_key/node_kind/alias_target_id, #4514
+        // attributes, plus sort_order and is_workspace.
+        // `DocumentConverterFieldSourceTests` fails if a typed key is read
+        // from extras here again.
+        //
+        // fileType is a typed enum; take its raw value so the local FileType
+        // can decode it.
+        let fileType = doc.fileType?.rawValue
+        let childCount = doc.childCount ?? 0
         // `date_meta`'s ABSENCE is the "never extracted" state, so this stays
         // nil when the server sent nothing. Defaulting it to [:] would read as
         // "extraction ran and found nothing" — a different fact.
-        let dateMeta = (extras["date_meta"] as? [String: Any])
-            .map { raw in raw.mapValues { AnyCodable($0) } }
+        let dateMeta = doc.dateMeta.map { payload in
+            payload.additionalProperties.value.mapValues { AnyCodable($0 ?? "") }
+        }
         // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
-        let bbox = (doc.bbox?.value as? [Int]) ?? (extras["bbox"] as? [Int])
-        let pageContent = doc.pageContent ?? (extras["page_content"] as? String)
+        let bbox = doc.bbox?.value as? [Int]
 
         return Document(
             id: doc.id ?? UUID().uuidString,
-            parentId: parentId,
+            parentId: doc.parentId,
             docType: convertFromGeneratedDocType(doc.docType),
             fileType: fileType.flatMap { FileType(rawValue: $0) },
             name: doc.name,
-            path: path,
-            sequence: sequence,
-            bbox: bbox,  // Already [Int]? from additionalProperties
+            path: doc.path,
+            sequence: doc.sequence,
+            bbox: bbox,
             status: convertFromGeneratedStatus(doc.status),
             metadata: convertMetadata(doc.metadata),
-            pageContent: pageContent,
+            pageContent: doc.pageContent,
             excludeFromProcessing: doc.excludeFromProcessing ?? false,
+            isWorkspace: doc.isWorkspace ?? false,
             childCount: childCount,
-            dateOriginal: dateOriginal,
-            dateJdn: dateJdn,
+            dateOriginal: doc.dateOriginal,   // #3322
+            dateJdn: doc.dateJdn,
             dateMeta: dateMeta,
+            sortOrder: doc.sortOrder ?? 0,
+            // #4516: `prototypeKey` is what `isWorkflowNode` reads; dropping
+            // it made the workflow icon, the mirror lock badge, the running
+            // spinner and mirror selection routing dead code at once. #2591's
+            // alias fields died the same way. #4514: `attributes` carries the
+            // engine's `read_only`.
+            prototypeKey: doc.prototypeKey,
+            nodeKind: doc.nodeKind,
+            aliasTargetId: doc.aliasTargetId,
+            attributes: convertAttributes(doc.attributes),
             createdAt: doc.createdAt ?? Date(),
             updatedAt: doc.updatedAt ?? Date(),
             expectedThumbnailPath: doc.expectedThumbnailPath,
@@ -880,6 +883,19 @@ private extension DocumentService {
         guard let metadata = metadata else { return [:] }
         var result: [String: AnyCodable] = [:]
         for (key, value) in metadata.additionalProperties.value {
+            result[key] = AnyCodable(value ?? "")
+        }
+        return result
+    }
+
+    /// Prototype-scoped node attributes (`read_only`, `scope`, …). Same shape
+    /// as `convertMetadata`, distinct generated payload type (#4514).
+    private func convertAttributes(
+        _ attributes: Components.Schemas.Document.AttributesPayload?
+    ) -> [String: AnyCodable] {
+        guard let attributes = attributes else { return [:] }
+        var result: [String: AnyCodable] = [:]
+        for (key, value) in attributes.additionalProperties.value {
             result[key] = AnyCodable(value ?? "")
         }
         return result

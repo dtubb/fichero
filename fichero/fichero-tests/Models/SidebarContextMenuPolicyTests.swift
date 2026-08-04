@@ -28,7 +28,7 @@ final class SidebarContextMenuPolicyTests: XCTestCase {
 
     @MainActor
     func testEmptyOwnListFallsBackToGlobalSoMenuIsNeverSilentlyEmpty() {
-        let global = [WorkflowSidebarItem(id: "wf-global", name: "Global")]
+        let global = [WorkflowSidebarItem(id: "wf-global", name: "Global", isSystem: true)]
         XCTAssertEqual(
             SidebarItemRow.contextMenuWorkflows(own: [], global: global).map(\.id),
             ["wf-global"]
@@ -38,6 +38,69 @@ final class SidebarContextMenuPolicyTests: XCTestCase {
     @MainActor
     func testBothEmptyStillHidesTheMenu() {
         XCTAssertTrue(SidebarItemRow.contextMenuWorkflows(own: [], global: []).isEmpty)
+    }
+
+    // MARK: - #4450 the fallback offers only what the engine will resolve
+
+    /// A global-library USER workflow — one built while Global was open, or a
+    /// preset demoted by editing it (#780) — is not a default.
+    /// `resolve_default_workflow` refuses it from another library, so the
+    /// menu offering it produced "Workflow not found in this library: …".
+    @MainActor
+    func testGlobalFallbackOffersOnlySystemDefaults() {
+        let global = [
+            WorkflowSidebarItem(id: "wf-preset", name: "Transcribe", isSystem: true),
+            WorkflowSidebarItem(id: "wf-user", name: "Daniel's thing", isSystem: false)
+        ]
+        XCTAssertEqual(
+            SidebarItemRow.contextMenuWorkflows(own: [], global: global).map(\.id),
+            ["wf-preset"],
+            "every offered item must be one the engine can resolve cross-library"
+        )
+    }
+
+    @MainActor
+    func testFallbackOfOnlyUserWorkflowsOffersNothingRatherThanSomethingBroken() {
+        let global = [WorkflowSidebarItem(id: "wf-user", name: "Mine", isSystem: false)]
+        XCTAssertTrue(SidebarItemRow.contextMenuWorkflows(own: [], global: global).isEmpty)
+    }
+
+    // MARK: - #4450 two groups, from one list
+
+    /// The library's own `/api/workflows` ALREADY merges the shipped defaults
+    /// in server-side (workflows.py:884), so the split is `isSystem` over one
+    /// list — reading the global store again here would list every default
+    /// twice.
+    @MainActor
+    func testMenuSplitsIntoGlobalDefaultsAndThisLibrarysOwn() {
+        let merged = [
+            WorkflowSidebarItem(id: "wf-preset", name: "Transcribe", isSystem: true),
+            WorkflowSidebarItem(id: "wf-mine", name: "Marshall pass", isSystem: false),
+            WorkflowSidebarItem(id: "wf-preset-2", name: "Catalogue", isSystem: true)
+        ]
+        let sections = SidebarItemRow.workflowMenuSections(merged)
+        XCTAssertEqual(sections.defaults.map(\.id), ["wf-preset", "wf-preset-2"])
+        XCTAssertEqual(sections.libraryOwn.map(\.id), ["wf-mine"])
+    }
+
+    @MainActor
+    func testEveryOfferedWorkflowLandsInExactlyOneSection() {
+        let merged = [
+            WorkflowSidebarItem(id: "a", name: "A", isSystem: true),
+            WorkflowSidebarItem(id: "b", name: "B", isSystem: false)
+        ]
+        let sections = SidebarItemRow.workflowMenuSections(merged)
+        let ids = sections.defaults.map(\.id) + sections.libraryOwn.map(\.id)
+        XCTAssertEqual(ids.sorted(), ["a", "b"], "no workflow may be dropped or listed twice")
+    }
+
+    @MainActor
+    func testALibraryWithOnlyDefaultsShowsJustTheDefaultsSection() {
+        let sections = SidebarItemRow.workflowMenuSections(
+            [WorkflowSidebarItem(id: "a", name: "A", isSystem: true)]
+        )
+        XCTAssertTrue(sections.libraryOwn.isEmpty)
+        XCTAssertFalse(sections.defaults.isEmpty, "global defaults are visible in EVERY library")
     }
 
     // MARK: - #4305 reveal policy

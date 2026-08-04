@@ -69,13 +69,20 @@ extension SidebarView {
             logger.error("Failed to import files: \(error)")
             sidebarState.dropErrorMessage = "Import failed: \(error.localizedDescription)"
         }
-        // Refresh twice — once immediately, again after 500ms — to catch the
-        // race where the backend hasn't finished indexing when the first
-        // refresh fires (same hardening the drop path already has).
+        // ONE trailing refresh, matching the row-drop path (#4067). The engine
+        // emits a per-file `document.created` as each file lands, so the store
+        // patches the sidebar incrementally while the import runs; this is the
+        // completion signal and the backstop for a lost event.
+        //
+        // The second refresh behind a 500ms sleep — and the explicit
+        // `rebuildCaches()` after it — are deleted, not moved. #4067 removed
+        // exactly this pattern from the drop path because every refresh ends in
+        // `loadCollections()`, which drops the whole `childrenCache` and
+        // rebuilds every row; the sleep made the sidebar visibly redraw a
+        // second time half a second after the import already looked finished
+        // (#4522). `SidebarObservers` rebuilds the caches from the store
+        // change, so the explicit call was a third rebuild of the same data.
         await library.documentStore.refresh()
-        try? await Task.sleep(for: .milliseconds(500))
-        await library.documentStore.refresh()
-        rebuildCaches()
     }
 
     /// Folder a menu/file-picker import should land in: the selected folder if

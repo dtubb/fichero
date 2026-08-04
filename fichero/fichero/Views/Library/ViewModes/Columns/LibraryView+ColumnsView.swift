@@ -150,7 +150,7 @@ extension LibraryView {
                     .id(doc.id)
                     .draggable(libraryItemDrag(for: doc))
                     .modifier(LibraryFolderCellDrop(
-                        isFolder: doc.docType == .folder,
+                        acceptsDrop: doc.acceptsItemDrops,
                         onDropProviders: { providers in handleFolderCellDrop(providers, into: doc) }
                     ))
                     .onTapGesture(count: 2) { handleDoubleClick(doc) }
@@ -171,8 +171,13 @@ extension LibraryView {
     @ViewBuilder
     private func millerRow(_ doc: Document, depth: Int, isActiveColumn: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: doc.docType == .folder ? "folder.fill" : "doc.text")
-                .foregroundStyle(doc.docType == .folder ? Color.accentColor : Color.secondary)
+            // One glyph per node, from the same ladder the sidebar reads
+            // (#4516) — this used to be a two-way folder/doc.text split, which
+            // is why a workflow mirror row read as a plain text document.
+            Image(systemName: doc.displaySymbol())
+                .symbolVariant(doc.docType == .folder ? .fill : .none)
+                .symbolRenderingMode(doc.isLockedSystemNode ? .hierarchical : .monochrome)
+                .foregroundStyle(columnRowTint(doc))
                 .frame(width: 16)
             if renamingDocumentId == doc.id {
                 EditableDocumentName(
@@ -216,6 +221,13 @@ extension LibraryView {
         )
         .accessibilityAddTraits(selection.contains(doc.id) ? .isSelected : [])
         .accessibilityIdentifier("libraryColumnRow.\(doc.id)")
+    }
+
+    /// Purple for a system-owned node, matching the sidebar's locked rows
+    /// (#4514); accent for a folder the user owns; secondary for a leaf.
+    private func columnRowTint(_ doc: Document) -> Color {
+        if doc.isLockedSystemNode { return .purple }
+        return doc.docType == .folder ? .accentColor : .secondary
     }
 
     /// Click semantics: select in THIS column (which becomes active); a

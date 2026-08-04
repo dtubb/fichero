@@ -431,11 +431,15 @@ struct SidebarItemRow: View {
                     expandedItems.insert(item.id)
                     guard case .document(let document) = item.itemType,
                           let store = documentStore else { return }
-                    // NOTE: the old guard required a positive child count, but
-                    // the backend never sends child_count on getRoots/getChildren
-                    // (it decodes to 0), so that guard was dead and children only
-                    // ever loaded as a side-effect of SELECTING the folder — the
-                    // #3355 root cause. Load whenever they aren't cached yet.
+                    // NOTE: the old guard required a positive child count and
+                    // was dead — not because the backend omits `child_count`
+                    // (it does not; that premise was wrong, #4515) but because
+                    // the client's converter dropped the typed field, so every
+                    // folder decoded 0. Children then loaded only as a
+                    // side-effect of SELECTING the folder — the #3355 root
+                    // cause. Load whenever they aren't cached yet: the count
+                    // is now honest, and re-adding the guard would still be
+                    // wrong for a folder whose count arrived after expansion.
                     #if canImport(AppKit)
                     let optionHeld = NSApp.currentEvent?.modifierFlags.contains(.option) ?? false
                     #else

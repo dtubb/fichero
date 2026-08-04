@@ -31,16 +31,21 @@ private let cellDropLogger = Logger(
 // `readSidebarDropPayload` and get back the same `doc:`-prefixed ids whichever
 // pane the drag started in. Nothing here knows about `LibraryItemDrag` any more.
 
-/// Accepts in-app library-item drags on folder cells; non-folders pass through
-/// untouched. Per-cell `isTargeted` state = only the hovered folder highlights.
+/// Accepts in-app library-item drags on folder cells; non-folders and
+/// read-only system folders pass through untouched. Per-cell `isTargeted`
+/// state = only the hovered folder highlights.
+///
+/// `acceptsDrop`, not `isFolder`: a Default Workflows folder IS a folder and
+/// must still refuse (#4514). Callers pass `doc.acceptsItemDrops`, the same
+/// answer the sidebar's lock badge is drawn from.
 struct LibraryFolderCellDrop: ViewModifier {
-    let isFolder: Bool
+    let acceptsDrop: Bool
     let onDropProviders: @MainActor ([NSItemProvider]) -> Bool
 
     @State private var isTargeted = false
 
     func body(content: Content) -> some View {
-        if isFolder {
+        if acceptsDrop {
             content
                 // A delegate, deliberately: it is the only drop form that can
                 // say what the drop will DO, and the closure form always said
@@ -80,7 +85,9 @@ extension LibraryView {
     /// sampled value is passed to the executor — never re-read further down
     /// (#4475 C).
     func handleFolderCellDrop(_ providers: [NSItemProvider], into folder: Document) -> Bool {
-        guard folder.docType == .folder, !providers.isEmpty else { return false }
+        // Re-asserted here, not only on the modifier: a refusal that lives
+        // solely in the view's `if` is one call site away from being lost.
+        guard folder.acceptsItemDrops, !providers.isEmpty else { return false }
 
         let capabilities = sidebarDropCapabilities(of: providers)
         guard sidebarDropMightCarryInternalID(capabilities) else {

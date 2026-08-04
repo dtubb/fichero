@@ -97,10 +97,12 @@ enum SidebarItemBuilder {
     ///
     /// NOTE: this predicate runs BEFORE the parent→children map is built, so a
     /// kind omitted here doesn't merely hide its own row — it also strips its
-    /// parent's `children`, and a parent built with `children == nil` reports
-    /// `isExpandable == false` (the backend sends no `child_count` on
-    /// `getRoots`/`getChildren`) so it renders with no disclosure chevron at
-    /// all. Add new sidebar-visible node kinds here (#4058, #4300).
+    /// parent's `children`. A parent built with `children == nil` still shows
+    /// a chevron when the engine reported a positive `child_count` — that
+    /// field IS sent on `/roots` and `/children`, contrary to the note that
+    /// stood here (#4515); only the client's converter was dropping it. A
+    /// kind omitted here therefore hides rows, not chevrons. Add new
+    /// sidebar-visible node kinds here (#4058, #4300).
     static func isSidebarVisible(_ doc: Document) -> Bool {
         if doc.isNavigableContainer { return true }
         if doc.docType == .page { return true }
