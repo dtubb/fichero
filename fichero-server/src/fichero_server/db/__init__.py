@@ -1102,8 +1102,27 @@ class Database(DatabaseEmbeddingMixin):
             return
         self._transaction_gate.acquire()
         try:
-            with self._lock:
-                self.conn.execute("BEGIN TRANSACTION")
+            try:
+                with self._lock:
+                    self.conn.execute("BEGIN TRANSACTION")
+            except duckdb.Error as exc:
+                if not self._is_invalidated_error(exc):
+                    raise
+                # Every other DuckDB entry point reopens an invalidated
+                # connection and retries; BEGIN was the one that did not, so
+                # any write routed through a transaction (which is every
+                # audited action) died where an untransacted write recovered.
+                # A connection that is closed or invalidated holds no
+                # in-flight transaction, so re-issuing BEGIN on a fresh one
+                # cannot discard uncommitted work.
+                logger.warning(
+                    "DuckDB connection for %s was invalidated at transaction "
+                    "start; reopening and retrying",
+                    self.path,
+                )
+                self._reconnect_after_invalidated()
+                with self._lock:
+                    self.conn.execute("BEGIN TRANSACTION")
             self._tx_state.started = True
         except Exception:
             self._transaction_gate.release()
