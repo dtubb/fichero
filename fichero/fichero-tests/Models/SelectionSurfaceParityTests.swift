@@ -80,8 +80,9 @@ struct SelectionSurfaceParityTests {
     /// The native `Table`, which does the click itself and then reconciles.
     /// Its "click" is simulated by applying the grammar's SET (what AppKit
     /// would produce — AppKit implements the same rules) and then asking
-    /// `reconcile` to recover the anchor from nothing but the set change.
-    /// That is exactly the information the real `onChange` has.
+    /// `reconcile` to recover the anchor from the set change PLUS the
+    /// modifiers that were down (#4531) — exactly the information the real
+    /// `onChange` has, which reads `NSEvent.modifierFlags` at that moment.
     private static func tableReconcile(
         _ selection: Set<String>, _ anchor: String?, _ id: String, _ modifiers: Modifiers
     ) -> (Set<String>, String?) {
@@ -89,7 +90,8 @@ struct SelectionSurfaceParityTests {
             id: id, in: ids, selection: selection, anchor: anchor, modifiers: modifiers
         )
         let reconciled = SelectionGrammar.reconcile(
-            from: selection, to: appKitResult.selection, anchor: anchor, in: ids
+            from: selection, to: appKitResult.selection, anchor: anchor, in: ids,
+            modifiers: modifiers
         )
         return (reconciled.selection, reconciled.anchor)
     }
@@ -165,27 +167,33 @@ struct SelectionSurfaceParityTests {
         }
     }
 
-    /// The ONE place a surface is allowed to differ, pinned so it is a decision
-    /// rather than a drift: the native `Table` reconstructs the acted row from
-    /// the set change, and ⌘-deselecting down to EXACTLY ONE remaining row is
-    /// indistinguishable from plain-clicking that row. It resolves toward the
-    /// plain click, which is far more frequent.
+    /// The old "one place a surface may differ" CLOSED with #4531: the Table's
+    /// reconcile now receives the modifiers, so ⌘-deselecting down to exactly
+    /// one row anchors on the acted (deselected) row like every other surface
+    /// — its predecessor test said "the documented divergence closed — delete
+    /// this test", and it was.
     ///
-    /// This asserts the difference EXISTS and is bounded — the anchor lands on
-    /// a visible, selected row, which is the property #4377 was about. If
-    /// someone later teaches the Table its acted row for real, this test fails
-    /// and should be deleted, which is the right way for a documented
-    /// limitation to end.
-    @Test("Table: ⌘-deselecting down to one row anchors on the survivor, by design")
-    func tableCannotDistinguishTheLastDeselect() {
-        let (selection, anchor) = Self.tableReconcile(["doc:a", "doc:c"], "doc:a", "doc:c", .command)
-        let (_, grammarAnchor) = Self.reference(["doc:a", "doc:c"], "doc:a", "doc:c", .command)
+    /// What remains pinned is the CONTEXT-FREE compromise: a caller with no
+    /// gesture information (modifiers omitted) still resolves the ambiguous
+    /// down-to-one delta toward the plain click, anchoring on the survivor —
+    /// a visible, selected row, which is the #4377 property.
+    @Test("Without gesture context, down-to-one still resolves toward the plain click")
+    func contextFreeReconcileResolvesTowardThePlainClick() {
+        let result = SelectionGrammar.reconcile(
+            from: ["doc:a", "doc:c"], to: ["doc:a"], anchor: "doc:a", in: Self.ids
+        )
 
-        #expect(selection == ["doc:a"])
-        #expect(anchor == "doc:a")
-        #expect(grammarAnchor == "doc:c")
-        #expect(anchor != grammarAnchor, "the documented divergence closed — delete this test")
-        #expect(selection.contains(anchor ?? ""), "the anchor must still be a selected, visible row")
+        #expect(result.selection == ["doc:a"])
+        #expect(result.anchor == "doc:a")
+        #expect(result.selection.contains(result.anchor ?? ""))
+
+        // And WITH the ⌘ context, the same delta anchors on the acted row —
+        // the rule-1 answer the modifier makes expressible.
+        let commanded = SelectionGrammar.reconcile(
+            from: ["doc:a", "doc:c"], to: ["doc:a"], anchor: "doc:a", in: Self.ids,
+            modifiers: .command
+        )
+        #expect(commanded.anchor == "doc:c")
     }
 
     // MARK: - Marquee
@@ -400,13 +408,16 @@ struct SelectionSurfaceParityTests {
     @Test("⇧-extending across disclosed child rows shrinks, which needs the visible order")
     func reconcileHoldsTheAnchorAcrossChildRows() {
         // ⇧↓ ⇧↓ grew a range from the parent through both artifact rows; ⇧↑
-        // then shrinks it. Rule 2: the anchor must not have moved, and the
+        // then shrinks it BY ONE ROW — the delta a gesture-blind reconcile
+        // cannot tell from a ⌘-deselect, which is why the ⇧ that was down is
+        // passed (#4531). Rule 2: the anchor must not have moved, and the
         // cursor must be the row the range now ENDS on.
         let shrunk = SelectionGrammar.reconcile(
             from: ["doc:a", "doc:a:artifact:1", "doc:a:artifact:2"],
             to: ["doc:a", "doc:a:artifact:1"],
             anchor: "doc:a",
-            in: Self.outlineRows
+            in: Self.outlineRows,
+            modifiers: .shift
         )
 
         #expect(shrunk.anchor == "doc:a")
@@ -415,14 +426,15 @@ struct SelectionSurfaceParityTests {
 
     @Test("Against the document list the same shrink cannot find its cursor at all")
     func reconcileDegradesWhenGivenTheWrongList() {
-        // Same gesture, wrong list: no child row indexes, so `reconcile` falls
-        // through to the lexical-minimum branch. Deterministic — and not the
+        // Same gesture, wrong list: no child row indexes, so the cursor
+        // degrades to the rows the list CAN see. Deterministic — and not the
         // visual order it is supposed to be reasoning about.
         let degraded = SelectionGrammar.reconcile(
             from: ["doc:a", "doc:a:artifact:1", "doc:a:artifact:2"],
             to: ["doc:a", "doc:a:artifact:1"],
             anchor: "doc:a",
-            in: Self.documentRowsOnly
+            in: Self.documentRowsOnly,
+            modifiers: .shift
         )
 
         #expect(degraded.cursor == "doc:a")

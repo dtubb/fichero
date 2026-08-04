@@ -297,39 +297,62 @@ enum SelectionGrammar {
     /// discontiguous ⌘-built set "furthest" is a convention rather than a
     /// truth, but it is a deterministic, visual-order convention, which is more
     /// than `Set` iteration offered.
+    ///
+    /// ## Why `modifiers` is threaded in (#4531)
+    ///
+    /// The set delta ALONE cannot arbitrate between the two anchor rules: a
+    /// one-row ⇧-shrink (⇧↑ after ⇧↓⇧↓, or a ⇧-click one row back) and a
+    /// one-row ⌘-deselect produce the IDENTICAL before/after pair, and the
+    /// rules demand opposite answers — hold the anchor (rule 2) versus follow
+    /// the acted row (rule 1). Two shipped pins asked for both at once. So the
+    /// Table's caller now passes the modifiers that were down when the
+    /// selection changed: ⇧ present means a range operation and the anchor
+    /// holds, whatever the count; otherwise a single-row change is a click and
+    /// the anchor follows it. Callers with no gesture context pass nothing and
+    /// get the old click-leaning defaults.
     static func reconcile(
         from previous: Set<String>,
         to current: Set<String>,
         anchor: String?,
-        in ids: [String]
+        in ids: [String],
+        modifiers: Modifiers = []
     ) -> Result {
         if current.isEmpty { return clear() }
 
         let changed = previous.symmetricDifference(current)
 
-        // ONE NAMED AMBIGUITY, because a set difference cannot resolve it and
-        // pretending otherwise is how a "fix" ships a new wrong answer.
-        //
-        // Collapsing a multi-selection with a PLAIN click ({a,b} → {a}) and
-        // ⌘-clicking the second row of a pair OFF ({a,c} → {a}) produce the
-        // IDENTICAL before/after pair: one row left the set, one row remains.
-        // The acted row is `a` in the first case and `c` in the second, and
-        // nothing in the sets says which.
-        //
-        // Resolved toward the plain click, which is far more frequent, and
-        // whose wrong answer would be worse: it would leave the anchor on a
-        // row the user just DESELECTED while a different row sits highlighted.
-        // The ⌘ case's cost is that ⌘-deselecting down to exactly one row puts
-        // the anchor on the survivor rather than on the row switched off — and
-        // the survivor is at least visible and selected, unlike the #4377
-        // failure this whole type exists to prevent. The next click of either
-        // kind corrects it.
-        if current.count == 1, let survivor = current.first, previous.contains(survivor) {
-            return Result(selection: current, anchor: survivor, cursor: survivor)
-        }
+        // ⇧ was down: this is a range operation, whatever the delta's size —
+        // rule 2 says the anchor holds and only the cursor end moves. Skips
+        // both click-shaped branches below, because with ⇧ known they would
+        // both be wrong answers.
+        if !modifiers.contains(.shift) {
+            // ⌘ was down and exactly one row changed: that is a ⌘-toggle, and
+            // rule 1 says the anchor follows the acted row EVEN when the
+            // toggle deselected it — including deselecting down to a single
+            // survivor, which without the modifier is indistinguishable from
+            // a plain click on that survivor.
+            if modifiers.contains(.command), changed.count == 1, let acted = changed.first {
+                return Result(selection: current, anchor: acted, cursor: acted)
+            }
 
-        if changed.count == 1, let acted = changed.first {
-            return Result(selection: current, anchor: acted, cursor: acted)
+            // ONE NAMED AMBIGUITY when no gesture context arrived, because a
+            // set difference cannot resolve it and pretending otherwise is how
+            // a "fix" ships a new wrong answer.
+            //
+            // Collapsing a multi-selection with a PLAIN click ({a,b} → {a})
+            // and ⌘-clicking the second row of a pair OFF ({a,c} → {a})
+            // produce the IDENTICAL before/after pair. Resolved toward the
+            // plain click, which is far more frequent, and whose wrong answer
+            // would be worse: it would leave the anchor on a row the user just
+            // DESELECTED. A caller that DOES pass modifiers never reaches this
+            // compromise for the ⌘ case — the branch above claims it.
+            if current.count == 1, let survivor = current.first, previous.contains(survivor) {
+                return Result(selection: current, anchor: survivor, cursor: survivor)
+            }
+
+            if changed.count == 1, let acted = changed.first {
+                return Result(selection: current, anchor: acted, cursor: acted)
+            }
         }
 
         let topmost = current.compactMap { ids.firstIndex(of: $0) }.min().map { ids[$0] }
