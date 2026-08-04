@@ -190,7 +190,7 @@ struct LibraryHeaderRow: View {
     let totalCount: Int
     let isCurrentLibrary: Bool
     let onFileDrop: ([URL], IngestMode) -> Bool
-    let onSidebarItemDrop: ([String]) -> Void
+    let onSidebarItemDrop: ([String], SidebarDropModifiers) -> Void
     /// Where a refused or unreadable drop is reported. This row has no
     /// `sidebarState` of its own, so the sink is injected by the SidebarView
     /// that does.
