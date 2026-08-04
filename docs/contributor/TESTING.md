@@ -40,6 +40,20 @@ Harness files stay at the target root (`EngineHarness.swift`,
 Rule: **new tests go in the folder matching the code under test.** Do not add
 files to the target roots.
 
+### Platform split and the plan matrix
+
+Unit and UI tests each split by destination under `fichero/Tests/`:
+`Unit/{general,mac,ios,ipad}` and `UI/{general,mac,ios,ipad}`. The
+platform-agnostic bulk stays in `general/`; a genuinely platform-only test
+goes in its platform folder (`Unit/mac/AppleScriptSurfaceTests.swift` is the
+shape). Test plans live in `fichero/Tests/plans/` — nine of them, audited
+statically by `scripts/check_test_plans_runnable.py`, which also prints the
+scheme/plan matrix and the exact `xcodebuild` invocations. Every iOS-family
+plan selects an idiom CANARY (`IOSTargetCanaryTests`, `IPadTargetCanaryTests`,
+`IOSUITargetCanaryTests`, `IPadUITargetCanaryTests`) that fails loudly when a
+plan executes on the wrong device family, so no plan can be empty-and-green
+(#4472) or silently verify the wrong platform.
+
 ## Running areas
 
 Workers verify their own diff only; the manager owns full-suite runs and
@@ -99,12 +113,25 @@ JSON, paleography) stay under `fichero-server/tests/fixtures/`.
 
 ## Engine provisioning rules
 
-- A test must NEVER require an already-running backend. Hermetic legs spawn
-  their own engine on an ephemeral port with a temp `HOME` and a seeded temp
-  library (`tests/integration/_cli_live.py` is the reference fixture) —
-  nothing touches `:8765` or a real library.
-- Swift suites that need an engine use `EngineHarness` /
-  `UITestEngineHarness` (env `FICHERO_REPO_ROOT` overrides discovery).
+- A test must NEVER require an already-running backend, and a live plan with
+  no engine must FAIL loudly — never skip, never silently green.
+- **The ONE spawn-per-run harness is
+  `fichero-server/scripts/test_engine_harness.py`** (2026-08-04 decisions). It
+  seeds the synthetic `--full` library (deterministic uuid5 ids, every
+  DocType, both workflow shapes — `seed_test_library.py --full`, self-proven
+  by `--self-test`), spawns the engine on a temp UDS socket with `HOME` at a
+  disposable app-home (#4537) and `FICHERO_PARENT_PID` orphan accountability
+  (#4400), waits bounded for `/api/health`, prints one ready-JSON line, and
+  tears everything down. Consumers: `UITestEngineHarness` (Swift, a thin
+  wrapper), the `spawned_engine` pytest fixture
+  (`tests/integration/test_spawn_per_run_harness.py`), and the scripted UX
+  smoke (`scripts/ux_smoke.py`, which drives the app's AppleScript verbs
+  against it — #4535).
+- `EngineHarness` (the Swift unit contract suite) still self-provisions a TLS
+  engine — folding it onto the script needs a `--tls` mode (#4541).
+  `FICHERO_REPO_ROOT` overrides discovery for both Swift harnesses.
+- Older hermetic legs (`tests/integration/_cli_live.py`) predate the shared
+  harness; new legs use the `spawned_engine` fixture.
 
 ## Memory-safety rules
 
