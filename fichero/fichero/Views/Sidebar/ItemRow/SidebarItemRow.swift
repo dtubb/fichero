@@ -310,6 +310,7 @@ struct SidebarItemRow: View {
     var onOpenChatWithCurrentScope: (() -> Void)?
 
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    @Environment(WindowState.self) var windowState
     /// Finder-style Open in New Tab / New Window for sidebar rows (#1685).
     @Environment(\.openWindow) private var openWindow
     @Environment(\.horizontalSizeClass) var horizontalSizeClass

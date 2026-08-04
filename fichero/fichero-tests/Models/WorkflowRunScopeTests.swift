@@ -193,4 +193,60 @@ struct WorkflowRunScopeTests {
         let types = try Self.appSource("Models/WorkflowTypes.swift")
         #expect(types.contains("?? .collection"))
     }
+
+    // MARK: - #4523 LAW: scope is the current selection, never its peers
+
+    /// Daniel's live repro, literal: one file selected in a folder of three —
+    /// the run's scope is EXACTLY that file. Never the siblings, never the
+    /// folder, and it does not widen, so no confirmation interrupts it.
+    @Test("selection of one file in a folder of three runs exactly that file")
+    func oneSelectedFileRunsExactlyThatFile() {
+        let scope = WorkflowRunScope.resolve(
+            inputSource: .collection,
+            selection: ["file2"],
+            collectionId: "folder-of-three",
+            fallbackDocumentId: nil
+        )
+        #expect(scope.docIds == ["file2"])
+        #expect(!scope.widensBeyondSelection)
+        #expect(scope.kind == .documents)
+    }
+
+    /// No selection at all + a collection = the genuine run-on-everything
+    /// case, and it MUST widen (which is what makes the gate ask first).
+    @Test("no selection resolves to the collection and declares the widening")
+    func noSelectionWidensAndSaysSo() {
+        let scope = WorkflowRunScope.resolve(
+            inputSource: .collection,
+            selection: [],
+            collectionId: "folder",
+            fallbackDocumentId: nil
+        )
+        #expect(scope.widensBeyondSelection)
+        #expect(WorkflowEditor.runNeedsWideningConfirmation(scope))
+    }
+
+    /// Navigating to the workflow must not forfeit the selection: every
+    /// editor launch site reads the window's EFFECTIVE selection (live or
+    /// preserved across #712's clear-on-navigate), never the raw
+    /// `browserSelection` that navigation just emptied.
+    @Test("editor launch sites read the effective selection, not the cleared one")
+    func editorSitesUseTheEffectiveSelection() throws {
+        let navigation = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
+        #expect(!navigation.contains("selectedDocumentIds: Array(browserSelection)"))
+        #expect(navigation.contains("selectedDocumentIds: effectiveWorkflowRunSelection"))
+
+        let events = try Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift")
+        #expect(events.contains("var effectiveWorkflowRunSelection: [String]"))
+        #expect(events.contains("windowState.preservedDocumentSelection = Array(newSelection)"))
+
+        // The sidebar's run resolver joins the window selection too, so
+        // right-clicking the selected file's row runs that file, not peers.
+        let sidebar = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
+        #expect(sidebar.contains("windowState.preservedDocumentSelection"))
+
+        // And the other ContentView launch surface reads the same accessor.
+        let actions = try Self.appSource("Views/Shell/ContentView/ContentView+WorkflowActions.swift")
+        #expect(actions.contains("effectiveWorkflowRunSelection"))
+    }
 }
