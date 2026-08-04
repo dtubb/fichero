@@ -37,7 +37,12 @@ struct LibrarySectionHeader: View {
     let library: LibraryManager.LibraryReference
     let itemCount: Int
     var isCurrentLibrary: Bool = false
-    var onFileDrop: (([URL]) -> Bool)?
+    /// Import callback. The mode matters (#4459 family, live-repro
+    /// 2026-08-04): URLs the loader staged into a `fichero-drop-*` temp
+    /// directory must be COPY-ingested before the directory is torn down,
+    /// while stable URLs (a real Finder file, an open-in-place folder) are
+    /// linked exactly like a folder chosen via the import menu.
+    var onFileDrop: (([URL], IngestMode) -> Bool)?
     /// In-app drop receiver for sidebar items dragged onto the library
     /// header — reparents them to the library root (parentId = nil) so
     /// the user can lift items out of nested folders and then reorder
@@ -190,7 +195,11 @@ struct LibrarySectionHeader: View {
         // folder cell. This used to be a third hand-rolled copy of the same
         // provider plumbing.
         Task {
-            switch await readSidebarDropPayload(providers, surface: "sidebar-section-header") {
+            // Surface name matches the drop DELEGATE's ("sidebar-library-header")
+            // — this used to log as "sidebar-section-header", so one physical
+            // drop produced two differently-named log trails and read as two
+            // performs (live report 2026-08-04).
+            switch await readSidebarDropPayload(providers, surface: "sidebar-library-header") {
             case .internalItems(let ids):
                 guard let onSidebarItemDrop else { return }
                 await MainActor.run { onSidebarItemDrop(ids) }
@@ -214,17 +223,30 @@ struct LibrarySectionHeader: View {
         return true
     }
 
-    /// The genuine-Finder-drag branch: load every URL the providers will give
-    /// and hand them to the importer.
+    /// The genuine-Finder-drag branch: load every URL through the SHARED
+    /// loader ladder and hand them to the importer.
+    ///
+    /// This used to iterate `providers where canLoadObject(ofClass: URL.self)`
+    /// with its own weak `loadObject` — the exact instrument the classifier
+    /// header warns about: a Finder FOLDER answers false to that probe
+    /// (live-repro 2026-08-04), so a folder drop passed classification and
+    /// then died here with "Couldn't read the dropped item(s)". One loader,
+    /// every surface (#4184's rule); the row and library-cell paths already
+    /// complied, this was the straggler.
     private func importExternalDrop(_ providers: [NSItemProvider]) async {
         guard let onFileDrop else { return }
-        var urls: [URL] = []
-        for provider in providers where provider.canLoadObject(ofClass: URL.self) {
-            if let url = try? await Self.loadURL(from: provider) {
-                urls.append(url)
+        var stableURLs: [URL] = []
+        var temporaryURLs: [URL] = []
+        for provider in providers {
+            if let url = try? await ExternalFileDropLoader.loadAnyFileURL(from: provider) {
+                if url.path.contains("/fichero-drop-") {
+                    temporaryURLs.append(url)
+                } else {
+                    stableURLs.append(url)
+                }
             }
         }
-        guard !urls.isEmpty else {
+        guard !stableURLs.isEmpty || !temporaryURLs.isEmpty else {
             // The OS was already told the drop was accepted, so a silent
             // return vanishes the file with no explanation (#4459's rule).
             await MainActor.run {
@@ -232,20 +254,9 @@ struct LibrarySectionHeader: View {
             }
             return
         }
-        _ = await MainActor.run { onFileDrop(urls) }
-    }
-
-    private static func loadURL(from provider: NSItemProvider) async throws -> URL {
-        try await withCheckedThrowingContinuation { continuation in
-            _ = provider.loadObject(ofClass: URL.self) { url, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let url {
-                    continuation.resume(returning: url)
-                } else {
-                    continuation.resume(throwing: NSError(domain: "LibraryHeaderDrop", code: -1))
-                }
-            }
+        await MainActor.run {
+            if !stableURLs.isEmpty { _ = onFileDrop(stableURLs, .link) }
+            if !temporaryURLs.isEmpty { _ = onFileDrop(temporaryURLs, .copy) }
         }
     }
 }

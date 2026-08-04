@@ -231,8 +231,14 @@ private struct SidebarDropAlertsModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // "Drop Failed", not "Move Failed": `dropErrorMessage` carries
+            // import/read failures too ("Couldn't read the dropped item(s)",
+            // "Import failed: …"), and a Finder-drop failure titled "Move
+            // Failed" misstates which operation failed (live report
+            // 2026-08-04). The MESSAGE names the specific failure — reading
+            // vs importing vs moving; the title stays operation-neutral.
             .alert(
-                "Move Failed",
+                "Drop Failed",
                 isPresented: Binding(
                     get: { sidebarState.dropErrorMessage != nil },
                     set: { isPresented in
@@ -246,7 +252,7 @@ private struct SidebarDropAlertsModifier: ViewModifier {
                     sidebarState.dropErrorMessage = nil
                 }
             } message: {
-                Text(sidebarState.dropErrorMessage ?? "The move could not be completed.")
+                Text(sidebarState.dropErrorMessage ?? "The drop could not be completed.")
             }
             .modifier(sidebarMessageAlert(
                 title: "Rename Failed",

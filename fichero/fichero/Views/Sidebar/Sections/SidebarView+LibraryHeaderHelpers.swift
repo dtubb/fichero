@@ -14,7 +14,9 @@ extension SidebarView {
             library: library,
             totalCount: totalCount,
             isCurrentLibrary: library.id == windowState.libraryId,
-            onFileDrop: { [library] urls in handleLibraryHeaderDrop(urls, library: library) },
+            onFileDrop: { [library] urls, mode in
+                handleLibraryHeaderDrop(urls, mode: mode, library: library)
+            },
             onSidebarItemDrop: { [library] droppedIds in
                 handleLibraryHeaderItemDrop(droppedIds: droppedIds, library: library)
             },
@@ -58,9 +60,16 @@ extension SidebarView {
     /// (bare files at root are invisible in the sidebar). An import failure
     /// surfaces on the sidebar's drop-error banner, never only in the log.
     @discardableResult
-    func handleLibraryHeaderDrop(_ urls: [URL], library: LibraryManager.LibraryReference) -> Bool {
+    func handleLibraryHeaderDrop(
+        _ urls: [URL],
+        mode: IngestMode = .link,
+        library: LibraryManager.LibraryReference
+    ) -> Bool {
         let fileURLs = urls.filter { $0.isFileURL }
         guard !fileURLs.isEmpty else { return false }
+        // Loader-staged temp copies (`fichero-drop-*`) are removed once this
+        // import is done with them — the same contract the row path keeps.
+        let temporaryDirectories = externalDropTemporaryDirectories(for: fileURLs)
         let collections = library.documentStore.collections
         var inboxId: String?
         for col in collections where col.name == "Inbox" && col.parentId == nil && col.docType == .folder {
@@ -71,13 +80,18 @@ extension SidebarView {
             urls: fileURLs, inboxId: inboxId, isDirectory: libraryDropURLIsDirectory
         )
         Task {
+            defer {
+                for tempDir in temporaryDirectories {
+                    try? FileManager.default.removeItem(at: tempDir)
+                }
+            }
             sidebarState.dropErrorMessage = nil
             do {
                 // #3276: not throwing only ever meant "not everything failed".
                 var outcomes: [ImportOutcome] = []
                 for batch in batches {
                     outcomes.append(try await library.importService.importFiles(
-                        batch.urls, mode: .link, parentId: batch.parentId
+                        batch.urls, mode: mode, parentId: batch.parentId
                     ))
                 }
                 // ONE trailing refresh (#4067/#4522) — see `handleImportedFiles`.
@@ -151,7 +165,7 @@ struct LibraryHeaderRow: View {
     let library: LibraryManager.LibraryReference
     let totalCount: Int
     let isCurrentLibrary: Bool
-    let onFileDrop: ([URL]) -> Bool
+    let onFileDrop: ([URL], IngestMode) -> Bool
     let onSidebarItemDrop: ([String]) -> Void
     /// Where a refused or unreadable drop is reported. This row has no
     /// `sidebarState` of its own, so the sink is injected by the SidebarView

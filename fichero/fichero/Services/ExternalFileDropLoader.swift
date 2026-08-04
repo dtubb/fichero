@@ -71,7 +71,7 @@ enum ExternalFileDropLoader {
                 ]
             )
         }
-        externalDropLoaderLogger.debug("  → trying loadFileRepresentation fallback for \(utis.count) UTI(s)")
+        externalDropLoaderLogger.debug("  → trying representation fallback for \(utis.count) UTI(s)")
         for identifier in utis where identifier != UTType.ficheroDragItem.identifier {
             // NEVER materialize our own in-app payload as a file (the
             // "<name>.tif.json" stray of 2026-08-04: a LibraryItemDrag's JSON
@@ -79,14 +79,8 @@ enum ExternalFileDropLoader {
             // as a document). Classification should never send an internal
             // drag here at all; this makes the loader safe even if one leaks.
             externalDropLoaderLogger.debug("    trying UTI: \(identifier)")
-            if let url = try? await loadFileRepresentation(
-                from: provider,
-                typeIdentifier: identifier
-            ) {
-                externalDropLoaderLogger.debug("    representation succeeded for UTI \(identifier): \(url.lastPathComponent)")
+            if let url = await representationURL(from: provider, identifier: identifier) {
                 return url
-            } else {
-                externalDropLoaderLogger.debug("    representation failed for UTI \(identifier)")
             }
         }
         externalDropLoaderLogger.warning(
@@ -102,14 +96,67 @@ enum ExternalFileDropLoader {
         )
     }
 
+    /// One UTI's rungs, in order.
+    ///
+    /// A DIRECTORY provider cannot go through `loadFileRepresentation`: that
+    /// API is documented as writing "a copy of the provided, typed data to a
+    /// temporary file" — a flat file — and a Finder folder drag advertising
+    /// only `[public.folder]` failed it (live-repro 2026-08-04: "Couldn't
+    /// read the dropped item(s)"). The documented folder path is
+    /// `loadInPlaceFileRepresentation`, with `loadItem`'s NSURL coercion as
+    /// the second rung; everything else keeps the flat-representation rung.
+    private static func representationURL(
+        from provider: NSItemProvider,
+        identifier: String
+    ) async -> URL? {
+        if UTType(identifier)?.conforms(to: .directory) == true {
+            if let url = try? await loadInPlaceFileRepresentation(
+                from: provider, typeIdentifier: identifier
+            ) {
+                externalDropLoaderLogger.debug(
+                    "    in-place representation succeeded for UTI \(identifier): \(url.path)"
+                )
+                return url
+            }
+            if let url = try? await loadItemURL(from: provider, typeIdentifier: identifier) {
+                externalDropLoaderLogger.debug(
+                    "    loadItem NSURL coercion succeeded for UTI \(identifier): \(url.path)"
+                )
+                return url
+            }
+            externalDropLoaderLogger.debug(
+                "    directory rungs failed for UTI \(identifier); trying flat representation"
+            )
+        }
+        if let url = try? await loadFileRepresentation(from: provider, typeIdentifier: identifier) {
+            externalDropLoaderLogger.debug("    representation succeeded for UTI \(identifier): \(url.lastPathComponent)")
+            return url
+        }
+        externalDropLoaderLogger.debug("    representation failed for UTI \(identifier)")
+        return nil
+    }
+
+    /// Copy a provider-owned temporary URL into a stable
+    /// `fichero-drop-<uuid>` temp directory before the provider deletes it.
+    /// Shared by the flat-file and non-in-place directory rungs; callers
+    /// remove the directory once the import using it has completed (see
+    /// `externalDropTemporaryDirectories` for the matching filter).
+    private static func stabilizedCopy(of temporaryURL: URL) throws -> URL {
+        let destinationDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fichero-drop-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
+        let destination = destinationDir.appendingPathComponent(temporaryURL.lastPathComponent)
+        try FileManager.default.copyItem(at: temporaryURL, to: destination)
+        externalDropLoaderLogger.debug("      copied to stable path: \(destination.path)")
+        return destination
+    }
+
     /// Wraps `NSItemProvider.loadFileRepresentation(forTypeIdentifier:
     /// completionHandler:)` as async/throws. The provider hands us a
     /// temporary file URL valid only until the completion returns, so
     /// we copy the file to a stable `fichero-drop-<uuid>` temp directory
     /// before resolving — otherwise the import pipeline would race
-    /// against the temp file being deleted. Callers should remove that
-    /// directory once the import using it has completed (see
-    /// `externalDropTemporaryDirectories` for the matching filter).
+    /// against the temp file being deleted.
     static func loadFileRepresentation(
         from provider: NSItemProvider,
         typeIdentifier: String
@@ -137,19 +184,96 @@ enum ExternalFileDropLoader {
                     return
                 }
                 externalDropLoaderLogger.debug("      loadFileRepresentation(\(typeIdentifier)) temp URL: \(temporaryURL.path)")
-                // Copy to a stable caches path — the temporaryURL is
-                // deleted as soon as this closure returns.
-                let destinationDir = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("fichero-drop-\(UUID().uuidString)")
                 do {
-                    try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
-                    let destination = destinationDir.appendingPathComponent(temporaryURL.lastPathComponent)
-                    try FileManager.default.copyItem(at: temporaryURL, to: destination)
-                    externalDropLoaderLogger.debug("      copied to stable path: \(destination.path)")
-                    continuation.resume(returning: destination)
+                    continuation.resume(returning: try stabilizedCopy(of: temporaryURL))
                 } catch {
                     externalDropLoaderLogger.debug("      copy to stable path failed: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// The documented path for receiving a FOLDER (and any open-in-place
+    /// provider): `loadInPlaceFileRepresentation(forTypeIdentifier:)`.
+    ///
+    /// `isInPlace == true` hands back the item's REAL URL — the user's own
+    /// folder. It is returned untouched: never copied into `fichero-drop-*`
+    /// (the import pipeline treats it exactly like a folder chosen via the
+    /// import menu / open panel, including the security-scope handling
+    /// `ImportService` and `FolderAccessManager` already perform on that
+    /// path). `isInPlace == false` hands back a local copy that is deleted
+    /// once read access is relinquished (documented), so THAT one is
+    /// stabilized into `fichero-drop-*` like any flat representation.
+    static func loadInPlaceFileRepresentation(
+        from provider: NSItemProvider,
+        typeIdentifier: String
+    ) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            _ = provider.loadInPlaceFileRepresentation(
+                forTypeIdentifier: typeIdentifier
+            ) { url, isInPlace, error in
+                if let error {
+                    externalDropLoaderLogger.debug(
+                        "      loadInPlaceFileRepresentation(\(typeIdentifier)) error: \(error.localizedDescription)"
+                    )
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let url else {
+                    continuation.resume(throwing: NSError(
+                        domain: "ExternalFileDrop",
+                        code: -3,
+                        userInfo: [NSLocalizedDescriptionKey: "Empty URL from loadInPlaceFileRepresentation"]
+                    ))
+                    return
+                }
+                if isInPlace {
+                    externalDropLoaderLogger.debug(
+                        "      loadInPlaceFileRepresentation(\(typeIdentifier)) in-place URL: \(url.path)"
+                    )
+                    continuation.resume(returning: url)
+                    return
+                }
+                externalDropLoaderLogger.debug(
+                    "      loadInPlaceFileRepresentation(\(typeIdentifier)) returned a local copy: \(url.path)"
+                )
+                do {
+                    continuation.resume(returning: try stabilizedCopy(of: url))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// Second directory rung: `loadItem(forTypeIdentifier:)` coercing to
+    /// NSURL — some sources vend the folder URL this way rather than via an
+    /// in-place file representation. The URL is the item's real location, so
+    /// it is returned untouched, like the in-place case.
+    static func loadItemURL(
+        from provider: NSItemProvider,
+        typeIdentifier: String
+    ) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadItem(forTypeIdentifier: typeIdentifier, options: nil) { item, error in
+                if let error {
+                    externalDropLoaderLogger.debug(
+                        "      loadItem(\(typeIdentifier)) error: \(error.localizedDescription)"
+                    )
+                    continuation.resume(throwing: error)
+                } else if let url = item as? URL {
+                    externalDropLoaderLogger.debug("      loadItem(\(typeIdentifier)) → \(url.path)")
+                    continuation.resume(returning: url)
+                } else {
+                    externalDropLoaderLogger.debug(
+                        "      loadItem(\(typeIdentifier)) yielded no URL (got \(String(describing: item)))"
+                    )
+                    continuation.resume(throwing: NSError(
+                        domain: "ExternalFileDrop",
+                        code: -4,
+                        userInfo: [NSLocalizedDescriptionKey: "loadItem yielded no URL"]
+                    ))
                 }
             }
         }

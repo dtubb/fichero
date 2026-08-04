@@ -94,6 +94,12 @@ struct LibraryItemDropDelegate: DropDelegate {
         // observed "Reentrant message: kDragIPC…"), so this only answers
         // false for a drop the surface OWNS but must visibly forbid — and it
         // logs, because a refusal that logs nothing is the anti-pattern.
+        // `validateDrop` fires once, at commit — the boundary of a drop
+        // session. Bumping the DragDropLog session number HERE stamps
+        // everything from this validation through the perform and the
+        // payload read with one `drop#N`, making a two-surface log trail
+        // provably one drop (2026-08-04 report).
+        _ = DragDropLog.beginDropSession()
         DragDropLog.validated(
             surface,
             accepted: true,
