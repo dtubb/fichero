@@ -138,13 +138,18 @@ enum SidebarItemBuilder {
         for doc in visibleDocs {
             if let parentId = doc.parentId {
                 childrenMap[parentId, default: []].append(doc)
+            } else if doc.name == "Inbox", doc.docType == .folder, inboxDocument == nil {
+                // The special-cased Inbox root (#4527). The match mirrors
+                // `LibraryManager.ensureInboxFolder`: name AND docType — a
+                // root FILE the user happens to call "Inbox" is an ordinary
+                // row, not a folder-affordanced dead end. And only the FIRST
+                // match is hoisted: a duplicate root named Inbox (reachable
+                // via #3970's empty-collections window) used to overwrite the
+                // winner with a bare assignment and drop the loser from the
+                // tree entirely — the Finder rule is show ALL items.
+                inboxDocument = doc
             } else {
-                // Check if this is the Inbox folder
-                if doc.name == "Inbox" {
-                    inboxDocument = doc
-                } else {
-                    rootDocuments.append(doc)
-                }
+                rootDocuments.append(doc)
             }
         }
 
@@ -171,7 +176,11 @@ enum SidebarItemBuilder {
         // Build Inbox with custom icon
         func buildInboxItem(_ doc: Document) -> SidebarItem {
             let raw = childrenMap[doc.id] ?? []
-            let children = raw.isEmpty ? nil : raw.sorted(by: childOrder).map { buildItem($0) }
+            // Thread `parent` exactly as `buildItem` does for every other
+            // folder (#4527): the Inbox is where storage-named imports land,
+            // so its children need DocumentTitle's parent-fallback rung most
+            // of all (#116/#4416).
+            let children = raw.isEmpty ? nil : raw.sorted(by: childOrder).map { buildItem($0, parent: doc) }
             return SidebarItem(
                 id: "doc:\(doc.id)",
                 name: doc.name,
@@ -268,12 +277,18 @@ enum SidebarItemBuilder {
         buildItem: (T, [SidebarItem]?) -> SidebarItem,
         category: ItemCategory
     ) -> [SidebarItem] {
-        // Group items by folder path
-        let pathGroups = Dictionary(grouping: items, by: extractPath)
+        // Group items by NORMALISED folder path (#4528). `folder_path` is a
+        // plain server string: "" is one bad write away, and "/archive/" vs
+        // "/archive" used to be two distinct dictionary keys — the walker
+        // starts at "/" and only visits materialised folders, so the empty
+        // path VANISHED a row and the trailing slash rendered one folder
+        // twice with its contents split.
+        let normalizedPath: (T) -> String = { normalizedFolderPath(extractPath($0)) }
+        let pathGroups = Dictionary(grouping: items, by: normalizedPath)
 
         // Find all unique folder paths and create folder items
         var folderItems: [String: SidebarItem] = [:]
-        let allPaths = Set(items.map(extractPath))
+        let allPaths = Set(items.map(normalizedPath))
 
         for path in allPaths where path != "/" {
             createFolderItems(for: path, category: category, libraryId: libraryId, folderItems: &folderItems)
@@ -335,10 +350,13 @@ enum SidebarItemBuilder {
             result.append(contentsOf: sortedItems.map { buildItem($0, nil) })
         }
 
-        // Add child folders with their contents
+        // Add child folders with their contents. Sibling folders order by the
+        // SAME comparator sibling documents use (`childOrder`'s name rung,
+        // #4528) — a raw `<` put every lowercase name after every uppercase
+        // one, and the same two names ordered differently per section.
         let childFolders = folderItems.values
             .filter { parentFolderPath(of: $0.folderPath) == folderPath }
-            .sorted { $0.name < $1.name }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
         for folder in childFolders {
             // Recursively build children for this folder
@@ -357,6 +375,14 @@ enum SidebarItemBuilder {
         }
 
         return result
+    }
+
+    /// One canonical spelling per folder path (#4528): split into components
+    /// and rejoin, so "", "/", "/archive/" and "//archive" all land on the
+    /// same key `parentFolderPath` computes with the same component logic.
+    private static func normalizedFolderPath(_ path: String) -> String {
+        let components = path.split(separator: "/")
+        return components.isEmpty ? "/" : "/" + components.joined(separator: "/")
     }
 
     /// Get the parent folder path of a given path

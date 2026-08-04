@@ -58,7 +58,16 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         let detailSource = try Self.appSource("Views/Activity/Window/ActivityDetailWindow.swift")
         let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
 
-        XCTAssertTrue(appSource.contains("ActivityWindowMenuButton()"))
+        // #4524: the Window menu entry is the Activity scene's AUTOMATIC item
+        // (SwiftUI lists every `Window` scene's title in the Windows menu), so
+        // no hand-rolled CommandGroup button may exist — it was the duplicate.
+        // The shortcut rides the scene; the detail scene suppresses its item.
+        XCTAssertFalse(appSource.contains("ActivityWindowMenuButton()"))
+        XCTAssertFalse(monitorSource.contains("struct ActivityWindowMenuButton"))
+        XCTAssertTrue(appSource.contains(
+            ".keyboardShortcut(\"a\", modifiers: [.option, .command])"
+        ))
+        XCTAssertTrue(appSource.contains(".commandsRemoved()"))
         // `Window`, not `WindowGroup` — see testActivityScenesAreSingletonWindowsNotGroups.
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"

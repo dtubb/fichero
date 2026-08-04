@@ -59,14 +59,6 @@ struct ActivityMonitorWindow: View {
     }
 }
 
-#if os(macOS)
-struct ActivityWindowMenuButton: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("Activity") {
-            openWindow(id: ActivityWindowSelectionState.monitorWindowID)
-        }
-    }
-}
-#endif
+// ActivityWindowMenuButton was deleted with #4524: the `Window("Activity")`
+// scene's automatic Windows-menu item (see FicheroApp scene declarations) is
+// the one entry point, so a hand-rolled CommandGroup button was a duplicate.

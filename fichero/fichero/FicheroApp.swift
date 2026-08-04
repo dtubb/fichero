@@ -387,9 +387,12 @@ struct FicheroApp: App {
                     .environment(viewSettings)
             }
 
-            CommandGroup(after: .windowArrangement) {
-                ActivityWindowMenuButton()
-            }
+            // No hand-rolled Activity item here (#4524): a `Window` scene's
+            // title is listed "in the list of available singleton windows that
+            // the Windows menu displays automatically" (SwiftUI `Window` docs),
+            // so the Activity scene below already owns its Window-menu entry —
+            // in the standard singleton-windows section, not the menu bottom —
+            // and a CommandGroup copy would be a duplicate.
 
             // Go menu (#4121, Finder's Go/View split): Back/Forward/Go Up
             // leave the View menu. ONE CommandsBuilder element (arity is at
@@ -533,6 +536,12 @@ struct FicheroApp: App {
                 .environment(appExecutionObserver)
         }
         .defaultSize(width: 480, height: 640)
+        // The Window menu's automatic "Activity" item is this scene's own
+        // command (#4524); the shortcut rides it — documented: "A scene's
+        // keyboard shortcut is bound to the command it adds for … bringing a
+        // singleton window forward (in the case of Window)"
+        // (Scene.keyboardShortcut docs). ⌥⌘A is unclaimed (⌘A is Select All).
+        .keyboardShortcut("a", modifiers: [.option, .command])
 
         Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
             ActivityDetailWindow()
@@ -540,6 +549,12 @@ struct FicheroApp: App {
                 .environment(appExecutionObserver)
         }
         .defaultSize(width: 840, height: 640)
+        // The detail window shows whatever run the monitor's selection holds —
+        // opened by double-clicking a run, meaningless as a bare menu entry.
+        // `commandsRemoved()` ("Removes all commands defined by the modified
+        // scene", Scene docs) suppresses its automatic Window-menu item so the
+        // menu offers exactly one Activity entry (#4524).
+        .commandsRemoved()
 
         // `Settings` is a SEPARATE Scene: environment objects injected into the
         // main WindowGroup do NOT flow into it. Every object a settings pane
