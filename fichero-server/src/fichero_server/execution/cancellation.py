@@ -76,3 +76,61 @@ def clear_cancellation(run_id: str | None) -> None:
         return
     with _lock:
         _events.pop(run_id, None)
+
+
+# ---------------------------------------------------------------------------
+# Pause (#4402): the same primitive, for the same reason.
+#
+# Pause used to be a dict flag on the registry entry, consulted only between
+# LangGraph events — so a pause during a long per-item node landed at node
+# end, exactly the gap Stop was fixed for. This mirrors the cancellation
+# event so the builder's per-item progress boundary can consult pause the
+# same way it consults cancel.
+# ---------------------------------------------------------------------------
+
+_pause_events: dict[str, threading.Event] = {}
+
+
+class WorkflowPaused(Exception):  # noqa: N818 - signal, mirrors WorkflowCancelled
+    """Raised at a work boundary when the run has been paused (#4402).
+
+    Distinct from ``WorkflowCancelled`` and from every failure exception: a
+    paused run is neither cancelled nor failed — it must settle as ``paused``
+    and stay resumable from its checkpoint.
+    """
+
+    def __init__(self, run_id: str) -> None:
+        super().__init__(f"Workflow run {run_id} paused by user")
+        self.run_id = run_id
+
+
+def request_pause(run_id: str) -> None:
+    """Signal every checker of ``run_id`` to pause at its next boundary."""
+    if not run_id:
+        raise ValueError("request_pause: run_id must be non-empty")
+    with _lock:
+        event = _pause_events.get(run_id)
+        if event is None:
+            event = threading.Event()
+            _pause_events[run_id] = event
+            while len(_pause_events) > _EVENTS_LIMIT:
+                _pause_events.pop(next(iter(_pause_events)))
+    event.set()
+
+
+def pause_requested(run_id: str | None) -> bool:
+    """Non-blocking check; safe with a missing/empty id (returns False)."""
+    if not run_id:
+        return False
+    with _lock:
+        event = _pause_events.get(run_id)
+    return event is not None and event.is_set()
+
+
+def clear_pause(run_id: str | None) -> None:
+    """Drop the pause signal — on settle-as-paused AND at every terminal
+    state, so a later resume of the same thread does not instantly re-pause."""
+    if not run_id:
+        return
+    with _lock:
+        _pause_events.pop(run_id, None)

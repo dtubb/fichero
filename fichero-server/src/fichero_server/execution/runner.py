@@ -17,8 +17,11 @@ from typing import Any, TYPE_CHECKING
 from fichero_server.db import Database
 from fichero_server.execution.cancellation import (
     WorkflowCancelled,
+    WorkflowPaused,
     cancellation_requested,
     clear_cancellation,
+    clear_pause,
+    pause_requested,
 )
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
@@ -945,6 +948,44 @@ async def _run_workflow_in_background(
                 finalize_exc,
             )
 
+    async def _finish_as_paused() -> None:
+        """Record the run as paused (#4402).
+
+        Shared by BOTH ways a run can pause: the between-events check in the
+        stream loop, and a `WorkflowPaused` raised from inside a long node's
+        per-item loop — extracted (mirroring `_finish_as_cancelled`) so the
+        two paths cannot disagree about what a paused run records. A paused
+        run is NOT terminal: documents are not finalized and the checkpoint
+        stays resumable. The shared pause signal is cleared here so a later
+        resume of this thread does not instantly re-pause.
+        """
+        state["status"] = "paused"
+        clear_pause(thread_id)
+        await log_execution(
+            f"Workflow '{workflow.name}' paused by user "
+            f"(thread_id={thread_id})"
+        )
+        event_queue.put(
+            SSEEvent(
+                event="pause",
+                thread_id=thread_id,
+                workflow_id=workflow_id,
+                data={"reason": "user_requested"},
+            )
+        )
+        activity_tracker.workflow_paused(
+            workflow_id=workflow_id,
+            thread_id=thread_id,
+            workflow_name=workflow.name,
+        )
+        progress_timeline["events"] = _workflow_event_timeline(event_queue)
+        await activity_tracker.store.update_workflow_run(
+            thread_id=thread_id,
+            status="paused",
+            execution_log="\n".join(execution_log_lines),
+            progress_timeline=progress_timeline,
+        )
+
     try:
         # Mark as running
         state["status"] = "running"
@@ -1363,32 +1404,12 @@ async def _run_workflow_in_background(
             config=config,
             version="v2",
         ):
-            if state.get("pause_requested"):
-                state["status"] = "paused"
-                await log_execution(
-                    f"Workflow '{workflow.name}' paused by user "
-                    f"(thread_id={thread_id})"
-                )
-                event_queue.put(
-                    SSEEvent(
-                        event="pause",
-                        thread_id=thread_id,
-                        workflow_id=workflow_id,
-                        data={"reason": "user_requested"},
-                    )
-                )
-                activity_tracker.workflow_paused(
-                    workflow_id=workflow_id,
-                    thread_id=thread_id,
-                    workflow_name=workflow.name,
-                )
-                progress_timeline["events"] = _workflow_event_timeline(event_queue)
-                await activity_tracker.store.update_workflow_run(
-                    thread_id=thread_id,
-                    status="paused",
-                    execution_log="\n".join(execution_log_lines),
-                    progress_timeline=progress_timeline,
-                )
+            # #4402: honor BOTH pause signals — the registry-entry flag (set
+            # by the pause endpoint for a tracked run) and the shared pause
+            # event (reachable even after registry eviction, and the one the
+            # per-item boundary consults).
+            if state.get("pause_requested") or pause_requested(thread_id):
+                await _finish_as_paused()
                 return
 
             # #1127 — cancellation check. If the user POSTed
@@ -1849,6 +1870,20 @@ async def _run_workflow_in_background(
         await _finish_as_cancelled()
         return
 
+    except WorkflowPaused:
+        # #4402 second half: Pause landed INSIDE a long node at the per-item
+        # progress boundary — previously pause was consulted only between
+        # graph events, so a pause during a 200-page transcribe waited for
+        # the whole node. Same contract as the between-events path: the run
+        # settles as paused and stays resumable from its checkpoint.
+        logger.info(
+            "Workflow %s paused from inside a node (thread_id=%s)",
+            workflow_id,
+            thread_id,
+        )
+        await _finish_as_paused()
+        return
+
     except SystemicErrorDetected as e:
         logger.error(f"Systemic error in background workflow {workflow_id}: {e}")
         state["status"] = "failed"
@@ -1967,6 +2002,10 @@ async def _run_workflow_in_background(
         # cancellable via the same primitive (#4316/#4317).
         if state.get("status") != "paused":
             clear_cancellation(thread_id)
+        # The pause signal never outlives the worker: whether the run paused
+        # (signal already consumed in _finish_as_paused) or ended some other
+        # way, a stale pause event must not ambush the next resume (#4402).
+        clear_pause(thread_id)
 
         # Signal end of stream
         event_queue.put(None)  # Sentinel to signal stream end
