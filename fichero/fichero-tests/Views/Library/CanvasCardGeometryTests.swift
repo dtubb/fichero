@@ -70,16 +70,25 @@ final class CanvasCardGeometryTests: XCTestCase {
 
     func testAllThreeRenderersRouteCardShapeThroughTheSharedGeometry() throws {
         let base = try AppSource.root().appendingPathComponent("Views/Library/ViewModes/Canvas")
-        for relative in [
-            "3D/SpaceSceneView.swift",
-            "3D/CanvasScene3DRenderer.swift",
-            "2D/CanvasOrtho2DRenderer.swift"
+        // Each renderer is one or more FILES: e68a82fc0 (#4409) split the 2D
+        // renderer's card sizing into CanvasOrtho2DRenderer+Selection.swift,
+        // so the shared-geometry call is asserted across the renderer's whole
+        // file set, not one filename.
+        for fileSet in [
+            ["3D/SpaceSceneView.swift"],
+            ["3D/CanvasScene3DRenderer.swift"],
+            ["2D/CanvasOrtho2DRenderer.swift", "2D/CanvasOrtho2DRenderer+Selection.swift"]
         ] {
-            let source = try String(contentsOf: base.appendingPathComponent(relative), encoding: .utf8)
-            XCTAssertTrue(source.contains("CanvasCardGeometry.dimensions("),
-                          "\(relative) must build source cards through the shared geometry (#4193)")
-            XCTAssertTrue(source.contains("CanvasCardGeometry.recordAspect(of:"),
-                          "\(relative) must memoize the loaded texture aspect (#4193)")
+            var combined = ""
+            for relative in fileSet {
+                combined += try String(
+                    contentsOf: base.appendingPathComponent(relative), encoding: .utf8
+                )
+            }
+            XCTAssertTrue(combined.contains("CanvasCardGeometry.dimensions("),
+                          "\(fileSet) must build source cards through the shared geometry (#4193)")
+            XCTAssertTrue(combined.contains("CanvasCardGeometry.recordAspect(of:"),
+                          "\(fileSet) must memoize the loaded texture aspect (#4193)")
         }
     }
 }
