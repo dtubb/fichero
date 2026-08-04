@@ -201,16 +201,27 @@ func classifySidebarDropPayload(
 ///
 /// An internal drag always REGISTERS a plain-text representation (the
 /// `.draggable` String proxy and `LibraryItemDrag` both write
-/// `public.utf8-plain-text`). A Finder file drag registers only
-/// `public.file-url` — but it must be identified by that REGISTRATION, not by
-/// `canLoadObject(ofClass: NSString.self)`: `public.file-url` conforms to
-/// `public.url`, which NSString claims readable, so EVERY file drag answers
-/// canLoadString == true and bridges its URL to a "file:///…" string. Keying
-/// this predicate on canLoadString made every pure Finder drop classify as
-/// `carriesOwnProcessFlavor`, and — because no `doc:` id could be read out of
-/// a URL string — `classifySidebarDropPayload` refused it as
-/// `.unreadableInternal` instead of importing it. Same heuristic as
-/// `dropInfoLooksLikeInAppDrag`, which already got this right.
+/// `public.utf8-plain-text`). A Finder file drag registers only URL types —
+/// but it must be identified by that REGISTRATION, not by
+/// `canLoadObject(ofClass: NSString.self)`. The documented contracts
+/// (Apple Developer Documentation):
+///  - `UTType.fileURL`: "The identifier for this type is public.file-url.
+///    This type conforms to UTTypeURL" — so file-url registrations ARE url
+///    registrations.
+///  - `NSItemProviderWriting.writableTypeIdentifiersForItemProvider`: an
+///    NSURL-backed provider registers `public.url` (class-level doc), plus
+///    `public.file-url` for file:// URLs (instance-level doc).
+/// UNDOCUMENTED, established empirically on this OS: NSString's
+/// `readableTypeIdentifiersForItemProvider` includes `public.url`, so EVERY
+/// file drag answers canLoadString == true and bridges its URL to a
+/// "file:///…" string. Keying this predicate on canLoadString made every
+/// pure Finder drop classify as `carriesOwnProcessFlavor`, and — because no
+/// `doc:` id could be read out of a URL string — `classifySidebarDropPayload`
+/// refused it as `.unreadableInternal` instead of importing it. The fix
+/// keys on the DOCUMENTED conformance hierarchy (`UTType.conforms(to:)`
+/// against the system-declared plain-text family), not on the undocumented
+/// bridging, so it holds even if the NSString readable list changes. Same
+/// heuristic as `dropInfoLooksLikeInAppDrag`, which already got this right.
 func sidebarDropMightCarryInternalID(_ providers: [SidebarDropProviderCapabilities]) -> Bool {
     providers.contains { provider in
         provider.registeredTypeIdentifiers.contains { identifier in
