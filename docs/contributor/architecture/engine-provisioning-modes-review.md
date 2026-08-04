@@ -10,13 +10,13 @@ the GUI app, and so is MCP. Without the GUI app, there is no MCP and no CLI on M
 document does not re-litigate that; §5 traces its consequences.
 
 **Method note (honesty about tooling):** this review was produced without a shell. Git
-evidence comes from reading `.git/logs/refs/heads/integration` reflog subjects directly
+evidence comes from reading this branch's reflog subjects directly
 (EMPIRICAL, marked below) — commit *bodies* were not searchable, so the defect sweep is a
 lower bound. jCodemunch MCP tools were unavailable this session; code claims come from
 direct file reads with line numbers. CLI/MCP sources were read from the **main checkout**
 (`~/code/fichero/fichero-cli`, `~/code/fichero/fichero-mcp`) because this worktree carries
 only their `pyproject.toml` + `README.md` (EMPIRICAL: glob of `fichero-cli/*` and
-`fichero-mcp/*` here; only `fichero-cli/src/fichero_cli/generated/` is gitignored, so the
+`fichero-mcp/*` here; only the CLI's generated-client directory is gitignored, so the
 `src/` trees appear to be untracked and therefore absent from worktrees — #4227's "sibling
 trees"). Main-checkout sources may not be at this worktree's commit; marked where it matters.
 
