@@ -155,14 +155,17 @@ struct ToolbarGroupingTests {
         #expect(source.contains("ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal)"))
     }
 
-    /// moves. Recorded so the next reader knows it is known.
-    @Test("the principal zone is still contested and untouched")
-    func principalZoneIsUntouched() throws {
+    /// #4519 settled the principal zone: the breadcrumb keeps the identity
+    /// slot and the status island rides INSIDE it — status beside the path,
+    /// not among the pane toggles, and never a second `.principal` claimant.
+    @Test("status rides inside the breadcrumb item, not as its own claimant")
+    func statusRidesInsideTheBreadcrumbItem() throws {
         let source = try Self.toolbarSource
         #expect(source.contains("ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal)"))
-        // #4378: the island moved OFF `.principal` — the breadcrumb owns the
-        // identity slot, and two principal items is the #3163 crash class.
-        #expect(source.contains("ToolbarItem(id: ContentToolbarID.statusIsland, placement: .automatic)"))
-        #expect(!source.contains("ToolbarItem(id: ContentToolbarID.statusIsland, placement: .principal)"))
+        // #4519: no standalone island item at ANY placement — a standalone
+        // `.automatic` item is what macOS laid beside the pane-toggle group,
+        // making status glyphs read as extra toggles (#4391).
+        #expect(!source.contains("ContentToolbarID.statusIsland"))
+        #expect(source.contains("StatusIslandToolbarItem("))
     }
 }

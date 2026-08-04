@@ -100,19 +100,22 @@ struct ToolbarSymbolsTests {
         #expect(!source.contains(".strokeBorder("))
     }
 
-    // MARK: - #4391 ready reads as ready
+    // MARK: - #4391 ready reads as ready, and names its transport
 
-    /// The reported defect: an outline glyph with no colour reads as
-    /// "disconnected", not "ready". Filled shape + a colour of its own fixes
-    /// the half of #4391 this fix scopes to (transport distinction is a
-    /// separate, undone half — see the issue).
-    @Test("engine ready is a filled glyph, not the bare outline")
-    func engineReadyIsFilled() {
-        #expect(ToolbarSymbols.engineReady == "bolt.horizontal.circle.fill")
-        #expect(ToolbarSymbols.engineReady != "bolt.horizontal.circle")
+    /// The reported defect, both halves: (1) an outline glyph with no colour
+    /// read as "disconnected" — and the first fix's filled HORIZONTAL bolt
+    /// still decayed to a tilde-in-a-ring at 13 pt; (2) a local UDS engine and
+    /// an engine on another machine shared one symbol. Ready is now two
+    /// filled, legible glyphs chosen by ownership.
+    @Test("engine ready is split by transport, both filled and legible")
+    func engineReadyIsSplitByTransport() {
+        #expect(ToolbarSymbols.engineReadyLocal == "bolt.circle.fill")
+        #expect(ToolbarSymbols.engineReadyRemote == "antenna.radiowaves.left.and.right.circle.fill")
+        // The tilde-reading horizontal bolt must not come back in any fill.
+        #expect(!ToolbarSymbols.allByMeaning.contains { $0.symbol.hasPrefix("bolt.horizontal") })
     }
 
-    @Test("the ready state paints its own colour, not .secondary")
+    @Test("the ready state paints its own colour and picks the glyph by ownership")
     func engineReadyHasItsOwnColor() throws {
         let source = try Self.appSource("Views/Shell/Toolbar/EngineStatusToolbarItem.swift")
         let readySection = source
@@ -120,6 +123,29 @@ struct ToolbarSymbolsTests {
             .components(separatedBy: "\n        }")[0]
         #expect(readySection.contains(".foregroundStyle(.green)"))
         #expect(!readySection.contains(".foregroundStyle(.secondary)"))
+        #expect(readySection.contains("ToolbarSymbols.engineReadyRemote"))
+        #expect(readySection.contains("ToolbarSymbols.engineReadyLocal"))
+    }
+
+    /// A symbol can only hint; the popover NAMES the transport in text, from
+    /// the same ownership input every surface receives (#4380/#4400).
+    @Test("the ready popover text names local vs remote")
+    func readyPopoverNamesTheTransport() {
+        let local = ConnectionPresentation.status(
+            phase: .ready, ownership: .appManaged, accessError: nil, authBroken: false
+        )
+        let remote = ConnectionPresentation.status(
+            phase: .ready, ownership: .remote, accessError: nil, authBroken: false
+        )
+        #expect(local.detail.contains("this Mac"))
+        #expect(remote.detail.contains("another machine"))
+        #expect(local.symbol == ToolbarSymbols.engineReadyLocal)
+        #expect(remote.symbol == ToolbarSymbols.engineReadyRemote)
+        // externalLocal is still LOCAL — the split is transport, not ownership.
+        let external = ConnectionPresentation.status(
+            phase: .ready, ownership: .externalLocal, accessError: nil, authBroken: false
+        )
+        #expect(external.symbol == ToolbarSymbols.engineReadyLocal)
     }
 
     // MARK: - #4361 search placeholder

@@ -41,6 +41,13 @@ struct EngineStatusToolbarItem: View {
 
     private var phase: EngineSession.Phase { appState.engine.phase }
 
+    /// Local vs remote for the ready glyph (#4391) — the SAME derivation the
+    /// accessibility label and popover already use (#4400's one table), so the
+    /// glyph, the spoken label and the popover text cannot disagree.
+    private var isRemote: Bool {
+        ConnectionPresentation.EngineOwnership.current() == .remote
+    }
+
     var body: some View {
         Group {
             switch phase {
@@ -69,13 +76,20 @@ struct EngineStatusToolbarItem: View {
                     // glyph is what made a HEALTHY connection read as
                     // disconnected — the problem state gets `.orange` and a
                     // filled triangle; ready gets its own colour now instead
-                    // of a shrug.
-                    Image(systemName: ToolbarSymbols.engineReady)
+                    // of a shrug. The glyph also names the TRANSPORT: a UDS
+                    // engine on this Mac and an engine on another machine
+                    // differ in who can restart it and whether work survives
+                    // a network drop, and one symbol hid that entirely.
+                    Image(systemName: isRemote
+                        ? ToolbarSymbols.engineReadyRemote
+                        : ToolbarSymbols.engineReadyLocal)
                         .foregroundStyle(.green)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Server status")
-                .help("Engine connection — click for details")
+                .help(isRemote
+                    ? "Connected to a remote server — click for details"
+                    : "Connected to this Mac — click for details")
             }
         }
         .popover(isPresented: $showPopover) {

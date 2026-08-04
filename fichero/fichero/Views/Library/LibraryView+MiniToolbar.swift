@@ -32,9 +32,16 @@ extension LibraryView {
 
     /// The bar itself. Order is scope-widest-first: what you are looking for,
     /// then how it is ordered, then whether the narrowing filter row is open.
+    ///
+    /// The search field is SUMMONED, not resident (#4521): it renders only
+    /// while `searchFieldVisible` is on — the toolbar's search toggle (or a
+    /// programmatic search) reveals it. Sort and filter stay resident; they
+    /// are not search chrome.
     @ViewBuilder
     var libraryMiniToolbar: some View {
-        librarySearchField
+        if searchFieldVisible.wrappedValue {
+            librarySearchField
+        }
 
         Spacer(minLength: 8)
 

@@ -157,6 +157,51 @@ struct LibraryMiniToolbarTests {
         #expect(library.contains("if Self.miniToolbarPlacement == .bottom"))
     }
 
+    // MARK: - Summoned search (#4521)
+
+    /// The search field is summoned, not resident: the mini toolbar renders
+    /// it only while `searchFieldVisible` is on, and a toolbar toggle exists
+    /// to turn it on — without the toggle, conditional chrome would make
+    /// search unreachable.
+    @Test("the search field is summoned by a toolbar toggle, not resident")
+    func searchFieldIsSummonedNotResident() throws {
+        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
+        #expect(mini.contains("if searchFieldVisible.wrappedValue {"))
+
+        let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.searchToggle"))
+        #expect(toolbar.contains("setSearchFieldVisible($0)"))
+        // Deliberately NOT `.searchable`: it attaches to a navigation
+        // container (the #4407 three-pane span, and the duplicate-.searchable
+        // crash class). The summon state is plain per-window storage instead.
+        #expect(!toolbar.contains(".searchable("))
+    }
+
+    /// Dismissing the chrome exits transient-search presentation through the
+    /// ONE existing path — hiding the field must not leave the library
+    /// silently showing results for a query nobody can see (#4106/S2).
+    @Test("dismissing the field clears the transient search")
+    func dismissClearsTheTransientSearch() throws {
+        let actions = try Self.appSource("Views/Shell/ContentView/Actions/ContentView+ActionsUI.swift")
+        let handler = actions
+            .components(separatedBy: "func setSearchFieldVisible(")[1]
+            .components(separatedBy: "\n    }")[0]
+        #expect(handler.contains("clearTransientSearch()"))
+        #expect(handler.contains("toolbarSearchText = \"\""))
+    }
+
+    /// A programmatic search (entity lozenge, saved search) summons the
+    /// chrome too — results with no visible query field would read as an
+    /// unexplained library.
+    @Test("a programmatic search summons the chrome")
+    func programmaticSearchSummonsTheChrome() throws {
+        let run = try Self.appSource("Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift")
+        let body = run
+            .components(separatedBy: "func runToolbarSearch(")[1]
+            .components(separatedBy: "\n    }")[0]
+        #expect(body.contains("showSearchField = true"))
+    }
+
     // MARK: - Left alone on purpose
 
     /// Moving the control does not decide whether to enable the feature. The

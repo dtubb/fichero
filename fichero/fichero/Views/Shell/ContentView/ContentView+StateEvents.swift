@@ -175,6 +175,36 @@ extension ContentView {
         recordNavigationEntry()
     }
 
+    /// Handles `.onChange(of: windowState.libraryId)` — the ONE teardown for
+    /// "this window now shows a different library" (#4518).
+    ///
+    /// Closing a library falls back to the Global library
+    /// (`closeLibraryFromCurrentWindow` / the sidebar close path), and
+    /// `LibraryWorkspaceRoot` swaps the per-library stores WITHOUT remounting
+    /// ContentView — so the `@State` `Document` snapshots survived the close
+    /// and every pane derived a per-document empty state from a document
+    /// belonging to nothing: Preview offered Retry for a file of a closed
+    /// library, Reader reported "no transcript for this selection", and the
+    /// inspector counted 0 artifacts under a stale workflow chip.
+    ///
+    /// Clears ONLY the per-document snapshots. Deliberately does NOT touch
+    /// `sidebarSelectionState.selectedItemId`: a cross-library sidebar click
+    /// writes `windowState.libraryId` FIRST and its new selection second
+    /// (`handleLibrarySwitching`), so wiping the selection id here could
+    /// clobber the very click being handled. The document snapshots are safe
+    /// either way — the selection handler immediately re-derives them.
+    func handleLibraryChange() {
+        // Cascades: `handleDetailDocumentChange` clears `pageFocusDocument`
+        // and `syncFocusedDocumentSelection(nil)` clears the focused-document
+        // toolbar context (the stale workflow chip's source).
+        detailDocument = nil
+        browserSelection.removeAll()
+        if activeSearchQuery != nil {
+            clearTransientSearch()
+        }
+        kgFocusState.clear()
+    }
+
     // MARK: - Event Handlers
 
     /// Handles `.onReceive` of `NSApplication.willTerminateNotification`.

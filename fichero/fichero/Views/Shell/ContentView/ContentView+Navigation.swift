@@ -137,6 +137,12 @@ extension ContentView {
                     get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
                     set: { searchFieldModeRaw = $0.rawValue }
                 ),
+                // #4521: the field is summoned by the toolbar search toggle;
+                // a Binding so in-pane dismissal can flip the same state.
+                searchFieldVisible: Binding(
+                    get: { showSearchField },
+                    set: { setSearchFieldVisible($0) }
+                ),
                 // #4403: the grid renders only the document leg, so it must be
                 // told what the search actually found — otherwise its empty
                 // state contradicts the header counting every kind.

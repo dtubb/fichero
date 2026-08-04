@@ -43,6 +43,11 @@ extension ContentView {
         guard featureManager.isSearchEnabled else { return }
         guard let route = ToolbarSearchRouter.route(for: rawQuery) else { return }
 
+        // #4521: search chrome is summoned, and a programmatic search (entity
+        // lozenge, saved search) must summon it too — results with no visible
+        // query field would look like an unexplained library.
+        showSearchField = true
+
         // Capture the browsed folder BEFORE clearing the selection so the
         // results bar can offer it as a scope (#4107/S3).
         if case .library(let doc) = viewMode, let doc, doc.docType == .folder {

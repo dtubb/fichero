@@ -99,6 +99,20 @@ extension ContentView {
         setPaneVisible(.grid, isVisible)
     }
 
+    /// Summon/dismiss the engine-search field in the library's mini toolbar
+    /// (#4521). Dismissing exits transient-search presentation through the ONE
+    /// existing path (`clearTransientSearch`, #4106/S2 semantics unchanged)
+    /// and empties the field — otherwise hiding the chrome would leave the
+    /// library silently showing results for a query nobody can see.
+    func setSearchFieldVisible(_ isVisible: Bool) {
+        showSearchField = isVisible
+        guard !isVisible else { return }
+        toolbarSearchText = ""
+        if activeSearchQuery != nil {
+            clearTransientSearch()
+        }
+    }
+
     func openChatWithCurrentScope() {
         // Follow-up (#1723): keep this discoverable sidebar entry, but promote the
         // scoped-docs chat into a first-class inspector pane/tab once the
