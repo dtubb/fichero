@@ -1776,3 +1776,34 @@ class TestNodeKind:
         assert len(items) == 1
         assert items[0]["name"] == "Saved Search A"
         assert items[0]["node_kind"] == "saved_search"
+
+
+def test_audited_delete_survives_an_invalidated_connection(client, db):
+    """Every audited write goes through BEGIN TRANSACTION.
+
+    BEGIN was the one DuckDB entry point without the reopen-and-retry every
+    other entry point has, so an invalidated connection killed audited writes
+    while untransacted ones recovered. This is the sibling case of
+    ``test_bookmark_purge_reopens_closed_connection``; it failed for months
+    before purge was routed through the audited path and exposed it.
+    """
+    doc = Document(id="delete-after-close", name="Delete Target", doc_type=DocType.file)
+    db.save(doc)
+
+    db.conn.close()
+
+    deleted = client.delete(f"/api/documents/{doc.id}")
+    assert deleted.status_code == 204
+
+
+def test_audited_move_survives_an_invalidated_connection(client, db):
+    parent = Document(id="move-dest-after-close", name="Dest", doc_type=DocType.folder)
+    doc = Document(id="move-after-close", name="Move Target", doc_type=DocType.file)
+    db.save(parent)
+    db.save(doc)
+
+    db.conn.close()
+
+    moved = client.put(f"/api/documents/{doc.id}/move?parent_id={parent.id}")
+    assert moved.status_code == 200
+    assert moved.json()["parent_id"] == parent.id
