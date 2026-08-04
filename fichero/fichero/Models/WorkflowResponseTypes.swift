@@ -83,6 +83,65 @@ struct WorkflowResponse: Codable {
         case acceptsModelOverride = "accepts_model_override"
         case requiresVision = "requires_vision"
     }
+
+    /// Hand-written because the synthesized decoder IGNORES the property
+    /// defaults above: it calls `decode`, not `decodeIfPresent`, for every
+    /// non-optional key, so an older engine's payload without
+    /// `requires_vision` (or `untested`) failed to decode AT ALL — the exact
+    /// opposite of the fail-open contract both fields document. The two
+    /// derived flags fall back to their declared defaults when absent;
+    /// everything else keeps synthesized strictness.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decode(String.self, forKey: .description)
+        provider = try container.decode(String.self, forKey: .provider)
+        model = try container.decode(String.self, forKey: .model)
+        nodes = try container.decode([[String: AnyCodable]].self, forKey: .nodes)
+        edges = try container.decode([[String: AnyCodable]].self, forKey: .edges)
+        folderPath = try container.decode(String.self, forKey: .folderPath)
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+        isSystem = try container.decode(Bool.self, forKey: .isSystem)
+        isUntested = try container.decodeIfPresent(Bool.self, forKey: .isUntested) ?? false
+        directRunnable = try container.decodeIfPresent(Bool.self, forKey: .directRunnable)
+        acceptsModelOverride = try container.decodeIfPresent(Bool.self, forKey: .acceptsModelOverride)
+        requiresVision = try container.decodeIfPresent(Bool.self, forKey: .requiresVision) ?? false
+    }
+
+    /// The memberwise init the compiler stops synthesizing once `init(from:)`
+    /// exists — `convertToWorkflowResponse` builds instances with it.
+    init(
+        id: String,
+        name: String,
+        description: String,
+        provider: String,
+        model: String,
+        nodes: [[String: AnyCodable]],
+        edges: [[String: AnyCodable]],
+        folderPath: String,
+        sortOrder: Int,
+        isSystem: Bool,
+        isUntested: Bool = false,
+        directRunnable: Bool?,
+        acceptsModelOverride: Bool?,
+        requiresVision: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.provider = provider
+        self.model = model
+        self.nodes = nodes
+        self.edges = edges
+        self.folderPath = folderPath
+        self.sortOrder = sortOrder
+        self.isSystem = isSystem
+        self.isUntested = isUntested
+        self.directRunnable = directRunnable
+        self.acceptsModelOverride = acceptsModelOverride
+        self.requiresVision = requiresVision
+    }
 }
 
 // MARK: - Workflow Execution State

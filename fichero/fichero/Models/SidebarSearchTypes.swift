@@ -140,6 +140,31 @@ struct WorkflowSidebarItem: Identifiable, Codable, Hashable {
         case updatedAt = "updated_at"
     }
 
+    /// Hand-written because the synthesized decoder ignores the `= false`
+    /// default on `requiresVision`: it demands the key, so a pre-#3804 row
+    /// (older engine, persisted sidebar cache) failed to decode entirely
+    /// instead of failing OPEN to an unfiltered model menu as documented.
+    /// Only `requiresVision` gets the tolerant read; every other field keeps
+    /// synthesized strictness.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        nodeCount = try container.decode(Int.self, forKey: .nodeCount)
+        edgeCount = try container.decode(Int.self, forKey: .edgeCount)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        folderPath = try container.decode(String.self, forKey: .folderPath)
+        sortOrder = try container.decode(Int.self, forKey: .sortOrder)
+        isSystem = try container.decode(Bool.self, forKey: .isSystem)
+        isUntested = try container.decode(Bool.self, forKey: .isUntested)
+        isDirectlyRunnable = try container.decodeIfPresent(Bool.self, forKey: .isDirectlyRunnable)
+        acceptsModelOverride = try container.decodeIfPresent(Bool.self, forKey: .acceptsModelOverride)
+        requiresVision = try container.decodeIfPresent(Bool.self, forKey: .requiresVision) ?? false
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+
     init(
         id: String = UUID().uuidString,
         name: String,
