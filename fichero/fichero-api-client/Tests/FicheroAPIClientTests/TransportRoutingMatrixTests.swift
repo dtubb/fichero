@@ -160,7 +160,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
 
     func testMatrixHTTPSHealth() async throws {
         let baseURL = try liveHTTPSBaseURL()
-        let transport = FicheroClient.makeTransport(transportMode: .https)
+        let transport = FicheroClient.liveTransport(transportMode: .https)
         let (status, body) = try await sendGet(transport: transport, baseURL: baseURL, path: "/api/health")
         XCTAssertEqual(status, 200)
         XCTAssertTrue(String(decoding: body, as: UTF8.self).contains("\"status\":\"healthy\""))
@@ -171,7 +171,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
         let baseURL = FicheroClient.makeServerURL(
             baseURL: URL(string: "https://127.0.0.1:8765")!,
             transportMode: .uds(path: socket))
-        let transport = FicheroClient.makeTransport(transportMode: .uds(path: socket))
+        let transport = FicheroClient.liveTransport(transportMode: .uds(path: socket))
         let (status, body) = try await sendGet(transport: transport, baseURL: baseURL, path: "/api/health")
         XCTAssertEqual(status, 200)
         XCTAssertTrue(String(decoding: body, as: UTF8.self).contains("\"status\":\"healthy\""))
@@ -215,7 +215,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
 
     func testMatrixHTTPSAuthenticated() async throws {
         let baseURL = try liveHTTPSBaseURL()
-        let transport = FicheroClient.makeTransport(transportMode: .https)
+        let transport = FicheroClient.liveTransport(transportMode: .https)
         let token = try liveBootstrapToken()
         let (status, _) = try await sendGet(
             transport: transport, baseURL: baseURL,
@@ -229,7 +229,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
         let baseURL = FicheroClient.makeServerURL(
             baseURL: URL(string: "https://127.0.0.1:8765")!,
             transportMode: .uds(path: socket))
-        let transport = FicheroClient.makeTransport(transportMode: .uds(path: socket))
+        let transport = FicheroClient.liveTransport(transportMode: .uds(path: socket))
         let token = try liveBootstrapToken()
         let (status, _) = try await sendGet(
             transport: transport, baseURL: baseURL,
@@ -275,7 +275,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
 
     func testMatrixHTTPSStreaming() async throws {
         let baseURL = try liveHTTPSBaseURL()
-        let transport = FicheroClient.makeTransport(transportMode: .https)
+        let transport = FicheroClient.liveTransport(transportMode: .https)
         let token = try liveBootstrapToken()
         // A REAL registered library: the engine enforces a library-path
         // allowlist, so the old hard-coded `/tmp/live-matrix-lib` always 403'd
@@ -299,7 +299,7 @@ final class TransportRoutingMatrixTests: XCTestCase {
         let baseURL = FicheroClient.makeServerURL(
             baseURL: URL(string: "https://127.0.0.1:8765")!,
             transportMode: .uds(path: socket))
-        let transport = FicheroClient.makeTransport(transportMode: .uds(path: socket))
+        let transport = FicheroClient.liveTransport(transportMode: .uds(path: socket))
         let token = try liveBootstrapToken()
         // A REAL registered library — see the note in `testMatrixHTTPSStreaming`.
         let library = try await liveLibraryPath(
@@ -333,9 +333,9 @@ final class TransportRoutingMatrixTests: XCTestCase {
         let baseURL = FicheroClient.makeServerURL(
             baseURL: URL(string: "https://127.0.0.1:8765")!,
             transportMode: .uds(path: socket))
-        let streamTransport = FicheroClient.makeTransport(
+        let streamTransport = FicheroClient.liveTransport(
             transportMode: .uds(path: socket), usage: .stream)
-        let requestTransport = FicheroClient.makeTransport(
+        let requestTransport = FicheroClient.liveTransport(
             transportMode: .uds(path: socket), usage: .request)
         let token = try liveBootstrapToken()
         // `/api/changes/stream` is library-scoped and the engine enforces the

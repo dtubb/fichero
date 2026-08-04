@@ -80,7 +80,7 @@ final class RequestDeadlineTests: XCTestCase {
     /// The guardrail that would have caught the original defect: the bug was a
     /// MISSING argument at the call site, which no assertion on the constants
     /// alone can detect. These read the timeout off the transport that
-    /// `makeTransport` actually built.
+    /// `liveTransport` actually built.
 
     func testUDSStreamTransportCarriesTheStreamDeadline() throws {
         let timeout = try Self.deadline(ofTransportFor: .stream)
@@ -88,7 +88,7 @@ final class RequestDeadlineTests: XCTestCase {
             timeout, LocalTransportPool.streamDeadline,
             """
             The stream transport is not carrying `streamDeadline` — the \
-            `timeout:` argument was most likely dropped at the `makeTransport` \
+            `timeout:` argument was most likely dropped at the `liveTransport` \
             call site, which is exactly how #4379 happened.
             """
         )
@@ -119,7 +119,7 @@ final class RequestDeadlineTests: XCTestCase {
     private static func deadline(
         ofTransportFor usage: FicheroClient.TransportUsage
     ) throws -> TimeAmount {
-        let transport = FicheroClient.makeTransport(
+        let transport = FicheroClient.liveTransport(
             transportMode: .uds(path: "/tmp/fichero-deadline-test.sock"),
             usage: usage
         )
