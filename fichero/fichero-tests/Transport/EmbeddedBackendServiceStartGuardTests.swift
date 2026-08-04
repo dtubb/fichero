@@ -274,3 +274,55 @@ struct TLSCacheKeyTests {
         #expect(EmbeddedBackendService.tlsCacheKey(executablePath: exe, arguments: []) != nil)
     }
 }
+
+/// The `.api-key` clobber fix (live find 2026-08-04): the app's engine spawn
+/// used to write its freshly minted bootstrap token to the shared token file
+/// BEFORE `process.run()`, unconditionally. A spawn that never took the port
+/// over (an external engine still serving, a child aborting pre-bind) left
+/// the file holding a token the serving engine never adopted — every
+/// file-reading client (CLI, MCP, diagnostics curl) then 401'd while the app
+/// hummed along on its in-memory token. The rule: only an absent or empty
+/// file may be pre-written; a live token is never clobbered from the launch
+/// path. The engine-side launcher has the mirror-image guard
+/// (`prepare_app_bootstrap_token_for_launch`).
+struct BootstrapTokenPreWriteGuardTests {
+
+    private func temporaryFileURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("api-key-guard-\(UUID().uuidString)")
+    }
+
+    @Test("an absent token file may be pre-written")
+    func absentFileAllowsPreWrite() {
+        #expect(EmbeddedBackendService.shouldPreWriteBootstrapTokenFile(at: temporaryFileURL()))
+    }
+
+    @Test("an empty or whitespace token file may be pre-written")
+    func emptyFileAllowsPreWrite() throws {
+        let url = temporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try "  \n".write(to: url, atomically: true, encoding: .utf8)
+        #expect(EmbeddedBackendService.shouldPreWriteBootstrapTokenFile(at: url))
+    }
+
+    @Test("a live token is never clobbered from the launch path")
+    func liveTokenBlocksPreWrite() throws {
+        let url = temporaryFileURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try "existing-serving-engine-token".write(to: url, atomically: true, encoding: .utf8)
+        #expect(!EmbeddedBackendService.shouldPreWriteBootstrapTokenFile(at: url))
+    }
+
+    @Test("the spawn path consults the guard before writing")
+    func spawnConsultsTheGuard() throws {
+        let source = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Services/EmbeddedBackendService+Spawn.swift"),
+            encoding: .utf8
+        )
+        #expect(
+            source.contains("shouldPreWriteBootstrapTokenFile(at: tokenURL)"),
+            "the unconditional pre-write is back — it clobbers a live engine's token"
+        )
+    }
+}
