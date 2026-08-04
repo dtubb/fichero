@@ -30,10 +30,22 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from _engine_harness import start_engine  # noqa: E402
 
+# NOTE (#4437, 2026-08-04): the gated suite
+# `fichero-server/tests/integration/test_transport_round_trips.py` asserts the
+# same three things over UDS — plus HTTPS and in-memory — and it is the copy the
+# gate actually runs (`scripts/gate`, cmd_transport, #4245). It was recovered
+# FROM this harness, because standalone assets outside the gate never get run.
+# Nothing in scripts/, CI or pytest config references this directory. Treat this
+# file as a manual probe, not as coverage.
+#
 # Authenticated endpoint that needs neither a library path nor request params —
 # it just requires a valid bootstrap token (see auth middleware in
-# fichero_server/api/auth.py; not in _UNAUTHENTICATED_PATHS). The original
-# `/api/actions/registry` no longer exists.
+# fichero_server/api/auth.py; not in _UNAUTHENTICATED_PATHS).
+#
+# A previous version of this comment said `/api/actions/registry` no longer
+# exists. It does — routes/system/actions_registry.py:167 — and the gated suite
+# still asserts against it and passes. `/api/settings/model-profiles` is a valid
+# choice, but not for that reason.
 #
 # `/api/providers/catalog` looked like a match (app-wide, no library header)
 # but 404'd here — confirmed live, not guessed: `/api/providers` is
