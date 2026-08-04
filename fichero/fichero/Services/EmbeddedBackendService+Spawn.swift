@@ -302,10 +302,11 @@ extension EmbeddedBackendService {
                 // dying, to avoid a hot restart loop.
                 guard self.shouldAutoRestartAfterCrash() else {
                     self.status = .failed
+                    // tailEngineLog always says something — the lines, or why
+                    // there are none — so there is no empty case to skip.
                     self.errorMessage = "The engine keeps crashing (\(description)) — "
                         + "stopped auto-restarting after \(Self.crashLoopMaxRestarts) attempts "
-                        + "in \(Int(Self.crashLoopWindow))s."
-                        + (tail.isEmpty ? "" : "\n\n\(tail)")
+                        + "in \(Int(Self.crashLoopWindow))s.\n\n\(tail)"
                     return
                 }
 
@@ -317,8 +318,7 @@ extension EmbeddedBackendService {
                     let tail = Self.tailEngineLog(lines: 20)
                     self.status = .failed
                     self.errorMessage = "The engine terminated (\(description)) and could not be "
-                        + "restarted: \(error.localizedDescription)"
-                        + (tail.isEmpty ? "" : "\n\n\(tail)")
+                        + "restarted: \(error.localizedDescription)\n\n\(tail)"
                 }
             }
         }

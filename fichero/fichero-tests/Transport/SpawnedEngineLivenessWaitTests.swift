@@ -42,23 +42,116 @@ struct SpawnedEngineLivenessWaitTests {
         )
     }
 
-    /// No non-ready READING ends the wait on its own — only serving or dying does.
-    /// In particular `.authRejected` keeps waiting exactly as it did before: this
-    /// slice does not reclassify auth failures as "still starting", and
-    /// `EngineReadinessProbe.classify` is untouched.
-    @Test("no non-ready reading ends the wait by itself")
-    func nonReadyReadingsKeepWaiting() {
-        let readings: [EngineReadiness] = [.notResponding, .authRejected, .identityMismatch(pid: 42)]
-        for reading in readings {
+    /// Silence is the only reading that means "still starting". A 401 and a
+    /// foreign nonce are the engine ANSWERING, and each has its own remedy.
+    @Test("only silence is still-starting")
+    func onlySilenceIsStillStarting() {
+        #expect(
+            EmbeddedBackendService.spawnWaitStep(
+                readiness: .notResponding, exitDiagnosis: nil, elapsed: 30
+            ) == .keepWaiting
+        )
+    }
+
+    // MARK: - The four conditions the old code flattened into "never served"
+
+    /// Daniel's Dev Embedded launch: nineteen `GET /api/registry 401` while the
+    /// app reported "The engine started but never began serving after 5 minutes."
+    /// A 401 is a credential rejection, and the app HAD the status code.
+    @Test("a serving engine that rejects our token is not 'never served'")
+    func credentialRejectionIsItsOwnVerdict() {
+        #expect(
+            EmbeddedBackendService.spawnWaitStep(
+                readiness: .authRejected,
+                exitDiagnosis: nil,
+                elapsed: EmbeddedBackendService.credentialRejectionGrace
+            ) == .credentialRejected
+        )
+        let text = EmbeddedBackendService.credentialRejectedDiagnosis()
+        #expect(text.contains("rejected"))
+        #expect(!text.lowercased().contains("never began serving"))
+        #expect(!text.lowercased().contains("never served"))
+    }
+
+    /// A rejection inside the grace window is still startup — the app must not
+    /// trade a five-minute lie for a one-second one.
+    @Test("a rejection inside the grace window is still startup")
+    func credentialRejectionHonoursGrace() {
+        #expect(
+            EmbeddedBackendService.spawnWaitStep(
+                readiness: .authRejected, exitDiagnosis: nil, elapsed: 0
+            ) == .keepWaiting
+        )
+        #expect(EmbeddedBackendService.credentialRejectionGrace < EmbeddedBackendService.spawnedEngineInsanityCap)
+    }
+
+    /// `expectedLaunchNonce` exists precisely so readiness can prove the responder
+    /// is our child. When it does not match, the app KNOWS another engine holds
+    /// the socket — and waiting out the cap cannot change that.
+    @Test("a foreign engine on the socket is named, immediately")
+    func foreignEngineIsNamedImmediately() {
+        #expect(
+            EmbeddedBackendService.spawnWaitStep(
+                readiness: .identityMismatch(pid: 4242),
+                exitDiagnosis: nil,
+                elapsed: 0.1
+            ) == .foreignEngineServing(pid: 4242)
+        )
+        let text = EmbeddedBackendService.foreignEngineDiagnosis(pid: 4242)
+        #expect(text.contains("4242"), "the PID we were given must reach the user")
+        #expect(text.contains("Another engine is already serving"))
+        #expect(!text.lowercased().contains("never began serving"))
+    }
+
+    /// A responder that won't tell us its PID still gets the right sentence — the
+    /// unknown PID must not degrade the diagnosis to a generic one.
+    @Test("a foreign engine with no PID is still reported as foreign")
+    func foreignEngineWithoutPID() {
+        #expect(
+            EmbeddedBackendService.spawnWaitStep(
+                readiness: .identityMismatch(pid: nil), exitDiagnosis: nil, elapsed: 0.1
+            ) == .foreignEngineServing(pid: nil)
+        )
+        #expect(EmbeddedBackendService.foreignEngineDiagnosis(pid: nil).contains("Another engine is already serving"))
+    }
+
+    /// The cap now means what it says: nothing ever answered. It must point at
+    /// the engine log, because that is where the remedy is.
+    @Test("the cap diagnosis sends the reader to the engine log")
+    func capDiagnosisPointsAtTheLog() {
+        let text = EmbeddedBackendService.neverBoundDiagnosis()
+        #expect(text.contains("nothing answered on its socket"))
+        #expect(text.lowercased().contains("engine log"))
+    }
+
+    /// An unreadable log and an empty log are different facts, and both are
+    /// diagnostic. Neither may arrive as an empty string that reads as "no
+    /// information available".
+    @Test("the log tail always says something")
+    func logTailAlwaysExplainsItself() {
+        #expect(!EmbeddedBackendService.tailEngineLog(lines: 20).isEmpty)
+    }
+
+    /// Death still outranks every one of the new verdicts.
+    @Test("an exit diagnosis outranks a foreign engine and a rejection")
+    func exitDiagnosisOutranksTheNewVerdicts() {
+        for reading: EngineReadiness in [.authRejected, .identityMismatch(pid: 7)] {
             #expect(
                 EmbeddedBackendService.spawnWaitStep(
-                    readiness: reading,
-                    exitDiagnosis: nil,
-                    elapsed: 30
-                ) == .keepWaiting,
-                "\(reading) is a reading, not a verdict — the child is still alive"
+                    readiness: reading, exitDiagnosis: "The engine exited unexpectedly (code 9).", elapsed: 99
+                ) == .engineExited(diagnosis: "The engine exited unexpectedly (code 9).")
             )
         }
+    }
+
+    /// Ready still outranks everything, including a stale foreign reading.
+    @Test("ready outranks every other verdict")
+    func readyOutranksEverything() {
+        #expect(
+            EmbeddedBackendService.spawnWaitStep(
+                readiness: .ready, exitDiagnosis: nil, elapsed: 9_999
+            ) == .ready
+        )
     }
 
     /// The cap is an insanity bound for a hung process, not a startup budget: the

@@ -30,11 +30,27 @@ extension AppState {
             backendAccessError = accessError
             engine.markAuthRejected(Self.diagnosis(for: accessError))
             logger.error("Auth rejected on readiness probe — authBroken")
-        case .notResponding, .identityMismatch:
+        case .identityMismatch(let pid):
+            // The socket IS being served — by something we did not launch. That
+            // has its own remedy (quit the other engine); it was previously
+            // reported with the notResponding wording, which named none.
+            backendAccessError = nil
+            let who = pid.map { " (PID \($0))" } ?? ""
+            engine.markUnreachable(
+                "Another engine\(who) is already serving on this connection — it answered with a "
+                + "different launch id than the one Fichero started. Quit that engine and try again."
+            )
+            logger.error("Readiness probe: identity mismatch — a foreign engine holds the socket")
+        case .notResponding:
+            // Nothing answered health at all. The old shared message claimed the
+            // engine "answered health checks", which is exactly what did NOT
+            // happen — a false statement that sent the reader looking at auth.
             backendAccessError = nil
             engine.markUnreachable(
-                "The engine answered health checks but the authenticated readiness probe failed."
+                "The engine did not answer on this connection. Nothing is listening, or the "
+                + "connection could not be established."
             )
+            logger.error("Readiness probe: no answer on /api/health — engine unreachable")
         }
     }
 

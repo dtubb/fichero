@@ -87,8 +87,13 @@ struct EngineReadinessProbe {
         // running / start it with start_backend.sh". (#dev observability)
         if health.status == 401 || health.status == 403 {
             let healthCode = health.status.map(String.init) ?? "?"
-            ProbeTransitionLog.log(
-                "readiness legs: health=\(healthCode) → authRejected (engine reachable, credentials rejected)"
+            // A credential rejection is never steady-state noise: it is the one
+            // reading the user can act on, and the transition log would demote a
+            // repeated rejection to `.debug` where nobody sees it. Log it at
+            // warning EVERY poll.
+            probeLogger.warning(
+                "readiness: health=\(healthCode, privacy: .public) → authRejected "
+                + "(engine reachable; it rejected the app's token)"
             )
             return .authRejected
         }
@@ -100,6 +105,14 @@ struct EngineReadinessProbe {
             return .notResponding
         }
         if let expectedNonce, health.nonce != expectedNonce {
+            // The responder is NOT the child we launched. Say so, with the PID,
+            // rather than letting the caller infer "never started" from silence.
+            let who = health.pid.map(String.init) ?? "unknown"
+            let echoed = health.nonce ?? "none"
+            probeLogger.warning(
+                "readiness: health=200 but launch nonce is \(echoed, privacy: .public), not ours "
+                + "(\(expectedNonce, privacy: .public)) → identityMismatch; responder PID \(who, privacy: .public)"
+            )
             return .identityMismatch(pid: health.pid)
         }
         let registryStatus = await fetchRegistryObservation().status

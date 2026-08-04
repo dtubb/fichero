@@ -31,18 +31,45 @@ extension EmbeddedBackendService {
         case keepWaiting
         /// The child exited; `diagnosis` is the terminationHandler's reason + log tail.
         case engineExited(diagnosis: String)
-        /// Alive, but never served before the insanity cap.
+        /// Health answered 200 but echoed a launch nonce that is not the one we
+        /// minted for this spawn: a process we did NOT launch already holds the
+        /// socket. `pid` is the responder's, when it told us.
+        case foreignEngineServing(pid: Int?)
+        /// The engine on this socket is serving and REJECTING our credential
+        /// (401/403). It started; it does not accept our token.
+        case credentialRejected
+        /// Nothing ever answered on the socket before the insanity cap.
         case neverBecameReady
     }
 
+    /// How long a 401/403 may persist before it is reported as a rejection
+    /// rather than as startup. Short: the child adopts `FICHERO_BOOTSTRAP_TOKEN`
+    /// inside its own lifespan, BEFORE it serves, so a rejection that survives
+    /// this window is a real rejection, not a race. The grace exists only so an
+    /// older engine build that binds before installing its token is not reported
+    /// wrongly in its first second.
+    static let credentialRejectionGrace: TimeInterval = 10
+
+    /// Every branch below is a DIFFERENT situation with a different remedy, and
+    /// the app already holds the evidence that separates them — the launch nonce,
+    /// the status code, the child's exit. Collapsing them into "never served"
+    /// (which is what this did) sent the user to look for a missing engine while
+    /// an engine was answering on the socket. Each condition now reports itself.
     static func spawnWaitStep(
         readiness: EngineReadiness,
         exitDiagnosis: String?,
         elapsed: TimeInterval,
-        cap: TimeInterval = spawnedEngineInsanityCap
+        cap: TimeInterval = spawnedEngineInsanityCap,
+        credentialGrace: TimeInterval = credentialRejectionGrace
     ) -> SpawnWaitStep {
         if readiness == .ready { return .ready }
         if let exitDiagnosis { return .engineExited(diagnosis: exitDiagnosis) }
+        // Definitive on sight: our child cannot take a socket another process
+        // already holds, so more waiting cannot change the answer — it can only
+        // delay the truth by the length of the cap.
+        if case .identityMismatch(let pid) = readiness { return .foreignEngineServing(pid: pid) }
+        // A 401/403 is the engine ANSWERING. "It never started" is false here.
+        if readiness == .authRejected, elapsed >= credentialGrace { return .credentialRejected }
         if elapsed >= cap { return .neverBecameReady }
         return .keepWaiting
     }
@@ -110,9 +137,21 @@ extension EmbeddedBackendService {
                 // until the cap and then blaming a timeout.
                 logger.error("Engine exited during startup — surfacing immediately (#3930)")
                 throw BackendError.engineDidNotStart(diagnosis: diagnosis)
+            case .foreignEngineServing(let pid):
+                logger.error(
+                    "Another engine (PID \(pid.map(String.init) ?? "unknown", privacy: .public)) already "
+                    + "serves this socket — our child is not the responder; not waiting out the cap"
+                )
+                throw BackendError.engineDidNotStart(diagnosis: Self.foreignEngineDiagnosis(pid: pid))
+            case .credentialRejected:
+                logger.warning(
+                    "Engine on this socket is serving but rejected the app's token — this is a "
+                    + "credential failure, not a start-up failure"
+                )
+                throw BackendError.engineDidNotStart(diagnosis: Self.credentialRejectedDiagnosis())
             case .neverBecameReady:
-                logger.error("Engine alive but never served within the insanity cap (#3930)")
-                throw BackendError.engineDidNotStart(diagnosis: Self.insanityCapDiagnosis())
+                logger.error("Engine alive but nothing ever answered on the socket within the insanity cap (#3930)")
+                throw BackendError.engineDidNotStart(diagnosis: Self.neverBoundDiagnosis())
             case .keepWaiting:
                 break
             }
@@ -124,11 +163,36 @@ extension EmbeddedBackendService {
         }
     }
 
-    private static func insanityCapDiagnosis() -> String {
+    /// Nothing ever answered on the socket. The remedy is in `engine.log`, so say
+    /// that and carry its tail — the old wording ("started but never began
+    /// serving") asserted a start we cannot observe and named no next step.
+    /// `internal` so the diagnosis wording is pinned by a test rather than by a
+    /// screenshot.
+    static func neverBoundDiagnosis() -> String {
         let minutes = Int(spawnedEngineInsanityCap / 60)
-        let base = "The engine started but never began serving after \(minutes) minutes."
-        let tail = tailEngineLog(lines: 20)
-        return tail.isEmpty ? base : "\(base)\n\n\(tail)"
+        let base = "The engine Fichero launched is still running, but nothing answered on its socket "
+            + "for \(minutes) minutes. Why it never bound is in the engine log; its last lines follow."
+        return "\(base)\n\n\(tailEngineLog(lines: 20))"
+    }
+
+    /// Health answered, but from a process we did not launch. The user has a
+    /// concrete action here (stop the other engine) that "never served" hides.
+    static func foreignEngineDiagnosis(pid: Int?) -> String {
+        let who = pid.map { " (PID \($0))" } ?? ""
+        return "Another engine is already serving on this socket\(who). It is not the engine Fichero "
+            + "just launched — it answered with a different launch id — so Fichero cannot take the "
+            + "socket over. Quit the other engine (a hand-started start_backend.sh, or another copy "
+            + "of Fichero) and try again."
+    }
+
+    /// The engine is up and refusing our token. Never report this as a start-up
+    /// failure: a 401 during readiness means the engine rejected the credential,
+    /// and telling the user to start an engine that is already running is the
+    /// exact wrong instruction.
+    static func credentialRejectedDiagnosis() -> String {
+        "The engine on this socket is running and answering, but it rejected Fichero's token. "
+            + "It is not the engine this launch started, or it is still holding an older token. "
+            + "Quit that engine so Fichero can start its own, then try again."
     }
 
     /// Poll until the engine is genuinely READY (#2862): not just answering
@@ -205,7 +269,14 @@ extension EmbeddedBackendService {
     }
 
     /// Last `lines` lines of the engine log, for surfacing a real cause when
-    /// the engine dies (#2863). Empty string if the log can't be read.
+    /// the engine dies (#2863).
+    ///
+    /// Never returns a bare empty string: "the log could not be read", "the log
+    /// is empty", and "here are the lines" are three different facts, and the
+    /// first two are themselves diagnostic — an engine that wrote NOTHING to a
+    /// log the app wired to its stdout+stderr did not get as far as importing.
+    /// Collapsing an unreadable log onto an absent one is how a launch failure
+    /// arrives with no cause attached.
     ///
     /// Deliberately OUTSIDE `#if os(macOS)`: this is FileManager + String and
     /// needs no macOS API, but `insanityCapDiagnosis()` — which calls it — is
@@ -216,10 +287,17 @@ extension EmbeddedBackendService {
         let logURL = FileManager.default
             .urls(for: .libraryDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Logs/Fichero/engine.log")
-        guard let contents = try? String(contentsOf: logURL, encoding: .utf8) else {
-            return ""
+        let contents: String
+        do {
+            contents = try String(contentsOf: logURL, encoding: .utf8)
+        } catch {
+            return "(could not read \(logURL.path): \(error.localizedDescription))"
         }
         let tail = contents.split(separator: "\n", omittingEmptySubsequences: false).suffix(lines)
-        return tail.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        let joined = tail.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        if joined.isEmpty {
+            return "(\(logURL.path) is empty — the engine wrote nothing to stdout or stderr.)"
+        }
+        return joined
     }
 }
