@@ -112,12 +112,7 @@ final class ContentPaneInternalDragImportGuardTests: XCTestCase {
     // MARK: - Both call sites actually apply it
 
     private static func importSource() throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Shell
-            .deletingLastPathComponent()   // Views
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent("Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         XCTAssertFalse(source.isEmpty, "the import actions file is empty — these guards measure nothing")

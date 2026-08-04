@@ -106,11 +106,7 @@ struct ImportPartialFailureTests {
     // when the reporting is simply absent.
 
     private func source(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Services
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero/\(relativePath)")
+        let url = try AppSource.root().appendingPathComponent(relativePath)
         let text = try String(contentsOf: url, encoding: .utf8)
         // An unreadable or empty file must fail loudly rather than let every
         // `contains` below pass vacuously.

@@ -16,12 +16,7 @@ import XCTest
 final class LibraryCloseTeardownTests: XCTestCase {
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Shell
-            .deletingLastPathComponent()   // Views
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         let source = try String(contentsOf: url, encoding: .utf8)
         XCTAssertFalse(source.isEmpty, "\(relativePath) is empty — this guard measures nothing")

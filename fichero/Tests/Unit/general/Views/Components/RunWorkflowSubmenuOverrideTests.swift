@@ -126,12 +126,7 @@ final class RunWorkflowSubmenuOverrideTests: XCTestCase {
     }
 
     private static func submenuSource() throws -> String {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Components
-            .deletingLastPathComponent()   // Views
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero/Views/Components/Menus/RunWorkflowSubmenuItems.swift")
+        let root = try AppSource.root().appendingPathComponent("Views/Components/Menus/RunWorkflowSubmenuItems.swift")
         return try String(contentsOf: root, encoding: .utf8)
     }
 }

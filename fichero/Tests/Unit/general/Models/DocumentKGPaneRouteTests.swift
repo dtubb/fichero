@@ -51,9 +51,9 @@ final class DocumentKGPaneRouteTests: XCTestCase {
     /// transport applies SPKI pinning for every request the scheme handler
     /// re-issues, so assert the pinning hook still lives there.
     func testAvailabilityGateIsRetiredAndPinningLivesInTheClient() throws {
-        let fixtureBase = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
+        // Project container via the shared landmark walk (AppSource.root() is
+        // <repo>/fichero/fichero) — never hop-count arithmetic (#4493 class).
+        let fixtureBase = try AppSource.root().deletingLastPathComponent()
         let paneSources = try [
             "fichero/Views/Reader/Knowledge/DocumentKGWebPane+Route.swift",
             "fichero/Views/Reader/Knowledge/DocumentKGWebPane.swift",

@@ -20,11 +20,13 @@ final class EntityTypeMappingTests: XCTestCase {
     }
 
     private static func repoSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        // Repo root via the shared landmark walk (AppSource.root() is
+        // <repo>/fichero/fichero) — never hop-count arithmetic, which the
+        // Tests/ reorg proved breaks on every tree move (#4493 class).
+        let repoRoot = try AppSource.root()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(relativePath)
+        let url = repoRoot.appendingPathComponent(relativePath)
         return try String(contentsOf: url, encoding: .utf8)
     }
 

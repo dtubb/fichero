@@ -31,15 +31,12 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
     /// App-target source root: fichero/fichero (this file lives in
     /// fichero/fichero-tests, a sibling of the app folder).
     private static var appSourceRoot: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero (project dir)
-            .appendingPathComponent("fichero")
+        get throws { try AppSource.root() }
     }
 
     /// Every .swift file in the app target, path relative to the source root.
     private static func appSwiftFiles() throws -> [(path: String, source: String)] {
-        let root = appSourceRoot
+        let root = try appSourceRoot
         guard let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: nil

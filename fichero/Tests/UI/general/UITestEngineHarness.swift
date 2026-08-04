@@ -8,12 +8,17 @@
 //
 //  Unlike the in-process `EngineHarness` in Tests/Unit/general (which spins a TLS
 //  uvicorn on :8765 for XCTest round-trips), a UI test drives the app as a
-//  SEPARATE process, so the app — not the test — is the client. This harness
-//  therefore:
-//    1. Seeds a disposable `.fichero` library with the SAME Python seeder the
-//       contract walker uses (entities + claims included), then
-//    2. Spawns the engine on a Unix-domain socket (no TCP, no TLS) — the exact
-//       `fichero_server.api.uds_transport:app --uds …` fast-loop start_backend.sh uses.
+//  SEPARATE process, so the app — not the test — is the client.
+//
+//  Since the 2026-08-04 test-architecture decisions this type is a thin Swift
+//  wrapper over the ONE shared spawn-per-run harness,
+//  `fichero-server/scripts/test_engine_harness.py` — the same script the
+//  pytest fixture (CLI/MCP legs) and the scripted UX smoke drive. It seeds the
+//  synthetic --full library, spawns the UDS engine with parent-pid
+//  accountability (#4400), waits bounded for /api/health, and prints one
+//  ready-JSON line; this wrapper launches it, parses that line, and SIGTERMs
+//  it in teardown (the script reaps the engine, unlinks the socket, and
+//  removes its temp dir).
 //
 //  The app is pointed at that socket with `FICHERO_FORCE_UDS_PATH` (see
 //  EngineConfig+Launch.swift). UDS sidesteps the cross-process TLS-pin dance
@@ -102,41 +107,59 @@ final class UITestEngineHarness {
         spawnedProcess = nil
     }
 
-    /// Seed a library, spawn the UDS engine, and wait for the socket to bind.
-    /// Throws on any failure so the test can `try` and skip cleanly.
+    /// Launch the shared harness script and wait for its ready line.
+    /// Throws on any failure so the test can `try` and fail cleanly.
     func start() throws -> SeededLibrary {
         guard let repo = Self.repoRoot() else { throw HarnessError.repoRootNotFound }
+        guard let venvPython = Self.venvPython(for: repo) else {
+            throw HarnessError.engineDidNotBind(
+                "no venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)")
+        }
 
-        // The library + app-home live under a unique temp dir (path length is
-        // irrelevant here). The SOCKET, however, must fit the AF_UNIX sun_path
-        // limit (~104 bytes), so it goes straight in NSTemporaryDirectory under a
-        // short name instead of the deep per-run dir.
+        // The SOCKET must fit the AF_UNIX sun_path limit AND live where the
+        // sandboxed app can dial it (#4194), so the wrapper picks the path and
+        // hands it to the script; everything else (library, app-home, temp
+        // dir) is the script's to create and to destroy.
         let runID = UUID().uuidString
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fichero-uitest-\(runID)", isDirectory: true)
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        tempDir = dir
-
-        let libURL = dir.appendingPathComponent("Seed.fichero", isDirectory: true)
-        let appHome = dir.appendingPathComponent("AppHome", isDirectory: true)
-        try FileManager.default.createDirectory(at: appHome, withIntermediateDirectories: true)
-
         let socketPath = Self.shortSocketPath(runID: runID)
+        let script = repo.appendingPathComponent(
+            "fichero-server/scripts/test_engine_harness.py")
 
-        let (expected, ids) = try seedLibrary(at: libURL, repo: repo)
-        try spawnEngine(repo: repo, socketPath: socketPath, appHome: appHome)
-        try waitForSocket(socketPath, timeout: 90)
+        let (proc, out) = try launchHarnessScript(
+            python: venvPython, script: script, repo: repo, socketPath: socketPath)
+        engineProcess = proc
+        Self.spawnedProcess = proc
+        if !Self.atexitRegistered {
+            // atexit needs a @convention(c) pointer: a non-capturing LITERAL
+            // closure calling the static handler (a bare method reference
+            // `Self.terminateAtExit` doesn't convert). Use the explicit type name
+            // so no dynamic `Self` is captured.
+            atexit { UITestEngineHarness.terminateAtExit() }
+            Self.atexitRegistered = true
+        }
 
+        let ready = try readReadyLine(from: out, process: proc, timeout: 120)
+        guard let library = ready["library"] as? String,
+              let socket = ready["socket"] as? String,
+              let appHome = ready["app_home"] as? String
+        else {
+            throw HarnessError.engineDidNotBind(
+                "ready line missing library/socket/app_home: \(ready)")
+        }
+        let expected = (ready["expected"] as? [String: Int]) ?? [:]
+        let keys = (ready["keys"] as? [String: String]) ?? [:]
         return SeededLibrary(
-            libraryPath: libURL.path,
-            socketPath: socketPath,
-            appHomePath: appHome.path,
+            libraryPath: library,
+            socketPath: socket,
+            appHomePath: appHome,
             expected: expected,
-            ids: ids
+            ids: keys
         )
     }
 
     func stop() {
+        // SIGTERM the script; its handler reaps the engine (#4400 backstops a
+        // SIGKILLed runner), unlinks the socket, and removes its temp dir.
         engineProcess?.terminate()
         engineProcess = nil
         Self.spawnedProcess = nil
@@ -144,79 +167,19 @@ final class UITestEngineHarness {
         tempDir = nil
     }
 
-    // MARK: - Seeding
-
-    private func seedLibrary(at libURL: URL, repo: URL) throws -> ([String: Int], [String: String]) {
-        guard let venvPython = Self.venvPython(for: repo) else {
-            throw HarnessError.seedFailed("no venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)")
-        }
-        let seeder = repo.appendingPathComponent("fichero-server/scripts/seed_test_library.py")
-
+    /// Spawn the harness script with its stderr tail captured for diagnostics.
+    private func launchHarnessScript(
+        python: URL, script: URL, repo: URL, socketPath: String
+    ) throws -> (Process, Pipe) {
         let proc = Process()
-        proc.executableURL = venvPython
-        proc.arguments = [seeder.path, libURL.path]
+        proc.executableURL = python
+        proc.arguments = [script.path, "--socket", socketPath, "--seed-mode", "full"]
         var env = ProcessInfo.processInfo.environment
         env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
         proc.environment = env
         let out = Pipe()
-        let err = Pipe()
-        proc.standardOutput = out
-        proc.standardError = err
-        do {
-            try proc.run()
-        } catch {
-            throw HarnessError.seedFailed("could not launch seeder: \(error)")
-        }
-        proc.waitUntilExit()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        guard proc.terminationStatus == 0,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let expected = json["expected"] as? [String: Int],
-              let keys = json["keys"] as? [String: String]
-        else {
-            let errText = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-            throw HarnessError.seedFailed(
-                "exit \(proc.terminationStatus); out=\(String(data: data, encoding: .utf8) ?? "<none>"); err=\(errText)"
-            )
-        }
-        return (expected, keys)
-    }
-
-    // MARK: - Spawn (UDS, no TCP, no TLS)
-
-    private func spawnEngine(repo: URL, socketPath: String, appHome: URL) throws {
-        // Stale socket from a crashed prior run would make bind fail.
-        try? FileManager.default.removeItem(atPath: socketPath)
-
-        guard let venvPython = Self.venvPython(for: repo) else {
-            throw HarnessError.engineDidNotBind("no venv python (tried repo/.venv, FICHERO_VENV, ~/code/fichero/.venv)")
-        }
-        let proc = Process()
-        proc.executableURL = venvPython
-        // Mirrors start_backend.sh's UDS fast loop exactly.
-        proc.arguments = [
-            "-m", "uvicorn",
-            "fichero_server.api.uds_transport:app",
-            "--uds", socketPath,
-            "--ws", "websockets-sansio"
-        ]
-        var env = ProcessInfo.processInfo.environment
-        env["PYTHONPATH"] = repo.appendingPathComponent("fichero-server/src").path
-        env["FICHERO_UDS_PATH"] = socketPath
-        // Owner-trusted UDS, single-user, dev tier (beta-gated KG routes exposed),
-        // auth disabled so the app needs no token over the socket.
-        env["FICHERO_MULTIUSER"] = "0"
-        env["FICHERO_FEATURE_TIER"] = "dev"
-        env["FICHERO_DISABLE_AUTH"] = "1"
-        // Keep the engine's own state off the developer's real Application Support:
-        // point HOME at the disposable app-home so any engine-side dotfiles land there.
-        env["HOME"] = appHome.path
-        // The engine watches this PID and self-terminates if the test process dies
-        // before atexit runs (SIGKILL / crash) — the robust orphan backstop.
-        env["FICHERO_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
-        proc.environment = env
-        proc.standardOutput = Pipe()
         let errPipe = Pipe()
+        proc.standardOutput = out
         proc.standardError = errPipe
         errPipe.fileHandleForReading.readabilityHandler = { [stderrBuffer] handle in
             let data = handle.availableData
@@ -229,66 +192,47 @@ final class UITestEngineHarness {
         do {
             try proc.run()
         } catch {
-            throw HarnessError.engineDidNotBind("could not launch uvicorn: \(error)")
+            throw HarnessError.engineDidNotBind("could not launch harness script: \(error)")
         }
-        engineProcess = proc
-        Self.spawnedProcess = proc
-        if !Self.atexitRegistered {
-            // atexit needs a @convention(c) pointer: a non-capturing LITERAL
-            // closure calling the static handler (a bare method reference
-            // `Self.terminateAtExit` doesn't convert). Use the explicit type name
-            // so no dynamic `Self` is captured.
-            atexit { UITestEngineHarness.terminateAtExit() }
-            Self.atexitRegistered = true
-        }
+        return (proc, out)
     }
 
-    /// Wait until the engine binds its socket. The engine's cold import is ~2s;
-    /// this polls for the socket FILE and then confirms it accepts a connection,
-    /// so the app's first request over UDS won't race the bind.
-    private func waitForSocket(_ path: String, timeout: TimeInterval) throws {
+    // MARK: - Ready-line protocol
+
+    /// The script's contract: first stdout line is one JSON object, printed
+    /// only after /api/health answered over the socket. No line = FAILURE
+    /// (loud, with the script's stderr), never a silent green.
+    private func readReadyLine(
+        from pipe: Pipe, process: Process, timeout: TimeInterval
+    ) throws -> [String: Any] {
+        let handle = pipe.fileHandleForReading
+        var buffer = Data()
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if FileManager.default.fileExists(atPath: path), Self.canConnect(to: path) {
-                return
+            let chunk = handle.availableData
+            if !chunk.isEmpty {
+                buffer.append(chunk)
+                if let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
+                    let line = buffer[..<newline]
+                    guard let json = try? JSONSerialization
+                        .jsonObject(with: Data(line)) as? [String: Any]
+                    else {
+                        throw HarnessError.engineDidNotBind(
+                            "unparseable ready line: "
+                            + (String(data: Data(line), encoding: .utf8) ?? "<binary>"))
+                    }
+                    return json
+                }
             }
-            if let proc = engineProcess, !proc.isRunning {
+            if !process.isRunning {
                 throw HarnessError.engineDidNotBind(
-                    "uvicorn exited early (status \(proc.terminationStatus)); stderr: \(capturedStderr)"
-                )
+                    "harness script exited (status \(process.terminationStatus)) "
+                    + "before ready; stderr: \(capturedStderr)")
             }
-            Thread.sleep(forTimeInterval: 0.25)
+            Thread.sleep(forTimeInterval: 0.1)
         }
         throw HarnessError.engineDidNotBind(
-            "socket \(path) never accepted a connection within \(Int(timeout))s; stderr: \(capturedStderr)"
-        )
-    }
-
-    /// Best-effort AF_UNIX connect probe — true once uvicorn is accepting.
-    private static func canConnect(to path: String) -> Bool {
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { return false }
-        defer { close(fd) }
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        let maxLen = MemoryLayout.size(ofValue: addr.sun_path)
-        var ok = false
-        path.withCString { cstr in
-            if strlen(cstr) < maxLen {
-                _ = withUnsafeMutablePointer(to: &addr.sun_path) { dst in
-                    dst.withMemoryRebound(to: CChar.self, capacity: maxLen) { dstPtr in
-                        strcpy(dstPtr, cstr)
-                    }
-                }
-                let size = socklen_t(MemoryLayout<sockaddr_un>.size)
-                ok = withUnsafePointer(to: &addr) { ptr in
-                    ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
-                        connect(fd, sa, size) == 0
-                    }
-                }
-            }
-        }
-        return ok
+            "no ready line within \(Int(timeout))s; stderr: \(capturedStderr)")
     }
 
     // MARK: - Paths
@@ -362,10 +306,10 @@ final class UITestEngineHarness {
     /// else a `FICHERO_VENV` override, else the canonical `~/code/fichero/.venv`
     /// (a worktree under test has no venv of its own). nil if none exists.
     static func venvPython(for repo: URL) -> URL? {
-        let fm = FileManager.default
+        let fileManager = FileManager.default
         var candidates = [repo.appendingPathComponent(".venv/bin/python")]
-        if let v = ProcessInfo.processInfo.environment["FICHERO_VENV"], !v.isEmpty {
-            candidates.append(URL(fileURLWithPath: v).appendingPathComponent("bin/python"))
+        if let override = ProcessInfo.processInfo.environment["FICHERO_VENV"], !override.isEmpty {
+            candidates.append(URL(fileURLWithPath: override).appendingPathComponent("bin/python"))
         }
         // Derive the canonical checkout from THIS file's real path (`#filePath`),
         // which the test process can read (repoRoot already resolved via it) and
@@ -377,15 +321,15 @@ final class UITestEngineHarness {
         }
         candidates.append(URL(fileURLWithPath: realHome)
             .appendingPathComponent("code/fichero/.venv/bin/python"))
-        return candidates.first { fm.fileExists(atPath: $0.path) }
+        return candidates.first { fileManager.fileExists(atPath: $0.path) }
     }
 
     /// The `code` directory ancestor of `url` (e.g. `/Users/x/code`), or nil.
     private static func codeAncestor(of url: URL) -> URL? {
-        var u = url
-        while u.pathComponents.count > 1 {
-            if u.lastPathComponent == "code" { return u }
-            u = u.deletingLastPathComponent()
+        var cursor = url
+        while cursor.pathComponents.count > 1 {
+            if cursor.lastPathComponent == "code" { return cursor }
+            cursor = cursor.deletingLastPathComponent()
         }
         return nil
     }

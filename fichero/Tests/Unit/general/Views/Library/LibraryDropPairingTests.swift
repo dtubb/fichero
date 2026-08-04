@@ -32,12 +32,7 @@ final class LibraryDropPairingTests: XCTestCase {
     private let docUUID = "11111111-2222-3333-4444-555555555555"
 
     private var sourceRoot: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Library
-            .deletingLastPathComponent()   // Views
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero")
+        get throws { try AppSource.root() }
     }
 
     private func source(_ path: String) throws -> String {

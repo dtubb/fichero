@@ -631,17 +631,10 @@ struct PDFLoupeTrackingSelectorTests {
 
 struct ClaimFocusStateInjectionContractTests {
 
-    /// App source root: `.../fichero/fichero/` (sibling of `fichero-tests`).
-    private static func appSourceRoot() -> URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero (project container)
-            .appendingPathComponent("fichero")
-    }
-
     private static func source(_ relativePath: String) throws -> String {
-        let url = appSourceRoot().appendingPathComponent(relativePath)
-        return try String(contentsOf: url, encoding: .utf8)
+        // Shared landmark-walk resolver — never hop-count arithmetic, which the
+        // Tests/ reorg proved breaks silently on every tree move (#4493 class).
+        try AppSource.text(relativePath)
     }
 
     @Test("ContentView consumes ClaimFocusState from the environment")

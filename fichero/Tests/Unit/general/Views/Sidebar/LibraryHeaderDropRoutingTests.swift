@@ -178,12 +178,7 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
     // MARK: - One implementation, not two
 
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Sidebar
-            .deletingLastPathComponent()   // Views
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero")
+        let url = try AppSource.root()
             .appendingPathComponent(relativePath)
         let source = try String(contentsOf: url, encoding: .utf8)
         XCTAssertFalse(source.isEmpty, "\(relativePath) is empty — this guard measures nothing")

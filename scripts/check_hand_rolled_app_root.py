@@ -54,8 +54,8 @@ ALLOWED = {"AppSource.swift"}
 # and is not a root resolution at all — matching it would flood the check with
 # false positives and get it deleted, which is how guardrails die.
 _CHAIN = re.compile(
-    r"(?P<origin>URL\(fileURLWithPath:\s*#filePath\)\s*)?"
-    r"(?:\.deletingLastPathComponent\(\)\s*){2,}"
+    r"(?P<origin>URL\(fileURLWithPath:\s*#filePath\)\s*(?://[^\n]*\s*)?)?"
+    r"(?:\.deletingLastPathComponent\(\)\s*(?://[^\n]*\s*)?){2,}"
     r"\.appendingPathComponent\(\s*\"(?P<suffix>[^\"]*)\""
 )
 
@@ -130,6 +130,17 @@ MUST_FIRE = [
     # the suffix rather than the origin, which is why both signals exist.
     'here.deletingLastPathComponent().deletingLastPathComponent()'
     '.appendingPathComponent("fichero/Models")',
+    # Trailing line comments between the deletions — the shape that EVADED the
+    # first regex (which allowed only whitespace between links) and is how
+    # ContentPaneDropTargetTests + ClaimFocusStateInjectionContractTests broke
+    # silently in the Tests/ reorg gate (2026-08-04). Comments are part of the
+    # idiom, not an evasion: every hand-annotated hop count writes them.
+    "URL(fileURLWithPath: #filePath)\n"
+    "    .deletingLastPathComponent()   // Shell\n"
+    "    .deletingLastPathComponent()   // Views\n"
+    "    .deletingLastPathComponent()   // fichero-tests\n"
+    "    .deletingLastPathComponent()   // fichero\n"
+    '    .appendingPathComponent("fichero")',
 ]
 
 MUST_NOT_FIRE = [

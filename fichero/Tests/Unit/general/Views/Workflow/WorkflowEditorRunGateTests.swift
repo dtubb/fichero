@@ -89,14 +89,8 @@ struct WorkflowEditorRunGateTests {
     // MARK: - Structural pins on the view glue
 
     private func actionsSource() throws -> String {
-        let root = URL(fileURLWithPath: #filePath)      // …/fichero-tests/Views/Workflow/…
-            .deletingLastPathComponent()                // Workflow
-            .deletingLastPathComponent()                // Views
-            .deletingLastPathComponent()                // fichero-tests
-            .deletingLastPathComponent()                // fichero (package root)
-        let file = root
-            .appendingPathComponent("fichero/Views/Workflow/Editor/WorkflowEditor+Actions.swift")
-        return try String(contentsOf: file, encoding: .utf8)
+        // Shared landmark-walk resolver — never hop-count arithmetic (#4493 class).
+        return try AppSource.text("Views/Workflow/Editor/WorkflowEditor+Actions.swift")
     }
 
     /// Fails on pre-fix source: `runWorkflow()` had no gate call at all.
