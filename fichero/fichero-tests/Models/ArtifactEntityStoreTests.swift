@@ -41,6 +41,92 @@ final class ArtifactEntityStoreTests: XCTestCase {
         XCTAssertEqual(bundle.people, [])
     }
 
+    // MARK: - Failed reads are a third state, not an empty bundle (#4507)
+
+    private struct TestTransportError: Error {}
+
+    /// Offline store: the client points at a path no engine serves, and these
+    /// tests drive the state machine through `apply(fetchOutcome:)` — the seam
+    /// the #4507 fix introduced precisely because the old `try?`-swallowing
+    /// path was unreachable by any test.
+    private func makeStore() -> ArtifactEntityStore {
+        ArtifactEntityStore(
+            artifactService: ArtifactService(
+                ficheroClient: FicheroClient(libraryPath: "/tmp/test-entity-store.fichero")
+            )
+        )
+    }
+
+    func testFailedReadDoesNotCacheAnEmptyBundle() {
+        let store = makeStore()
+
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "d1")
+
+        // The defect: a failed read wrote ArtifactEntityBundle() here, so
+        // "couldn't load" rendered as the measured-zero "—" for the session.
+        XCTAssertNil(store.bundle(for: "d1"), "a failed read must not claim a measured zero")
+        XCTAssertTrue(store.loadFailed(for: "d1"))
+    }
+
+    func testMeasuredZeroAndFailedReadStayDistinguishable() {
+        let store = makeStore()
+
+        store.apply(fetchOutcome: .success([]), for: "measured")
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "failed")
+
+        XCTAssertEqual(store.bundle(for: "measured")?.isEmpty, true)
+        XCTAssertFalse(store.loadFailed(for: "measured"))
+        XCTAssertNil(store.bundle(for: "failed"))
+        XCTAssertTrue(store.loadFailed(for: "failed"))
+    }
+
+    func testEnsureLoadedDoesNotRetryAFailedIdOnItsOwn() {
+        // No retry storm: a scroll past a failed row must not re-dial a downed
+        // engine. Only invalidate/retryFailedLoads clear the mark.
+        let store = makeStore()
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "d1")
+
+        store.ensureLoaded("d1")
+
+        XCTAssertTrue(store.loadFailed(for: "d1"))
+        XCTAssertNil(store.bundle(for: "d1"))
+    }
+
+    func testInvalidateClearsTheFailedMarkSoTheRetryDecides() {
+        let store = makeStore()
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "d1")
+
+        store.invalidate(["d1"])
+
+        // Synchronous half of the contract: the stale failure no longer
+        // decides the rendered state; the refetch's own outcome will.
+        XCTAssertFalse(store.loadFailed(for: "d1"))
+    }
+
+    func testSuccessAfterFailureReplacesTheFailedState() {
+        let store = makeStore()
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "d1")
+
+        store.apply(
+            fetchOutcome: .success([artifact("people", data: ["items": AnyCodable([["name": "Alice"]])])]),
+            for: "d1"
+        )
+
+        XCTAssertEqual(store.bundle(for: "d1")?.people, ["Alice"])
+        XCTAssertFalse(store.loadFailed(for: "d1"))
+    }
+
+    func testRetryFailedLoadsClearsEveryFailureOnEngineReady() {
+        let store = makeStore()
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "d1")
+        store.apply(fetchOutcome: .failure(TestTransportError()), for: "d2")
+
+        store.retryFailedLoads()
+
+        XCTAssertFalse(store.loadFailed(for: "d1"))
+        XCTAssertFalse(store.loadFailed(for: "d2"))
+    }
+
     func testNamesForEntityTypeMatchesTheParsedField() {
         let bundle = ArtifactEntityStore.parse([
             artifact("people", data: ["items": AnyCodable([["name": "Alice"]])]),

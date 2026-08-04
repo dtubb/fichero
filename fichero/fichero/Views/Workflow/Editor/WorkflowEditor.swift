@@ -34,6 +34,15 @@ struct WorkflowEditor: View {
     @State var showDocumentPicker: Bool = false
     @State var showModelComparison: Bool = false
 
+    /// A resolved run scope that would WIDEN beyond the user's selection,
+    /// parked here until they confirm or cancel (#4396 ask #3 / #4523).
+    /// `WorkflowRunScope` has carried `widensBeyondSelection` since the #4396
+    /// fix precisely so callers could ask first — but nothing ever consulted
+    /// it, so a run with nothing selected silently expanded to the whole
+    /// folder, billing per page across documents the user never chose. The
+    /// run this holds is dispatched ONLY via `confirmPendingWideningRun()`.
+    @State var pendingWideningScope: WorkflowRunScope.Resolution?
+
     // Undo support for toolbar-level workflow mutations (Tidy, #4323).
     @State private var editorUndoProxy = WorkflowUndoProxy()
     @Environment(\.undoManager) private var undoManager
@@ -180,6 +189,33 @@ struct WorkflowEditor: View {
         .sheet(isPresented: $showModelComparison) {
             ModelComparisonView()
                 .environment(executionObserver)
+        }
+        // The scope gate (#4396 ask #3 / #4523): a run that would reach beyond
+        // the selection states its scope and waits for consent. Dismissing any
+        // other way (esc, click-outside) cancels — the widened run never
+        // starts by default.
+        .confirmationDialog(
+            "Run “\(editingWorkflow.name)” on \(pendingWideningScope?.describedScope ?? "this folder")?",
+            isPresented: Binding(
+                get: { pendingWideningScope != nil },
+                set: { if !$0 { pendingWideningScope = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Run on Everything in This Folder", role: .destructive) {
+                confirmPendingWideningRun()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingWideningScope = nil
+            }
+        } message: {
+            Text(
+                """
+                Nothing is selected, so this will run on every document in the \
+                current folder — not a selection. Steps that use vision or \
+                language models can bill for each page they process.
+                """
+            )
         }
         // Debounced autosave on any editingWorkflow change (#780). Without
         // this, model/provider selections in the node inspector live

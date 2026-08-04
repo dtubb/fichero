@@ -64,6 +64,21 @@ final class ArtifactEntityStore {
     /// no-op, so seven views for one document trigger exactly one request.
     private var inFlight: Set<String> = []
 
+    /// Documents whose last read FAILED (#4507) — the third state beside
+    /// `bundles`: `nil` = not loaded, present bundle = loaded (possibly
+    /// empty), membership here = "could not read". It used to be collapsed
+    /// into "loaded empty": a transport failure wrote an empty bundle, so
+    /// "couldn't load" rendered as "has none" — a wrong answer presented as a
+    /// fact — and, because `ensureLoaded` gates on the bundle being nil, it
+    /// was never retried for the rest of the session.
+    ///
+    /// Membership still stops `ensureLoaded` from re-entering (no retry storm
+    /// against a downed engine — the layout the old empty-bundle hack was
+    /// protecting stays stable). Recovery paths: `invalidate(_:)` (workflow
+    /// completion / manual refresh) and `retryFailedLoads()` (engine became
+    /// ready again).
+    private(set) var failedDocumentIds: Set<String> = []
+
     /// Workflow executions whose completion we've already reconciled, so the N
     /// views that each observe `workflowCompletedCount` don't re-invalidate the
     /// same run N times.
@@ -99,12 +114,21 @@ final class ArtifactEntityStore {
         bundles[documentId]
     }
 
+    /// True when the last read for `documentId` failed (#4507). Views render
+    /// this distinctly from "loaded, nothing found" — a failed read is not a
+    /// measurement of zero.
+    func loadFailed(for documentId: String) -> Bool {
+        failedDocumentIds.contains(documentId)
+    }
+
     // MARK: - Loading (the store, not the view, owns fetching)
 
     /// Load `documentId` once. No-op if already loaded or a fetch is in flight —
     /// this is what collapses the per-row + per-cell N+1 into a single request.
     func ensureLoaded(_ documentId: String) {
-        guard bundles[documentId] == nil, !inFlight.contains(documentId) else { return }
+        guard bundles[documentId] == nil,
+              !failedDocumentIds.contains(documentId),   // failed ≠ unloaded (#4507)
+              !inFlight.contains(documentId) else { return }
         inFlight.insert(documentId)
         Task { await fetch(documentId, forceRefresh: false) }
     }
@@ -122,10 +146,23 @@ final class ArtifactEntityStore {
     func invalidate(_ documentIds: Set<String>) {
         let ids = documentIds.filter { !inFlight.contains($0) }
         guard !ids.isEmpty else { return }
+        // A refetch is a fresh answer either way — clear the failed mark so
+        // its outcome, not the stale failure, decides the rendered state (#4507).
+        failedDocumentIds.subtract(ids)
         for id in ids { inFlight.insert(id) }
         Task {
             for id in ids { await fetch(id, forceRefresh: true) }
         }
+    }
+
+    /// Re-fetch every document whose last read failed (#4507). Called when the
+    /// engine transitions to ready: reads that failed while it was down or
+    /// starting are the exact population worth one retry. Idempotent — the
+    /// first caller moves the ids into `inFlight`; concurrent callers see an
+    /// empty failed set.
+    func retryFailedLoads() {
+        guard !failedDocumentIds.isEmpty else { return }
+        invalidate(failedDocumentIds)
     }
 
     /// Invalidate only the documents that newly-completed workflow runs touched.
@@ -146,7 +183,11 @@ final class ArtifactEntityStore {
             }
         }
 
-        let held = affected.filter { bundles[$0] != nil }
+        // Failed reads count as held (#4507): a run that touched a document
+        // whose earlier read failed is fresh evidence worth a refetch — the
+        // demo-shaped case is a read that failed while the engine was busy
+        // RUNNING the workflow whose completion lands here.
+        let held = affected.filter { bundles[$0] != nil || failedDocumentIds.contains($0) }
         guard !held.isEmpty else { return }
         log.debug("Reconciling \(held.count, privacy: .public) affected docs after workflow completion")
         invalidate(held)
@@ -162,21 +203,42 @@ final class ArtifactEntityStore {
         // Strict per-document scope ("{id}|own") — per-row counts must NOT include
         // page-child descendants, matching the prior view behaviour + V2 convention.
         let cacheKey = "\(documentId)|own"
-        let artifacts: [Artifact]
         if !forceRefresh, let cached = artifactService.artifactsByDocument[cacheKey] {
-            artifacts = cached
-        } else if let fetched = try? await artifactService.getArtifacts(
-            forDocumentId: documentId,
-            forceRefresh: forceRefresh,
-            includeDescendants: false
-        ) {
-            artifacts = fetched
-        } else {
-            // Mark loaded-but-empty so the view stops reserving space and shows "—".
-            bundles[documentId] = ArtifactEntityBundle()
+            apply(fetchOutcome: .success(cached), for: documentId)
             return
         }
-        bundles[documentId] = Self.parse(artifacts)
+        do {
+            let fetched = try await artifactService.getArtifacts(
+                forDocumentId: documentId,
+                forceRefresh: forceRefresh,
+                includeDescendants: false
+            )
+            apply(fetchOutcome: .success(fetched), for: documentId)
+        } catch {
+            log.warning(
+                "Artifact read failed for \(documentId, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            apply(fetchOutcome: .failure(error), for: documentId)
+        }
+    }
+
+    /// Reduce one fetch outcome into the three-state cache (#4507). Internal
+    /// (not private) so the failure transition is unit-testable without a
+    /// network: the defect this replaces — `try?` writing an EMPTY bundle on
+    /// failure — survived precisely because no test could reach it.
+    func apply(fetchOutcome: Result<[Artifact], any Error>, for documentId: String) {
+        switch fetchOutcome {
+        case .success(let artifacts):
+            failedDocumentIds.remove(documentId)
+            bundles[documentId] = Self.parse(artifacts)
+        case .failure:
+            // NEVER write a bundle here. An empty bundle means "measured, zero
+            // entities"; this branch means "could not measure". Collapsing the
+            // two was #4507: 'couldn't load' rendered as 'has none' for the
+            // rest of the session. The failed mark keeps the row's layout
+            // settled (the old hack's actual goal) without asserting a zero.
+            failedDocumentIds.insert(documentId)
+        }
     }
 
     // MARK: - Parsing (moved out of the views)

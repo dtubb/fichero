@@ -25,6 +25,11 @@ struct ArtifactEntitiesView: View {
 
     @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    /// Optional on purpose (#4513's lesson): this view mounts in library
+    /// rows/cells; if it is ever hosted in a scene that doesn't inject
+    /// AppState, a non-optional read is a fatal error. Missing AppState only
+    /// costs the automatic engine-ready retry, never a crash.
+    @Environment(AppState.self) private var appState: AppState?
 
     /// Shared document-keyed store (#3861) — the single endpoint accessor. Every
     /// row/cell for the same document observes ONE fetch instead of firing its
@@ -43,6 +48,12 @@ struct ArtifactEntitiesView: View {
                     }
                 } else {
                     content(bundle)
+                }
+            } else if store.loadFailed(for: documentId) {
+                // "Couldn't load" is NOT "has none" (#4507): the dash above is
+                // a measured zero; this is a failed read, offered for retry.
+                ArtifactEntityRetryButton(compact: style == .singleLine) {
+                    store.invalidate([documentId])
                 }
             } else {
                 // Reserve space silently while the first fetch is in flight.
@@ -63,6 +74,11 @@ struct ArtifactEntitiesView: View {
         // idempotent across the many rows that each observe this counter.
         .onChange(of: executionObserver.workflowCompletedCount) {
             store.reconcileCompletions(executionObserver)
+        }
+        // Reads that failed while the engine was down/starting retry once when
+        // it comes ready (#4507). Idempotent across the N rows observing this.
+        .onChange(of: appState?.isBackendRunning ?? false) { _, running in
+            if running { store.retryFailedLoads() }
         }
     }
 
@@ -180,6 +196,8 @@ struct ArtifactEntityCell: View {
 
     @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
+    /// Optional for the same #4513 reason as `ArtifactEntitiesView`'s.
+    @Environment(AppState.self) private var appState: AppState?
 
     /// Shared document-keyed store (#3861): the six per-type cells of one row now
     /// share ONE fetch with each other and with the row's `ArtifactEntitiesView`.
@@ -199,6 +217,13 @@ struct ArtifactEntityCell: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            } else if store.loadFailed(for: documentId) {
+                // Failed read ≠ measured zero (#4507): the "—" above claims
+                // this document has none of this entity type; a failed read
+                // must not make that claim. Offer the retry instead.
+                ArtifactEntityRetryButton(compact: true) {
+                    store.invalidate([documentId])
                 }
             } else {
                 // Reserve ~2 lozenge rows while the first fetch is in
@@ -220,6 +245,38 @@ struct ArtifactEntityCell: View {
         .onChange(of: executionObserver.workflowCompletedCount) {
             store.reconcileCompletions(executionObserver)
         }
+        // A table can show per-type cells without the entities row, so the
+        // cell carries its own engine-ready retry hook too (#4507). The store
+        // call is idempotent across however many cells observe it.
+        .onChange(of: appState?.isBackendRunning ?? false) { _, running in
+            if running { store.retryFailedLoads() }
+        }
+    }
+}
+
+// MARK: - Failed-read retry (#4507)
+
+/// The rendered face of `ArtifactEntityStore`'s failed state: a small retry
+/// affordance instead of the "—" that would claim a measured zero. One view
+/// for the row and every per-type cell so the two surfaces cannot drift.
+struct ArtifactEntityRetryButton: View {
+    /// Compact = table cell / singleLine row (glyph only); full adds words.
+    let compact: Bool
+    let retry: () -> Void
+
+    var body: some View {
+        Button(action: retry) {
+            if compact {
+                Image(systemName: "arrow.clockwise")
+            } else {
+                Label("Couldn't load entities — retry", systemImage: "arrow.clockwise")
+            }
+        }
+        .buttonStyle(.borderless)
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .help("Couldn't load entities. Click to retry.")
+        .accessibilityLabel("Retry loading entities")
     }
 }
 
