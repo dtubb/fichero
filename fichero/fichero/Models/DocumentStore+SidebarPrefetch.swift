@@ -7,14 +7,18 @@ extension DocumentStore {
     /// Populate the sidebar child cache without changing the current grid
     /// selection, then eagerly prefetch ONE level deeper (#3355).
     ///
-    /// The backend does not send `child_count` on `getRoots`/`getChildren`, so a
-    /// folder whose children haven't been fetched decodes `childCount == 0` and
-    /// looks childless — its disclosure triangle is missing until it's clicked
-    /// (today the children only load as a side-effect of SELECTING the folder).
-    /// Caching each child container's children gives it a non-nil `children`
-    /// array in the rebuilt sidebar tree, so "a folder of folders" shows the
-    /// right chevrons before the user expands anything. One level only — the
-    /// grandchildren's own children wait for the next expand / option-click.
+    /// This premise was WRONG and is corrected here (#4515): the backend DOES
+    /// send `child_count` on `/roots` and `/children` (`_with_child_counts`),
+    /// and it is a typed schema field. The client threw it away in
+    /// `convertToDocument`, so every folder decoded `childCount == 0` and
+    /// looked childless — the missing disclosure triangle this prefetch was
+    /// built to paper over. `SidebarItem.isExpandable` now answers from the
+    /// count.
+    ///
+    /// What remains here is the CHILDREN themselves, not the chevron: caching
+    /// one level down means an expand renders from cache instead of a
+    /// round-trip. Whether that is still worth a fetch per root on window open
+    /// is a separate question from the one it was filed to answer.
     func loadSidebarChildren(of document: Document) async {
         let children = await cacheSidebarChildren(of: document)
         await prefetchChildContainerChildren(of: children)

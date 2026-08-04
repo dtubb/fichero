@@ -218,6 +218,14 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     /// Target node id when `nodeKind == "alias"` — stable across target
     /// renames/moves; a deleted target makes the alias dangling.
     var aliasTargetId: String?
+    /// Prototype-scoped node attributes written by the engine — `read_only`,
+    /// `scope`, `system`, and the saved-search/workflow mirror payloads
+    /// (`db/__init__.py`). This is where the engine states that a node is
+    /// system-owned, so it is the honest answer to "may the user edit this?"
+    /// — see `isReadOnly`. Every mutating route enforces the same flag
+    /// server-side (`_reject_if_document_read_only`), so the client reads it
+    /// to render the truth, never to invent a rule of its own.
+    var attributes: [String: AnyCodable]
     var createdAt: Date
     var updatedAt: Date
     // Computed fields from backend (ignored on encode)
@@ -248,6 +256,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case prototypeKey = "prototype_key"
         case nodeKind = "node_kind"
         case aliasTargetId = "alias_target_id"
+        case attributes
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case expectedThumbnailPath = "expected_thumbnail_path"
@@ -278,6 +287,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         prototypeKey: String? = nil,
         nodeKind: String? = nil,
         aliasTargetId: String? = nil,
+        attributes: [String: AnyCodable] = [:],
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         expectedThumbnailPath: String? = nil,
@@ -306,6 +316,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.prototypeKey = prototypeKey
         self.nodeKind = nodeKind
         self.aliasTargetId = aliasTargetId
+        self.attributes = attributes
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.expectedThumbnailPath = expectedThumbnailPath
@@ -340,6 +351,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.prototypeKey = try container.decodeIfPresent(String.self, forKey: .prototypeKey)
         self.nodeKind = try container.decodeIfPresent(String.self, forKey: .nodeKind)
         self.aliasTargetId = try container.decodeIfPresent(String.self, forKey: .aliasTargetId)
+        self.attributes = try container.decodeIfPresent([String: AnyCodable].self, forKey: .attributes) ?? [:]
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         self.expectedThumbnailPath = try container.decodeIfPresent(String.self, forKey: .expectedThumbnailPath)
@@ -475,6 +487,43 @@ extension Document {
     /// `workflows` table stays source of truth). A mirror is a plain `.file`
     /// doc with NO `fileType` — see `SidebarItemBuilder.isSidebarVisible`.
     var isWorkflowNode: Bool { prototypeKey == "workflow" }
+
+    /// The engine's own answer to "may the user edit this node?", read from
+    /// `attributes.read_only` — the same flag every mutating route enforces
+    /// with a 403. It arrives WITH the row, so a surface can render the lock
+    /// on first paint instead of inferring it from ancestry once the children
+    /// cache has filled (#4514's flicker).
+    var isReadOnly: Bool { attributes["read_only"]?.value as? Bool == true }
+
+    /// System-owned row: the ONE predicate the sidebar row and both library
+    /// view modes read to decide "purple, locked, and refuses drops" (#4514).
+    /// Two surfaces asking the same question two ways is how the library grid
+    /// ended up with no read-only concept at all.
+    var isLockedSystemNode: Bool { isReadOnly || isWorkflowNode }
+
+    /// A folder the user may drop items INTO. A read-only system folder is
+    /// not one: the engine 403s the move, so lighting the cell and then
+    /// showing a failure banner is the surface asserting a capability it does
+    /// not have (#4514).
+    var acceptsItemDrops: Bool { docType == .folder && !isReadOnly }
+
+    /// The single icon ladder for a document node, read by the sidebar row and
+    /// by every library view mode (#4516). One SF Symbol per node, chosen in
+    /// one place: a workflow mirror that reads as a workflow in the sidebar
+    /// and as a blank thumbnail well in the grid is two answers to one
+    /// question.
+    ///
+    /// `treatAsLockedFolder` is the sidebar tree builder's ancestry answer for
+    /// a legacy preset folder RE-HOMED under the container without a
+    /// backfilled `read_only` (#4200); everything else needs no argument.
+    func displaySymbol(treatAsLockedFolder: Bool = false) -> String {
+        if docType == .folder, treatAsLockedFolder || isReadOnly {
+            return "folder.badge.gearshape"
+        }
+        if isWorkspace { return "square.grid.2x2" }
+        if isWorkflowNode { return ItemCategory.workflow.icon }
+        return fileType?.icon ?? docType.icon
+    }
 }
 
 // MARK: - Default Workflows
