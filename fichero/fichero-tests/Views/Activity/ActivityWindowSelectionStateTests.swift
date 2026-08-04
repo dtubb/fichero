@@ -67,7 +67,16 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             ".keyboardShortcut(\"a\", modifiers: [.option, .command])"
         ))
-        XCTAssertTrue(appSource.contains(".commandsRemoved()"))
+        // Windows-menu hygiene: every auxiliary `Window` scene whose entry
+        // point lives elsewhere suppresses its AUTOMATIC menu item — Activity
+        // Detail (opened from the monitor's selection), About and Feature
+        // Tier Legend (both App-menu buttons; a second "About Fichero" showed
+        // up in the Windows menu, live-repro 2026-08-04). Three scenes,
+        // three suppressions; only "Activity" keeps its automatic entry.
+        XCTAssertEqual(
+            appSource.components(separatedBy: ".commandsRemoved()").count - 1, 3,
+            "each auxiliary Window scene suppresses its automatic Windows-menu item"
+        )
         // `Window`, not `WindowGroup` — see testActivityScenesAreSingletonWindowsNotGroups.
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"
