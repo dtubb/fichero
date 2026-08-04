@@ -36,25 +36,39 @@ final class SidebarDropProviderDeliveryTests: XCTestCase {
 
     // MARK: - Capability snapshot, from real providers
 
-    /// A sidebar row's provider vends a string and no file URL. If this ever
-    /// stops being true the pre-check stops attempting the read, and every
-    /// in-app move silently becomes an import.
+    /// A sidebar row's provider vends a string — and, PLATFORM TRUTH, also
+    /// answers `canLoadObject(ofClass: URL.self) == true`, because NSString
+    /// registers `public.url` alongside `public.utf8-plain-text`. The
+    /// capability booleans therefore cannot decide the route; what matters is
+    /// that the plain-text REGISTRATION marks the drag as possibly-internal so
+    /// the read is attempted.
     func testAStringProviderReportsStringCapabilityAndNoURL() {
         let capabilities = sidebarDropCapabilities(of: [stringProvider("doc:a")])
         XCTAssertEqual(capabilities.count, 1)
         XCTAssertTrue(capabilities[0].canLoadString)
-        XCTAssertFalse(capabilities[0].canLoadURL)
+        XCTAssertTrue(
+            capabilities[0].canLoadURL,
+            "platform truth: an NSString provider bridges to URL; if this ever flips, the doc above is stale"
+        )
+        XCTAssertTrue(capabilities[0].registeredTypeIdentifiers.contains(UTType.utf8PlainText.identifier))
         XCTAssertTrue(sidebarDropMightCarryInternalID(capabilities))
     }
 
-    /// A Finder-shaped provider vends a URL and no string, so the pre-check
-    /// declines and the folder cell lets the drop fall through to the pane
-    /// that imports.
+    /// A Finder-shaped provider vends a URL — and, PLATFORM TRUTH, ALSO
+    /// answers `canLoadString == true`, because `public.file-url` conforms to
+    /// `public.url`, which NSString claims readable (it bridges to
+    /// "file:///…"). The load-bearing assertion is therefore NOT canLoadString
+    /// but `sidebarDropMightCarryInternalID == false`: no plain-text
+    /// registration means no in-process flavour, so the drop routes to the
+    /// importer instead of being refused as an unreadable internal drag.
     func testAURLProviderReportsURLCapabilityAndNoString() {
         let capabilities = sidebarDropCapabilities(of: [urlProvider("/Users/d/Scan.pdf")])
         XCTAssertEqual(capabilities.count, 1)
         XCTAssertTrue(capabilities[0].canLoadURL)
-        XCTAssertFalse(capabilities[0].canLoadString)
+        XCTAssertTrue(
+            capabilities[0].canLoadString,
+            "platform truth: a URL provider bridges to a string; if this ever flips, the doc above is stale"
+        )
         XCTAssertFalse(sidebarDropMightCarryInternalID(capabilities))
     }
 

@@ -199,11 +199,24 @@ func classifySidebarDropPayload(
 /// drag and a Finder file drag advertise the same capabilities. Conflating the
 /// two questions is what let the routing regress silently.
 ///
-/// An internal drag always vends its id as a string. A Finder file drag does
-/// not, so this is cheap and safe to over-answer: a false positive costs one
-/// failed read, and then `classifySidebarDropPayload` sorts it out.
+/// An internal drag always REGISTERS a plain-text representation (the
+/// `.draggable` String proxy and `LibraryItemDrag` both write
+/// `public.utf8-plain-text`). A Finder file drag registers only
+/// `public.file-url` — but it must be identified by that REGISTRATION, not by
+/// `canLoadObject(ofClass: NSString.self)`: `public.file-url` conforms to
+/// `public.url`, which NSString claims readable, so EVERY file drag answers
+/// canLoadString == true and bridges its URL to a "file:///…" string. Keying
+/// this predicate on canLoadString made every pure Finder drop classify as
+/// `carriesOwnProcessFlavor`, and — because no `doc:` id could be read out of
+/// a URL string — `classifySidebarDropPayload` refused it as
+/// `.unreadableInternal` instead of importing it. Same heuristic as
+/// `dropInfoLooksLikeInAppDrag`, which already got this right.
 func sidebarDropMightCarryInternalID(_ providers: [SidebarDropProviderCapabilities]) -> Bool {
-    providers.contains(where: \.canLoadString)
+    providers.contains { provider in
+        provider.registeredTypeIdentifiers.contains { identifier in
+            UTType(identifier)?.conforms(to: .plainText) == true
+        }
+    }
 }
 
 /// Capability-shaped route. Still correct for what it answers, and still the
