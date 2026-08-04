@@ -32,8 +32,18 @@ extension UTType {
     /// list accepting these sessions. The identifier is named by BOTH the
     /// export side (SidebarDragID, LibraryItemDrag) and the read side
     /// (`readSidebarDropPayload`) — one representation, agreed on by name.
-    /// In-process only, so no Info.plist exported-type declaration is needed
-    /// for the round trip; add one if this flavor ever becomes cross-app.
+    ///
+    /// The identifier MUST be declared in the app's Info.plist under
+    /// `UTExportedTypeDeclarations` (`UTType(exportedAs:)` is documented as
+    /// creating "a type your app owns", and exported ownership is declared
+    /// there). This file's first version claimed an in-process round trip
+    /// needed no declaration — falsified live 2026-08-04: the drag pasteboard
+    /// goes through the system pasteboard server even inside one app, and an
+    /// UNDECLARED identifier arrived degraded to bare `public.data`
+    /// (empirical, not documented), so the reader classified an in-app .tif
+    /// drag as external files and re-imported it as a duplicate. The
+    /// declaration lives in `fichero/Info.plist`; keep the two identifiers in
+    /// lock-step (pinned by `FicheroDragItemDeclarationTests`).
     static let ficheroDragItem = UTType(
         exportedAs: "app.fichero.fichero.drag-item",
         conformingTo: .data
@@ -64,15 +74,31 @@ struct SidebarDropProviderCapabilities: Equatable {
         }
     }
 
+    /// This provider registers NOTHING but bare `public.data` — no named
+    /// flavor, no content type, no URL type. A genuine external drag always
+    /// says what it is (`public.folder`, `public.jpeg`, `com.adobe.pdf`, a
+    /// file-url); the one drag that arrives shaped like this is OUR OWN
+    /// `ficheroDragItem` after the pasteboard degraded its undeclared custom
+    /// identifier to its `public.data` conformance (live-repro 2026-08-04: an
+    /// in-app .tif drag classified external and was re-imported as a hollow
+    /// duplicate). Treated as possibly-internal, never as importable.
+    var isUnidentifiedBareData: Bool {
+        !registeredTypeIdentifiers.isEmpty
+            && registeredTypeIdentifiers.allSatisfy { $0 == UTType.data.identifier }
+    }
+
     /// This provider is an EXTERNAL file-system-ish payload: it registers
     /// something conforming to `public.item` or `public.url` (files, folders
     /// — `public.folder` → `public.directory` → `public.item` — content-typed
-    /// drags like `public.jpeg`/`com.adobe.pdf`, raw `public.data`) and no
-    /// internal flavor. `ExternalFileDropLoader` can obtain a real file URL
-    /// from every one of these via `loadFileRepresentation` against the
-    /// registered identifier, regardless of what `canLoadObject` claims.
+    /// drags like `public.jpeg`/`com.adobe.pdf`) and no internal flavor.
+    /// `ExternalFileDropLoader` can obtain a real file URL from every one of
+    /// these via its representation ladder against the registered identifier,
+    /// regardless of what `canLoadObject` claims. Bare `public.data` with no
+    /// other identifier is EXCLUDED: that is the degraded shape of our own
+    /// drag flavor, and materializing it is the #4401 hollow-duplicate bug's
+    /// third occurrence (2026-08-04).
     var registersExternalPayload: Bool {
-        guard !registersInternalFlavor else { return false }
+        guard !registersInternalFlavor, !isUnidentifiedBareData else { return false }
         return registeredTypeIdentifiers.contains { identifier in
             guard let type = UTType(identifier) else { return false }
             return type.conforms(to: .item) || type.conforms(to: .url)
@@ -285,7 +311,11 @@ func classifySidebarDropPayload(
 /// bridging, so it holds even if the NSString readable list changes. Same
 /// heuristic as `dropInfoLooksLikeInAppDrag`, which already got this right.
 func sidebarDropMightCarryInternalID(_ providers: [SidebarDropProviderCapabilities]) -> Bool {
-    providers.contains(where: \.registersInternalFlavor)
+    // Bare public.data counts: an undeclared custom flavor degrades to
+    // exactly that shape on the real pasteboard (2026-08-04), and its BYTES
+    // are still our envelope — so the reader must attempt the string read
+    // rather than routing it to the importer.
+    providers.contains { $0.registersInternalFlavor || $0.isUnidentifiedBareData }
 }
 
 /// Capability-shaped route. Still correct for what it answers, and still the

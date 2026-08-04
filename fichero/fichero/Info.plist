@@ -55,6 +55,16 @@
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Fichero Drag Item</string>
+			<key>UTTypeIdentifier</key>
+			<string>app.fichero.fichero.drag-item</string>
+		</dict>
+		<dict>
 			<key>LSTypeIsPackage</key>
 			<true/>
 			<key>UTTypeConformsTo</key>

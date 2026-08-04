@@ -100,7 +100,7 @@ func readSidebarDropPayload(
     let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
 
     var loadedIDs: [String] = []
-    for provider in providers {
+    for (index, provider) in providers.enumerated() {
         if provider.hasItemConformingToTypeIdentifier(UTType.ficheroDragItem.identifier) {
             if let payload = try? await sidebarDropLoadFicheroItem(from: provider) {
                 loadedIDs.append(payload)
@@ -110,6 +110,26 @@ func readSidebarDropPayload(
         }
         if provider.canLoadObject(ofClass: NSString.self),
            let string = try? await sidebarDropLoadString(from: provider) {
+            loadedIDs.append(string)
+            continue
+        }
+        // Bare public.data with no other identifier is our own drag flavor
+        // after the pasteboard degraded its (then-undeclared) custom UTI
+        // (live-repro 2026-08-04: an in-app .tif drag arrived as
+        // `[public.data] URL:false String:false` and was re-imported as a
+        // hollow duplicate). The BYTES survive the degradation, so read them
+        // as the envelope and let the classifier judge — recovering the MOVE
+        // on builds whose pasteboard still carries the degraded shape.
+        if capabilities[index].isUnidentifiedBareData,
+           let data = try? await sidebarDropLoadData(
+               from: provider, typeIdentifier: UTType.data.identifier
+           ),
+           let string = String(data: data, encoding: .utf8), !string.isEmpty {
+            DragDropLog.performed(
+                surface,
+                outcome: "bare public.data provider[\(index)] yielded "
+                    + "\(data.count) byte(s) of UTF-8 — treating as a degraded in-app envelope"
+            )
             loadedIDs.append(string)
         }
     }
@@ -140,6 +160,25 @@ func sidebarDropLoadFicheroItem(from provider: NSItemProvider) async throws -> S
                 continuation.resume(returning: string)
             } else {
                 continuation.resume(throwing: error ?? NSError(domain: "SidebarRowDrop", code: -2))
+            }
+        }
+    }
+}
+
+/// Load a provider's raw bytes for one type identifier. Used by the
+/// degraded-envelope rung above; the named-flavor rung has its own loader
+/// because it also enforces the UTF-8/non-empty envelope contract.
+@MainActor
+func sidebarDropLoadData(
+    from provider: NSItemProvider,
+    typeIdentifier: String
+) async throws -> Data {
+    try await withCheckedThrowingContinuation { continuation in
+        _ = provider.loadDataRepresentation(forTypeIdentifier: typeIdentifier) { data, error in
+            if let data {
+                continuation.resume(returning: data)
+            } else {
+                continuation.resume(throwing: error ?? NSError(domain: "SidebarRowDrop", code: -3))
             }
         }
     }
