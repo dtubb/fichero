@@ -340,6 +340,39 @@ class TestUpdateWorkflow:
         assert r.json()["name"] == "Updated Workflow"
         print_spy.assert_not_called()
 
+    def test_put_on_system_workflow_returns_403_with_typed_detail(self, client, db):
+        """Locked Default Workflows refuse in-place edits with a clear 403.
+
+        #4514: the editor auto-saved a selected read-only system preset and
+        surfaced the refusal as "Unexpected response from server". The
+        SERVER half is correct — is_system rows are read-only by design —
+        and this pins the contract the client maps to its typed message:
+        status 403 plus a detail that names the duplicate-to-edit path.
+        """
+        wf = _make_workflow(db, "Split Chapters", is_system=True)
+
+        payload = {
+            "id": wf.id,
+            "name": "Hacked Name",
+            "description": "should not land",
+            "format": "nodes",
+            "nodes": [],
+            "edges": [],
+        }
+        r = client.put(f"/api/workflows/{wf.id}", json=payload)
+
+        assert r.status_code == 403
+        assert "read-only" in r.json()["detail"]
+        assert "duplicate" in r.json()["detail"]
+        # And the row is untouched.
+        assert client.get(f"/api/workflows/{wf.id}").json()["name"] == "Split Chapters"
+
+    def test_patch_on_system_workflow_returns_403(self, client, db):
+        wf = _make_workflow(db, "Split Chapters", is_system=True)
+        r = client.patch(f"/api/workflows/{wf.id}", json={"name": "Renamed"})
+        assert r.status_code == 403
+        assert "read-only" in r.json()["detail"]
+
 
 # ---------------------------------------------------------------------------
 # DELETE /api/workflows/{workflow_id}
@@ -357,6 +390,13 @@ class TestDeleteWorkflow:
     def test_delete_missing_returns_404(self, client):
         r = client.delete("/api/workflows/no-such-id")
         assert r.status_code == 404
+
+    def test_delete_on_system_workflow_returns_403(self, client, db):
+        wf = _make_workflow(db, "Split Chapters", is_system=True)
+        r = client.delete(f"/api/workflows/{wf.id}")
+        assert r.status_code == 403
+        assert "read-only" in r.json()["detail"]
+        assert client.get(f"/api/workflows/{wf.id}").status_code == 200
 
 
 # ---------------------------------------------------------------------------

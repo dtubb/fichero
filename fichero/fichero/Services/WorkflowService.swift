@@ -206,6 +206,9 @@ class WorkflowService {
         switch response {
         case .ok(let okResponse):
             return try convertToWorkflowResponse(okResponse.body.json)
+        case .undocumented(statusCode: 403, _):
+            // Locked system preset: PUT is refused by design (#4514).
+            throw WorkflowServiceError.readOnlyWorkflow
         default:
             throw WorkflowServiceError.unexpectedResponse
         }
@@ -222,6 +225,9 @@ class WorkflowService {
         case .ok:
             logger.info("deleteWorkflow: success")
             return
+        case .undocumented(statusCode: 403, _):
+            // Locked system preset: DELETE is refused by design (#4514).
+            throw WorkflowServiceError.readOnlyWorkflow
         default:
             logger.error("deleteWorkflow: unexpected response - \(String(describing: response))")
             throw WorkflowServiceError.unexpectedResponse
@@ -256,6 +262,9 @@ class WorkflowService {
         case .ok(let okResponse):
             logger.info("renameWorkflow: success")
             return try convertToWorkflowResponse(okResponse.body.json)
+        case .undocumented(statusCode: 403, _):
+            // Locked system preset: rename is refused by design (#4514).
+            throw WorkflowServiceError.readOnlyWorkflow
         default:
             logger.error("renameWorkflow: unexpected response - \(String(describing: response))")
             throw WorkflowServiceError.unexpectedResponse
@@ -284,6 +293,9 @@ class WorkflowService {
         switch response {
         case .ok(let okResponse):
             return try convertToWorkflowResponse(okResponse.body.json)
+        case .undocumented(statusCode: 403, _):
+            // Locked system preset: PATCH is refused by design (#4514).
+            throw WorkflowServiceError.readOnlyWorkflow
         default:
             throw WorkflowServiceError.unexpectedResponse
         }
@@ -902,10 +914,15 @@ extension WorkflowService {
 
 // MARK: - Errors
 
-enum WorkflowServiceError: LocalizedError {
+enum WorkflowServiceError: LocalizedError, Equatable {
     case unexpectedResponse
     case notFound(String)
     case validationError(String)
+    /// The server refused a write to a locked system preset (HTTP 403,
+    /// `_reject_if_read_only`, #4514). Typed so every save/rename/delete
+    /// surface says what happened and what to do — never "Unexpected
+    /// response from server".
+    case readOnlyWorkflow
 
     var errorDescription: String? {
         switch self {
@@ -915,6 +932,8 @@ enum WorkflowServiceError: LocalizedError {
             return message
         case .validationError(let message):
             return "Validation error: \(message)"
+        case .readOnlyWorkflow:
+            return "This is a built-in workflow and can't be edited — duplicate it to customize."
         }
     }
 }

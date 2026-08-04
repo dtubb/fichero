@@ -3,6 +3,18 @@ import SwiftUI
 
 private let workflowLogger = Logger(subsystem: "app.fichero.fichero", category: "ContentView")
 
+/// Whether the editor may persist a workflow (#4514).
+///
+/// Locked system presets (Default Workflows) are read-only by design — the
+/// server 403s every write — so no save path may even fire the request for
+/// them. Checks BOTH the editor's copy and the canonical sidebar row: a stale
+/// editor snapshot that lost the flag must not sneak a doomed PUT through.
+enum WorkflowSavePolicy {
+    static func canAutoSave(editorIsSystem: Bool, canonicalIsSystem: Bool?) -> Bool {
+        !editorIsSystem && canonicalIsSystem != true
+    }
+}
+
 extension ContentView {
 
     // MARK: - Workflow Actions
@@ -17,6 +29,22 @@ extension ContentView {
     func autoSaveWorkflow(workflowId: String, workflow: Workflow) async {
         guard !workflow.nodes.isEmpty || !workflow.name.isEmpty else {
             workflowLogger.info("Auto-save skipped: empty workflow")
+            return
+        }
+
+        // Locked system presets (Default Workflows) are read-only by design
+        // (#4514): the server 403s any PUT, so firing the request only
+        // produced "Auto-save failed: Unexpected response from server" ×N
+        // while a locked preset was merely SELECTED. The editor knows the
+        // flag — don't send the request at all. Check both the editor copy
+        // and the canonical sidebar row so a stale editor snapshot can't
+        // sneak one through.
+        let canonical = workflowStore.workflows.first(where: { $0.id == workflowId })
+        guard WorkflowSavePolicy.canAutoSave(
+            editorIsSystem: workflow.isSystem,
+            canonicalIsSystem: canonical?.isSystem
+        ) else {
+            workflowLogger.info("Auto-save skipped: '\(workflow.name)' is a read-only system workflow")
             return
         }
 
