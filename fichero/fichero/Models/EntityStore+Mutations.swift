@@ -99,15 +99,10 @@ extension EntityStore {
             absorbingEntityId: survivorId,
             absorbedEntityIds: absorbedIds
         )
-        let absorbed = Set(absorbedIds)
-        libraryEntities.removeAll { entity in
-            entity.id.map(absorbed.contains) ?? false
-        }
-        for documentId in entitiesByDocumentId.keys {
-            entitiesByDocumentId[documentId]?.removeAll { entity in
-                entity.id.map(absorbed.contains) ?? false
-            }
-        }
+        // #4489 ③: this used to prune `libraryEntities` and the per-document
+        // buckets by hand and leave `libraryClaimCounts` alone, so absorbed ids
+        // kept their claim-count entries forever.
+        removeEntitiesEverywhere(ids: Set(absorbedIds))
 
         // The survivor gains aliases and its mention/claim counts change —
         // patch it from the server's canonical post-merge state, the same
@@ -121,6 +116,23 @@ extension EntityStore {
             if let index = entitiesByDocumentId[documentId]?.firstIndex(where: { $0.id == survivorId }) {
                 entitiesByDocumentId[documentId]?[index] = survivor
             }
+        }
+
+        // The survivor's own claim count is wrong for exactly the reason the
+        // merge happened, and it is the one number this method cannot derive:
+        // absorbed counts do not simply sum, because two absorbed entities can
+        // carry the same claim. `KnowledgeEntity` has no count field, so the
+        // survivor's row above does not carry it either — the map is the only
+        // source. Re-fetch it, matching this method's stated preference for the
+        // server's canonical state over a guessed diff.
+        //
+        // Only when counts are actually held: an inspector-only session never
+        // loaded them, and must not acquire a library-wide fetch from a merge.
+        // A failure keeps the previous map rather than throwing, because the
+        // merge itself succeeded — reporting it as failed would be a lie, and
+        // blanking the map would render every survivor as zero claims.
+        if !libraryClaimCounts.isEmpty {
+            libraryClaimCounts = (try? await entityService.fetchClaimCounts()) ?? libraryClaimCounts
         }
     }
 
@@ -166,14 +178,38 @@ extension EntityStore {
         for entityId in entityIds {
             try await entityService.deleteEntity(entityId)
         }
-        let deleted = Set(entityIds)
+        removeEntitiesEverywhere(ids: Set(entityIds))
+    }
+
+    /// The single place an entity is removed from every container this store
+    /// holds (#4489 ② and ③).
+    ///
+    /// Three call sites need this — the local `delete`, the change-stream
+    /// `deleted` branch, and `merge`'s absorbed ids — and each was separately
+    /// responsible for remembering all three containers. Only `delete`
+    /// remembered: `merge` forgot `libraryClaimCounts`, and the change-stream
+    /// branch touched nothing at all, so a push delete and a local delete
+    /// disagreed about what "deleted" means.
+    ///
+    /// **The containers themselves cannot be collapsed into one.**
+    /// `libraryClaimCounts` is fetched from its own endpoint
+    /// (`entityService.fetchClaimCounts`) and no claim count exists on
+    /// `KnowledgeEntity`, so it is not derivable from `libraryEntities` the way
+    /// the deleted legacy `entities` mirror was derivable from
+    /// `entitiesByDocumentId`. What CAN be collapsed is the number of writers,
+    /// and that is what this is: a fourth caller cannot forget a container,
+    /// because there is no longer anywhere to forget it.
+    func removeEntitiesEverywhere(ids: Set<String>) {
+        guard !ids.isEmpty else { return }
         libraryEntities.removeAll { entity in
-            entity.id.map(deleted.contains) ?? false
+            entity.id.map(ids.contains) ?? false
         }
-        libraryClaimCounts = libraryClaimCounts.filter { !deleted.contains($0.key) }
+        libraryClaimCounts = libraryClaimCounts.filter { !ids.contains($0.key) }
+        // Per-bucket `removeAll` rather than rebuilding the dictionary: the
+        // store updates rows in place, it does not re-render whole lists.
         for documentId in entitiesByDocumentId.keys {
             entitiesByDocumentId[documentId]?.removeAll { entity in
-                entity.id.map(deleted.contains) ?? false
+                entity.id.map(ids.contains) ?? false
             }
         }
     }

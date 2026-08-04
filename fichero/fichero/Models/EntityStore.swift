@@ -83,6 +83,16 @@ final class EntityStore: ObservableDomainStore {
     var lastLoadedDocumentId: String?
     var lastLibraryQuery: String?
 
+    /// True once the library-wide list has loaded successfully at least once.
+    ///
+    /// The library-scope counterpart of `loadedDocumentIds`, and needed for the
+    /// same reason (#4489 ④): `reload()` must refresh the library containers if
+    /// and only if they were ever populated. It cannot infer that from the data
+    /// — `libraryEntities` is empty both before the first load and after a load
+    /// that legitimately matched nothing, and `lastLibraryQuery` is nil both
+    /// before the first load and after an unfiltered one.
+    var didLoadLibraryScope = false
+
     init(
         entityService: EntityService,
         kgCurationService: KGCurationService,
