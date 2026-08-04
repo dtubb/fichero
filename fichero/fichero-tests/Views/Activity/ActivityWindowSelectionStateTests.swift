@@ -59,8 +59,13 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         let helpersSource = try Self.appSource("Views/Activity/ActivityViewHelpers.swift")
 
         XCTAssertTrue(appSource.contains("ActivityWindowMenuButton()"))
-        XCTAssertTrue(appSource.contains("WindowGroup(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"))
-        XCTAssertTrue(appSource.contains("WindowGroup(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"))
+        // `Window`, not `WindowGroup` — see testActivityScenesAreSingletonWindowsNotGroups.
+        XCTAssertTrue(appSource.contains(
+            "Window(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"
+        ))
+        XCTAssertTrue(appSource.contains(
+            "Window(\"Activity Detail\", id: ActivityWindowSelectionState.detailWindowID)"
+        ))
         XCTAssertTrue(monitorSource.contains("opensDetailWindow: true"))
         XCTAssertTrue(monitorSource.contains("Label(library.displayName"))
         XCTAssertTrue(detailSource.contains(".environment(library.documentStore)"))
@@ -70,6 +75,42 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertFalse(monitorSource.contains("ActivityDetailView(selectedRun: selectedRun)"))
         XCTAssertTrue(helpersSource.contains("openWindow(id: ActivityWindowSelectionState.detailWindowID)"))
         XCTAssertTrue(helpersSource.contains(".onTapGesture(count: 2)"))
+    }
+
+    /// The Activity scenes are `Window`, not `WindowGroup` — singleton by
+    /// construction, not by convention.
+    ///
+    /// `WindowGroup` lets the user open unlimited copies and RESTORES every one
+    /// of them at launch (five had accumulated in a real session). It also
+    /// breaks `openWindow(id:)`, which targets a GROUP rather than an instance,
+    /// so the Activity menu item raised whichever copy AppKit happened to pick
+    /// instead of the one holding the selection — and the shared
+    /// `ActivityWindowSelectionState` singleton only makes sense against
+    /// exactly one monitor and one detail.
+    ///
+    /// Asserted both ways on purpose: the positive alone would still pass if a
+    /// second `WindowGroup` declaration for the same id were added beside it.
+    func testActivityScenesAreSingletonWindowsNotGroups() throws {
+        let appSource = try Self.appSource("FicheroApp.swift")
+
+        for id in ["ActivityWindowSelectionState.monitorWindowID",
+                   "ActivityWindowSelectionState.detailWindowID"] {
+            XCTAssertFalse(
+                appSource.contains("WindowGroup(\"Activity\", id: \(id))"),
+                "\(id) must not be a WindowGroup — the user could open unlimited copies"
+            )
+            XCTAssertFalse(
+                appSource.contains("WindowGroup(\"Activity Detail\", id: \(id))"),
+                "\(id) must not be a WindowGroup — the user could open unlimited copies"
+            )
+            // Exactly one scene claims each id; a second declaration is how a
+            // singleton quietly stops being one.
+            XCTAssertEqual(
+                appSource.components(separatedBy: "id: \(id))").count - 1,
+                1,
+                "\(id) is claimed by more than one scene"
+            )
+        }
     }
 
     func testActivityWindowDoesNotRepeatTitleOrCenterEmptyPlaceholder() throws {
