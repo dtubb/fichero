@@ -198,11 +198,12 @@ extension SidebarItemRow {
     /// and the library-header drop target already accepts `.fileURL` directly.
     /// Explicit acceptance beats relying on conformance walking here; whether
     /// `.item` alone would now suffice is only verifiable with a live drag.
-    // `.ficheroDragItem` FIRST (#4401 multi-drag): the named in-app flavor —
-    // it conforms to `.data` so the older lists would match anyway, but the
-    // accepted set must NAME the flavor the reader loads by name, or the two
-    // sides drift. `.item` keeps external files AND folders activating the
-    // row (`public.folder` conforms to `public.item`, not to `public.data`).
+    ///
+    /// `.ficheroDragItem` FIRST (#4401 multi-drag): the named in-app flavor.
+    /// It conforms to `.data` so the older lists would match anyway, but the
+    /// accepted set must NAME the flavor the reader loads by name, or the two
+    /// sides drift. `.item` keeps external files AND folders activating the
+    /// row (`public.folder` conforms to `public.item`, not to `public.data`).
     static let dropTypes: [UTType] = [.ficheroDragItem, .utf8PlainText, .item, .fileURL, .data]
 
     /// Folder row: drop target always; drag source EXCEPT for the
