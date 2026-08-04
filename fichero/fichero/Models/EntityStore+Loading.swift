@@ -23,6 +23,7 @@ extension EntityStore {
             libraryEntities = try await loadedEntities
             libraryClaimCounts = (try? await loadedCounts) ?? [:]
             lastLibraryQuery = searchQuery
+            didLoadLibraryScope = true
         } catch {
             if error.isCancellationError {
                 // Superseded by a newer search/load.
@@ -122,13 +123,29 @@ extension EntityStore {
         }
     }
 
-    /// Re-fetch the current document scope (post-mutation / reconnect resync).
+    /// Re-fetch every scope this store currently holds — document buckets and,
+    /// if it was ever loaded, the library-wide ontology list (post-mutation /
+    /// reconnect resync).
+    ///
+    /// #4489 ④: this iterated document scopes only, so `libraryEntities` and
+    /// `libraryClaimCounts` were never refreshed. That made the change stream's
+    /// `scheduleReload()` — the recovery path for every `updated`, `merged` and
+    /// `created` push event — leave the ontology browser stale, and it made
+    /// "reload to recover" untrue for two of the three containers.
     func reload() async {
         let documentIds = loadedDocumentIds.isEmpty
             ? (lastLoadedDocumentId.map { [$0] } ?? [])
             : Array(loadedDocumentIds)
         for documentId in documentIds {
             await loadEntities(forDocument: documentId, force: true)
+        }
+
+        // Only refresh a library scope that exists. An inspector-only session
+        // has never listed the library, and a resync must not invent a
+        // library-wide query it was never asked for. `lastLibraryQuery` is
+        // replayed so a filtered browser reloads its own filter, not everything.
+        if didLoadLibraryScope {
+            await loadEntities(query: lastLibraryQuery, force: true)
         }
     }
 
