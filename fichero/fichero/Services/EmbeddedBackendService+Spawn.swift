@@ -249,9 +249,9 @@ extension EmbeddedBackendService {
     }
 
     private func openEngineLogHandle() throws -> FileHandle {
-        let logURL = FileManager.default
-            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs/Fichero/engine.log")
+        // One owner for the path (`+Readiness.swift`): the writer and the
+        // readers had resolved it independently, in two files.
+        let logURL = Self.engineLogURL
         try? FileManager.default.createDirectory(
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true

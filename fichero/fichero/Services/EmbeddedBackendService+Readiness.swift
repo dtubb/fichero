@@ -171,8 +171,15 @@ extension EmbeddedBackendService {
     /// screenshot.
     static func neverBoundDiagnosis() -> String {
         let minutes = Int(spawnedEngineInsanityCap / 60)
+        // NAME the log, resolved. Under the App Sandbox this is NOT
+        // ~/Library/Logs/Fichero/engine.log — `.libraryDirectory` resolves into
+        // the app's container, so the live log sits somewhere no one would
+        // think to look. Two people spent this evening reading a stale file in
+        // the real home and concluding the engine writes nothing, while it was
+        // writing 52 KB into the container. "It's in the engine log" is only a
+        // remedy if the reader can find the engine log.
         let base = "The engine Fichero launched is still running, but nothing answered on its socket "
-            + "for \(minutes) minutes. Why it never bound is in the engine log; its last lines follow."
+            + "for \(minutes) minutes. Why it never bound is in \(engineLogURL.path); its last lines follow."
         return "\(base)\n\n\(tailEngineLog(lines: 20))"
     }
 
@@ -269,6 +276,21 @@ extension EmbeddedBackendService {
         return result
     }
 
+    /// Where the spawned engine's stdout AND stderr land. ONE owner: the spawn
+    /// opens this file (`+Spawn.swift`) and the diagnostics read it, and the two
+    /// had built the same path independently in two files.
+    ///
+    /// `.libraryDirectory` is CONTAINER-relative under the App Sandbox, so this
+    /// resolves to `<container>/Data/Library/Logs/Fichero/engine.log`, not the
+    /// real `~/Library/Logs/…`. That is correct — it is where the sandboxed
+    /// child can actually write — but it is not where a human looks, which is
+    /// why every message that mentions this file prints the resolved path.
+    static var engineLogURL: URL {
+        FileManager.default
+            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/Fichero/engine.log")
+    }
+
     /// Last `lines` lines of the engine log, for surfacing a real cause when
     /// the engine dies (#2863).
     ///
@@ -285,9 +307,7 @@ extension EmbeddedBackendService {
     /// While this sat inside the macOS block the iOS build failed with
     /// "Cannot find 'tailEngineLog' in scope", and the green macOS build hid it.
     static func tailEngineLog(lines: Int) -> String {
-        let logURL = FileManager.default
-            .urls(for: .libraryDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Logs/Fichero/engine.log")
+        let logURL = engineLogURL
         let contents: String
         do {
             contents = try String(contentsOf: logURL, encoding: .utf8)

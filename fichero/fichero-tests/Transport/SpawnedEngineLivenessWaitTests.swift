@@ -121,7 +121,7 @@ struct SpawnedEngineLivenessWaitTests {
     func capDiagnosisPointsAtTheLog() {
         let text = EmbeddedBackendService.neverBoundDiagnosis()
         #expect(text.contains("nothing answered on its socket"))
-        #expect(text.lowercased().contains("engine log"))
+        #expect(text.contains("its last lines follow"))
     }
 
     /// An unreadable log and an empty log are different facts, and both are
@@ -130,6 +130,37 @@ struct SpawnedEngineLivenessWaitTests {
     @Test("the log tail always says something")
     func logTailAlwaysExplainsItself() {
         #expect(!EmbeddedBackendService.tailEngineLog(lines: 20).isEmpty)
+    }
+
+    /// "It's in the engine log" is only a remedy if the reader can find the
+    /// engine log. Under the App Sandbox `.libraryDirectory` resolves into the
+    /// CONTAINER, so the live log is not at ~/Library/Logs/Fichero/engine.log —
+    /// two people spent an evening reading a stale file in the real home and
+    /// concluding the engine wrote nothing, while it was writing into the
+    /// container. The message must print the resolved path.
+    @Test("the cap diagnosis names the log by its resolved path")
+    func capDiagnosisNamesTheResolvedLogPath() {
+        let diagnosis = EmbeddedBackendService.neverBoundDiagnosis()
+        #expect(diagnosis.contains(EmbeddedBackendService.engineLogURL.path))
+        // The path must be the FULL resolved one, not a pretty ~ abbreviation:
+        // under the sandbox the container segment is the whole point.
+        #expect(!diagnosis.contains("~/Library/Logs"))
+    }
+
+    /// The writer and the readers must resolve the SAME file. They had built the
+    /// path independently in two files, which is one edit away from the app
+    /// tailing a log nothing writes to.
+    @Test("the spawn writes the log the diagnostics read")
+    func spawnAndDiagnosticsAgreeOnTheLogPath() throws {
+        let spawn = try Self.appSource("Services/EmbeddedBackendService+Spawn.swift")
+        #expect(
+            spawn.contains("Self.engineLogURL"),
+            "the spawn must open the shared path, not re-derive its own"
+        )
+        #expect(
+            !spawn.contains("Logs/Fichero/engine.log"),
+            "a second literal path in the writer is how the writer and reader drift apart"
+        )
     }
 
     /// Death still outranks every one of the new verdicts.
