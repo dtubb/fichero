@@ -30,6 +30,26 @@ bash fichero-server/scripts/start_backend.sh   # server (serves HTTPS; app pins 
 swiftlint lint fichero/fichero/
 ```
 
+**The run target is `Fichero (Dev Embedded)`** (Daniel, 2026-08-04). Run the app
+under that scheme when handing a build back for testing.
+
+It is NOT a Debug build: its build configuration is `Dev Embedded`, which does
+not define `DEBUG`, so `EngineConfig.engineProvisioningStrategy()` resolves to
+`.releaseEmbedded` — **the app spawns and owns the bundled engine**. That has one
+operational consequence worth stating plainly:
+
+> **Stop any hand-started engine before running Dev Embedded.** The spawn sets
+> `FICHERO_UDS_PATH` to `EngineConfig.udsSocketPath`
+> (`EmbeddedBackendService+Spawn.swift:221`) — the same socket a
+> `start_backend.sh` engine binds. Two engines, one socket path.
+
+Contrast `Fichero (Dev Local)`, whose configuration IS `Debug` and therefore
+resolves to `.debugExternal`: it never spawns, and *requires* a developer-run
+engine to adopt (the engine is deliberately not bundled in Debug, #3042). Under
+Dev Local a hand-started engine is mandatory; under Dev Embedded it is a
+conflict. Swift optimization is `-Onone` in both, so neither is the "faster"
+build — they differ in who owns the engine, not in speed.
+
 **Which tests the gates actually run — and what they deliberately skip.** Every
 gate (`verify_python.sh`, `verify_all.sh --standard`, `build-and-validate.sh`)
 covers `fichero-server/tests/unit/` plus, in `verify_all`, `tests/contracts/`.

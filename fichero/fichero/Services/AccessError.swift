@@ -150,6 +150,55 @@ enum AccessError: LocalizedError, Equatable {
     }
 }
 
+// MARK: - Denials that arrive as a line stream
+
+extension AccessError {
+    /// Read a denial body that came back as a LINE STREAM and return the
+    /// engine's own sentence (#4532).
+    ///
+    /// `FicheroClient.streamLines` hands the body back as `lines` whatever the
+    /// status, so an SSE consumer that sees a 403 already HAS the server's
+    /// explanation — the two stream services simply dropped it on the floor and
+    /// logged a hardcoded guess ("no role on library") instead. That guess sent
+    /// half an hour of diagnosis down the multi-user path for a denial that was
+    /// actually "Library path is not in an allowed location".
+    ///
+    /// Returns `nil` when the body carries nothing usable, so the caller can say
+    /// "the engine refused and gave no reason" — which is still the truth, and
+    /// still better than inventing one.
+    ///
+    /// ponytail: drains at most `maxLines`. A denial body is a single short JSON
+    /// object; the cap is there so a mis-wired call on a 200 (an endless SSE
+    /// stream) can't hang the loop forever.
+    static func denialMessage(
+        fromBodyLines lines: AsyncThrowingStream<String, any Error>,
+        maxLines: Int = 8
+    ) async -> String? {
+        var collected: [String] = []
+        var seen = 0
+        do {
+            for try await line in lines {
+                collected.append(line)
+                seen += 1
+                if seen >= maxLines { break }
+            }
+        } catch {
+            // A truncated denial body is still worth whatever arrived before the
+            // error; falling through keeps that rather than discarding it.
+        }
+
+        let joined = collected.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !joined.isEmpty else { return nil }
+
+        if let denial = DenialBody.decode(Data(joined.utf8)) {
+            return denial.message ?? denial.reason ?? denial.code
+        }
+        // Not JSON — return the raw text rather than nothing. The engine said
+        // something; the user is better served by it than by silence.
+        return joined
+    }
+}
+
 /// Permissive decoder for the engine's structured denial body. The engine emits
 /// a top-level machine `code` (e.g. `"stale_bootstrap_token"`, auth.py) alongside
 /// a `detail` that is either a plain string or a nested object — so we accept

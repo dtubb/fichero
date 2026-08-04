@@ -28,9 +28,15 @@ final class ActivityStreamService {
     /// (#2479). Cleared on `stop()` and on any successful (re)connect.
     private(set) var accessDenied = false
 
+    /// The engine's OWN explanation for the 403, when it sent one (#4532).
+    /// `nil` means it refused without a usable body. Never a guess: this is
+    /// rendered to the user, and the previous hardcoded "no role on library"
+    /// was wrong for the denial that actually occurs most often.
+    private(set) var accessDeniedMessage: String?
+
     /// Distinguishes an authorization failure (terminal — don't retry) from a
     /// transient drop (retry with backoff).
-    private enum StreamError: Error { case accessDenied }
+    private enum StreamError: Error { case accessDenied(String?) }
 
     // nonisolated: pure failure-count logic with no main-actor state. Without this it
     // inherits @MainActor from the service and every #expect() assertion calling it from
@@ -81,11 +87,13 @@ final class ActivityStreamService {
                 hasConnectedBefore = true
                 consecutiveUnavailableCycles = 0
                 backoffNanos = 1_000_000_000
-            } catch StreamError.accessDenied {
-                // 403: no role on this library. Retrying can't fix authorization —
-                // flag it, surface access-denied, and stop the loop (#2479).
+            } catch StreamError.accessDenied(let detail) {
+                // 403: terminal (#2479). The cause is the engine's to state, not
+                // ours to guess — see LibraryChangeStream for the same fix (#4532).
                 if !Task.isCancelled {
-                    log.error("activity stream denied (403) — no role on library; not retrying")
+                    let reason = detail ?? "engine gave no reason"
+                    log.error("activity stream denied (403), not retrying — \(reason, privacy: .public)")
+                    accessDeniedMessage = detail
                     accessDenied = true
                     liveUpdatesUnavailable = true
                 }
@@ -124,7 +132,8 @@ final class ActivityStreamService {
             pathComponents: ["activity", "stream"]
         )
         if status == 403 {
-            throw StreamError.accessDenied
+            // The engine's explanation is right here in `lines` (#4532).
+            throw StreamError.accessDenied(await AccessError.denialMessage(fromBodyLines: lines))
         }
         guard status == 200 else {
             throw URLError(.badServerResponse)

@@ -203,6 +203,10 @@ final class LibraryChangeStream {
     /// (#2479). Cleared on `stop()`.
     private(set) var accessDenied = false
 
+    /// The engine's OWN explanation for the 403, or `nil` if it sent none.
+    /// Never a guess — this reaches the user (#4532).
+    private(set) var accessDeniedMessage: String?
+
     /// Register a store to receive events for its `changeDomains`. Held weakly —
     /// the store's owner (`LibraryReference`) keeps it alive.
     func register(_ consumer: any ChangeEventConsumer) {
@@ -263,7 +267,7 @@ final class LibraryChangeStream {
 
     /// Distinguishes an authorization failure (terminal — don't retry) from a
     /// transient drop (retry with backoff).
-    private enum StreamError: Error { case accessDenied }
+    private enum StreamError: Error { case accessDenied(String?) }
 
     private func runLoop() async {
         var backoffNanos = Self.initialBackoffNanos
@@ -275,11 +279,15 @@ final class LibraryChangeStream {
                 hasConnectedBefore = true
                 consecutiveUnavailableCycles = 0
                 backoffNanos = Self.initialBackoffNanos  // clean end → reset backoff
-            } catch StreamError.accessDenied {
-                // 403: no role on this library. Retrying can't fix authorization —
-                // flag it, surface access-denied, and stop the loop (#2479).
+            } catch StreamError.accessDenied(let detail) {
+                // 403: terminal, retrying cannot change an authorization answer
+                // (#2479). It no longer NAMES the cause: this logged "no role on
+                // library", a guess, and usually the wrong one — the denial that
+                // actually fires is the library-path allowlist (#4532).
                 if !Task.isCancelled {
-                    changeStreamLogger.error("change-stream denied (403) — no role on library; not retrying")
+                    let reason = detail ?? "engine gave no reason"
+                    changeStreamLogger.error("change-stream denied (403), not retrying — \(reason, privacy: .public)")
+                    accessDeniedMessage = detail
                     accessDenied = true
                     liveUpdatesUnavailable = true
                 }
@@ -331,7 +339,8 @@ final class LibraryChangeStream {
         let (status, lines) = try await transport.connect(request)
         if status == 403 {
             // 403: no role on this library — terminal, don't retry (#2479).
-            throw StreamError.accessDenied
+            // The engine's explanation is right here in `lines` (#4532).
+            throw StreamError.accessDenied(await AccessError.denialMessage(fromBodyLines: lines))
         }
         guard status == 200 else {
             throw URLError(.badServerResponse)
