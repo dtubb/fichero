@@ -1152,13 +1152,28 @@ def _read_api_key_uncached(provider: str) -> str | None:
 
     # Try keychain first
     try:
-        from fichero_server.security.keychain import get_api_key as _keychain_get
+        from fichero_server.security.keychain import (
+            KeychainUnreadableError,
+            get_api_key as _keychain_get,
+        )
 
         key = _keychain_get(provider)
         if key:
             return key
     except ImportError:
         pass
+    except KeychainUnreadableError as exc:
+        # #4534: the key EXISTS and we were refused. The env fallback below is
+        # still legitimate -- a key in the environment is a real key -- so we
+        # take it, but we say WHY we took it, at the point we take it. The old
+        # code could not even reach this branch: an unreadable read arrived
+        # here as None and was indistinguishable from "nothing in the
+        # keychain", so the fallback looked like the normal path.
+        logger.warning(
+            "Keychain key for %s exists but is unreadable (%s); falling back to the environment",
+            provider,
+            exc.detail or "no detail",
+        )
 
     # Fall back to environment variable
     info = get_provider_info(provider)

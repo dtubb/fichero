@@ -19,7 +19,8 @@ from fichero_server.security.keychain import (
     get_api_key,
     set_api_key,
     delete_api_key,
-    has_api_key,
+    KeychainReadState,
+    api_key_state,
     is_available as keychain_available,
 )
 from fichero_server.llm.provider_validation import (
@@ -46,7 +47,19 @@ class APIKeyDeletedResponse(BaseModel):
 
 class APIKeyStatusResponse(BaseModel):
     provider_type: str
+    #: True only when a key was actually READ. False now means "not usable",
+    #: which is two different situations -- read `key_state` to tell them
+    #: apart. Kept for compatibility, but it is no longer the whole answer:
+    #: `has_api_key: false` was a true value and a false statement, and that
+    #: is what reported Daniel's existing OpenRouter key as missing (#4534).
     has_api_key: bool
+    #: WHICH of the three states. An enum, not a bare str, so the generated
+    #: Swift client turns a vocabulary mismatch into a compile error rather
+    #: than a dead feature (the #4418 lesson).
+    key_state: KeychainReadState
+    #: Present only for `unreadable`: the engine's own explanation, for the UI
+    #: to show. Never invented -- absent when the tool gave no reason.
+    key_error: str | None = None
     is_local: bool
     keychain_available: bool
 
@@ -151,10 +164,25 @@ async def check_api_key_status(provider_type: str) -> APIKeyStatusResponse:
             status_code=404, detail=f"Provider type not found: {provider_type}"
         )
 
+    # A local provider needs no key at all, so it is FOUND by definition and
+    # never consults the keychain. Everything else reports what the read
+    # actually returned (#4534).
+    if info.is_local:
+        return APIKeyStatusResponse(
+            provider_type=provider_type,
+            has_api_key=True,
+            key_state=KeychainReadState.FOUND,
+            is_local=True,
+            keychain_available=keychain_available(),
+        )
+
+    lookup = api_key_state(provider_type)
     return APIKeyStatusResponse(
         provider_type=provider_type,
-        has_api_key=has_api_key(provider_type) if not info.is_local else True,
-        is_local=info.is_local,
+        has_api_key=lookup.is_found,
+        key_state=lookup.state,
+        key_error=lookup.detail if lookup.state is KeychainReadState.UNREADABLE else None,
+        is_local=False,
         keychain_available=keychain_available(),
     )
 

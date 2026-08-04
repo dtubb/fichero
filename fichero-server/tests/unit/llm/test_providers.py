@@ -5,6 +5,7 @@ Tests providers.py, llm.py, and the provider API routes.
 """
 
 import pytest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -451,10 +452,14 @@ class TestProviderAPIRoutes:
         assert generate_model_description(opaque) is None
 
     def test_api_key_status(self, client):
-        """Test GET /api/providers/{provider_type}/api-key/status"""
-        with patch("fichero_server.api.routes.ai.provider_keys.has_api_key") as mock_has:
+        """GET /api/providers/{provider_type}/api-key/status — key present."""
+        from fichero_server.security.keychain import KeychainLookup, KeychainReadState
+
+        # The endpoint reads `api_key_state`, not `has_api_key`: the boolean
+        # alone could not express the third state (#4534).
+        with patch("fichero_server.api.routes.ai.provider_keys.api_key_state") as mock_state:
             with patch("fichero_server.api.routes.ai.provider_keys.keychain_available") as mock_avail:
-                mock_has.return_value = True
+                mock_state.return_value = KeychainLookup(state=KeychainReadState.FOUND)
                 mock_avail.return_value = True
 
                 response = client.get("/api/providers/openai/api-key/status")
@@ -463,8 +468,62 @@ class TestProviderAPIRoutes:
                 data = response.json()
                 assert data["provider_type"] == "openai"
                 assert data["has_api_key"] is True
+                assert data["key_state"] == "found"
+                assert data["key_error"] is None
                 assert data["is_local"] is False
                 assert data["keychain_available"] is True
+
+    def test_api_key_status_absent_and_unreadable_are_different_answers(self, client):
+        """The regression this endpoint existed to report wrongly (#4534).
+
+        Both states have `has_api_key: false`, and telling a user "no key" when
+        their key exists and is merely unreadable is what cost Daniel an
+        afternoon. `key_state` is what makes them distinguishable, and
+        `key_error` carries the engine's own reason -- never an invented one.
+        """
+        from fichero_server.security.keychain import KeychainLookup, KeychainReadState
+
+        with patch("fichero_server.api.routes.ai.provider_keys.api_key_state") as mock_state:
+            with patch("fichero_server.api.routes.ai.provider_keys.keychain_available") as mock_avail:
+                mock_avail.return_value = True
+
+                mock_state.return_value = KeychainLookup(state=KeychainReadState.ABSENT)
+                absent = client.get("/api/providers/openai/api-key/status").json()
+
+                mock_state.return_value = KeychainLookup(
+                    state=KeychainReadState.UNREADABLE, detail="security exited 36"
+                )
+                unreadable = client.get("/api/providers/openai/api-key/status").json()
+
+        # Same boolean, different truth.
+        assert absent["has_api_key"] is False
+        assert unreadable["has_api_key"] is False
+        assert absent["key_state"] != unreadable["key_state"]
+
+        assert absent["key_state"] == "absent"
+        assert absent["key_error"] is None, "an absent key has no error to report"
+
+        assert unreadable["key_state"] == "unreadable"
+        assert unreadable["key_error"] == "security exited 36"
+
+    def test_api_key_status_local_provider_never_consults_the_keychain(self, client):
+        """A local provider needs no key, so it is configured by definition --
+        and must not be reported as unreadable just because the keychain is."""
+        from fichero_server.security.keychain import KeychainLookup, KeychainReadState
+
+        with patch("fichero_server.api.routes.ai.provider_keys.api_key_state") as mock_state:
+            with patch("fichero_server.api.routes.ai.provider_keys.get_provider_info") as mock_info:
+                mock_info.return_value = SimpleNamespace(is_local=True)
+                mock_state.return_value = KeychainLookup(
+                    state=KeychainReadState.UNREADABLE, detail="denied"
+                )
+
+                data = client.get("/api/providers/omlx/api-key/status").json()
+
+        assert data["has_api_key"] is True
+        assert data["key_state"] == "found"
+        assert data["key_error"] is None
+        mock_state.assert_not_called()
 
 
 # =============================================================================

@@ -24,11 +24,73 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+from dataclasses import dataclass
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
 # Service name for all Fichero keychain items
 SERVICE = "com.fichero.fichero"
+
+# `security` exit codes we interpret. 44 is errSecItemNotFound: the item is
+# genuinely not there. Everything else non-zero means the lookup FAILED, which
+# is a different fact and must stay one (#4534).
+_RC_ITEM_NOT_FOUND = 44
+
+
+class KeychainReadState(str, Enum):
+    """The three answers a Keychain read can give.
+
+    There have only ever been three, but the code modelled two — and collapsing
+    the third into "absent" is what told the whole app that Daniel's OpenRouter
+    key did not exist when it was sitting in his login keychain, written
+    2026-07-27, merely unreadable by this process.
+    """
+
+    FOUND = "found"
+    ABSENT = "absent"
+    #: The item EXISTS and we were refused. `security` exits 36 when the item's
+    #: ACL does not trust the calling binary and it cannot prompt (no UI
+    #: session) — the state Daniel hit after a reboot. Also covers a locked
+    #: keychain and every other non-zero, non-44 outcome: the honest common
+    #: factor is "we could not read it", never "it is not there".
+    UNREADABLE = "unreadable"
+
+
+@dataclass(frozen=True)
+class KeychainLookup:
+    """A read result that cannot be mistaken for the wrong state.
+
+    `key` is only ever populated for FOUND, so a caller that ignores `state`
+    still cannot silently use an empty key as though it were a real one.
+    """
+
+    state: KeychainReadState
+    key: str | None = None
+    #: Why, for UNREADABLE: the exit code and whatever the tool said. This is
+    #: what reaches the user, so it must never be invented.
+    detail: str | None = None
+
+    @property
+    def is_found(self) -> bool:
+        return self.state is KeychainReadState.FOUND
+
+
+class KeychainUnreadableError(RuntimeError):
+    """Raised when a key EXISTS but this process cannot read it.
+
+    Deliberately not a subclass of anything a caller catches by accident. The
+    rule it enforces: a failed read must never be returned as an absent value
+    (#4534).
+    """
+
+    def __init__(self, provider: str, detail: str | None) -> None:
+        self.provider = provider
+        self.detail = detail
+        super().__init__(
+            f"Keychain holds an API key for {provider!r} but it could not be read"
+            f"{f': {detail}' if detail else ''}"
+        )
 
 
 def _is_macos() -> bool:
@@ -63,18 +125,18 @@ def _run_security(*args: str, input_data: str | None = None) -> tuple[int, str, 
 # =============================================================================
 
 
-def get_api_key(provider: str) -> str | None:
-    """Get API key from Keychain.
+def lookup_api_key(provider: str) -> KeychainLookup:
+    """Read a provider's API key and say which of the three things happened.
 
-    Args:
-        provider: Provider name (e.g., "openai", "anthropic")
-
-    Returns:
-        API key string, or None if not found
+    This is the truthful primitive; `get_api_key` and `has_api_key` are views
+    onto it. Nothing here converts a failure into an absence (#4534).
     """
     if not _is_macos():
-        logger.debug("Not on macOS - keychain disabled")
-        return None
+        # Not a failure and not a lie: off macOS there is no Keychain, so there
+        # is genuinely no key IN ONE. `is_available()` reports that separately.
+        return KeychainLookup(
+            state=KeychainReadState.ABSENT, detail="keychain is macOS-only"
+        )
 
     # Use security find-generic-password to get the key
     # -s: service name
@@ -90,16 +152,49 @@ def get_api_key(provider: str) -> str | None:
     )
 
     if returncode == 0 and stdout:
-        return stdout.strip()
+        return KeychainLookup(state=KeychainReadState.FOUND, key=stdout.strip())
 
-    # Error code 44 means item not found - not an error
-    if returncode == 44:
-        return None
+    if returncode == _RC_ITEM_NOT_FOUND:
+        return KeychainLookup(state=KeychainReadState.ABSENT)
 
-    if returncode != 0:
-        logger.debug("Keychain get failed: %s", stderr.strip())
+    # Everything else: the item may well be there and we were refused. Say so,
+    # loudly. This was `logger.debug`, which at the default level is the same
+    # as not logging at all -- which is how a vanishing credential went
+    # unnoticed until a user reported it.
+    detail = stderr.strip() or f"security exited {returncode}"
+    if returncode == 0:
+        # rc 0 with empty stdout: the tool succeeded and gave us nothing. That
+        # is not an absence we can vouch for, so it is not reported as one.
+        detail = "security returned success with an empty password"
+    logger.warning(
+        "Keychain read FAILED for %s (rc=%s): %s -- reporting as unreadable, NOT as absent",
+        provider,
+        returncode,
+        detail,
+    )
+    return KeychainLookup(state=KeychainReadState.UNREADABLE, detail=detail)
 
-    return None
+
+def get_api_key(provider: str) -> str | None:
+    """Get API key from Keychain.
+
+    Args:
+        provider: Provider name (e.g., "openai", "anthropic")
+
+    Returns:
+        The API key, or None when the item is genuinely ABSENT.
+
+    Raises:
+        KeychainUnreadableError: the item could not be read (ACL refusal,
+            locked keychain, ...). Deliberately NOT `None`: returning the
+            absent answer for a failed read is the defect this fixes (#4534).
+            Callers with a legitimate fallback should catch it and log the
+            reason they fell back, at the point they fall back.
+    """
+    result = lookup_api_key(provider)
+    if result.state is KeychainReadState.UNREADABLE:
+        raise KeychainUnreadableError(provider, result.detail)
+    return result.key
 
 
 def _invalidate_llm_api_key_cache(provider: str) -> None:
@@ -194,15 +289,26 @@ def delete_api_key(provider: str) -> bool:
 
 
 def has_api_key(provider: str) -> bool:
-    """Check if API key exists in Keychain.
+    """Whether a READABLE key exists.
 
-    Args:
-        provider: Provider name
-
-    Returns:
-        True if key exists
+    Still a bool, because most callers legitimately want one -- but it is now
+    False for ABSENT *and* for UNREADABLE, and those must not be reported to a
+    user as the same thing. Anything that renders this to a human must call
+    `api_key_state` instead: `has_api_key: false` was a true value and a false
+    statement, and that is what told Daniel his key was gone (#4534).
     """
-    return get_api_key(provider) is not None
+    return lookup_api_key(provider).is_found
+
+
+def api_key_state(provider: str) -> KeychainLookup:
+    """The full three-state answer, for callers that must not flatten it.
+
+    Returns the lookup WITHOUT its secret -- a status caller has no business
+    holding the key, and this way the result can be logged or serialized
+    without leaking it.
+    """
+    result = lookup_api_key(provider)
+    return KeychainLookup(state=result.state, key=None, detail=result.detail)
 
 
 def list_providers() -> list[str]:
@@ -221,6 +327,14 @@ def list_providers() -> list[str]:
     )
 
     if returncode != 0:
+        # #4534, same defect class as the read path: an empty list here means
+        # "no providers have keys", and a failed dump is not that. A locked
+        # keychain would have reported every provider as unconfigured.
+        logger.warning(
+            "Keychain dump FAILED (rc=%s): %s -- provider list is UNKNOWN, not empty",
+            returncode,
+            stderr.strip() or "no stderr",
+        )
         return []
 
     providers = []
@@ -259,6 +373,11 @@ def is_available() -> bool:
 
 
 __all__ = [
+    "KeychainLookup",
+    "KeychainReadState",
+    "KeychainUnreadableError",
+    "api_key_state",
+    "lookup_api_key",
     "get_api_key",
     "set_api_key",
     "delete_api_key",

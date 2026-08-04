@@ -9296,7 +9296,7 @@
           "documents"
         ],
         "summary": "Purge Document",
-        "description": "Permanently delete a document subtree.",
+        "description": "Permanently delete a document subtree.\n\nRouted through the audited action layer like its four siblings \u2014 move,\nduplicate, delete, restore (#4488). It was the only one calling its impl\ndirectly and hand-rolling an emit, which left the write surface audited in\nINVERSE proportion to consequence: delete is soft and has a tested undo\npath, purge is permanent destruction of a subtree, and purge was the one\noperation leaving no row saying who did it. For an archive, \"who\npermanently destroyed this and when\" is the question an audit log exists\nto answer.\n\nThe `document.purge` action already existed and simply had no caller, so\nthis is wiring, not new capability. The hand-rolled emit is DELETED rather\nthan left beside the audited one: the action's ChangeSpec emits the same\n`document.deleted` for the same ids, and two emit paths for one operation\nis the defect class this codebase keeps hitting.",
         "operationId": "purge_document_api_documents__doc_id__purge_delete",
         "parameters": [
           {
@@ -20188,7 +20188,7 @@
           "workflow-execution"
         ],
         "summary": "Pause Workflow",
-        "description": "Signal a running workflow to pause at the next execution tick.",
+        "description": "Signal a running workflow to pause at its next boundary (#4402).\n\nThe signal is BOTH the registry-entry flag (the between-events check)\nand the shared pause event \u2014 which the builder's per-item progress\ncallback consults, so a pause lands at the next item of a long node\nrather than waiting for the whole node to finish.",
         "operationId": "pause_workflow_api_workflow_execution_threads__thread_id__pause_post",
         "parameters": [
           {
@@ -33708,6 +33708,14 @@
             "type": "boolean",
             "title": "Has Api Key"
           },
+          "key_state": {
+            "$ref": "#/components/schemas/KeychainReadState"
+          },
+          "key_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Key Error"
+          },
           "is_local": {
             "type": "boolean",
             "title": "Is Local"
@@ -33721,6 +33729,7 @@
         "required": [
           "provider_type",
           "has_api_key",
+          "key_state",
           "is_local",
           "keychain_available"
         ],
@@ -47500,6 +47509,16 @@
           "counts"
         ],
         "title": "KGSearchResponse"
+      },
+      "KeychainReadState": {
+        "type": "string",
+        "enum": [
+          "found",
+          "absent",
+          "unreadable"
+        ],
+        "title": "KeychainReadState",
+        "description": "The three answers a Keychain read can give.\n\nThere have only ever been three, but the code modelled two \u2014 and collapsing\nthe third into \"absent\" is what told the whole app that Daniel's OpenRouter\nkey did not exist when it was sitting in his login keychain, written\n2026-07-27, merely unreadable by this process."
       },
       "KeywordCloudEntry": {
         "properties": {
