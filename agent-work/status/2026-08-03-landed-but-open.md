@@ -325,6 +325,93 @@ looks complete and is not, which is the shape this document exists to catch.
 
 ---
 
+## I. #3686 — the focus map, before any fix
+
+**Nothing changed.** This is the map, and it says the order is broadly right
+while the mechanism behind it is only connected for one pane out of five.
+
+### What exists
+
+`PaneFocus` (`ContentView.swift:5`) has exactly the five cases the issue asks
+for: `sidebar, content, preview, reading, inspector`. `cyclePaneFocus`
+(`ContentView+ActionsNavigation.swift:44`) builds the cycle **conditionally**,
+which is more careful than the issue assumes — `.preview` is appended only when
+a preview pane actually renders (guarded for widescreen, #1448/#1516) and
+`.inspector` only when the inspector is shown. Tab, shift-Tab and the
+sidebar's own "next pane" request all route into it.
+
+So the *order* is not the problem.
+
+### The finding: one pane of five is actually focusable
+
+App-wide there are **ten** `.focused()` bindings. Eight are text fields —
+rename fields, note fields, the artifact editor, the library filter — which is
+correct, local editing focus. One is the workflow canvas. Exactly **one**
+binds a pane:
+
+```
+ContentView+SidebarLayout.swift:64   .focused($focusedPane, equals: .sidebar)
+```
+
+`.content`, `.preview`, `.reading` and `.inspector` are **assigned**
+(`focusedPane = .inspector`) but never bound to a view with `.focused()`.
+
+A `@FocusState` value that no view claims cannot take system focus. So Tab
+moves a variable that draws a ring — `FadingFocusBorder(isActive: focusedPane
+== pane)` — while real keyboard focus stays where it was. The indicator reports
+success; the system never moved. **Predicted, not observed:** SwiftUI should
+also reset that value to nil, which would make every Tab after the first fall
+into the `guard let current = focusedPane` branch and jump to `.content`
+forever. Confirming that needs a running app.
+
+### But part of it is deliberate, and that changes the fix
+
+`ContentView+DetailLayout.swift:323` says so directly:
+
+> `// Focus tracking without .focusable() — avoids swallowing first click`
+
+The inspector, preview and reading panes deliberately use a tap gesture plus a
+custom overlay instead of real focus, because making a whole column focusable
+eats the user's first click. The sidebar pays that cost on purpose, for a
+stated reason: `// Make the sidebar focusable so arrow keys navigate the List.
+(Removing this broke arrow-key navigation — see #560.)`
+
+So `focusedPane` is **one variable with two meanings**: a genuine SwiftUI focus
+binding for the sidebar, and a hand-rolled "which pane is active" indicator for
+everything else. That is this month's defect class again — two representations
+of one idea, only one of them backed by the system — but here the split was a
+considered trade against a real regression, not drift.
+
+**This is why I did not "add the four missing bindings."** That is the obvious
+fix, it would make Tab genuinely move focus, and it would reintroduce
+click-swallowing across three panes. The right answer is probably
+`.focusSection()`, which groups a region for keyboard focus movement **without**
+making it a click-stealing focusable control.
+
+### Two smaller facts
+
+- **`.focusSection()` and `.defaultFocus()` are used zero times app-wide.**
+  Nothing declares where focus lands when a window opens, and no region is
+  grouped for macOS focus movement. `.focusSection()` is very likely the
+  missing mechanism for the whole issue.
+- **`.reading` is never appended to the cycle.** It is a real `PaneFocus` case,
+  set when the user clicks the reading pane (`DetailLayout:156`), but
+  `cyclePaneFocus` appends only `.preview` and `.inspector` — so Tab cannot
+  reach the reading pane even as an indicator. This is the one-line candidate,
+  and I left it alone because the visibility predicate above it already
+  conflates the two panes (`previewPaneVisible` is true when `showReadingPane`
+  is), so "just append it" would need a run to confirm it does not double-count.
+
+### Recommendation
+
+Not a late-night change. The issue wants one thing — a real, non-click-stealing
+focus path — and the mechanism for it (`focusSection`) is absent everywhere
+rather than wrong in one place. It needs a design pass and a live app, and it
+should not be attempted by adding `.focusable()` to three panes that
+deliberately avoid it.
+
+---
+
 ## The method, and how I got it wrong
 
 `git log --grep "#NNNN"` finds **mentions**, not fixes. That was the stated
