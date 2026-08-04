@@ -234,6 +234,13 @@ struct ActivityBrowserView: View {
         .onChange(of: activityStore.refreshToken) { _, _ in
             Task { await reloadRuns() }
         }
+        // Control-driven refresh (#4402): Pause/Stop/Delete change the store
+        // directly, and when the engine is gone NO activity event will ever
+        // follow to trigger the rebuild above — which is why a settled row went
+        // on rendering as running and the buttons read as dead.
+        .onChange(of: workflowExecutionStore.controlRevision) { _, _ in
+            Task { await reloadRuns() }
+        }
         .onChange(of: selectedRunId) { _, newId in
             listSelection = newId
         }

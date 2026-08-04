@@ -163,8 +163,8 @@ final class ConnectionPoolSegmentationTests: XCTestCase {
     /// (`httpMaximumConnectionsPerHost` defaults to 6 on macOS).
     @MainActor
     func testHTTPSStreamAndRequestTransportsAreDistinct() {
-        let requestTransport = FicheroClient.makeTransport(transportMode: .https, usage: .request)
-        let streamTransport = FicheroClient.makeTransport(transportMode: .https, usage: .stream)
+        let requestTransport = FicheroClient.liveTransport(transportMode: .https, usage: .request)
+        let streamTransport = FicheroClient.liveTransport(transportMode: .https, usage: .stream)
         let requestSession = (requestTransport as? URLSessionTransport)?.configuration.session
         let streamSession = (streamTransport as? URLSessionTransport)?.configuration.session
         XCTAssertNotNil(requestSession)

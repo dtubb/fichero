@@ -298,11 +298,37 @@ public final class FicheroClient: ObservableObject {
         (transport as? PoolMonitoringTransport)?.wrapped ?? transport
     }
 
-    /// Build the transport for a given mode and usage. Pure helper — no
+    /// THE transport chokepoint. Every `FicheroClient` — and therefore every
+    /// engine dial the app makes — is built through here, so this is the one
+    /// place that can decide whether a dial is allowed to happen at all.
+    ///
+    /// Under a test host it refuses (#4511): the singleton fan-out at
+    /// `LibraryManager.shared` dialled five endpoints at launch and each one
+    /// waited out its transport deadline against an engine that was never
+    /// there, so the host wedged before a single assertion ran. See
+    /// ``TestHostTransportGuard`` for why the guard belongs here and not at the
+    /// five call sites.
+    ///
+    /// An explicitly injected `session` is exempt: that session IS the test's
+    /// stub, and replacing it would silently defeat the test that installed it.
+    nonisolated static func makeTransport(
+        session: URLSession? = nil,
+        transportMode: TransportMode = .https,
+        usage: TransportUsage = .request
+    ) -> any ClientTransport {
+        if session == nil && TestHostTransportGuard.isTestHost {
+            return FailFastTransport()
+        }
+        return liveTransport(session: session, transportMode: transportMode, usage: usage)
+    }
+
+    /// Build the REAL transport for a given mode and usage. Pure helper — no
     /// per-instance state — so concurrent `FicheroClient`s can use different
     /// transports. `internal` (not `private`) so the transport-selection unit
-    /// tests can assert the chosen concrete type.
-    nonisolated static func makeTransport(
+    /// tests can assert the chosen concrete type; they call this rather than
+    /// ``makeTransport`` precisely because they are the tests that must see
+    /// past the test-host guard.
+    nonisolated static func liveTransport(
         session: URLSession? = nil,
         transportMode: TransportMode = .https,
         usage: TransportUsage = .request

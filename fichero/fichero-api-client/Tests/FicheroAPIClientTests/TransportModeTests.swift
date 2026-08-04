@@ -15,7 +15,7 @@ final class TransportModeTests: XCTestCase {
     // MARK: - Transport selection
 
     func testHTTPSModeYieldsURLSessionTransport() {
-        let transport = FicheroClient.makeTransport(session: nil, transportMode: .https)
+        let transport = FicheroClient.liveTransport(session: nil, transportMode: .https)
         XCTAssertTrue(
             transport is URLSessionTransport,
             "`.https` must stay on URLSessionTransport (unchanged behavior)"
@@ -24,12 +24,12 @@ final class TransportModeTests: XCTestCase {
 
     func testDefaultModeIsHTTPS() {
         // Default argument must preserve the pre-existing URLSession path.
-        let transport = FicheroClient.makeTransport()
+        let transport = FicheroClient.liveTransport()
         XCTAssertTrue(transport is URLSessionTransport)
     }
 
     func testUDSModeYieldsAsyncHTTPClientTransport() {
-        let transport = FicheroClient.makeTransport(
+        let transport = FicheroClient.liveTransport(
             session: nil,
             transportMode: .uds(path: "/tmp/fichero-test.sock")
         )

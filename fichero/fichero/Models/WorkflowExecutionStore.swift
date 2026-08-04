@@ -40,6 +40,19 @@ final class WorkflowExecutionStore {
     /// Live (and seeded) executions keyed by `threadId`. Views read this.
     private(set) var executions: [String: WorkflowExecution] = [:]
 
+    /// Bumped whenever a USER-INITIATED run control changes an entry (#4402).
+    ///
+    /// `ActivityBrowserView` rebuilds its list from `ActivityStore.refreshToken`,
+    /// which is driven by the activity SSE stream. That is the wrong and only
+    /// trigger for a control outcome: when the engine is gone there is no
+    /// stream, so no event arrives, so the list never rebuilt and a row the
+    /// store had already settled went on rendering as running. This gives the
+    /// list a second, control-shaped trigger that does not depend on the engine
+    /// being alive. Stream events are deliberately NOT counted here — they
+    /// already have a refresh path, and double-triggering the rebuild is the
+    /// #4186 duplicate class.
+    private(set) var controlRevision: Int = 0
+
     /// One `WorkflowStreamService` per subscribed thread. Each owns a single SSE
     /// `streamTask`, so a per-thread instance lets several runs stream at once
     /// without one selection cancelling another's stream. Not observed.
@@ -193,21 +206,127 @@ final class WorkflowExecutionStore {
     func perform(_ action: WorkflowRunAction, threadId: String) async throws {
         switch action {
         case .pause:
-            try await executionService.pauseWorkflow(threadId: threadId)
-            // Pause/cancel return no body — fetch the authoritative state once.
-            // The (re)subscribed stream then carries the async transition.
-            try await applyRefreshedThreadStatus(threadId: threadId)
+            let outcome = try await executionService.pauseWorkflow(threadId: threadId)
+            try await apply(outcome, of: action, threadId: threadId)
         case .resume:
             let thread = try await executionService.resumeWorkflow(threadId: threadId)
             apply(thread: thread)
         case .stop:
-            try await executionService.cancelWorkflow(threadId: threadId)
-            try await applyRefreshedThreadStatus(threadId: threadId)
+            let outcome = try await executionService.cancelWorkflow(threadId: threadId)
+            try await apply(outcome, of: action, threadId: threadId)
         case .delete:
             try await executionService.deleteThread(threadId: threadId)
             unsubscribe(threadId: threadId)
             executions.removeValue(forKey: threadId)
+            controlRevision += 1
         }
+    }
+
+    /// Reduce a pause/cancel outcome into the store (#4402).
+    ///
+    /// The old code ran ONE path for all outcomes: fire the POST, ignore the
+    /// answer, poll `getThreadStatus`. For a row whose engine is gone that poll
+    /// reads `running` out of the database on every attempt, so the spinner
+    /// spun and the button read as dead. Each outcome now gets the handling it
+    /// actually needs.
+    func apply(
+        _ outcome: RunControlOutcome,
+        of action: WorkflowRunAction,
+        threadId: String
+    ) async throws {
+        switch Self.disposition(for: outcome, action: action) {
+        case .refreshFromServer:
+            // The run exists and the engine is answering for it, so its
+            // persisted status is authoritative — fetch it once. The
+            // (re)subscribed stream then carries any async transition.
+            try await applyRefreshedThreadStatus(threadId: threadId)
+
+        case .settleLocally(let status, let error):
+            if outcome == .notRunning {
+                log.warning(
+                    """
+                    \(action.label, privacy: .public) on \(threadId, privacy: .public): \
+                    the engine has no such run — settling the row locally as stale
+                    """
+                )
+            }
+            settle(threadId: threadId, status: status, error: error)
+        }
+    }
+
+    /// What the store must DO about a pause/cancel outcome. Pure, so the
+    /// decision is pinned by tests rather than inferred from a transport run.
+    /// `nonisolated`: type statics inherit `@MainActor`, and tests must be able
+    /// to call this off-main (#4201).
+    nonisolated static func disposition(
+        for outcome: RunControlOutcome,
+        action: WorkflowRunAction
+    ) -> RunControlDisposition {
+        switch outcome {
+        case .requested, .alreadyTerminal:
+            return .refreshFromServer
+
+        case .settled(let status):
+            // The engine settled the row itself and told us the result in the
+            // response. Believe it, with no extra round trip — the round trip
+            // is the part that hangs when an engine is unhealthy.
+            return .settleLocally(status, error: nil)
+
+        case .notRunning:
+            // #4402 / #4346. FAILED, not cancelled: nothing carried out the
+            // user's request, and a run whose engine died neither completed nor
+            // was deliberately stopped — calling it cancelled would report a
+            // clean outcome for an unclean one. `.failed` is terminal, so the
+            // spinner stops and `RunControls` offers Delete, the only action
+            // left that can succeed on a row with no engine behind it.
+            //
+            // Refreshing instead would be worse than useless: the stale row is
+            // still `running` in the database, so the poll returns `running`
+            // for ever. That poll IS the old behaviour, and it is why the
+            // button looked dead.
+            return .settleLocally(
+                .failed,
+                error: "The engine is no longer tracking this run — it was interrupted before it could finish."
+            )
+        }
+    }
+
+    /// Force a threadId-keyed entry to a terminal-or-paused state in place and
+    /// keep the stream subscription consistent with it.
+    ///
+    /// Seeds a minimal entry when the thread was not tracked (a run started by
+    /// the CLI, or in another window): the user pressed Stop on a row they can
+    /// see, so a row must exist afterwards showing what happened to it.
+    func settle(threadId: String, status: WorkflowStatus, error: String?) {
+        var execution = executions[threadId] ?? WorkflowExecution(
+            id: "",
+            name: "",
+            threadId: threadId,
+            startTime: Date(),
+            status: status,
+            nodeStates: [:],
+            documentProgress: [:],
+            currentFilePath: nil,
+            currentNodeId: nil,
+            currentNodeName: nil,
+            isRunning: false,
+            workflowError: error
+        )
+        execution.status = status
+        execution.isRunning = status == .running
+        if let error { execution.workflowError = error }
+        executions[threadId] = execution
+
+        if Self.shouldSubscribe(status: status) {
+            subscribe(
+                threadId: threadId,
+                workflowId: execution.id,
+                name: execution.name
+            )
+        } else {
+            unsubscribe(threadId: threadId)
+        }
+        controlRevision += 1
     }
 
     /// Fetch the persisted thread status and apply it (pause/cancel POSTs
@@ -234,6 +353,7 @@ final class WorkflowExecutionStore {
         } else {
             unsubscribe(threadId: thread.threadId)
         }
+        controlRevision += 1
     }
 
     /// Pure reducer for a control-endpoint `ExecutionThread` response: patch
@@ -299,6 +419,16 @@ final class WorkflowExecutionStore {
 
 /// The user-facing controls on a workflow run. One vocabulary for every
 /// surface (Monitor toolbar, Detail stats bar) — see `RunControls`.
+/// What a `RunControlOutcome` obliges the store to do (#4402). Separated from
+/// the doing so the CHOICE — the thing that was wrong — is a pure value a test
+/// can assert without a transport.
+enum RunControlDisposition: Equatable {
+    /// Ask the engine for the run's authoritative persisted status.
+    case refreshFromServer
+    /// Write this status straight into the threadId-keyed entry. No round trip.
+    case settleLocally(WorkflowStatus, error: String?)
+}
+
 enum WorkflowRunAction: String, CaseIterable, Identifiable {
     case pause
     case resume
