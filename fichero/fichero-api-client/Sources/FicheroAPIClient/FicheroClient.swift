@@ -67,6 +67,23 @@ public final class FicheroClient: ObservableObject {
     /// The generated API client
     public private(set) var api: Client
 
+    /// The generated API client for operations whose duration scales with their
+    /// INPUT rather than with server health — file ingest, above all.
+    ///
+    /// `api` carries a 60-second whole-request deadline, and that is right for a
+    /// request that should be quick: a bigger number there converts a loud
+    /// failure into a long hang (#4379). But an ingest is not slow because
+    /// something is wrong; it is slow because the document is large. A 50-page
+    /// scan took 61 seconds on 2026-08-04, the deadline fired one second short,
+    /// and the app told Daniel "All 1 import(s) failed" while the engine went on
+    /// to finish the import successfully — a false failure inviting him to redo
+    /// work already done.
+    ///
+    /// This rides `streamTransport`, which already models exactly this
+    /// population: a long-lived request with its own connection pool. Reusing it
+    /// beats a third pool with a third deadline to keep in step.
+    public private(set) var longRunningAPI: Client
+
     /// The base URL of the API server
     @Published public private(set) var baseURL: URL
 
@@ -175,6 +192,14 @@ public final class FicheroClient: ObservableObject {
             transport: transport,
             middlewares: middlewares
         )
+        // Same server, same middlewares, different transport: the ingest
+        // population, not the be-quick-about-it one.
+        self.longRunningAPI = Client(
+            serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
+            configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
+            transport: self.streamTransport,
+            middlewares: middlewares
+        )
     }
 
     /// Convenience initializer for pairing probes that need to pin a specific
@@ -214,6 +239,14 @@ public final class FicheroClient: ObservableObject {
             transport: transport,
             middlewares: middlewares
         )
+        // Same server, same middlewares, different transport: the ingest
+        // population, not the be-quick-about-it one.
+        self.longRunningAPI = Client(
+            serverURL: baseURL,
+            configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
+            transport: self.streamTransport,
+            middlewares: middlewares
+        )
     }
 
     /// Rebuild the client with updated middleware (called when libraryPath changes).
@@ -225,6 +258,14 @@ public final class FicheroClient: ObservableObject {
             serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
             configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
             transport: transport,
+            middlewares: middlewares
+        )
+        // Same server, same middlewares, different transport: the ingest
+        // population, not the be-quick-about-it one.
+        self.longRunningAPI = Client(
+            serverURL: Self.makeServerURL(baseURL: baseURL, transportMode: transportMode),
+            configuration: .init(dateTranscoder: LenientISO8601DateTranscoder()),
+            transport: self.streamTransport,
             middlewares: middlewares
         )
     }

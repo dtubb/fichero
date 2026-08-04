@@ -226,7 +226,12 @@ class ImportService {
         parentId: String?
     ) async throws -> Components.Schemas.Document {
         let fileData = try Data(contentsOf: url)
-        let response = try await client.api.importFileApiDocumentsImportPost(
+        // `longRunningAPI`, not `api`: an ingest's duration scales with the
+        // document, not with server health, so the 60-second whole-request
+        // deadline on `api` is the wrong bound for it. A 50-page scan took 61s
+        // and the app reported "All 1 import(s) failed" for an import the engine
+        // then completed (2026-08-04).
+        let response = try await client.longRunningAPI.importFileApiDocumentsImportPost(
             Self.makeImportUploadInput(
                 data: fileData,
                 filename: url.lastPathComponent,
