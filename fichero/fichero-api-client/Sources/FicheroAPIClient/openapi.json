@@ -14960,7 +14960,7 @@
           "providers"
         ],
         "summary": "Set Provider Api Key",
-        "description": "Store API key for a provider type in keychain.",
+        "description": "Accept a provider API key from an owning app (#4534).\n\nHeld in MEMORY for this process's lifetime, not written to a keychain: the\napp owns the item, and a second persisted copy here would be a second\nlifetime and a second thing to go stale. `set_provider_api_key_impl` still\nruns so an engine that no app has taken ownership from keeps working \u2014\nthe cutover is the app starting to supply, not a flag day.",
         "operationId": "set_provider_api_key_api_providers__provider_type__api_key_post",
         "parameters": [
           {
@@ -15011,7 +15011,7 @@
           "providers"
         ],
         "summary": "Delete Provider Api Key",
-        "description": "Delete API key for a provider type from keychain.",
+        "description": "Delete a provider API key.\n\nDrops the in-memory supplied copy FIRST (#4534). A delete that left the\nsupplied key live would answer `deleted` while the provider kept working\n\u2014 the same class of false statement as `has_api_key: false` for a key\nthat exists.",
         "operationId": "delete_provider_api_key_api_providers__provider_type__api_key_delete",
         "parameters": [
           {
@@ -33709,7 +33709,7 @@
             "title": "Has Api Key"
           },
           "key_state": {
-            "$ref": "#/components/schemas/KeychainReadState"
+            "$ref": "#/components/schemas/ProviderKeyState"
           },
           "key_error": {
             "type": "string",
@@ -47510,16 +47510,6 @@
         ],
         "title": "KGSearchResponse"
       },
-      "KeychainReadState": {
-        "type": "string",
-        "enum": [
-          "found",
-          "absent",
-          "unreadable"
-        ],
-        "title": "KeychainReadState",
-        "description": "The three answers a Keychain read can give.\n\nThere have only ever been three, but the code modelled two \u2014 and collapsing\nthe third into \"absent\" is what told the whole app that Daniel's OpenRouter\nkey did not exist when it was sitting in his login keychain, written\n2026-07-27, merely unreadable by this process."
-      },
       "KeywordCloudEntry": {
         "properties": {
           "name": {
@@ -55024,6 +55014,17 @@
         ],
         "title": "ProviderInfo",
         "description": "Information about an LLM provider."
+      },
+      "ProviderKeyState": {
+        "type": "string",
+        "enum": [
+          "found",
+          "absent",
+          "not_supplied",
+          "unreadable"
+        ],
+        "title": "ProviderKeyState",
+        "description": "Every answer the engine can give about a provider key.\n\nNamed for the QUESTION (\"what is the state of this provider's key?\"), not\nfor one mechanism that answers it. It began as ProviderKeyState with three\nmembers, and the app-owned-keys move (#4534) added a fourth reality that has\nnothing to do with a keychain -- at which point a keychain-shaped name would\nhave been a lie of exactly the kind this whole program is removing. Renamed\noutright rather than aliased: no shim, no second name (rule zero).\n\nThere have only ever been three, but the code modelled two \u2014 and collapsing\nthe third into \"absent\" is what told the whole app that Daniel's OpenRouter\nkey did not exist when it was sitting in his login keychain, written\n2026-07-27, merely unreadable by this process."
       },
       "ProviderListResponse": {
         "properties": {

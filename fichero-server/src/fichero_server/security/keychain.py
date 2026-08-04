@@ -38,8 +38,15 @@ SERVICE = "com.fichero.fichero"
 _RC_ITEM_NOT_FOUND = 44
 
 
-class KeychainReadState(str, Enum):
-    """The three answers a Keychain read can give.
+class ProviderKeyState(str, Enum):
+    """Every answer the engine can give about a provider key.
+
+    Named for the QUESTION ("what is the state of this provider's key?"), not
+    for one mechanism that answers it. It began as ProviderKeyState with three
+    members, and the app-owned-keys move (#4534) added a fourth reality that has
+    nothing to do with a keychain -- at which point a keychain-shaped name would
+    have been a lie of exactly the kind this whole program is removing. Renamed
+    outright rather than aliased: no shim, no second name (rule zero).
 
     There have only ever been three, but the code modelled two — and collapsing
     the third into "absent" is what told the whole app that Daniel's OpenRouter
@@ -49,6 +56,11 @@ class KeychainReadState(str, Enum):
 
     FOUND = "found"
     ABSENT = "absent"
+    #: No app has supplied this key to the engine, and nothing else provided
+    #: it. NOT `absent`: a user with a perfectly good key in the app must
+    #: never be told there is no key -- that is the same collapse this enum
+    #: exists to prevent, one layer up (#4534).
+    NOT_SUPPLIED = "not_supplied"
     #: The item EXISTS and we were refused. `security` exits 36 when the item's
     #: ACL does not trust the calling binary and it cannot prompt (no UI
     #: session) — the state Daniel hit after a reboot. Also covers a locked
@@ -65,7 +77,7 @@ class KeychainLookup:
     still cannot silently use an empty key as though it were a real one.
     """
 
-    state: KeychainReadState
+    state: ProviderKeyState
     key: str | None = None
     #: Why, for UNREADABLE: the exit code and whatever the tool said. This is
     #: what reaches the user, so it must never be invented.
@@ -73,7 +85,7 @@ class KeychainLookup:
 
     @property
     def is_found(self) -> bool:
-        return self.state is KeychainReadState.FOUND
+        return self.state is ProviderKeyState.FOUND
 
 
 class KeychainUnreadableError(RuntimeError):
@@ -135,7 +147,7 @@ def lookup_api_key(provider: str) -> KeychainLookup:
         # Not a failure and not a lie: off macOS there is no Keychain, so there
         # is genuinely no key IN ONE. `is_available()` reports that separately.
         return KeychainLookup(
-            state=KeychainReadState.ABSENT, detail="keychain is macOS-only"
+            state=ProviderKeyState.ABSENT, detail="keychain is macOS-only"
         )
 
     # Use security find-generic-password to get the key
@@ -152,10 +164,10 @@ def lookup_api_key(provider: str) -> KeychainLookup:
     )
 
     if returncode == 0 and stdout:
-        return KeychainLookup(state=KeychainReadState.FOUND, key=stdout.strip())
+        return KeychainLookup(state=ProviderKeyState.FOUND, key=stdout.strip())
 
     if returncode == _RC_ITEM_NOT_FOUND:
-        return KeychainLookup(state=KeychainReadState.ABSENT)
+        return KeychainLookup(state=ProviderKeyState.ABSENT)
 
     # Everything else: the item may well be there and we were refused. Say so,
     # loudly. This was `logger.debug`, which at the default level is the same
@@ -172,7 +184,7 @@ def lookup_api_key(provider: str) -> KeychainLookup:
         returncode,
         detail,
     )
-    return KeychainLookup(state=KeychainReadState.UNREADABLE, detail=detail)
+    return KeychainLookup(state=ProviderKeyState.UNREADABLE, detail=detail)
 
 
 def get_api_key(provider: str) -> str | None:
@@ -192,7 +204,7 @@ def get_api_key(provider: str) -> str | None:
             reason they fell back, at the point they fall back.
     """
     result = lookup_api_key(provider)
-    if result.state is KeychainReadState.UNREADABLE:
+    if result.state is ProviderKeyState.UNREADABLE:
         raise KeychainUnreadableError(provider, result.detail)
     return result.key
 
@@ -374,7 +386,7 @@ def is_available() -> bool:
 
 __all__ = [
     "KeychainLookup",
-    "KeychainReadState",
+    "ProviderKeyState",
     "KeychainUnreadableError",
     "api_key_state",
     "lookup_api_key",

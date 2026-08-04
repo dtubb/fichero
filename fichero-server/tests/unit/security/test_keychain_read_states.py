@@ -25,7 +25,7 @@ import pytest
 
 from fichero_server.security import keychain
 from fichero_server.security.keychain import (
-    KeychainReadState,
+    ProviderKeyState,
     KeychainUnreadableError,
 )
 
@@ -55,7 +55,7 @@ def test_readable_key_is_found(security_result):
 
     result = keychain.lookup_api_key("openrouter")
 
-    assert result.state is KeychainReadState.FOUND
+    assert result.state is ProviderKeyState.FOUND
     assert result.key == "sk-or-v1-realkey"
     assert keychain.get_api_key("openrouter") == "sk-or-v1-realkey"
     assert keychain.has_api_key("openrouter") is True
@@ -67,7 +67,7 @@ def test_rc44_is_genuinely_absent(security_result):
 
     result = keychain.lookup_api_key("openrouter")
 
-    assert result.state is KeychainReadState.ABSENT
+    assert result.state is ProviderKeyState.ABSENT
     assert result.key is None
     # Absent is not an error: this must NOT raise.
     assert keychain.get_api_key("openrouter") is None
@@ -79,8 +79,8 @@ def test_rc36_is_unreadable_not_absent(security_result):
 
     result = keychain.lookup_api_key("openrouter")
 
-    assert result.state is KeychainReadState.UNREADABLE
-    assert result.state is not KeychainReadState.ABSENT
+    assert result.state is ProviderKeyState.UNREADABLE
+    assert result.state is not ProviderKeyState.ABSENT
     assert result.detail  # it must say something
 
 
@@ -90,7 +90,7 @@ def test_every_non_44_failure_is_unreadable(security_result, returncode):
     timeout, and an ACL refusal are all "we could not read it"."""
     security_result(returncode, stderr="boom")
 
-    assert keychain.lookup_api_key("x").state is KeychainReadState.UNREADABLE
+    assert keychain.lookup_api_key("x").state is ProviderKeyState.UNREADABLE
 
 
 def test_success_with_empty_output_is_not_treated_as_absent(security_result):
@@ -100,7 +100,7 @@ def test_success_with_empty_output_is_not_treated_as_absent(security_result):
 
     result = keychain.lookup_api_key("openrouter")
 
-    assert result.state is KeychainReadState.UNREADABLE
+    assert result.state is ProviderKeyState.UNREADABLE
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ def test_api_key_state_never_carries_the_secret(security_result):
 
     state = keychain.api_key_state("openrouter")
 
-    assert state.state is KeychainReadState.FOUND
+    assert state.state is ProviderKeyState.FOUND
     assert state.key is None
 
 
@@ -152,7 +152,7 @@ def test_has_api_key_is_false_for_unreadable_but_state_still_distinguishes(
     security_result(36)
 
     assert keychain.has_api_key("openrouter") is False
-    assert keychain.api_key_state("openrouter").state is KeychainReadState.UNREADABLE
+    assert keychain.api_key_state("openrouter").state is ProviderKeyState.UNREADABLE
 
 
 def test_non_macos_is_absent_with_a_reason(monkeypatch):
@@ -162,7 +162,7 @@ def test_non_macos_is_absent_with_a_reason(monkeypatch):
 
     result = keychain.lookup_api_key("openrouter")
 
-    assert result.state is KeychainReadState.ABSENT
+    assert result.state is ProviderKeyState.ABSENT
     assert result.detail == "keychain is macOS-only"
 
 

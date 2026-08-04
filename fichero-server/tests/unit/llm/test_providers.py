@@ -453,13 +453,13 @@ class TestProviderAPIRoutes:
 
     def test_api_key_status(self, client):
         """GET /api/providers/{provider_type}/api-key/status — key present."""
-        from fichero_server.security.keychain import KeychainLookup, KeychainReadState
+        from fichero_server.security.keychain import KeychainLookup, ProviderKeyState
 
         # The endpoint reads `api_key_state`, not `has_api_key`: the boolean
         # alone could not express the third state (#4534).
         with patch("fichero_server.api.routes.ai.provider_keys.api_key_state") as mock_state:
             with patch("fichero_server.api.routes.ai.provider_keys.keychain_available") as mock_avail:
-                mock_state.return_value = KeychainLookup(state=KeychainReadState.FOUND)
+                mock_state.return_value = KeychainLookup(state=ProviderKeyState.FOUND)
                 mock_avail.return_value = True
 
                 response = client.get("/api/providers/openai/api-key/status")
@@ -479,19 +479,23 @@ class TestProviderAPIRoutes:
         Both states have `has_api_key: false`, and telling a user "no key" when
         their key exists and is merely unreadable is what cost Daniel an
         afternoon. `key_state` is what makes them distinguishable, and
-        `key_error` carries the engine's own reason -- never an invented one.
+        `key_error` carries a real reason -- the engine's own for a refusal,
+        and the actionable remedy for a key nobody has supplied.
         """
-        from fichero_server.security.keychain import KeychainLookup, KeychainReadState
+        from fichero_server.security import provider_keys
+
+        provider_keys.forget_api_key("openai")
+        from fichero_server.security.keychain import KeychainLookup, ProviderKeyState
 
         with patch("fichero_server.api.routes.ai.provider_keys.api_key_state") as mock_state:
             with patch("fichero_server.api.routes.ai.provider_keys.keychain_available") as mock_avail:
                 mock_avail.return_value = True
 
-                mock_state.return_value = KeychainLookup(state=KeychainReadState.ABSENT)
+                mock_state.return_value = KeychainLookup(state=ProviderKeyState.ABSENT)
                 absent = client.get("/api/providers/openai/api-key/status").json()
 
                 mock_state.return_value = KeychainLookup(
-                    state=KeychainReadState.UNREADABLE, detail="security exited 36"
+                    state=ProviderKeyState.UNREADABLE, detail="security exited 36"
                 )
                 unreadable = client.get("/api/providers/openai/api-key/status").json()
 
@@ -500,8 +504,13 @@ class TestProviderAPIRoutes:
         assert unreadable["has_api_key"] is False
         assert absent["key_state"] != unreadable["key_state"]
 
-        assert absent["key_state"] == "absent"
-        assert absent["key_error"] is None, "an absent key has no error to report"
+        # #4534: an EMPTY KEYCHAIN is no longer reported as `absent`. Under
+        # app-owned keys it means no app has supplied one yet, and telling a
+        # user with a working key in the app "there is no key" is the same
+        # collapse this endpoint was fixed to stop making. The remedy rides
+        # along, because the state alone is not actionable for a CLI caller.
+        assert absent["key_state"] == "not_supplied"
+        assert "Open Fichero" in absent["key_error"]
 
         assert unreadable["key_state"] == "unreadable"
         assert unreadable["key_error"] == "security exited 36"
@@ -509,13 +518,13 @@ class TestProviderAPIRoutes:
     def test_api_key_status_local_provider_never_consults_the_keychain(self, client):
         """A local provider needs no key, so it is configured by definition --
         and must not be reported as unreadable just because the keychain is."""
-        from fichero_server.security.keychain import KeychainLookup, KeychainReadState
+        from fichero_server.security.keychain import KeychainLookup, ProviderKeyState
 
         with patch("fichero_server.api.routes.ai.provider_keys.api_key_state") as mock_state:
             with patch("fichero_server.api.routes.ai.provider_keys.get_provider_info") as mock_info:
                 mock_info.return_value = SimpleNamespace(is_local=True)
                 mock_state.return_value = KeychainLookup(
-                    state=KeychainReadState.UNREADABLE, detail="denied"
+                    state=ProviderKeyState.UNREADABLE, detail="denied"
                 )
 
                 data = client.get("/api/providers/omlx/api-key/status").json()

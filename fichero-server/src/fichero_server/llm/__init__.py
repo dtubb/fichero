@@ -1150,7 +1150,20 @@ def _read_api_key_uncached(provider: str) -> str | None:
     """Resolve an API key from the Keychain then env, without caching."""
     from fichero_server.llm.providers import get_provider_info
 
-    # Try keychain first
+    # App-supplied first (#4534): under app-owned keys this is the normal
+    # source on macOS. Checked before the keychain because a running app's
+    # push is fresher than anything on disk, and because the engine is
+    # expected to stop reading keychains at all.
+    from fichero_server.security.provider_keys import supplied_api_key
+
+    supplied = supplied_api_key(provider)
+    if supplied:
+        return supplied
+
+    # Then the keychain -- still consulted for engines that predate the
+    # ownership move and for the audit-chain secret. Not removed here: the
+    # cutover is the APP starting to supply, and ripping the read out in the
+    # same commit would strand any engine no app has pushed to yet.
     try:
         from fichero_server.security.keychain import (
             KeychainUnreadableError,

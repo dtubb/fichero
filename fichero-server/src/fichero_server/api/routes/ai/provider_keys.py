@@ -19,9 +19,15 @@ from fichero_server.security.keychain import (
     get_api_key,
     set_api_key,
     delete_api_key,
-    KeychainReadState,
+    ProviderKeyState,
     api_key_state,
     is_available as keychain_available,
+)
+from fichero_server.security.provider_keys import (
+    NO_APP_REMEDY,
+    forget_api_key,
+    has_supplied_api_key,
+    supply_api_key,
 )
 from fichero_server.llm.provider_validation import (
     validate_provider_config,
@@ -56,7 +62,7 @@ class APIKeyStatusResponse(BaseModel):
     #: WHICH of the three states. An enum, not a bare str, so the generated
     #: Swift client turns a vocabulary mismatch into a compile error rather
     #: than a dead feature (the #4418 lesson).
-    key_state: KeychainReadState
+    key_state: ProviderKeyState
     #: Present only for `unreadable`: the engine's own explanation, for the UI
     #: to show. Never invented -- absent when the tool gave no reason.
     key_error: str | None = None
@@ -132,7 +138,15 @@ async def set_provider_api_key(
     request: APIKeyRequest,
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> APIKeyStoredResponse:
-    """Store API key for a provider type in keychain."""
+    """Accept a provider API key from an owning app (#4534).
+
+    Held in MEMORY for this process's lifetime, not written to a keychain: the
+    app owns the item, and a second persisted copy here would be a second
+    lifetime and a second thing to go stale. `set_provider_api_key_impl` still
+    runs so an engine that no app has taken ownership from keeps working —
+    the cutover is the app starting to supply, not a flag day.
+    """
+    supply_api_key(provider_type, request.api_key)
     set_provider_api_key_impl(provider_type, request.api_key)
     # A key landing flips the provider's `available` flag — tell every
     # window so provider-derived caches (Run Workflow submenu) drop (#4276).
@@ -147,7 +161,14 @@ async def delete_provider_api_key(
     provider_type: str,
     _owner: None = Depends(_require_owner_or_bootstrap),
 ) -> APIKeyDeletedResponse:
-    """Delete API key for a provider type from keychain."""
+    """Delete a provider API key.
+
+    Drops the in-memory supplied copy FIRST (#4534). A delete that left the
+    supplied key live would answer `deleted` while the provider kept working
+    — the same class of false statement as `has_api_key: false` for a key
+    that exists.
+    """
+    forget_api_key(provider_type)
     delete_provider_api_key_impl(provider_type)
     from fichero_server.api.routes.ai.providers import _broadcast_provider_change
 
@@ -171,17 +192,42 @@ async def check_api_key_status(provider_type: str) -> APIKeyStatusResponse:
         return APIKeyStatusResponse(
             provider_type=provider_type,
             has_api_key=True,
-            key_state=KeychainReadState.FOUND,
+            key_state=ProviderKeyState.FOUND,
             is_local=True,
             keychain_available=keychain_available(),
         )
 
+    # App-supplied wins (#4534): under app-owned keys this is the normal
+    # source, and it must not be reported through a keychain lens.
+    if has_supplied_api_key(provider_type):
+        return APIKeyStatusResponse(
+            provider_type=provider_type,
+            has_api_key=True,
+            key_state=ProviderKeyState.FOUND,
+            is_local=False,
+            keychain_available=keychain_available(),
+        )
+
     lookup = api_key_state(provider_type)
+    # A keychain that genuinely has nothing is NOT the end of the story now:
+    # the key may simply not have been supplied yet. Reporting that as
+    # `absent` would tell a user with a working key in the app that they have
+    # no key -- the exact collapse this program exists to remove.
+    if lookup.state is ProviderKeyState.ABSENT:
+        return APIKeyStatusResponse(
+            provider_type=provider_type,
+            has_api_key=False,
+            key_state=ProviderKeyState.NOT_SUPPLIED,
+            key_error=NO_APP_REMEDY,
+            is_local=False,
+            keychain_available=keychain_available(),
+        )
+
     return APIKeyStatusResponse(
         provider_type=provider_type,
         has_api_key=lookup.is_found,
         key_state=lookup.state,
-        key_error=lookup.detail if lookup.state is KeychainReadState.UNREADABLE else None,
+        key_error=lookup.detail if lookup.state is ProviderKeyState.UNREADABLE else None,
         is_local=False,
         keychain_available=keychain_available(),
     )
