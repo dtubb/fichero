@@ -68,7 +68,17 @@ extension SidebarView {
         library: LibraryManager.LibraryReference
     ) -> Bool {
         let fileURLs = urls.filter { $0.isFileURL }
-        guard !fileURLs.isEmpty else { return false }
+        guard !fileURLs.isEmpty else {
+            // #4533: was silent. Name what arrived — a drop of non-file URLs
+            // (a web link, a promise that never resolved) looks identical to
+            // a drop that never reached the header at all.
+            DragDropLog.refused(
+                "sidebar-library-header",
+                reason: "no file URLs among \(urls.count) dropped URL(s): "
+                    + "[\(urls.map(\.scheme).map { $0 ?? "no-scheme" }.joined(separator: ", "))]"
+            )
+            return false
+        }
         // Loader-staged temp copies (`fichero-drop-*`) are removed once this
         // import is done with them — the same contract the row path keeps.
         let temporaryDirectories = externalDropTemporaryDirectories(for: fileURLs)
@@ -104,8 +114,13 @@ extension SidebarView {
                     sidebarState.dropErrorMessage = message
                 }
             } catch {
-                Logger(subsystem: "app.fichero.fichero", category: "LibraryHeaderDrop")
-                    .error("Library root drop failed: \(error.localizedDescription)")
+                // #4533: was a THIRD private category ("LibraryHeaderDrop"),
+                // so no single filter could show a whole drop and the drop#N
+                // stamp had nothing to correlate. Through the shared seam now.
+                DragDropLog.refused(
+                    "sidebar-library-header",
+                    reason: "import failed: \(error.localizedDescription)"
+                )
                 // A drop that fails must SAY so (#4274 'silently no-ops'):
                 // reuse the sidebar's drop-error banner the move paths use.
                 sidebarState.dropErrorMessage =
@@ -131,7 +146,17 @@ extension SidebarView {
         let bareIds = droppedIds
             .filter { $0.hasPrefix("doc:") }
             .map { extractActualId(from: $0) }
-        guard !bareIds.isEmpty else { return }
+        guard !bareIds.isEmpty else {
+            // #4533: was silent. Saved searches, workflows and chains are
+            // filtered out here BY DESIGN — but "correctly ignored" and
+            // "swallowed" look the same to the user, so say which it was.
+            DragDropLog.refused(
+                "sidebar-library-header",
+                reason: "no document ids among \(droppedIds.count) dropped id(s) — "
+                    + "non-document items don't belong at the doc-tree root"
+            )
+            return
+        }
         let operation = sidebarDropOperation(modifiers: modifiers, kind: .document)
         if operation != .move {
             // Same executor the insertion line uses; empty children/offset 0

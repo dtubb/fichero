@@ -182,7 +182,11 @@ struct LibrarySectionHeader: View {
     /// copies of this decision is exactly what produced the bug, and the
     /// classifier is pure, so both paths are pinned by the same tests.
     private func handleLibraryHeaderDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard !providers.isEmpty else { return false }
+        guard !providers.isEmpty else {
+            // #4533: was silent.
+            DragDropLog.refused("sidebar-library-header", reason: "no providers in the drop")
+            return false
+        }
 
         // Sample modifier state ONCE, at the drop entry point (#4475 C) —
         // the payload read below is async, and by the time it resolves the
@@ -196,7 +200,18 @@ struct LibrarySectionHeader: View {
         // silently dropped folder drags on the header.
         let hasExternalPayload = capabilities.contains(where: \.registersExternalPayload)
         let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
-        guard mightBeInternal || hasExternalPayload else { return false }
+        guard mightBeInternal || hasExternalPayload else {
+            // #4533: the header's copy of the commonest silent refusal. Name
+            // the UTIs — this is the guard that #4401 already had to fix once
+            // for Finder folders, and the next payload shape that fails here
+            // should not need a live repro to find.
+            DragDropLog.refused(
+                "sidebar-library-header",
+                reason: "payload is neither an internal id nor an external payload — "
+                    + "UTIs [\(capabilities.flatMap(\.registeredTypeIdentifiers).joined(separator: ", "))]"
+            )
+            return false
+        }
 
         // Reads through the SHARED reader, like the row path and the library
         // folder cell. This used to be a third hand-rolled copy of the same
@@ -208,7 +223,15 @@ struct LibrarySectionHeader: View {
             // performs (live report 2026-08-04).
             switch await readSidebarDropPayload(providers, surface: "sidebar-library-header") {
             case .internalItems(let ids):
-                guard let onSidebarItemDrop else { return }
+                guard let onSidebarItemDrop else {
+                    // #4533: a surface wired without its handler accepts the
+                    // drop and drops it on the floor. Silent until now.
+                    DragDropLog.refused(
+                        "sidebar-library-header",
+                        reason: "no onSidebarItemDrop handler bound (\(ids.count) internal item(s) lost)"
+                    )
+                    return
+                }
                 await MainActor.run { onSidebarItemDrop(ids, modifiersAtDrop) }
 
             case .externalFiles:
@@ -217,14 +240,26 @@ struct LibrarySectionHeader: View {
             case .unreadableInternal:
                 // Started inside the app and unreadable. Importing would create
                 // the hollow duplicate this issue is about — refuse and say so.
-                Logger(subsystem: "app.fichero.fichero", category: "LibraryHeaderDrop")
-                    .error("Library-header drop came from inside the app with no readable id; refusing to import")
+                // #4533: the LAST private "LibraryHeaderDrop" category, folded
+                // into the shared seam so one filter shows a whole drop.
+                DragDropLog.refused(
+                    "sidebar-library-header",
+                    reason: "came from inside the app with no readable id — refusing to import "
+                        + "(importing would create the hollow duplicate this guard exists for)"
+                )
                 await MainActor.run {
                     onDropError?("Couldn't read what was dragged. Nothing was moved or imported.")
                 }
 
             case .unsupported:
-                break
+                // #4533: `break` — the drop reached the header, was classified,
+                // and nothing happened, with no line anywhere. This is the
+                // literal shape of "the drop did nothing and the log is empty".
+                DragDropLog.refused(
+                    "sidebar-library-header",
+                    reason: "payload classified UNSUPPORTED — "
+                        + "UTIs [\(providers.flatMap(\.registeredTypeIdentifiers).joined(separator: ", "))]"
+                )
             }
         }
         return true
@@ -241,7 +276,14 @@ struct LibrarySectionHeader: View {
     /// every surface (#4184's rule); the row and library-cell paths already
     /// complied, this was the straggler.
     private func importExternalDrop(_ providers: [NSItemProvider]) async {
-        guard let onFileDrop else { return }
+        guard let onFileDrop else {
+            // #4533: same shape as the internal handler above.
+            DragDropLog.refused(
+                "sidebar-library-header",
+                reason: "no onFileDrop handler bound (\(providers.count) external provider(s) lost)"
+            )
+            return
+        }
         var stableURLs: [URL] = []
         var temporaryURLs: [URL] = []
         for provider in providers {
@@ -256,6 +298,13 @@ struct LibrarySectionHeader: View {
         guard !stableURLs.isEmpty || !temporaryURLs.isEmpty else {
             // The OS was already told the drop was accepted, so a silent
             // return vanishes the file with no explanation (#4459's rule).
+            // #4533: it told the USER but left no retrievable trace — name
+            // which rung of the loader ladder came up empty.
+            DragDropLog.refused(
+                "sidebar-library-header",
+                reason: "ExternalFileDropLoader resolved no URL from any of "
+                    + "\(providers.count) provider(s); nothing imported"
+            )
             await MainActor.run {
                 onDropError?("Couldn't read the dropped item(s). Nothing was imported.")
             }

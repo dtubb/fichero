@@ -276,7 +276,15 @@ extension SidebarItemRow {
     /// shared executor: keeps this row's error reporting and store refresh.
     @discardableResult
     func copyDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
-        guard let library else { return false }
+        guard let library else {
+            // #4533: was silent. A window with no library bound is a fault,
+            // not a no-op, and the user just dropped something onto a folder.
+            DragDropLog.refused(
+                "sidebar-row-copy",
+                reason: "no library bound to this window (doc \(documentId) -> folder \(folderId))"
+            )
+            return false
+        }
         switch await applyLibraryItemDropOperation(
             .copy, documentId: documentId, intoFolderId: folderId, library: library
         ) {
@@ -293,7 +301,14 @@ extension SidebarItemRow {
     /// ⌘⌥-drag alias executor for drops ONTO a folder.
     @discardableResult
     func aliasDocumentIntoFolder(documentId: String, folderId: String) async -> Bool {
-        guard let library else { return false }
+        guard let library else {
+            // #4533: was silent, same as the copy path above.
+            DragDropLog.refused(
+                "sidebar-row-alias",
+                reason: "no library bound to this window (doc \(documentId) -> folder \(folderId))"
+            )
+            return false
+        }
         switch await applyLibraryItemDropOperation(
             .alias, documentId: documentId, intoFolderId: folderId, library: library
         ) {

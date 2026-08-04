@@ -105,9 +105,58 @@ final class DropLogVisibilityTests: XCTestCase {
             "the insertion refusal is silent again (#4533)"
         )
         XCTAssertEqual(
-            source.components(separatedBy: "DragDropLog.refused(").count - 1, 3,
-            "expected exactly the three wired refusals to report through the shared seam"
+            source.components(separatedBy: "DragDropLog.refused(").count - 1, 4,
+            "expected every wired refusal in this file to report through the shared seam"
         )
+    }
+
+    /// The whole drop trail must sit in ONE category, or the drop#N stamp has
+    /// nothing to correlate across surfaces — which is what made a single
+    /// header drop read as two performs. `LibraryHeaderDrop` was a private
+    /// third category doing exactly that.
+    func testNoDropPathDeclaresItsOwnLoggerCategory() throws {
+        for path in [
+            "Views/Sidebar/Sections/SidebarSectionHeader.swift",
+            "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift",
+            "Views/Sidebar/ItemRow/SidebarDropOperation.swift"
+        ] {
+            let source = try Self.appSource(path)
+            XCTAssertFalse(
+                source.contains("LibraryHeaderDrop"),
+                "\(path) resurrected the private LibraryHeaderDrop category (#4533)"
+            )
+        }
+    }
+
+    /// The literal shape of "the drop did nothing and the log is empty": a
+    /// classified payload falling into `.unsupported` and hitting `break`.
+    func testUnsupportedPayloadOnTheHeaderIsReported() throws {
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarSectionHeader.swift")
+        let start = try XCTUnwrap(source.range(of: "case .unsupported:"))
+        let branch = String(source[start.lowerBound..<source.index(start.lowerBound, offsetBy: 400)])
+
+        XCTAssertTrue(
+            branch.contains("DragDropLog.refused("),
+            "an UNSUPPORTED payload on the library header goes unreported again (#4533)"
+        )
+    }
+
+    /// Every surface that can swallow a drop reports through the seam. Counted,
+    /// not just present: a file can lose one refusal and still contain others.
+    func testEverySidebarDropSurfaceReportsRefusals() throws {
+        let expected = [
+            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": 4,
+            "Views/Sidebar/ItemRow/SidebarDropOperation.swift": 2,
+            "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift": 3,
+            "Views/Sidebar/Sections/SidebarSectionHeader.swift": 7
+        ]
+        for (path, count) in expected {
+            let source = try Self.appSource(path)
+            XCTAssertEqual(
+                source.components(separatedBy: "DragDropLog.refused(").count - 1, count,
+                "\(path) lost a refusal report (#4533)"
+            )
+        }
     }
 
     /// Side effect that must NOT happen: a second logging seam. The codebase

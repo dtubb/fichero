@@ -194,7 +194,16 @@ extension SidebarItemRow {
                 !isDescendant(item.id, of: "doc:\(bareId)")
             }
 
-        guard !bareIds.isEmpty else { return }
+        guard !bareIds.isEmpty else {
+            // #4533: was silent. Dropping a row onto its own descendant is
+            // filtered above BY DESIGN, and so are non-document ids — but a
+            // correctly-refused drop and a swallowed one look identical.
+            DragDropLog.refused(
+                "sidebar-insertion",
+                reason: "no eligible document ids after filtering self/descendants"
+            )
+            return
+        }
         // Finder modifier grammar at the insertion line: ⌥ copies, ⌘⌥ makes
         // aliases into THIS folder at this offset; plain drops keep the
         // transactional move below.
