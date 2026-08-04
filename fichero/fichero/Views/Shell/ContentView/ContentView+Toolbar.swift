@@ -11,7 +11,6 @@ enum ContentToolbarID {
     static let activityStatus = "fichero.activityStatus"
     static let viewDisplayMode = "fichero.viewDisplayMode"
     static let breadcrumb = "fichero.breadcrumb"
-    static let statusIsland = "fichero.statusIsland"
 }
 
 // MARK: - Toolbar Content
@@ -32,9 +31,9 @@ extension ContentView {
     /// content-column toolbar.
     @ToolbarContentBuilder
     private var leadingToolbarContent: some ToolbarContent {
-        // Engine status now lives in the center status island
-        // (`ContentToolbarID.statusIsland`, principal zone) beside the title,
-        // not here in the leading zone.
+        // Engine status now lives in the center status island (hosted inside
+        // the `ContentToolbarID.breadcrumb` principal item, #4519) beside the
+        // title, not here in the leading zone.
         ToolbarItem(id: ContentToolbarID.navigationBack, placement: .navigation) {
             Button {
                 navigateBack()
@@ -60,8 +59,8 @@ extension ContentView {
 
     /// TRAILING zone: the compact inspector toggle, and nothing else.
     ///
-    /// Activity status lives in the centre status island
-    /// (`ContentToolbarID.statusIsland`, principal zone) beside the title, and
+    /// Activity status lives in the centre status island (hosted inside the
+    /// `ContentToolbarID.breadcrumb` principal item, #4519) beside the title, and
     /// the inspector toggle moved to the `.inspector()` panel's own toolbar so
     /// macOS places it in the inspector section rather than the content section
     /// (see `mainContentView`).
@@ -230,72 +229,68 @@ extension ContentView {
         // dropped — the nav title carries the context and search moves to the
         // native `.searchable` field instead (#2814).
         if horizontalSizeClass != .compact {
+            // ONE `.principal` item hosting the breadcrumb AND, to its right,
+            // the status island (#4519). The island's #4378 home was a
+            // standalone `.automatic` item — which macOS laid in the same
+            // trailing run as the pane-toggle group, so status glyphs read as
+            // a third and fourth toggle (#4391's ambiguity). Status is a
+            // report about *what the app is doing*; the path answers *where am
+            // I* — natural neighbours, and nothing like the pane controls.
+            //
+            // Riding INSIDE the breadcrumb item keeps `.principal` claimed by
+            // exactly one identifier (two claimants is the #3163
+            // duplicate-identifier crash class, per #4378), and the island
+            // stays unconditionally declared — only its CONTENT varies (#3163).
+            // Its message-length contract (#4366) is unchanged by the move.
             ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal) {
                 let libraryName: String? = {
-                guard case .library(let doc) = viewMode, doc != nil else { return nil }
-                return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
-            }()
+                    guard case .library(let doc) = viewMode, doc != nil else { return nil }
+                    return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
+                }()
 
-            HStack(spacing: 4) {
-                HStack(spacing: 4) {
-                    if let libraryName {
-                        HStack(spacing: 3) {
-                            Image(systemName: ToolbarSymbols.breadcrumbLibrary)
-                                .imageScale(.small)
-                            Text(libraryName)
-                                .font(.subheadline)
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        if let libraryName {
+                            HStack(spacing: 3) {
+                                Image(systemName: ToolbarSymbols.breadcrumbLibrary)
+                                    .imageScale(.small)
+                                Text(libraryName)
+                                    .font(.subheadline)
+                            }
+                            .foregroundStyle(.secondary)
+
+                            // Compact chevron so the separator can't be read as the
+                            // Forward button's `chevron.forward` (#4360).
+                            Image(systemName: ToolbarSymbols.breadcrumbSeparator)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
                         }
-                        .foregroundStyle(.secondary)
 
-                        // Compact chevron so the separator can't be read as the
-                        // Forward button's `chevron.forward` (#4360).
-                        Image(systemName: ToolbarSymbols.breadcrumbSeparator)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        HStack(spacing: 3) {
+                            Image(systemName: toolbarIcon)
+                                .imageScale(.small)
+                            Text(toolbarTitle)
+                                .font(.headline)
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(.primary)
                     }
+                    // No painted lozenge (#4360): the toolbar's own Liquid Glass
+                    // carries this principal item; the old low-opacity primary
+                    // fill was a hand-rolled approximation of that material.
+                    // Search field removed from the principal zone (#3037), and
+                    // the window-level `.searchable` that replaced it is gone too
+                    // (#4407) — search now lives in the library's mini toolbar,
+                    // with the pane it acts on.
 
-                    HStack(spacing: 3) {
-                        Image(systemName: toolbarIcon)
-                            .imageScale(.small)
-                        Text(toolbarTitle)
-                            .font(.headline)
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(.primary)
+                    StatusIslandToolbarItem(
+                        isImporting: isImporting,
+                        importProgress: importProgress,
+                        libraryId: windowState.libraryId,
+                        libraryName: windowState.library?.displayName ?? "Library",
+                        importError: $importError
+                    )
                 }
-                // No painted lozenge (#4360): the toolbar's own Liquid Glass
-                // carries this principal item; the old low-opacity primary
-                // fill was a hand-rolled approximation of that material.
-                // Search field removed from the principal zone (#3037), and
-                // the window-level `.searchable` that replaced it is gone too
-                // (#4407) — search now lives in the library's mini toolbar,
-                // with the pane it acts on.
-                }
-            }
-
-            // Xcode-style status island: engine button + what's-going-on
-            // message + activity button. Declared unconditionally within this
-            // zone (#3163: content varies, the item never appears/disappears).
-            //
-            // `.automatic`, NOT `.principal` (#4378). Two items claiming
-            // `.principal` is the #3163 duplicate-identifier crash class, not a
-            // layout preference — so this is a correctness fix. The breadcrumb
-            // wins the zone because `.principal` is the window's IDENTITY slot:
-            // it is what makes the proxy icon, ⌘-click-to-parent and proxy-drag
-            // work at all. Status is chrome about a transient condition, and a
-            // user navigates by identity while only glancing at status.
-            //
-            // `.automatic` keeps the island adjacent to the centre rather than
-            // exiling it to an explicit trailing group, and its message-length
-            // contract (#4366) is unchanged by the move.
-            ToolbarItem(id: ContentToolbarID.statusIsland, placement: .automatic) {
-                StatusIslandToolbarItem(
-                    isImporting: isImporting,
-                    importProgress: importProgress,
-                    libraryId: windowState.libraryId,
-                    libraryName: windowState.library?.displayName ?? "Library",
-                    importError: $importError
-                )
             }
         }
     }

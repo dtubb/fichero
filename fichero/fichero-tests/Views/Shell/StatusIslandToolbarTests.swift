@@ -163,16 +163,31 @@ struct StatusIslandToolbarTests {
 
     /// #3163: a `ToolbarItem` that appears and disappears with state has
     /// crashed this app before (duplicate registration). The island's CONTENT
-    /// varies; the item is declared unconditionally, exactly once.
-    @Test("the island is one unconditionally-declared item, outside .principal")
+    /// varies; it is mounted unconditionally, exactly once — since #4519
+    /// INSIDE the breadcrumb's `.principal` item (status beside the path),
+    /// never as a standalone item that could drift into the controls run.
+    @Test("the island is mounted exactly once, inside the breadcrumb item")
     func islandIsOneUnconditionalItem() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        // Anchored on the DECLARATION form, not the bare symbol: prose that
-        // merely mentions `ContentToolbarID.statusIsland` (the comments left
-        // where the engine/activity items used to sit) is not a second item.
-        let declaration = "ToolbarItem(id: ContentToolbarID.statusIsland"
-        #expect(source.contains("\(declaration), placement: .automatic)"))
-        #expect(source.components(separatedBy: declaration).count - 1 == 1)
+        // Anchored on the VIEW CONSTRUCTION: exactly one mount site.
+        let mount = "StatusIslandToolbarItem("
+        #expect(source.components(separatedBy: mount).count - 1 == 1)
+        // No standalone toolbar item for the island — #4519 removed
+        // `ContentToolbarID.statusIsland`; a reappearance means the island
+        // has left the path and rejoined the pane-toggle run.
+        #expect(!source.contains("ContentToolbarID.statusIsland"))
+        // The mount lives inside the one principal (breadcrumb) item: the
+        // breadcrumb declaration precedes it and no other ToolbarItem
+        // declaration sits between the two.
+        let breadcrumb = "ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal)"
+        guard let breadcrumbRange = source.range(of: breadcrumb),
+              let mountRange = source.range(of: mount) else {
+            Issue.record("breadcrumb item or island mount missing")
+            return
+        }
+        #expect(breadcrumbRange.upperBound < mountRange.lowerBound)
+        let between = source[breadcrumbRange.upperBound..<mountRange.lowerBound]
+        #expect(!between.contains("ToolbarItem("))
     }
 
     /// Engine and activity live INSIDE the island now. Leaving either declared
