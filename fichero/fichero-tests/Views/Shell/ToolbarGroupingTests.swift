@@ -62,14 +62,28 @@ struct ToolbarGroupingTests {
 
     // MARK: - The controls are grouped
 
+    /// `ToolbarItemGroup` has NO identified initialiser — only
+    /// `(placement:content:)` — so the group is recognised by being the one
+    /// and only `ToolbarItemGroup` in the file, not by an id (7e02f0954
+    /// deleted `ContentToolbarID.paneToggleGroup` with the last reference).
+    ///
+    /// Shape assertions come BEFORE any subscript: the previous version did a
+    /// bare `[1]` on a split whose separator had left the file, and an Array
+    /// bounds trap in a test kills the whole host — every test after it in
+    /// run order reports failed (the 2026-08-04 whole-suite red).
     @Test("the three pane toggles are one group")
     func paneTogglesAreOneGroup() throws {
         let source = try Self.toolbarSource
-        #expect(source.contains("ToolbarItemGroup(id: ContentToolbarID.paneToggleGroup"))
-        // Exactly one USE — a second would be the #3163 duplicate class.
-        #expect(source.components(separatedBy: "ContentToolbarID.paneToggleGroup").count - 1 == 1)
+        let parts = source.components(separatedBy: "ToolbarItemGroup(")
+        try #require(
+            parts.count == 2,
+            "expected exactly one ToolbarItemGroup — the three-pane control — found \(parts.count - 1)"
+        )
+        // Bound the group at the next ToolbarItem so membership means "inside
+        // THIS builder", not "later in the file". The search toggle (#4521)
+        // is deliberately its own item, never a fourth member.
+        let group = parts[1].components(separatedBy: "ToolbarItem(").first ?? parts[1]
         // …and the three members are inside it, in column order.
-        let group = source.components(separatedBy: "ContentToolbarID.paneToggleGroup")[1]
         let library = group.range(of: "libraryPaneToggleButton")
         let preview = group.range(of: "Preview Pane")
         let reading = group.range(of: "Reading Pane")
@@ -82,11 +96,18 @@ struct ToolbarGroupingTests {
         }
     }
 
-    @Test("sort and filter are a separate group from the pane toggles")
-    func libraryControlsAreTheirOwnGroup() throws {
+    /// #4407 dissolved the window-level sort/filter group entirely: the
+    /// controls follow the pane they act on, into the library's mini toolbar.
+    /// The invariant is now absence here plus presence there — a second sort
+    /// path reappearing in the window chrome is the #4282 duplicate class.
+    @Test("sort and filter live in the library mini toolbar, not window chrome")
+    func libraryControlsLiveInTheMiniToolbar() throws {
         let source = try Self.toolbarSource
-        #expect(source.contains("ToolbarItemGroup(id: ContentToolbarID.libraryControlsGroup"))
-        #expect(source.components(separatedBy: "ContentToolbarID.libraryControlsGroup").count - 1 == 1)
+        #expect(!source.contains("librarySortMenu"))
+        #expect(!source.contains("libraryFilterToggleButton"))
+        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
+        #expect(mini.contains("librarySortMenu"))
+        #expect(mini.contains("libraryFilterToggleButton"))
     }
 
     /// The per-item identifiers the toggles used to carry are gone: leaving
@@ -105,15 +126,20 @@ struct ToolbarGroupingTests {
         }
     }
 
-    /// #3163: every window toolbar item and group carries an explicit id, and
-    /// the groups are declared unconditionally within their zone rather than
-    /// appearing and disappearing with state.
-    @Test("every toolbar group carries an explicit identifier")
-    func everyGroupHasAnExplicitIdentifier() throws {
+    /// #3163: every window toolbar ITEM carries an explicit id. Groups cannot
+    /// — `ToolbarItemGroup` has no identified initialiser (7e02f0954), so the
+    /// old form of this test ("every group has an id") could never pass. A
+    /// group is positional; customisation identity belongs to the items.
+    @Test("every toolbar item carries an explicit identifier")
+    func everyItemHasAnExplicitIdentifier() throws {
+        // Strip the status-island VIEW first: `StatusIslandToolbarItem(` is a
+        // plain view whose name merely ends in "ToolbarItem(".
         let source = try Self.toolbarSource
-        let groupDeclarations = source.components(separatedBy: "ToolbarItemGroup(").count - 1
-        let identifiedGroups = source.components(separatedBy: "ToolbarItemGroup(id: ").count - 1
-        #expect(groupDeclarations == identifiedGroups, "an unidentified ToolbarItemGroup exists")
+            .replacingOccurrences(of: "StatusIslandToolbarItem(", with: "")
+        let itemDeclarations = source.components(separatedBy: "ToolbarItem(").count - 1
+        let identifiedItems = source.components(separatedBy: "ToolbarItem(id: ").count - 1
+        #expect(itemDeclarations > 0, "no ToolbarItem declarations found — wrong file?")
+        #expect(itemDeclarations == identifiedItems, "an unidentified ToolbarItem exists")
     }
 
     // MARK: - Left alone on purpose
