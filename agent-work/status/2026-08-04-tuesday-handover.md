@@ -266,3 +266,43 @@ believing anything here about Swift test health.**
 Stated this way on purpose: built-green is not passes, and substituting one for
 the other is what this whole day was about. I did it myself in this very file
 an hour ago.
+
+## The pattern that produced most of the night's real findings
+
+**Four times, the useful finding came from verifying something already reported
+done — including things reported done by the same lane, hours earlier.**
+
+1. **#4415** — the curation guard was wired to `merge_dedup_only`, which
+   Catalogue never calls. Reported fixed by me; it was not.
+2. **#4486** — the premise was wrong in both halves; 11 write sites, and the one
+   bypass loses nothing.
+3. **The lane's own #4486 report** — written from source without opening
+   `ClaimStoreRoutingTests`, which already answered two things it called open.
+4. **#4503** — the safeguard built *after* two unauthorised paid runs had the
+   same defect inside it: `ResolutionSource.unresolved` was set only when
+   resolution RAISED, so a resolution that succeeded while producing a config
+   with no provider took the ordinary path, and `_provider_is_billable(None)`
+   answered `False`. **`is_free` returned True for a workflow containing a node
+   whose provider nobody can name.** The lane's phrase: *the same mistake with
+   more ceremony.* Fixed in `3b274899d` with two tests that both fail without it.
+
+**What to do with this:** when something is reported done, the cheapest useful
+act is often to check it rather than to build the next thing. Half of tonight's
+genuine defects were found that way, and three of them were in code written to
+prevent exactly the defect they contained.
+
+## One rule of practice for presets, not mechanised on purpose
+
+A claim that a preset is free must come from
+`fichero workflow preview-cost NAME`, run against the machine it will run on —
+**never from reading the preset's JSON.** The two unauthorised spends both came
+from reading a file that does not contain the answer: unpinned nodes resolve
+against app-DB defaults, which point at OpenRouter.
+
+The lane declined to build a guardrail for this and was right to. The bad
+judgements were made in prose, not code — a triage doc classifying presets by
+tool-name matching, and a manager reading JSON. Only one place in code decides
+cost outside the resolver (`model_recommendations._cost_metadata`) and it is
+honest: it decides from the resolved provider and returns `unknown` rather than
+guessing. A rule scanning docs for the word "free" would fire on nothing today
+and be noise tomorrow.
