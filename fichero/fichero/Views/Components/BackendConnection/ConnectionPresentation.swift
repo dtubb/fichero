@@ -210,11 +210,22 @@ enum ConnectionPresentation {
             )
 
         case .ready:
+            // #4391: a glyph can only HINT at local vs remote; the words here
+            // settle it. Same ownership input every surface already receives,
+            // so the island glyph, VoiceOver and this popover text agree
+            // (#4380/#4400 single source). Local deliberately does not split
+            // app-managed from external — "this Mac" is the fact the user
+            // cares about; who may restart it is the Action layer's business.
+            let isRemote = ownership == .remote
             return Display(
                 title: "Connected",
                 shortTitle: "Connected",
-                detail: "",
-                symbol: "checkmark.circle",
+                detail: isRemote
+                    ? "Connected to a Fichero server on another machine."
+                    : "Connected to the Fichero server on this Mac.",
+                symbol: isRemote
+                    ? ToolbarSymbols.engineReadyRemote
+                    : ToolbarSymbols.engineReadyLocal,
                 isError: false,
                 isRecovering: false,
                 action: nil
