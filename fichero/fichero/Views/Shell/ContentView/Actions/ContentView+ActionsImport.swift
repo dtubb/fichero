@@ -125,16 +125,6 @@ extension ContentView {
         }
     }
 
-    /// Delete the `fichero-drop-UUID` directories an external drop created
-    /// (#4459). Best-effort: a directory the OS already reaped is not an error,
-    /// and failing an import because its scratch space could not be tidied
-    /// would be the tail wagging the dog.
-    static func removeTemporaryDropDirectories(_ directories: [URL]) {
-        for directory in directories {
-            try? FileManager.default.removeItem(at: directory)
-        }
-    }
-
     /// Drop this app's OWN drag export before anything can import it (#4401),
     /// returning only the genuinely external URLs.
     ///
@@ -153,11 +143,8 @@ extension ContentView {
         logger.error(
             "Refusing to import \(internalExports.count) item(s) dragged from inside the app"
         )
-        // #4311: same correction, and here the claim was even less supportable.
-        // This branch identifies our own export by the `fichero-drag-` PATH
-        // PREFIX, which every library's exports share — so it cannot tell which
-        // library the file came from, and "already in this library" was a
-        // guess presented as a fact.
+        // #4311: identifies our export by the `fichero-drag-` prefix EVERY
+        // library shares, so it cannot know which library sent it.
         importError = """
             That item was dragged from inside Fichero, so it wasn't imported. \
             Drop it on a folder to file it, or — if it came from another \
@@ -169,12 +156,10 @@ extension ContentView {
     /// Say so when a dropped link is refused, rather than letting the drop do
     /// nothing (#2386).
     ///
-    /// Downloading a remote URL is a real feature with its own failure surface —
-    /// redirects, auth walls, content-type sniffing, a partial file on a dropped
-    /// connection — and is NOT built here. What is built here is honesty: a
-    /// remote URL is recognised as remote and SAID SO, instead of being handed
-    /// to the importer as a file path that does not exist. A drop that explains
-    /// itself is a smaller lie than one that silently does nothing.
+    /// Downloading a remote URL is a real feature with its own failure surface
+    /// and is NOT built here. What is built here is honesty: a remote URL is
+    /// recognised as remote and SAID SO, instead of being handed to the
+    /// importer as a file path that does not exist.
     ///
     /// Lives on the view, not on `DroppedURLs`: it needs `importError` and the
     /// file's logger, and keeping them out of the value type is what lets
@@ -226,7 +211,7 @@ extension ContentView {
         let temporaryDirectories = externalDropTemporaryDirectories(for: droppedURLs.importURLs)
 
         Task { @MainActor in
-            defer { Self.removeTemporaryDropDirectories(temporaryDirectories) }
+            defer { DroppedURLs.removeTemporaryDirectories(temporaryDirectories) }
             isImporting = true
             importError = nil
 

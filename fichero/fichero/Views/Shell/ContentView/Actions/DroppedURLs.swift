@@ -5,6 +5,20 @@ import Foundation
 /// recognise and refuse — is the whole point of the split, and a tuple member
 /// called `.2` is exactly how a caller forgets it exists.
 struct DroppedURLs {
+    /// Delete the `fichero-drop-UUID` directories an external drop staged
+    /// (#4459). Best-effort: a directory the OS already reaped is not an
+    /// error, and failing an import because its scratch space could not be
+    /// tidied would be the tail wagging the dog.
+    ///
+    /// Only `fichero-drop-` — INBOUND staging, ours to delete. The outbound
+    /// `fichero-drag-` export belongs to the Finder and must never be swept
+    /// from under a copy in progress.
+    static func removeTemporaryDirectories(_ directories: [URL]) {
+        for directory in directories {
+            try? FileManager.default.removeItem(at: directory)
+        }
+    }
+
     /// Fichero library packages to open in a window.
     let libraryURLs: [URL]
     /// Files on disk to hand to the importer.
