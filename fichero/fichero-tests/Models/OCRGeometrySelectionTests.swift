@@ -200,9 +200,17 @@ struct OCRGeometrySelectionTests {
         let source = try Self.codeOnly(
             Self.appSource("Views/Preview/ImageViewer/OCRGeometryOverlay.swift"))
 
-        #expect(source.contains("OCRGeometrySelection.geometryBearingTypes"))
-        #expect(source.contains("OCRGeometrySelection.ranked("))
-        #expect(source.contains("OCRGeometrySelection.carriesGeometry("))
+        // 9e8165d04 (#4418) lifted the whole probe into
+        // OCRGeometrySelection.load so the PDF surface could share it: the
+        // overlay now makes ONE call and the ranking/probe internals live on
+        // the selection type. Pin the overlay's deferral to that single entry
+        // point, and pin the internals where they moved to.
+        #expect(source.contains("OCRGeometrySelection.load("))
+
+        let selection = try Self.codeOnly(Self.appSource("Models/OCRGeometrySelection.swift"))
+        #expect(selection.contains("geometryBearingTypes"))
+        #expect(selection.contains("func ranked("))
+        #expect(selection.contains("func carriesGeometry("))
 
         // The two defects, in their original code form.
         #expect(!source.contains("max(by: { $0.createdAt < $1.createdAt })"))

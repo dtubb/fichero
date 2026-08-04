@@ -367,9 +367,18 @@ final class EntityStoreTests: XCTestCase {
         await store.loadEntities(forDocument: "doc-1")
         await store.loadEntities(forDocument: "doc-2")
 
+        // Both loads happened before any read, so each bucket holding its own
+        // document's entities IS the scope-separation claim: doc-2's load did
+        // not clobber doc-1's bucket. (The original third assertion here
+        // re-read doc-1 and expected "Beta" — a typo that contradicted the
+        // first line; the test could never pass and never ran, #4511.)
         XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Alpha"])
         XCTAssertEqual(store.entities(forDocument: "doc-2").map(\.canonicalName), ["Beta"])
-        XCTAssertEqual(store.entities(forDocument: "doc-1").map(\.canonicalName), ["Beta"])
+        XCTAssertNotEqual(
+            store.entities(forDocument: "doc-1").map(\.id),
+            store.entities(forDocument: "doc-2").map(\.id),
+            "the two documents' inspector scopes must stay distinct buckets"
+        )
     }
 
     func testAuthoritySettingsLoadAndToggleFlowThroughTheStore() async throws {

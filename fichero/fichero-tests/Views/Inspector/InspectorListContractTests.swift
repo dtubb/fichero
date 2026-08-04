@@ -41,7 +41,10 @@ struct InspectorListContractTests {
             "Views/Inspector/Source/DocumentInspectorMetadataTab.swift"
         ]
         for path in hosted {
-            let source = try AppSource.text(path)
+            // Comments stripped, same as metadataRowsAreButtons below: the
+            // Info tab's Aug 3 refactors explain the List(selection:) they
+            // REMOVED, and the ban must fire on a List, not on its obituary.
+            let source = Self.code(of: try AppSource.text(path))
             #expect(
                 !source.contains("List(selection:"),
                 "\(path) is a List inside SourceInfoView's ScrollView — it will render at zero height (#2107)"

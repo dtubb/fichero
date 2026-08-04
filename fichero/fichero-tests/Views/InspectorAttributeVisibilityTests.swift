@@ -183,10 +183,12 @@ struct InspectorAttributeVisibilityTests {
     @Test("the chooser renders even when nothing is visible")
     func chooserIsNotGatedOnVisibility() throws {
         let source = try Self.infoTab
-        // Indentation is the assertion: at the section VStack's own level the
-        // chooser sits beside the sections, not inside a condition. One `if`
-        // around it and this line indents further and the test fails.
-        #expect(source.contains("\n                attributesChooser\n"))
+        // Indentation is the assertion: 2e832b24c split the body into three
+        // @ViewBuilder groups, and the chooser now sits at the TOP LEVEL of
+        // `identitySections` (8 spaces), beside the sections it gates — not
+        // inside a condition. One `if` around it and this line indents
+        // further and the test fails.
+        #expect(source.contains("\n        attributesChooser\n"))
         let chooser = try Self.appSource(
             "Views/Inspector/Source/Info/DocumentInspectorInfoTab+AttributeChooser.swift")
         // And it says why the strip is blank, so an unconfigured inspector does

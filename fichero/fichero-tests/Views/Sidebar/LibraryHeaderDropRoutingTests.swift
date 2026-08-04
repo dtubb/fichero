@@ -219,9 +219,23 @@ final class LibraryHeaderDropRoutingTests: XCTestCase {
     /// capability. A `canLoadObject(ofClass: URL.self)` filter deciding the
     /// ROUTE is the original defect written out again.
     func testLibraryHeaderRoutesThroughTheSharedClassifier() throws {
+        // 6c1519367 (#4474/#4475) lifted the classifier call INTO the shared
+        // reader: the header no longer spells classifySidebarDropPayload
+        // itself — it calls readSidebarDropPayload, the same entry the row
+        // path and the folder cell use, and THAT is the one place allowed to
+        // classify. The pin follows: header → shared reader → classifier.
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarSectionHeader.swift")
-        XCTAssertTrue(source.contains("classifySidebarDropPayload("))
+        XCTAssertTrue(source.contains("readSidebarDropPayload(providers)"))
         XCTAssertTrue(source.contains("sidebarDropMightCarryInternalID("))
+        XCTAssertFalse(
+            source.contains("classifySidebarDropPayload("),
+            "classifying here again would be the second copy of the decision (#4401)"
+        )
+        let reader = try Self.appSource("Views/Sidebar/ItemRow/SidebarDropProviderReader.swift")
+        XCTAssertTrue(
+            reader.contains("classifySidebarDropPayload("),
+            "the shared reader is the one caller of the pure classifier"
+        )
     }
 
     /// The header accepted the drop synchronously, so a refusal it cannot

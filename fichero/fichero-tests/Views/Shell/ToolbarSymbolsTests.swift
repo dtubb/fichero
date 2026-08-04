@@ -152,11 +152,21 @@ struct ToolbarSymbolsTests {
 
     /// The placeholder names the control, not a capability: it must read
     /// "Search", never a description of the Ask feature.
+    ///
+    /// #4407/#4521 moved the field itself: the window-level `.searchable`
+    /// (whose `prompt:` this used to pin) is gone from the root layout, and
+    /// the engine-search field now lives in the library's mini toolbar,
+    /// summoned by the toolbar toggle. The placeholder rule rides along.
     @Test("the search field placeholder reads Search")
     func searchPlaceholderReadsSearch() throws {
-        let source = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
-        #expect(source.contains("prompt: \"Search\""))
-        #expect(!source.contains("Ask your library"))
+        let layout = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
+        #expect(
+            !layout.contains(".searchable("),
+            "window-level search came back — it belongs to the library mini toolbar (#4407)"
+        )
+        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
+        #expect(mini.contains("TextField(\"Search\", text:"))
+        #expect(!mini.contains("Ask your library"))
     }
 
     // MARK: - #4362 mini-toolbar placement

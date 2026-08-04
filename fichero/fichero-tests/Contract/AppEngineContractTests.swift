@@ -60,7 +60,19 @@ final class AppEngineContractTests: XCTestCase {
     func test_workflows_match_library() async throws {
         let svc = WorkflowService(ficheroClient: engine.client)
         let workflows = try await svc.listWorkflows()
-        XCTAssertEqual(workflows.count, try expected("workflows"), "workflows via /workflows")
+        // #4450 (7eb4a9644): a non-global library's list ALSO carries the
+        // shipped default workflows resolved from the global library — they
+        // are is_system rows riding along by design, not library contents.
+        // The contract is therefore two-sided: the library's own rows come
+        // through exactly (none dropped, none invented), and every extra row
+        // is a global default — anything non-system beyond the seeded count
+        // would be an invented workflow, the #1075 silent-drift class.
+        let own = workflows.filter { !$0.isSystem }
+        XCTAssertEqual(own.count, try expected("workflows"), "library-owned workflows via /workflows")
+        XCTAssertTrue(
+            own.contains { $0.id == (try? seededID("workflow")) },
+            "the seeded workflow itself comes through, and comes through as library-owned"
+        )
     }
 
     func test_artifacts_match_library() async throws {

@@ -43,7 +43,12 @@ struct UDSSocketProbeTests {
 
     @Test("a path no engine ever bound reads as absent")
     func anUnboundPathIsAbsent() {
-        let path = NSTemporaryDirectory() + "fichero-never-bound-\(UUID().uuidString).sock"
+        // Short name like SocketHarness's, ON PURPOSE: sun_path caps at 104
+        // bytes, and NSTemporaryDirectory() in a sandboxed test host is long
+        // enough that a full-UUID name tipped this path over the cap — so the
+        // probe answered .unusable(ENAMETOOLONG), which is correct for that
+        // path and not what this test is about.
+        let path = NSTemporaryDirectory() + "fichero-nb-\(UUID().uuidString.prefix(8)).sock"
 
         #expect(!FileManager.default.fileExists(atPath: path))
         #expect(UDSSocketProbe.liveness(atPath: path) == .absent)

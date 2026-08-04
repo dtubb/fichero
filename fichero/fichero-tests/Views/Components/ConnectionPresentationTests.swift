@@ -417,11 +417,19 @@ struct ConnectionPresentationTests {
     @Test("the connection popover renders the mapping and nothing of its own")
     func popoverRendersOnlyTheMapping() throws {
         let source = try Self.appSource("Views/Components/BackendConnection/BackendConnectionView.swift")
-        #expect(!source.contains("startupMessages"))
-        #expect(!source.contains("Image(platformImage:"))
-        #expect(!source.contains("PYTHONPATH"))
-        #expect(source.contains("connectionStatus"))
-        #expect(source.contains("primaryActionButton"))
+        // Negative pins run against CODE only: the file's doc comment
+        // describes the debug-console shapes this view must NOT render
+        // (`PYTHONPATH=…` among them), and a raw contains() fails on the
+        // description of the rule rather than a violation of it.
+        let code = source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        #expect(!code.contains("startupMessages"))
+        #expect(!code.contains("Image(platformImage:"))
+        #expect(!code.contains("PYTHONPATH"))
+        #expect(code.contains("connectionStatus"))
+        #expect(code.contains("primaryActionButton"))
     }
 
     /// The library pane's loading line comes from the phase, not from two

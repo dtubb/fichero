@@ -169,12 +169,20 @@ struct SidebarDropPayloadTests {
     /// a Finder file drag, since #4123 made both advertise a file.
     @Test("the drop reads its ids before it routes")
     func theDropReadsBeforeItRoutes() throws {
+        // 6c1519367 (#4474/#4475): the row no longer reads providers itself —
+        // it calls readSidebarDropPayload, and the read-before-route ordering
+        // lives in that ONE shared reader. Pin both halves: the row defers to
+        // the reader, and the reader appends every loaded id before it asks
+        // the classifier for a route.
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift")
-        #expect(source.contains("classifySidebarDropPayload("))
+        let body = source.components(separatedBy: "func handleRowDrop(").dropFirst().first ?? ""
+        #expect(body.contains("readSidebarDropPayload(providers)"))
 
-        let body = source.components(separatedBy: "func handleRowDrop(")[1]
-        let load = body.range(of: "loadedIDs.append")
-        let route = body.range(of: "classifySidebarDropPayload(")
+        let reader = try Self.appSource("Views/Sidebar/ItemRow/SidebarDropProviderReader.swift")
+        let readerBody = reader.components(separatedBy: "func readSidebarDropPayload(")
+            .dropFirst().first ?? ""
+        let load = readerBody.range(of: "loadedIDs.append")
+        let route = readerBody.range(of: "classifySidebarDropPayload(")
         #expect(load != nil)
         #expect(route != nil)
         if let load, let route {

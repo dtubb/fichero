@@ -72,7 +72,14 @@ final class MillerColumnModelTests: XCTestCase {
         XCTAssertTrue(columns.contains("accessibilityIdentifier(\"libraryColumnRow."))
         XCTAssertTrue(columns.contains("LibraryRowHoverWash"))
         XCTAssertTrue(columns.contains(".equatable()"))
-        XCTAssertTrue(columns.contains("selection.removeAll()"))
+        // 6eea7a734 (#4436): empty-space deselect goes through the ONE shared
+        // grammar — apply(clear()) — not a hand-written removeAll, which is
+        // how a surface ends up clearing two of the three selection fields.
+        XCTAssertTrue(columns.contains("apply(SelectionGrammar.clear())"))
+        XCTAssertFalse(
+            columns.contains("selection.removeAll()"),
+            "hand-rolled deselect bypasses the shared selection grammar (#4436)"
+        )
         XCTAssertTrue(columns.contains("documentContextMenu(for: doc)"))
         // Keyboard: the shared handler navigates the ACTIVE column, and
         // Return/Space/delete resolve deep-column ids through one seam.

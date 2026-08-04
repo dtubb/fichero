@@ -140,10 +140,22 @@ struct SidebarDragIDTests {
             encoding: .utf8
         )
         #expect(source.contains(".visibility(.ownProcess)"))
-        // External-facing representations come FIRST so Finder/editors never
-        // fall back to the internal id string.
-        let fileIdx = source.range(of: "FileRepresentation(exportedContentType: .data)")!.lowerBound
-        let idIdx = source.range(of: "ProxyRepresentation(exporting: \\.id)")!.lowerBound
-        #expect(fileIdx < idIdx)
+        // b4714b6aa (#4401): the id flavor comes FIRST and must stay first.
+        // `.ownProcess` already hides it from every external consumer, so
+        // ordering only decides what OUR reader gets — and file-first meant
+        // `loadObject(ofClass: NSString.self)` returned the transcript for
+        // every transcribed document, the classifier saw no id, and the row
+        // refused the move. Id-first is what lets a transcribed document be
+        // filed at all; the cross-app file/RTF exports still follow.
+        let fileRange = source.range(of: "FileRepresentation(exportedContentType: .data)")
+        let idRange = source.range(of: "ProxyRepresentation(exporting: \\.id)")
+        #expect(fileRange != nil)
+        #expect(idRange != nil)
+        if let fileRange, let idRange {
+            #expect(
+                idRange.lowerBound < fileRange.lowerBound,
+                "the ownProcess id must lead its own export list (#4401)"
+            )
+        }
     }
 }

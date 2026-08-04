@@ -472,7 +472,10 @@ struct SidebarItemBuilderTests {
 
         #expect(result.count == 1)
         #expect(result[0].name == "paper.pdf")
-        #expect(result[0].children?.map(\.name) == ["1", "2", "3"])
+        // 9bdc98504 (#116/#4416): the sidebar routes through DocumentTitle,
+        // and a reader calls a page "Page 1" — the bare "1" was the last
+        // hand-composed name in the app.
+        #expect(result[0].children?.map(\.name) == ["Page 1", "Page 2", "Page 3"])
     }
 
     @Test("buildLibraryHierarchy: structured PDF shows its outline, not flat pages (#2260)")

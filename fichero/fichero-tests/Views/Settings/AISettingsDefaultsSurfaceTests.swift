@@ -22,7 +22,11 @@ final class AISettingsDefaultsSurfaceTests: XCTestCase {
         XCTAssertTrue(source.contains("featureManager.isSettingsModelsTabEnabled"))
         XCTAssertTrue(source.contains("Text(\"Models & Providers\").tag(AISettingsTab.providers)"))
         XCTAssertTrue(source.contains("Text(\"Downloads\").tag(AISettingsTab.downloads)"))
-        XCTAssertTrue(source.contains("Text(\"Local LLM\").tag(AISettingsTab.localLLM)"))
+        // #4503: the "Local LLM" tab is GONE — MLX is a provider row inside
+        // Models & Providers. The CASE survives so a persisted selection or a
+        // pre-#4503 deep link resolves to the providers tab, never to nothing.
+        XCTAssertFalse(source.contains("Text(\"Local LLM\")"))
+        XCTAssertTrue(source.contains("case .providers, .localLLM:"))
         XCTAssertTrue(source.contains("switch effectiveSelectedTab"))
     }
 

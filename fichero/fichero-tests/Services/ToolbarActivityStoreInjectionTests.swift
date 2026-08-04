@@ -69,12 +69,27 @@ final class ToolbarActivityStoreInjectionTests: XCTestCase {
             source.contains("if let library {"),
             "DocumentTabView's content branch must bind the library reference itself (#4448)."
         )
+        // Scoped to the content builder: 5966c3a7c re-added an
+        // `if let apiClient` block in `.task` that only LOGS — a file-wide
+        // negative fired on it, but the rule is about what gates the
+        // environment CHAIN, and that must stay `if let library`.
+        let contentBuilder = source
+            .components(separatedBy: "private var contentView: some View {")
+            .dropFirst().first ?? ""
+        XCTAssertFalse(contentBuilder.isEmpty, "contentView builder not found (#4448)")
+        let beforeChainEnd = contentBuilder
+            .components(separatedBy: "if let library {")
+            .first ?? contentBuilder
         XCTAssertFalse(
-            source.contains("if let apiClient = apiClient {"),
+            beforeChainEnd.contains("if let apiClient"),
             """
             DocumentTabView must not gate its environment chain on apiClient alone — \
             library-scoped forwards need the library reference in scope (#4448).
             """
+        )
+        XCTAssertTrue(
+            contentBuilder.contains(".environment(library.apiClient)"),
+            "the client forward must read off the ONE resolved library reference (#4448)."
         )
     }
 

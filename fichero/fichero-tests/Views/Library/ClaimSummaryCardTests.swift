@@ -87,8 +87,10 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testSvoChipActionsRevealInlineSourceClaim() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift")
-        guard let sentenceStart = source.range(of: "private var claimSentence: some View"),
+        // claimSentence moved to +Navigation in the Aug 2 split.
+        let source = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView+Navigation.swift")
+        guard let sentenceStart = source.range(of: "var claimSentence: some View"),
               let fallbackStart = source.range(of: "} else if let excerpt", range: sentenceStart.upperBound..<source.endIndex)
         else {
             XCTFail("ClaimSummaryCard must render SVO before the fallback excerpt")
@@ -102,9 +104,14 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testVerbAndObjectChipsEnterInlineEditing() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift")
+        // 3582595b6 (Aug 2) split the card: the chips and inline-editing
+        // entry live in ClaimSummaryCardView+Navigation.swift now, and
+        // beginInlineEditing is internal because the split calls it across
+        // files.
+        let source = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView+Navigation.swift")
 
-        XCTAssertTrue(source.contains("private func beginInlineEditing()"))
+        XCTAssertTrue(source.contains("func beginInlineEditing()"))
         XCTAssertTrue(source.contains("Text(svo.verb)"))
         XCTAssertTrue(source.contains("Text(svo.object)"))
         XCTAssertTrue(source.contains("beginInlineEditing()"))
@@ -118,7 +125,9 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testCollapsedSourceExcerptOpensClaimSource() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift")
+        // The collapsed sentence area moved to +Navigation in the Aug 2 split.
+        let source = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView+Navigation.swift")
         guard let excerptStart = source.range(of: "} else if let excerpt = cleanedDisplayText(claim.sourceExcerpt)"),
               let noSvoStart = source.range(of: "No subject-verb-object", range: excerptStart.upperBound..<source.endIndex)
         else {
@@ -257,10 +266,14 @@ final class ClaimSummaryCardTests: XCTestCase {
     }
 
     func testClaimFocusPreservesEntityInspectionContext() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift")
-
-        XCTAssertTrue(source.contains("var focusedEntityId: String?"))
-        XCTAssertTrue(source.contains("entityId: focusedEntityId"))
+        // The property stays on the card; the forward moved to +Navigation
+        // with the Aug 2 split.
+        let card = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView.swift")
+        XCTAssertTrue(card.contains("var focusedEntityId: String?"))
+        let navigation = try Self.appSource(
+            "Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCardView+Navigation.swift")
+        XCTAssertTrue(navigation.contains("entityId: focusedEntityId"))
     }
 
     func testMentionSummariesDeduplicateSourcePagesAndFormatDate() throws {

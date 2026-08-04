@@ -95,9 +95,15 @@ struct SidebarDropFeedbackTests {
         ] {
             let source = try appSource(path)
             #expect(source.contains("sidebarApplyInsertionDropOperation("), Comment(rawValue: path))
+            // Modifiers are sampled ONCE at the drop moment and the sampled
+            // value is passed through — re-reading .current() at the decision
+            // site (the old grammar this pinned) can disagree with what the
+            // user held when they released the drag.
+            #expect(source.contains("SidebarDropModifiers.current()"), Comment(rawValue: path))
+            #expect(source.contains("sidebarDropOperation(modifiers:"), Comment(rawValue: path))
             #expect(
-                source.contains("sidebarDropOperation(modifiers: .current(), kind: .document)"),
-                Comment(rawValue: path)
+                !source.contains("sidebarDropOperation(modifiers: .current()"),
+                Comment(rawValue: "\(path): modifiers must be the drop-moment sample, not a re-read")
             )
         }
     }

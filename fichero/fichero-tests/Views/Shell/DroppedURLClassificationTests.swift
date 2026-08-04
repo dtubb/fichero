@@ -119,10 +119,21 @@ final class DroppedURLClassificationTests: XCTestCase {
     func testNoDropSurfaceStillUsesTheURLTypedDestination() throws {
         let source = try AppSource.text("Views/Shell/ContentView/ContentViewModifiers.swift")
 
+        // Assert about CODE, not commentary: the file's doc comment narrates
+        // the deleted modifier's history and rightly names it verbatim, so a
+        // raw contains() would fail on the explanation of the fix itself.
+        let code = source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
         XCTAssertFalse(
-            source.contains("dropDestination(for: URL.self)"),
+            code.contains("dropDestination(for: URL.self)"),
             "the window-level drop must take providers, so it can be offered the "
                 + "same droppables every other surface accepts (#2386 / #4458)"
+        )
+        XCTAssertFalse(
+            code.contains(".onDrop("),
+            "no drop target of ANY type may be re-mounted window-wide (#4458/#4520)"
         )
         // …and the provider path it was replaced by is NOT here either. #2386
         // put it on the WHOLE `NavigationSplitView`, which is the scope #4458

@@ -92,9 +92,15 @@ struct LibraryListModeGuardTests {
 
     @Test("shift-extend never re-anchors on the moving end")
     func shiftAnchorStable() throws {
+        // 6eea7a734 (#4436): the anchor rule moved out of ArrowNavigation
+        // into SelectionGrammar.extend — one grammar for keyboard and mouse.
+        // Pin the handoff (arrow keys call the grammar, no inline mutation)
+        // and the rule at its new home (⇧ holds the anchor still).
         let source = try appSource("Views/Library/LibraryView+ArrowNavigation.swift")
-        #expect(source.contains("the anchor NEVER moves during a"))
+        #expect(source.contains("SelectionGrammar.extend("))
         #expect(!source.contains("selection.insert(targetId)"))
+        let grammar = try appSource("Models/Selection/SelectionGrammar.swift")
+        #expect(grammar.contains("holds the anchor still"))
     }
 
     @Test("selection is Mail-style: grey fill + accent label, no inversion")
@@ -174,8 +180,10 @@ struct LibraryListModeGuardTests {
         #expect(icon.contains("LibraryIconCell("))
         #expect(icon.contains("isRenaming: renamingDocumentId == doc.id"))
         #expect(icon.contains("LibraryRowHoverWash"))
-        // Empty-space click deselects, like Finder.
-        #expect(icon.contains("selection.removeAll()"))
+        // Empty-space click deselects, like Finder — through the ONE shared
+        // grammar (#4436), never a hand-written removeAll.
+        #expect(icon.contains("apply(SelectionGrammar.clear())"))
+        #expect(!icon.contains("selection.removeAll()"))
     }
 
     @Test("Quick Look is discoverable from the context menu")
@@ -196,7 +204,11 @@ struct LibraryListModeGuardTests {
         #expect(!table.contains("newSelection.first"))
         // The native Table writes selection directly; the shared cursor must
         // be maintained here or Return/Space act on the wrong row (G3).
-        #expect(table.contains("selectionCursor = nodeId"))
+        // #4436: maintained via SelectionGrammar.reconcile, not a bare
+        // assignment — reconcile is what keeps anchor and cursor consistent
+        // when the Table hands us a whole new Set.
+        #expect(table.contains("SelectionGrammar.reconcile("))
+        #expect(table.contains("selectionCursor = reconciled.cursor"))
         let columns = try appSource("Views/Library/ViewModes/LibraryView+TableColumns.swift")
         // The document row's modifiers live in `documentNameCell(for:)` since
         // #4202 split it out of `outlineNameCell` — same modifiers, so the
