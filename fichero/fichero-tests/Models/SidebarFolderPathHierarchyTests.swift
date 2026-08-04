@@ -43,31 +43,20 @@ final class SidebarFolderPathHierarchyTests: XCTestCase {
         XCTAssertEqual(flatten(items), ["archive", "1859", "letters", "Letters"])
     }
 
-    /// BUG (#see report): `buildHierarchyFromPath` walks down from "/", and
-    /// `createFolderItems` bails on a path with no components. A saved search
-    /// (or chat, or workflow) whose `folder_path` is the EMPTY STRING therefore
-    /// has no folder created for it and is never visited by `buildSubtree` — it
-    /// is silently absent from the sidebar. `folder_path` is a plain server
-    /// string with no client-side normalisation, so "" is one bad write away.
+    /// FIXED (#4528): paths are normalised before grouping, so an EMPTY
+    /// `folder_path` — one bad server write away, since it is a plain string —
+    /// lands on "/" and renders at the root instead of silently vanishing
+    /// (the walker starts at "/" and only visits materialised folders).
     func testAnItemWithAnEmptyFolderPathMustStillRender() {
         let items = SidebarItemBuilder.buildSearchHierarchy(
             from: [search("Orphan", folderPath: "")], libraryId: libraryId
         )
-        XCTExpectFailure(
-            "BUG: an empty folder_path produces no folder and is never walked, "
-            + "so the row vanishes from the sidebar with no error."
-        ) {
-            XCTAssertEqual(flatten(items), ["Orphan"])
-        }
+        XCTAssertEqual(flatten(items), ["Orphan"])
     }
 
-    /// BUG (#see report): the folder path is used as a raw dictionary key, so
-    /// "/archive" and "/archive/" are two different folders with two different
-    /// `SidebarItem.folder` ids — and both resolve to the same parent, so the
-    /// user sees the SAME folder listed twice with its contents split between
-    /// them. `parentFolderPath` already normalises the trailing slash away when
-    /// it computes a parent, so the two spellings are known to be equivalent
-    /// one line later.
+    /// FIXED (#4528): "/archive" and "/archive/" normalise to one dictionary
+    /// key (component split/rejoin — the same logic `parentFolderPath` always
+    /// used), so one folder renders once with all its contents.
     func testATrailingSlashMustNotDuplicateTheFolder() {
         let items = SidebarItemBuilder.buildSearchHierarchy(
             from: [
@@ -76,21 +65,14 @@ final class SidebarFolderPathHierarchyTests: XCTestCase {
             ],
             libraryId: libraryId
         )
-        XCTExpectFailure(
-            "BUG: '/archive' and '/archive/' are distinct keys, so one folder "
-            + "renders as two rows with its contents split between them."
-        ) {
-            XCTAssertEqual(items.count, 1, "one folder, however its path was spelled")
-            XCTAssertEqual(Set(flatten(items)), ["archive", "A", "B"])
-        }
+        XCTAssertEqual(items.count, 1, "one folder, however its path was spelled")
+        XCTAssertEqual(Set(flatten(items)), ["archive", "A", "B"])
     }
 
-    /// BUG (#see report): sibling FOLDERS are ordered with `$0.name < $1.name`
-    /// — a raw unicode-scalar compare — while sibling DOCUMENTS use
-    /// `localizedCaseInsensitiveCompare` (`childOrder`). So in the searches and
-    /// chats sections every lowercase folder sorts after every uppercase one
-    /// ("Zebra" before "apple"), and the same two names order differently
-    /// depending on which section they are in.
+    /// FIXED (#4528): sibling folders now order by the same
+    /// `localizedCaseInsensitiveCompare` sibling documents use (`childOrder`'s
+    /// name rung), so case no longer decides the order and the same two names
+    /// order identically in every section.
     func testFolderSiblingsSortLikeDocumentSiblings() {
         let items = SidebarItemBuilder.buildSearchHierarchy(
             from: [
@@ -99,13 +81,7 @@ final class SidebarFolderPathHierarchyTests: XCTestCase {
             ],
             libraryId: libraryId
         )
-        XCTExpectFailure(
-            "BUG: folder siblings use a raw `<` on name, not the "
-            + "localizedCaseInsensitiveCompare every document row uses, so "
-            + "case decides the order."
-        ) {
-            XCTAssertEqual(names(items), ["apple", "Zebra"])
-        }
+        XCTAssertEqual(names(items), ["apple", "Zebra"])
     }
 
     /// Items inside a folder are ordered by `sortOrder`, and that ordering must
