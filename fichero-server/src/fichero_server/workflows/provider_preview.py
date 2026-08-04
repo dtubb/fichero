@@ -118,7 +118,25 @@ class WorkflowProviderPreview:
 
     @property
     def unresolved_nodes(self) -> list[NodeProviderResolution]:
-        return [n for n in self.nodes if n.source is ResolutionSource.unresolved]
+        """Nodes whose provider could not be established — by error OR by absence.
+
+        `ResolutionSource.unresolved` is only set when resolution RAISES. A
+        resolution that succeeds while producing a config with no provider took
+        the ordinary path, so it was not counted here, and
+        `_provider_is_billable(None)` answered False — not billable, therefore
+        free. A node whose provider nobody can name was reported as costing
+        nothing, which is this module's own defect one level in.
+
+        Both are the same fact: we cannot say what this node will call. The rule
+        this module states about itself has to hold whichever way the provider
+        went missing.
+        """
+        return [
+            n
+            for n in self.nodes
+            if n.source is ResolutionSource.unresolved
+            or (n.uses_model and not n.provider)
+        ]
 
     @property
     def would_cost_money(self) -> bool:

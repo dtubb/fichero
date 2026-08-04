@@ -382,3 +382,54 @@ class TestDelegationIsNotSilentlyFree:
         node = preview.nodes[0]
         assert node.source is ResolutionSource.unresolved
         assert "does not follow delegation" in (node.error or "")
+
+
+class TestAResolvedNodeWithNoProviderIsUnknownNotFree:
+    """The safeguard's own happy path could report a providerless node as free.
+
+    `unresolved` is only set when resolution RAISES. A resolution that succeeds
+    while producing a config with no provider took the ordinary path, so it was
+    not counted among `unresolved_nodes`, and `_provider_is_billable(None)`
+    answered False — not billable, therefore free.
+
+    That is this module's own defect, one level in: a node whose provider could
+    not be established being reported as costing nothing. The rule the module
+    states about itself — "an unresolved node is not free, it is unknown" — has
+    to hold whether the provider went missing by exception or by absence.
+    """
+
+    def test_a_provider_of_none_is_not_billable_but_must_not_read_as_free(self):
+        from fichero_server.workflows import provider_preview
+
+        # The narrow fact underneath the bug: absence answers "not billable".
+        assert provider_preview._provider_is_billable(None) is False
+        assert provider_preview._provider_is_billable("") is False
+        # And an unrecognised provider is billable, because unknown is expensive.
+        assert provider_preview._provider_is_billable("not-a-real-provider") is True
+
+    def test_a_preview_containing_a_providerless_node_is_not_free(self):
+        """`is_free` must not be True while a node's provider is unknown."""
+        from fichero_server.workflows.provider_preview import (
+            NodeProviderResolution,
+            ResolutionSource,
+            WorkflowProviderPreview,
+        )
+
+        providerless = NodeProviderResolution(
+            node_id="n1",
+            tool="vision_transcribe",
+            uses_model=True,
+            tier_requested="vision",
+            provider=None,
+            model=None,
+            source=ResolutionSource.app_db,
+            billable=False,
+        )
+        preview = WorkflowProviderPreview(
+            workflow_name="providerless", nodes=[providerless]
+        )
+
+        assert preview.is_free is False, (
+            "a node whose provider could not be established was reported free; "
+            "unknown is not free"
+        )
