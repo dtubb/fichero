@@ -496,6 +496,31 @@ class LibraryManager {
 
         libraryManagerLogger.info("Loaded Global library at: \(globalURL.path)")
 
+        // #4511: a unit-test host must not require a live engine to exist.
+        //
+        // `LibraryManager.shared` is a singleton whose `init` always loads the
+        // Global library, and this call is the head of the chain
+        // scheduleLoadWhenBackendReady → loadLibraryDataIfNeeded →
+        // loadLibraryData → DocumentStore.loadCollections →
+        // DocumentService.getRoots → GET /api/documents/roots. So merely
+        // TOUCHING the singleton dials the engine, from anywhere, including a
+        // test over an enum table that never mentions a library.
+        //
+        // FicheroApp.init already carves XCTest out of installer + saved-library
+        // restore, but that guard cannot cover this one: it does not live in the
+        // App's init, it lives in a singleton that anything can touch first.
+        //
+        // Guarded HERE rather than at the top of this method on purpose. The
+        // `LibraryReference` above is still built and still inserted into
+        // `openLibraries`, so `globalLibrary` stays non-nil and a test that
+        // needs a library object still gets one — only the network load is
+        // skipped. Shipping behaviour is untouched: `isRunningXCTests()` is
+        // false in a released app, so it still dials the engine at launch.
+        if isRunningXCTests() {
+            libraryManagerLogger.info("XCTest host — skipping Global library data load (#4511)")
+            return
+        }
+
         scheduleLoadWhenBackendReady(for: library)
     }
 
