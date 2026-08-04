@@ -1600,55 +1600,92 @@ async def _propagate_to_page_children(
 # =============================================================================
 
 
+# Formats every vision provider accepts as-is. Anything else (TIFF, BMP,
+# GIF, HEIC, ...) is re-encoded to PNG before it leaves this module —
+# Gemini rejects "image/tiff" outright ("Unsupported MIME type"), and the
+# old code compounded it by re-encoding to PNG bytes while still LABELLING
+# the data URI with the source MIME (a tiff/bmp/gif label on PNG data).
+_PROVIDER_SAFE_MIME = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
+
+
 def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
-    """Convert image file to base64 data URI with optional resizing.
+    """Convert an image file to a provider-safe base64 data URI.
+
+    The single seam between on-disk images and vision providers: every
+    vision node (process_vision, compare, extract, similarity, video
+    frames) routes here. Guarantees the emitted MIME label ALWAYS matches
+    the encoded bytes and is one providers accept: JPEG/PNG/WebP sources
+    keep their format (JPEG re-encoded on resize, others PNG on resize);
+    everything else — TIFF, BMP, GIF, etc. — is re-encoded to PNG at full
+    resolution (downscaled only when it exceeds ``max_dimension``).
 
     Args:
         file_path: Path to image file
         max_dimension: Max width/height (0 = no resize)
 
     Returns:
-        Base64 data URI
+        Base64 data URI whose MIME type matches its payload.
+
+    Raises:
+        ValueError: The file needs conversion (provider-unsupported
+            format) but cannot be decoded — sending the raw bytes would
+            only defer the failure to the provider, so fail loudly here.
     """
     from PIL import Image
 
     path = Path(file_path)
     suffix = path.suffix.lower()
+    source_mime = _PROVIDER_SAFE_MIME.get(suffix)
+    needs_conversion = source_mime is None
 
-    mime_types = {
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-        ".tiff": "image/tiff",
-        ".tif": "image/tiff",
-        ".bmp": "image/bmp",
-    }
-    mime_type = mime_types.get(suffix, "image/jpeg")
-
-    if max_dimension > 0:
+    if max_dimension > 0 or needs_conversion:
         try:
-            img = Image.open(path)
-            original_size = img.size
+            with Image.open(path) as opened:
+                opened.load()  # force decode of frame 0 (multi-frame TIFF safe)
+                img = opened
+                original_size = img.size
+                if max_dimension > 0 and (
+                    img.width > max_dimension or img.height > max_dimension
+                ):
+                    img.thumbnail(
+                        (max_dimension, max_dimension), Image.Resampling.LANCZOS
+                    )
+                    logger.debug(f"Resized {path.name}: {original_size} -> {img.size}")
 
-            if img.width > max_dimension or img.height > max_dimension:
-                img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
-                logger.debug(f"Resized {path.name}: {original_size} -> {img.size}")
+                if source_mime == "image/jpeg":
+                    img_format, mime_type = "JPEG", "image/jpeg"
+                    if img.mode not in ("RGB", "L"):
+                        img = img.convert("RGB")
+                else:
+                    # PNG is the universal fallback (WebP sources included:
+                    # re-encoding them as PNG keeps label == bytes).
+                    img_format, mime_type = "PNG", "image/png"
+                    if img.mode not in ("1", "L", "LA", "P", "RGB", "RGBA"):
+                        img = img.convert("RGB")
 
-            buffer = io.BytesIO()
-            img_format = "JPEG" if mime_type == "image/jpeg" else "PNG"
-            img.save(buffer, format=img_format, quality=95)
-            data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                buffer = io.BytesIO()
+                img.save(buffer, format=img_format, quality=95)
+                data = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                return f"data:{mime_type};base64,{data}"
         except Exception as e:
+            if needs_conversion:
+                # Raw TIFF/BMP/... bytes would be rejected by the provider
+                # anyway ("Unsupported MIME type") — raise the real cause
+                # here instead of deferring to a confusing provider error.
+                raise ValueError(
+                    f"Cannot convert {path.name} to a provider-supported "
+                    f"image format: {e}"
+                ) from e
             logger.warning(f"Resize failed for {path.name}, using original: {e}")
-            with open(path, "rb") as f:
-                data = base64.b64encode(f.read()).decode("utf-8")
-    else:
-        with open(path, "rb") as f:
-            data = base64.b64encode(f.read()).decode("utf-8")
 
-    return f"data:{mime_type};base64,{data}"
+    with open(path, "rb") as f:
+        data = base64.b64encode(f.read()).decode("utf-8")
+    return f"data:{source_mime};base64,{data}"
 
 
 def _pdf_page_to_data_uri(file_path: str, page_index: int = 0, max_dimension: int = 2048) -> str:
