@@ -13,12 +13,19 @@ extension LibraryManager {
     /// Excludes temporary/untitled libraries — those live in /var/folders/.../T/
     /// and get cleaned up by macOS, so persisting their paths would log
     /// "Saved library not found" warnings on every subsequent launch.
+    ///
+    /// Also excludes the Global/Local library (#4517): it is opened by
+    /// CONSTRUCTION in `LibraryManager.init` → `loadGlobalLibrary`, on every
+    /// launch, before restore runs. Persisting its path means restore opens it a
+    /// SECOND time from a differently-constructed URL — the duplicate-Global bug.
+    /// It cannot be lost by omitting it: nothing else can close it
+    /// (`closeLibrary` / `closeAndUnregisterLibrary` both refuse `globalLibraryId`).
     func saveOpenLibraryPaths() {
         // NFC-normalize every stored path (#3076) so UserDefaults holds the same
         // canonical bytes the app sends in the library header and the backend
         // registry uses — a re-open can never resolve to a duplicate NFD variant.
         let paths = openLibraries
-            .filter { !isTemporaryLibrary($0.url) }
+            .filter { $0.id != Self.globalLibraryId && !isTemporaryLibrary($0.url) }
             .map { $0.url.path.nfcNormalized }
         EngineConfig.defaults.set(paths, forKey: Self.openLibraryPathsKey)
         saveLibraryDisplayNames()
@@ -127,6 +134,12 @@ extension LibraryManager {
         var validPaths: [String] = []
         var prunedAnyPath = false
 
+        // Self-heal defaults written before #4517: the Global library's path may
+        // already be stored. `openLibrary`'s canonical dedup now returns the
+        // existing reference rather than a duplicate, but dropping the entry here
+        // means an install stops carrying it after one launch.
+        let globalKey = globalLibrary.map { Self.canonicalLibraryKey($0.url) }
+
         for path in paths {
             // Validate path is not empty and doesn't contain dangerous characters
             guard !path.isEmpty,
@@ -142,6 +155,12 @@ extension LibraryManager {
             // Additional security check: ensure it's a .fichero package
             guard url.pathExtension == "fichero" else {
                 libraryManagerLogger.warning("Skipping non-fichero path: \(path)")
+                prunedAnyPath = true
+                continue
+            }
+
+            if let globalKey, Self.canonicalLibraryKey(url) == globalKey {
+                libraryManagerLogger.info("Skipping Global library in restore list (#4517)")
                 prunedAnyPath = true
                 continue
             }

@@ -333,6 +333,137 @@ final class LibraryManagerTests: XCTestCase {
         XCTAssertEqual(library.apiClient.baseURL, secondHost.appendingPathComponent("api"))
     }
 
+    // MARK: - Duplicate-library dedup (#4517)
+
+    /// Install a Global/Local library at `url` the way `loadGlobalLibrary` does,
+    /// without touching the network or the singleton's init.
+    @discardableResult
+    private func installGlobalLibrary(at url: URL) -> LibraryManager.LibraryReference {
+        let library = LibraryManager.LibraryReference(
+            url: url,
+            document: FicheroDocument(),
+            displayName: "Local",
+            id: LibraryManager.globalLibraryId,
+            startAccessing: false
+        )
+        libraryManager.openLibraries.insert(library, at: 0)
+        return library
+    }
+
+    /// Run `body` with the two library-persistence defaults keys restored afterwards.
+    private func withRestoredLibraryDefaults(_ body: () throws -> Void) rethrows {
+        let defaults = EngineConfig.defaults
+        let originalPaths = defaults.stringArray(forKey: LibraryManager.openLibraryPathsKey)
+        let originalNames = defaults.dictionary(forKey: LibraryManager.libraryDisplayNamesByPathKey)
+        defer {
+            if let originalPaths {
+                defaults.set(originalPaths, forKey: LibraryManager.openLibraryPathsKey)
+            } else {
+                defaults.removeObject(forKey: LibraryManager.openLibraryPathsKey)
+            }
+            if let originalNames {
+                defaults.set(originalNames, forKey: LibraryManager.libraryDisplayNamesByPathKey)
+            } else {
+                defaults.removeObject(forKey: LibraryManager.libraryDisplayNamesByPathKey)
+            }
+        }
+        try body()
+    }
+
+    func testCanonicalKeyMatchesAcrossURLConstructions() throws {
+        // The exact pair the app builds: `appendingPathComponent` at App init
+        // (package does not exist yet → non-directory URL) vs
+        // `URL(fileURLWithPath:)` after the engine created it (directory URL,
+        // trailing slash). These are NOT `==`, which is the whole bug.
+        let packageURL = tempDirectory.appendingPathComponent("global.fichero")
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+        let asDirectory = URL(fileURLWithPath: packageURL.path, isDirectory: true)
+
+        XCTAssertNotEqual(packageURL, asDirectory, "precondition: raw URL == is trailing-slash sensitive")
+        XCTAssertEqual(
+            LibraryManager.canonicalLibraryKey(packageURL),
+            LibraryManager.canonicalLibraryKey(asDirectory),
+            "the same package must canonicalize to one key regardless of directory-hood"
+        )
+    }
+
+    func testOpenLibraryDedupsTrailingSlashVariantOfTheSamePackage() throws {
+        let packageURL = tempDirectory.appendingPathComponent("Dedup.fichero")
+        try FileManager.default.createDirectory(at: packageURL, withIntermediateDirectories: true)
+
+        try withRestoredLibraryDefaults {
+            let first = libraryManager.openLibrary(at: packageURL)
+            let second = libraryManager.openLibrary(at: URL(fileURLWithPath: packageURL.path, isDirectory: true))
+
+            XCTAssertEqual(first.id, second.id, "same package opened twice must return the same reference")
+            XCTAssertEqual(libraryManager.openLibraries.count, 1, "no duplicate library entry")
+        }
+    }
+
+    func testOpeningGlobalTwiceYieldsOneGlobalLibrary() throws {
+        // Global is created with `appendingPathComponent`; a restore/registry
+        // path then re-opens it as a directory URL after the engine made the
+        // package. That second open must resolve to the SAME reference.
+        let globalURL = tempDirectory.appendingPathComponent("global.fichero")
+        installGlobalLibrary(at: globalURL)
+        try FileManager.default.createDirectory(at: globalURL, withIntermediateDirectories: true)
+
+        try withRestoredLibraryDefaults {
+            let reopened = libraryManager.openLibrary(at: URL(fileURLWithPath: globalURL.path, isDirectory: true))
+
+            XCTAssertEqual(reopened.id, LibraryManager.globalLibraryId, "re-open resolves to the existing Global")
+            XCTAssertEqual(
+                libraryManager.openLibraries.filter { $0.id == LibraryManager.globalLibraryId }.count, 1,
+                "exactly one Global library"
+            )
+            XCTAssertEqual(libraryManager.openLibraries.count, 1, "no second library of any kind")
+        }
+    }
+
+    func testSaveOpenLibraryPathsNeverPersistsGlobal() throws {
+        let globalURL = tempDirectory.appendingPathComponent("global.fichero")
+        installGlobalLibrary(at: globalURL)
+        let otherURL = tempDirectory.appendingPathComponent("Other.fichero")
+        try FileManager.default.createDirectory(at: otherURL, withIntermediateDirectories: true)
+
+        try withRestoredLibraryDefaults {
+            _ = libraryManager.openLibrary(at: otherURL)
+            libraryManager.saveOpenLibraryPaths()
+
+            let saved = EngineConfig.defaults.stringArray(forKey: LibraryManager.openLibraryPathsKey) ?? []
+            XCTAssertFalse(
+                saved.contains(globalURL.path),
+                "Global is opened by construction on every launch and must never be in the restore list (#4517)"
+            )
+            // ASCII temp paths — NFC normalization is the identity here.
+            XCTAssertEqual(saved, [otherURL.path], "only non-Global libraries are persisted")
+        }
+    }
+
+    func testRestorePrunesLegacyGlobalPathAndDoesNotDuplicateIt() throws {
+        // Defaults written before #4517 already hold the Global path. Restore
+        // must neither open a second Global nor keep carrying the entry.
+        let globalURL = tempDirectory.appendingPathComponent("global.fichero")
+        try FileManager.default.createDirectory(at: globalURL, withIntermediateDirectories: true)
+        installGlobalLibrary(at: globalURL)
+
+        try withRestoredLibraryDefaults {
+            EngineConfig.defaults.set([globalURL.path], forKey: LibraryManager.openLibraryPathsKey)
+
+            libraryManager.restoreSavedLibraries()
+
+            XCTAssertEqual(
+                libraryManager.openLibraries.filter { $0.id == LibraryManager.globalLibraryId }.count, 1,
+                "restore must not add a second Global library"
+            )
+            XCTAssertEqual(libraryManager.openLibraries.count, 1, "restore added no extra library")
+            XCTAssertEqual(
+                EngineConfig.defaults.stringArray(forKey: LibraryManager.openLibraryPathsKey) ?? [], [],
+                "the legacy Global entry is pruned so the next launch never sees it"
+            )
+        }
+    }
+
     // MARK: - Save Tests
 
     func testSaveLibraryPreservesID() async throws {
