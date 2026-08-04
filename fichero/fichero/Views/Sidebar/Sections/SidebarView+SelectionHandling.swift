@@ -201,14 +201,26 @@ extension SidebarView {
             sidebarViewLogger.info("Switching to comparison view: \(summary.comparisonId)")
             sidebarMode = .chat
             viewMode = .comparison(summary)
+        case .chain, .schedule, .trigger, .batch:
+            routeAutomationFamilySelection(item.itemType)
+        case .folder:
+            handleFolderSelection(item)
+        case .libraryHeader:
+            // Library headers just toggle expansion
+            sidebarViewLogger.info("Library header clicked - just toggling expansion")
+        }
+    }
+
+    /// #4525 (V8): these four clicks were DROPPED ("handled by mode sidebar" —
+    /// no such handling existed), so selecting a chain, schedule, trigger or
+    /// batch changed the sidebar highlight and nothing else — every pane went
+    /// stale relative to it, and the existing editors (ChainEditorView,
+    /// Schedule/TriggerDetailView) were reachable only on create or not at
+    /// all. Every sidebar selection now sets `viewMode`; the panes follow one
+    /// axis.
+    private func routeAutomationFamilySelection(_ itemType: SidebarItem.ItemType) {
+        switch itemType {
         case .chain(let chain):
-            // #4525 (V8): these four clicks were DROPPED ("handled by mode
-            // sidebar" — no such handling existed), so selecting a chain,
-            // schedule, trigger or batch changed the sidebar highlight and
-            // nothing else — every pane went stale relative to it, and the
-            // existing editors (ChainEditorView, Schedule/TriggerDetailView)
-            // were reachable only on create or not at all. Every sidebar
-            // selection now sets `viewMode`; the panes follow one axis.
             sidebarViewLogger.info("Switching to chain view: \(chain.name)")
             sidebarMode = .workflows
             viewMode = .chain(chain)
@@ -224,11 +236,8 @@ extension SidebarView {
             sidebarViewLogger.info("Switching to batch view: \(batch.id)")
             sidebarMode = .activity
             viewMode = .batch(batch)
-        case .folder:
-            handleFolderSelection(item)
-        case .libraryHeader:
-            // Library headers just toggle expansion
-            sidebarViewLogger.info("Library header clicked - just toggling expansion")
+        default:
+            sidebarViewLogger.error("routeAutomationFamilySelection got a non-family item type")
         }
     }
 
