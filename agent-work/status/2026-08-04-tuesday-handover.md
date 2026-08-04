@@ -248,11 +248,21 @@ since 13 July.
 
 ## One thing I could not close
 
-`ClaimChangeDeliveryTests` **compiles but I have no passing result.** Running
-`FicheroTests` fails on `Could not connect to the server` at
-`https://127.0.0.1:8765/api/documents/roots` — the test HOST dials a live engine
-at launch, so Swift unit tests need an engine they should not need. Worth fixing
-on its own account.
+`ClaimChangeDeliveryTests` **compiles, and executing it reports
+`** TEST EXECUTE FAILED **`.** Not "no result" — a failure. The log shows the
+test HOST dialling a live engine at launch and failing:
+`Could not connect to the server` at
+`https://127.0.0.1:8765/api/documents/roots`.
+
+**The open question is whether ANY Swift test executes in this environment.**
+Every Swift verification I did last night — and, checking my own habits, every
+one this week — was `build-for-testing`, which compiles but never runs. If the
+suite cannot execute without a live engine, then a large body of Swift tests is
+compiled and never run, and "the Swift tests pass" has been an unexamined
+assumption of mine rather than a measurement. A control run against an unrelated
+existing test class was in flight when this was written; **read its result before
+believing anything here about Swift test health.**
 
 Stated this way on purpose: built-green is not passes, and substituting one for
-the other is what this whole day was about.
+the other is what this whole day was about. I did it myself in this very file
+an hour ago.
