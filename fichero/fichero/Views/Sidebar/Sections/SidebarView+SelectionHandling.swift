@@ -201,9 +201,29 @@ extension SidebarView {
             sidebarViewLogger.info("Switching to comparison view: \(summary.comparisonId)")
             sidebarMode = .chat
             viewMode = .comparison(summary)
-        case .chain, .schedule, .trigger, .batch:
-            // These item types are handled by their specialized sidebar modes
-            sidebarViewLogger.info("Item type \(item.category.rawValue) clicked - detail views handled by mode sidebar")
+        case .chain(let chain):
+            // #4525 (V8): these four clicks were DROPPED ("handled by mode
+            // sidebar" — no such handling existed), so selecting a chain,
+            // schedule, trigger or batch changed the sidebar highlight and
+            // nothing else — every pane went stale relative to it, and the
+            // existing editors (ChainEditorView, Schedule/TriggerDetailView)
+            // were reachable only on create or not at all. Every sidebar
+            // selection now sets `viewMode`; the panes follow one axis.
+            sidebarViewLogger.info("Switching to chain view: \(chain.name)")
+            sidebarMode = .workflows
+            viewMode = .chain(chain)
+        case .schedule(let schedule):
+            sidebarViewLogger.info("Switching to schedule view: \(schedule.id)")
+            sidebarMode = .automation
+            viewMode = .schedule(schedule)
+        case .trigger(let trigger):
+            sidebarViewLogger.info("Switching to trigger view: \(trigger.id)")
+            sidebarMode = .automation
+            viewMode = .trigger(trigger)
+        case .batch(let batch):
+            sidebarViewLogger.info("Switching to batch view: \(batch.id)")
+            sidebarMode = .activity
+            viewMode = .batch(batch)
         case .folder:
             handleFolderSelection(item)
         case .libraryHeader:
@@ -233,8 +253,16 @@ extension SidebarView {
         if doc.isWorkspace {
             // #4308/#4335: a workspace node opens the Research surface (the
             // agent workspace), not the plain folder browse.
+            //
+            // #4525 (V7): it must ALSO set `viewMode` — the Research interceptor
+            // switches the content column on `sidebarMode` while the preview,
+            // reader and inspector switch on `viewMode`, so setting only one
+            // axis left every pane showing the PREVIOUS selection. The
+            // workspace rides `.library(doc)`: the inspector shows the
+            // workspace node itself instead of a stale surface.
             sidebarViewLogger.info("Routing workspace node \(doc.id) to the Research surface")
             sidebarMode = .research
+            viewMode = .library(doc)
             return
         }
         sidebarViewLogger.info("Switching to library view with document: \(doc.name)")
