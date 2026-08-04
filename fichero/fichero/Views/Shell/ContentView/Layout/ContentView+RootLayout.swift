@@ -136,8 +136,12 @@ extension ContentView {
             // rows' nested handlers already work.
             // `isTargeted:` is required to select the closure overload —
             // without it Swift matches `.onDrop(of:delegate:)` and rejects the
-            // trailing closure.
-            .onDrop(of: [.item], isTargeted: nil) { providers in
+            // trailing closure. It now carries the window's `isDropTargeted`,
+            // which used to hang off the split-view-wide target `6a11a9fc2`
+            // added and this change removes (#4458): the flag means "the
+            // CONTENT PANE is a live drop target", and it was reporting true
+            // for a hover anywhere in the window, sidebar rows included.
+            .onDrop(of: [.item], isTargeted: $isDropTargeted) { providers in
                 handleContentPaneExternalDrop(providers)
                 return true
             }
@@ -365,12 +369,10 @@ extension ContentView {
                     columnVisibility: $columnVisibility,
                     editingWorkflow: $editingWorkflow,
                     currentLayoutMode: $currentLayoutMode,
-                    isDropTargeted: $isDropTargeted,
                     isImporting: $isImporting,
                     importProgress: $importProgress,
                     importError: $importError,
-                    handleDocumentChange: handleDocumentChange,
-                    handleProviderDrop: handleContentPaneExternalDrop
+                    handleDocumentChange: handleDocumentChange
                 )
             )
     }

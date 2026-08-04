@@ -79,10 +79,34 @@ final class ContentPaneDropTargetTests: XCTestCase {
         let source = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
         let outsideDetailColumn = source
             .components(separatedBy: "private var detailColumn: some View {")[0]
+        // `.onDrop(of: [.item]` unclosed: the closed spelling missed the only
+        // form that compiles (`isTargeted:` is required to select the closure
+        // overload), which is how `6a11a9fc2` mounted exactly this modifier on
+        // the whole split view with this guard green.
         XCTAssertFalse(
-            outsideDetailColumn.contains(".onDrop(of: [.item])"),
+            outsideDetailColumn.contains(".onDrop(of: [.item]"),
             "the content-pane drop must not be applied above the detail column (#4184's revert reason)"
         )
+    }
+
+    /// The scope guard above reads ONE file — and the whole-split-view target
+    /// `6a11a9fc2` reinstated lives in a DIFFERENT one, `ContentViewModifiers`,
+    /// which `decoratedNavigationSplitColumn` mounts over the same view. So the
+    /// guard was green for a day while the exact configuration it forbids was
+    /// live. Scope is a property of the MOUNT, not of the file.
+    func testNoWindowWideModifierMountsAContentPaneDrop() throws {
+        let modifiers = try Self.appSource("Views/Shell/ContentView/ContentViewModifiers.swift")
+        XCTAssertFalse(
+            modifiers.contains("handleProviderDrop"),
+            "a drop handler plumbed into the window-wide modifier is a drop "
+                + "target above every sidebar row (#4458, #4520)"
+        )
+        let code = modifiers
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        XCTAssertFalse(code.contains(".onDrop("))
+        XCTAssertFalse(code.contains(".dropDestination("))
     }
 
     /// The dead bridge must stay dead. Reinstating a view whose `hitTest`

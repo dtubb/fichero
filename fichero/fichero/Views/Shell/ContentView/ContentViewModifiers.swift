@@ -97,63 +97,37 @@ struct SheetModifiers: ViewModifier {
     }
 }
 
-/// Drop target and import overlays
+/// Import reporting for the window. Deliberately carries NO drop target.
+///
+/// This modifier attaches where `decoratedNavigationSplitColumn` mounts it
+/// (`ContentView+RootLayout.swift`), which wraps the WHOLE
+/// `NavigationSplitView` — sidebar column AND detail column both, not the
+/// content pane alone. Every drop target ever mounted here has been a defect:
+///
+///   * `.dropDestination(for: URL.self)` (the original) sat above the sidebar
+///     rows and, since #4123 taught a document row to export a real file,
+///     resolved an internal drag to that export and re-imported it — a second,
+///     hollow copy (#4401).
+///   * `6a11a9fc2` replaced it with `.onDrop(of: [.item], isTargeted:)`, which
+///     is the exact configuration the comment it replaced said had been TRIED
+///     and REVERTED during #4184 for stealing hit-testing from nested rows.
+///     `.item` is UTType's root, so it accepted every drag anywhere in the
+///     window — including over sidebar rows that have their own handler, and
+///     `.onDrop`'s proposal is always COPY, which is where the `+` badge on an
+///     intra-library move came from (#4401 reopened, #4520).
+///
+/// The content-pane drop now lives at `detailColumn` scope ONLY — #4458's ask,
+/// and the placement the reverted comment named as the safe one, because the
+/// sidebar is not inside the modified view at all. Do not re-add a drop target
+/// here: a window-wide acceptor shadows every scoped one beneath it, and which
+/// of two overlapping destinations wins is not answerable from source.
 struct DropTargetModifiers: ViewModifier {
-    @Binding var isDropTargeted: Bool
     @Binding var isImporting: Bool
     @Binding var importProgress: String?
     @Binding var importError: String?
-    /// Providers, NOT `[URL]` (#2386 / #4458): a URL-typed destination is only
-    /// ever offered droppables that can vend a URL, so a promised file or
-    /// data-with-no-URL never reached it. See the drop target below.
-    let handleProviderDrop: ([NSItemProvider]) -> Void
 
     func body(content: Content) -> some View {
         content
-            // Transferable API, NOT `.onDrop(of:)` — DELIBERATE, tried and
-            // reverted during #4184 (see e66e1bce1's follow-up review).
-            //
-            // This modifier attaches where `decoratedNavigationSplitColumn`
-            // mounts it (`ContentView+RootLayout.swift`), which wraps the
-            // WHOLE `NavigationSplitView` — sidebar column AND detail column
-            // both, not the content pane alone. `.onDrop(of:)` at a container
-            // this wide risks stealing hit-testing from every nested
-            // clickable row underneath it (sidebar rows in particular,
-            // `SidebarItemRow`'s OWN `.onDrop` is scoped to a single leaf row
-            // and is NOT the same risk). `.dropDestination(for:)` does not
-            // have that history here. Nobody could click-test a live build
-            // when this was reviewed, so the swap was reverted rather than
-            // risk shipping a "fixed drag, broken click" regression — the
-            // exact shape of bug this project keeps a rule against shipping
-            // sight-unseen.
-            //
-            // Net effect: root-level content-pane drops are back to the
-            // narrower Transferable path — Finder drags work (the common
-            // case), but a drag whose provider offers only a content UTI
-            // (Mail attachment / Safari image-or-PDF / in-progress
-            // Downloads, no `public.file-url`) is missed here same as
-            // before #4184. `ExternalFileDropLoader` (the robust
-            // NSItemProvider fallback chain extracted for #4184) still
-            // fixed the SIDEBAR row drop target, which already used
-            // `.onDrop` safely at leaf scope — that part of #4184 stands.
-            // Follow-up: scope a content-pane-only `.onDrop` to
-            // `detailColumn` specifically (not the whole split view) and
-            // verify sidebar hit-testing live before landing it.
-            //
-            // Root-level drops are classified in handleFileDrop: `.fichero`
-            // packages open/focus a window, everything else still imports to
-            // Inbox. The 400 error is readable via LocalizedError so the real
-            // backend message surfaces (#598).
-            // ONE extraction path (#2386): every drop surface now reaches
-            // `ExternalFileDropLoader`. This target was the exception, and it
-            // covers the WHOLE window — so it sat above the surfaces that got
-            // it right, and acceptance depended on which one caught the drop.
-            // That is "doesn't work from some locations": two paths accepting
-            // different things, with nothing forcing them to agree.
-            .onDrop(of: [.item], isTargeted: $isDropTargeted) { providers in
-                handleProviderDrop(providers)
-                return true
-            }
             // No full-window import overlay — a folder-of-folders import runs
             // long and the dimmed spinner covered the sidebar so nothing
             // appeared until the WHOLE ingest finished (#4065). Progress now
@@ -190,7 +164,6 @@ struct MainContentModifiers: ViewModifier {
     @Binding var columnVisibility: NavigationSplitViewVisibility
     @Binding var editingWorkflow: Workflow
     @Binding var currentLayoutMode: LayoutMode
-    @Binding var isDropTargeted: Bool
     @Binding var isImporting: Bool
     @Binding var importProgress: String?
     @Binding var importError: String?
@@ -205,7 +178,6 @@ struct MainContentModifiers: ViewModifier {
     @State private var workflowGraphResyncTask: Task<Void, Never>?
 
     let handleDocumentChange: (DocumentChange) -> Void
-    let handleProviderDrop: ([NSItemProvider]) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -228,11 +200,9 @@ struct MainContentModifiers: ViewModifier {
             ))
             // Note: SheetModifiers removed - app-level sheets now handled in LibraryWindow
             .modifier(DropTargetModifiers(
-                isDropTargeted: $isDropTargeted,
                 isImporting: $isImporting,
                 importProgress: $importProgress,
-                importError: $importError,
-                handleProviderDrop: handleProviderDrop
+                importError: $importError
             ))
             .onChange(of: workflowStore.workflows) { _, updatedWorkflows in
                 syncActiveWorkflowMetadata(with: updatedWorkflows)
