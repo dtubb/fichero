@@ -760,6 +760,7 @@ async def _cancel_settled_run(
     thread_id: str,
     run: WorkflowRun | None,
     state: dict | None,
+    reason: str = "cancelled_while_paused",
 ) -> None:
     """Directly settle a run whose worker coroutine is gone (paused, or
     accepted with a dead worker): mark it cancelled and free its documents.
@@ -809,7 +810,7 @@ async def _cancel_settled_run(
                 "thread_id": thread_id,
                 "workflow_id": run.workflow_id if run else None,
                 "workflow_name": run.workflow_name if run else None,
-                "result": {"status": "cancelled", "reason": "cancelled_while_paused"},
+                "result": {"status": "cancelled", "reason": reason},
                 "completed_at": datetime.now(timezone.utc),
             },
         )
@@ -887,23 +888,34 @@ async def cancel_workflow(
 
     if current == RunStatus.paused.value or state is None:
         # Paused: the worker coroutine already returned — settle directly.
-        # No registry state: the worker is either dead (accepted/paused row)
-        # or evicted; for an evicted RUNNING worker the event above will make
-        # it settle itself, so only settle non-running rows here.
+        # No registry state: the worker is dead (accepted/paused row, or a
+        # running row orphaned by an engine restart) or evicted.
         if current == RunStatus.running.value:
+            # #4402: a running row with no registry entry is, in practice, a
+            # DEAD run — the engine restarted and its worker died with the
+            # old process. This used to decline ("a live worker will settle
+            # itself") and return a polite 200, which meant the row could
+            # never be stopped, ever, and the UI said nothing. A row that can
+            # never settle is worse than an honest failure: settle it now.
+            # The cancellation event set above still covers the rare
+            # evicted-but-live worker, which will stop at its next boundary
+            # and re-record the same terminal state.
             logger.info(
-                "cancel_workflow: thread %s not in registry but recorded "
-                "running — cancellation event set for an evicted worker",
+                "cancel_workflow: thread %s recorded running but has no live "
+                "registry entry — settling the stale row as cancelled",
                 thread_id,
+            )
+            await _cancel_settled_run(
+                db, thread_id, run, state, reason="cancelled_stale_no_worker"
             )
             return CancelResponse(
                 thread_id=thread_id,
-                status="cancel_requested",
+                status="cancelled",
                 partial_results_preserved=True,
                 message=(
-                    "Cancellation requested. The run is no longer tracked in "
-                    "memory; a live worker will stop at its next boundary, "
-                    "otherwise recovery will settle it."
+                    "This run was recorded as running but no live worker "
+                    "exists (the engine restarted?). It has been settled as "
+                    "cancelled and its documents released."
                 ),
             )
         await _cancel_settled_run(db, thread_id, run, state)
@@ -939,12 +951,54 @@ async def cancel_workflow(
 @router.post("/threads/{thread_id}/pause", response_model=PauseResponse)
 async def pause_workflow(
     thread_id: str,
+    db: Database = Depends(get_library_database),
 ) -> PauseResponse:
-    """Signal a running workflow to pause at the next execution tick."""
+    """Signal a running workflow to pause at its next boundary (#4402).
+
+    The signal is BOTH the registry-entry flag (the between-events check)
+    and the shared pause event — which the builder's per-item progress
+    callback consults, so a pause lands at the next item of a long node
+    rather than waiting for the whole node to finish.
+    """
+    from fichero_server.execution.cancellation import request_pause
     from fichero_server.execution.runner import _get_workflow_state
 
     state = _get_workflow_state(thread_id)
     if state is None:
+        # No live worker. Consult the run row so the answer is honest rather
+        # than a blanket not_running (#4402): a row recorded as running with
+        # no live worker is a dead run — it can never reach a pause boundary,
+        # and pretending the request might land would leave the user clicking
+        # a button that can do nothing.
+        run: WorkflowRun | None = None
+        try:
+            run = await get_activity_tracker(str(db.path)).store.get_workflow_run(
+                thread_id
+            )
+        except Exception as run_exc:  # pragma: no cover - defensive
+            logger.debug(
+                "pause_workflow: run lookup failed for %s: %s", thread_id, run_exc
+            )
+        current = normalize_status(run.status) if run else None
+        if current is not None and (is_terminal(current) or current == DELETED_STATUS):
+            return PauseResponse(
+                thread_id=thread_id,
+                status="already_terminal",
+                message=(
+                    f"Workflow is already in terminal state '{current}'; "
+                    "nothing to pause."
+                ),
+            )
+        if current == RunStatus.running.value:
+            return PauseResponse(
+                thread_id=thread_id,
+                status="not_running",
+                message=(
+                    "This run is recorded as running but no live worker "
+                    "exists (the engine restarted?), so it cannot be "
+                    "paused. Stop it to settle the record."
+                ),
+            )
         return PauseResponse(
             thread_id=thread_id,
             status="not_running",
@@ -966,6 +1020,9 @@ async def pause_workflow(
         )
 
     state["pause_requested"] = True
+    # Reaches the per-item boundary inside long nodes, the same way cancel
+    # does (#4402).
+    request_pause(thread_id)
     logger.info("pause_workflow: marked thread %s for pause", thread_id)
     return PauseResponse(
         thread_id=thread_id,

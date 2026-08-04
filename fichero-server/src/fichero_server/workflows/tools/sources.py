@@ -82,6 +82,236 @@ def _resolve_page_to_parent(doc: "Document", db) -> "Document | None":
 
 
 # =============================================================================
+# Selection resolution — ONE resolver for every source tool (#4523 #4396)
+# =============================================================================
+#
+# The interface always sends an explicit selection; before this resolver the
+# engine let each source tool decide independently whether to honor it
+# (`files` yes, `collection` yes-via-bolt-on, `selection` yes, `folder` NO).
+# Two representations of scope — the typed request selection and the authored
+# source-node config — with nothing forcing agreement, which is how running a
+# workflow on ONE selected file could run it on every file in the folder.
+#
+# Now the selection is resolved once, here, and every source tool reads the
+# resolved set when a selection is present. The resolver also enforces both
+# scope invariants:
+#   * lower bound (#4467): a selection that resolves to nothing raises —
+#     completing green on zero work is indistinguishable from success.
+#   * upper bound (#4523): every resolved document must be a selected id or a
+#     descendant of one (folder contents, PDF page children). Anything else
+#     raises — the engine refuses to widen a run beyond what the user pointed
+#     at, it never silently substitutes a bigger scope.
+
+
+def _assert_selection_upper_bound(
+    resolved: list[tuple[str, "Document"]], selected_doc_ids: list[str]
+) -> None:
+    """Raise unless every resolved work unit descends from a selected id.
+
+    ``resolved`` pairs each emitted document with the selected id it was
+    reached FROM (its origin): the selected id itself, or the selected
+    folder/file whose expansion produced it. By construction
+    `_resolve_selection_pairs` only walks DOWN from selected ids, so this
+    should never fire — it exists so that a future edit that widens
+    resolution (the #4396 defect class: one selected file becoming a whole
+    folder) fails the run loudly instead of silently processing documents
+    the user never pointed at.
+    """
+    selected = {str(i) for i in selected_doc_ids}
+    for origin, doc in resolved:
+        if origin not in selected:
+            raise ValueError(
+                f"workflow scope invariant violated: resolved document "
+                f"{doc.id} was reached from {origin!r}, which is not in the "
+                f"requested selection of {len(selected)} id(s). Refusing to "
+                "widen the run beyond the user's selection (#4523/#4396)."
+            )
+
+
+def _resolve_selection_pairs(
+    db,
+    selected_doc_ids: list[str],
+    library_path: str,
+    *,
+    source_label: str = "files source",
+) -> list[tuple[str, "Document"]]:
+    """Resolve the request's selection into (abs_path, Document) work units.
+
+    One (path, document) entry per ATOMIC UNIT of work:
+    - Folder → recursively expand to file descendants
+    - Parent PDF (or any file with page children) → one entry per page child,
+      sharing the parent's on-disk path (downstream tools use document.id and
+      .page_content, not just the path)
+    - Leaf file (no page children) → one entry
+    - Page selected directly → one entry, parent resolved for the path
+
+    Raises ``ValueError`` when the selection resolves to nothing (#4467) or
+    when resolution would escape the selection's closure (#4523).
+    """
+
+    def _abs(file_doc: "Document") -> str:
+        return _resolve_abs_path(file_doc, library_path)
+
+    docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
+    docs = [d for d in docs if d is not None]
+    if len(docs) < len(selected_doc_ids):
+        missing = set(selected_doc_ids) - {d.id for d in docs}
+        logger.warning(
+            "%s: %d/%d selected_doc_ids not found (stale/invalid): %s",
+            source_label,
+            len(missing),
+            len(selected_doc_ids),
+            list(missing)[:5],
+        )
+
+    # `pairs` preserves order and supports duplicate paths (which parent PDFs
+    # WILL have, one per page child). A path-keyed dict collapses page
+    # children (#2242). `origins` records, per pair, WHICH selected id the
+    # entry was reached from — the raw material for the upper-bound check.
+    pairs: list[tuple[str, Document]] = []
+    origins: list[str] = []
+    seen_ids: set[str] = set()
+
+    # Bound the eager load (#2544): selecting a 100k-image folder would
+    # otherwise expand to 100k (path, Document) pairs. 0 = unbounded.
+    _pairs_cap = _source_max_files()
+    _cap_logged = False
+
+    def _add(path: str, document: Document, origin: str) -> None:
+        nonlocal _cap_logged
+        if document.id in seen_ids:
+            return
+        if _pairs_cap > 0 and len(pairs) >= _pairs_cap:
+            if not _cap_logged:
+                logger.warning(
+                    "%s: selection expands to MORE than the %d-file source "
+                    "cap — taking the first %d files only; the remainder are "
+                    "NOT processed this run. Raise FICHERO_SOURCE_MAX_FILES="
+                    "<n> (or 0 for all files) to process everything.",
+                    source_label,
+                    _pairs_cap,
+                    _pairs_cap,
+                )
+                _cap_logged = True
+            return
+        seen_ids.add(document.id)
+        pairs.append((path, document))
+        origins.append(origin)
+
+    def _expand_to_pages(file_doc: Document, origin: str) -> bool:
+        """If file_doc has page children, emit one entry per page and return
+        True. Otherwise return False.
+
+        Gated on file_type == .pdf because only PDFs currently get per-page
+        children at ingest time (#891).
+        """
+        if not file_doc.path:
+            return False
+        if file_doc.file_type != FileType.pdf:
+            return False
+        page_children = db.query(
+            Document, parent_id=file_doc.id, doc_type=DocType.page
+        )
+        if not page_children:
+            # No page children — a PDF imported before per-page splitting
+            # landed, or where the split silently failed at ingest (#2430).
+            # Split on the spot so the workflow fans out per-page instead of
+            # transcribing the whole PDF onto the parent. (no-silent-fallback)
+            from pathlib import Path
+
+            from fichero_server.importers.ingest import _create_pdf_page_children
+
+            abs_path = _abs(file_doc)
+            try:
+                # #4395: embed the pages this backfill creates — a page
+                # created here must not be silently less searchable for
+                # having arrived by a different route.
+                created = _create_pdf_page_children(
+                    file_doc, Path(abs_path), db, auto_embed=True
+                )
+            except Exception as exc:
+                logger.error(
+                    "%s: on-the-spot PDF split failed for %s: %s",
+                    source_label,
+                    file_doc.id,
+                    exc,
+                )
+                created = []
+            if not created:
+                return False
+            logger.info(
+                "%s: split %s into %d page children on the spot "
+                "(was unsplit at ingest, #2430)",
+                source_label,
+                file_doc.id,
+                len(created),
+            )
+            page_children = created
+        ordered = sorted(page_children, key=lambda p: p.sequence or 0)
+        abs_path = _abs(file_doc)  # resolve the parent file once, not per page
+        for page in ordered:
+            _add(abs_path, page, origin)
+        return True
+
+    def _expand_folder(folder: Document, origin: str) -> None:
+        """Recursively collect file descendants of a folder."""
+        children = db.query(Document, parent_id=folder.id)
+        for child in children:
+            if child.doc_type == DocType.folder:
+                _expand_folder(child, origin)
+            elif child.path and not _expand_to_pages(child, origin):
+                _add(_abs(child), child, origin)
+
+    for doc in docs:
+        if doc.doc_type == DocType.folder:
+            _expand_folder(doc, doc.id)
+            logger.info(
+                "%s: expanded folder %s → %d entries so far",
+                source_label,
+                doc.id,
+                len(pairs),
+            )
+        elif doc.path:
+            if not _expand_to_pages(doc, doc.id):
+                _add(_abs(doc), doc, doc.id)
+        elif doc.parent_id:
+            # Page selected directly — emit just this page, using the
+            # parent's path as the file pointer.
+            resolved_parent = _resolve_page_to_parent(doc, db)
+            if resolved_parent is not None and resolved_parent.path:
+                _add(_abs(resolved_parent), doc, doc.id)
+        else:
+            logger.warning(
+                "%s: doc %s type=%s has no path and no parent — skipping",
+                source_label,
+                doc.id,
+                doc.doc_type,
+            )
+
+    if not pairs:
+        # #4467: the user POINTED AT something and it resolved to nothing —
+        # stale/deleted ids, an empty folder, or docs with no on-disk file.
+        # Completing green here is a run that "succeeded" at nothing,
+        # indistinguishable from success in every client. Fail where the
+        # cause is still attributable.
+        raise ValueError(
+            f"{source_label}: selection of {len(selected_doc_ids)} "
+            f"document id(s) resolved to 0 processable files "
+            f"(found {len(docs)} of {len(selected_doc_ids)} ids in "
+            f"the library). Refusing to complete a run that would "
+            f"process nothing. ids={list(selected_doc_ids)[:5]}"
+        )
+
+    # Upper bound (#4523): never widen beyond the selection's closure.
+    _assert_selection_upper_bound(
+        [(origin, doc) for origin, (_, doc) in zip(origins, pairs)],
+        selected_doc_ids,
+    )
+
+    return pairs
+
+
+# =============================================================================
 # Eager-load cap (#2544)
 # =============================================================================
 
@@ -267,182 +497,16 @@ async def files_tool(
             logger.warning("files_tool: selected_doc_ids present but library_path missing — falling through to input_files")
         else:
             db = db_manager.get_database(library_path)
-            docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
-            docs = [d for d in docs if d is not None]
-            if len(docs) < len(selected_doc_ids):
-                missing = set(selected_doc_ids) - {d.id for d in docs}
-                logger.warning(
-                    "files_tool: %d/%d selected_doc_ids not found (stale/invalid): %s",
-                    len(missing),
-                    len(selected_doc_ids),
-                    list(missing)[:5],
-                )
-
-            # Stored paths are library-relative (e.g. "files/fi/<hash>_<name>.pdf")
-            # for COPY ingests, so the bundle can be renamed/moved (#1663). Downstream
-            # tools (vision/transcribe) open these paths directly, which fails when
-            # the engine CWD isn't the library root. Resolve each file to its absolute,
-            # confined on-disk path via the canonical resolver; fall back to the raw
-            # path if it can't resolve so behaviour is never worse than before.
-            def _abs(file_doc: "Document") -> str:
-                return _resolve_abs_path(file_doc, library_path)
-
-            # Per-page fan-out (#891). We emit one (file_path, document)
-            # entry per ATOMIC UNIT of work:
-            # - Folder → recursively expand to file descendants
-            # - Parent PDF (or any file with page children) → expand to
-            #   one entry per page child. Each entry shares the parent's
-            #   on-disk path (downstream tools use the document.id and
-            #   .page_content, not just the path). This gives extract_all
-            #   a per-page source_document_id so every entity/claim is
-            #   anchored to a specific page.
-            # - Leaf file (no page children) → one entry as before
-            # - Page selected directly → one entry, parent resolved for path
-            #
-            # `pairs` preserves order and supports duplicate paths (which
-            # parent PDFs WILL have, one per page child). Earlier code
-            # used a path-keyed dict that collapsed page children.
-            pairs: list[tuple[str, Document]] = []
-            seen_ids: set[str] = set()
-
-            # Bound the eager load (#2544): selecting a 100k-image folder in the
-            # UI would otherwise expand to 100k (path, Document) pairs and 100k
-            # JSON dicts below. files_tool has no explicit limit input, so use
-            # the env-configured default cap. 0 = unbounded (explicit opt-in).
-            _pairs_cap = _source_max_files()
-            _cap_logged = False
-
-            def _add(path: str, document: Document) -> None:
-                nonlocal _cap_logged
-                if document.id in seen_ids:
-                    return
-                if _pairs_cap > 0 and len(pairs) >= _pairs_cap:
-                    if not _cap_logged:
-                        logger.warning(
-                            "files_tool: selection expands to MORE than the "
-                            "%d-file source cap — taking the first %d files "
-                            "only; the remainder are NOT processed this run. "
-                            "Raise FICHERO_SOURCE_MAX_FILES=<n> (or 0 for all "
-                            "files) to process everything.",
-                            _pairs_cap,
-                            _pairs_cap,
-                        )
-                        _cap_logged = True
-                    return
-                seen_ids.add(document.id)
-                pairs.append((path, document))
-
-            def _expand_to_pages(file_doc: Document) -> bool:
-                """If file_doc has page children, emit one entry per page
-                and return True. Otherwise return False.
-
-                Gated on file_type == .pdf because only PDFs currently
-                get per-page children at ingest time. Saves a DB query
-                for every leaf file in folder expansions and keeps the
-                pre-#891 contract for non-PDFs.
-                """
-                if not file_doc.path:
-                    return False
-                if file_doc.file_type != FileType.pdf:
-                    return False
-                page_children = db.query(
-                    Document, parent_id=file_doc.id, doc_type=DocType.page
-                )
-                if not page_children:
-                    # No page children — a PDF imported before per-page splitting
-                    # landed, or where the split silently failed at ingest
-                    # (#2430). Split on the spot so the workflow fans out
-                    # per-page instead of transcribing the whole PDF onto the
-                    # parent. This auto-backfills already-imported PDFs on their
-                    # next workflow run. (no-silent-fallback)
-                    from pathlib import Path
-
-                    from fichero_server.importers.ingest import _create_pdf_page_children
-
-                    abs_path = _abs(file_doc)
-                    try:
-                        # #4395: embed the pages this backfill creates.
-                        # This path splits already-imported PDFs on their next
-                        # workflow run, so it produced the BULK of a library's
-                        # page documents — 676 of 745 in the reported case —
-                        # and `auto_embed=False` meant none of them were ever
-                        # searchable. The parent import embeds its pages; a
-                        # page created here is the same kind of thing and must
-                        # not be silently less searchable for having arrived
-                        # by a different route.
-                        created = _create_pdf_page_children(
-                            file_doc, Path(abs_path), db, auto_embed=True
-                        )
-                    except Exception as exc:
-                        logger.error(
-                            "files_tool: on-the-spot PDF split failed for %s: %s",
-                            file_doc.id,
-                            exc,
-                        )
-                        created = []
-                    if not created:
-                        return False
-                    logger.info(
-                        "files_tool: split %s into %d page children on the spot "
-                        "(was unsplit at ingest, #2430)",
-                        file_doc.id,
-                        len(created),
-                    )
-                    page_children = created
-                ordered = sorted(page_children, key=lambda p: p.sequence or 0)
-                abs_path = _abs(file_doc)  # resolve the parent file once, not per page
-                for page in ordered:
-                    _add(abs_path, page)
-                return True
-
-            def _expand_folder(folder: Document) -> None:
-                """Recursively collect file descendants of a folder."""
-                children = db.query(Document, parent_id=folder.id)
-                for child in children:
-                    if child.doc_type == DocType.folder:
-                        _expand_folder(child)
-                    elif child.path and not _expand_to_pages(child):
-                        _add(_abs(child), child)
-
-            for doc in docs:
-                if doc.doc_type == DocType.folder:
-                    _expand_folder(doc)
-                    logger.info(
-                        f"files_tool: expanded folder {doc.id} → {len(pairs)} entries so far"
-                    )
-                elif doc.path:
-                    if not _expand_to_pages(doc):
-                        _add(_abs(doc), doc)
-                elif doc.parent_id:
-                    # Page selected directly — emit just this page,
-                    # using the parent's path as the file pointer.
-                    resolved_parent = _resolve_page_to_parent(doc, db)
-                    if resolved_parent is not None and resolved_parent.path:
-                        _add(_abs(resolved_parent), doc)
-                else:
-                    logger.warning(
-                        f"files_tool: doc {doc.id} type={doc.doc_type} "
-                        "has no path and no parent — skipping"
-                    )
-
+            # Shared resolver (#4523): one resolution, both scope invariants.
+            pairs = _resolve_selection_pairs(
+                db, list(selected_doc_ids), library_path,
+                source_label="files source",
+            )
             files = [path for path, _ in pairs]
             documents = [d.model_dump(mode="json") for _, d in pairs]
-            if not files:
-                # #4467: the user POINTED AT something and it resolved to
-                # nothing — stale/deleted ids, an empty folder, or docs with
-                # no on-disk file. Completing green here is a run that
-                # "succeeded" at nothing, indistinguishable from success in
-                # every client. Fail where the cause is still attributable.
-                raise ValueError(
-                    f"files source: selection of {len(selected_doc_ids)} "
-                    f"document id(s) resolved to 0 processable files "
-                    f"(found {len(docs)} of {len(selected_doc_ids)} ids in "
-                    f"the library). Refusing to complete a run that would "
-                    f"process nothing. ids={list(selected_doc_ids)[:5]}"
-                )
             logger.info(
                 f"Files source tool: {len(files)} entries from selected_doc_ids "
-                f"({len(seen_ids)} unique docs)"
+                f"({len(documents)} unique docs)"
             )
             return {"files": files, "documents": documents, "count": len(files)}
 
@@ -613,38 +677,29 @@ async def collection_tool(
             "error": "No collection_id provided",
         }
 
-    # Priority 0: UI selection override — if specific doc IDs were selected,
-    # return only those docs instead of the whole collection.
+    # Selection override (#4523): a request that carries an explicit selection
+    # is scoped to that selection, whatever container this node was authored
+    # to read. Same shared resolver as files_tool — one resolution, both
+    # scope invariants — replacing the previous bolt-on that neither expanded
+    # folders nor enforced any bound.
     selected_doc_ids = state.get("selected_doc_ids", [])
     if selected_doc_ids:
         library_path = state.get("library_path") or inputs.get("library_path")
         if library_path:
             db = db_manager.get_database(library_path)
-            docs = [db.get(Document, doc_id) for doc_id in selected_doc_ids]
-            docs = [d for d in docs if d is not None]
-            # Use list-of-pairs so multiple pages of the same PDF are kept
-            # as separate entries (dict keyed by path collapses them, #2242).
-            resolved_pairs: list[tuple[str, Document]] = []
-            seen_ids: set[str] = set()
-            for doc in docs:
-                if doc.id in seen_ids:
-                    continue
-                if doc.path:
-                    seen_ids.add(doc.id)
-                    resolved_pairs.append((_resolve_abs_path(doc, library_path), doc))
-                elif doc.parent_id:
-                    resolved_parent = _resolve_page_to_parent(doc, db)
-                    if resolved_parent is not None and resolved_parent.path:
-                        seen_ids.add(doc.id)
-                        resolved_pairs.append(
-                            (_resolve_abs_path(resolved_parent, library_path), doc)
-                        )
-            files = [path for path, _ in resolved_pairs]
-            documents = [d.model_dump(mode="json") for _, d in resolved_pairs]
+            pairs = _resolve_selection_pairs(
+                db, list(selected_doc_ids), library_path,
+                source_label=f"collection source ({collection_id})",
+            )
+            files = [path for path, _ in pairs]
+            documents = [d.model_dump(mode="json") for _, d in pairs]
             logger.info(
                 f"collection_tool: {len(files)} files from selected_doc_ids "
                 f"(overriding collection {collection_id})"
             )
+            # Honesty at the seam (#4404): the node did NOT read the
+            # configured collection, so it must not claim to have done so —
+            # no collection_id in the override result.
             return {"files": files, "documents": documents, "count": len(files)}
 
     recursive = inputs.get("recursive", True)
@@ -794,6 +849,38 @@ async def folder_tool(
     """
     folder_id = inputs.get("folder_id")
     folder_path = inputs.get("folder_path")
+
+    # Selection override (#4523/#4396): this was THE hole — folder_tool never
+    # read `selected_doc_ids`, so a workflow authored with a folder source ran
+    # on the WHOLE configured folder even when the request carried an explicit
+    # one-file selection. A selection, when present, IS the run's scope; the
+    # authored folder config only applies when no selection was sent. Same
+    # shared resolver as files_tool/collection_tool — one resolution, both
+    # scope invariants.
+    selected_doc_ids = state.get("selected_doc_ids", [])
+    if selected_doc_ids:
+        library_path = state.get("library_path") or inputs.get("library_path")
+        if library_path:
+            db = db_manager.get_database(library_path)
+            pairs = _resolve_selection_pairs(
+                db, list(selected_doc_ids), library_path,
+                source_label=f"folder source ({folder_id or folder_path})",
+            )
+            files = [path for path, _ in pairs]
+            documents = [d.model_dump(mode="json") for _, d in pairs]
+            logger.info(
+                f"folder_tool: {len(files)} files from selected_doc_ids "
+                f"(overriding folder {folder_id or folder_path})"
+            )
+            # Honesty at the seam (#4404): the node did NOT read the
+            # configured folder, so it must not claim to have done so — no
+            # folder_id in the override result, and no subfolder fan-out.
+            return {
+                "files": files,
+                "documents": documents,
+                "subfolders": [],
+                "count": len(files),
+            }
 
     if not folder_id and not folder_path:
         return {

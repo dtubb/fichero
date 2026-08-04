@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,21 @@ if TYPE_CHECKING:
     from fichero_server.db import Database
 
 logger = logging.getLogger(__name__)
+
+#: Deterministic ids for shipped presets (#4450). ``uuid5`` over this fixed
+#: namespace + the preset's stable name means every seed of the same preset —
+#: in the global library, in every user library, on every machine — mints the
+#: SAME id. Before this, ``Workflow()`` minted a fresh random UUID per seed
+#: and the auto-upgrade path DELETED+REINSERTED on every ``preset_version``
+#: bump, so an upgrade orphaned every held reference: the sidebar offered an
+#: id that afterwards existed in NO workflow table, and execute 404'd with
+#: "not found in this library" for a workflow the UI was still offering.
+_PRESET_ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_DNS, "default-workflows.fichero")
+
+
+def preset_workflow_id(name: str) -> str:
+    """The stable workflow id a shipped preset gets everywhere it is seeded."""
+    return str(uuid.uuid5(_PRESET_ID_NAMESPACE, name))
 
 
 _PRESETS_DIR = Path(__file__).resolve().parent.parent / "resources" / "default_workflows"
@@ -131,12 +147,23 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
         except Exception as exc:
             logger.warning(f"Could not remove deprecated preset '{name}': {exc}")
 
+    # #4450: an upgrade must never orphan references. Reinserting a preset
+    # with a fresh random id turned every preset_version bump into a purge of
+    # the old id from existence — cached ids in clients, the sidebar's global
+    # default list, run rows, all 404'd. Remember each replaced row's id and
+    # reinsert WITH it, so an upgrade is an update-in-place as far as any
+    # reference holder can tell. (Libraries holding pre-#4450 random ids keep
+    # them — mapping is by name, so nothing breaks; fresh seeds get the
+    # deterministic ``preset_workflow_id``.)
+    preserved_ids: dict[str, str] = {}
+
     targets_to_replace: set[str] = preset_names if force else upgrade_names
     for name in targets_to_replace:
         current = existing_by_name.get(name)
         if current is not None and (
             getattr(current, "is_template", False) or getattr(current, "is_system", False)
         ):
+            preserved_ids[name] = current.id
             try:
                 db.delete(current)
                 if name in upgrade_names and not force:
@@ -180,6 +207,10 @@ def seed_default_workflows(db: "Database", force: bool = False) -> int:
         try:
             nodes = list(preset.get("nodes", []))
             workflow = Workflow(
+                # #4450: stable ids. An upgraded preset keeps the id its
+                # references already hold; a genuinely new seed gets the
+                # deterministic per-name id, identical in every library.
+                id=preserved_ids.get(name) or preset_workflow_id(name),
                 name=name,
                 description=preset.get("description", ""),
                 format=preset.get("format", "nodes"),

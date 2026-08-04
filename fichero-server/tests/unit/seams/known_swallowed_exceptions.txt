@@ -45,6 +45,7 @@ api/routes/search/core.py::enhanced_search 3
 api/routes/search/core.py::reindex_all.do_reindex 1
 api/routes/workflow_execution/threads.py::_cancel_settled_run 1
 api/routes/workflow_execution/threads.py::cancel_workflow 1
+api/routes/workflow_execution/threads.py::pause_workflow 1
 bibliography/extractor.py::_gather_cover_pages_text 1
 bookmarks.py::stop_accessing 1
 core/duckdb_session.py::pin_utc_session 1

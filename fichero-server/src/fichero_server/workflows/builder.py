@@ -19,7 +19,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fichero_server.execution.cancellation import WorkflowCancelled
+from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 from fichero_server.workflows.types import State, WorkflowDef, NodeDef
 from fichero_server.workflows.node_context import set_current_node
 from fichero_server.workflows.registry import get_tool, get_tool_def
@@ -815,12 +815,19 @@ def _make_node_function(
                     # them the way thirty separate checks would.
                     from fichero_server.execution.cancellation import (  # noqa: PLC0415
                         WorkflowCancelled,
+                        WorkflowPaused,
                         cancellation_requested,
+                        pause_requested,
                     )
 
                     run_id = state.get("task_id", "")
                     if cancellation_requested(run_id):
                         raise WorkflowCancelled(run_id)
+                    # #4402 second half: Pause shares the same per-item
+                    # boundary. Checked AFTER cancel on purpose — a run that
+                    # was both paused and stopped is stopped.
+                    if pause_requested(run_id):
+                        raise WorkflowPaused(run_id)
 
                     payload = dict(data)
                     payload.setdefault("node_id", node_id)
@@ -1045,6 +1052,10 @@ def _make_node_function(
             # untouched so the runner reports the run as CANCELLED; falling
             # into the generic handler below would mark it 'failed' and
             # surface the cancellation as an error.
+            raise
+        except WorkflowPaused:
+            # #4402 second half: same contract for Pause — the runner must
+            # settle the run as PAUSED (resumable), not failed.
             raise
         except SystemicErrorDetected:
             # Hard-abort signal — must propagate, not be reduced to a dict.
