@@ -89,11 +89,17 @@ extension LibraryManager {
     ///
     /// This is most likely when a library was added in a NON-SANDBOXED build:
     /// minting a `.withSecurityScope` bookmark requires the sandbox entitlement,
-    /// which Dev and DMG builds don't have, so `mintBookmark` throws and stores
-    /// nothing. Opened later in the App Store build, there is no bookmark to
-    /// restore and none could ever have existed. What that build should DO about
-    /// it (re-mint? refuse?) is a product decision (#4217); prompting instead of
-    /// failing silently is not.
+    /// so `mintBookmark` throws and stores nothing. Opened later in a sandboxed
+    /// build, there is no bookmark to restore and none could ever have existed.
+    /// What that build should DO about it (re-mint? refuse?) is a product
+    /// decision (#4217); prompting instead of failing silently is not.
+    ///
+    /// This paragraph used to say "Dev and DMG builds don't have" the
+    /// entitlement. **Dev builds have been sandboxed since 2026-07-29**, so that
+    /// reading is wrong and was load-bearing: it is the same stale premise that
+    /// left `engineBookmarkPayload()` returning nil for a sandboxed Dev engine.
+    /// The property that matters is `FolderAccessManager.isSandboxed`, asked at
+    /// runtime — never the build channel.
     private func promptForAccessIfUnavailable(url: URL, needsSecurityAccess: Bool) {
         #if os(macOS)
         guard needsSecurityAccess,
@@ -391,14 +397,35 @@ extension LibraryManager {
                 displayName: displayName
             )
 
-            // If we moved from temp, backend will reconnect automatically on next request
-            // If we created new (Save As on already-saved library), initialize the database
-            if !isTempLibrary {
-                loadedLibraryIds.remove(library.id)
-                scheduleLoadWhenBackendReady(for: library)
-            }
-
-            Task {
+            // The user CHOSE this location in a save panel, so this is exactly
+            // the moment access is minted — and until 2026-08-04 nothing minted
+            // it. `startAccessingSecurityScopedResource()` above scopes THIS
+            // process for the duration of the save; it stores nothing, hands the
+            // engine nothing, and is released by the `defer`. So a library the
+            // user created was readable by the app and refused by the engine,
+            // which reported "Library path is not in an allowed location" for a
+            // path the user had just picked.
+            //
+            // The open path (`loadAndRegister`) has always done this properly,
+            // including awaiting the grant before the first read (#3773). Create
+            // is the sibling that never got it — same outcome, separate route,
+            // only one of them maintained. Routed through the same
+            // `grantThenEngineWork` so there is ONE grant-then-load ordering in
+            // the app, not two that can drift.
+            let alreadyLoadable = isTempLibrary
+            Task { @MainActor in
+                if !alreadyLoadable {
+                    // try?: a refused grant already surfaces on
+                    // `engineAccessFailure`; it must stop the load rather than
+                    // crash the save the user just completed.
+                    try? await FolderAccessManager.grantThenEngineWork(
+                        grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+                        engineWork: {
+                            loadedLibraryIds.remove(library.id)
+                            scheduleLoadWhenBackendReady(for: library)
+                        }
+                    )
+                }
                 await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
                     url: url,
                     displayName: displayName

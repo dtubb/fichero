@@ -101,19 +101,23 @@ class FolderAccessManager {
     /// engine resolves them (`fichero/security_scoped_access.py`) before DuckDB
     /// opens anything.
     ///
-    /// App Store build ONLY. The DMG engine is not sandboxed — it can already open
-    /// the library directly — so it gets no env var at all. This is a hard gate,
-    /// not an optimisation: without it the DMG app would ship its bookmarks to an
-    /// unsandboxed engine, which would resolve them, be refused by
-    /// startAccessingSecurityScopedResource(), and log a DENIED error per library
-    /// on every launch — a behaviour change to a channel that must not change.
+    /// Sent only when THIS PROCESS IS SANDBOXED. An unsandboxed engine opens the
+    /// library directly; handing it bookmarks would have it resolve them, be
+    /// refused by `startAccessingSecurityScopedResource()`, and log a DENIED
+    /// error per library per launch. So the gate stays; only the question changed.
+    ///
+    /// It asked `#if FICHERO_APP_STORE`, on the premise that App Store was the
+    /// only sandboxed channel. That died when Dev builds became sandboxed
+    /// (2026-07-29): the guard answered "not sandboxed" for a sandboxed Dev
+    /// engine, no bookmark reached it, `_granted_roots()` stayed empty — and
+    /// since the engine's `Path.home()` is the container, every other allowed
+    /// root pointed into the container too. No library outside the container
+    /// could be served, which is what "creating a library doesn't work" was
+    /// (2026-08-04). Asked at RUNTIME now, so it cannot go stale again.
     func engineBookmarkPayload() -> String? {
-        #if FICHERO_APP_STORE
+        guard SandboxEnvironment.isSandboxed else { return nil }
         let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
         return Self.bookmarkPayload(from: stored)
-        #else
-        return nil
-        #endif
     }
 
     /// Pure JSON encoding of the payload — separated from UserDefaults so the wire
