@@ -72,13 +72,11 @@ extension ContentView {
             if isEntityLibrarySelection {
                 return false
             }
-            // Stable layout (default): a folder keeps the same panes as a file,
-            // so selecting different items never reflows the window (#1452). The
-            // legacy behaviour — folder collapses the preview so the grid takes
-            // full width (#712) — is now opt-in via layoutFollowsSelection.
-            if layoutFollowsSelection, let doc = inspectorDocument, doc.docType == .folder {
-                return false
-            }
+            // Stable layout: a folder keeps the same panes as a file, so
+            // selecting different items never reflows the window (#1452). The
+            // legacy opt-in (`layoutFollowsSelection` — folder collapses the
+            // preview, #712) was deleted with #4525 (V6): a toggle whose only
+            // purpose was to violate the stable-panes policy.
             return true
         default:
             return false

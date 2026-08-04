@@ -13,8 +13,6 @@ struct GeneralSettingsView: View {
     // #4108/S4 — Finder-style default search scope; key shared with
     // runToolbarSearch (ContentView.searchDefaultScopeIsFolderKey).
     @AppStorage(ContentView.searchDefaultScopeIsFolderKey) private var searchDefaultScopeIsFolder: Bool = false
-    // #4121 — shared key with ContentView's layoutFollowsSelection reader.
-    @AppStorage("layout.followsSelection") private var layoutFollowsSelection: Bool = false
 
     // Typography settings
     @AppStorage("editor.fontName") private var fontName: String = "System"
@@ -36,12 +34,9 @@ struct GeneralSettingsView: View {
                 Slider(value: $thumbnailSize, in: 80...200) {
                     Text("Thumbnail Size")
                 }
-                // Moved from the View menu (#4121): a persistent behavior
-                // preference, not per-window view state.
-                Toggle("Selection changes layout", isOn: $layoutFollowsSelection)
-                Text("Folders collapse the preview pane when selected, so the grid takes the full width.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                // "Selection changes layout" was deleted with #4525 (V6):
+                // selection NEVER changes which panes are visible — #1452's
+                // stable default is the only behaviour now.
             }
 
             Section("Typography") {
