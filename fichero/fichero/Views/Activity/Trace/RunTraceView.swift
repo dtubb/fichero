@@ -128,22 +128,26 @@ struct RunTraceView: View {
         // window then logged "Failed to load run trace … CancellationError"
         // and showed no trace, exactly when the trace matters most.
         let threadId = threadId
-        let fetch = Task {
-            try await ActivityService(apiClient: apiClient).getWorkflowRun(threadId: threadId)
-        }
-        do {
-            run = try await fetch.value
-            loadError = nil
-        } catch {
-            guard let message = RunTraceLoadFailure.message(for: error) else {
-                // Cancellation is teardown, not failure: stay quiet, keep the
-                // spinner state, and let `.task(id:)` re-fire on next identity.
-                logger.debug("Run trace load for \(threadId) cancelled during teardown")
-                return
+        // Void-returning so no non-Sendable value crosses actors —
+        // `WorkflowRunResponse` carries `[String: Any]` and cannot be
+        // Sendable; the fetch result is consumed where it lands.
+        let fetch = Task { @MainActor in
+            do {
+                run = try await ActivityService(apiClient: apiClient).getWorkflowRun(threadId: threadId)
+                loadError = nil
+            } catch {
+                guard let message = RunTraceLoadFailure.message(for: error) else {
+                    // Cancellation is teardown, not failure: stay quiet, keep
+                    // the spinner state, and let `.task(id:)` re-fire on next
+                    // identity.
+                    logger.debug("Run trace load for \(threadId) cancelled during teardown")
+                    return
+                }
+                logger.error("Failed to load run trace for \(threadId): \(String(describing: error))")
+                loadError = message
             }
-            logger.error("Failed to load run trace for \(threadId): \(String(describing: error))")
-            loadError = message
         }
+        await fetch.value
     }
 }
 
