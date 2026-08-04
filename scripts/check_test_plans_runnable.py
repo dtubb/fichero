@@ -53,6 +53,11 @@ PLAN_PLATFORMS: dict[str, set[str]] = {
     "fichero-tests.xctestplan": {"macosx"},
     "fichero-embedded.xctestplan": {"macosx"},
     "fichero-ipad.xctestplan": {"iphonesimulator"},
+    "fichero-ios.xctestplan": {"iphonesimulator"},
+    "fichero-ui-general.xctestplan": {"macosx"},
+    "fichero-ui-mac.xctestplan": {"macosx"},
+    "fichero-ui-ios.xctestplan": {"iphonesimulator"},
+    "fichero-ui-ipad.xctestplan": {"iphonesimulator"},
 }
 
 # Plans known to be unrunnable, keyed to the issue that must land first.
@@ -357,6 +362,16 @@ INVOCATIONS = """
     Mac    xcodebuild test -project fichero/fichero.xcodeproj \\
              -scheme 'Fichero (Dev Local)' -testPlan fichero-tests \\
              -destination 'platform=macOS'
+
+  The full matrix, by scheme (plans live in fichero/Tests/plans/):
+    'Fichero (Dev Local)'      fichero (default) · fichero-tests ·
+                               fichero-ui-general · fichero-ui-mac    (macOS)
+    'Fichero (Dev Local iOS)'  fichero-ipad (default) · fichero-ios ·
+                               fichero-ui-ios · fichero-ui-ipad       (iOS sim;
+                               ios legs want an iPhone destination,
+                               ipad legs an iPad one — each plan carries an
+                               idiom canary that fails on the wrong family)
+    'Fichero (Dev Embedded)'   fichero-embedded                       (macOS)
 
   The simulator NAME is machine-specific and goes stale with every Xcode
   release — this one was verified against `xcrun simctl list devices available

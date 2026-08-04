@@ -1,0 +1,27 @@
+{
+  "configurations" : [
+    {
+      "id" : "3F9D1A64-8C2B-4E07-B5D3-7E4A9C1F6D28",
+      "name" : "UI Mac",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "MacUITargetCanaryTests"
+      ],
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "A10521C02EFDC94100B28C3E",
+        "name" : "FicheroUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

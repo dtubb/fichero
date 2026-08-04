@@ -43,6 +43,13 @@
 			remoteGlobalIDString = 500;
 			remoteInfo = Fichero;
 		};
+		F105C0DE0000000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 700 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 500;
+			remoteInfo = Fichero;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -64,6 +71,7 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F105C0DE0000000000000001 /* FicheroIOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -151,6 +159,22 @@
 			path = "Tests/UI/mac";
 			sourceTree = "<group>";
 		};
+		F105C0DE0000000000000002 /* Tests-UI-ios */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			name = "Tests-UI-ios";
+			path = "Tests/UI/ios";
+			sourceTree = "<group>";
+		};
+		F105C0DE0000000000000003 /* Tests-UI-ipad */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			name = "Tests-UI-ipad";
+			path = "Tests/UI/ipad";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -189,6 +213,11 @@
 				FEED0000000000000000024F /* FicheroAPIClient in Frameworks */,
 			);
 		};
+		F105C0DE0000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -215,6 +244,8 @@
 				208ADA9A3022008200B83F96 /* FicheroIOSTests */,
 				7E57AB000000000000000001 /* Tests-Unit-mac */,
 				7E57AB000000000000000002 /* Tests-UI-mac */,
+				F105C0DE0000000000000002 /* Tests-UI-ios */,
+				F105C0DE0000000000000003 /* Tests-UI-ipad */,
 				420 /* Products */,
 				D0C0989BFAD8F78903736127 /* fichero */,
 			);
@@ -229,6 +260,7 @@
 				FE1DAD000000000000000010 /* FicheroIPadTests.xctest */,
 				A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */,
 				208ADA993022008200B83F96 /* FicheroIOSTests.xctest */,
+				F105C0DE0000000000000001 /* FicheroIOSUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -397,6 +429,28 @@
 			productReference = FEED00000000000000000260 /* Fichero.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F105C0DE0000000000000000 /* FicheroIOSUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F105C0DE0000000000000009 /* Build configuration list for PBXNativeTarget "FicheroIOSUITests" */;
+			buildPhases = (
+				F105C0DE0000000000000004 /* Sources */,
+				F105C0DE0000000000000005 /* Frameworks */,
+				F105C0DE0000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F105C0DE0000000000000008 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F105C0DE0000000000000002 /* Tests-UI-ios */,
+				F105C0DE0000000000000003 /* Tests-UI-ipad */,
+			);
+			name = FicheroIOSUITests;
+			productName = FicheroIOSUITests;
+			productReference = F105C0DE0000000000000001 /* FicheroIOSUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -409,6 +463,9 @@
 				TargetAttributes = {
 					208ADA983022008100B83F96 = {
 						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 500;
+					};
+					F105C0DE0000000000000000 = {
 						TestTargetID = 500;
 					};
 					500 = {
@@ -450,6 +507,7 @@
 				FE1DAD000000000000000070 /* FicheroIPadTests */,
 				A10521C02EFDC94100B28C3E /* FicheroUITests */,
 				208ADA983022008100B83F96 /* FicheroIOSTests */,
+				F105C0DE0000000000000000 /* FicheroIOSUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -481,6 +539,11 @@
 			);
 		};
 		FEED00000000000000000253 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		F105C0DE0000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -1066,6 +1129,11 @@
 			files = (
 			);
 		};
+		F105C0DE0000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1088,6 +1156,11 @@
 			isa = PBXTargetDependency;
 			target = 500 /* Fichero */;
 			targetProxy = FE1DAD000000000000000040 /* PBXContainerItemProxy */;
+		};
+		F105C0DE0000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 500 /* Fichero */;
+			targetProxy = F105C0DE0000000000000007 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -3229,6 +3302,126 @@
 			};
 			name = "Release Local";
 		};
+		F105C0DE0000000000000010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = Debug;
+		};
+		F105C0DE0000000000000011 /* Alpha */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = Alpha;
+		};
+		F105C0DE0000000000000012 /* Beta */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = Beta;
+		};
+		F105C0DE0000000000000013 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = Release;
+		};
+		F105C0DE0000000000000014 /* Dev Embedded */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = "Dev Embedded";
+		};
+		F105C0DE0000000000000015 /* Alpha Embedded */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = "Alpha Embedded";
+		};
+		F105C0DE0000000000000016 /* Beta Embedded */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = "Beta Embedded";
+		};
+		F105C0DE0000000000000017 /* Release Local */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tubb.FicheroIOSUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Fichero;
+			};
+			name = "Release Local";
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -3327,6 +3520,20 @@
 				FEED0000000000000000025C /* Alpha Embedded */,
 				FEED0000000000000000025D /* Beta Embedded */,
 				FEED0000000000000000025E /* Release Local */,
+			);
+			defaultConfigurationName = Release;
+		};
+		F105C0DE0000000000000009 /* Build configuration list for PBXNativeTarget "FicheroIOSUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F105C0DE0000000000000010 /* Debug */,
+				F105C0DE0000000000000011 /* Alpha */,
+				F105C0DE0000000000000012 /* Beta */,
+				F105C0DE0000000000000013 /* Release */,
+				F105C0DE0000000000000014 /* Dev Embedded */,
+				F105C0DE0000000000000015 /* Alpha Embedded */,
+				F105C0DE0000000000000016 /* Beta Embedded */,
+				F105C0DE0000000000000017 /* Release Local */,
 			);
 			defaultConfigurationName = Release;
 		};

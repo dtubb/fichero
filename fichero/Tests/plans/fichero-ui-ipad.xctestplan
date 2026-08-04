@@ -1,0 +1,27 @@
+{
+  "configurations" : [
+    {
+      "id" : "9E4A7D18-5B3C-4F26-8D09-2C6F1A4E7B35",
+      "name" : "UI iPad",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "IPadUITargetCanaryTests"
+      ],
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "F105C0DE0000000000000000",
+        "name" : "FicheroIOSUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "5A0C41E7-9B2D-4F63-8A1C-6E2D9B7F4A31",
+      "name" : "iPhone",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "208ADA983022008100B83F96",
+        "name" : "FicheroIOSTests"
+      }
+    }
+  ],
+  "version" : 1
+}

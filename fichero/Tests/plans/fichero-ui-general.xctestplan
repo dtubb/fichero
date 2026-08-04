@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "0B7E2C91-4D5A-4E38-9F62-1A8C3D5E7B02",
+      "name" : "UI General",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:fichero.xcodeproj",
+        "identifier" : "A10521C02EFDC94100B28C3E",
+        "name" : "FicheroUITests"
+      },
+      "skippedTests" : [
+        "ColdLaunchReachesLibraryUITests",
+        "LaunchPerformanceUITests",
+        "LibraryLoadingIsNotAnOutageUITests",
+        "LibrarySmokeUITests"
+      ]
+    }
+  ],
+  "version" : 1
+}
