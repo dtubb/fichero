@@ -7,9 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		039A0E37C6C2F369627F9B65 /* EngineLifecycleController+ProviderKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */; };
 		466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */; };
-		87A0E5F6B4653AF4DDF44629 /* EngineLifecycleController+ProviderKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */; };
 		9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
@@ -70,7 +68,6 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "EngineLifecycleController+ProviderKeys.swift"; sourceTree = "<group>"; };
 		17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewLibraryPanel.swift; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProviderKeyStore.swift; sourceTree = "<group>"; };
@@ -239,7 +236,6 @@
 			isa = PBXGroup;
 			children = (
 				20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */,
-				15E9AB1949782EEAFC18504D /* EngineLifecycleController+ProviderKeys.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1055,7 +1051,6 @@
 			files = (
 				EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */,
 				B4E1A5D44C050539E13A341F /* ProviderKeyStore.swift in Sources */,
-				87A0E5F6B4653AF4DDF44629 /* EngineLifecycleController+ProviderKeys.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1078,7 +1073,6 @@
 			files = (
 				9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */,
 				466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */,
-				039A0E37C6C2F369627F9B65 /* EngineLifecycleController+ProviderKeys.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
