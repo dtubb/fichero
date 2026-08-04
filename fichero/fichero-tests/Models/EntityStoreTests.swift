@@ -626,8 +626,21 @@ final class EntityStoreTests: XCTestCase {
             return
         }
 
+        // The test host IS the sandboxed app, so this is the REAL token file
+        // the app signs in with. Writing a fixture here and walking away
+        // clobbered the synced bootstrap token and every later `⌘R` was met
+        // with "Sign-in rejected" over UDS. Preserve and restore whatever
+        // was there.
         let tokenDir = appSupport.appendingPathComponent("Fichero", isDirectory: true)
         let tokenFile = tokenDir.appendingPathComponent(".api-key")
+        let original = try? Data(contentsOf: tokenFile)
+        addTeardownBlock {
+            if let original {
+                try? original.write(to: tokenFile, options: [.atomic])
+            } else {
+                try? FileManager.default.removeItem(at: tokenFile)
+            }
+        }
         try? FileManager.default.createDirectory(at: tokenDir, withIntermediateDirectories: true)
         try? Data("test-token\n".utf8).write(to: tokenFile, options: [.atomic])
     }
