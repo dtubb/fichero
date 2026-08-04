@@ -117,14 +117,18 @@ extension SidebarItemRow {
                             Text("Runs on this item only — it is outside your selection")
                             Divider()
                         }
-                        RunWorkflowSubmenuItems(workflows: availableWorkflows) {
-                            workflowId, providerOverride, modelOverride in
-                            runWorkflowOnDocuments(
-                                workflowId: workflowId,
-                                docIds: resolution.targetIds,
-                                providerOverride: providerOverride,
-                                modelOverride: modelOverride
-                            )
+                        // Two named groups (#4450): a global default is part
+                        // of the app and must read as one wherever you are.
+                        let sections = Self.workflowMenuSections(availableWorkflows)
+                        if !sections.defaults.isEmpty {
+                            Section("Global Defaults") {
+                                workflowSubmenu(sections.defaults, resolution: resolution)
+                            }
+                        }
+                        if !sections.libraryOwn.isEmpty {
+                            Section(library?.displayName ?? "This Library") {
+                                workflowSubmenu(sections.libraryOwn, resolution: resolution)
+                            }
                         }
                     }
                 }
@@ -146,11 +150,45 @@ extension SidebarItemRow {
     /// never silently empty; the run still targets this row's documents in
     /// this row's library, and a genuinely unknown workflow id surfaces the
     /// engine's error on the banner rather than nothing at all.
+    /// One group of the Run Workflow menu. Both sections run the SAME action
+    /// against the SAME targets — the split is presentational.
+    @ViewBuilder
+    private func workflowSubmenu(
+        _ workflows: [WorkflowSidebarItem],
+        resolution: WorkflowRunTargetResolver.Resolution
+    ) -> some View {
+        RunWorkflowSubmenuItems(workflows: workflows) { workflowId, provider, model in
+            runWorkflowOnDocuments(
+                workflowId: workflowId,
+                docIds: resolution.targetIds,
+                providerOverride: provider,
+                modelOverride: model
+            )
+        }
+    }
+
+    /// #4450 — the fallback is filtered to `isSystem`. A global-library USER
+    /// workflow (built while Global was open, or a preset DEMOTED by editing
+    /// it, #780) is not a default; `resolve_default_workflow` refuses it from
+    /// another library, so offering it is the menu asserting availability it
+    /// has not established.
     nonisolated static func contextMenuWorkflows(
         own: [WorkflowSidebarItem],
         global: [WorkflowSidebarItem]
     ) -> [WorkflowSidebarItem] {
-        own.isEmpty ? global : own
+        own.isEmpty ? global.filter(\.isSystem) : own
+    }
+
+    /// #4450 — the two groups: global defaults, visible and runnable in EVERY
+    /// library, and this library's own. Both come from ONE list: a non-global
+    /// library's `/api/workflows` already merges the shipped defaults in
+    /// server-side (`list_global_default_workflows`), so re-reading the global
+    /// store here would list every default twice. The split is `isSystem`, the
+    /// flag only the seeder writes.
+    nonisolated static func workflowMenuSections(
+        _ workflows: [WorkflowSidebarItem]
+    ) -> (defaults: [WorkflowSidebarItem], libraryOwn: [WorkflowSidebarItem]) {
+        (workflows.filter(\.isSystem), workflows.filter { !$0.isSystem })
     }
 
     /// Duplicate action for the kinds with a backend duplicate endpoint —
