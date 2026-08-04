@@ -13,8 +13,11 @@ extension LibraryManager {
     ///     handoff instead.
     /// - Returns: Library reference that can be shared across windows
     func openLibrary(at url: URL, makeCurrent: Bool = true) -> LibraryReference {
-        // Check if already open
-        if let existing = openLibraries.first(where: { $0.url == url }) {
+        // Check if already open. Compare CANONICAL keys, not raw `URL ==`: the
+        // same package reached through a directory URL and a non-directory one
+        // is not `==`, which is how a second Global library got opened (#4517).
+        let key = Self.canonicalLibraryKey(url)
+        if let existing = openLibraries.first(where: { Self.canonicalLibraryKey($0.url) == key }) {
             if makeCurrent {
                 currentLibraryId = existing.id
             }

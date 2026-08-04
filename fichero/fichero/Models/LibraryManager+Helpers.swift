@@ -21,6 +21,26 @@ extension LibraryManager {
             standardizedURL.lastPathComponent.hasPrefix("Untitled-")
     }
 
+    /// Canonical identity key for a library URL (#4517).
+    ///
+    /// `URL ==` is the wrong comparison for "is this the same library": two URLs
+    /// for the SAME package compare unequal whenever their directory-hood
+    /// differs. `appendingPathComponent` (Global, built during App init before
+    /// the package exists) yields a non-directory URL; `URL(fileURLWithPath:)`
+    /// (restore, run again by `refreshAfterBackendBecameReady` AFTER the engine
+    /// has created the package) probes the filesystem and yields a DIRECTORY URL
+    /// with a trailing slash. `openLibrary`'s raw `URL ==` dedup therefore missed
+    /// the match and opened a second Global.
+    ///
+    /// Uses only platform normalization — `standardizedFileURL` (resolves `.`,
+    /// `..` and the trailing slash), `resolvingSymlinksInPath` (`/var` →
+    /// `/private/var`, where temporary libraries live) — plus the repo's existing
+    /// NFC path normalization (#3076), so an NFD variant of the same path is the
+    /// same library. No bespoke string munging.
+    static func canonicalLibraryKey(_ url: URL) -> String {
+        url.standardizedFileURL.resolvingSymlinksInPath().path.nfcNormalized
+    }
+
     // MARK: - Internal Helpers
 
     /// Called after EmbeddedBackendService has connected to either the external
