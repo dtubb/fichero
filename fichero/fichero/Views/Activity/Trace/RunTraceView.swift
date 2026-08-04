@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import OSLog
 import SwiftUI
 
@@ -120,13 +121,43 @@ struct RunTraceView: View {
         }
         isLoading = true
         defer { isLoading = false }
+        // Fetch on an UNSTRUCTURED task so the request does not inherit the
+        // enclosing `.task`'s cancellation. When a run fails, its SSE stream
+        // teardown cancels the surrounding task tree, and an inherited
+        // cancellation killed this one-shot GET mid-flight — the detail
+        // window then logged "Failed to load run trace … CancellationError"
+        // and showed no trace, exactly when the trace matters most.
+        let threadId = threadId
+        let fetch = Task {
+            try await ActivityService(apiClient: apiClient).getWorkflowRun(threadId: threadId)
+        }
         do {
-            run = try await ActivityService(apiClient: apiClient).getWorkflowRun(threadId: threadId)
+            run = try await fetch.value
             loadError = nil
         } catch {
+            guard let message = RunTraceLoadFailure.message(for: error) else {
+                // Cancellation is teardown, not failure: stay quiet, keep the
+                // spinner state, and let `.task(id:)` re-fire on next identity.
+                logger.debug("Run trace load for \(threadId) cancelled during teardown")
+                return
+            }
             logger.error("Failed to load run trace for \(threadId): \(String(describing: error))")
-            loadError = error.localizedDescription
+            loadError = message
         }
+    }
+}
+
+/// Maps a run-trace load error to what the user should see (#4358 follow-up).
+///
+/// Cancellation — the enclosing task tree being torn down alongside a
+/// finished/failed run's SSE stream — is NOT a failure: it must neither log
+/// at error level nor put the pane into the "Couldn't Load Run Trace" state.
+/// Everything else surfaces its localized description.
+enum RunTraceLoadFailure {
+    /// The user-facing error text, or `nil` when the error is a cancellation
+    /// and the view should stay quiet (no error state, no retry).
+    static func message(for error: Error) -> String? {
+        error.isCancellationError ? nil : error.localizedDescription
     }
 }
 
