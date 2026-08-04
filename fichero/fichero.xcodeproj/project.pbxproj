@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		070AC7B1A9D13059B294E5D6 /* ContentView+SidebarRunSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1EBBA6569488E9E9E3723B8 /* ContentView+SidebarRunSelection.swift */; };
+		7FD34C40C7F04C5DE50B6AE1 /* ContentView+SidebarRunSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1EBBA6569488E9E9E3723B8 /* ContentView+SidebarRunSelection.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
@@ -71,6 +73,7 @@
 		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero.xctestplan; sourceTree = "<group>"; };
 		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-embedded.xctestplan"; sourceTree = "<group>"; };
 		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-ipad.xctestplan"; sourceTree = "<group>"; };
+		B1EBBA6569488E9E9E3723B8 /* ContentView+SidebarRunSelection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+SidebarRunSelection.swift"; sourceTree = "<group>"; };
 		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000262 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
@@ -175,6 +178,7 @@
 		22EFCE1C87FC1487EC1CBF7F /* Shell */ = {
 			isa = PBXGroup;
 			children = (
+				7CF13B7B23C2FFCF3D20FA33 /* ContentView */,
 			);
 			name = Shell;
 			path = Shell;
@@ -218,6 +222,15 @@
 			);
 			name = Views;
 			path = Views;
+			sourceTree = "<group>";
+		};
+		7CF13B7B23C2FFCF3D20FA33 /* ContentView */ = {
+			isa = PBXGroup;
+			children = (
+				B1EBBA6569488E9E9E3723B8 /* ContentView+SidebarRunSelection.swift */,
+			);
+			name = ContentView;
+			path = ContentView;
 			sourceTree = "<group>";
 		};
 		D0C0989BFAD8F78903736127 /* fichero */ = {
@@ -1020,6 +1033,7 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				7FD34C40C7F04C5DE50B6AE1 /* ContentView+SidebarRunSelection.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1040,6 +1054,7 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				070AC7B1A9D13059B294E5D6 /* ContentView+SidebarRunSelection.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
@@ -1655,7 +1670,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1723,7 +1738,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1798,7 +1813,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1873,7 +1888,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2144,7 +2159,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2212,7 +2227,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2287,7 +2302,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2362,7 +2377,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2674,7 +2689,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2744,7 +2759,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2821,7 +2836,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2898,7 +2913,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -2967,7 +2982,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3037,7 +3052,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3114,7 +3129,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -3191,7 +3206,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Fichero uses your photo library when you choose existing images to add to the capture queue.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UTExportedTypeDeclarations = "{\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Item\";\n    UTTypeIdentifier = \"com.tubb.fichero.item\";\n}";
+				INFOPLIST_KEY_UTExportedTypeDeclarations = "(\n    {\n    UTTypeConformsTo =     (\n        \"public.data\"\n    );\n    UTTypeDescription = \"Fichero Drag Item\";\n    UTTypeIdentifier = \"app.fichero.fichero.drag-item\";\n    }\n)";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

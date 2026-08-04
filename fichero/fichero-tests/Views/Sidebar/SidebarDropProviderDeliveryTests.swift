@@ -269,15 +269,62 @@ final class SidebarDropProviderDeliveryTests: XCTestCase {
         XCTAssertEqual(payload, .externalFiles)
     }
 
-    /// The dead legacy shape itself: bare public.data with no internal flavor
-    /// (Daniel's broken session). Under the new contract that CANNOT be an
-    /// in-app drag — both drag types always register the named flavor — so it
-    /// is an external data payload and routes to import instead of vanishing.
-    func testABareDataProviderIsExternalNotUnsupported() async {
+    /// Bare public.data with no other identifier is the DEGRADED shape of our
+    /// own drag flavor (live-repro 2026-08-04: the then-undeclared custom UTI
+    /// arrived as `[public.data] URL:false String:false`, classified external,
+    /// and an in-app .tif drag was re-imported as a hollow duplicate). An
+    /// earlier version of this test pinned it as `.externalFiles` on the
+    /// premise that an in-app drag ALWAYS registers the named flavor — the
+    /// pasteboard falsified that premise. Unreadable bytes now refuse loudly;
+    /// they never reach the importer.
+    func testABareDataProviderThatIsNoEnvelopeRefusesLoudly() async {
         let payload = await readSidebarDropPayload([
             dataProvider(UTType.data.identifier, Data("bytes".utf8))
         ])
-        XCTAssertEqual(payload, .externalFiles)
+        XCTAssertEqual(payload, .unreadableInternal)
+    }
+
+    /// The recovery half of the same defense: the degraded provider's BYTES
+    /// survive, so a `doc:` envelope read out of bare public.data still
+    /// delivers the MOVE — on a build whose pasteboard degrades the flavor,
+    /// dragging a document onto a folder files it instead of duplicating it.
+    func testADegradedBareDataEnvelopeStillDeliversTheMove() async {
+        let payload = await readSidebarDropPayload([
+            dataProvider(UTType.data.identifier, Data("doc:degraded-1".utf8))
+        ])
+        XCTAssertEqual(payload, .internalItems(["doc:degraded-1"]))
+    }
+
+    /// Same recovery for the library pane's JSON envelope shape.
+    func testADegradedLibraryDragJSONStillDeliversTheMove() async throws {
+        let drag = LibraryItemDrag(kind: .document, id: "lib-7", documentId: "lib-7", text: "body")
+        let json = try JSONEncoder().encode(drag)
+        let payload = await readSidebarDropPayload([
+            dataProvider(UTType.data.identifier, json)
+        ])
+        XCTAssertEqual(payload, .internalItems(["doc:lib-7"]))
+    }
+
+    /// The capability layer of the defense, pinned directly: bare public.data
+    /// is possibly-internal and NEVER an external payload, while a provider
+    /// that says what it is (public.data BESIDE a content type) keeps routing
+    /// external.
+    func testBareDataCapabilityIsInternalNotExternal() {
+        let bare = SidebarDropProviderCapabilities(
+            canLoadURL: false, canLoadString: false,
+            registeredTypeIdentifiers: [UTType.data.identifier]
+        )
+        XCTAssertTrue(bare.isUnidentifiedBareData)
+        XCTAssertFalse(bare.registersExternalPayload)
+        XCTAssertTrue(sidebarDropMightCarryInternalID([bare]))
+
+        let identified = SidebarDropProviderCapabilities(
+            canLoadURL: false, canLoadString: false,
+            registeredTypeIdentifiers: [UTType.jpeg.identifier, UTType.data.identifier]
+        )
+        XCTAssertFalse(identified.isUnidentifiedBareData)
+        XCTAssertTrue(identified.registersExternalPayload)
+        XCTAssertFalse(sidebarDropMightCarryInternalID([identified]))
     }
 
     /// A mixed selection — internal flavor beside a real file — is a move;

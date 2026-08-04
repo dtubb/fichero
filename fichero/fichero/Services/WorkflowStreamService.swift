@@ -77,6 +77,13 @@ class WorkflowStreamService {
     /// - Returns: The execution response with thread_id and stream_url
     func execute(
         workflowId: String,
+        /// WHICH launch surface dispatched this run. Required, no default:
+        /// the #4523 scope law kept regressing partly because a widened run's
+        /// origin could not be read from any log — the engine showed 6 files
+        /// processing and nothing said whether the sidebar row, the editor,
+        /// the toolbar or the batch picker sent them. Every caller names
+        /// itself; the ONE dispatch chokepoint below logs surface + scope.
+        surface: String,
         inputs: [String: Any] = [:],
         providerOverride: String? = nil,
         modelOverride: String? = nil,
@@ -96,7 +103,20 @@ class WorkflowStreamService {
         liveUpdatesUnavailable = false  // fresh stream — clear any prior paused state (F7)
         isStreaming = true
 
-        logger.info("Starting workflow execution: \(workflowId)")
+        // The scope statement of record (#4523): one line, at the one place
+        // every run passes through, stating who sent what.
+        let inputIds = (inputs["selected_doc_ids"] as? [String]) ?? []
+        let selectionSummary = selection.map {
+            "\($0.kind.rawValue):\($0.ids.count) id(s) \($0.ids)"
+        } ?? "none"
+        logger.info(
+            """
+            workflow-run: surface=\(surface, privacy: .public) \
+            workflow=\(workflowId, privacy: .public) \
+            selection=\(selectionSummary, privacy: .public) \
+            inputs.selected_doc_ids=\(inputIds, privacy: .public)
+            """
+        )
         let acceptedResponse = try await executionService.executeAccepted(
             workflowId: workflowId,
             inputs: inputs,

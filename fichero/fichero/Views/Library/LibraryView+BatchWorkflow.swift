@@ -108,6 +108,7 @@ extension LibraryView {
         var streamCompleted = false
         let response = try await stream.execute(
             workflowId: request.workflowId,
+            surface: "library-batch-picker",
             inputs: ["selected_doc_ids": request.docIds],
             providerOverride: request.providerOverride,
             modelOverride: request.modelOverride,

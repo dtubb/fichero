@@ -79,12 +79,10 @@ extension ContentView {
         // Closure to apply a resolved Document — sets detailDocument (#961).
         // Folders now keep the current layout so the WebKit/reading pane
         // stays visible for folder-level aggregate content (#1405).
+        // #4523 live regression (2026-08-04): the apply also feeds the
+        // window's run selection — see `applySidebarSelectedDocument`.
         let applyDoc: (Document) -> Void = { doc in
-            // Defer mutations to next run loop turn to avoid triggering
-            // multiple FocusedValue updates in the same render cycle (#961).
-            DispatchQueue.main.async {
-                detailDocument = doc
-            }
+            applySidebarSelectedDocument(doc)
         }
         if detailDocument?.id != docId {
             if let doc = documentStore.currentDocuments.first(where: { $0.id == docId }) {

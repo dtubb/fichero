@@ -138,6 +138,7 @@ extension WorkflowEditor {
 
             let response = try await workflowStreamService.execute(
                 workflowId: workflowId,
+                surface: "workflow-editor",
                 inputs: ["selected_doc_ids": selectedIds],
                 // The one call site that can honestly claim a container: when
                 // nothing is selected, `resolveRunScope` widens to the folder

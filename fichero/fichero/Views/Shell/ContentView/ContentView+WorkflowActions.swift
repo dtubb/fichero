@@ -135,6 +135,7 @@ extension ContentView {
             do {
                 let response = try await workflowStreamService.execute(
                     workflowId: workflowId,
+                    surface: "content-selection",
                     inputs: ["selected_doc_ids": docIds],
                     providerOverride: providerOverride,
                     modelOverride: modelOverride,
@@ -143,17 +144,7 @@ extension ContentView {
                     // and nothing left for this client to get wrong (#4414).
                     selection: WorkflowRunScope.documents(docIds),
                     onAccepted: { acceptedResponse in
-                        let threadId = acceptedResponse.threadId
-                        executionObserver.promoteExecution(
-                            from: executionThreadId,
-                            to: threadId,
-                            onCancel: { [weak workflowStreamService] in
-                                Task { @MainActor in
-                                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
-                                }
-                            }
-                        )
-                        executionThreadId = threadId
+                        promoteAcceptedRun(acceptedResponse, executionThreadId: &executionThreadId)
                     },
                     onEvent: { [weak documentStore] event in
                         if handleWorkflowStreamEvent(
@@ -179,6 +170,26 @@ extension ContentView {
                 failWorkflowStart(threadId: executionThreadId, error: error)
             }
         }
+    }
+
+    /// Swap the optimistic placeholder thread id for the server-assigned one
+    /// and arm cancellation (#944). Extracted from `executeWorkflowViaSSE`'s
+    /// `onAccepted` closure unchanged.
+    private func promoteAcceptedRun(
+        _ acceptedResponse: ExecuteAcceptedResponse,
+        executionThreadId: inout String
+    ) {
+        let threadId = acceptedResponse.threadId
+        executionObserver.promoteExecution(
+            from: executionThreadId,
+            to: threadId,
+            onCancel: { [weak workflowStreamService] in
+                Task { @MainActor in
+                    try? await workflowStreamService?.stopWorkflow(threadId: threadId)
+                }
+            }
+        )
+        executionThreadId = threadId
     }
 
     /// Wait out a stream that ended without a terminal frame, then run the

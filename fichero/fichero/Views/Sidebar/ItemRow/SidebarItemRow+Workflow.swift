@@ -82,6 +82,7 @@ extension SidebarItemRow {
         do {
             _ = try await stream.execute(
                 workflowId: request.workflowId,
+                surface: "sidebar-row-context-menu",
                 inputs: ["selected_doc_ids": request.docIds],
                 providerOverride: request.providerOverride,
                 modelOverride: request.modelOverride,
@@ -91,17 +92,12 @@ extension SidebarItemRow {
                 // the boundary, and rightly (#4414).
                 selection: WorkflowRunScope.documents(request.docIds),
                 onAccepted: { acceptedResponse in
-                    let threadId = acceptedResponse.threadId
-                    observer.promoteExecution(
-                        from: executionThreadId,
-                        to: threadId,
-                        onCancel: { [weak stream] in
-                            Task { @MainActor in
-                                try? await stream?.stopWorkflow(threadId: threadId)
-                            }
-                        }
+                    Self.promoteAcceptedSidebarRun(
+                        acceptedResponse,
+                        stream: stream,
+                        observer: observer,
+                        executionThreadId: &executionThreadId
                     )
-                    executionThreadId = threadId
                 },
                 onEvent: { event in
                     if handleSidebarWorkflowEvent(
@@ -131,6 +127,28 @@ extension SidebarItemRow {
             observer.endExecution(threadId: executionThreadId, status: .failed)
             finishSidebarBusyState(status: .failed, store: store, observer: observer)
         }
+    }
+
+    /// Swap the optimistic placeholder thread id for the server-assigned one
+    /// and arm cancellation. Extracted from `executeSidebarWorkflow`'s
+    /// `onAccepted` closure unchanged.
+    private static func promoteAcceptedSidebarRun(
+        _ acceptedResponse: ExecuteAcceptedResponse,
+        stream: WorkflowStreamService,
+        observer: WorkflowExecutionObserver,
+        executionThreadId: inout String
+    ) {
+        let threadId = acceptedResponse.threadId
+        observer.promoteExecution(
+            from: executionThreadId,
+            to: threadId,
+            onCancel: { [weak stream] in
+                Task { @MainActor in
+                    try? await stream?.stopWorkflow(threadId: threadId)
+                }
+            }
+        )
+        executionThreadId = threadId
     }
 
     /// Terminal busy-state cleanup (#4346): a run settled by reconciliation
