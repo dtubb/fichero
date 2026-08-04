@@ -116,12 +116,34 @@ class AppleScriptBridge {
 
     // MARK: - Workflow Operations
 
-    func runWorkflow(workflowId: String, inputs: [String: any Sendable]) async throws -> String {
+    func runWorkflow(
+        workflowId: String,
+        inputs: [String: any Sendable],
+        selectedDocIds: [String] = []
+    ) async throws -> String {
+        var mergedInputs = Dictionary(uniqueKeysWithValues: inputs.map { ($0.key, $0.value as Any) })
+        var selection: Components.Schemas.WorkflowSelection?
+        if !selectedDocIds.isEmpty {
+            // The typed field is what lets the server REJECT an incoherent
+            // scope (#4414); the legacy inputs key is still what the executor
+            // builds the run state from — both travel together, exactly as the
+            // in-app call sites do (see executeAccepted's doc comment).
+            selection = .init(kind: .documents, ids: selectedDocIds)
+            mergedInputs["selected_doc_ids"] = selectedDocIds
+        }
         let accepted = try await workflowExecutionService.executeAccepted(
             workflowId: workflowId,
-            inputs: Dictionary(uniqueKeysWithValues: inputs.map { ($0.key, $0.value as Any) })
+            inputs: mergedInputs,
+            selection: selection
         )
         return accepted.threadId
+    }
+
+    /// Stop (cancel) a running workflow. Returns what the ENGINE said —
+    /// discarding the outcome body was the whole of #4402.
+    func stopRun(threadId: String) async throws -> String {
+        let outcome = try await workflowExecutionService.stopWorkflow(threadId: threadId)
+        return String(describing: outcome)
     }
 
     func getWorkflowStatus(threadId: String) async throws -> String {
@@ -314,7 +336,12 @@ class AppleScriptBridge {
     static let shared = AppleScriptBridge()
     private init() {}
 
-    func runWorkflow(workflowId: String, inputs: [String: any Sendable]) async throws -> String { "" }
+    func runWorkflow(
+        workflowId: String,
+        inputs: [String: any Sendable],
+        selectedDocIds: [String] = []
+    ) async throws -> String { "" }
+    func stopRun(threadId: String) async throws -> String { "unknown" }
     func getWorkflowStatus(threadId: String) async throws -> String { "unknown" }
     func pauseWorkflow(threadId: String) async throws -> Bool { false }
     func resumeWorkflow(threadId: String) async throws -> String { "unknown" }

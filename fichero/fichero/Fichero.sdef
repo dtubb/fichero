@@ -107,7 +107,26 @@
             <parameter name="with inputs" code="inpt" type="record" optional="yes" description="Input parameters for the workflow.">
                 <cocoa key="inputs"/>
             </parameter>
+            <parameter name="on documents" code="seld" optional="yes" description="Document IDs the run is scoped to (the declared selection).">
+                <cocoa key="selectedDocIds"/>
+                <type type="text" list="yes"/>
+            </parameter>
             <result type="text" description="The execution thread ID."/>
+        </command>
+
+        <command name="stop run" code="FICHhalt" description="Stop (cancel) a workflow run.">
+            <cocoa class="FicheroStopRunCommand"/>
+            <direct-parameter description="The thread ID to stop." type="text"/>
+            <result type="text" description="What the engine said (e.g. cancel_requested, already_terminal)."/>
+        </command>
+
+        <command name="screenshot" code="FICHshot" description="Capture the app's rendered UI to a PNG file.">
+            <cocoa class="FicheroScreenshotCommand"/>
+            <direct-parameter description="Destination file path for the PNG." type="text"/>
+            <parameter name="of view" code="view" type="text" optional="yes" description="What to capture: 'window' (default) or a view's accessibility identifier.">
+                <cocoa key="view"/>
+            </parameter>
+            <result type="text" description="The absolute path written."/>
         </command>
 
         <command name="get workflow status" code="FICHgwst" description="Get the status of a workflow execution.">
