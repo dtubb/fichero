@@ -72,7 +72,12 @@ enum ExternalFileDropLoader {
             )
         }
         externalDropLoaderLogger.debug("  → trying loadFileRepresentation fallback for \(utis.count) UTI(s)")
-        for identifier in utis {
+        for identifier in utis where identifier != UTType.ficheroDragItem.identifier {
+            // NEVER materialize our own in-app payload as a file (the
+            // "<name>.tif.json" stray of 2026-08-04: a LibraryItemDrag's JSON
+            // envelope, written out by this very fallback and then imported
+            // as a document). Classification should never send an internal
+            // drag here at all; this makes the loader safe even if one leaks.
             externalDropLoaderLogger.debug("    trying UTI: \(identifier)")
             if let url = try? await loadFileRepresentation(
                 from: provider,
