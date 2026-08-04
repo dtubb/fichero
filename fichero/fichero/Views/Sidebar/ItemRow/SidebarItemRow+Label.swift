@@ -43,6 +43,11 @@ extension SidebarItemRow {
                     // the selection. These two modifiers ARE that difference.
                     .foregroundStyle(rowLabelStyle.color)
                     .fontWeight(rowLabelStyle.weight)
+                    // Finder's alias grammar, both halves: the tiny arrow
+                    // badge on the icon (ingestBadge) AND an italic name —
+                    // the badge alone is invisible at sidebar sizes (Daniel,
+                    // 2026-08-04).
+                    .italic(rowIsAlias)
                     .allowsHitTesting(false)
                 // `.allowsHitTesting(false)` on the Text (and Image) is
                 // critical: SwiftUI `Text` on macOS registers itself as
@@ -240,6 +245,13 @@ extension SidebarItemRow {
                 .foregroundStyle(iconTint)
                 .frame(width: 16, alignment: .center)
         }
+    }
+
+    /// True when this row renders a Finder-style alias (reference node,
+    /// #2591). Drives the italic name beside the arrow badge.
+    private var rowIsAlias: Bool {
+        if case .document(let doc) = item.itemType { return doc.isAlias }
+        return false
     }
 
     /// Color only the glyph. Text remains `.primary`, and selected rows revert

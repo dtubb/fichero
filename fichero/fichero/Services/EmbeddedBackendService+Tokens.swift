@@ -24,6 +24,22 @@ extension EmbeddedBackendService {
         inherited.filter { !$0.key.hasPrefix("FICHERO_") }
     }
 
+    /// Whether the spawn may pre-write its freshly minted bootstrap token to
+    /// `.api-key` (2026-08-04 clobber fix). Only an ABSENT or EMPTY file may
+    /// be pre-written: a non-empty file is some engine's live credential —
+    /// possibly one this spawn will never replace (external engine holding
+    /// the port, child aborting pre-bind) — and overwriting it 401s every
+    /// file-reading client of that engine. When the child does start, it
+    /// adopts the env token and rewrites the file itself, so skipping the
+    /// pre-write costs nothing. Pure and static so the rule is testable
+    /// without spawning anything.
+    nonisolated static func shouldPreWriteBootstrapTokenFile(at url: URL) -> Bool {
+        guard let existing = try? String(contentsOf: url, encoding: .utf8) else {
+            return true
+        }
+        return existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// 32 cryptographically-random bytes, base64url without padding — same
     /// shape as the engine's `secrets.token_urlsafe(32)`. Used for both the
     /// bootstrap token and the launch nonce.

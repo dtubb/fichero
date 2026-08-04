@@ -83,12 +83,21 @@ extension EmbeddedBackendService {
         process.standardOutput = logHandle
         process.standardError = logHandle
 
-        // Write the token file the app minted (#2862/#2863). We NEVER pre-delete
-        // it: an empty/absent .api-key would make every request 401 until the
-        // engine got around to writing one — the blank-window-with-401s bug.
-        // Writing our own token (mode 0600) means the app and the engine agree
-        // from the first request, with no window where the two disagree.
-        if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL() {
+        // Pre-write the token file ONLY when it is absent/empty (#2862/#2863,
+        // narrowed 2026-08-04). The old unconditional write here clobbered a
+        // LIVE engine's token: if this spawn never takes the port over (an
+        // external/older engine still serving, or the child aborts), the file
+        // is left holding a token that engine never adopted — the serving
+        // engine 401s every file-reading client (CLI, MCP, curl) while the
+        // app hums along on its in-memory token. The engine-side launcher
+        // guards this exact race (`prepare_app_bootstrap_token_for_launch`);
+        // this is the app-side half. When the child DOES start, it adopts
+        // FICHERO_BOOTSTRAP_TOKEN and writes the file itself at startup
+        // (`initialize_token`), so deferring loses nothing — the pre-write
+        // only ever mattered for the blank-file 401 window, which the
+        // absent/empty case still covers.
+        if let tokenURL = AuthTokenMiddleware.bootstrapTokenFileURL(),
+           Self.shouldPreWriteBootstrapTokenFile(at: tokenURL) {
             Self.writeBootstrapTokenFile(bootstrapToken, at: tokenURL)
         }
 
