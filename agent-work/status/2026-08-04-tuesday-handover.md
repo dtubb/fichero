@@ -187,3 +187,72 @@ problem*.
 The pattern worth keeping: **the full suite found what targeted verification
 could not**, four separate times. Targeted tests are how today moved fast; they
 are also how three of these four shipped.
+
+---
+
+# LATE MONDAY — what landed after the handover was written
+
+`integration` is at `2f4ea67da`, pushed, app + test targets green, **81
+guardrails** (one new), backend 2,435 passed.
+
+## Closed with evidence (7)
+
+#4486, #4488, #4489, #4500, #4505, #4508, #4509.
+
+**#4509 is the one to know about.** Wiring purge through the audited action
+layer (#4488) exposed that `_ensure_transaction_started` issues `BEGIN` raw,
+outside the reopen-and-retry every other DuckDB entry point has. So after a
+poisoned connection — disk full, OOM mid-write, I/O error at checkpoint — **every
+audited write on that library fails until the engine restarts**, while reads keep
+working because reads go through the door that recovers. This box hit 96% disk
+last night, which is the triggering condition.
+
+It stayed invisible because of a test-coverage asymmetry: four audited writes,
+zero closed-connection tests between them, and the only such test covered
+purge — the one write NOT on the audited path. `COMMIT`/`ROLLBACK` were
+deliberately left without recovery: a reopened COMMIT returns green having
+committed nothing.
+
+## Deliberately NOT closed (4)
+
+#2386, #4458, #4459, #4386 — fixed and pushed, but drag-drop and hit-target
+geometry that a unit test cannot prove. #3390, #702 and #570 were each closed on
+a real commit while drag-drop stayed broken. They are on the click-list.
+
+## The pattern worth acting on
+
+**Seven issues where the code contradicts the issue text.** #4408 fixed the day
+it was filed and shipped; #4388 fixed 1 August; #4386's supposed cause predated
+the report by twelve days; #4311's export half already implemented; #4486's
+premise wrong in both halves; #3686 not an oversight at all. The backlog
+systematically overstates what is broken, because issues are written once and
+the code moves underneath them.
+
+That is why the sweeps are worth more than they look: they correct the map the
+work is planned from. **11 issues have a shipped fix and are still open** — three
+since 13 July.
+
+## Two refusals that were right
+
+1. **#3686.** I told a lane to wire the four missing pane focus bindings. It
+   found `7c27e9fe2` (2026-04-16): those bindings existed and were removed
+   **because the app crashed on launch**. My instruction would have restored the
+   crash. It also said "do not dispatch this to another lane either", which is
+   what actually closed the hole. Warning is now on the issue.
+2. **#4486.** I told a lane to add a `prune` action to make a documented rule
+   true. It found `testPruneTrivialIsKnowinglyStillDirect` — a test whose
+   purpose is recording that someone already decided against exactly that — and
+   surfaced the argument I had not heard: the store's scope is one document or
+   entity, prune is library-wide, so the action could not refresh what it had
+   just changed. Ruling: recorded decision stands, fix the prose instead.
+
+## One thing I could not close
+
+`ClaimChangeDeliveryTests` **compiles but I have no passing result.** Running
+`FicheroTests` fails on `Could not connect to the server` at
+`https://127.0.0.1:8765/api/documents/roots` — the test HOST dials a live engine
+at launch, so Swift unit tests need an engine they should not need. Worth fixing
+on its own account.
+
+Stated this way on purpose: built-green is not passes, and substituting one for
+the other is what this whole day was about.
