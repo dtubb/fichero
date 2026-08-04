@@ -1,4 +1,5 @@
 import Foundation
+import os
 import OSLog
 import UniformTypeIdentifiers
 
@@ -13,34 +14,56 @@ import UniformTypeIdentifiers
 enum DragDropLog {
     static let logger = Logger(subsystem: "app.fichero.fichero", category: "dragdrop")
 
+    /// Monotonic drop-session number, bumped when a delegate COMMITS a drop
+    /// (`LibraryItemDropDelegate.validateDrop`). Every line carries the
+    /// current `drop#N`, so a multi-surface sequence in one report is
+    /// provably one drop or two — live report 2026-08-04: one header drop
+    /// logged under two surface names ("sidebar-library-header" then
+    /// "sidebar-section-header") and read as two performs. Lock-guarded
+    /// rather than actor-isolated because the delegate callbacks and the
+    /// MainActor readers must both stamp lines without an await.
+    private static let dropSession = OSAllocatedUnfairLock(initialState: 0)
+
+    /// Start a new drop session; returns its number for the caller's own line.
+    static func beginDropSession() -> Int {
+        dropSession.withLock { session in
+            session += 1
+            return session
+        }
+    }
+
+    private static var dropTag: String {
+        "drop#\(dropSession.withLock { $0 })"
+    }
+
     /// A drag session reached a surface: name it and dump the payload shape.
     static func entered(_ surface: String, providers: [NSItemProvider]) {
         for (index, provider) in providers.enumerated() {
             let utis = provider.registeredTypeIdentifiers.joined(separator: ", ")
-            logger.info("\(surface): drag entered — provider[\(index)/\(providers.count)] UTIs [\(utis)]")
+            logger.info("\(surface): drag entered — provider[\(index)/\(providers.count)] UTIs [\(utis)] [\(dropTag)]")
         }
         if providers.isEmpty {
-            logger.info("\(surface): drag entered with ZERO providers")
+            logger.info("\(surface): drag entered with ZERO providers [\(dropTag)]")
         }
     }
 
     /// A validation verdict, with the reason — especially the refusals.
     static func validated(_ surface: String, accepted: Bool, reason: String) {
         if accepted {
-            logger.info("\(surface): validate ACCEPTED — \(reason)")
+            logger.info("\(surface): validate ACCEPTED — \(reason) [\(dropTag)]")
         } else {
-            logger.error("\(surface): validate REFUSED — \(reason)")
+            logger.error("\(surface): validate REFUSED — \(reason) [\(dropTag)]")
         }
     }
 
     /// What the drop actually did — target, operation, per-item outcome.
     static func performed(_ surface: String, outcome: String) {
-        logger.info("\(surface): perform — \(outcome)")
+        logger.info("\(surface): perform — \(outcome) [\(dropTag)]")
     }
 
     /// A perform-stage refusal, with the precise reason.
     static func refused(_ surface: String, reason: String) {
-        logger.error("\(surface): REFUSED — \(reason)")
+        logger.error("\(surface): REFUSED — \(reason) [\(dropTag)]")
     }
 }
 
