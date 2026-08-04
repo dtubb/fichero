@@ -402,13 +402,46 @@ making it a click-stealing focusable control.
   conflates the two panes (`previewPaneVisible` is true when `showReadingPane`
   is), so "just append it" would need a run to confirm it does not double-count.
 
+### The bindings were there. They crashed the app on launch.
+
+This is not a prediction. The exact modifier stack — `.focusable()` +
+`.focused($focusedPane, equals: .content)` + `.focusEffectDisabled()`, the
+sidebar's pattern — **was applied to the content pane and was removed because
+it crashed on launch.**
+
+`7c27e9fe2`, 2026-04-16, *"fix: crash on launch — orphaned
+`.focusable()`/`.focused()` in standard+widescreen layouts"*:
+
+> The previous focus removal (73782d28) only matched the `.none` layout case
+> due to indentation differences. The standard (VSplitView) and widescreen
+> (HStack) cases still had `.focusable()` + `.focused($focusedPane)` +
+> `.focusEffectDisabled()` which caused a crash at
+> `ContentView.mainContentView` getter on launch.
+
+Its diff removes precisely those three lines from the content pane in both
+layouts, and adds the *"avoids swallowing first click"* comment on the preview
+pane in the same hunk. So both halves of the current design are scar tissue
+from one incident, and the comment I quoted above is the surviving note of it.
+
+The surrounding issues confirm the shape of the trap on both sides: **#550**
+"Focus ring permanent and wrong size after `.focusable()` removal" and **#560**
+"Arrow keys no longer navigate sidebar (regression from `.focusable` removal)"
+— removing it broke things too. The sidebar keeps the pattern because it is
+built in a *different* view builder; the four unbound panes are all inside
+`mainContentView`, which is the getter that crashed.
+
 ### Recommendation
 
-Not a late-night change. The issue wants one thing — a real, non-click-stealing
-focus path — and the mechanism for it (`focusSection`) is absent everywhere
-rather than wrong in one place. It needs a design pass and a live app, and it
-should not be attempted by adding `.focusable()` to three panes that
-deliberately avoid it.
+**Do not add the four bindings.** It is the obvious fix, it is what the issue
+implies, and it is a known launch crash in this exact file — reintroducing it
+would trade a keyboard-navigation gap for an app that does not start.
+
+The issue wants a real, non-click-stealing focus path. The mechanism for that
+is `.focusSection()`, which groups a region for keyboard focus movement without
+making it a focusable control — and it is used **zero** times app-wide, so it
+is untried here rather than tried and rejected. That is the daylight job: a
+design pass, a build, and a launch test, on the file with the worst
+crash history in the app.
 
 ---
 
