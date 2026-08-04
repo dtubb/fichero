@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import XCTest
 
 /// Covers the parsing logic moved out of `ArtifactEntitiesView` /
