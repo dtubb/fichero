@@ -143,6 +143,19 @@ extension ContentView {
                 activeSearchQuery: activeSearchQuery,
                 searchHitCounts: transientSearchHitCounts
             )
+            // #4513: LibraryView reads @Environment(ArtifactService.self), and a
+            // missing @Environment object is a FATAL ERROR rather than a nil —
+            // the library column trapped on open. ContentView holds the service
+            // and the value should inherit, but the AnyView erasure above is a
+            // hosting boundary, and #4448 established that this shell re-hosts
+            // content outside the inheriting tree at exactly such boundaries.
+            //
+            // Injected explicitly here for the same reason the activity stores
+            // ride an explicit host: inheritance that works today is not a
+            // guarantee, and the failure mode is a crash rather than a
+            // degradation. Re-injecting a value that was already in scope is a
+            // no-op; omitting one is a trap.
+            .environment(artifactService)
             // Keep the library surface inside the content column across every
             // preview/sidebar layout variant; without this, list/table rows can
             // paint under the shell sidebar or off the left window edge (#3336).
