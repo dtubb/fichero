@@ -5,13 +5,29 @@ import OSLog
 
 /// Observable domain store for knowledge claims (#1862, mirrors `EntityStore`).
 ///
-/// The single endpoint accessor for the claim list a view renders. A view never
-/// calls `EntityService` / `KGCurationService` claim methods
-/// directly: it observes `claims` and dispatches the named actions below. Each
+/// The single endpoint accessor for the claim list a view renders. A view does
+/// not call `EntityService` / `KGCurationService` claim methods
+/// directly — with one deliberate exception, below: it observes `claims` and
+/// dispatches the named actions below. Each
 /// action performs the typed write and then refreshes the current scope — today
 /// via an explicit reload, and via `apply(_:)` once the per-library change-stream
 /// (#1863) emits `claim.*` events. Swapping reload for push is then a no-op at
 /// every call site.
+///
+/// **The one exception is `pruneTrivialClaims`**, which the KG inspector calls on
+/// `KGCurationService` directly, on purpose. This store's scope is a single
+/// document or entity and `reload()` re-queries that scope; a prune is
+/// library-wide. An action here could not refresh what it had just changed, so it
+/// would look like the converging path while leaving other scopes stale — worse
+/// than the direct call it replaced. Nothing is lost by going direct: the route
+/// is audited (`claim.prune_trivial`) and emits `claim.updated`, which this store
+/// consumes like any other change.
+///
+/// The rule is enforced, not merely stated: `ClaimStoreRoutingTests` sweeps all of
+/// `Views/` for direct claim writes and excludes prune by name.
+/// `testPruneTrivialIsKnowinglyStillDirect` records the decision so the next
+/// person sweeping can tell it was considered rather than missed. It was — twice
+/// (#4486).
 ///
 /// Claims are loaded against one of two scopes (whichever the view set last):
 ///   • a *document* scope (`loadClaims(forDocument:)`) — the inspector claims
