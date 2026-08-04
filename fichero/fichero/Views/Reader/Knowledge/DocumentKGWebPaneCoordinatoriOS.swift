@@ -35,10 +35,15 @@ final class DocumentKGWebPaneCoordinatoriOS: NSObject, WKNavigationDelegate, WKS
     let findSync = WebPaneFindSync()
     /// Per-page run progress + live page writes (#4357) — see the macOS coordinator.
     let progressSync = WebPaneProgressSync()
+    /// Bounded reload budget for a dying WebContent process.
+    var processRecovery = WebContentProcessRecovery.State()
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
     }
+
+    // webViewWebContentProcessDidTerminate(_:) — the renderer-death recovery —
+    // lives in DocumentKGWebPaneCoordinator+Recovery.swift, shared with macOS.
 
     func loadIfNeeded(_ webView: WKWebView) {
         guard lastLoadedDocumentId != parent?.documentId || lastLoadedLibraryPath != parent?.libraryPath else { return }

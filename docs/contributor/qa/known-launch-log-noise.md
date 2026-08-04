@@ -2,10 +2,12 @@
 
 Fichero embeds a WKWebView (the Knowledge Graph pane) and runs sandboxed on
 macOS, both of which produce a predictable set of system-level Console
-messages on launch and first reader/KG use. None of the five patterns below
-are app bugs — each is standard macOS/WebKit framework behavior that appears
+messages on launch and first reader/KG use. None of the patterns below are
+app bugs — each is standard macOS/WebKit framework behavior that appears
 for effectively any sandboxed app in the same situation, not something
-Fichero's code path triggers or can silence from the app side.
+Fichero's code path triggers or can silence from the app side. (The one
+thing that WAS ours — no recovery when a WebContent process dies — is fixed;
+see the 2026-08-04 section.)
 
 Filed as #3378–#3381, #3383 ("Log Errors" milestone) asking for exactly this
 classification. Recorded here rather than left as four open "investigate"
@@ -74,6 +76,66 @@ profile unless the hosting app explicitly opts in — Fichero's KG pane does
 not need clipboard or LaunchServices access from inside the renderer, so
 these are the sandbox correctly denying capabilities nothing asked for, the
 same chatter any app embedding `WKWebView` sees.
+
+## WebContent bootstrap-denial storm + `CRASHSTRING: XPC_ERROR_CONNECTION_INVALID` (2026-08-04)
+
+```
+Sandbox restriction: deny mach-lookup com.apple.pasteboard.1 ... rdar://28724618
+[WebContent] unable to lookup launchservicesd/coreservicesd/RunningBoard/networkd/AudioComponentRegistrar
+CRASHSTRING: XPC_ERROR_CONNECTION_INVALID
+RBS assertion failure ... webkit entitlements
+Unable to create bundle at URL ((null))
+```
+
+Seen in a Dev Local (Debug, sandboxed) ⌘R console: every WebContent child
+(6+ PIDs per session) emits a burst of bootstrap-lookup denials and some die
+with `CRASHSTRING: XPC_ERROR_CONNECTION_INVALID`.
+
+**What was verified, and how.**
+
+- *Minimal-host reproduction (empirical, 2026-08-04, macOS 26.3.1).* A
+  ~40-line sandboxed WKWebView host (swiftc-built, `com.apple.security.app-sandbox`
+  + `get-task-allow`, zero configuration beyond `loadHTMLString`) had its
+  WebContent process **terminate once during startup** —
+  `webViewWebContentProcessDidTerminate(_:)` fired — after which WebKit
+  respawned the renderer and the page rendered normally. WebContent
+  early-life death under a sandboxed Debug-style host is therefore
+  reproducible with no Fichero code involved.
+- *The denial chatter is WebKit's own.* The `rdar://28724618` marker in the
+  `Sandbox restriction` lines is baked into WebKit's own WebContent sandbox
+  profile (WebKit logs-and-denies those lookups deliberately); the pboard /
+  launchservicesd family is already classified in #3381/#3383 above. The
+  storm text appears in the **Xcode debug console** (the debugger relays
+  child-process stderr) — during the same window the unified system log
+  contains none of it, which is why a `log show` sweep looks clean while ⌘R
+  looks like a crisis.
+- *Entitlements are NOT the fix (documented).* `com.apple.security.inherit`
+  is for helper executables the app itself embeds and spawns, and is
+  explicitly **incompatible with `get-task-allow`** — i.e. with every Debug
+  build (Apple: "Embedding a command-line tool in a sandboxed app").
+  WebContent/GPU/Networking children are Apple's own XPC services
+  (`com.apple.WebKit.WebContent`) launched by launchd with their own sandbox
+  profiles and entitlements; nothing in the host app's entitlements file
+  configures them. The Debug target's sandbox comes from
+  `ENABLE_APP_SANDBOX = YES` plus the capability build settings in
+  `project.pbxproj`, and that is correct as-is.
+
+**What Fichero does about it.** The real defect on our side was that **no
+surface implemented `webViewWebContentProcessDidTerminate(_:)`** — Apple's
+documented recovery hook — so a renderer death (which demonstrably happens
+even in a minimal host) left the reader/preview pane blank until the user
+changed documents. Every web surface (KG reader pane both platforms,
+`FicheroWebView`, `WebContentCanvas`) now reloads through the shared bounded
+policy in `WebContentProcessRecovery` and logs each death under the
+`WebContentRecovery` category, so a real crash-loop is visible as OUR log
+line rather than inferred from Apple's console residue.
+
+**Residue that remains and is inherent:** the per-WebContent bootstrap-denial
+burst, the `rdar://28724618` lines, `Unable to create bundle at URL ((null))`
+(the AFPreferences probe, #3378), and teardown `XPC_ERROR_CONNECTION_INVALID`
+when a WKWebView (and thus its renderer) is deallocated. A session in which
+`WebContentRecovery` stays quiet had no renderer deaths, whatever the Xcode
+console storm looks like.
 
 ## WebKit resource/network sandbox noise in reader views (#3383)
 

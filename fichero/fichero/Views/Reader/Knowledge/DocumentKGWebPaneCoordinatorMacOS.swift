@@ -37,6 +37,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     /// Per-page run progress + live page writes (#4357) — shared dedupe so only
     /// changed pages are patched, and the view is never reloaded.
     let progressSync = WebPaneProgressSync()
+    /// Bounded reload budget for a dying WebContent process.
+    var processRecovery = WebContentProcessRecovery.State()
 
     init(parent: DocumentKGWebPane) {
         self.parent = parent
@@ -222,6 +224,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         progressSync.reset()
         syncSelection(into: webView)
     }
+
+    // webViewWebContentProcessDidTerminate(_:) — the renderer-death recovery —
+    // lives in DocumentKGWebPaneCoordinator+Recovery.swift, shared with iOS.
 
     /// Validate the engine's TLS certificate against Fichero's persisted
     /// SPKI pin — the same pinned transport the URLSession stack uses. Post

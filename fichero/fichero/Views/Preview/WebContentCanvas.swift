@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 import WebKit
 
@@ -55,6 +56,7 @@ struct WebContentCanvas {
 extension WebContentCanvas: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let webView = Self.makeWebView()
+        webView.navigationDelegate = context.coordinator
         webView.loadHTMLString(htmlDocument, baseURL: nil)
         return webView
     }
@@ -76,6 +78,7 @@ extension WebContentCanvas: NSViewRepresentable {
 extension WebContentCanvas: UIViewRepresentable {
     func makeUIView(context: Context) -> WKWebView {
         let webView = Self.makeWebView()
+        webView.navigationDelegate = context.coordinator
         webView.loadHTMLString(htmlDocument, baseURL: nil)
         return webView
     }
@@ -94,11 +97,29 @@ extension WebContentCanvas: UIViewRepresentable {
 #endif
 
 extension WebContentCanvas {
-    final class Coordinator {
+    final class Coordinator: NSObject, WKNavigationDelegate {
         var loadedContent: String
+        /// Bounded reload budget for a dying WebContent process.
+        var processRecovery = WebContentProcessRecovery.State()
 
         init(loadedContent: String) {
             self.loadedContent = loadedContent
+        }
+
+        /// The renderer died under a rendition. The content is a local string
+        /// the coordinator already holds, so recovery is a re-load of exactly
+        /// that — within the bounded budget, since a rendition that keeps
+        /// killing its renderer would otherwise reload forever.
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            let reload = WebContentProcessRecovery.shouldReload(&processRecovery)
+            webContentRecoveryLogger.error(
+                """
+                Rendition WebContent process terminated; \
+                \(reload ? "reloading" : "reload budget exhausted", privacy: .public)
+                """
+            )
+            guard reload else { return }
+            webView.loadHTMLString(loadedContent, baseURL: nil)
         }
     }
 }

@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
 import WebKit
 
@@ -74,6 +75,8 @@ final class FicheroWebViewCoordinator: NSObject, WKNavigationDelegate {
     var parent: FicheroWebView
     weak var webView: WKWebView?
     var lastLoadedURL: String = ""
+    /// Bounded reload budget for a dying WebContent process.
+    var processRecovery = WebContentProcessRecovery.State()
 
     init(_ parent: FicheroWebView) {
         self.parent = parent
@@ -112,5 +115,23 @@ final class FicheroWebViewCoordinator: NSObject, WKNavigationDelegate {
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error) {
         parent.isLoading = false
+    }
+
+    /// The renderer died under the browser pane. Reload the current page
+    /// within the bounded budget; past it, stop — a crash-looping renderer
+    /// reloading forever is worse than a blank pane the user can navigate
+    /// away from.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        let reload = WebContentProcessRecovery.shouldReload(&processRecovery)
+        webContentRecoveryLogger.error(
+            """
+            Browser WebContent process terminated at \
+            \(self.lastLoadedURL, privacy: .private(mask: .hash)); \
+            \(reload ? "reloading" : "reload budget exhausted", privacy: .public)
+            """
+        )
+        guard reload else { return }
+        parent.isLoading = false
+        webView.reload()
     }
 }
