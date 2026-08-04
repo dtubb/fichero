@@ -261,6 +261,70 @@ a principle.
 
 ---
 
+## H. #4311 — one half is already built; the other is blocked in a signature
+
+#4311 asks for two drag directions. They are in completely different states,
+and the issue text ("dragging between windows of two different libraries or out
+to the Desktop does nothing today") is stale for one of them.
+
+### Direction 2 — out to the Finder: IMPLEMENTED
+
+`LibraryItemDrag.transferRepresentation` (`Models/Document.swift:151-160`)
+already vends a real file:
+
+- `FileRepresentation(exportedContentType: .data)` calling
+  `SidebarDragID.exportSourceFile`
+- which resolves the owning library via `item.libraryId` →
+  `LibraryManager.shared.getLibrary(id:)`
+- and fetches through `storage.fetchSourceFile(documentId)` — the storage HTTP
+  endpoint, **not** a local path, so it holds for a remote server
+- filename prefers the server's `Content-Disposition`, falling back to a
+  sanitised row name with newlines stripped and capped at 64 characters
+- `.exportingCondition { $0.exportsSourceFile }` so a folder row, which has no
+  `documentId`, exports nothing rather than a broken file
+
+**Not verified.** This is what the code does; whether a drag to the desktop
+actually produces the file needs a real drag session against a running engine.
+It belongs on the click-list, not in a closed state.
+
+### Direction 1 — across libraries: blocked, and precisely where
+
+The drop side cannot tell its own library's export from another library's,
+because the routing function has no library in it:
+
+```
+classifySidebarDropPayload(loadedIDs: [String], hasFileURL: Bool, carriesOwnProcessFlavor: Bool)
+```
+
+Every discriminator below it is library-blind. `isInternalSidebarItemID` checks
+only the `doc:` shape; `carriesOwnProcessFlavor` is **process**-scoped, and two
+libraries are two windows of one process; `isFicheroInternalDragExport` matches
+a path prefix shared by every library's exports. A drag from A to B therefore
+classifies as `.internalItems`, which is documented as *"a MOVE. Never an
+import"* — a move within B of a document B does not have.
+
+The symptom is already in the source as a user-facing untruth: the refusal
+reads *"That item is already in this library"*, which is false for a
+cross-library drag.
+
+### The asymmetry worth keeping
+
+**Both** drag payloads already carry the library — `SidebarDragID.libraryId`
+and `LibraryItemDrag.libraryId`, both `UUID?`. The export path *uses* it to
+pick the right storage service. The import path flattens the payload to
+`[String]` and throws it away before deciding the route.
+
+So this is not a missing-data problem and needs no new field. One side of the
+same struct is library-aware and the other is not, which is why exporting works
+and importing cannot.
+
+Cross-library copy still needs a server-side copy endpoint for metadata,
+originals and provenance, as the issue itself says. **Importing the exported
+file would move the bytes and silently lose everything else** — a fix that
+looks complete and is not, which is the shape this document exists to catch.
+
+---
+
 ## The method, and how I got it wrong
 
 `git log --grep "#NNNN"` finds **mentions**, not fixes. That was the stated
