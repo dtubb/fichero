@@ -55,59 +55,44 @@ final class SidebarBuilderInboxAndReadOnlyTests: XCTestCase {
         XCTAssertTrue(items[0].isFolder)
     }
 
-    /// BUG (#see report): `buildLibraryHierarchy` selects the Inbox with a bare
-    /// `inboxDocument = doc` inside the loop, so a SECOND root named "Inbox"
-    /// overwrites the first — and because the loser was never appended to
-    /// `rootDocuments` either, it disappears from the sidebar entirely. The
-    /// engine's own `ensureInboxFolder` can create a duplicate (its guard is
-    /// inferred from a `collections` list that is also empty after a failed
-    /// load, #3970's window), so this is reachable, and the symptom is a folder
-    /// full of documents that simply is not in the tree.
+    /// FIXED (#4527): the loop now hoists only the FIRST root folder named
+    /// "Inbox"; any later duplicate (reachable via #3970's empty-collections
+    /// window, since `ensureInboxFolder` infers its guard from a `collections`
+    /// list that is also empty after a failed load) renders as an ordinary
+    /// root folder instead of silently replacing the winner and vanishing.
     func testTwoRootsNamedInboxMustBothRender() {
         let items = build([
             folder(id: "inbox-old", name: "Inbox", childCount: 12),
             folder(id: "inbox-new", name: "Inbox")
         ])
-        XCTExpectFailure(
-            "BUG: a duplicate root named Inbox silently replaces the first — the "
-            + "earlier folder and everything in it vanish from the sidebar."
-        ) {
-            XCTAssertEqual(items.count, 2, "no row may be dropped from the tree")
-            XCTAssertEqual(
-                Set(items.compactMap { item -> String? in
-                    guard case .document(let doc) = item.itemType else { return nil }
-                    return doc.id
-                }),
-                ["inbox-old", "inbox-new"]
-            )
-        }
+        XCTAssertEqual(items.count, 2, "no row may be dropped from the tree")
+        XCTAssertEqual(
+            Set(items.compactMap { item -> String? in
+                guard case .document(let doc) = item.itemType else { return nil }
+                return doc.id
+            }),
+            ["inbox-old", "inbox-new"]
+        )
+        XCTAssertEqual(items[0].icon, "tray.fill", "the first Inbox keeps the special row")
+        XCTAssertNotEqual(items[1].icon, "tray.fill", "the duplicate is an ordinary folder")
     }
 
-    /// BUG (#see report): the Inbox is matched on NAME alone, while
-    /// `LibraryManager.ensureInboxFolder` matches on name AND `docType ==
-    /// .folder`. A root FILE the user happens to call "Inbox" — a note, a
-    /// Markdown scratchpad — is therefore rendered by `buildInboxItem`, which
-    /// hardcodes `isFolder: true`. The row claims to be a folder (chevron,
-    /// folder affordances) while `folderKind` still answers nil, so it also
-    /// refuses every drop: a row that looks like a container and behaves like
-    /// nothing.
+    /// FIXED (#4527): the Inbox match now mirrors
+    /// `LibraryManager.ensureInboxFolder` — name AND `docType == .folder` — so
+    /// a root FILE the user happens to call "Inbox" (a note, a Markdown
+    /// scratchpad) renders as the ordinary row it is instead of a
+    /// folder-affordanced dead end that refuses every drop.
     func testARootFileNamedInboxMustNotBecomeAFolder() {
         let items = build([file(id: "note", name: "Inbox", fileType: .text)])
         XCTAssertEqual(items.count, 1)
-        XCTExpectFailure(
-            "BUG: the Inbox special case matches on name only and hardcodes "
-            + "isFolder:true, so a plain FILE named Inbox renders as a folder."
-        ) {
-            XCTAssertFalse(items[0].isFolder, "a .file document is not a folder")
-        }
+        XCTAssertFalse(items[0].isFolder, "a .file document is not a folder")
+        XCTAssertNotEqual(items[0].icon, "tray.fill", "no tray for a plain file")
     }
 
-    /// BUG (#see report): every other branch of the builder threads the parent
-    /// document into `SidebarItem.fromDocument` so `DocumentTitle` can use its
-    /// parent-fallback rung (#116/#4416). `buildInboxItem` calls
-    /// `buildItem($0)` with no parent, so a direct child of the Inbox whose own
-    /// name is the engine's storage artifact falls all the way to "Untitled",
-    /// where the SAME document under any other folder reads as its parent. The
+    /// FIXED (#4527): `buildInboxItem` now threads `parent` into `buildItem`
+    /// like every other branch, so a direct child of the Inbox whose own name
+    /// is the engine's storage artifact gets DocumentTitle's parent-fallback
+    /// rung (#116/#4416) instead of falling all the way to "Untitled". The
     /// Inbox is where freshly-imported documents land — exactly the ones whose
     /// names are still `fichero_upload_…`.
     func testInboxChildrenGetTheSameNameFallbackAsEveryOtherFolder() {
@@ -132,16 +117,14 @@ final class SidebarBuilderInboxAndReadOnlyTests: XCTestCase {
             ordinaryChildName, "18590129",
             "the parent-fallback rung works everywhere else"
         )
-        XCTExpectFailure(
-            "BUG: buildInboxItem does not thread `parent` into buildItem, so a "
-            + "storage-named child of the Inbox loses DocumentTitle's parent "
-            + "fallback and reads 'Untitled'."
-        ) {
-            XCTAssertNotEqual(
-                inboxChildName, DocumentTitle.placeholder,
-                "an Inbox child must get the same name ladder as any other child"
-            )
-        }
+        XCTAssertNotEqual(
+            inboxChildName, DocumentTitle.placeholder,
+            "an Inbox child must get the same name ladder as any other child"
+        )
+        XCTAssertEqual(
+            inboxChildName, "Inbox",
+            "the parent-fallback rung resolves to the Inbox's own name"
+        )
     }
 
     /// An Inbox with no loaded children but a positive `child_count` must still

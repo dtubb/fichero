@@ -138,13 +138,18 @@ enum SidebarItemBuilder {
         for doc in visibleDocs {
             if let parentId = doc.parentId {
                 childrenMap[parentId, default: []].append(doc)
+            } else if doc.name == "Inbox", doc.docType == .folder, inboxDocument == nil {
+                // The special-cased Inbox root (#4527). The match mirrors
+                // `LibraryManager.ensureInboxFolder`: name AND docType — a
+                // root FILE the user happens to call "Inbox" is an ordinary
+                // row, not a folder-affordanced dead end. And only the FIRST
+                // match is hoisted: a duplicate root named Inbox (reachable
+                // via #3970's empty-collections window) used to overwrite the
+                // winner with a bare assignment and drop the loser from the
+                // tree entirely — the Finder rule is show ALL items.
+                inboxDocument = doc
             } else {
-                // Check if this is the Inbox folder
-                if doc.name == "Inbox" {
-                    inboxDocument = doc
-                } else {
-                    rootDocuments.append(doc)
-                }
+                rootDocuments.append(doc)
             }
         }
 
@@ -171,7 +176,11 @@ enum SidebarItemBuilder {
         // Build Inbox with custom icon
         func buildInboxItem(_ doc: Document) -> SidebarItem {
             let raw = childrenMap[doc.id] ?? []
-            let children = raw.isEmpty ? nil : raw.sorted(by: childOrder).map { buildItem($0) }
+            // Thread `parent` exactly as `buildItem` does for every other
+            // folder (#4527): the Inbox is where storage-named imports land,
+            // so its children need DocumentTitle's parent-fallback rung most
+            // of all (#116/#4416).
+            let children = raw.isEmpty ? nil : raw.sorted(by: childOrder).map { buildItem($0, parent: doc) }
             return SidebarItem(
                 id: "doc:\(doc.id)",
                 name: doc.name,
