@@ -164,96 +164,13 @@ extension SidebarItemRow {
         return true
     }
 
-    func handleDropBesideItem(itemIDs: [String], targetItem: SidebarItem) -> Bool {
-        sidebarRowLogger.debug(" ========== DROP BESIDE STARTED ==========")
-        sidebarRowLogger.debug(" handleDropBesideItem called with \(itemIDs.count) items beside \(targetItem.name)")
-
-        // Drop-beside today is documents-only: the target must be a
-        // document leaf so we can determine its parentId. Saved-search /
-        // workflow / conversation leaves don't have a parentId in the
-        // same sense (they use folderPath strings), so we reject them
-        // explicitly rather than silently falling through to
-        // `documentStore.moveDocument` with a non-doc ID. Sidebar
-        // review 2026-04-17 — cross-section drop-beside hole.
-        let targetParentId: String?
-        if case .document(let targetDoc) = targetItem.itemType {
-            targetParentId = targetDoc.parentId
-            sidebarRowLogger.debug(" Target parent ID: \(targetParentId ?? "root")")
-        } else {
-            sidebarRowLogger.debug(" Drop rejected: target \(targetItem.name) is not a document")
-            return false
-        }
-
-        let documentIds = itemIDs.filter { itemID in
-            let sourceKind = SidebarItemKind(prefixedId: itemID)
-            sidebarRowLogger.debug(" Moving item \(itemID) (kind=\(String(describing: sourceKind))) to be sibling of \(targetItem.name)")
-
-            // The sibling-reparent call path goes through
-            // `documentStore.moveDocument`, which only accepts document
-            // IDs. Reject non-document sources up front so the user sees
-            // a deterministic no-op rather than a confusing silent
-            // failure where the backend gets a saved-search UUID and
-            // returns 404.
-            guard sourceKind == .document else {
-                let src = String(describing: sourceKind)
-                sidebarRowLogger.debug(" Drop rejected: source kind \(src) cannot be reparented via document move")
-                return false
-            }
-
-            guard itemID != targetItem.id else {
-                sidebarRowLogger.debug(" Drop rejected: cannot drop item onto itself")
-                return false
-            }
-
-            return true
-        }
-
-        guard !documentIds.isEmpty else {
-            sidebarRowLogger.debug(" No document moves to perform")
-            return true
-        }
-
-        performTransactionalSiblingReparent(
-            documentIds: documentIds,
-            targetParentId: targetParentId
-        )
-
-        sidebarRowLogger.debug(" ========== DROP BESIDE COMPLETED ==========")
-        return true
-    }
-
-    private func performTransactionalSiblingReparent(
-        documentIds: [String],
-        targetParentId: String?
-    ) {
-        guard let documentStore else { return }
-
-        Task {
-            await MainActor.run {
-                sidebarState.dropErrorMessage = nil
-            }
-            let moveResult = await moveSidebarDocumentsTransactionally(
-                documentIds,
-                toParent: targetParentId,
-                move: { itemId, parentId in
-                    _ = try await documentStore.moveDocument(
-                        extractActualId(from: itemId),
-                        toParent: parentId
-                    )
-                },
-                refresh: {
-                    await documentStore.refresh()
-                }
-            )
-
-            guard moveResult.isSuccessful else {
-                await MainActor.run {
-                    sidebarState.dropErrorMessage = moveResult.errorMessage
-                }
-                return
-            }
-        }
-    }
+    // `handleDropBesideItem` / `performTransactionalSiblingReparent` are
+    // DELETED (modifier-grammar audit 2026-08-04): zero callers — the
+    // insertion-line path (`handleNonMoveInsertion` +
+    // `sidebarApplyInsertionDropOperation`) superseded them, WITH the
+    // Finder modifier grammar this always-move path silently lacked. A
+    // scope-shaped path with no trigger is a loaded gun (the
+    // `runWorkflowOnCollection` lesson, #4396).
 
     func handleDropIntoFolder(itemIDs: [String], targetFolder: SidebarItem) -> Bool {
         sidebarRowLogger.debug(" ========== DROP STARTED ==========")

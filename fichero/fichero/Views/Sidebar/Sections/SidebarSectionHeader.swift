@@ -44,11 +44,12 @@ struct LibrarySectionHeader: View {
     /// linked exactly like a folder chosen via the import menu.
     var onFileDrop: (([URL], IngestMode) -> Bool)?
     /// In-app drop receiver for sidebar items dragged onto the library
-    /// header — reparents them to the library root (parentId = nil) so
-    /// the user can lift items out of nested folders and then reorder
-    /// them at root via native row drops. Added to satisfy #711's
-    /// "let me drop on the library at the top" workflow.
-    var onSidebarItemDrop: (([String]) -> Void)?
+    /// header — applies the Finder modifier grammar at the library root
+    /// (plain = reparent, ⌥ = copy, ⌘⌥ = alias; modifiers sampled at the
+    /// drop entry point) so the user can lift items out of nested folders
+    /// and then reorder them at root via native row drops. Added to satisfy
+    /// #711's "let me drop on the library at the top" workflow.
+    var onSidebarItemDrop: (([String], SidebarDropModifiers) -> Void)?
     /// Where a refused or unreadable drop is reported. The header accepted the
     /// drop synchronously, so having nowhere to say "that did nothing" is how a
     /// file appears to vanish.
@@ -183,6 +184,12 @@ struct LibrarySectionHeader: View {
     private func handleLibraryHeaderDrop(_ providers: [NSItemProvider]) -> Bool {
         guard !providers.isEmpty else { return false }
 
+        // Sample modifier state ONCE, at the drop entry point (#4475 C) —
+        // the payload read below is async, and by the time it resolves the
+        // user has released the keys. The header honors the same Finder
+        // grammar as every other in-app drop target: plain = move to root,
+        // ⌥ = copy to root, ⌘⌥ = alias at root.
+        let modifiersAtDrop = SidebarDropModifiers.current()
         let capabilities = sidebarDropCapabilities(of: providers)
         // Registration-based (#4401 live-repro): a Finder FOLDER answers
         // canLoadObject(URL.self) == false, so the old canLoadURL guard
@@ -202,7 +209,7 @@ struct LibrarySectionHeader: View {
             switch await readSidebarDropPayload(providers, surface: "sidebar-library-header") {
             case .internalItems(let ids):
                 guard let onSidebarItemDrop else { return }
-                await MainActor.run { onSidebarItemDrop(ids) }
+                await MainActor.run { onSidebarItemDrop(ids, modifiersAtDrop) }
 
             case .externalFiles:
                 await importExternalDrop(providers)

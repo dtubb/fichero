@@ -17,8 +17,10 @@ extension SidebarView {
             onFileDrop: { [library] urls, mode in
                 handleLibraryHeaderDrop(urls, mode: mode, library: library)
             },
-            onSidebarItemDrop: { [library] droppedIds in
-                handleLibraryHeaderItemDrop(droppedIds: droppedIds, library: library)
+            onSidebarItemDrop: { [library] droppedIds, modifiers in
+                handleLibraryHeaderItemDrop(
+                    droppedIds: droppedIds, modifiers: modifiers, library: library
+                )
             },
             // The header accepted the drop synchronously; without somewhere to
             // report a refusal the item just appears to vanish (#4401).
@@ -113,16 +115,38 @@ extension SidebarView {
         return true
     }
 
-    /// Reparents sidebar documents dropped onto the library header to
-    /// the library root (parentId = nil). After this lands, the user
-    /// can drag-reorder the items at root level via native between-row
-    /// drops. Saved-search / workflow / chain IDs are filtered out —
-    /// they don't belong at the doc-tree root.
-    func handleLibraryHeaderItemDrop(droppedIds: [String], library: LibraryManager.LibraryReference) {
+    /// Applies an in-app drop on the library header at the library root
+    /// (parentId = nil), honoring the Finder modifier grammar every other
+    /// in-app drop target speaks (#4475): plain reparents, ⌥ copies, ⌘⌥
+    /// makes aliases — the header was the one surface that silently ignored
+    /// the modifiers and always moved (audit 2026-08-04). After this lands,
+    /// the user can drag-reorder the items at root level via native
+    /// between-row drops. Saved-search / workflow / chain IDs are filtered
+    /// out — they don't belong at the doc-tree root.
+    func handleLibraryHeaderItemDrop(
+        droppedIds: [String],
+        modifiers: SidebarDropModifiers,
+        library: LibraryManager.LibraryReference
+    ) {
         let bareIds = droppedIds
             .filter { $0.hasPrefix("doc:") }
             .map { extractActualId(from: $0) }
         guard !bareIds.isEmpty else { return }
+        let operation = sidebarDropOperation(modifiers: modifiers, kind: .document)
+        if operation != .move {
+            // Same executor the insertion line uses; empty children/offset 0
+            // skips the positioning diff — the header has no insertion point.
+            let request = SidebarInsertionDropRequest(
+                operation: operation, bareIds: bareIds, parentId: nil,
+                offset: 0, children: []
+            )
+            Task {
+                await sidebarApplyInsertionDropOperation(
+                    request, library: library, sidebarState: sidebarState
+                )
+            }
+            return
+        }
         Task {
             await MainActor.run {
                 sidebarState.dropErrorMessage = nil
