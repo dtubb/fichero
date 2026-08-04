@@ -573,6 +573,24 @@ const entities = {{ entities_json|safe }};
 const claims = {{ claims_json|safe }};
 const graphSummary = documentData.graph_summary || null;
 
+// The flat "Page N\n…" transcript. When it is derivable from `pages` the engine
+// does NOT send it — sending both put the entire document text on the wire
+// twice (measured: 2x, and the transcript is ~96% of a claim-free payload).
+//
+// This join MUST stay byte-identical to `transcript_text()` in
+// api/routes/system/views.py: claim `source_char_start`/`source_char_end` are
+// offsets into this exact string, so a single extra space here silently
+// mis-highlights every claim in the document.
+const documentTranscript = (() => {
+    if (documentData.transcript_source === "pages") {
+        return (documentData.pages || [])
+            .filter((page) => page.has_content)
+            .map((page) => `Page ${page.number}\n${page.content}`)
+            .join("\n\n");
+    }
+    return documentData.page_content || "";
+})();
+
 const state = {
     tab: "transcript",
     activeClaimId: null,
@@ -676,7 +694,7 @@ function bestDateValue(values, fallbackStart, fallbackEnd) {
 function inferGeoContext() {
     const haystack = [
         documentData.name,
-        documentData.page_content,
+        documentTranscript,
         ...entities.map((entity) => entity.canonical_name),
         ...claims.flatMap((claim) => [claim.claim_location, claim.subject_canonical, claim.object_phrase]),
     ].join(" ").toLowerCase();
@@ -746,7 +764,7 @@ function transcriptPages() {
             };
         });
     }
-    const transcript = documentData.page_content || "";
+    const transcript = documentTranscript;
     if (!transcript) { return []; }
     const markers = [...transcript.matchAll(/^Page\s+(\d+)\s*\n/gm)];
     if (!markers.length) {
@@ -1436,7 +1454,8 @@ function applyTabVisibility() {
 
 // Scroll the transcript to a character range and highlight it.
 // page is informational (reserved for multi-page support); charStart/charEnd
-// are byte offsets into documentData.page_content.
+// are byte offsets into documentTranscript (see its definition: the join must
+// stay identical to transcript_text() or every offset shifts).
 function scrollToCharRange(charStart, charEnd) {
     const panel = document.getElementById("transcript-panel");
     const transcriptEl = panel.querySelector(".transcript");
@@ -1450,7 +1469,7 @@ function scrollToCharRange(charStart, charEnd) {
 
     if (charStart == null || charEnd == null || charEnd <= charStart) return;
 
-    const transcript = documentData.page_content || "";
+    const transcript = documentTranscript;
     const excerpt = transcript.slice(charStart, charEnd);
     if (!excerpt) return;
 

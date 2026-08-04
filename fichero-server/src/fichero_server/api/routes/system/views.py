@@ -102,6 +102,12 @@ def transcript_pages(document: Document, child_pages: list[Document]) -> list[di
     return pages
 
 
+#: How the reader should obtain the document's flat transcript. A closed set,
+#: named rather than implied by a null `page_content`.
+TRANSCRIPT_FROM_DOCUMENT = "document"  #: shipped verbatim — not derivable
+TRANSCRIPT_FROM_PAGES = "pages"  #: rebuild with `transcript_text`'s join
+
+
 def transcript_text(pages: list[dict[str, object]]) -> str:
     """The flat "Page N\\n…" transcript, carrying only pages WITH content.
 
@@ -228,18 +234,33 @@ async def document_view(
     entities_by_id = {entity.id: entity for entity in entities}
 
     pages = transcript_pages(document, _page_children(db, document))
-    transcript = (
-        _strip_document_rtf(document.page_content)
-        if document.page_content
-        else transcript_text(pages)
-    )
+    # Two sources, and which one applied decides whether the transcript has to
+    # travel at all. When it comes from the page children it is `transcript_text`
+    # — a PURE function of `pages` — so the client can rebuild it byte-for-byte.
+    if document.page_content:
+        transcript = _strip_document_rtf(document.page_content)
+        transcript_source = TRANSCRIPT_FROM_DOCUMENT
+    else:
+        transcript = transcript_text(pages)
+        transcript_source = TRANSCRIPT_FROM_PAGES
 
     document_payload = {
         "id": document.id,
         "name": document.name,
         "doc_type": document.doc_type.value,
         "file_type": document.file_type.value if document.file_type else None,
-        "page_content": transcript,
+        # Sent ONLY when it is not derivable. Every page's text already rides in
+        # `pages` below, and `transcript_text` just re-joins those same strings
+        # with "Page N" headers — so shipping both put the ENTIRE document text
+        # on the wire twice. Measured on a 20-page document: 135.7 KB of
+        # document JSON for 68 KB of unique text, exactly 2x. The client rebuilds
+        # it with the identical join, so claim `source_char_start`/`_end` offsets
+        # — which index into this exact string — stay valid to the byte.
+        "page_content": transcript if transcript_source == TRANSCRIPT_FROM_DOCUMENT else None,
+        # Which reading applies, stated rather than inferred from a null: the
+        # client must never have to guess whether an absent transcript means
+        # "derive it" or "this document has none".
+        "transcript_source": transcript_source,
         # Every page in sequence, empty ones included (#4356) — the reader
         # renders this list, so reader page N is preview page N.
         "pages": pages,

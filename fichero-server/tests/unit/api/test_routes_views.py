@@ -299,7 +299,17 @@ class TestDocumentViewRoute:
         assert pages[1]["content"] == ""
         # The flat transcript keeps carrying only pages WITH content: claim
         # char offsets index into it, so empty pages must not shift them.
-        assert "Page 2\n" not in payload["page_content"]
+        # The transcript is now DERIVED from these pages rather than shipped
+        # alongside them (it was on the wire twice), so the invariant is
+        # asserted against the derived string — same rule, one copy.
+        from fichero_server.api.routes.system.views import (
+            TRANSCRIPT_FROM_PAGES,
+            transcript_text,
+        )
+
+        assert payload["transcript_source"] == TRANSCRIPT_FROM_PAGES
+        assert payload["page_content"] is None
+        assert "Page 2\n" not in transcript_text(pages)
 
     def test_transcript_pages_is_pure_over_loaded_documents(self):
         """Ordering + the empty-page rule are testable without a database."""
@@ -407,3 +417,130 @@ class TestDocumentViewRoute:
         assert '"shown_entities": 1' in response.text
         assert '"total_entities": 251' in response.text
         assert "select a node to load its neighborhood" in response.text
+
+
+class TestTranscriptIsNotSentTwice:
+    """The document text rode the wire twice: once as `pages[].content` and
+    again as the `page_content` transcript that is a pure re-join of those same
+    strings. Measured on a 20-page document: 135.7 KB of document JSON for
+    68 KB of unique text, exactly 2x — and the transcript is ~96% of the payload
+    for a document with no claims yet.
+
+    The client rebuilds it. These tests pin the two things that makes safe:
+    the join must be byte-identical, and the reader must be told which reading
+    applies rather than inferring it from a null.
+    """
+
+    @staticmethod
+    def _payload(response):
+        return json.loads(
+            re.search(r"const documentData = (\{.*?\});\n", response.text, re.S).group(1)
+        )
+
+    @staticmethod
+    def _js_join(pages):
+        """The template's join, transcribed. If this and `transcript_text`
+        disagree by one byte, every claim highlight in the document shifts.
+        """
+        return "\n\n".join(
+            f"Page {page['number']}\n{page['content']}"
+            for page in pages
+            if page["has_content"]
+        )
+
+    def _seed_pdf(self, db, *, pages, doc_id="pdf-dedupe"):
+        parent = _make_document(
+            doc_id=doc_id, name="Diary.pdf", doc_type=DocType.file, file_type=FileType.pdf
+        )
+        db.save(parent)
+        for number, text in enumerate(pages, start=1):
+            db.save(
+                _make_document(
+                    doc_id=f"{doc_id}-p{number}",
+                    name=f"Page {number}",
+                    doc_type=DocType.page,
+                    parent_id=parent.id,
+                    sequence=number,
+                    page_content=text,
+                )
+            )
+        return parent
+
+    def test_a_page_derived_transcript_is_not_shipped(self, client, db):
+        parent = self._seed_pdf(db, pages=["First page text.", "Second page text."])
+
+        payload = self._payload(client.get(f"/view/document/{parent.id}"))
+
+        assert payload["transcript_source"] == "pages"
+        assert payload["page_content"] is None, "the transcript must not ride along when it is derivable"
+        assert [page["content"] for page in payload["pages"]] == [
+            "First page text.",
+            "Second page text.",
+        ]
+
+    def test_the_client_join_is_byte_identical_to_the_server_one(self, client, db):
+        """The whole change rests on this. Claim `source_char_start`/`_end` are
+        offsets into the flat transcript, so a single differing byte silently
+        mis-highlights every claim rather than failing loudly.
+        """
+        from fichero_server.api.routes.system.views import transcript_text
+
+        pages = ["Alice signed the deed.", "", "Bearing witness: Bob.", "  ", "Final page."]
+        parent = self._seed_pdf(db, pages=pages, doc_id="pdf-identical")
+
+        payload = self._payload(client.get(f"/view/document/{parent.id}"))
+        rebuilt = self._js_join(payload["pages"])
+
+        assert rebuilt == transcript_text(payload["pages"])
+        # And the empty/whitespace-only pages are excluded from BOTH, so the
+        # offsets are the same ones the claims were extracted against.
+        assert "Page 2\n" not in rebuilt
+        assert "Page 4\n" not in rebuilt
+        assert rebuilt.startswith("Page 1\nAlice signed the deed.")
+
+    def test_a_document_that_owns_its_text_still_ships_it(self, client, db):
+        """A leaf document's transcript is NOT derivable from page children —
+        there are none. It must still travel, and say so.
+        """
+        doc = _make_document(
+            doc_id="leaf-1",
+            name="Letter.txt",
+            doc_type=DocType.file,
+            page_content="A single letter, no pages.",
+        )
+        db.save(doc)
+
+        payload = self._payload(client.get(f"/view/document/{doc.id}"))
+
+        assert payload["transcript_source"] == "document"
+        assert payload["page_content"] == "A single letter, no pages."
+
+    def test_the_reading_is_stated_not_inferred_from_a_null(self, client, db):
+        """`page_content: null` alone is ambiguous — "derive it" and "this
+        document has no text" are different facts. The discriminator is explicit.
+        """
+        empty = _make_document(doc_id="empty-1", name="Blank.pdf", doc_type=DocType.file)
+        db.save(empty)
+
+        payload = self._payload(client.get(f"/view/document/{empty.id}"))
+
+        assert payload["transcript_source"] in {"document", "pages"}
+        assert "transcript_source" in payload
+
+    def test_the_template_join_matches_the_python_one(self):
+        """Guard the actual template text, not a copy of it: the JS join is the
+        thing that has to stay in step, and it lives in HTML where no Python
+        test would otherwise look.
+        """
+        from pathlib import Path
+
+        import fichero_server
+
+        template = (
+            Path(fichero_server.__file__).parent / "api" / "templates" / "document_view.html"
+        ).read_text()
+
+        assert "const documentTranscript" in template, "the derived transcript is gone"
+        assert '.filter((page) => page.has_content)' in template, "empty pages must stay excluded"
+        assert '`Page ${page.number}\\n${page.content}`' in template, "the join shape must match transcript_text"
+        assert '.join("\\n\\n")' in template, "pages are separated by a blank line, as on the server"
