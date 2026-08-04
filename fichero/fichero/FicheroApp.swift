@@ -80,6 +80,34 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         controller.stop()
     }
 
+    /// Opens the primary `id: "main"` scene. Installed by `libraryWindowRoot`
+    /// the first time a window mounts (#4530) — `openWindow` is a SwiftUI
+    /// environment action and cannot be read from an AppDelegate, but the
+    /// action itself is app-scoped and stays valid after its window closes,
+    /// so capturing it once is enough to reopen later.
+    var openMainWindow: (() -> Void)?
+
+    /// Dock-icon click with every window closed (#4530).
+    ///
+    /// DOCUMENTED behavior, not a guess: AppKit's default handling "goes
+    /// through the standard untitled document creation" when it finds no
+    /// visible windows. Fichero is not document-based — there is no
+    /// NSDocumentController and no untitled document to create — so the
+    /// default does nothing at all, and clicking the Dock icon left the user
+    /// with a running app and no way into it.
+    ///
+    /// Per the same documentation, handling the event ourselves means
+    /// returning `false`. We return `true` (let AppKit proceed as normal) only
+    /// when we cannot handle it: windows already exist, or no window has ever
+    /// mounted so there is no captured action — returning `false` there would
+    /// suppress AppKit's handling in exchange for nothing.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        guard !hasVisibleWindows, let openMainWindow else { return true }
+        logger.info("Dock reopen with no visible windows — opening main window (#4530)")
+        openMainWindow()
+        return false
+    }
+
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
     }
@@ -275,6 +303,12 @@ struct FicheroApp: App {
         // during `.starting` / failures too — #startup-transport-ux S1) can
         // offer Retry without re-implementing `start()` (#3108).
         .environment(\.engineRetry, { await appDelegate.controller.retry() })
+        // #4530: hand the app-scoped `openWindow` action to the delegate so
+        // `applicationShouldHandleReopen` can reopen a window after the last
+        // one closes. Captured while a window exists because that is the only
+        // place the environment action is readable; the action itself outlives
+        // the window that provided it.
+        .onAppear { appDelegate.openMainWindow = { openWindow(id: "main") } }
         .frame(minWidth: 640, minHeight: 700)
         // ★ EVERY FRAME PERFECT (#3615): the semantic surface color is the BASE
         // layer under the whole window, so the BackendConnectionView → LibraryWindow

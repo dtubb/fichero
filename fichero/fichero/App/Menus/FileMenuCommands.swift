@@ -20,6 +20,7 @@ struct FileMenuCommands: View {
     @FocusedValue(\.saveLibraryAction) private var saveLibraryAction
     @FocusedValue(\.closeLibraryAction) private var closeLibraryAction
     @Environment(\.supportsMultipleWindows) private var supportsMultipleWindows
+    @Environment(\.openWindow) private var openWindow
     @State private var registry = KnownLibraryRegistryStore.shared
 
     private var currentLibrary: LibraryManager.LibraryReference? {
@@ -29,17 +30,32 @@ struct FileMenuCommands: View {
 
     var body: some View {
         Group {
+            // #4530: NOT `.disabled(newLibraryAction == nil)`. These commands
+            // used to be gated on a `focusedSceneValue` that only a key
+            // LibraryWindow supplies, so they went dead whenever no window was
+            // key — with every window closed, or merely while Settings /
+            // Activity / About was frontmost. "New Library doesn't work" and
+            // "no way to get a window back" were the same defect seen twice.
+            // A window-scoped action is now a PREFERENCE (it creates in-place,
+            // #4062), never a precondition; without one, the app-scoped
+            // fallback does the same work and opens a window to show it.
             Button("New Library...") {
-                newLibraryAction?.run()
+                if let newLibraryAction {
+                    newLibraryAction.run()
+                } else {
+                    createLibraryAtAppScope()
+                }
             }
             .keyboardShortcut("n", modifiers: [.command])
-            .disabled(newLibraryAction == nil)
 
             Button("Open...") {
-                openLibraryAction?.run()
+                if let openLibraryAction {
+                    openLibraryAction.run()
+                } else {
+                    openLibraryAtAppScope()
+                }
             }
             .keyboardShortcut("o", modifiers: [.command])
-            .disabled(openLibraryAction == nil)
 
             Menu("Open Recent") {
                 if let fetchError = registry.fetchError,
@@ -79,11 +95,21 @@ struct FileMenuCommands: View {
             // at @ViewBuilder's 10-entry arity limit, so new entries must join
             // an existing slot rather than add one.
             Group {
+                // #4530: with no window key there is no focused action, and
+                // this was the command that was supposed to get you a window
+                // back — disabled exactly when it was needed. It now falls
+                // back to opening the primary scene directly; `openWindow` is
+                // app-scoped and does not need a key window. Still gated on
+                // `supportsMultipleWindows`, which is a real platform fact.
                 Button("New Window") {
-                    newWindowAction?.run()
+                    if let newWindowAction {
+                        newWindowAction.run()
+                    } else {
+                        openWindow(id: "main")
+                    }
                 }
                 .keyboardShortcut("t", modifiers: [.command])
-                .disabled(newWindowAction == nil)
+                .disabled(!supportsMultipleWindows)
 
                 // Duplicate Window (#2262): clones the current window's library +
                 // selection + active lens into a new window via openWindow(value:).
@@ -286,6 +312,64 @@ struct FileMenuCommands: View {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
     #endif
+}
+
+// Windowless entry points, in an extension so the struct body stays inside
+// the type_body_length budget (#4530). Same file, so they still reach the
+// private environment properties above.
+private extension FileMenuCommands {
+
+    /// New Library… with NO key window (#4530). Same panel and same on-disk
+    /// naming as the in-window path (both go through `NewLibraryPanel`), but
+    /// since there is no window to switch in place, it opens one to show the
+    /// result — `initializeWindow` picks the library up from `currentLibraryId`,
+    /// which `createNewLibrary` has already set.
+    ///
+    /// A failed save does NOT open a window: a blank window is a worse answer
+    /// than the error, and the library reference stays in the open set for the
+    /// user to retry via Save Library As.
+    private func createLibraryAtAppScope() {
+        #if os(macOS)
+        let savePanel = NewLibraryPanel.makeSavePanel()
+        guard savePanel.runModal() == .OK, let url = savePanel.url else { return }
+        let finalURL = NewLibraryPanel.resolvedLibraryURL(for: url)
+
+        let newLibrary = libraryManager.createNewLibrary()
+        do {
+            try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
+            libraryManager.currentLibraryId = newLibrary.id
+            openWindow(id: "main")
+            logger.info("Created new library at app scope: \(finalURL.lastPathComponent)")
+        } catch {
+            logger.error("Failed to create new library at app scope: \(error.localizedDescription)")
+            NewLibraryPanel.presentCreateFailure(error, at: finalURL)
+        }
+        #endif
+    }
+
+    /// Open… with NO key window (#4530). The in-window path uses
+    /// `.fileImporter`, which needs a view to attach to; with no window there
+    /// is none, so this runs the AppKit open panel directly and then opens a
+    /// window on the library it picked.
+    private func openLibraryAtAppScope() {
+        #if os(macOS)
+        let panel = NSOpenPanel()
+        if let libraryType = UTType.ficheroLibrary {
+            panel.allowedContentTypes = [libraryType]
+        }
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Open"
+        panel.message = "Choose a Fichero library to open."
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let library = libraryManager.openLibrary(at: url)
+        libraryManager.currentLibraryId = library.id
+        openWindow(id: "main")
+        logger.info("Opened library at app scope: \(library.displayName)")
+        #endif
+    }
 }
 
 private enum ExportError: Error, LocalizedError {

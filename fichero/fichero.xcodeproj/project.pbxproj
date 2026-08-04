@@ -7,9 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
+		EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 /* End PBXBuildFile section */
@@ -66,6 +68,7 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewLibraryPanel.swift; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -220,10 +223,19 @@
 			path = ContentView;
 			sourceTree = "<group>";
 		};
+		B03A945CBEE23DEE5CD58F29 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 		D0C0989BFAD8F78903736127 /* fichero */ = {
 			isa = PBXGroup;
 			children = (
 				51E2488023D4166B8E8218D5 /* Views */,
+				B03A945CBEE23DEE5CD58F29 /* App */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -1003,6 +1015,7 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1023,6 +1036,7 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
+				9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

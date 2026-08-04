@@ -143,22 +143,13 @@ extension LibraryWindow {
     }
 
     func handleNewLibrary() {
-        let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.package]
-        savePanel.canCreateDirectories = true
-        savePanel.nameFieldStringValue = "Untitled.fichero"
-        savePanel.title = "Create New Database"
-        savePanel.message = "Choose where to save your new database."
-        savePanel.prompt = "Create"
+        // Panel configuration and the on-disk naming decision are shared with
+        // the app-scoped File-menu fallback (#4530) so the two paths cannot
+        // drift; see NewLibraryPanel.
+        let savePanel = NewLibraryPanel.makeSavePanel()
 
         if savePanel.runModal() == .OK, let url = savePanel.url {
-            let withExtension = url.pathExtension.lowercased() == "fichero"
-                ? url
-                : url.appendingPathExtension("fichero")
-            // NFC-normalize the new package's name so we never create a
-            // mojibake-variant path on disk (#3076); the user-chosen parent dir
-            // (already on disk) is left untouched.
-            let finalURL = withExtension.nfcNormalizedLastComponent
+            let finalURL = NewLibraryPanel.resolvedLibraryURL(for: url)
 
             // Create unsaved library, immediately save to chosen location, then
             // switch THIS window to it in-place — no new window (#4062). New
@@ -174,7 +165,11 @@ extension LibraryWindow {
                 assignLibrary(id: newLibrary.id)
                 libraryWindowLogger.info("Created and saved new library in-place: \(finalURL.lastPathComponent)")
             } catch {
+                // #4530: a failed create used to be log-only, so the user
+                // pressed Create, got no library and no reason. Rule zero —
+                // fail loudly.
                 libraryWindowLogger.error("Failed to create new library: \(error.localizedDescription)")
+                NewLibraryPanel.presentCreateFailure(error, at: finalURL)
             }
         }
     }
