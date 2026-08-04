@@ -21,14 +21,12 @@ import XCTest
 @MainActor
 final class WindowlessFileCommandsTests: XCTestCase {
 
+    /// #4493: routed through the shared `AppSource` walk instead of
+    /// counting `deletingLastPathComponent()` calls. Counting is correct
+    /// only for this file's CURRENT depth — move the file and it resolves
+    /// somewhere else and fails later as an unrelated file-not-found.
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // App
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero")
-            .appendingPathComponent(relativePath)
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try AppSource.text(relativePath)
         XCTAssertFalse(source.isEmpty, "\(relativePath) is empty — this guard measures nothing")
         return source
     }

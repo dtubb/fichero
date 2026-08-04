@@ -20,21 +20,18 @@ import XCTest
 /// property that regressed, so it is the property to pin.
 final class DropLogVisibilityTests: XCTestCase {
 
+    /// #4493: routed through the shared `AppSource` walk instead of
+    /// counting `deletingLastPathComponent()` calls. Counting is correct
+    /// only for this file's CURRENT depth — move the file and it resolves
+    /// somewhere else and fails later as an unrelated file-not-found.
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Sidebar
-            .deletingLastPathComponent()   // Views
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero")
-            .appendingPathComponent(relativePath)
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try AppSource.text(relativePath)
         XCTAssertFalse(source.isEmpty, "\(relativePath) is empty — this guard measures nothing")
         return source
     }
 
     private static func dragDropLogBody() throws -> String {
-        let source = try appSource("Views/Sidebar/ItemRow/SidebarDropProviderReader.swift")
+        let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarDropProviderReader.swift")
         let start = try XCTUnwrap(source.range(of: "enum DragDropLog {"))
         let end = try XCTUnwrap(
             source.range(of: "// MARK: - Reading an in-app drop's payload", range: start.upperBound..<source.endIndex)

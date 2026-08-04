@@ -29,15 +29,12 @@ import XCTest
 @MainActor
 final class ProvidersTabLayoutTests: XCTestCase {
 
+    /// #4493: routed through the shared `AppSource` walk instead of
+    /// counting `deletingLastPathComponent()` calls. Counting is correct
+    /// only for this file's CURRENT depth — move the file and it resolves
+    /// somewhere else and fails later as an unrelated file-not-found.
     private static func appSource(_ relativePath: String) throws -> String {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // Settings
-            .deletingLastPathComponent()   // Views
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero
-            .appendingPathComponent("fichero")
-            .appendingPathComponent(relativePath)
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try AppSource.text(relativePath)
         XCTAssertFalse(source.isEmpty, "\(relativePath) is empty — this guard measures nothing")
         return source
     }
@@ -45,7 +42,7 @@ final class ProvidersTabLayoutTests: XCTestCase {
     /// Slice out `providersTab`'s body so the assertions below cannot be
     /// satisfied (or broken) by an unrelated ScrollView elsewhere in the file.
     private static func providersTabBody() throws -> String {
-        let source = try appSource("Views/Settings/AI/AISettingsView+Tabs.swift")
+        let source = try Self.appSource("Views/Settings/AI/AISettingsView+Tabs.swift")
         let start = try XCTUnwrap(
             source.range(of: "var providersTab: some View {"),
             "providersTab is gone — this guard no longer measures the Models & Providers tab"

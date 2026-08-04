@@ -58,6 +58,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "App/AppState.swift": "#3341/#3369 — app state owns macOS activation/recovery routing; migrate remaining AppKit hooks under #2101",
     "App/LibraryWindow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "App/LibraryWindow+Actions.swift": "hygiene — NSSavePanel new/save-library actions split out of LibraryWindow.swift by file_length; macOS-only (#if os(macOS))",
+    "App/NewLibraryPanel.swift": "#4530 — NSSavePanel/NSOpenPanel: SwiftUI has no save-panel API for choosing a .fichero package location, and .fileImporter needs a view to attach to so it cannot serve the windowless File-menu path. Whole file is #if os(macOS).",
     "App/SparkleUpdater.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "FicheroApp.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Connect/ConnectPairingIOS.swift": "hygiene — pairing/connect flow (RemoteConnectionSetupView, PairingIncomingLinkSheet) uses AVCaptureDevice/UIImage/UIPasteboard; split out of FicheroApp_iOS.swift by file_length; iOS-only",
