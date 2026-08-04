@@ -445,6 +445,47 @@ crash history in the app.
 
 ---
 
+## J. #4160 step audit — which of the seven are actually done
+
+Reading only; no code. Section C flagged this EPIC as unclear because *the epic
+is not the step*, so here are the steps.
+
+| # | Step | State |
+|---|---|---|
+| 1 | List view | **Built.** `LibraryView+ListView.swift`, focusable with key handling (#575) |
+| 2 | Icon view | **Built.** `LibraryView+IconMode.swift`, same pattern |
+| 3 | Column/table view | **Built.** `LibraryView+TableView.swift` |
+| 4 | Finder-style column browser | **Built.** `Columns/MillerColumnModel.swift` + `LibraryView+ColumnsView.swift` — Miller columns as a first-class mode |
+| 5 | 2D canvas → proper SceneKit | **NOT done, and probably should not be — see below** |
+| 6 | 3D RealityKit thumbnails | **Built, display unverified.** `CanvasScene3DRenderer` loads per-node textures gated by `CanvasDetailTier`, which reaches `StorageService` |
+| 7 | Shared 2D/3D spatial state | **Built.** `CanvasSceneState` (placeables, edges, selection) with `Canvas2DProjection` and `Canvas3DProjection` over two renderers |
+
+Steps 1–3 are "better than today", which is a judgement only Daniel can make —
+the views exist and have keyboard handling; whether they clear the bar is his
+eye, not a grep.
+
+### Step 5 contradicts step 7, and the codebase chose 7
+
+**`import SceneKit` appears zero times in the entire app.** The 2D canvas is
+`CanvasOrtho2DRenderer` — RealityKit with an orthographic projection, which is
+precisely the "top-down-RealityKit approach" step 5 asks to replace.
+
+But step 7 asks for 2D and 3D to share node positions while being different
+renderers over the same stores, and that is exactly what shipped: one
+`CanvasSceneState`, two projections, two renderers. Sharing state across two
+renderers of the *same* engine is materially easier than across RealityKit and
+SceneKit.
+
+So the two steps pull apart, and the implementation resolved it in favour of
+step 7. **This is a decision for Daniel, not a gap to close:** rewriting 2D in
+SceneKit now would mean re-doing the shared-state work that step 7 wanted, to
+gain a 2D engine that step 7 then has to bridge to.
+
+Step 6's fix is in the code; the original complaint was that thumbnails *do not
+show*, and only a live app answers that. It stays on the click-list.
+
+---
+
 ## The method, and how I got it wrong
 
 `git log --grep "#NNNN"` finds **mentions**, not fixes. That was the stated
