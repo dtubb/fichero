@@ -29,6 +29,12 @@ struct ActivityDetailWindow: View {
                     .environment(library.apiClient)
                     .environment(library.documentStore)
                     .environment(library.workflowExecutionStore)
+                    // `RunArtifactRow` reads ArtifactService to fetch the full
+                    // text behind a clipped preview (#4284). Omitting it did not
+                    // degrade the row — it TRAPPED the moment a run with
+                    // artifacts was opened, because a missing @Environment
+                    // object is a fatal error, not a nil.
+                    .environment(library.artifactService)
             } else {
                 ContentUnavailableView(
                     "No Activity Selected",

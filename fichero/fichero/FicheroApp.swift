@@ -521,14 +521,20 @@ struct FicheroApp: App {
         // observes it live; needs libraryManager + the app-level execution
         // observer injected here (env from the main window does not flow into a
         // separate scene). Opened via `openWindow(id: "activity-monitor")`.
-        WindowGroup("Activity", id: ActivityWindowSelectionState.monitorWindowID) {
+        // `Window`, not `WindowGroup`: there is exactly one activity monitor and
+        // one detail. A WindowGroup lets the user open unlimited copies and
+        // RESTORES every one of them at launch — five had accumulated in a real
+        // session. It also breaks `openWindow(id:)`, which targets a group
+        // rather than a specific instance, so the menu item raised whichever
+        // copy AppKit picked instead of the one holding the selection.
+        Window("Activity", id: ActivityWindowSelectionState.monitorWindowID) {
             ActivityMonitorWindow()
                 .environment(libraryManager)
                 .environment(appExecutionObserver)
         }
         .defaultSize(width: 480, height: 640)
 
-        WindowGroup("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
+        Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
             ActivityDetailWindow()
                 .environment(libraryManager)
                 .environment(appExecutionObserver)
