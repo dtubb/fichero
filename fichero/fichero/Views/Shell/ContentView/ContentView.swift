@@ -164,6 +164,13 @@ struct ContentView: View {
     // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
+    // Summoned search (#4521): the engine-search field in the library's mini
+    // toolbar appears only while this is on — toggled by the toolbar's search
+    // button, and turned on automatically when something fires a search
+    // programmatically (entity lozenges, saved searches). Per-window, same
+    // pattern as the pane toggles above. OFF exits transient-search
+    // presentation so the field can't disappear while results are showing.
+    @SceneStorage("library.showSearchField") var showSearchField: Bool = false
     @State var measuredWindowWidth: Double = 0
     // When false (default), selecting a different item NEVER changes which
     // panes are visible — a folder shows the same panes as a PDF. The visible

@@ -11,6 +11,7 @@ enum ContentToolbarID {
     static let activityStatus = "fichero.activityStatus"
     static let viewDisplayMode = "fichero.viewDisplayMode"
     static let breadcrumb = "fichero.breadcrumb"
+    static let searchToggle = "fichero.searchToggle"
 }
 
 // MARK: - Toolbar Content
@@ -145,6 +146,23 @@ extension ContentView {
                     Label("Reading Pane", systemImage: ToolbarSymbols.readingPane)
                 }
                 .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
+            }
+
+            // Summoned search (#4521, Finder-shaped): the engine-search field
+            // is no longer resident chrome — this toggle reveals it in the
+            // library's mini toolbar and dismisses it again (dismissal exits
+            // transient-search presentation through `clearTransientSearch`,
+            // #4106/S2 semantics unchanged). Its OWN item, not a fourth member
+            // of the pane group: the group is the three-pane control (#4374),
+            // and search is a different kind of thing.
+            ToolbarItem(id: ContentToolbarID.searchToggle, placement: .automatic) {
+                Toggle(isOn: Binding(
+                    get: { showSearchField },
+                    set: { setSearchFieldVisible($0) }
+                )) {
+                    Label("Search", systemImage: ToolbarSymbols.findField)
+                }
+                .help(showSearchField ? "Hide the search field" : "Search the library")
             }
         }
 
