@@ -87,9 +87,20 @@ struct ReaderPageActivationTests {
     /// The round trip the click actually performs: a 1-based transcript page
     /// resolves to the page child whose `sequence` matches it, through the SAME
     /// resolver the scroll path uses.
+    ///
+    /// #4532 — the "fails at runtime while statically correct" mystery was the
+    /// FIXTURE, found by compiling the pieces standalone: with the closure
+    /// parameter unannotated, Swift's contravariant closure inference typed it
+    /// `Int?` (because `Document.sequence` is `Int?`, and `(Int?) -> Document`
+    /// satisfies `map`'s `(Int) -> Document`), so every interpolated id became
+    /// "page-Optional(1)" while `sequence` still stored 1. The resolver then
+    /// returned the RIGHT document with a poisoned id, and
+    /// `resolved?.id == "page-1"` failed on every row. The explicit
+    /// `(sequence: Int)` annotation forbids that inference; the id pin below
+    /// names the failure if it ever comes back.
     @Test("an activation resolves to the page child the scroll path would find")
     func activationResolvesThroughTheSharedResolver() {
-        let pages = (1...4).map { sequence in
+        let pages = (1...4).map { (sequence: Int) in
             Document(
                 id: "page-\(sequence)",
                 docType: .page,
@@ -97,10 +108,18 @@ struct ReaderPageActivationTests {
                 sequence: sequence
             )
         }
+        #expect(
+            pages.map(\.id) == ["page-1", "page-2", "page-3", "page-4"],
+            "fixture ids are \(pages.map(\.id)) — closure-parameter inference regressed to Int?"
+        )
+
         for pageNumber in 1...4 {
             let activation = ReaderPageActivation(pageNumber: pageNumber)
             let resolved = ContentView.pageDocument(atPDFIndex: activation.pageIndex, in: pages)
-            #expect(resolved?.id == "page-\(pageNumber)")
+            #expect(
+                resolved?.id == "page-\(pageNumber)",
+                "pageNumber \(pageNumber) → index \(activation.pageIndex) resolved \(resolved?.id ?? "nil")"
+            )
         }
     }
 
