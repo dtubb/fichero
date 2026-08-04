@@ -207,6 +207,13 @@ extension WorkflowEditor {
     /// Saves the in-progress workflow before running it, so the backend has
     /// the latest version.
     private func autoSaveWorkflowBeforeRun() async throws {
+        // A locked system preset can't be edited, so there is nothing of the
+        // user's to persist — and the server 403s the PUT anyway (#4514).
+        // Run it as stored instead of failing the run on a doomed save.
+        if selectedWorkflow?.isSystem == true {
+            actionsLogger.info("Skipping pre-run save: read-only system workflow")
+            return
+        }
         actionsLogger.info("Auto-saving workflow before execution...")
         let definition = editingWorkflow.toAPIFormat()
 
@@ -347,6 +354,14 @@ extension WorkflowEditor {
     @MainActor
     func saveWorkflow() async {
         actionsLogger.info("Save workflow: \(editingWorkflow.name)")
+
+        // Locked system preset: don't fire a request the server will 403
+        // (#4514) — state the typed message directly.
+        if selectedWorkflow?.isSystem == true {
+            saveError = WorkflowServiceError.readOnlyWorkflow.localizedDescription
+            return
+        }
+
         isSaving = true
         saveError = nil
 
