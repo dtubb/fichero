@@ -172,12 +172,10 @@ struct ContentView: View {
     // presentation so the field can't disappear while results are showing.
     @SceneStorage("library.showSearchField") var showSearchField: Bool = false
     @State var measuredWindowWidth: Double = 0
-    // When false (default), selecting a different item NEVER changes which
-    // panes are visible — a folder shows the same panes as a PDF. The visible
-    // pane set is the user's choice (the toggles above). Opt in to the old
-    // selection-driven behaviour (e.g. folders collapse the preview) by
-    // turning this on. App-wide preference, toggled from the View menu. (#1452)
-    @AppStorage("layout.followsSelection") var layoutFollowsSelection: Bool = false
+    // `layout.followsSelection` was DELETED with #4525 (V6): an opt-in whose
+    // only purpose was to violate the stable-panes policy (#1452's default —
+    // selection never changes which panes are visible — is now the only
+    // behaviour, per the dead-simple-UX rule: features ON or OFF).
     // Library sort field / direction / filter-bar visibility, lifted out of
     // LibraryView's @State so the in-content mode rail can host the Sort + Filter
     // controls at the Library view's top-right (#1477).

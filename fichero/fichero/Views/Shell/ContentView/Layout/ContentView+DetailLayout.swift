@@ -234,14 +234,17 @@ extension ContentView {
                 }
             }
 
-        case .chat, .comparison:
-            EmptyView()
-
-        case .workflow, .chain:
-            EmptyView()
-
-        case .batches, .batch, .automation, .schedule, .trigger, .activity:
-            EmptyView()
+        case .chat, .comparison, .workflow, .chain, .batches, .batch,
+             .automation, .schedule, .trigger, .activity:
+            // #4525 (V3): never a silent EmptyView — the pane stays mounted
+            // and says why, from the ONE decided matrix. While the mode's
+            // surface still renders in the center takeover (the remaining
+            // #4525 step), a `.content` cell here falls back to naming where
+            // the surface currently lives rather than showing a blank.
+            PaneEmptyStateView(
+                reason: PaneContentPlan.plan(for: viewMode).preview.emptyReason
+                    ?? "This view is shown in the main area."
+            )
         }
     }
 
@@ -295,23 +298,16 @@ extension ContentView {
                 }
             )
 
-        case .chain:
-            WorkflowInspector(
-                workflow: $editingWorkflow,
-                onAddNode: { tool, position in
-                    addNodeFromTool(tool, at: position)
-                }
+        case .chain, .batches, .batch, .automation, .schedule, .trigger, .activity:
+            // #4525: the honest per-mode empty from the ONE decided matrix,
+            // replacing both the generic "Select an item to inspect." stub and
+            // the chain's WorkflowInspector bound to whatever workflow was
+            // last edited (a stale surface — the pane-audit's 💀 cell).
+            PaneEmptyStateView(
+                reason: PaneContentPlan.plan(for: viewMode).inspector.emptyReason
+                    ?? "Select an item to inspect.",
+                systemImage: "info.circle"
             )
-
-        case .batches, .batch, .automation, .schedule, .trigger, .activity:
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Inspector")
-                    .font(.headline)
-                Text("Select an item to inspect.")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding()
         }
     }
 
