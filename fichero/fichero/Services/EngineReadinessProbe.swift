@@ -19,9 +19,12 @@ private let probeLogger = Logger(subsystem: "app.fichero.fichero", category: "En
 /// not a log, it is a denial of service on the reader.
 ///
 /// A transition log logs transitions. Steady state is SILENT, with one rollup
-/// every `steadyRollupInterval` saying how long it has held — at `.info`, so it
-/// is both rare enough to read live and persisted enough to answer "was it up?"
-/// after the fact.
+/// every `steadyRollupInterval` saying how long it has held — at **`.notice`**,
+/// because "was the engine healthy at 19:40?" is asked AFTER the fact and only
+/// `.notice` and above are persisted. This line said `.info` for one commit,
+/// claiming a durability `.info` does not have: the identical mistake the
+/// `.debug` bug was made of, one commit later. Transitions are `.notice` for the
+/// same reason. One line per five minutes is affordable at that level.
 /// Internal, not private: `emission` is the decision this whole type exists to
 /// get right, and a `private` one cannot be reached by a test — which is how it
 /// shipped with an untested assumption about `.debug` in the first place.
@@ -74,13 +77,13 @@ enum ProbeTransitionLog {
             // One literal: an OSLogMessage is built at the interpolation site and
             // cannot be assembled by concatenation.
             let detail = summary + (previous.map { " (was: \($0))" } ?? "")
-            probeLogger.info("\(detail, privacy: .public)")
+            probeLogger.notice("\(detail, privacy: .public)")
             lastSummary = summary
             steadySince = now
             lastSpokeAt = now
         case .rollup(let held):
             let detail = "\(summary) — unchanged for \(Self.describe(held))"
-            probeLogger.info("\(detail, privacy: .public)")
+            probeLogger.notice("\(detail, privacy: .public)")
             lastSpokeAt = now
         case .silent:
             break
