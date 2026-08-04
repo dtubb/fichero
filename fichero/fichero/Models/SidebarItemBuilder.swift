@@ -125,33 +125,43 @@ enum SidebarItemBuilder {
         )
     }
 
+    /// Split visible documents into (parentId → children, ordinary roots,
+    /// hoisted Inbox). The Inbox match mirrors `LibraryManager.ensureInboxFolder`:
+    /// name AND docType — a root FILE the user happens to call "Inbox" is an
+    /// ordinary row, not a folder-affordanced dead end. Only the FIRST match is
+    /// hoisted: a duplicate root named Inbox (reachable via #3970's
+    /// empty-collections window) used to overwrite the winner with a bare
+    /// assignment and drop the loser from the tree entirely — the Finder rule
+    /// is show ALL items (#4527).
+    private struct HierarchyPartition {
+        var childrenMap: [String: [Document]] = [:]
+        var roots: [Document] = []
+        var inbox: Document?
+    }
+
+    private static func partitionForHierarchy(_ visibleDocs: [Document]) -> HierarchyPartition {
+        var partition = HierarchyPartition()
+        for doc in visibleDocs {
+            if let parentId = doc.parentId {
+                partition.childrenMap[parentId, default: []].append(doc)
+            } else if doc.name == "Inbox", doc.docType == .folder, partition.inbox == nil {
+                partition.inbox = doc
+            } else {
+                partition.roots.append(doc)
+            }
+        }
+        return partition
+    }
+
     static func buildLibraryHierarchy(from documents: [Document], libraryId: UUID) -> [SidebarItem] {
         let visibleDocs = documents.filter(isSidebarVisible)
 
         let lockedFolderIds = lockedSystemFolderIds(in: documents)
 
-        // Build a map of parentId -> children
-        var childrenMap: [String: [Document]] = [:]
-        var rootDocuments: [Document] = []
-        var inboxDocument: Document?
-
-        for doc in visibleDocs {
-            if let parentId = doc.parentId {
-                childrenMap[parentId, default: []].append(doc)
-            } else if doc.name == "Inbox", doc.docType == .folder, inboxDocument == nil {
-                // The special-cased Inbox root (#4527). The match mirrors
-                // `LibraryManager.ensureInboxFolder`: name AND docType — a
-                // root FILE the user happens to call "Inbox" is an ordinary
-                // row, not a folder-affordanced dead end. And only the FIRST
-                // match is hoisted: a duplicate root named Inbox (reachable
-                // via #3970's empty-collections window) used to overwrite the
-                // winner with a bare assignment and drop the loser from the
-                // tree entirely — the Finder rule is show ALL items.
-                inboxDocument = doc
-            } else {
-                rootDocuments.append(doc)
-            }
-        }
+        let partition = partitionForHierarchy(visibleDocs)
+        let childrenMap = partition.childrenMap
+        let rootDocuments = partition.roots
+        let inboxDocument = partition.inbox
 
         // Recursively build the tree (children sorted by sequence, then name).
         // `parent` is threaded so `DocumentTitle` can use its parent-fallback

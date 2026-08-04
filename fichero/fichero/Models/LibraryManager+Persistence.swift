@@ -141,29 +141,11 @@ extension LibraryManager {
         let globalKey = globalLibrary.map { Self.canonicalLibraryKey($0.url) }
 
         for path in paths {
-            // Validate path is not empty and doesn't contain dangerous characters
-            guard !path.isEmpty,
-                  !path.contains(".."),
-                  path.hasPrefix("/") else {
-                libraryManagerLogger.warning("Skipping invalid library path: \(path)")
+            guard restorablePathIsValid(path, globalKey: globalKey) else {
                 prunedAnyPath = true
                 continue
             }
-
             let url = URL(fileURLWithPath: path)
-
-            // Additional security check: ensure it's a .fichero package
-            guard url.pathExtension == "fichero" else {
-                libraryManagerLogger.warning("Skipping non-fichero path: \(path)")
-                prunedAnyPath = true
-                continue
-            }
-
-            if let globalKey, Self.canonicalLibraryKey(url) == globalKey {
-                libraryManagerLogger.info("Skipping Global library in restore list (#4517)")
-                prunedAnyPath = true
-                continue
-            }
 
             if FileManager.default.fileExists(atPath: path) {
                 let perLibraryStart = Date()
@@ -188,5 +170,24 @@ extension LibraryManager {
             EngineConfig.defaults.set(validPaths, forKey: Self.openLibraryPathsKey)
             libraryManagerLogger.info("Pruned \(paths.count - validPaths.count) missing/invalid library paths")
         }
+    }
+
+    /// A restore-list entry the loop should attempt: non-empty absolute
+    /// `.fichero` path with no traversal, and never the Global library (#4517).
+    private func restorablePathIsValid(_ path: String, globalKey: String?) -> Bool {
+        guard !path.isEmpty, !path.contains(".."), path.hasPrefix("/") else {
+            libraryManagerLogger.warning("Skipping invalid library path: \(path)")
+            return false
+        }
+        let url = URL(fileURLWithPath: path)
+        guard url.pathExtension == "fichero" else {
+            libraryManagerLogger.warning("Skipping non-fichero path: \(path)")
+            return false
+        }
+        if let globalKey, Self.canonicalLibraryKey(url) == globalKey {
+            libraryManagerLogger.info("Skipping Global library in restore list (#4517)")
+            return false
+        }
+        return true
     }
 }
