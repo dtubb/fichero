@@ -470,12 +470,21 @@ struct FicheroApp: App {
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+        // About lives ONLY in the App menu (the CommandGroup(replacing:
+        // .appInfo) button). A titled `Window` scene otherwise lists itself
+        // in the Windows menu automatically — which put a second "About
+        // Fichero" there (live-repro 2026-08-04). Same suppression contract
+        // as the Activity Detail scene (#4524).
+        .commandsRemoved()
 
         Window("Feature Tier Legend", id: "feature-tier-legend") {
             FeatureTierLegendWindow()
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 420, height: 520)
+        // Opened from the App menu's tier button only — suppress the
+        // automatic Windows-menu entry, as with About above (#4524).
+        .commandsRemoved()
         .defaultPosition(.center)
         #endif
 

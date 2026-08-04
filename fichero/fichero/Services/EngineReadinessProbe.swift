@@ -5,6 +5,26 @@ import OSLog
 
 private let probeLogger = Logger(subsystem: "app.fichero.fichero", category: "EngineReadinessProbe")
 
+/// #4539: the probe runs on a poll, and logging every green poll at `.info`
+/// buried the console under identical "health=200 registry=200 → ready"
+/// lines. Only TRANSITIONS are worth a line: not-ready → ready, ready →
+/// lost, or a leg changing its answer. Steady state logs at `.debug`, so
+/// `log stream --level debug` still shows the pulse when someone wants it.
+@MainActor
+private enum ProbeTransitionLog {
+    static var lastSummary: String?
+
+    static func log(_ summary: String) {
+        guard summary != lastSummary else {
+            probeLogger.debug("\(summary, privacy: .public) (steady)")
+            return
+        }
+        let previous = lastSummary.map { " (was: \($0))" } ?? ""
+        probeLogger.info("\(summary, privacy: .public)\(previous, privacy: .public)")
+        lastSummary = summary
+    }
+}
+
 // MARK: - The one engine readiness probe (#3106)
 
 /// The engine readiness contract (#2862/#2864), verified by ONE implementation.
@@ -67,15 +87,15 @@ struct EngineReadinessProbe {
         // running / start it with start_backend.sh". (#dev observability)
         if health.status == 401 || health.status == 403 {
             let healthCode = health.status.map(String.init) ?? "?"
-            probeLogger.info(
-                "readiness legs: health=\(healthCode, privacy: .public) → authRejected (engine reachable, credentials rejected)"
+            ProbeTransitionLog.log(
+                "readiness legs: health=\(healthCode) → authRejected (engine reachable, credentials rejected)"
             )
             return .authRejected
         }
         guard health.status == 200 else {
             let healthCode = health.status.map(String.init) ?? "nil (transport error)"
-            probeLogger.info(
-                "readiness legs: health=\(healthCode, privacy: .public) → notResponding (registry not attempted)"
+            ProbeTransitionLog.log(
+                "readiness legs: health=\(healthCode) → notResponding (registry not attempted)"
             )
             return .notResponding
         }
@@ -92,8 +112,8 @@ struct EngineReadinessProbe {
         )
         let registryCode = registryStatus.map(String.init) ?? "nil (transport error)"
         let resultDescription = String(describing: result)
-        probeLogger.info(
-            "readiness legs: health=200 registry=\(registryCode, privacy: .public) → \(resultDescription, privacy: .public)"
+        ProbeTransitionLog.log(
+            "readiness legs: health=200 registry=\(registryCode) → \(resultDescription)"
         )
         return result
     }
