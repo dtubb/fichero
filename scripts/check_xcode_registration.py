@@ -26,6 +26,8 @@ Usage:
 Exit codes:
     0  no new unregistered Swift files
     1  a Swift file under fichero/fichero/ is missing from the Fichero target
+    2  BLIND — the committed project file could not be parsed / the Fichero
+       target was not found (#4487); never a pass, never a fake violation
 """
 from __future__ import annotations
 
@@ -84,12 +86,15 @@ def _join(*parts: str) -> str:
     return PurePosixPath(*cleaned).as_posix() if cleaned else ""
 
 
-def parse_pbxproj() -> dict[str, PBXObject]:
+def parse_pbxproj(project_file: Path | None = None) -> dict[str, PBXObject]:
+    # Resolved at CALL time (not a def-time default) so tests can either pass
+    # a fixture path or monkeypatch the module constant — both existing styles.
+    project_file = project_file or PROJECT_FILE
     objects: dict[str, PBXObject] = {}
     current: PBXObject | None = None
     list_key: str | None = None
 
-    for line in PROJECT_FILE.read_text(errors="ignore").splitlines():
+    for line in project_file.read_text(errors="ignore").splitlines():
         if current is None:
             inline = OBJECT_INLINE.match(line)
             if inline:
@@ -235,12 +240,20 @@ def target_sources_phase_ids(objects: dict[str, PBXObject]) -> list[str]:
         if _unquote(obj.fields.get("name", "")) == TARGET_NAME:
             return obj.lists.get("buildPhases", [])
     # #4487: cannot parse my own committed input — BLIND (exit 2), not a crash.
-        print(
-            f"BLIND: PBXNativeTarget {TARGET_NAME!r} not found in {PROJECT_FILE} "
-            "— the project parser resolved nothing (#4487)",
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
+    #
+    # #4512: this block was indented INSIDE the loop, so the FIRST target whose
+    # name was not "Fichero" tripped it — the check went blind the moment
+    # FicheroIOSTests became the first PBXNativeTarget in the file. The parser
+    # itself read the objectVersion-100 project fine (short numeric ids match
+    # the same object grammar); the blindness was six spaces of indentation.
+    # test_check_xcode_registration.py pins target-after-a-decoy so this exact
+    # regression fires a test instead of blinding the gate.
+    print(
+        f"BLIND: PBXNativeTarget {TARGET_NAME!r} not found in {PROJECT_FILE} "
+        "— the project parser resolved nothing (#4487)",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
 
 def registered_swift_files(objects: dict[str, PBXObject]) -> set[str]:
@@ -265,17 +278,23 @@ def registered_swift_files(objects: dict[str, PBXObject]) -> set[str]:
     return registered
 
 
-def disk_swift_files() -> list[str]:
-    return sorted(path.relative_to(ROOT).as_posix() for path in SWIFT_ROOT.rglob("*.swift"))
+def disk_swift_files(swift_root: Path | None = None, root: Path | None = None) -> list[str]:
+    swift_root = swift_root or SWIFT_ROOT
+    root = root or ROOT
+    return sorted(path.relative_to(root).as_posix() for path in swift_root.rglob("*.swift"))
 
 
-def scan() -> dict[str, list[str]]:
-    objects = parse_pbxproj()
+def scan(
+    project_file: Path | None = None,
+    swift_root: Path | None = None,
+    root: Path | None = None,
+) -> dict[str, list[str]]:
+    objects = parse_pbxproj(project_file)
     registered = registered_swift_files(objects)
     sync_prefixes = target_synchronized_prefixes(objects)
     found: dict[str, list[str]] = {}
 
-    for rel in disk_swift_files():
+    for rel in disk_swift_files(swift_root, root):
         if rel in registered:
             continue
         # Covered by a synchronized root group on the target (#3754) → compiled.
