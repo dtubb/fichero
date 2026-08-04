@@ -168,9 +168,9 @@ final class ClaimStore: ObservableDomainStore {
     // back with its caller in the same commit, so it is never again a route that
     // exists only in theory.
     //
-    // `unmerge` in particular was here for TODO(#1689), the claim-unmerge UI that
-    // has not been built. Whoever builds it adds the action back alongside the
-    // view that calls it — that is four lines, and it is the commit where the
+    // `unmerge` in particular was here for #1689, the claim-unmerge UI that has
+    // not been built. Whoever builds it adds the action back alongside the view
+    // that calls it — that is four lines, and it is the commit where the
     // behaviour can actually be tested.
 
     /// Edit a claim in place (`InlineClaimEditor`, #1135). Returns the updated
@@ -229,7 +229,7 @@ final class ClaimStore: ObservableDomainStore {
     /// Merge `absorbedIds` into `survivorId`, then refresh.
     ///
     /// Returns the audit response, which carries the audit id an unmerge needs.
-    /// The one caller discards it today — the unmerge UI is TODO(#1689) — so this
+    /// The one caller discards it today — the unmerge UI is #1689, unbuilt — so this
     /// is a return value kept for a caller that does not exist yet, deliberately:
     /// the id is not recoverable from anywhere else once the response is dropped.
     @discardableResult
