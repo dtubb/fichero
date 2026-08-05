@@ -4,9 +4,11 @@ DMG may never grow past their own best-ever size.
 
 Every Sparkle update is a download — a build that silently doubled in size
 should never reach a user's machine. A byte count does not vary with machine
-load the way a timing does, so — like the query-count ratchet (#4443) — this
-is held EXACTLY: no tolerance, no jitter allowance. A real increase (a new
-dependency, an embedded model) is accepted by rerunning with
+load the way a timing does — but it DOES vary with signing timestamps and DMG
+compression, so this is held to 0.1% rather than exactly (see the note at the
+comparison). That is far below any real regression and above the observed
+jitter. A real increase (a new dependency, an embedded model) is accepted by
+rerunning with
 --update-baseline and committing the baseline with a note saying what it
 bought — exactly the conversation worth having before shipping a bigger
 download.
@@ -234,7 +236,26 @@ def run(
             print(f"  {name}: {_human(size)} ({size} bytes) — baseline set")
             continue
         best = int(entry["bytes"])
-        if size > best:
+        # A small tolerance, and ONLY because these artifacts genuinely vary
+        # without their contents changing.
+        #
+        # The docstring above says a byte count "does not vary with machine
+        # load" — true, and not the whole story. A signed bundle embeds secure
+        # TIMESTAMPS, and a DMG is COMPRESSED, so re-building identical source
+        # produces a slightly different size every time. Measured across three
+        # runs of the same commit on 2026-08-05: app_bundle moved 9,517 bytes
+        # and the DMG 140,302 — 0.0006% and 0.03%. Both stopped the release.
+        #
+        # A ratchet that fires on noise gets switched off, and a disabled check
+        # is worse than an absent one because it still looks present. 0.1% is
+        # far below any real regression (pypdfium2 added 5.7MB, or 1.1%) and
+        # comfortably above the observed jitter.
+        #
+        # Deliberately NOT a flat byte allowance: the artifacts differ by three
+        # orders of magnitude, so a figure generous enough for a 1.4GB bundle
+        # would hide a doubling of the 57KB binary.
+        tolerance = max(int(best * 0.001), 1)
+        if size > best + tolerance:
             fired = True
             print(
                 f"  {name}: {_human(size)} ({size} bytes) vs best "
@@ -258,8 +279,8 @@ def run(
             "\nrelease-size ratchet FAILED: at least one artifact grew past its "
             "best-ever size.\n"
             "\n"
-            "Held EXACTLY, no tolerance — unlike a timing, a byte count does not "
-            "vary with machine load, so any growth is real.\n"
+            "Held to 0.1% — signing timestamps and DMG compression move the byte "
+            "count without the contents changing. Anything past that is real.\n"
             "\n"
             "If this is a REAL and accepted increase (a new dependency, an "
             "embedded model), rerun with --update-baseline and commit "
