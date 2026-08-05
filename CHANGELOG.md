@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+## 2026.08.04
+
+**Libraries & Access**
+
+- A library you create is one the engine can actually read. The sandboxed engine's
+  `Path.home()` is the app container, so every home-derived allowed root pointed
+  inside the container and no library outside it could be served. Two defects, both
+  required: the bookmark handoff was gated on a build flag that stopped tracking
+  whether the process is sandboxed, and the *create* path never minted a bookmark
+  at all (only *open* did).
+- A refused library now says what is wrong and where, instead of failing to load
+  silently. A 403 reports the engine's own reason rather than a guess.
+
+**Import**
+
+- A 61-second import is no longer reported as a failure. File ingest rides a
+  deadline that scales with the document instead of the 60-second bound meant for
+  quick requests; the same applies to starting a workflow run.
+- The failure alert shows the per-file reasons it was already assembling, and the
+  progress label stops claiming a phase the app cannot observe.
+- pdfium ships inside the bundle, signed with the app, instead of being fetched at
+  runtime into a quarantined temp copy Gatekeeper refuses to load — which left
+  every PDF imported as images with no searchable text.
+
+**Workflows**
+
+- A tiled page keeps every strip, in order. Tiling paired all N strips with one
+  document and each transcription overwrote the last, so a ten-strip page kept
+  only the tenth. Joined once, ordered by file index, after the concurrent
+  fan-out completes.
+- The paleography ensemble's steps say what they do instead of showing graph ids.
+
+**Windows & Diagnostics**
+
+- File-menu commands work with no window open, so ⌘N can recover from zero windows.
+- Models & Providers shows the provider list again (a layout collapse hid it).
+- An unreadable API key is no longer reported as an absent one.
+- Engine startup distinguishes "nothing listening", "our child died", "another
+  engine holds the socket" and "the engine rejected our token" instead of
+  reporting one message for all four.
+- `engine.log` appends, so a crash's evidence survives the restart that follows it.
+- Sidebar drop outcomes persist in the log; readiness polling stopped flooding it.
+
+
 **Transport & Data Loading**
 
 - Add a pluggable `ClientTransport` seam for the engine connection: macOS local
