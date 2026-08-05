@@ -1796,6 +1796,76 @@ def _cgimage_to_png_data_uri(cg_image, max_dimension: int = 2048) -> str:
 # =============================================================================
 
 
+def _write_joined_page_content(
+    *,
+    indices_by_doc: dict[str, list[int]],
+    texts: list,
+    library_path: str,
+) -> None:
+    """Write ONE page_content per fan-in document: its texts, joined in order.
+
+    Called after the per-file fan-out has completed, which is the only place the
+    true file order is known — the fan-out itself is concurrent. See the note in
+    ``process_vision`` where ``_fan_in_indices_by_doc`` is built.
+
+    Best-effort by contract: a failure here must not fail a run whose artifacts
+    all saved correctly. It logs loudly rather than silently, because a page
+    that keeps its old text after a successful run is exactly the kind of
+    quiet wrongness this whole change exists to remove.
+    """
+    from fichero_server.core.timeutil import utc_now
+    from fichero_server.db import db_manager
+    from fichero_server.models import Document, Status
+    from fichero_server.workflows.curation_guard import page_content_is_user_edited
+
+    try:
+        db = db_manager.get_database(library_path)
+    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        logger.error("Could not open library to write joined page content: %s", exc)
+        return
+
+    for doc_id, indices in indices_by_doc.items():
+        # Index order IS tile order. Empty pieces are dropped so a strip that
+        # produced nothing does not leave a blank gap, but the ORDER of what
+        # remains is never rearranged.
+        pieces = [
+            str(texts[i]).strip()
+            for i in sorted(indices)
+            if i < len(texts) and str(texts[i]).strip()
+        ]
+        if not pieces:
+            continue
+        joined = "\n".join(pieces)
+        try:
+            doc = db.get(Document, doc_id)
+            if doc is None:
+                logger.warning(
+                    "Joined page content: document %s vanished — %d piece(s) not written",
+                    doc_id,
+                    len(pieces),
+                )
+                continue
+            if not isinstance(doc.metadata, dict):
+                doc.metadata = {}
+            if page_content_is_user_edited(doc):
+                logger.info(
+                    "Joined page content: %s is user-edited — leaving it alone", doc_id
+                )
+                continue
+            doc.page_content = joined
+            doc.status = Status.processing
+            doc.updated_at = utc_now()
+            db.save(doc)
+            logger.info(
+                "Joined page content for %s from %d piece(s), %d chars",
+                doc_id,
+                len(pieces),
+                len(joined),
+            )
+        except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+            logger.error("Could not write joined page content for %s: %s", doc_id, exc)
+
+
 async def process_vision(
     files: list[str],
     documents: list[dict],
@@ -1873,6 +1943,45 @@ async def process_vision(
             "output_files": [],
             "page_records": [],
         }
+
+    # FAN-IN (2026-08-04): several files can map to ONE document. `zoom` in tile
+    # mode splits a page into N strips and pairs every strip with the SAME
+    # document, so this tool then runs N times for one page and each result did
+    #
+    #     doc.page_content = content          # llm_base.py, an ASSIGNMENT
+    #
+    # Last strip wins: on a page tiled into ten strips, nine transcriptions were
+    # produced, paid for, and thrown away. Daniel: "the final transcript is not
+    # all bits put back together." It was not a reconciliation failure — every
+    # model did its job and the loss happened after all of them.
+    #
+    # Fixed by suppressing the per-strip page-content write and doing ONE
+    # ordered join at the end. Ordered is the whole point: appending inside the
+    # per-file path would fix the truncation and introduce scrambling, because
+    # the fan-out is concurrent. `texts` stays index-aligned to `files`
+    # (asyncio.gather preserves argument order and the chunks are consumed in
+    # order), so joining by index is the only place the true order is known.
+    #
+    # Strictly gated: when every file has its own document — the ordinary case
+    # for every other tool — nothing below changes and behaviour is identical.
+    _fan_in_indices_by_doc: dict[str, list[int]] = {}
+    if tool_config.update_page_content:
+        for _i in range(len(files)):
+            _doc = documents[_i] if _i < len(documents) else None
+            _doc_id = _doc.get("id") if isinstance(_doc, dict) else None
+            if _doc_id:
+                _fan_in_indices_by_doc.setdefault(str(_doc_id), []).append(_i)
+        _fan_in_indices_by_doc = {
+            doc_id: idxs for doc_id, idxs in _fan_in_indices_by_doc.items() if len(idxs) > 1
+        }
+    if _fan_in_indices_by_doc:
+        logger.info(
+            "process_vision: %d document(s) receive multiple files (max %d) — "
+            "deferring page_content to one ordered join per document",
+            len(_fan_in_indices_by_doc),
+            max(len(idxs) for idxs in _fan_in_indices_by_doc.values()),
+        )
+        tool_config = dataclasses.replace(tool_config, update_page_content=False)
 
     # vision_mode="auto" picks the engine from the resolved provider:
     # apple → Apple Vision OCR (free, local, OCR-only); anything else
@@ -3089,6 +3198,16 @@ async def process_vision(
             artifact_ids.extend(_outcome["artifact_ids"])
             output_files.extend(_outcome["output_files"])
             page_records.extend(_outcome["page_records"])
+
+    # The deferred page-content write for fan-in documents — see the note where
+    # `_fan_in_indices_by_doc` is built. One write per document, joining its
+    # files' texts in FILE ORDER, which is the order the tiles were cut in.
+    if _fan_in_indices_by_doc and library_path and save_to_db:
+        _write_joined_page_content(
+            indices_by_doc=_fan_in_indices_by_doc,
+            texts=texts,
+            library_path=library_path,
+        )
 
     # Check for errors
     errors = [r.get("error") for r in results if r.get("error")]
