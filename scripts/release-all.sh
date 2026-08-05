@@ -258,6 +258,41 @@ fi
 echo
 echo "── Engine: rebuild current Briefcase stage ──"
 "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
+echo ""
+echo "── Server: build the embedded engine ──"
+"$ROOT_DIR/fichero-server/scripts/build_backend_bundle.sh"
+[ -d "$ENGINE_APP" ] || {
+  echo "error: server bundle missing after build_backend_bundle.sh: $ENGINE_APP" >&2
+  exit 1
+}
+
+# pdfium must sit BESIDE kreuzberg's binding, which resolves it by
+# @loader_path. `pypdfium2` (briefcase requires) puts a real, signable
+# libpdfium.dylib in the bundle — but under pypdfium2_raw/, which is NOT
+# @loader_path, so the binding still extracts a copy into a temp dir at first
+# use. macOS quarantines that copy, Gatekeeper refuses to dlopen it, and PDF
+# text extraction fails on every machine: PDFs import as page images with no
+# searchable text (the #2430 fitz fallback splits the pages, so nothing looks
+# broken).
+#
+# Placed HERE, not inside the TestFlight block below and not in
+# build_backend_bundle.sh, because neither reaches every lane: the 2026.08.04
+# DMG shipped pypdfium2_raw/libpdfium.dylib with kreuzberg/libpdfium.dylib
+# absent — the wheel shipped and the placement never ran. Whatever builds the
+# engine, this runs after it and before signing, for DMG and TestFlight alike.
+#
+# Fails the release rather than warning: a missing dylib produces no error at
+# runtime, just PDFs with no text, which is exactly the silent-wrongness this
+# whole change exists to remove.
+if [ -d "$ENGINE_APP" ]; then
+  "$ROOT_DIR/scripts/place_pdfium_for_kreuzberg.py" \
+    "$ENGINE_APP/Contents/Resources/app_packages" || {
+      echo "error: could not place libpdfium.dylib beside kreuzberg's binding." >&2
+      echo "       PDFs would import with no searchable text. Refusing to ship that." >&2
+      exit 1
+    }
+fi
+
 
 if [ "$SKIP_DMG" = false ]; then
   echo
@@ -357,41 +392,6 @@ ENGINE_APP="$ROOT_DIR/fichero-server/build/fichero_server/macos/app/Fichero Serv
 # One owner for the server build, and the release calls it. Slower by the
 # briefcase build when the bundle is already current; the alternative is a
 # release whose contents nobody can state with confidence.
-echo ""
-echo "── Server: build the embedded engine ──"
-"$ROOT_DIR/fichero-server/scripts/build_backend_bundle.sh"
-[ -d "$ENGINE_APP" ] || {
-  echo "error: server bundle missing after build_backend_bundle.sh: $ENGINE_APP" >&2
-  exit 1
-}
-
-# pdfium must sit BESIDE kreuzberg's binding, which resolves it by
-# @loader_path. `pypdfium2` (briefcase requires) puts a real, signable
-# libpdfium.dylib in the bundle — but under pypdfium2_raw/, which is NOT
-# @loader_path, so the binding still extracts a copy into a temp dir at first
-# use. macOS quarantines that copy, Gatekeeper refuses to dlopen it, and PDF
-# text extraction fails on every machine: PDFs import as page images with no
-# searchable text (the #2430 fitz fallback splits the pages, so nothing looks
-# broken).
-#
-# Placed HERE, not inside the TestFlight block below and not in
-# build_backend_bundle.sh, because neither reaches every lane: the 2026.08.04
-# DMG shipped pypdfium2_raw/libpdfium.dylib with kreuzberg/libpdfium.dylib
-# absent — the wheel shipped and the placement never ran. Whatever builds the
-# engine, this runs after it and before signing, for DMG and TestFlight alike.
-#
-# Fails the release rather than warning: a missing dylib produces no error at
-# runtime, just PDFs with no text, which is exactly the silent-wrongness this
-# whole change exists to remove.
-if [ -d "$ENGINE_APP" ]; then
-  "$ROOT_DIR/scripts/place_pdfium_for_kreuzberg.py" \
-    "$ENGINE_APP/Contents/Resources/app_packages" || {
-      echo "error: could not place libpdfium.dylib beside kreuzberg's binding." >&2
-      echo "       PDFs would import with no searchable text. Refusing to ship that." >&2
-      exit 1
-    }
-fi
-
 if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
   if [ -d "$ENGINE_APP" ]; then
     # App Store Connect rejects an UNDERSCORE in a bundle identifier: only
