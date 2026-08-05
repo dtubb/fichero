@@ -815,6 +815,21 @@ async def lifespan(app: FastAPI):
 
     yield
     signal_sse_shutdown()
+    # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
+    # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for
+    # connections to close" blocked on any live run and the app SIGKILLed us
+    # after its 2-second grace — twelve engine spawns in one session, each
+    # orphaning an in-flight run with no terminal event.
+    from fichero_server.execution.runner import close_all_event_hubs_for_shutdown
+
+    _closed_hubs = close_all_event_hubs_for_shutdown()
+    if _closed_hubs:
+        logger.info(
+            "Shutdown: closed %d live workflow event stream(s) so connections "
+            "can drain; their runs will be reconciled from the persisted "
+            "record by the client (#4346/#4349).",
+            _closed_hubs,
+        )
     parent_watcher.cancel()
     await stop_periodic_snapshot_task(periodic_snapshot_task)
     # Await the start before stopping: a short-lived process (a test, a failed

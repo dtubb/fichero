@@ -173,6 +173,11 @@ class WorkflowEventHub:
             for subscriber in self._subscribers:
                 subscriber.put(event)
 
+    def is_closed(self) -> bool:
+        """Whether the end-of-stream sentinel has already been published."""
+        with self._lock:
+            return self._closed
+
     def subscribe(self) -> "queue.Queue":
         """Register a new subscriber and return its private queue.
 
@@ -207,6 +212,46 @@ class WorkflowEventHub:
 def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
     """Get the current state of a running workflow."""
     return _running_workflows.get(thread_id)
+
+
+def close_all_event_hubs_for_shutdown() -> int:
+    """End every live workflow SSE stream so uvicorn can drain and exit.
+
+    The workflow SSE generator is ``while True`` around a blocking
+    ``subscriber.get(timeout=60)``: it emits keepalives forever and NEVER ends
+    on its own, because a run's stream is long-lived by design. uvicorn's
+    graceful shutdown waits for open connections to close, so a single live
+    subscriber blocked the drain indefinitely — and the app then SIGKILLs the
+    child after a 2-second SIGTERM grace
+    (``EmbeddedBackendService+Lifecycle.swift``). Twelve engine spawns in one
+    session, each preceded by::
+
+        INFO:     Shutting down
+        INFO:     Waiting for connections to close. (CTRL+C to force quit)
+
+    Every one of those kills orphaned an in-flight run with no terminal event,
+    leaving the zombie ``workflow_runs`` rows that #4554's recovery then failed
+    to clean. The drops, the orphaned spinners and the recovery failure are one
+    causal chain, and it starts here.
+
+    ``put(None)`` is the hub's EXISTING end-of-stream sentinel, so the
+    generator's ``if event is None: break`` fires immediately and the response
+    completes. Clients already treat a stream that ends without a terminal
+    frame as "reconcile against the persisted record" (#4346/#4349/#4457), so
+    this uses a path they handle rather than inventing a new one.
+
+    The change-stream SSE already participates in shutdown via
+    ``signal_sse_shutdown``; the workflow stream simply never did.
+
+    Returns the number of hubs closed, so the caller can log it.
+    """
+    closed = 0
+    for state in list(_running_workflows.values()):
+        hub = state.get("events")
+        if isinstance(hub, WorkflowEventHub) and not hub.is_closed():
+            hub.put(None)
+            closed += 1
+    return closed
 
 
 def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
