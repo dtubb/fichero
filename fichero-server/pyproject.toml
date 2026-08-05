@@ -23,7 +23,7 @@ project_name = "Fichero"
 # Contents/Helpers/Fichero Server.app, so `com.fichero.*` was never a valid
 # identity for it — the DMG path never checks, only App Store Connect does.
 bundle = "app.fichero.fichero"
-version = "2026.8.2"
+version = "2026.8.4"
 url = "https://www.tubb.ca/fichero/"
 license.file = "LICENSE"
 author = "Daniel Tubb"
@@ -209,7 +209,7 @@ fichero = [
 
 [project]
 name = "fichero-server"
-version = "2026.8.2"
+version = "2026.8.4"
 description = "Headless server for Fichero — embedded FastAPI service that powers document processing, AI workflows, and data storage."
 readme = "README.md"
 requires-python = ">=3.10"
