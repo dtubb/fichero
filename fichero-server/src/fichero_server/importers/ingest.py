@@ -509,6 +509,61 @@ def _kreuzberg_pdf_pages(path: Path) -> list[dict[str, Any]]:
     return result.pages or []
 
 
+def _page_records_have_text(records: list[dict[str, Any]]) -> int:
+    """How many of these page records carry non-empty text."""
+    return sum(1 for record in records if (record.get("content") or "").strip())
+
+
+def _choose_pdf_page_records(
+    kreuzberg_records: list[dict[str, Any]],
+    fitz_records: list[dict[str, Any]],
+    kreuzberg_reason: str = "returned no pages",
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Pick the usable split, and say when the first extractor failed (#4555).
+
+    "No pages" is not the only way Kreuzberg fails. The shipped app extracts
+    its bundled pdfium to ``Data/tmp/kreuzberg-pdfium/`` and dlopens it, which
+    Gatekeeper blocks; extraction then returns the right NUMBER of page records
+    with EMPTY content. The old gate was ``not page_records``, false in that
+    case, so the fitz fallback never ran: every page was stamped
+    ``is_blank: true``, the PDF had no searchable text, and per-page
+    transcription had nothing to work from.
+
+    The distinction that must be preserved is a genuine SCAN, which also has no
+    text layer and for which ``is_blank: true`` is the correct answer. The two
+    are told apart by asking fitz. Text where Kreuzberg found none means
+    Kreuzberg failed; no text from either means the page really is imagery and
+    NOTHING should be reported as broken — a warning on every scan trains
+    everyone to ignore the warning that matters.
+
+    Returns ``(records, reason)`` where a non-nil ``reason`` is the loud line
+    the caller must log.
+    """
+    kreuzberg_text = _page_records_have_text(kreuzberg_records)
+    fitz_text = _page_records_have_text(fitz_records)
+
+    if not kreuzberg_records:
+        if fitz_records:
+            return fitz_records, f"Kreuzberg {kreuzberg_reason}"
+        return [], None
+
+    if kreuzberg_text > 0:
+        return kreuzberg_records, None
+
+    # Kreuzberg returned pages but no text on any of them.
+    if fitz_text > 0:
+        return fitz_records, (
+            f"Kreuzberg returned {len(kreuzberg_records)} page(s) with NO text "
+            f"on any of them; fitz recovered text on {fitz_text}/"
+            f"{len(fitz_records)} page(s)"
+        )
+
+    # Both agree: no text layer. That is a fact about the pages, not a defect.
+    # Keep Kreuzberg's records — they may carry per-page artifacts fitz never
+    # produced.
+    return kreuzberg_records, None
+
+
 def _create_pdf_page_children(
     parent_doc: Document,
     path: Path,
@@ -563,17 +618,19 @@ def _create_pdf_page_children(
         kreuzberg_reason = f"extraction failed ({exc})"
         page_records = []
 
-    if not page_records and pdf_doc is not None and fitz_page_count >= 1:
-        # Kreuzberg produced nothing — fall back to fitz so a silent Kreuzberg
-        # failure can't leave a multi-page PDF unsplit (#2430).
-        logger.warning(
-            "Kreuzberg %s for %s — falling back to fitz to "
-            "split %d page(s) (no-silent-fallback, #2430)",
-            kreuzberg_reason,
-            path,
-            fitz_page_count,
-        )
-        page_records = []
+    # #4555: build the fitz split whenever Kreuzberg gave us nothing usable —
+    # no pages at all, or pages with no text on any of them — then let
+    # `_choose_pdf_page_records` decide which to keep and whether anything
+    # actually failed. The all-blank case is the shipped-app pdfium block:
+    # Gatekeeper refuses the copy kreuzberg extracts to Data/tmp/, and
+    # extraction returns the right page COUNT with empty content.
+    _kreuzberg_records = page_records
+    _fitz_records: list[dict[str, Any]] = []
+    if (
+        _page_records_have_text(_kreuzberg_records) == 0
+        and pdf_doc is not None
+        and fitz_page_count >= 1
+    ):
         for _i in range(fitz_page_count):
             try:
                 _content = pdf_doc[_i].get_text() or ""
@@ -585,13 +642,24 @@ def _create_pdf_page_children(
                     _pexc,
                 )
                 _content = ""
-            page_records.append(
+            _fitz_records.append(
                 {
                     "page_number": _i + 1,
                     "content": _content,
                     "is_blank": not _content.strip(),
                 }
             )
+
+    page_records, _fallback_reason = _choose_pdf_page_records(
+        _kreuzberg_records, _fitz_records, kreuzberg_reason
+    )
+    if _fallback_reason:
+        logger.warning(
+            "%s for %s — using the fitz split instead "
+            "(no-silent-fallback, #2430/#4555)",
+            _fallback_reason,
+            path.name,
+        )
 
     if not page_records:
         # Both splitters failed. Surface loudly and stamp the parent so the
