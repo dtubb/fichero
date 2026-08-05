@@ -148,6 +148,7 @@ nav:
           - SwiftUI Overview: contributor/architecture/fichero/overview.md
           - Library Selection Across View Modes: contributor/architecture/fichero/library_selection_inventory.md
           - Engine Provisioning Modes (Review): contributor/architecture/engine-provisioning-modes-review.md
+          - Profile Review 2026-08-04: contributor/architecture/profile-review-2026-08-04.md
       - Release:
           - Release Lane Runbook: contributor/release/release-lane.md
           - Sparkle Release Setup: contributor/release/sparkle-release.md
