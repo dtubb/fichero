@@ -134,17 +134,9 @@ def _library(tmp_path: Path) -> tuple[str, str, MagicMock]:
     return library_path, str(pdf_path), db
 
 
-async def _run_fan_out(tmp_path: Path) -> list[str]:
-    """Run the graph to completion; return the rendered page URIs, in call order.
-
-    Raises ``asyncio.TimeoutError`` if the run deadlocks (the #4553 symptom).
-    """
+async def _drive_graph(tmp_path: Path, vision) -> None:
+    """Run the real files-source -> transcribe graph with ``vision`` stubbed."""
     library_path, _pdf, db = _library(tmp_path)
-    rendered: list[str] = []
-
-    async def _vision(images, prompt, config, *, language=None, **kwargs):
-        rendered.append(images[0])
-        return f"text for {images[0]}"
 
     graph = build_graph(_fan_out_workflow(), skip_cache=True)
     state = {
@@ -171,10 +163,23 @@ async def _run_fan_out(tmp_path: Path) -> list[str]:
             "fichero_server.workflows.tools.vision_base._pdf_page_to_data_uri",
             side_effect=lambda path, page_index=0, **kw: f"PAGE{page_index}",
         ),
-        patch("fichero_server.llm.vision", new=_vision),
+        patch("fichero_server.llm.vision", new=vision),
     ):
         await asyncio.wait_for(graph.ainvoke(state), timeout=60)
 
+
+async def _run_fan_out(tmp_path: Path) -> list[str]:
+    """Run the graph to completion; return the rendered page URIs, in call order.
+
+    Raises ``asyncio.TimeoutError`` if the run deadlocks (the #4553 symptom).
+    """
+    rendered: list[str] = []
+
+    async def _vision(images, prompt, config, *, language=None, **kwargs):
+        rendered.append(images[0])
+        return f"text for {images[0]}"
+
+    await _drive_graph(tmp_path, _vision)
     return rendered
 
 
@@ -206,6 +211,45 @@ async def test_each_fan_out_branch_renders_its_own_page(tmp_path):
     rendered = await _run_fan_out(tmp_path)
 
     assert sorted(rendered) == sorted(f"PAGE{i}" for i in range(PAGE_COUNT))
+
+
+@pytest.mark.asyncio
+async def test_fan_out_still_caps_in_flight_vision_calls(tmp_path):
+    """Making the slot re-entrant must not make it UNLIMITED.
+
+    The semaphore exists to stop a wide fan-out holding every page's image
+    bytes and LLM buffers at once. A re-entrancy fix that accidentally let
+    every branch through would trade a deadlock for an OOM on a large batch —
+    and would pass every other test in this file, because they only assert
+    that work completes.
+
+    Measures the real graph: peak simultaneously in-flight vision calls must
+    stay <= the cap, and must exceed 1 (or the "fix" was to serialise, which
+    would make a 5,000-page batch unusably slow rather than merely wrong).
+    """
+    inflight = 0
+    peak = 0
+
+    async def _vision(images, prompt, config, *, language=None, **kwargs):
+        nonlocal inflight, peak
+        inflight += 1
+        peak = max(peak, inflight)
+        try:
+            await asyncio.sleep(0.02)
+        finally:
+            inflight -= 1
+        return "text"
+
+    await _drive_graph(tmp_path, _vision)
+
+    assert peak <= VISION_FAN_OUT_CONCURRENCY, (
+        f"peak in-flight {peak} exceeded the cap {VISION_FAN_OUT_CONCURRENCY} "
+        f"across {PAGE_COUNT} pages — the re-entrant slot stopped capping"
+    )
+    assert peak >= 2, (
+        f"peak in-flight was {peak}: the fan-out serialised instead of "
+        "running concurrently"
+    )
 
 
 @pytest.mark.asyncio

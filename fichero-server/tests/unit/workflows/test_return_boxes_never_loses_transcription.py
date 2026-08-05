@@ -235,3 +235,35 @@ def test_well_formed_word_boxes_are_kept():
     # #4309: the box<->text link must be established, or boxes can be drawn
     # but no span of the transcript resolves to one.
     assert all(box.char_start is not None for box in geometry.boxes)
+
+
+def test_line_wrapped_box_text_is_not_mistaken_for_a_fabrication():
+    """A raw substring test rejected valid geometry.
+
+    A model returning "presente\\n" for a box whose transcript spells it
+    "presente" has wrapped a line, not invented a word. Over-rejection is the
+    safe direction for archival material, but not so strict that every
+    compliant reply is refused — the invariant is "this word was actually
+    read", not "the model matched our whitespace".
+    """
+    text, geometry = _parse(
+        json.dumps(
+            {
+                "text": "El presente\ndocumento dice lo siguiente.",
+                "boxes": [
+                    # spans the line break in the transcript above
+                    {
+                        "text": "presente  documento",
+                        "bbox": [0.1, 0.1, 0.3, 0.05],
+                        "level": "line",
+                    },
+                ],
+            }
+        ),
+        llm_config=_GEMINI,
+        page_index=0,
+    )
+
+    assert geometry_status(geometry) is OCRGeometryStatus.CAPTURED
+    assert len(geometry.boxes) == 1
+    assert text

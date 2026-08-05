@@ -1479,8 +1479,18 @@ def _parse_return_boxes_payload(
     # coordinates. Reject the whole result rather than silently dropping the
     # offending boxes: if the model fabricated one span it cannot be trusted on
     # the placement of the others either.
+    #
+    # Compare on whitespace-NORMALISED forms. A raw substring test rejects a
+    # box reading "presente\n" against a transcript spelling it "presente",
+    # which is a line-wrap artefact, not a fabrication. Over-rejection is the
+    # safe direction for archival material but it must not be so strict that
+    # every compliant reply fails; the invariant being enforced is "this word
+    # was actually read", not "the model matched our whitespace".
+    _haystack = " ".join(geometry.text.split())
     orphans = [
-        box.text for box in geometry.boxes if box.text.strip() and box.text not in geometry.text
+        box.text
+        for box in geometry.boxes
+        if box.text.strip() and " ".join(box.text.split()) not in _haystack
     ]
     if orphans:
         raise ValueError(
@@ -1526,11 +1536,13 @@ def _return_boxes_text_and_geometry(
     decoration did not parse.
 
     A failure in one concern must not destroy the result of another, and the
-    reason must be stated rather than swallowed. So: keep the raw payload as
-    the transcription and return a geometry record whose status says the boxes
-    were requested, answered, and REJECTED, with the reason attached. The
-    rejection stays as loud as it was — it just no longer takes the text with
-    it.
+    reason must be stated rather than swallowed. So on rejection this returns
+    the best transcription still available — the reply's ``text`` field when
+    the JSON parsed and only its boxes were refused, the raw payload when the
+    model ignored the JSON request entirely — together with a geometry record
+    whose status says the boxes were requested, answered, and REJECTED, with
+    the reason attached. The rejection stays as loud as it was; it just no
+    longer takes the text with it.
     """
     try:
         geometry = _parse_return_boxes_payload(
