@@ -254,4 +254,109 @@ final class WorkflowRunTargetResolverTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - #4552: the two selection domains must never be unioned
+
+    /// Daniel's 2026-08-05 reproduction, with his real ids.
+    ///
+    /// Same app, same library, minutes apart: the batch picker sent
+    /// `documents:1` (correct) and the sidebar context menu sent
+    /// `documents:2` — the clicked PDF plus a DIFFERENT PDF left over from a
+    /// run an hour earlier. The sidebar handed `resolve` the UNION of its own
+    /// selected rows and the window's document selection, so the clicked row
+    /// arrived from the WINDOW domain while the stale id came from the
+    /// SIDEBAR domain. `resolve` cannot tell that apart from a genuine
+    /// multi-selection: `selection.contains(clicked)` is true, so the whole
+    /// union ran.
+    ///
+    /// RED before `selectionScope`: this returns both ids.
+    func testClickedRowFromWindowDomainDoesNotDragInStaleSidebarRow() {
+        let clickedPDF = WorkflowRunTarget.file("5765604b")
+        let stalePDF = WorkflowRunTarget.file("7dba0b73")
+
+        let scope = WorkflowRunTargetResolver.selectionScope(
+            clicked: clickedPDF,
+            sidebarSelection: [stalePDF],
+            windowSelection: [clickedPDF]
+        )
+        let resolution = WorkflowRunTargetResolver.resolve(
+            clicked: clickedPDF,
+            selection: scope,
+            documents: [
+                Document(id: "5765604b", parentId: nil, name: "CamScanner.pdf"),
+                Document(id: "7dba0b73", parentId: nil, name: "Other.pdf")
+            ]
+        )
+
+        XCTAssertEqual(
+            resolution.targetIds, ["5765604b"],
+            "one selected document must run alone from every launch surface"
+        )
+    }
+
+    /// The same shape with a PAGE clicked — the granularity Daniel actually
+    /// wants and the reason this blocks him.
+    func testClickedPageRunsAloneDespiteAStaleSidebarRow() {
+        let page = WorkflowRunTarget.file("pdf-page-3")
+        let stalePDF = WorkflowRunTarget.file("other-pdf")
+
+        let scope = WorkflowRunTargetResolver.selectionScope(
+            clicked: page,
+            sidebarSelection: [stalePDF],
+            windowSelection: [page]
+        )
+        let resolution = WorkflowRunTargetResolver.resolve(
+            clicked: page, selection: scope, documents: documentsWithPDFPages
+        )
+
+        XCTAssertEqual(resolution.targetIds, ["pdf-page-3"])
+    }
+
+    /// #4523 must not regress: a file picked in the library pane, then
+    /// right-clicked in the sidebar, still runs as itself.
+    func testWindowSelectionStillScopesTheRunWhenSidebarHasNoSelection() {
+        let file = WorkflowRunTarget.file("a")
+        let scope = WorkflowRunTargetResolver.selectionScope(
+            clicked: file, sidebarSelection: [], windowSelection: [file]
+        )
+        XCTAssertEqual(
+            targets(clicked: file, selection: scope, documents: documents), ["a"]
+        )
+    }
+
+    /// A REAL multi-selection — several sidebar rows picked, one right-clicked
+    /// — must still run on all of them. Fixing the widening by always
+    /// narrowing to the clicked row would be the #4419 defect again.
+    func testGenuineSidebarMultiSelectionStillRunsOnAllOfIt() {
+        let a = WorkflowRunTarget.file("a")
+        let b = WorkflowRunTarget.file("b")
+        let scope = WorkflowRunTargetResolver.selectionScope(
+            clicked: a, sidebarSelection: [a, b], windowSelection: []
+        )
+        XCTAssertEqual(
+            targets(clicked: a, selection: scope, documents: documents).sorted(),
+            ["a", "b"]
+        )
+    }
+
+    /// Clicking outside every selection still runs on the clicked row alone
+    /// AND still reports that a selection was set aside, so the menu keeps
+    /// saying "Runs on this item only" (#4396: narrowing must be declared).
+    func testClickOutsideBothDomainsStillDeclaresTheIgnoredSelection() {
+        let clicked = WorkflowRunTarget.file("b")
+        let scope = WorkflowRunTargetResolver.selectionScope(
+            clicked: clicked,
+            sidebarSelection: [.file("outside")],
+            windowSelection: [.file("a")]
+        )
+        let resolution = WorkflowRunTargetResolver.resolve(
+            clicked: clicked, selection: scope, documents: documents
+        )
+
+        XCTAssertEqual(resolution.targetIds, ["b"])
+        XCTAssertTrue(
+            resolution.ignoredSelection,
+            "the selection was set aside — the menu must say so, not drop it silently"
+        )
+    }
 }

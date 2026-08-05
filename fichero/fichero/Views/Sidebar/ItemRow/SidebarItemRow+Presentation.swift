@@ -311,14 +311,25 @@ extension SidebarItemRow {
         // #4523 LAW: the run's selection is the WINDOW's document selection,
         // not just the sidebar's own. The library-pane selection (live or
         // preserved across the navigation that cleared it, #712 carve-out)
-        // joins the sidebar's selected destinations, so right-clicking the
-        // selected file's row runs THAT file — never its peers.
-        let windowSelectionTargets = windowState.preservedDocumentSelection
-            .map { WorkflowRunTarget.file($0) }
+        // is what makes right-clicking the selected file's row run THAT file
+        // rather than its peers.
+        //
+        // #4552: these two are separate DOMAINS and must not be unioned. See
+        // `selectionScope` — a union let the clicked row arrive from one
+        // domain while the extra targets came from the other, which `resolve`
+        // cannot tell apart from a real multi-selection. That ran a workflow
+        // on a PDF the user had not touched in an hour.
+        let sidebarSelection = Set(selectedDestinations.compactMap(workflowRunTarget(for:)))
+        let windowSelection = Set(
+            windowState.preservedDocumentSelection.map { WorkflowRunTarget.file($0) }
+        )
         return WorkflowRunTargetResolver.resolve(
             clicked: clickedTarget,
-            selection: Set(selectedDestinations.compactMap(workflowRunTarget(for:)))
-                .union(windowSelectionTargets),
+            selection: WorkflowRunTargetResolver.selectionScope(
+                clicked: clickedTarget,
+                sidebarSelection: sidebarSelection,
+                windowSelection: windowSelection
+            ),
             documents: documentStore?.sidebarDocuments ?? []
         )
     }

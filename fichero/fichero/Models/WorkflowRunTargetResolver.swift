@@ -77,6 +77,40 @@ enum WorkflowRunTargetResolver {
         var isEmpty: Bool { targetIds.isEmpty }
     }
 
+    /// Pick WHICH selection a run honours, from the two independent domains a
+    /// sidebar right-click can see (#4552).
+    ///
+    /// The sidebar used to hand `resolve` the UNION of its own selected rows
+    /// and the window's document selection. `resolve` then treats the clicked
+    /// row being present anywhere in that set as "the user right-clicked
+    /// inside their selection, so run on all of it". Across a union of two
+    /// domains that inference is invalid: the clicked row can arrive from the
+    /// WINDOW domain (it is simply what the gallery is previewing) while the
+    /// extra ids come from the SIDEBAR domain (a row selected for some other
+    /// reason, possibly an hour ago). Neither is a multi-selection the user
+    /// made, but together they read as one.
+    ///
+    /// Measured on Daniel's 2026-08-05 reproduction: clicked `5765604b` with
+    /// sidebar `{7dba0b73}` and window `{5765604b}` yielded
+    /// `documents:2 [5765604b, 7dba0b73]` — a run on a PDF the user had not
+    /// touched since the previous hour. The batch-picker surface, which has
+    /// only ONE domain, was correct in the same library minutes apart.
+    ///
+    /// So: never union. A multi-target run happens only when the clicked row
+    /// belongs to the domain supplying the other targets. When it belongs to
+    /// neither, both are still returned so `resolve` can report
+    /// `ignoredSelection` — it will not USE them, because `usesSelection` is
+    /// false, but the menu must still say the selection was set aside.
+    static func selectionScope(
+        clicked: WorkflowRunTarget,
+        sidebarSelection: Set<WorkflowRunTarget>,
+        windowSelection: Set<WorkflowRunTarget>
+    ) -> Set<WorkflowRunTarget> {
+        if sidebarSelection.contains(clicked) { return sidebarSelection }
+        if windowSelection.contains(clicked) { return windowSelection }
+        return sidebarSelection.union(windowSelection)
+    }
+
     static func resolve(
         clicked: WorkflowRunTarget,
         selection: Set<WorkflowRunTarget>,
