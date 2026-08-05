@@ -128,8 +128,8 @@
   "sha256": "d86910583518820a252d6215fde00e3e90862f53423c1edfac043c958cfbebc8"
  },
  "transcribe_paleography_ensemble.json": {
-  "preset_version": 3,
-  "sha256": "828bceab164e9f79f1828982291760e436c1bd3b53b356bd3defe7b2c6dabb17"
+  "preset_version": 4,
+  "sha256": "5bb5cfdb609c46b52c235c4d2721e620439ecdb683ea6a4603d1b39518c4cefc"
  },
  "transcribe_spanish_script_v2_child.json": {
   "preset_version": 3,

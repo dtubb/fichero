@@ -157,7 +157,16 @@ class WorkflowExecutionService {
         isExecuting = true
         defer { isExecuting = false }
 
-        let response = try await client.api.executeWorkflowApiWorkflowExecutionExecutePost(
+        // `longRunningAPI`: starting a run can take longer than the 60-second
+        // whole-request deadline on `api`. Daniel hit
+        // `HTTPClientError.deadlineExceeded` on this exact operation running the
+        // paleography ensemble (2026-08-04) — the POST is meant to be an
+        // ACCEPT-and-stream handshake, but on a cold engine or a large selection
+        // the accept itself outlives the bound, and the user is told the run
+        // failed when the server is still setting it up. Same class as the
+        // import timeout: a bound sized for "should be quick" applied to work
+        // whose duration scales with the request.
+        let response = try await client.longRunningAPI.executeWorkflowApiWorkflowExecutionExecutePost(
             body: .json(request)
         )
 

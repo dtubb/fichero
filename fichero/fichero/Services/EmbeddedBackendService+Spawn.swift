@@ -256,8 +256,30 @@ extension EmbeddedBackendService {
             at: logURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        FileManager.default.createFile(atPath: logURL.path, contents: nil)
-        return try FileHandle(forWritingTo: logURL)
+        // APPEND, never truncate.
+        //
+        // `createFile(atPath:contents:nil)` on an existing file empties it, so
+        // every spawn destroyed the previous engine's log — and the spawn that
+        // matters most is the one that FOLLOWS a crash. Observed 2026-08-04: the
+        // engine died mid-import (the app saw `remoteConnectionClosed`), the
+        // supervisor restarted it (#4064), and by the time anyone looked the log
+        // held only the new engine's healthy output. The evidence was deleted by
+        // the recovery.
+        //
+        // Only create when absent; otherwise open and seek to the end. A run
+        // marker goes in first so consecutive runs are separable in one file —
+        // without it, appending would merge two engines' output into an
+        // undifferentiated stream, which trades one unreadable log for another.
+        if !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        }
+        let handle = try FileHandle(forWritingTo: logURL)
+        try handle.seekToEnd()
+        let marker = "\n===== engine spawn \(Date().formatted(.iso8601)) =====\n"
+        if let data = marker.data(using: .utf8) {
+            try? handle.write(contentsOf: data)
+        }
+        return handle
     }
 
     private func makeTerminationHandler() -> @Sendable (Process) -> Void {
