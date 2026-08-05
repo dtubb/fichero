@@ -274,11 +274,29 @@ if [ "$SKIP_DMG" = false ] && [ "$SKIP_NOTARIZE" = false ]; then
   if xcrun notarytool history --keychain-profile "${FICHERO_NOTARIZE_PROFILE:-notarytool}" >/dev/null 2>&1; then
     echo "  notarytool OK: profile '${FICHERO_NOTARIZE_PROFILE:-notarytool}'"
   else
-    echo "error: no usable notarytool credential — notarization would fail AFTER" >&2
-    echo "       the DMG is built and signed. Store it once:" >&2
-    echo "         xcrun notarytool store-credentials ${FICHERO_NOTARIZE_PROFILE:-notarytool} \\" >&2
-    echo "           --key \"$APP_STORE_CONNECT_KEY_PATH\" \\" >&2
-    echo "           --key-id $APP_STORE_CONNECT_KEY_ID --issuer $APP_STORE_CONNECT_ISSUER_ID" >&2
+    # notarytool says "No Keychain password item found" for BOTH an absent
+    # profile and one that exists but this process may not read — and it does
+    # not store the item where `security` can see it, so nothing here can tell
+    # the two apart. Say so, and give both remedies, rather than sending the
+    # user down one road when the other is the problem. Guessing here is what
+    # cost hours on 2026-08-05.
+    echo "error: notarytool cannot USE the credential profile" >&2
+    echo "       '${FICHERO_NOTARIZE_PROFILE:-notarytool}'. Notarization would fail" >&2
+    echo "       AFTER the DMG is built and signed." >&2
+    echo "" >&2
+    echo "       Its message does not distinguish ABSENT from PRESENT-BUT-DENIED," >&2
+    echo "       so try them in this order:" >&2
+    echo "" >&2
+    echo "       1. Grant this process access to the keychain (fixes DENIED):" >&2
+    echo "            security unlock-keychain ~/Library/Keychains/login.keychain-db" >&2
+    echo "            security set-key-partition-list -S apple-tool:,apple:,codesign: \\" >&2
+    echo "              -s ~/Library/Keychains/login.keychain-db" >&2
+    echo "" >&2
+    echo "       2. If it still fails, the profile is genuinely absent — store it:" >&2
+    echo "            xcrun notarytool store-credentials ${FICHERO_NOTARIZE_PROFILE:-notarytool} \\" >&2
+    echo "              --key \"$APP_STORE_CONNECT_KEY_PATH\" \\" >&2
+    echo "              --key-id $APP_STORE_CONNECT_KEY_ID --issuer $APP_STORE_CONNECT_ISSUER_ID" >&2
+    echo "" >&2
     echo "       (Or re-run with --skip-notarize for a local-testing DMG.)" >&2
     preflight_failed=1
   fi
@@ -288,9 +306,17 @@ if [ "$RUN_GITHUB" = true ]; then
   if gh auth status >/dev/null 2>&1; then
     echo "  gh OK: authenticated"
   else
-    echo "error: gh is not authenticated — the GitHub release would fail at the" >&2
-    echo "       very end, after notarization and both TestFlight uploads:" >&2
+    # Same ambiguity as notarytool: an invalid token and an unreadable one both
+    # present as "not logged in". `gh auth login` re-mints either way, and
+    # `setup-git` is what makes `git push` work too — the credential helper is a
+    # separate step people forget, and its absence surfaces much later as
+    # "could not read Username for https://github.com".
+    echo "error: gh cannot authenticate — the GitHub release would fail at the" >&2
+    echo "       very end, after notarization and both TestFlight uploads." >&2
+    echo "       The token may be absent, expired, or unreadable from a" >&2
+    echo "       non-interactive shell; this re-mints it in every case:" >&2
     echo "         gh auth login -h github.com" >&2
+    echo "         gh auth setup-git      # also fixes git push" >&2
     preflight_failed=1
   fi
 fi
