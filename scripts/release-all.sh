@@ -255,6 +255,64 @@ if [ "${#PREFLIGHT_IDS[@]}" -gt 0 ]; then
   preflight_codesign_access "${PREFLIGHT_IDS[@]}"
 fi
 
+# Every OTHER credential the enabled lanes need, checked here for the same
+# reason codesign is: a release that dies 40 minutes in on a missing
+# credential has already spent the build.
+#
+# 2026-08-05: the notarytool profile failed AFTER the DMG had been built and
+# signed, and the GitHub token was invalid on a run that had already
+# notarized. Both were knowable in the first second.
+#
+# Each failure prints the ONE command that fixes it. And note what these
+# failures actually look like: `notarytool` reports an item it cannot READ as
+# "No Keychain password item found" — absent, when it is present and
+# unauthorised. Non-interactive keychain access has now bitten four separate
+# credentials here, always with an error that says missing rather than denied.
+preflight_failed=0
+
+if [ "$SKIP_DMG" = false ] && [ "$SKIP_NOTARIZE" = false ]; then
+  if xcrun notarytool history --keychain-profile "${FICHERO_NOTARIZE_PROFILE:-notarytool}" >/dev/null 2>&1; then
+    echo "  notarytool OK: profile '${FICHERO_NOTARIZE_PROFILE:-notarytool}'"
+  else
+    echo "error: no usable notarytool credential — notarization would fail AFTER" >&2
+    echo "       the DMG is built and signed. Store it once:" >&2
+    echo "         xcrun notarytool store-credentials ${FICHERO_NOTARIZE_PROFILE:-notarytool} \\" >&2
+    echo "           --key \"$APP_STORE_CONNECT_KEY_PATH\" \\" >&2
+    echo "           --key-id $APP_STORE_CONNECT_KEY_ID --issuer $APP_STORE_CONNECT_ISSUER_ID" >&2
+    echo "       (Or re-run with --skip-notarize for a local-testing DMG.)" >&2
+    preflight_failed=1
+  fi
+fi
+
+if [ "$RUN_GITHUB" = true ]; then
+  if gh auth status >/dev/null 2>&1; then
+    echo "  gh OK: authenticated"
+  else
+    echo "error: gh is not authenticated — the GitHub release would fail at the" >&2
+    echo "       very end, after notarization and both TestFlight uploads:" >&2
+    echo "         gh auth login -h github.com" >&2
+    preflight_failed=1
+  fi
+fi
+
+if [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
+  if [ -f "$APP_STORE_CONNECT_KEY_PATH" ]; then
+    echo "  App Store Connect key OK: $APP_STORE_CONNECT_KEY_ID"
+  else
+    echo "error: App Store Connect key not found for TestFlight upload:" >&2
+    echo "         $APP_STORE_CONNECT_KEY_PATH" >&2
+    echo "       Set APP_STORE_CONNECT_KEY_PATH, or use --skip-testflight." >&2
+    preflight_failed=1
+  fi
+fi
+
+[ "$preflight_failed" = 0 ] || {
+  echo "" >&2
+  echo "Refusing to start: fix the above, then re-run. Failing now costs seconds;" >&2
+  echo "failing mid-release costs the whole build." >&2
+  exit 1
+}
+
 echo
 echo "── Engine: rebuild current Briefcase stage ──"
 "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
