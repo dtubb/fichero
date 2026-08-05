@@ -2,6 +2,50 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.08.04
+
+### Dev build
+
+A day of live testing turned into a day of fixes. The theme, over and over,
+was the app knowing exactly what went wrong and then saying something else.
+
+**Libraries you create now work.** Creating a library outside the app's own
+container produced "No Access — Library path is not in an allowed location"
+for a folder you had just picked in a save panel. The engine runs sandboxed,
+so its idea of your home folder is the app container, and no real location
+could ever be served. Fixed at both ends: the grant handoff no longer depends
+on a build flag that had stopped tracking whether the process is sandboxed,
+and creating a library now mints the access that only opening one used to.
+
+**Imports stop lying about failing.** A 50-page scan took 61 seconds and the
+client gave up at 60, so a successful import was reported as "All 1 import(s)
+failed" while the document sat in the library with all its pages. Ingest now
+gets a deadline that scales with the document. The failure alert also shows
+the per-file reasons it had been assembling and discarding, and the progress
+label no longer claims to be "preparing" an import it finished a minute ago.
+
+**PDFs get their text back.** The PDF text extractor downloaded a library at
+runtime, which macOS quarantines and Gatekeeper then refuses to load — so
+PDFs imported as page images with no searchable text, on every machine. It now
+ships inside the app, signed with it.
+
+**Transcription keeps the whole page.** Workflows that magnify a page into
+strips transcribed every strip and then overwrote each with the next, keeping
+only the last. Every piece is now kept and joined in order. The paleography
+ensemble's steps also say what they do instead of showing internal ids.
+
+**Errors say why.** A permission failure reports the reason the engine gave
+rather than a guess. Startup tells apart "nothing is listening", "the engine
+crashed", "another engine has the socket" and "your credentials were
+rejected" — four situations with four different remedies that used to share
+one message. An API key that cannot be read is no longer reported as absent.
+Drag-and-drop outcomes survive in the log where they can be read back, and
+the engine log is no longer erased by the restart that follows a crash.
+
+**Windows recover.** Closing the last library left no way to open a window;
+File-menu commands now work with no window open. Models & Providers shows the
+provider list again after a layout bug collapsed it to nothing.
+
 ## 2026.08.02
 
 ### Dev build
