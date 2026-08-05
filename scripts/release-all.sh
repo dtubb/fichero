@@ -276,13 +276,21 @@ echo "── Engine: rebuild current Briefcase stage ──"
 # Fails the release rather than warning: a missing dylib produces no error at
 # runtime, just PDFs with no text, which is exactly the silent-wrongness this
 # whole change exists to remove.
-if [ -d "$ENGINE_APP" ]; then
+# The path literally, not $ENGINE_APP: that variable is defined further down,
+# with the TestFlight setup, and this step has to run up here — before the DMG
+# consumes the bundle. Referencing it here is how the 07:2x run died under
+# `set -u` ("ENGINE_APP: unbound variable").
+ENGINE_APP_STAGE="$ROOT_DIR/fichero-server/build/fichero_server/macos/app/Fichero Server.app"
+if [ -d "$ENGINE_APP_STAGE" ]; then
   "$ROOT_DIR/scripts/place_pdfium_for_kreuzberg.py" \
-    "$ENGINE_APP/Contents/Resources/app_packages" || {
+    "$ENGINE_APP_STAGE/Contents/Resources/app_packages" || {
       echo "error: could not place libpdfium.dylib beside kreuzberg's binding." >&2
       echo "       PDFs would import with no searchable text. Refusing to ship that." >&2
       exit 1
     }
+else
+  echo "error: no engine bundle at $ENGINE_APP_STAGE after the rebuild" >&2
+  exit 1
 fi
 
 
