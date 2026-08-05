@@ -37,9 +37,25 @@ if [ -z "$SIGNING_IDENTITY" ]; then
   exit 1
 fi
 
-briefcase package macOS --app fichero_server --identity "$SIGNING_IDENTITY"
-
 BACKEND_APP_SOURCE="build/fichero_server/macos/app/Fichero Server.app"
+
+# Build and SIGN as two steps, so there is a seam between them.
+#
+# kreuzberg's Rust binding resolves libpdfium.dylib by @loader_path — beside
+# the binding — and extracts a copy into a temp dir when it is missing. macOS
+# quarantines a file the app writes, Gatekeeper refuses to dlopen it, and PDF
+# text extraction dies while the engine silently falls back to fitz for page
+# splitting (#2430): PDFs import as images with no searchable text, on every
+# machine. A dylib fetched at runtime can never inherit our notarization.
+#
+# pypdfium2 (in the briefcase requires) ships a real one, but under
+# pypdfium2_raw/, which is not @loader_path. So place it BEFORE signing —
+# after this the codesign pass seals it like everything else.
+briefcase update macOS --app fichero_server
+briefcase build macOS --app fichero_server
+python3 "$API_ROOT/../scripts/place_pdfium_for_kreuzberg.py" \
+  "$BACKEND_APP_SOURCE/Contents/Resources/app_packages"
+briefcase package macOS --app fichero_server --identity "$SIGNING_IDENTITY"
 if [ -d "$BACKEND_APP_SOURCE" ]; then
   echo "✅ Backend bundle ready: $BACKEND_APP_SOURCE"
 else

@@ -115,6 +115,23 @@ requires = [
     "apscheduler",
     "watchdog",
     "kreuzberg",
+    # pdfium must be IN the bundle, signed with it. kreuzberg ships no
+    # libpdfium.dylib and its Rust binding extracts one to a temp directory on
+    # first use; macOS quarantines a file the app wrote, Gatekeeper then refuses
+    # to dlopen it, and PDF text extraction dies with "Pdfium initialization
+    # failed" while the engine silently falls back to fitz for page splitting
+    # (#2430). Result: PDFs import as page images with no searchable text, on
+    # EVERY machine — a runtime-fetched dylib can never inherit the app's
+    # notarization. pypdfium2 ships the dylib inside its wheel, so briefcase
+    # packages it and the codesign pass covers it.
+    #
+    # NOTE: the binding resolves `@loader_path/libpdfium.dylib`, i.e. beside
+    # `kreuzberg/_internal_bindings.abi3.so` — so shipping the wheel is
+    # necessary but NOT sufficient; see scripts/place_pdfium_for_kreuzberg.py,
+    # run as a build step. Verified 2026-08-04: neither the bundle nor the venv
+    # contained libpdfium.dylib, and the live container held a quarantined,
+    # ad-hoc-signed copy under Data/tmp/kreuzberg-pdfium/.
+    "pypdfium2",
     "fastembed",
     # Historical-text stack (#3319/#3322) — mirrors [project].dependencies.
     "ftfy",
