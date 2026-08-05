@@ -786,6 +786,21 @@ async def lifespan(app: FastAPI):
             import fichero_server.workflows.runtime  # noqa: F401, PLC0415
 
             logger.info("Workflow tool stack warmed")
+
+            # Warm the embedding model too — OFF the bind path, in a thread.
+            #
+            # `_prewarm_embeddings` has existed all along and was never called,
+            # so the ~19s model load landed on whoever imported first. Measured
+            # 2026-08-05: a docx import took 26s, and an unrelated
+            # `get_children` that runs in 2-3ms elsewhere took 24,799ms at the
+            # same moment — not a slow query, a thread starved by the load.
+            #
+            # `to_thread` matters as much as calling it: fastembed's init is
+            # synchronous CPU + disk work, and awaiting it inline here would
+            # move the stall from first-ingest to startup, which is the same
+            # stall wearing a different hat. This way the engine is already
+            # serving while the model loads behind it.
+            asyncio.create_task(asyncio.to_thread(_prewarm_embeddings))
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
             # engine that is already serving. It is logged at WARNING with a

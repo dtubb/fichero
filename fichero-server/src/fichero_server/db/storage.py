@@ -658,7 +658,10 @@ def ensure_thumbnail(
     Returns:
         Path to thumbnail, or None on failure
     """
-    with perf_span(
+    # Serialise generation for THIS document (see _thumbnail_lock): the second
+    # caller waits, then finds the finished file and takes the cache-hit path,
+    # instead of rewriting the file while the first response is being sent.
+    with _thumbnail_lock(doc.id), perf_span(
         "library.thumbnail.ensure",
         logger=logger,
         doc_id=doc.id,
@@ -997,6 +1000,28 @@ def _sips_convert(source: Path) -> Path | None:
 
 # Background executor (lazy-initialized)
 _executor: ThreadPoolExecutor | None = None
+# One generation at a time PER DOCUMENT.
+#
+# Two concurrent requests for the same doc both saw a cache miss and both
+# generated, writing the same output path underneath each other. Observed
+# 2026-08-05: doc 3b96464c generated twice (458ms and 583ms) and uvicorn raised
+# `RuntimeError: Response content shorter than Content-Length` — one response
+# had measured the file, the other rewrote it mid-send, so the promised byte
+# count no longer existed. Intermittent, and it corrupts an in-flight response
+# rather than failing the generation.
+#
+# Keyed per document, not global: different documents must still generate in
+# parallel, and a global lock would serialise a whole grid of thumbnails.
+# The registry itself is guarded so the keys can be created concurrently.
+_thumbnail_locks: dict[str, threading.Lock] = {}
+_thumbnail_locks_guard = threading.Lock()
+
+
+def _thumbnail_lock(doc_id: str) -> threading.Lock:
+    with _thumbnail_locks_guard:
+        return _thumbnail_locks.setdefault(doc_id, threading.Lock())
+
+
 _executor_lock = threading.Lock()
 
 
