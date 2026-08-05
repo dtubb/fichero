@@ -276,11 +276,21 @@ extension LibraryView {
             ProgressView()
                 .controlSize(.large)
 
-            Text(placeholder == .importing ? "Preparing Import…" : "Loading…")
+            // "Importing…", not "Preparing Import…". This placeholder is shown
+            // for the WHOLE import — Daniel watched it read "Preparing Import…
+            // / Reading the dropped items" while the engine had already ingested
+            // the file and created 50 page children. The label described the
+            // first instant and then asserted it for a minute.
+            //
+            // It does not claim a finer phase because the app cannot observe
+            // one here: `importingLibrary` is a single boolean-ish state, and a
+            // label that names a phase we cannot see would be the same lie in
+            // nicer words. Say the true, coarse thing.
+            Text(placeholder == .importing ? "Importing…" : "Loading…")
                 .font(.headline)
 
             Text(placeholder == .importing
-                 ? "Reading the dropped items"
+                 ? "Large documents can take a minute"
                  : "Fetching this folder’s contents")
                 .font(.subheadline)
                 .foregroundColor(.secondary)

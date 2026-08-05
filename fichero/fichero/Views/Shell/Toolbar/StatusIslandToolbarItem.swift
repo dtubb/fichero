@@ -49,7 +49,12 @@ struct StatusIslandToolbarItem: View {
                 // Cancel: there is no task to cancel until the engine has one.
                 ProgressView()
                     .controlSize(.small)
-                Text("Preparing import to \(library.displayName)…")
+                // "Importing to X…", not "Preparing import to X…": this is
+                // shown for the whole import, not just the staging phase it was
+                // named after. Same correction as the library pane's
+                // placeholder — the two must not drift apart, since a user sees
+                // both at once (2026-08-04).
+                Text("Importing to \(library.displayName)…")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {

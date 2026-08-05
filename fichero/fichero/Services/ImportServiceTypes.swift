@@ -97,7 +97,27 @@ struct ImportError: Error, LocalizedError, Identifiable {
     let error: Error
 
     var errorDescription: String? {
-        "Failed to import \(url.lastPathComponent): \(error.localizedDescription)"
+        "Failed to import \(url.lastPathComponent): \(Self.fullReason(for: error))"
+    }
+
+    /// The whole reason, not just its headline.
+    ///
+    /// `localizedDescription` returns ONLY `NSLocalizedDescriptionKey`. When the
+    /// underlying error is the batch error from
+    /// `ImportService.makeAllImportsFailedError`, that key holds the summary
+    /// ("All 1 import(s) failed") while the per-file causes it carefully
+    /// assembled sit in `NSLocalizedRecoverySuggestionErrorKey` — so the one
+    /// part the user can act on was built, attached, and then dropped on the
+    /// floor by every caller that read `localizedDescription` (2026-08-04:
+    /// Daniel saw "All 1 import(s) failed" and no cause at all).
+    ///
+    /// Appended, not substituted: the summary says how MUCH failed and the
+    /// suggestion says WHY, and neither answers the other's question.
+    static func fullReason(for error: Error) -> String {
+        let headline = error.localizedDescription
+        let suggestion = (error as NSError).localizedRecoverySuggestion
+        guard let suggestion, !suggestion.isEmpty else { return headline }
+        return "\(headline)\n\(suggestion)"
     }
 }
 
