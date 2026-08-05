@@ -345,6 +345,26 @@ TESTFLIGHT_MARKETING_VERSION="${TESTFLIGHT_MARKETING_VERSION:-$(app_store_versio
 TESTFLIGHT_BUILD_VERSION="${TESTFLIGHT_BUILD_VERSION:-${PROJECT_BUILD_VERSION:-$(date +%Y%m%d)}}"
 ENGINE_APP="$ROOT_DIR/fichero-server/build/fichero_server/macos/app/Fichero Server.app"
 
+# BUILD the server we are about to ship, rather than shipping whatever is on
+# disk.
+#
+# This script consumed $ENGINE_APP and never built it, so whether the embedded
+# engine matched the source being released depended entirely on what someone
+# ran beforehand. That is how a "successful" release embeds a stale server —
+# and it is why the pdfium placement kept missing: the hook lived in
+# build_backend_bundle.sh, which the release never called.
+#
+# One owner for the server build, and the release calls it. Slower by the
+# briefcase build when the bundle is already current; the alternative is a
+# release whose contents nobody can state with confidence.
+echo ""
+echo "── Server: build the embedded engine ──"
+"$ROOT_DIR/fichero-server/scripts/build_backend_bundle.sh"
+[ -d "$ENGINE_APP" ] || {
+  echo "error: server bundle missing after build_backend_bundle.sh: $ENGINE_APP" >&2
+  exit 1
+}
+
 # pdfium must sit BESIDE kreuzberg's binding, which resolves it by
 # @loader_path. `pypdfium2` (briefcase requires) puts a real, signable
 # libpdfium.dylib in the bundle — but under pypdfium2_raw/, which is NOT

@@ -181,7 +181,12 @@ def _self_test() -> list[str]:
 # and fails in a used one -- and a guardrail that fires on vendored code, for
 # reasons the reader cannot act on, is a guardrail somebody switches off. A
 # disabled check is worse than an absent one: it still looks present.
-VENDORED = (".build", "DerivedData", "Pods", ".swiftpm")
+# `SourcePackages` is where XCODE puts SPM checkouts (as opposed to `.build`,
+# which is where the swift CLI puts them) — so a release build in a worktree
+# populated fichero/build/xcode/SourcePackages/checkouts/ and this check started
+# firing on swift-nio-http2's benchmark, exactly the case the comment above
+# already anticipated but the tuple did not cover (2026-08-05).
+VENDORED = (".build", "DerivedData", "Pods", ".swiftpm", "SourcePackages", "checkouts")
 
 
 def _swift_files() -> list[Path]:
