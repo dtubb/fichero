@@ -951,7 +951,13 @@ async def cancel_workflow(
 @router.post("/threads/{thread_id}/pause", response_model=PauseResponse)
 async def pause_workflow(
     thread_id: str,
-    db: Database = Depends(get_library_database),
+    # Pausing a run CHANGES its state, exactly like cancelling one — and
+    # `cancel_workflow` two handlers up already depends on the write database.
+    # This one was left on the read-only dependency by #4402, so with
+    # FICHERO_MULTIUSER enabled a VIEWER could pause anyone's run. The
+    # route-authz guardrail names this exact class; it was red on integration
+    # before tonight's work.
+    db: Database = Depends(get_library_database_for_write),
 ) -> PauseResponse:
     """Signal a running workflow to pause at its next boundary (#4402).
 
