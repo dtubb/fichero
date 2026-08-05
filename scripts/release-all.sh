@@ -258,14 +258,6 @@ fi
 echo
 echo "── Engine: rebuild current Briefcase stage ──"
 "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
-echo ""
-echo "── Server: build the embedded engine ──"
-"$ROOT_DIR/fichero-server/scripts/build_backend_bundle.sh"
-[ -d "$ENGINE_APP" ] || {
-  echo "error: server bundle missing after build_backend_bundle.sh: $ENGINE_APP" >&2
-  exit 1
-}
-
 # pdfium must sit BESIDE kreuzberg's binding, which resolves it by
 # @loader_path. `pypdfium2` (briefcase requires) puts a real, signable
 # libpdfium.dylib in the bundle — but under pypdfium2_raw/, which is NOT
