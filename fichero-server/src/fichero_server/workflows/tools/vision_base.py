@@ -3109,8 +3109,15 @@ async def process_vision(
     from fichero_server.workflows.builder import (
         VISION_FAN_OUT_CONCURRENCY,
         _get_vision_semaphore,
+        vision_slot,
     )
 
+    # `_vision_sem` is still the raw semaphore, handed to call_with_breaker so
+    # a backed-off file frees its slot during the sleep. The *acquisition*
+    # below goes through `vision_slot()` instead, which is re-entrant: when
+    # process_vision runs inside a fan-out branch the builder already holds
+    # this branch's slot, and re-acquiring the same non-reentrant semaphore
+    # deadlocked the whole run (#4553).
     _vision_sem = _get_vision_semaphore()
     activity_db_path = None
     if library_path:
@@ -3133,7 +3140,7 @@ async def process_vision(
     async def _run_one(file_index: int, file_path: str) -> dict:
         activity_scope = _vision_activity_db_path.set(activity_db_path)
         try:
-            async with _vision_sem:
+            async with vision_slot():
                 return await _process_file(file_index, file_path)
         except TypeError as exc:
             # The inner handler deliberately re-raises a malformed CALL (#4504).

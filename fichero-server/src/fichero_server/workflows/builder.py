@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +73,49 @@ def _get_vision_semaphore() -> asyncio.Semaphore:
         _vision_fan_out_sem = asyncio.Semaphore(VISION_FAN_OUT_CONCURRENCY)
         _vision_fan_out_sem_loop = loop
     return _vision_fan_out_sem
+
+
+# True while the current task already holds the shared vision slot (#4553).
+# Each Send branch runs in its own asyncio Task, and asyncio.gather copies the
+# context into each per-file task, so this is per-branch state, not global.
+_vision_slot_held: ContextVar[bool] = ContextVar(
+    "fichero_vision_slot_held", default=False
+)
+
+
+@asynccontextmanager
+async def vision_slot():
+    """Hold exactly ONE shared vision/LLM concurrency slot, RE-ENTRANTLY.
+
+    ``asyncio.Semaphore`` is not reentrant, and two layers both wrap vision
+    work in the *same* module-global semaphore:
+
+      * ``_make_parallel_node_function`` wraps each fan-out branch's tool call
+      * ``vision_base.process_vision._run_one`` wraps each per-file coroutine
+
+    A fan-out branch therefore acquired the semaphore, then tried to acquire it
+    again from inside the tool. With ``VISION_FAN_OUT_CONCURRENCY == 4`` that
+    self-deadlocks the moment a run fans out to 4 or more branches: the first
+    four take the last four permits and then block forever on their own inner
+    acquire, and the remaining branches block on the outer one. The run emits
+    no node output, no error and no terminal event — it simply stops (#4553).
+    Fan-outs of 1-3 files never hit it, which is why it survived: a 10-page PDF
+    hangs, a 3-page PDF does not.
+
+    Re-entering this context manager inside a task that already holds the slot
+    is a no-op, so a branch holds exactly one permit for its whole lifetime and
+    the cap still means "at most N vision calls in flight".
+    """
+    if _vision_slot_held.get():
+        yield
+        return
+    semaphore = _get_vision_semaphore()
+    token = _vision_slot_held.set(True)
+    try:
+        async with semaphore:
+            yield
+    finally:
+        _vision_slot_held.reset(token)
 
 
 def _required_llm_capability_for_category(category: str | None) -> str:
@@ -1550,7 +1595,10 @@ def _make_parallel_node_function(
 
             # Cap concurrent in-flight vision/LLM calls to avoid OOM when a
             # large batch dispatches dozens of Sends simultaneously (#2221).
-            async with _get_vision_semaphore():
+            # #4553: re-entrant slot — the tool acquires the same shared
+            # semaphore internally, and a plain `async with semaphore` here
+            # self-deadlocked every fan-out of 4+ files.
+            async with vision_slot():
                 # #4317: branches queued behind the semaphore re-check after
                 # acquiring it, so a cancel stops the queue within one file
                 # boundary instead of draining every waiting branch.
