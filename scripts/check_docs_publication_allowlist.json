@@ -27,6 +27,7 @@
     "contributor/architecture/pi_agent_harness.md",
     "contributor/architecture/portable-workflows-and-archival-format.md",
     "contributor/architecture/thinking-layer.md",
+    "contributor/architecture/word-level-geometry-in-transcription.md",
     "contributor/architecture/workflow_multi_pass_engine.md",
     "contributor/cli-test-harness.md",
     "contributor/design/embedded-local-models-plan.md",

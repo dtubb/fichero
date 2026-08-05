@@ -177,6 +177,13 @@ class OCRGeometryStatus(StrEnum):
     NOT_SUPPORTED = "not_supported"
     #: Geometry capture was never attempted on this pass.
     NOT_RUN = "not_run"
+    #: Geometry WAS requested and the engine answered with something that
+    #: could not be read as geometry — unparseable JSON, no boxes, coordinates
+    #: outside the page, or box text that does not appear in the transcription
+    #: (#4553 follow-up). Distinct from NOT_SUPPORTED: the model was asked, it
+    #: replied, and the reply was rejected. Mapping this onto any of the three
+    #: above would claim something untrue about the engine or the page.
+    MALFORMED = "malformed"
 
 
 def geometry_unavailable(

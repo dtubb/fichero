@@ -59,7 +59,10 @@ TRANSCRIBE_CONFIG = {
     "return_boxes": {
         "type": "boolean",
         "default": False,
-        "description": "Text positions",
+        "description": (
+            "Ask the model for word/line bounding boxes (Gemini only; other "
+            "providers transcribe without geometry and say so)"
+        ),
     },
     "update_page_content": {
         "type": "boolean",

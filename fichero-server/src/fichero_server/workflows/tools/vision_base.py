@@ -22,6 +22,7 @@ import base64
 import dataclasses
 from functools import lru_cache
 import io
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -1260,7 +1261,16 @@ def _llm_geometry_unavailable(
     provider = getattr(llm_config, "provider", None) or "unknown"
     model = getattr(llm_config, "model", None) or "unknown"
     if reason is not None:
-        status = OCRGeometryStatus.NOT_RUN
+        # An explicit reason still has to carry the right STATUS. A provider
+        # that cannot localise text is NOT_SUPPORTED however the reason was
+        # phrased; only a capable provider that simply did not run geometry
+        # this pass is NOT_RUN. Flattening both to NOT_RUN told the reader
+        # "nobody looked" about a model that could never have looked.
+        status = (
+            OCRGeometryStatus.NOT_RUN
+            if _supports_return_boxes(llm_config)
+            else OCRGeometryStatus.NOT_SUPPORTED
+        )
         detail = reason
     elif _supports_return_boxes(llm_config):
         status = OCRGeometryStatus.NOT_RUN
@@ -1460,6 +1470,25 @@ def _parse_return_boxes_payload(
     )
     if not geometry.boxes:
         raise ValueError("Gemini return_boxes response must include at least one box")
+    # The prompt demands 'Every box's "text" must appear in the transcription
+    # above it'. Nothing enforced it, so a model that invented coordinates for
+    # words it did not read produced boxes that render authoritatively over the
+    # wrong part of the page — the failure mode that is worse than no boxes at
+    # all, because a reader cannot tell it from real geometry. A box whose text
+    # is absent from the transcript is not geometry; it is noise with
+    # coordinates. Reject the whole result rather than silently dropping the
+    # offending boxes: if the model fabricated one span it cannot be trusted on
+    # the placement of the others either.
+    orphans = [
+        box.text for box in geometry.boxes if box.text.strip() and box.text not in geometry.text
+    ]
+    if orphans:
+        raise ValueError(
+            f"{len(orphans)} of {len(geometry.boxes)} return_boxes entries carry "
+            f"text absent from the transcription (first: {orphans[0]!r}) — "
+            "rejecting the geometry rather than drawing boxes for words that "
+            "were never transcribed"
+        )
     boxes = [
         box.model_copy(
             update={
@@ -1472,6 +1501,70 @@ def _parse_return_boxes_payload(
     # box↔text link has to be established here. Without it the boxes can be
     # drawn but no line of the transcript resolves to one.
     return attach_char_spans(geometry.model_copy(update={"boxes": boxes}))
+
+
+def _return_boxes_text_and_geometry(
+    payload: str,
+    *,
+    llm_config: LLMConfig,
+    page_index: int | None,
+) -> tuple[str, OCRGeometryResult]:
+    """Parse a ``return_boxes`` reply into (text, geometry), NEVER losing text.
+
+    Geometry is a decoration on a transcription; the transcription is the
+    archival record. Both call sites used to do::
+
+        page_geometry = _parse_return_boxes_payload(text, ...)
+        text = page_geometry.text
+
+    so any geometry failure — the model answering in prose instead of JSON, a
+    single out-of-range coordinate, one box quoting a word that is not in the
+    transcript — raised, and the per-file handler recorded the file as failed
+    with ``text=""``. Measured against a Gemini config with a prose reply:
+    ``text=[''] error='Expecting value: line 1 column 1 (char 0)'``. A perfectly
+    good transcription, produced by the model, thrown away because its
+    decoration did not parse.
+
+    A failure in one concern must not destroy the result of another, and the
+    reason must be stated rather than swallowed. So: keep the raw payload as
+    the transcription and return a geometry record whose status says the boxes
+    were requested, answered, and REJECTED, with the reason attached. The
+    rejection stays as loud as it was — it just no longer takes the text with
+    it.
+    """
+    try:
+        geometry = _parse_return_boxes_payload(
+            payload, llm_config=llm_config, page_index=page_index
+        )
+    except Exception as exc:
+        provider = getattr(llm_config, "provider", None) or "unknown"
+        model = getattr(llm_config, "model", None) or "unknown"
+        logger.warning(
+            "return_boxes: %s/%s returned geometry that could not be used (%s) "
+            "— keeping the transcription, recording geometry as malformed",
+            provider,
+            model,
+            exc,
+        )
+        # Salvage the best available transcription. When the reply WAS valid
+        # JSON and only its boxes were rejected, the transcript is sitting in
+        # the `text` field — storing the raw JSON blob instead would be a
+        # different kind of data loss. Falling back to the raw payload only
+        # covers the case where the model ignored the JSON request entirely.
+        salvaged = payload
+        try:
+            decoded = json.loads(payload)
+            if isinstance(decoded, dict) and isinstance(decoded.get("text"), str):
+                salvaged = decoded["text"]
+        except (ValueError, TypeError):
+            pass
+        return salvaged, geometry_unavailable(
+            status=OCRGeometryStatus.MALFORMED,
+            provider=provider,
+            model=model,
+            reason=f"return_boxes reply rejected: {exc}",
+        )
+    return geometry.text, geometry
 
 
 async def _propagate_to_page_children(
@@ -2262,15 +2355,47 @@ async def process_vision(
                     )
                     if edited:
                         file_path = str(edited)
-            if return_boxes:
+            # `return_boxes` is a VISIBLE toggle on the transcribe node (it has
+            # no `x-hidden` in the config schema, so the editor renders it), but
+            # only the Gemini LLM path can honour it. Ticking it with any other
+            # provider used to RAISE, which the per-file handler recorded as a
+            # failed file: the user asked for a decoration their model cannot
+            # produce and lost the transcription as a result. Same data-loss
+            # class as a geometry parse failure (#4553 follow-up).
+            #
+            # So: transcribe normally and record WHY there is no geometry.
+            # `_llm_geometry_unavailable` exists for exactly this and writes
+            # NOT_SUPPORTED plus a human-readable reason onto the artifact, so
+            # this is not a silent fallback — the answer to "where are my
+            # boxes?" travels with the record instead of being swallowed.
+            #
+            # `_boxes_requested` is a per-file copy of the node's
+            # `return_boxes`, NOT a rebinding of it: assigning to the closed-over
+            # name inside this nested function would make it local to every
+            # invocation and raise UnboundLocalError on the read above.
+            _boxes_unsupported_reason: str | None = None
+            _boxes_requested = return_boxes
+            if _boxes_requested:
                 if vision_mode != "llm":
-                    raise ValueError(
-                        "return_boxes is only supported on the Gemini LLM vision path"
+                    _boxes_unsupported_reason = (
+                        f"return_boxes needs the LLM vision path; this run used "
+                        f"vision_mode={vision_mode!r}"
                     )
-                if not _supports_return_boxes(effective_config):
-                    raise ValueError(
-                        "return_boxes requires provider=google with a Gemini model"
+                elif not _supports_return_boxes(effective_config):
+                    _boxes_unsupported_reason = (
+                        f"{getattr(effective_config, 'provider', 'unknown')}/"
+                        f"{getattr(effective_config, 'model', 'unknown')} cannot "
+                        "return text geometry; return_boxes requires "
+                        "provider=google with a Gemini model"
                     )
+                if _boxes_unsupported_reason:
+                    logger.warning(
+                        "return_boxes requested but unavailable for %s: %s — "
+                        "transcribing without geometry",
+                        Path(file_path).name,
+                        _boxes_unsupported_reason,
+                    )
+                    _boxes_requested = False
             # Pre-loaded page-doc dict (eliminates db.get re-fetch in save_artifact, #2430)
             _preloaded_doc = (
                 page_doc_dict_by_index[file_index]
@@ -2628,19 +2753,22 @@ async def process_vision(
                                     )
                                 )
                                 _payload = _pt if isinstance(_pt, str) else ""
-                                if return_boxes:
-                                    _geometry = _parse_return_boxes_payload(
-                                        _payload,
-                                        llm_config=effective_config,
-                                        page_index=_page_idx,
+                                if _boxes_requested:
+                                    _page_text, _geometry = (
+                                        _return_boxes_text_and_geometry(
+                                            _payload,
+                                            llm_config=effective_config,
+                                            page_index=_page_idx,
+                                        )
                                     )
                                     _llm_page_geometries.append(_geometry)
-                                    _llm_page_texts.append(_geometry.text)
+                                    _llm_page_texts.append(_page_text)
                                 else:
                                     _llm_page_geometries.append(
                                         _llm_geometry_unavailable(
                                             effective_config,
-                                            return_boxes=return_boxes,
+                                            return_boxes=_boxes_requested,
+                                            reason=_boxes_unsupported_reason,
                                         )
                                     )
                                     _llm_page_texts.append(_payload)
@@ -2659,7 +2787,7 @@ async def process_vision(
                             _llm_page_geometries.append(
                                 _llm_geometry_unavailable(
                                     effective_config,
-                                    return_boxes=return_boxes,
+                                    return_boxes=_boxes_requested,
                                     reason=(
                                         f"page {_page_idx} failed before "
                                         f"geometry could be captured: {_pe}"
@@ -2749,20 +2877,21 @@ async def process_vision(
                         )
                         # Parse output according to format
                         parsed = parse_output(text, output_format, output_options)
-                    if return_boxes:
-                        page_geometry = _parse_return_boxes_payload(
+                    if _boxes_requested:
+                        text, page_geometry = _return_boxes_text_and_geometry(
                             text,
                             llm_config=effective_config,
                             page_index=requested_page_index,
                         )
-                        text = page_geometry.text
                         parsed = parse_output(text, output_format, output_options)
                     else:
                         # #4309: no geometry from this pass — say WHY on the
                         # artifact rather than leaving the field null, which
                         # the overlay cannot tell apart from a blank page.
                         page_geometry = _llm_geometry_unavailable(
-                            effective_config, return_boxes=return_boxes
+                            effective_config,
+                            return_boxes=_boxes_requested,
+                            reason=_boxes_unsupported_reason,
                         )
 
             # Apply reference matching
