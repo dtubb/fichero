@@ -89,4 +89,20 @@ fi
 
 grep -qE "release-size ratchet FAILED|^error:" /tmp/release.log && die "release did not complete — see /tmp/release.log"
 
-printf '\n\033[32mDONE.\033[0m DMG: build/releases/Fichero.dmg\n'
+# Only claim DONE if the release actually produced something in this run.
+# The first version printed DONE after --force had merely WARNED that the
+# release never completed — a false success, which is the exact failure this
+# whole script exists to prevent. An exit code and a cheerful final line are
+# not evidence.
+if grep -q "Refusing to start" /tmp/release.log 2>/dev/null; then
+  printf '\n\033[31mNOT DONE: the release refused to start (preflight).\033[0m\n'
+  printf 'If it was notarytool: the tmux SERVER holds a stale keychain session.\n'
+  printf '  tmux kill-server && tmux new -s f_release -c ~/code/fichero\n'
+  exit 1
+fi
+if [ ! -f build/releases/Fichero.dmg ]; then
+  printf '\n\033[31mNOT DONE: no DMG at build/releases/Fichero.dmg\033[0m\n'
+  exit 1
+fi
+printf '\n\033[32mDONE.\033[0m DMG: build/releases/Fichero.dmg (%s)\n' \
+  "$(date -r build/releases/Fichero.dmg '+%%Y-%%m-%%d %%H:%%M')"
