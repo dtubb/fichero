@@ -62,6 +62,31 @@ echo "$lint" | grep -q "Found 72 violations" || die "swiftlint count moved — t
 
 step "5/5  Release: DMG + TestFlight (Mac + iOS) + GitHub"
 echo "  ~40 min. Do NOT edit release-all.sh while this runs — bash reads it as it executes."
-bash scripts/release-all.sh --dev --github 2>&1 | tee /tmp/release.log || die "release failed — see /tmp/release.log"
+bash scripts/release-all.sh --dev --github 2>&1 | tee /tmp/release.log
+
+# The size ratchet stops the release when an artifact grows, on purpose: it is
+# the only thing standing between us and silently shipping a bundle that
+# doubled. But it stops the run AFTER the DMG is built and notarized, so a
+# growth we have already accepted costs the whole 40 minutes to rediscover.
+#
+# Under --force, accept the new size and resume rather than making the user run
+# it twice. NOT silent: the accepted numbers are printed and the baseline change
+# is left in the working tree for review. Growth we chose is fine; growth nobody
+# saw is not.
+if [ "$FORCE" = true ] && grep -q "release-size ratchet FAILED" /tmp/release.log; then
+  step "5b/5  Size ratchet grew — accepting under --force, then resuming"
+  grep -E "GREW" /tmp/release.log || true
+  python3 scripts/check_release_size_ratchet.py \
+    --app "$PWD/build/releases/dmg-stage/Fichero.app" \
+    --dmg "$PWD/build/releases/Fichero.dmg" --update-baseline \
+    || echo "  (could not update baseline — artifacts may not exist yet)"
+  echo "  baseline updated; re-running the release to completion"
+  bash scripts/release-all.sh --dev --github 2>&1 | tee -a /tmp/release.log
+  echo ""
+  echo "  NOTE: scripts/release_size_baseline.json changed. Review and commit it,"
+  echo "        recording what the growth bought."
+fi
+
+grep -qE "release-size ratchet FAILED|^error:" /tmp/release.log && die "release did not complete — see /tmp/release.log"
 
 printf '\n\033[32mDONE.\033[0m DMG: build/releases/Fichero.dmg\n'
