@@ -14,8 +14,10 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sandbox
 /// user ever picks — and the engine is never restarted. Without this call those
 /// libraries stay unreadable until the app relaunches.
 ///
-/// App Store build only. The DMG engine is not sandboxed and can already open the
-/// library; the caller gates on FICHERO_APP_STORE.
+/// Used by every SANDBOXED app (all configs since 2026-07-29) — the caller gates
+/// on the runtime `SandboxEnvironment.isSandboxed`, never a build flag (the old
+/// MAS-flag gate compiled this handoff to a no-op in non-MAS builds; fixed
+/// 2026-08-08). An unsandboxed engine can already open the library directly.
 ///
 /// A thin service over the generated OpenAPI client — no hand-rolled URLSession.
 @MainActor
