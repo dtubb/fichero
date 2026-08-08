@@ -69,7 +69,17 @@ class SandboxAccessService {
                 path: path,
                 reason: detail?.detail?.description ?? "validation error"
             )
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            // Drain the engine's own sentence (#4562's sibling): a bare
+            // "unexpected response (403)" survived TWO diagnosis rounds on
+            // 2026-08-08 because the body naming the actual refuser was
+            // discarded right here.
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw SandboxAccessServiceError.notGranted(
+                    path: path,
+                    reason: "the engine refused (\(statusCode)): \(denial.localizedDescription)"
+                )
+            }
             throw SandboxAccessServiceError.unexpectedResponse(statusCode)
         }
     }
