@@ -85,3 +85,44 @@ def test_launch_script_supplies_an_owner_pid():
         Path(__file__).resolve().parents[2] / "scripts" / "start_backend.sh"
     ).read_text()
     assert 'FICHERO_PARENT_PID="${FICHERO_PARENT_PID:-$PPID}"' in script
+
+
+def test_watchdog_escalates_to_hard_exit_when_graceful_shutdown_hangs(monkeypatch):
+    """The #4291 sibling: self-SIGTERM starts a GRACEFUL shutdown, and with
+    the parent dead nobody force-kills a hang — the orphan kept the socket
+    and the next launch hit identityMismatch forever (live 2026-08-08).
+    The watchdog must escalate: SIGTERM, grace, hard exit."""
+    import asyncio
+    import os as os_mod
+
+    from fichero_server.api import main as api_main
+
+    events: list[tuple] = []
+
+    def fake_kill(pid, sig):
+        if sig == 0:
+            raise ProcessLookupError  # the parent is gone
+        events.append(("signal", pid, sig))
+
+    def fake_exit(code):
+        events.append(("hard_exit", code))
+        raise SystemExit(code)  # stop the coroutine like the real exit would
+
+    async def instant_sleep(_seconds):
+        return None
+
+    monkeypatch.setenv("FICHERO_PARENT_PID", "424242")
+    monkeypatch.setattr(os_mod, "kill", fake_kill)
+    monkeypatch.setattr(os_mod, "_exit", fake_exit)
+    monkeypatch.setattr(asyncio, "sleep", instant_sleep)
+
+    try:
+        asyncio.run(api_main._watch_parent_process())
+    except SystemExit as exc:
+        assert exc.code == 70
+
+    assert events[0][0] == "signal" and events[0][2].name == "SIGTERM", events
+    assert events[-1] == ("hard_exit", 70), (
+        "no hard-exit escalation — a hung graceful shutdown would leave an "
+        "immortal orphan holding the socket"
+    )

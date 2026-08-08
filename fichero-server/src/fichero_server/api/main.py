@@ -653,7 +653,21 @@ async def _watch_parent_process() -> None:
                 parent_pid,
             )
             os.kill(os.getpid(), signal.SIGTERM)
-            return
+            # ESCALATE, mirroring the supervising app (SIGTERM, 2s, SIGKILL —
+            # #4291). Self-SIGTERM starts a GRACEFUL shutdown, and a graceful
+            # shutdown can hang (a stream that will not drain) — with the
+            # parent already dead there is nobody left to force-kill us, so a
+            # hung shutdown made the orphan IMMORTAL: it kept the socket and
+            # the next launch hit identityMismatch forever (live 2026-08-08,
+            # "fichero server is still running despite app being closed").
+            # If shutdown completes, the process dies during this sleep and
+            # the hard exit below is never reached.
+            await asyncio.sleep(5)
+            logger.error(
+                "Graceful shutdown did not complete within 5s of the parent "
+                "vanishing — hard-exiting to free the socket (#4291 sibling)"
+            )
+            os._exit(70)  # EX_SOFTWARE; distinct from a clean shutdown's 0
 
 
 def _auth_enabled() -> bool:
