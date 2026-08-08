@@ -65,17 +65,29 @@ private func sidebarSubtreeExpansionIDs(
     _ document: Document,
     store: DocumentStore
 ) async -> Set<String> {
-    var ids: Set<String> = ["doc:\(document.id)"]
-    let children = await store.cacheSidebarChildren(of: document)
-    await withTaskGroup(of: Set<String>.self) { group in
-        for child in children where sidebarSubtreeShouldDescend(into: child) {
-            group.addTask { @MainActor in
-                await sidebarSubtreeExpansionIDs(child, store: store)
+    // LEVEL-ORDER, not task-recursive: the region checker also rejected the
+    // recursive form ("does not understand how to check" at the recursive
+    // addTask, build 2026-08-08 09:22). Each level's fetches still run
+    // concurrently — the wall clock is depth × RTT instead of nodes × RTT —
+    // and the child closure is the simplest checkable shape: one store call.
+    var frontier = [document]
+    var ids: Set<String> = []
+    while !frontier.isEmpty {
+        ids.formUnion(frontier.map { "doc:\($0.id)" })
+        var nextLevel: [Document] = []
+        await withTaskGroup(of: [Document].self) { group in
+            for node in frontier {
+                group.addTask { @MainActor in
+                    await store.cacheSidebarChildren(of: node)
+                }
+            }
+            for await children in group {
+                nextLevel.append(
+                    contentsOf: children.filter { sidebarSubtreeShouldDescend(into: $0) }
+                )
             }
         }
-        for await descendants in group {
-            ids.formUnion(descendants)
-        }
+        frontier = nextLevel
     }
     return ids
 }
