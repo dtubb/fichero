@@ -106,7 +106,7 @@ class FolderAccessManager {
     /// refused by `startAccessingSecurityScopedResource()`, and log a DENIED
     /// error per library per launch. So the gate stays; only the question changed.
     ///
-    /// It asked `#if FICHERO_APP_STORE`, on the premise that App Store was the
+    /// It asked the MAS build flag, on the premise that App Store was the
     /// only sandboxed channel. That died when Dev builds became sandboxed
     /// (2026-07-29): the guard answered "not sandboxed" for a sandboxed Dev
     /// engine, no bookmark reached it, `_granted_roots()` stayed empty — and
@@ -209,7 +209,7 @@ class FolderAccessManager {
     /// re-sent at every spawn via the env var, so the worst case is ordering: the
     /// open fails with a permission error the app surfaces, and the retry succeeds.
     private func handOffToEngine(path: String, bookmark: Data) {
-        // Runtime sandbox check, NOT `#if FICHERO_APP_STORE` — the build flag
+        // Runtime sandbox check, never the MAS build flag — that flag
         // was a proxy for "are we sandboxed" from when MAS was the only
         // sandboxed channel. That premise died on 2026-07-29 (every config is
         // sandboxed now); `engineBookmarkPayload` was fixed then and these two
@@ -239,7 +239,7 @@ class FolderAccessManager {
     /// spawn-time env var covers anything minted that early) and on the
     /// non-App-Store build (no sandbox — nothing to grant).
     private func grantEngineAccess(path: String, bookmark: Data) async throws {
-        // Runtime check, not the FICHERO_APP_STORE build flag — see
+        // Runtime check, not the MAS build flag — see
         // `handOffToEngine` above. An unsandboxed app has nothing to grant
         // (the engine reads the filesystem directly), so returning without
         // throwing is the documented no-grant-needed case.
@@ -393,8 +393,9 @@ extension FolderAccessManager {
     /// A DENIED grant throws BEFORE `engineWork` runs, so the engine is never asked
     /// to read a path it can't open (the error propagates to the caller). One
     /// awaited seam so the ordering is unit-testable without a live sandbox
-    /// (FICHERO_APP_STORE is off in the test target, so the real grant is a no-op
-    /// there — this pins the contract both paths rely on).
+    /// (the runtime sandbox guard answers false in the unsandboxed test
+    /// target, so the real grant is a no-op there — this pins the contract
+    /// both paths rely on).
     @MainActor
     static func grantThenEngineWork<T>(
         grant: () async throws -> Void,
