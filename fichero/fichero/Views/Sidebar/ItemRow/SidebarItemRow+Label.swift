@@ -11,6 +11,20 @@ extension SidebarItemRow {
         selectedDestinations.contains(item.destination)
     }
 
+    /// Mail's full grammar has TWO selected looks, switched by emphasis
+    /// (Daniel's Mail screenshots, #4563): a FOCUSED selection is the accent
+    /// platter with WHITE content; an unfocused one is the grey platter with
+    /// accent content. SwiftUI publishes exactly that switch as
+    /// `backgroundProminence` (.increased inside an emphasized selected row).
+    /// Our explicit label colors must follow it — a fixed accent label reads
+    /// green-on-green the moment the platter goes emphasized, which is what
+    /// shipped on 2026-08-08 morning.
+    var rowContentColor: Color {
+        if isDropTargeted { return .white }
+        if backgroundProminence == .increased { return .white }
+        return rowLabelStyle.color
+    }
+
     /// The label treatment, from the app's one selection vocabulary (#4371).
     /// Applied explicitly so the row can never inherit the native emphasized
     /// selection's white-and-bold inversion.
@@ -45,7 +59,7 @@ extension SidebarItemRow {
                     // (Daniel, 2026-08-08): accent name when selected, white
                     // over the solid accent fill while a drop targets this
                     // row, primary otherwise.
-                    .foregroundStyle(isDropTargeted ? .white : rowLabelStyle.color)
+                    .foregroundStyle(rowContentColor)
                     .fontWeight(rowLabelStyle.weight)
                     // Finder's alias grammar, both halves: the tiny arrow
                     // badge on the icon (ingestBadge) AND an italic name —
@@ -261,11 +275,10 @@ extension SidebarItemRow {
     /// Color only the glyph. Text remains `.primary`, and selected rows revert
     /// to the system foreground so SwiftUI keeps its native contrast treatment.
     private var iconTint: Color {
-        // Drop target: white over the solid accent fill (Finder's drag
-        // grammar — Daniel, 2026-08-08).
-        if isDropTargeted { return .white }
-        // Selected: accent icon on the grey row fill, like Finder's sidebar.
-        // (Used to return .primary here under #4371; superseded.)
+        // Drop target / focused emphasized selection: white over the accent
+        // platter — same rule as the name (rowContentColor, #4563).
+        if isDropTargeted || backgroundProminence == .increased { return .white }
+        // Unfocused selection: accent icon on the grey row fill (Mail).
         guard !selectedDestinations.contains(item.destination) else { return .accentColor }
         switch item.sidebarTint {
         case .accent: return .accentColor

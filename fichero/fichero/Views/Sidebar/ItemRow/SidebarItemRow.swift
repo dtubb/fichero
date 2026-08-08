@@ -66,6 +66,11 @@ struct SidebarItemRow: View {
     /// Finder-style Open in New Tab / New Window for sidebar rows (#1685).
     @Environment(\.openWindow) private var openWindow
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    /// `.increased` inside an EMPHASIZED (focused) selected list row — the
+    /// system's own signal for Mail's two selected looks. Drives
+    /// `rowContentColor` (#4563): white content on the focused accent
+    /// platter, accent content on the unfocused grey one.
+    @Environment(\.backgroundProminence) var backgroundProminence
 
     var library: LibraryManager.LibraryReference? {
         guard let libraryId = item.libraryId else { return nil }
