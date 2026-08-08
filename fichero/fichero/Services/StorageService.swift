@@ -117,7 +117,7 @@ class StorageService {
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.thumbnailCache[docId] { return cached }
             // .debug, not .info: fires per uncached thumbnail during hot scroll (#3870).
-            self.logger.debug("Loading thumbnail for document: \(docId)")
+            logger.debug("Loading thumbnail for document: \(docId)")
             let data = try await self.thumbnailData(for: docId)
             let image = try await Self.decodeImage(from: data)
             self.cacheThumbnail(image, for: docId)
@@ -167,7 +167,7 @@ class StorageService {
         return try await displayFlights.run(docId) { [weak self] in
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayCache[docId] { return cached }
-            self.logger.info("Loading display image for document: \(docId)")
+            logger.info("Loading display image for document: \(docId)")
             let data = try await self.displayData(for: docId)
             let image = try await Self.decodeImage(from: data)
             self.displayCache[docId] = image
@@ -185,7 +185,7 @@ class StorageService {
         return try await displayPlatformFlights.run(docId) { [weak self] in
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayPlatformImageCache[docId] { return cached }
-            self.logger.info("Loading display image for document: \(docId)")
+            logger.info("Loading display image for document: \(docId)")
             let data = try await self.displayData(for: docId)
             // Decode OFF the main actor — `PlatformImage(data:)` parses the
             // full bitmap synchronously, and doing it here on the MainActor
