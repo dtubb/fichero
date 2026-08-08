@@ -45,15 +45,39 @@ func sidebarExpandSubtree(
     store: DocumentStore,
     expandedItems: Binding<Set<String>>
 ) async {
-    expandedItems.wrappedValue.insert("doc:\(document.id)")
+    expandedItems.wrappedValue.formUnion(
+        await sidebarSubtreeExpansionIDs(document, store: store)
+    )
+}
+
+/// The ids to expand for `document` and every descendant worth descending
+/// into — the concurrent walk, RETURNING its result.
+///
+/// The Binding deliberately does NOT travel into the recursion: `Binding`
+/// wraps get/set closures, so a Sendable `Value` does not make the Binding
+/// itself Sendable, and capturing one in a task-group child is a hard ERROR
+/// under Swift 6 ("pattern the region-based isolation checker does not
+/// understand how to check" — the diagnostic five commits stacked on).
+/// Every capture here is Sendable-safe: a `@unchecked Sendable` Document
+/// and the MainActor-bound store, inside a `@MainActor` child closure.
+@MainActor
+private func sidebarSubtreeExpansionIDs(
+    _ document: Document,
+    store: DocumentStore
+) async -> Set<String> {
+    var ids: Set<String> = ["doc:\(document.id)"]
     let children = await store.cacheSidebarChildren(of: document)
-    await withTaskGroup(of: Void.self) { group in
+    await withTaskGroup(of: Set<String>.self) { group in
         for child in children where sidebarSubtreeShouldDescend(into: child) {
             group.addTask { @MainActor in
-                await sidebarExpandSubtree(child, store: store, expandedItems: expandedItems)
+                await sidebarSubtreeExpansionIDs(child, store: store)
             }
         }
+        for await descendants in group {
+            ids.formUnion(descendants)
+        }
     }
+    return ids
 }
 
 /// Visibility rule for the trailing hover open-affordance (#2496): only while
