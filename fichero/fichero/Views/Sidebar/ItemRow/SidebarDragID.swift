@@ -216,16 +216,16 @@ struct SidebarDragID: Transferable {
 }
 
 extension View {
-    /// Applies the sidebar drop-target highlight to any view. Placed on the
-    /// OUTER expression of a SidebarItemRow body branch so it covers the full
-    /// List row — including the DisclosureGroup chevron/indent area that
-    /// `fullWidthLabel` alone can't reach.
+    /// Applies the sidebar drop-target highlight to any view.
     ///
-    /// Finder's drag grammar (Daniel, 2026-08-08, screenshots on file): the
-    /// targeted row is a SOLID accent capsule with white content — not the
-    /// old translucent wash + stroke. `.background`, not `.overlay`, so the
-    /// solid fill sits UNDER the label (the label switches itself to white
-    /// while targeted). `.allowsHitTesting(false)` so it never blocks drops.
+    /// Mail's drag grammar (Daniel, 2026-08-08, #4563): the targeted row is
+    /// the ENTIRE row solid accent with white content — full width, chevron
+    /// and indent strip included. The previous `.background` on the label
+    /// only tinted the label's frame ("there is the smaller drop target, not
+    /// the entire row"). `.listRowBackground` is the List's own full-row
+    /// canvas, and — applied from inside the row's label — it paints only
+    /// THIS row, never an expanded subtree (the #4229 trap lived at the
+    /// DisclosureGroup level, not here).
     @ViewBuilder
     func sidebarDropHighlight(
         _ active: Bool, operation: SidebarDropOperation = .move
@@ -238,10 +238,6 @@ extension View {
         case .copy: Color.green
         case .alias: Color.purple
         }
-        self.background(
-            RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                .fill(active ? tint : Color.clear)
-                .allowsHitTesting(false)
-        )
+        self.listRowBackground(active ? tint : nil)
     }
 }

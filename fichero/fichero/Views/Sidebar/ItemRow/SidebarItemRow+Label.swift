@@ -1,18 +1,21 @@
 import SwiftUI
 
 extension SidebarItemRow {
-    /// Whether THIS row is the routed selection. Read from the same
-    /// `selectedItemId` binding the row already owns — not a second notion of
-    /// what is selected (#4371).
-    var isRowSelected: Bool {
-        selectedItemId == item.id
+    /// Mail's grammar (Daniel, 2026-08-08, #4563): EVERY member of a
+    /// multi-selection reads the same — grey row, accent name+icon. The
+    /// morning's version keyed the label on the routed PRIMARY alone, which
+    /// rendered one row of a five-row selection differently ("one selected
+    /// that is lighter green gray"). Membership drives the STYLE; the primary
+    /// gets a distinct glyph later (#4563), never a text shade.
+    var isRowInSelection: Bool {
+        selectedDestinations.contains(item.destination)
     }
 
     /// The label treatment, from the app's one selection vocabulary (#4371).
     /// Applied explicitly so the row can never inherit the native emphasized
     /// selection's white-and-bold inversion.
     var rowLabelStyle: LibrarySelectionStyle.SidebarRowLabel {
-        LibrarySelectionStyle.sidebarLabel(isSelected: isRowSelected)
+        LibrarySelectionStyle.sidebarLabel(isSelected: isRowInSelection)
     }
 
     var itemLabel: some View {
