@@ -1,4 +1,33 @@
-# D — engine signing: the executable ladder (PREPARED, NOT EXECUTED)
+# D — engine signing: the executable ladder (APPROVED by Daniel; builds gated by the lead)
+
+**2026-08-08 update — two success criteria per rung, not one.** #4555 (pdfium
+`library load disallowed by system policy`) shares the P0's fix locus: the
+unsigned engine runs under hardened runtime with NO entitlements, so
+`cs.disable-library-validation` never applies. A rung passes only if BOTH
+hold:
+- **(O1) Library access** — a library outside the container opens; first-ever
+  `POST /api/sandbox/security-scoped-access` grants; non-zero
+  `librar(ies) granted` at the next spawn.
+- **(O2) pdfium loads** — no `library load disallowed by system policy` in
+  the engine log on PDF import. CAVEAT: the lead placed the bundled
+  kreuzberg/libpdfium.dylib workaround in the staged engine (now durable via
+  clean-embedded-engine.sh, commit 6d4959a5b) — if pdfium works, confirm WHY
+  before crediting the signing: bundled copy found (workaround) vs a
+  tmp-extracted copy loading (library validation actually disabled).
+
+**Definition of done (Daniel):** ⌘R on Dev Embedded works — the signing must
+live in the Xcode EMBED PHASE, not only in release scripts.
+
+**Serialization:** before EVERY build, check `GetBuildLog(windowtab2)` for
+`buildIsRunning` — Daniel builds in this worktree too.
+
+**MAS phase rules to copy exactly (read from FEED…256, verified):** the
+engine is signed IN the embed phase (Xcode's own CodeSign runs after and
+seals the outer app); **NEVER `codesign --deep`** — it re-signs nested code
+with the PARENT's entitlements, silently replacing the engine's set; the
+phase guards that the entitlements file exists before signing. Rung 1's
+codesign is therefore the MAS invocation verbatim with the identity swapped,
+NOT the --deep form sketched below (superseded).
 
 Gated on Daniel's runtime test of the running build. His outcome decides:
 - Creates a library AND opens one outside the container → **skip D entirely.**
