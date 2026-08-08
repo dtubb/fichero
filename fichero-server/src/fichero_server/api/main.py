@@ -985,6 +985,9 @@ def _is_allowed_library_path(library_path: str) -> bool:
     - ~/Library/Containers/<one container>/Data/Library/Application Support —
       the sandboxed host app's own container, scoped via
       _is_sandbox_container_app_support (NOT the whole Containers tree)
+    - ~/Library/Containers/<one container>/Data/tmp/<name>.fichero — New
+      Library staging, scoped via is_sandbox_container_library_staging
+      (suffix-gated; tmp itself is NOT a root)
     - ~/Library/CloudStorage (Box/Dropbox/iCloud provider roots)
     - ~/Library/Mobile Documents/com~apple~CloudDocs — iCloud Drive AND
       iCloud-synced Documents/Desktop physically live here
