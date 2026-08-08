@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Developer ID / DMG channel app entitlements. The app is SANDBOXED in these
+  configs via the ENABLE_APP_SANDBOX build setting (2026-07-29), so it needs
+  the same bookmark rights the MAS file carries: `files.bookmarks.app-scope`
+  is what permits MINTING app-scoped security-scoped bookmarks at all —
+  without it the app minted bookmarks it was not entitled to mint, and the
+  engine failed to resolve every one of them (NSCocoaError 259, engine
+  sandbox P0 plan, 2026-08-08).
+-->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.document-scope</key>
 	<true/>
 </dict>
 </plist>
