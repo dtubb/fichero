@@ -44,12 +44,16 @@ final class SidebarRowAccessibilityTests: XCTestCase {
         XCTAssertEqual(sidebarLibraryHeaderAccessibilityValue(isCurrent: false), "")
     }
 
-    /// Truncated names have no other way to reveal themselves: the row and the
-    /// library header must both carry a full-name `.help` tooltip, and the
-    /// row's must disable (empty string idiom) during inline rename.
-    func testTruncatedNameTooltipsArePresent() throws {
+    /// The ROW's full-name tooltip was REMOVED on Daniel's direction
+    /// (2026-08-08): hovering the name must not pop anything over it — the
+    /// accepted trade is that a truncated row name has no hover reveal.
+    /// The library HEADER keeps its tooltip (not part of that complaint).
+    func testRowTooltipRemovedHeaderTooltipKept() throws {
         let row = try appSource("Views/Sidebar/ItemRow/SidebarItemRow.swift")
-        XCTAssertTrue(row.contains(#".help(renameState.renamingItemId == item.id ? "" : item.name)"#))
+        XCTAssertFalse(
+            row.contains(#".help(renameState.renamingItemId == item.id ? "" : item.name)"#),
+            "The row name tooltip was removed (Daniel, 2026-08-08) — do not re-add it without a new decision."
+        )
 
         let header = try appSource("Views/Sidebar/Sections/SidebarSectionHeader.swift")
         XCTAssertTrue(header.contains(".help(libraryName)"))
@@ -73,12 +77,11 @@ final class SidebarRowAccessibilityTests: XCTestCase {
         XCTAssertTrue(
             afterDisclosure.contains("} label: {\n                fullWidthLabel\n                    .sidebarDropHighlight(")
         )
-        // And no highlight hangs off the group itself (#4229) — the group
-        // keeps only the drop target / context-menu surface (#571).
-        let labelEnd = afterDisclosure.range(of: ".sidebarDropHighlight(")!
-        XCTAssertFalse(
-            afterDisclosure[labelEnd.upperBound...].contains(".sidebarDropHighlight(isDropTargeted, stronger: isFolder")
-        )
+        // The old `stronger:` translucent-wash signature is gone with the
+        // Finder-style solid drop fill (Daniel, 2026-08-08) — its group-level
+        // misplacement (#4229) can no longer be re-introduced by that
+        // spelling. The first assertion pins where the highlight lives now.
+        XCTAssertFalse(afterDisclosure.contains("stronger:"))
     }
 
     private func appSource(_ relativePath: String) throws -> String {

@@ -182,9 +182,7 @@ extension SidebarItemRow {
                 disclosureContent
             } label: {
                 fullWidthLabel
-                    .sidebarDropHighlight(
-                        isDropTargeted, stronger: isFolder, operation: targetedDropOperation
-                    )
+                    .sidebarDropHighlight(isDropTargeted, operation: targetedDropOperation)
             }
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             // #4544: menu built at OPEN, not per render — see
@@ -221,7 +219,7 @@ extension SidebarItemRow {
     @ViewBuilder
     private var folderLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: true, operation: targetedDropOperation)
+            .sidebarDropHighlight(isDropTargeted, operation: targetedDropOperation)
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
@@ -231,7 +229,7 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: false, operation: targetedDropOperation)
+            .sidebarDropHighlight(isDropTargeted, operation: targetedDropOperation)
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }

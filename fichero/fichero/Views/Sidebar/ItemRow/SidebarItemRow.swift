@@ -260,16 +260,19 @@ struct SidebarDragID: Transferable {
 }
 
 extension View {
-    /// Applies the sidebar drop-target highlight (accent fill + stroke) to
-    /// any view. Placed on the OUTER expression of a SidebarItemRow body
-    /// branch so it covers the full List row — including the DisclosureGroup
-    /// chevron/indent area that `fullWidthLabel` alone can't reach.
+    /// Applies the sidebar drop-target highlight to any view. Placed on the
+    /// OUTER expression of a SidebarItemRow body branch so it covers the full
+    /// List row — including the DisclosureGroup chevron/indent area that
+    /// `fullWidthLabel` alone can't reach.
     ///
-    /// `.overlay` + `.allowsHitTesting(false)` so the wash renders on top of
-    /// whatever chrome the sidebar-style List draws, without blocking drops.
+    /// Finder's drag grammar (Daniel, 2026-08-08, screenshots on file): the
+    /// targeted row is a SOLID accent capsule with white content — not the
+    /// old translucent wash + stroke. `.background`, not `.overlay`, so the
+    /// solid fill sits UNDER the label (the label switches itself to white
+    /// while targeted). `.allowsHitTesting(false)` so it never blocks drops.
     @ViewBuilder
     func sidebarDropHighlight(
-        _ active: Bool, stronger: Bool, operation: SidebarDropOperation = .move
+        _ active: Bool, operation: SidebarDropOperation = .move
     ) -> some View {
         // Modifier-drag tint — the closest native stand-in for AppKit's
         // drag-cursor badges, which SwiftUI's row drag doesn't expose (no
@@ -279,20 +282,9 @@ extension View {
         case .copy: Color.green
         case .alias: Color.purple
         }
-        self.overlay(
+        self.background(
             RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                .fill(
-                    active
-                        ? tint.opacity(stronger ? 0.45 : 0.25)
-                        : Color.clear
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                        .stroke(
-                            active ? tint : Color.clear,
-                            lineWidth: active ? 2 : 0
-                        )
-                )
+                .fill(active ? tint : Color.clear)
                 .allowsHitTesting(false)
         )
     }

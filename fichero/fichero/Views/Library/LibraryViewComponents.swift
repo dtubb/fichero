@@ -66,7 +66,13 @@ enum LibrarySelectionStyle {
     /// This is also what keeps the icon's semantic colour: nothing here
     /// re-tints it, so a green folder stays green when selected.
     static func sidebarLabel(isSelected: Bool) -> SidebarRowLabel {
-        SidebarRowLabel(color: .primary, weight: .regular)
+        // Finder's selection grammar (Daniel, 2026-08-08, screenshots on
+        // file — supersedes #4371's "selection changes nothing"): the grey
+        // fill carries the ROW, and the NAME and icon take the system accent,
+        // exactly like Finder's sidebar and Mail's mailbox list. Weight stays
+        // regular — the accent is the signal, never bolding, and never the
+        // white-on-accent inversion (that is reserved for the DROP target).
+        SidebarRowLabel(color: isSelected ? .accentColor : .primary, weight: .regular)
     }
 }
 

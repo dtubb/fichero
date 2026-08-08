@@ -36,12 +36,13 @@ extension SidebarItemRow {
             } else {
                 Text(item.name)
                     .lineLimit(1)
-                    // #4371: state the label's colour and weight rather than
-                    // inheriting them. The native emphasized source-list
-                    // selection forces white and bolds the text; Finder and
-                    // Mail leave the label alone and let the row's fill carry
-                    // the selection. These two modifiers ARE that difference.
-                    .foregroundStyle(rowLabelStyle.color)
+                    // Stated explicitly, never inherited (#4371's mechanism
+                    // stands): the native emphasized source-list selection
+                    // forces white-and-bold. The COLOURS follow Finder
+                    // (Daniel, 2026-08-08): accent name when selected, white
+                    // over the solid accent fill while a drop targets this
+                    // row, primary otherwise.
+                    .foregroundStyle(isDropTargeted ? .white : rowLabelStyle.color)
                     .fontWeight(rowLabelStyle.weight)
                     // Finder's alias grammar, both halves: the tiny arrow
                     // badge on the icon (ingestBadge) AND an italic name —
@@ -257,7 +258,12 @@ extension SidebarItemRow {
     /// Color only the glyph. Text remains `.primary`, and selected rows revert
     /// to the system foreground so SwiftUI keeps its native contrast treatment.
     private var iconTint: Color {
-        guard !selectedDestinations.contains(item.destination) else { return .primary }
+        // Drop target: white over the solid accent fill (Finder's drag
+        // grammar — Daniel, 2026-08-08).
+        if isDropTargeted { return .white }
+        // Selected: accent icon on the grey row fill, like Finder's sidebar.
+        // (Used to return .primary here under #4371; superseded.)
+        guard !selectedDestinations.contains(item.destination) else { return .accentColor }
         switch item.sidebarTint {
         case .accent: return .accentColor
         case .teal: return .teal

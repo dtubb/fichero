@@ -23,26 +23,24 @@ import Testing
 @MainActor
 struct SidebarSelectionStyleTests {
 
-    // MARK: - Selection does not touch the label
+    // MARK: - Finder's selection grammar (Daniel, 2026-08-08)
 
-    /// Daniel's two named defects, as one equality: selecting a row must
-    /// change NOTHING about its label. If a future change makes selection
-    /// bold or re-colour the text, this is the assertion that fails.
-    @Test("selection changes nothing about the label")
-    func selectionDoesNotChangeTheLabel() {
-        #expect(
-            LibrarySelectionStyle.sidebarLabel(isSelected: true)
-                == LibrarySelectionStyle.sidebarLabel(isSelected: false)
-        )
+    /// Supersedes #4371's "selection changes nothing": like Finder's sidebar
+    /// and Mail's mailbox list, the grey fill carries the ROW and the NAME
+    /// takes the system accent when selected. Weight never changes — the
+    /// accent is the signal, and white-on-accent stays reserved for the
+    /// DROP target.
+    @Test("a selected label takes the accent colour, an unselected one stays primary")
+    func selectionTintsTheLabelAccent() {
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false).color == .primary)
     }
 
-    @Test("the label keeps the standard text colour, never white or accent")
-    func labelKeepsStandardColour() {
+    @Test("the label is never white — the inversion belongs to the drop target only")
+    func labelIsNeverWhite() {
         for isSelected in [true, false] {
             let style = LibrarySelectionStyle.sidebarLabel(isSelected: isSelected)
-            #expect(style.color == .primary, "isSelected: \(isSelected)")
-            #expect(style.color != .white)
-            #expect(style.color != .accentColor)
+            #expect(style.color != .white, "isSelected: \(isSelected)")
         }
     }
 
@@ -137,7 +135,9 @@ struct SidebarSelectionStyleTests {
     func sidebarRowAppliesTheSharedStyle() throws {
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
         #expect(source.contains("LibrarySelectionStyle.sidebarLabel(isSelected:"))
-        #expect(source.contains(".foregroundStyle(rowLabelStyle.color)"))
+        // White only while a drop targets the row (Finder's drag grammar);
+        // otherwise the shared style's colour, verbatim.
+        #expect(source.contains(".foregroundStyle(isDropTargeted ? .white : rowLabelStyle.color)"))
         #expect(source.contains(".fontWeight(rowLabelStyle.weight)"))
     }
 
