@@ -1,5 +1,5 @@
 {
-  "hang_count": 217,
-  "total_stall_ms": 53549.9,
-  "worst_hang_ms": 1468.3
+  "hang_count": 106,
+  "total_stall_ms": 32646.0,
+  "worst_hang_ms": 1860.0
 }
