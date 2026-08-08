@@ -143,11 +143,17 @@ struct SidebarSelectionStyleTests {
 
     /// The system's own selection fill is tinted to the shared colour, so the
     /// native treatment and the app's vocabulary agree instead of fighting.
-    @Test("the sidebar list tints the native selection to the shared fill")
-    func sidebarListTintsTheNativeSelection() throws {
+    @Test("the sidebar list keeps the NATIVE source-list selection — no tint")
+    func sidebarListKeepsNativeSelection() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        #expect(source.contains(".tint(LibrarySelectionStyle.fill)"))
-        // Still a native sidebar List — the fix is the colour, not a rewrite.
+        // #4563 (2026-08-08): the #4371 tint did not hold for the FOCUSED
+        // selection on the current SDK — the platter rendered saturated
+        // accent ("bright green background"). The native .sidebar selection
+        // is Finder's grey material in both focus states; no tint may wrap
+        // it again without a new decision from Daniel.
+        #expect(!source.contains(".tint(LibrarySelectionStyle.fill)"))
+        // Still a native sidebar List — the fix is removing the override,
+        // not a rewrite.
         #expect(source.contains(".listStyle(.sidebar)"))
         #expect(source.contains("List(selection: sidebarSelectionBinding)"))
     }
