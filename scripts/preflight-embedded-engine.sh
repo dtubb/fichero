@@ -42,7 +42,7 @@ engine_is_current() {
   local source_bridge="$ENGINE_DIR/src/fichero_server/resources/bin/fm-bridge"
   local staged_bridge="$ENGINE_APP/Contents/Resources/app/fichero_server/resources/bin/fm-bridge"
   if ! diff -rq --exclude=__pycache__ --exclude=.DS_Store --exclude=fm-bridge \
-      "$ENGINE_DIR/src/fichero_server" "$ENGINE_APP/Contents/Resources/app/fichero" >/dev/null 2>&1 \
+      "$ENGINE_DIR/src/fichero_server" "$ENGINE_APP/Contents/Resources/app/fichero_server" >/dev/null 2>&1 \
       || [ ! -f "$source_bridge" ] || [ ! -f "$staged_bridge" ] \
       || [ "$(dwarfdump --uuid "$source_bridge" | awk 'NR == 1 { print $2 }')" \
            != "$(dwarfdump --uuid "$staged_bridge" | awk 'NR == 1 { print $2 }')" ]; then
