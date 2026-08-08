@@ -39,11 +39,25 @@ engine_is_current() {
   # Content, not mtime: git checkouts/merges bump mtimes without changing bytes.
   # The App Store signer changes fm-bridge's signature bytes, so compare its
   # stable Mach-O UUID separately instead of forcing a rebuild after signing.
+  #
+  # A MISSING fm-bridge is its own message, never folded into "STALE (engine
+  # sources are newer)" — that wording is untrue for an absence and cost real
+  # debugging time: the binary is gitignored, so every fresh worktree lacks it
+  # and read "sources are newer" for a file that did not exist.
   local source_bridge="$ENGINE_DIR/src/fichero_server/resources/bin/fm-bridge"
   local staged_bridge="$ENGINE_APP/Contents/Resources/app/fichero_server/resources/bin/fm-bridge"
+  if [ ! -f "$source_bridge" ]; then
+    echo "Embedded engine check: fm-bridge is MISSING from engine sources ($source_bridge)." \
+         "It is gitignored, so fresh worktrees lack it — build it (or copy it from a" \
+         "checkout that has it) before staging can be verified; rebuilding will not create it."
+    return 1
+  fi
+  if [ ! -f "$staged_bridge" ]; then
+    echo "Embedded engine is INCOMPLETE: the staged copy lacks fm-bridge ($staged_bridge) — rebuilding"
+    return 1
+  fi
   if ! diff -rq --exclude=__pycache__ --exclude=.DS_Store --exclude=fm-bridge \
       "$ENGINE_DIR/src/fichero_server" "$ENGINE_APP/Contents/Resources/app/fichero_server" >/dev/null 2>&1 \
-      || [ ! -f "$source_bridge" ] || [ ! -f "$staged_bridge" ] \
       || [ "$(dwarfdump --uuid "$source_bridge" | awk 'NR == 1 { print $2 }')" \
            != "$(dwarfdump --uuid "$staged_bridge" | awk 'NR == 1 { print $2 }')" ]; then
     echo "Embedded engine is STALE (engine sources are newer than the staged copy) — rebuilding"
