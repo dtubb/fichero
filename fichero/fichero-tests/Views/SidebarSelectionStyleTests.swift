@@ -135,9 +135,11 @@ struct SidebarSelectionStyleTests {
     func sidebarRowAppliesTheSharedStyle() throws {
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
         #expect(source.contains("LibrarySelectionStyle.sidebarLabel(isSelected:"))
-        // White only while a drop targets the row (Finder's drag grammar);
-        // otherwise the shared style's colour, verbatim.
-        #expect(source.contains(".foregroundStyle(isDropTargeted ? .white : rowLabelStyle.color)"))
+        // The one content-colour rule (rowContentColor): white while a drop
+        // targets the row or the system emphasizes the selection
+        // (backgroundProminence), otherwise the shared style's colour.
+        #expect(source.contains(".foregroundStyle(rowContentColor)"))
+        #expect(source.contains("backgroundProminence == .increased"))
         #expect(source.contains(".fontWeight(rowLabelStyle.weight)"))
     }
 
