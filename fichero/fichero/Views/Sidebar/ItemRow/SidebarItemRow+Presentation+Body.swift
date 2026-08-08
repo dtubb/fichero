@@ -144,11 +144,17 @@ extension SidebarItemRow {
         if let children = item.children, !children.isEmpty {
             childrenList(children)
         } else if sidebarNeedsDeferredDisclosureContent(item) {
-            // Keep the native disclosure chevron visible while descendants are
-            // still lazy-loaded from metadata-only childCount state (#3355).
-            Color.clear
-                .frame(height: 0.5)
-                .accessibilityHidden(true)
+            // Children are known to exist (childCount) but not fetched yet.
+            // This used to be a 0.5pt Color.clear so the chevron stayed
+            // visible (#3355) — which rendered as a bare EMPTY LINE while the
+            // fetch ran, then rows popped in under it (Daniel, 2026-08-08:
+            // "the empty line should not appear… if it's slow do a spinner").
+            // A spinner keeps the chevron visible AND says loading.
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 4)
+                .accessibilityLabel("Loading items")
         }
     }
 

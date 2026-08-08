@@ -14,6 +14,15 @@ func sidebarSelectionFallback(current: String?, tapped: String) -> String? {
     current == tapped ? nil : tapped
 }
 
+/// Which children an option-click expand-all descends into: any container
+/// that HAS children — folders, and page-bearing documents like PDFs (their
+/// page rows are already in the database; `childCount` is honest since
+/// #4515). A folder whose count hasn't arrived yet is still descended so a
+/// stale zero can't silently prune a subtree.
+func sidebarSubtreeShouldDescend(into child: Document) -> Bool {
+    child.docType == .folder || child.childCount > 0
+}
+
 /// Visibility rule for the trailing hover open-affordance (#2496): only while
 /// the pointer is over the row, never during an inline rename (the field owns
 /// the trailing space), and only for rows that can actually be opened
@@ -492,12 +501,27 @@ struct SidebarItemRow: View {
     /// Option-click expands the ENTIRE subtree (Finder), lazily loading each
     /// level. An explicit user gesture, so the deep fan-out fetch is acceptable
     /// — unlike the bounded one-level prefetch in `loadSidebarChildren`.
+    ///
+    /// Sibling subtrees fetch CONCURRENTLY: the serial version awaited one
+    /// network round trip per container, so option-expanding K containers
+    /// took K × RTT and PDFs visibly lagged their pages (Daniel, 2026-08-08)
+    /// even though every page row already sits in DuckDB. URLSession's
+    /// per-host connection pool bounds the actual fan-out.
+    ///
+    /// Descends every container with children — folders AND page-bearing
+    /// documents (PDFs) — via `sidebarSubtreeShouldDescend`. The old
+    /// folders-only walk left PDF pages unloaded until each PDF's own
+    /// chevron fired, which is exactly the lag that was reported.
     @MainActor
     func expandSubtree(_ document: Document, store: DocumentStore) async {
         expandedItems.insert("doc:\(document.id)")
         let children = await store.cacheSidebarChildren(of: document)
-        for child in children where child.docType == .folder {
-            await expandSubtree(child, store: store)
+        await withTaskGroup(of: Void.self) { group in
+            for child in children where sidebarSubtreeShouldDescend(into: child) {
+                group.addTask { @MainActor in
+                    await self.expandSubtree(child, store: store)
+                }
+            }
         }
     }
 
