@@ -73,7 +73,14 @@ extension SidebarItemRow {
                     "Couldn't read what was dragged. Nothing was moved or imported."
 
             case .unsupported:
-                break
+                // #4533 pattern: a silent no-op is indistinguishable from the
+                // drop never arriving ("I tried to drag … and nothing
+                // happened", Daniel 2026-08-08). Name the payload shape.
+                DragDropLog.refused(
+                    "sidebar-row",
+                    reason: "unsupported payload — UTIs ["
+                        + providers.flatMap(\.registeredTypeIdentifiers).joined(separator: ", ") + "]"
+                )
             }
         }
         return true

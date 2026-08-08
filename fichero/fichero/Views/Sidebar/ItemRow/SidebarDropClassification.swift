@@ -61,17 +61,23 @@ struct SidebarDropProviderCapabilities: Equatable {
     let canLoadString: Bool
     let registeredTypeIdentifiers: [String]
 
-    /// This provider carries one of OUR OWN drag flavors: the named custom
-    /// type (#4401 multi-drag) or a plain-text registration (the single-drag
-    /// id proxy / `.draggable` String). Registration-based on purpose — the
-    /// `canLoadObject` probes over-answer (NSString bridges URLs) and
-    /// under-answer (a Finder FOLDER answers false to BOTH URL and NSString,
-    /// live-repro 2026-08-04), so they can never be the classifier.
+    /// This provider carries OUR OWN drag flavor: the NAMED custom type, and
+    /// only that. Registration-based on purpose — the `canLoadObject` probes
+    /// over-answer (NSString bridges URLs) and under-answer (a Finder FOLDER
+    /// answers false to BOTH URL and NSString, live-repro 2026-08-04), so
+    /// they can never be the classifier.
+    ///
+    /// A plain-text registration used to count too ("the single-drag id
+    /// proxy"). That was a legacy over-match once #4401 made BOTH in-app drag
+    /// types export `ficheroDragItem` (`SidebarDragID` and `LibraryItemDrag`,
+    /// Document.swift:155) — and it misread every Finder drag of a TEXT FILE,
+    /// whose provider registers `public.utf8-plain-text` as CONTENT beside
+    /// its file-url: the drop classified possibly-internal, the id read found
+    /// no `doc:`, and the user got "Couldn't read what was dragged" for an
+    /// ordinary .txt (live-repro 2026-08-08, empty.txt — #4569). Ours is
+    /// identified by NAME; text is just text.
     var registersInternalFlavor: Bool {
-        registeredTypeIdentifiers.contains { identifier in
-            identifier == UTType.ficheroDragItem.identifier
-                || UTType(identifier)?.conforms(to: .plainText) == true
-        }
+        registeredTypeIdentifiers.contains(UTType.ficheroDragItem.identifier)
     }
 
     /// This provider registers NOTHING but bare `public.data` — no named
