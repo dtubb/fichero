@@ -10,10 +10,6 @@ import PDFKit
 
 let sidebarRowLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarRow")
 
-func sidebarSelectionFallback(current: String?, tapped: String) -> String? {
-    current == tapped ? nil : tapped
-}
-
 /// Visibility rule for the trailing hover open-affordance (#2496): only while
 /// the pointer is over the row, never during an inline rename (the field owns
 /// the trailing space), and only for rows that can actually be opened
@@ -34,9 +30,8 @@ func sidebarRowShowsOpenAffordance(isHovered: Bool, isRenaming: Bool, hasLibrary
 /// *change* — so a restored selection that equals the persisted value never
 /// reaches `handleSelection`, leaving `viewMode` at its default. The visibly
 /// highlighted row then doesn't match the detail, and clicking that
-/// already-selected row is a no-op (native `List(selection:)` sees no change and
-/// the tap fallback guards `current == tapped`). Reconcile when a selection
-/// exists but hasn't been handled yet.
+/// already-selected row is a no-op (native `List(selection:)` sees no
+/// change). Reconcile when a selection exists but hasn't been handled yet.
 func sidebarShouldReconcileSelection(selectedId: String?, lastHandled: String?) -> Bool {
     guard let selectedId else { return false }
     return selectedId != lastHandled

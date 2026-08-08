@@ -3,9 +3,25 @@ import Foundation
 import Testing
 
 struct SidebarSelectionTests {
-    @Test("#1165 sidebar tap fallback ignores already-selected rows")
-    func tapFallbackIgnoresCurrentSelection() {
-        #expect(sidebarSelectionFallback(current: "doc:1", tapped: "doc:1") == nil)
+    /// The #645/#1165 per-row tap fallback is REMOVED (2026-08-08, #4571):
+    /// it competed in the gesture arena over the label, so modifier-clicks on
+    /// the NAME could not extend a selection. List(selection:) owns every
+    /// click now; this pin keeps the second write path from returning.
+    @Test("the per-row tap fallback stays deleted — one selection write path")
+    func tapFallbackStaysDeleted() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // Shell/
+            .deletingLastPathComponent()  // Views/
+            .deletingLastPathComponent()  // fichero-tests/
+            .deletingLastPathComponent()  // fichero/ (product dir)
+            .deletingLastPathComponent()  // repo root
+        let body = try String(
+            contentsOf: repoRoot.appendingPathComponent(
+                "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift"),
+            encoding: .utf8
+        )
+        #expect(!body.contains("requestSelectionFallback"))
+        #expect(!body.contains("simultaneousGesture(TapGesture()"))
     }
 
     @Test("sidebar destination parses and serializes document ids")
@@ -63,12 +79,6 @@ struct SidebarSelectionTests {
         #expect(state.selectedDestination == .workflow("wf-1"))
         state.selectedDestination = .browser(.research)
         #expect(state.selectedItemId == "research-browser")
-    }
-
-    @Test("#1165 sidebar tap fallback only requests missing selection")
-    func tapFallbackRequestsDifferentSelection() {
-        #expect(sidebarSelectionFallback(current: nil, tapped: "doc:1") == "doc:1")
-        #expect(sidebarSelectionFallback(current: "doc:1", tapped: "doc:2") == "doc:2")
     }
 
     @Test("#2548 restored selection that was never handled is reconciled")

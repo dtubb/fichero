@@ -30,15 +30,16 @@ func sidebarRowAccessibilityHint(canBeRenamed: Bool) -> String {
 extension SidebarItemRow {
     var body: some View {
         bodyContent
-            // DisclosureGroup label and the row drag both watch mouse-down
-            // and compete with List(selection:) for the tap event, causing
-            // intermittent click failures on icon/text (#645). A
-            // simultaneousGesture keeps a fallback path, but the write is
-            // deferred/idempotent so it does not mutate List selection while
-            // SwiftUI/AppKit are still resolving the row click (#1165).
-            .simultaneousGesture(TapGesture().onEnded {
-                requestSelectionFallback(for: item.id)
-            })
+            // NO per-row TapGesture fallback any more (removed 2026-08-08,
+            // #4571). The #645-era fallback predates textSelection(.disabled)
+            // and the allowsHitTesting(false) pass-throughs that now let
+            // clicks reach the List natively — and it was itself a second
+            // write path in the gesture arena: a MODIFIER click over the
+            // label was consumed there (the fallback correctly bailed on
+            // cmd/shift, but bailing is not the same as never competing), so
+            // shift/cmd-click on the NAME could not extend a selection while
+            // the same click beside the name could. One selection path:
+            // List(selection:) owns every click, plain or modified.
             // SwiftUI `Text` registers itself as an NSDraggingSource for
             // selectable text on macOS. That AppKit-level drag source
             // wins over the row container's `.draggable`, producing a
@@ -80,25 +81,6 @@ extension SidebarItemRow {
                     .environment(library.bookmarkService)
                 }
             }
-    }
-
-    private func requestSelectionFallback(for id: String) {
-        #if canImport(AppKit)
-        // The plain-click fallback (#645/#1165) writes a SINGLE selection. When
-        // a modifier is held the click is a multi-select gesture that native
-        // `List(selection: Set)` owns — writing here would collapse the whole
-        // cmd/shift selection back to one row. Let the List handle it.
-        let mods = NSEvent.modifierFlags
-        if mods.contains(.command) || mods.contains(.shift) { return }
-        #endif
-        guard sidebarSelectionFallback(current: selectedItemId, tapped: id) != nil else {
-            return
-        }
-        Task { @MainActor in
-            if let next = sidebarSelectionFallback(current: selectedItemId, tapped: id) {
-                selectedItemId = next
-            }
-        }
     }
 
     /// VoiceOver label — the row's displayed name plus its kind so users
