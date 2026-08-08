@@ -30,6 +30,10 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         guard !isRunningXCTests() else { return }
         logger.info("App did finish launching — starting engine app-scoped (#3945)")
         LaunchProfile.milestone("applicationDidFinishLaunching")
+        // Self-measured main-thread stalls (#4550): FICHERO_STALL_LOG=1 in the
+        // scheme makes every ordinary ⌘R a ratchet-grade perf session — no
+        // Instruments, no minutes of "modeling data".
+        MainThreadStallSampler.startIfEnabled()
         // The engine's async startup lives here, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the
         // one app-level hook that fires exactly once, independent of any window.

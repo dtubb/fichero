@@ -24,13 +24,22 @@ Exit codes (AGENTS.md rule 0 — blind vs not-armed):
 
 Usage:
   python3 scripts/check_hang_ratchet.py <trace.trace | hangs.xml>
+  python3 scripts/check_hang_ratchet.py --stall-log <stalls.log>
   python3 scripts/check_hang_ratchet.py <input> --update-baseline
   python3 scripts/check_hang_ratchet.py --self-test
+
+The --stall-log mode reads the app's OWN measurement
+(MainThreadStallSampler, FICHERO_STALL_LOG=1): every ordinary run becomes a
+ratchet-grade session with no Instruments and no minutes of trace modeling.
+Same three metrics, SEPARATE baseline (scripts/stall_baseline.json) — the
+sampler's 33ms floor matches the Hangs instrument but the two measure
+differently, so their numbers are never compared to each other.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -39,6 +48,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BASELINE_PATH = REPO_ROOT / "scripts" / "hang_baseline.json"
+STALL_BASELINE_PATH = REPO_ROOT / "scripts" / "stall_baseline.json"
+# One shared line format with MainThreadStallSampler.stallLine — pinned on the
+# Swift side by MainThreadStallSamplerTests.
+STALL_LINE = re.compile(r"^STALL \S+ (\d+(?:\.\d+)?)ms$")
 # Any single measurement can wobble on a loaded machine; a violation is a
 # >5% regression on any metric. Improvements only land via --update-baseline.
 TOLERANCE = 1.05
@@ -63,6 +76,30 @@ def export_hangs_xml(trace: Path) -> str:
         print(f"BLIND: xctrace export failed for {trace}: {result.stderr.strip()}")
         sys.exit(2)
     return out.read_text()
+
+
+def measure_stall_log(text: str) -> dict:
+    """The sampler's session file -> the same three metrics, in ms."""
+    durations = []
+    saw_session = False
+    for line in text.splitlines():
+        if line.startswith("SESSION "):
+            saw_session = True
+            continue
+        match = STALL_LINE.match(line.strip())
+        if match:
+            durations.append(float(match.group(1)))
+    if not saw_session:
+        # An empty or headerless file is BLIND, not a perfect session — the
+        # sampler writes its SESSION header before anything else, so its
+        # absence means the sampler never ran (or wrote somewhere else).
+        print("BLIND: no SESSION header — was FICHERO_STALL_LOG=1 set for this run?")
+        sys.exit(2)
+    return {
+        "hang_count": len(durations),
+        "total_stall_ms": round(sum(durations), 1),
+        "worst_hang_ms": round(max(durations, default=0.0), 1),
+    }
 
 
 def measure(xml_text: str) -> dict:
@@ -126,7 +163,12 @@ def self_test() -> None:
     ok_baseline = {"hang_count": 2, "total_stall_ms": 5000.0, "worst_hang_ms": 3000.0}
     assert compare(current, ok_baseline) == []
 
-    print("[ok] self-test: ratchet fires on regression, passes at baseline")
+    stall_log = "SESSION 2026-08-08T12:00:00Z\nSTALL 2026-08-08T12:00:01Z 50.0ms\nSTALL 2026-08-08T12:00:02Z 120.5ms\nnoise line\n"
+    stall = measure_stall_log(stall_log)
+    assert stall == {"hang_count": 2, "total_stall_ms": 170.5, "worst_hang_ms": 120.5}, stall
+    assert compare(stall, {"hang_count": 1, "total_stall_ms": 50.0, "worst_hang_ms": 50.0})
+
+    print("[ok] self-test: ratchet fires on regression (trace AND stall-log), passes at baseline")
 
 
 def main() -> None:
@@ -137,6 +179,32 @@ def main() -> None:
 
     update = "--update-baseline" in args
     inputs = [a for a in args if not a.startswith("--")]
+    if "--stall-log" in args:
+        if not inputs:
+            print("BLIND: --stall-log needs the stalls.log path")
+            sys.exit(2)
+        source = Path(inputs[0])
+        if not source.exists():
+            print(f"BLIND: {source} does not exist")
+            sys.exit(2)
+        current = measure_stall_log(source.read_text())
+        print(f"measured (stall-log): {json.dumps(current)}")
+        if update:
+            STALL_BASELINE_PATH.write_text(json.dumps(current, indent=2) + "\n")
+            print(f"[ok] stall baseline written to {STALL_BASELINE_PATH} — commit it")
+            return
+        if not STALL_BASELINE_PATH.exists():
+            print(f"BLIND: no committed stall baseline at {STALL_BASELINE_PATH}. "
+                  "First run: --stall-log <log> --update-baseline.")
+            sys.exit(2)
+        failures = compare(current, json.loads(STALL_BASELINE_PATH.read_text()))
+        if failures:
+            print("FAIL main-thread stall grew (#4550, self-measured):")
+            for failure in failures:
+                print(f"  - {failure}")
+            sys.exit(1)
+        print("[ok] within stall baseline")
+        return
     if not inputs:
         # NOT ARMED: no trace on this machine — the thing measured does not
         # exist here yet. Never fail every developer's gate for that.
