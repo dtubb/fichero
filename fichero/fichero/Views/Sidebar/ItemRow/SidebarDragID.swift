@@ -238,6 +238,19 @@ extension View {
         case .copy: Color.green
         case .alias: Color.purple
         }
-        self.listRowBackground(active ? tint : nil)
+        // Back to a LABEL background (2026-08-08, second revision): the
+        // listRowBackground form propagated to the WHOLE disclosure group —
+        // a stuck-targeted folder painted itself AND its children solid
+        // accent, which read as a phantom mass selection (Daniel's 12:49
+        // screenshots; the drop delegate can lose the trailing
+        // isTargeted=false when a row rebuilds mid-drag, #4229). A label
+        // background is bounded to the one row, so even a stuck flag can
+        // only mislight that row. Full-row coverage (#4568) needs the stuck
+        // state fixed first; solid-but-bounded is the safe intermediate.
+        self.background(
+            RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
+                .fill(active ? tint : Color.clear)
+                .allowsHitTesting(false)
+        )
     }
 }
