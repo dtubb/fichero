@@ -106,9 +106,28 @@ class LibraryAccessDeniedError(HTTPException):
         self.payload = payload
 
 
-def _log_rejected_library_path(path: str) -> None:
-    failed_check = "suffix" if Path(path).expanduser().suffix != ".fichero" else "roots"
+def _rejected_library_path_detail(path: str) -> str:
+    """Log the rejection and return ONE accurate sentence for the 403.
+
+    The old detail was a disjunction — "not in an allowed location or not a
+    .fichero package" — and to the user BOTH clauses read as false: the file
+    IS a .fichero package and they DID choose the location. The check already
+    knows which branch failed; say that branch, and name the path, because
+    "not in an allowed location" means nothing without it.
+    """
+    if Path(path).expanduser().suffix != ".fichero":
+        failed_check = "suffix"
+        detail = f"'{path}' is not a .fichero library package (its name must end in .fichero)."
+    else:
+        failed_check = "roots"
+        detail = (
+            f"'{path}' is a .fichero package, but it is outside every location this "
+            "engine may open (allowed roots and security-scoped grants). "
+            "Open it from the app so access can be granted, or move it into an "
+            "allowed location such as Documents."
+        )
     logger.warning("Rejected library path: path=%s home=%s failed_check=%s", path, Path.home(), failed_check)
+    return detail
 
 
 def _install_warning_filters() -> None:
@@ -946,15 +965,10 @@ async def validate_library_path_header(request: Request, call_next):
     """Validate library header early, even when dependencies are overridden in tests."""
     library_path = optional_library_path(request)
     if library_path and not _is_allowed_library_path(library_path):
-        _log_rejected_library_path(library_path)
+        detail = _rejected_library_path_detail(library_path)
         from fastapi.responses import JSONResponse
 
-        return JSONResponse(
-            status_code=403,
-            content={
-                "detail": "Library path is not in an allowed location or not a .fichero package."
-            },
-        )
+        return JSONResponse(status_code=403, content={"detail": detail})
     return await call_next(request)
 
 
@@ -1052,10 +1066,9 @@ def _get_library_database_for_access(
         )
 
     if not _is_allowed_library_path(x_fichero_library_path):
-        _log_rejected_library_path(x_fichero_library_path)
         raise HTTPException(
             status_code=403,
-            detail="Library path is not in an allowed location or not a .fichero package.",
+            detail=_rejected_library_path_detail(x_fichero_library_path),
         )
 
     _bootstrap_legacy_library_owner_if_needed(request, x_fichero_library_path)
@@ -1206,10 +1219,9 @@ async def health_check(
 
     if x_fichero_library_path:
         if not _is_allowed_library_path(x_fichero_library_path):
-            _log_rejected_library_path(x_fichero_library_path)
             raise HTTPException(
                 status_code=403,
-                detail="Library path is not in an allowed location or not a .fichero package.",
+                detail=_rejected_library_path_detail(x_fichero_library_path),
             )
         assert_library_read_authorized(request, x_fichero_library_path)
         # Library-specific health check
