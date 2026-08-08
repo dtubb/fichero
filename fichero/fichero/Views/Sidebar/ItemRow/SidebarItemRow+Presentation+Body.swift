@@ -181,7 +181,9 @@ extension SidebarItemRow {
                     )
             }
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
-            .contextMenu { rowContextMenu }
+            // #4544: menu built at OPEN, not per render — see
+            // SidebarDeferredMenuContent.
+            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
         } else if isFolder {
             folderLabel
         } else {
@@ -215,7 +217,7 @@ extension SidebarItemRow {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: true, operation: targetedDropOperation)
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
-            .contextMenu { rowContextMenu }
+            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
 
     /// Leaf row: no inner gestures — `.draggable` is applied one level
@@ -225,7 +227,7 @@ extension SidebarItemRow {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, stronger: false, operation: targetedDropOperation)
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
-            .contextMenu { rowContextMenu }
+            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
 
     /// One delegate for all three row shapes (#4401). `.onDrop(of:isTargeted:)`
