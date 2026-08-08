@@ -65,27 +65,28 @@ private func sidebarSubtreeExpansionIDs(
     _ document: Document,
     store: DocumentStore
 ) async -> Set<String> {
-    // LEVEL-ORDER, not task-recursive: the region checker also rejected the
-    // recursive form ("does not understand how to check" at the recursive
-    // addTask, build 2026-08-08 09:22). Each level's fetches still run
-    // concurrently — the wall clock is depth × RTT instead of nodes × RTT —
-    // and the child closure is the simplest checkable shape: one store call.
+    // LEVEL-ORDER with UNSTRUCTURED tasks, after two rejected shapes: the
+    // region checker errors on any `group.addTask` capturing the MainActor
+    // store — recursive (build 09:22) and plain (build 09:24) alike. A
+    // `Task {}` created here inherits MainActor, so capturing the store is
+    // the same legal pattern the option-click call site already compiles
+    // (`Task { await store.loadSidebarChildren(of:) }`). All of a level's
+    // tasks start before any is awaited, so their network awaits interleave:
+    // wall clock is depth × RTT, not nodes × RTT. Unstructured means no
+    // automatic cancellation propagation — fine for an explicit user gesture
+    // whose store calls are themselves cancellation-tolerant.
     var frontier = [document]
     var ids: Set<String> = []
     while !frontier.isEmpty {
         ids.formUnion(frontier.map { "doc:\($0.id)" })
+        let levelFetches = frontier.map { node in
+            Task { await store.cacheSidebarChildren(of: node) }
+        }
         var nextLevel: [Document] = []
-        await withTaskGroup(of: [Document].self) { group in
-            for node in frontier {
-                group.addTask { @MainActor in
-                    await store.cacheSidebarChildren(of: node)
-                }
-            }
-            for await children in group {
-                nextLevel.append(
-                    contentsOf: children.filter { sidebarSubtreeShouldDescend(into: $0) }
-                )
-            }
+        for fetch in levelFetches {
+            nextLevel.append(
+                contentsOf: await fetch.value.filter { sidebarSubtreeShouldDescend(into: $0) }
+            )
         }
         frontier = nextLevel
     }
