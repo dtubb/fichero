@@ -221,6 +221,13 @@ def main(argv: list[str] | None = None):
             log_level="info",
             loop="asyncio",
             ws="websockets-sansio",
+            # The app's SSE clients (activity/change streams) hold their
+            # connections open across shutdown, and uvicorn's default is to
+            # wait for them INDEFINITELY — so every quit blew through the
+            # supervising app's 2s SIGTERM window and ended in SIGKILL
+            # (#4291, live all day 2026-08-08). One second is enough for any
+            # genuine in-flight response; lingering streams are force-closed.
+            timeout_graceful_shutdown=1,
         )
         logger.info("Starting Fichero Backend (UDS transport)")
         logger.info("Server will listen on unix:%s (no TCP port, no TLS)", uds_path)
@@ -253,6 +260,8 @@ def main(argv: list[str] | None = None):
         loop="asyncio",
         ws="websockets-sansio",
         reload=reload_enabled,
+        # Same 1s drain bound as the UDS transport above (#4291).
+        timeout_graceful_shutdown=1,
     )
     if reload_enabled:
         # Limit reload scope to backend source to avoid whole-home scan noise.

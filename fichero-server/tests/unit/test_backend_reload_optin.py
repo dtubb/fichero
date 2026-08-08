@@ -126,3 +126,15 @@ def test_watchdog_escalates_to_hard_exit_when_graceful_shutdown_hangs(monkeypatc
         "no hard-exit escalation — a hung graceful shutdown would leave an "
         "immortal orphan holding the socket"
     )
+
+
+def test_both_transports_bound_graceful_shutdown():
+    """#4291: uvicorn's default waits INDEFINITELY for open SSE connections
+    at shutdown, so every quit blew through the app's 2s SIGTERM window and
+    ended in SIGKILL. Both transports must bound the drain."""
+    from pathlib import Path
+
+    main_py = (Path(__file__).resolve().parents[2] / "src/fichero_server/__main__.py").read_text()
+    assert main_py.count("timeout_graceful_shutdown=1") == 2, (
+        "both the UDS and TCP uvicorn configs must bound graceful shutdown"
+    )
