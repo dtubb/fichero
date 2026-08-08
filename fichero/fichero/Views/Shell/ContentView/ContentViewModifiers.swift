@@ -176,6 +176,13 @@ struct MainContentModifiers: ViewModifier {
     /// Coalesces the active workflow's graph re-fetch on change-stream bursts
     /// (#2278), independent of the sidebar-list reload task in ContentView.
     @State private var workflowGraphResyncTask: Task<Void, Never>?
+    /// The in-flight selection→content load (#4574). Cancelled and replaced
+    /// on every selection change: without this, each click spawned an
+    /// untracked Task and rapid page-clicks STACKED full loads — the
+    /// signposts measured a superseded load still costing 620.8ms on the
+    /// main thread. `loadChildren` treats cancellation as a non-failure, so
+    /// cancelling the loser is free.
+    @State private var selectionLoadTask: Task<Void, Never>?
 
     let handleDocumentChange: (DocumentChange) -> Void
 
@@ -284,8 +291,10 @@ struct MainContentModifiers: ViewModifier {
         if case .library(let doc) = newMode, let document = doc {
             if document.isNavigableContainer {
                 logger.info("Loading children for container: \(document.name) (id: \(document.id))")
-                Task {
+                selectionLoadTask?.cancel()
+                selectionLoadTask = Task {
                     await documentStore.selectCollection(document)
+                    guard !Task.isCancelled else { return }
                     detailDocument = document
                     let docCount = documentStore.currentDocuments.count
                     logger.info("selectCollection completed. currentDocuments count: \(docCount)")
