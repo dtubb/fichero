@@ -84,6 +84,23 @@ fi
 rm -f "$bad_bundle_ids"
 echo "  Embedded engine cleanup: no reserved com.apple.* bundle identifiers found"
 
+# pdfium must sit BESIDE kreuzberg's binding (@loader_path resolution). This
+# placement used to live ONLY in release-all.sh, applied after `preflight
+# --rebuild` — so any Briefcase rebuild OUTSIDE a release silently wiped it
+# (2026-08-08: a morning rebuild dropped it, the engine extracted pdfium to
+# the container tmp at runtime, and hardened-runtime library validation
+# refused the dlopen — #4555; every developer build was shipping without it
+# while only DMGs got the fix). Staged HERE because preflight calls this
+# script on EVERY staging, and BEFORE the signing section below so the placed
+# file is signed with everything else. Fails loudly: a missing dylib produces
+# no runtime error, just PDFs importing with no searchable text.
+"$ROOT_DIR/scripts/place_pdfium_for_kreuzberg.py" \
+  "$ENGINE_APP/Contents/Resources/app_packages" || {
+    echo "error: could not place libpdfium.dylib beside kreuzberg's binding." >&2
+    echo "       PDFs would import with no searchable text. Refusing to stage that." >&2
+    exit 1
+  }
+
 # Bytecode magic is per MINOR version: a .pyc compiled by the wrong minor is
 # silently ignored by the runtime, which recompiles on first launch — the #3940
 # slow start. So detect the BUNDLE's own CPython minor and compile with EXACTLY
