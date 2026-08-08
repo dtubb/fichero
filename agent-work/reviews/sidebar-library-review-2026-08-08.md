@@ -113,3 +113,25 @@ PARENT folder; the delete deletes the parent. Two required fixes:
   2.7 GB parse); SwiftUI-metric ratchet is NOT (tables empty, #4547).
 - Ask: a fresh trace after this session's two commits, same session shape,
   for a before/after hang-total delta.
+
+## Addendum (post-review): Swift 6 region-isolation checker — shapes it rejects here
+
+For the next person, so the three red rungs aren't re-walked. Goal: fetch a
+tree of children concurrently through the @MainActor `DocumentStore`. All
+three of these failed the build with the same HARD ERROR ("Pattern that the
+region-based isolation checker does not understand how to check. Please file
+a bug") — it is an error under Swift 6, not a warning, and it does not name
+the offending capture:
+
+1. `group.addTask { @MainActor in … }` capturing a `Binding` — Binding wraps
+   get/set closures; a Sendable `Value` does not make it Sendable.
+2. The same, recursively calling the enclosing function with only
+   Sendable-safe captures (`@unchecked Sendable` Document + MainActor store).
+3. Non-recursive `group.addTask { @MainActor in await store.method(…) }` —
+   ANY task-group child capturing the MainActor store fails.
+
+What compiles (`8005239aa`): unstructured `Task { await store.method(…) }`
+created inside a @MainActor function — it inherits the actor, so the store
+capture is legal — with all of a level's tasks started before any is awaited
+(concurrency preserved: depth × RTT). The same conclusion is documented at
+the function itself (`sidebarSubtreeExpansionIDs`, SidebarItemRow.swift).
