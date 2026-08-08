@@ -12,6 +12,14 @@ import SwiftUI
 
 #if os(macOS)
 
+extension Notification.Name {
+    /// Posted whenever the live engine ACCEPTS a security-scoped grant — the
+    /// signal that "terminal" 403 stream denials are no longer terminal
+    /// (2026-08-08: streams gave up during launch, before auth; the
+    /// post-ready sweep then granted access and nothing told them).
+    static let ficheroEngineAccessChanged = Notification.Name("ficheroEngineAccessChanged")
+}
+
 @MainActor
 @Observable
 class FolderAccessManager {
@@ -251,6 +259,9 @@ class FolderAccessManager {
         do {
             try await service.grantAccess(toPath: path, bookmark: bookmark)
             engineAccessFailure = nil
+            // Revive any stream that hit a "terminal" 403 before this grant
+            // existed — the authorization answer just changed.
+            NotificationCenter.default.post(name: .ficheroEngineAccessChanged, object: nil)
         } catch {
             // Loud AND fatal to the caller's engine work: the engine cannot read
             // this folder, so ingesting/opening it would fail later with an
@@ -280,6 +291,35 @@ class FolderAccessManager {
         // engine either inherits same-sandbox access or the grant is a no-op.
         guard let bookmarkData = mintBookmark(for: url) else { return }
         try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
+    }
+
+    /// Re-send EVERY persisted bookmark to the live engine.
+    ///
+    /// Why (Daniel's launch log, 2026-08-08): eleven grants fired DURING
+    /// launch — bookmark restore/refresh runs long before the engine is
+    /// authenticated — and the engine refused each one (403). Nothing ever
+    /// re-sent them, so every library outside the container stayed
+    /// unreachable for the whole session even though the app held valid,
+    /// freshly-minted bookmarks. The lifecycle controller calls this once at
+    /// first-authenticated-ready; the grant route is idempotent, so
+    /// re-sending already-held paths costs nothing.
+    func resendAllGrantsToEngine() async {
+        guard SandboxEnvironment.isSandboxed else { return }
+        let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
+        guard !stored.isEmpty else { return }
+        var granted = 0
+        for (path, bookmark) in stored {
+            do {
+                try await grantEngineAccess(path: path, bookmark: bookmark)
+                granted += 1
+            } catch {
+                // grantEngineAccess already logged the refusal and surfaced
+                // engineAccessFailure; the sweep reports the tally below.
+            }
+        }
+        logger.info(
+            "Post-ready grant sweep: \(granted) of \(stored.count) bookmark(s) granted to the live engine"
+        )
     }
 
     /// Restore bookmarks on app launch

@@ -231,6 +231,35 @@ final class LibraryChangeStream {
         }
     }
 
+    /// Revival after a "terminal" denial — a 403 IS terminal for retry loops,
+    /// but a granted bookmark changes the answer (2026-08-08: launch-time
+    /// denials preceded the post-ready grant sweep; the stream stayed dead
+    /// for the session).
+    private var accessChangeObserver: (any NSObjectProtocol)?
+
+    private func armRevivalOnAccessChange() {
+        guard accessChangeObserver == nil else { return }
+        accessChangeObserver = NotificationCenter.default.addObserver(
+            forName: .ficheroEngineAccessChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.reviveAfterAccessChange() }
+        }
+    }
+
+    private func reviveAfterAccessChange() {
+        if let observer = accessChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            accessChangeObserver = nil
+        }
+        guard accessDenied else { return }
+        changeStreamLogger.info("change-stream reviving — a grant changed the engine's answer")
+        accessDenied = false
+        accessDeniedMessage = nil
+        liveUpdatesUnavailable = false
+        started = false
+        start()
+    }
+
     func stop() {
         task?.cancel()
         task = nil
@@ -290,6 +319,7 @@ final class LibraryChangeStream {
                     accessDeniedMessage = detail
                     accessDenied = true
                     liveUpdatesUnavailable = true
+                    armRevivalOnAccessChange()
                 }
                 isConnected = false
                 return

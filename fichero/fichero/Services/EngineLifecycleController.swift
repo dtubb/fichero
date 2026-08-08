@@ -307,6 +307,17 @@ final class EngineLifecycleController {
         // which is why it is the hook: reusing the existing supervisor rather
         // than adding a second mechanism that would have to be remembered.
         await supplyProviderKeysToEngine()
+        #if os(macOS)
+        // Re-send every persisted security-scoped bookmark NOW that the
+        // engine is authenticated (2026-08-08): the launch-time grant
+        // attempts fire before auth completes and the engine refuses them
+        // all — without this sweep, every library outside the container
+        // stayed unreachable for the whole session. Before the library
+        // restoration below, so restored libraries open first try. Same
+        // every-connect rationale as the provider keys above: a respawned
+        // engine starts with zero grants.
+        await FolderAccessManager.shared.resendAllGrantsToEngine()
+        #endif
         // The one shared post-ready side-effect block (#3113); adopt is a no-op
         // on an embedded/local host, so no `usesExternal` branch here.
         let restorationStart = Date()

@@ -60,3 +60,49 @@ struct FolderAccessManagerSandboxGateTests {
         )
     }
 }
+
+
+/// The 2026-08-08 launch-grant race, pinned end to end: grants fired before
+/// the engine authenticated, the engine refused all eleven, and nothing ever
+/// re-sent them — every outside-container library stayed dead all session,
+/// and both SSE streams sat in a "terminal" 403 forever.
+struct PostReadyGrantSweepTests {
+
+    private func source(_ repoRelative: String) throws -> String {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // Services/
+            .deletingLastPathComponent()  // fichero-tests/
+            .deletingLastPathComponent()  // fichero/ (product dir)
+            .deletingLastPathComponent()  // repo root
+        return try String(
+            contentsOf: repoRoot.appendingPathComponent(repoRelative), encoding: .utf8
+        )
+    }
+
+    @Test("first-authenticated-ready re-sends every persisted grant")
+    func lifecycleRunsTheSweep() throws {
+        let lifecycle = try source("fichero/fichero/Services/EngineLifecycleController.swift")
+        #expect(
+            lifecycle.contains("resendAllGrantsToEngine()"),
+            "without the post-ready sweep, launch-time grant refusals are permanent"
+        )
+    }
+
+    @Test("a successful grant announces that the engine's answer changed")
+    func grantSuccessPostsTheNotification() throws {
+        let manager = try source("fichero/fichero/Services/FolderAccessManager.swift")
+        #expect(manager.contains("NotificationCenter.default.post(name: .ficheroEngineAccessChanged"))
+    }
+
+    @Test("both streams arm a revival when they hit the terminal 403")
+    func deniedStreamsArmRevival() throws {
+        for path in [
+            "fichero/fichero/Services/ActivityStreamService.swift",
+            "fichero/fichero/Services/LibraryChangeStream.swift",
+        ] {
+            let stream = try source(path)
+            #expect(stream.contains("armRevivalOnAccessChange()"), "missing in \(path)")
+            #expect(stream.contains(".ficheroEngineAccessChanged"), "missing in \(path)")
+        }
+    }
+}
