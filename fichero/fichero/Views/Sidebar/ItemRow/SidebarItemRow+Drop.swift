@@ -90,7 +90,7 @@ extension SidebarItemRow {
         ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
             SidebarItemRow(
                 item: child,
-                allCachedItems: allCachedItems,
+                lookupItem: lookupItem,
                 expandedItems: $expandedItems,
                 selectedItemId: $selectedItemId,
                 selectedDestinations: selectedDestinations,

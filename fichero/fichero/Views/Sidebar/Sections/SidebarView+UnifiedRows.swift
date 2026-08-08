@@ -182,7 +182,9 @@ extension SidebarView {
         // whole row (including taps on the inner icon/name).
         let row = SidebarItemRow(
             item: item,
-            allCachedItems: allCachedItems,
+            // O(1) id lookup against the cached index — never hand rows the
+            // whole forest to copy (#4545).
+            lookupItem: { cachedItem(id: $0) },
             expandedItems: Binding(
                 get: { sidebarState.expandedItems },
                 set: { sidebarState.expandedItems = $0 }

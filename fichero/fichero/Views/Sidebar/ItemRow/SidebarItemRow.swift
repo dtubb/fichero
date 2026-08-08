@@ -299,7 +299,14 @@ extension View {
 
 struct SidebarItemRow: View {
     let item: SidebarItem
-    let allCachedItems: [SidebarItem]
+    /// O(1) row resolution by id, backed by `SidebarView.cachedItemIndex`.
+    ///
+    /// #4545: this used to be `allCachedItems: [SidebarItem]` — the WHOLE
+    /// cached forest stored in EVERY row, so SwiftUI copied it with each of
+    /// the ~740 row copies the aug4 profile measured, and every walk-based
+    /// lookup (`findItemById`) re-traversed the tree the index had already
+    /// flattened. Every use was an id lookup; a closure is 16 bytes.
+    let lookupItem: (String) -> SidebarItem?
     @Binding var expandedItems: Set<String>
     @Binding var selectedItemId: String?
     let selectedDestinations: Set<SidebarDestination>

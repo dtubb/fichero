@@ -291,7 +291,7 @@ extension SidebarItemRow {
     /// `SidebarView.selectedItems` for row-level batch actions.
     private var resolvedSelectionItems: [SidebarItem] {
         selectedDestinations.compactMap {
-            findItemById($0.serializedID, in: allCachedItems)
+            lookupItem($0.serializedID)
         }
     }
 
@@ -341,7 +341,7 @@ extension SidebarItemRow {
 
     private func workflowRunTarget(for destination: SidebarDestination) -> WorkflowRunTarget? {
         guard case .document = destination,
-              let item = findItemById(destination.serializedID, in: allCachedItems) else {
+              let item = lookupItem(destination.serializedID) else {
             return nil
         }
         return workflowRunTarget(for: item)
