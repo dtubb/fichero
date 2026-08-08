@@ -15,10 +15,9 @@ import os
 /// outstanding ping — never a flood — so a ping issued during a stall
 /// measures that stall's remaining length honestly. Latency above 33ms (the
 /// same threshold the Hangs instrument uses) is a stall and is appended to
-/// `Logs/Fichero/stalls.log` beside the engine's log. The file is TRUNCATED
-/// at start, so it always holds exactly the last session —
-/// `check_hang_ratchet.py --stall-log` reads it and holds the session to the
-/// committed baseline.
+/// `Logs/Fichero/stalls.log` beside the engine's log. Sessions APPEND with
+/// SESSION headers (1MB rotation) — `check_hang_ratchet.py --stall-log`
+/// measures the last one and holds it to the committed baseline.
 ///
 /// Undercounting bias, stated: a stall can begin while the sampler sleeps
 /// between pings, hiding up to one interval (16ms) of its start. That makes
@@ -60,7 +59,7 @@ final class MainThreadStallSampler: @unchecked Sendable {
         thread.name = "fichero.stall-sampler"
         thread.qualityOfService = .utility
         thread.start()
-        logger.info("Main-thread stall sampler running (threshold 33ms, log truncated per session)")
+        logger.info("Main-thread stall sampler running (threshold 33ms, sessions append)")
     }
 
     private func openLog() {
