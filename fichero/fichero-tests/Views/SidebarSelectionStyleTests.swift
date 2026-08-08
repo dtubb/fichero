@@ -135,11 +135,14 @@ struct SidebarSelectionStyleTests {
     func sidebarRowAppliesTheSharedStyle() throws {
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
         #expect(source.contains("LibrarySelectionStyle.sidebarLabel(isSelected:"))
-        // The one content-colour rule (rowContentColor): white while a drop
-        // targets the row or the system emphasizes the selection
-        // (backgroundProminence), otherwise the shared style's colour.
+        // The one content-colour rule (rowContentColor, Daniel's preview
+        // review 2026-08-08): white ONLY while a drop targets the row (the
+        // one solid-accent platter left), otherwise the shared style's
+        // colour. No prominence switch — the selected platter is the grey
+        // fill sidebarDropHighlight paints itself, never the native
+        // emphasized accent, so the content never needs to invert.
         #expect(source.contains(".foregroundStyle(rowContentColor)"))
-        #expect(source.contains("backgroundProminence == .increased"))
+        #expect(!source.contains("backgroundProminence"))
         #expect(source.contains(".fontWeight(rowLabelStyle.weight)"))
     }
 

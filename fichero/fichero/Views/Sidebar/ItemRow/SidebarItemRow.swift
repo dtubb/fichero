@@ -61,12 +61,6 @@ struct SidebarItemRow: View {
     /// Finder-style Open in New Tab / New Window for sidebar rows (#1685).
     @Environment(\.openWindow) private var openWindow
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    /// `.increased` inside an EMPHASIZED (focused) selected list row — the
-    /// system's own signal for Mail's two selected looks. Drives
-    /// `rowContentColor` (#4563): white content on the focused accent
-    /// platter, accent content on the unfocused grey one.
-    @Environment(\.backgroundProminence) var backgroundProminence
-
     var library: LibraryManager.LibraryReference? {
         guard let libraryId = item.libraryId else { return nil }
         return libraryManager.getLibrary(id: libraryId)
@@ -83,14 +77,6 @@ struct SidebarItemRow: View {
     @State var isDropTargeted = false
     /// Pointer-over state driving the trailing open affordance (#2496).
     @State var isRowHovered = false
-    /// ⌥/⌘ held while this row is a drop target → copy/alias highlight tint.
-    /// Tracked by a flagsChanged monitor installed ONLY while targeted
-    /// (macOS; one row is targeted at a time so at most one monitor lives).
-    @State var isOptionHeldOverTarget = false
-    @State var isCommandHeldOverTarget = false
-    #if os(macOS)
-    @State private var optionMonitor: Any?
-    #endif
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
     /// Grid-menu parity (#4121): Bookmark… / Add to Workspace… picker sheets,
     /// presented from this row so each row injects ITS library's services.
@@ -269,42 +255,6 @@ struct SidebarItemRow: View {
     var openableDocumentId: String? {
         if case .document(let doc) = item.itemType { return doc.id }
         return nil
-    }
-
-    #if os(macOS)
-    /// Track ⌥ while this row is targeted so the highlight can tint to copy
-    /// mode live. Note: whether flagsChanged reaches a local monitor during
-    /// an active drag session needs a gate eyeball; the drop BEHAVIOR reads
-    /// the key again at drop time regardless (`sidebarOptionKeyIsHeld`).
-    func updateOptionMonitor(targeted: Bool) {
-        if targeted {
-            isOptionHeldOverTarget = NSEvent.modifierFlags.contains(.option)
-            isCommandHeldOverTarget = NSEvent.modifierFlags.contains(.command)
-            guard optionMonitor == nil else { return }
-            optionMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-                isOptionHeldOverTarget = event.modifierFlags.contains(.option)
-                isCommandHeldOverTarget = event.modifierFlags.contains(.command)
-                return event
-            }
-        } else {
-            if let optionMonitor {
-                NSEvent.removeMonitor(optionMonitor)
-            }
-            optionMonitor = nil
-            isOptionHeldOverTarget = false
-            isCommandHeldOverTarget = false
-        }
-    }
-    #endif
-
-    /// The operation the CURRENT modifiers would perform on this drop target —
-    /// drives the highlight tint only; the drop re-reads the keys itself.
-    var targetedDropOperation: SidebarDropOperation {
-        sidebarDropOperation(
-            optionHeld: isOptionHeldOverTarget,
-            commandHeld: isCommandHeldOverTarget,
-            kind: .document
-        )
     }
 
     /// In-window "Open": select this row (drives navigation/preview).

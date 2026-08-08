@@ -79,6 +79,21 @@ struct LibraryPathMiddlewareTests {
         #expect(LibraryPathMiddleware.isAppWidePath("/api/authz/share") == false)
     }
 
+    /// The sandbox GRANT routes exist to EXPAND what the engine may open, so
+    /// judging them by the CURRENT library's header is a chicken-and-egg
+    /// (#4562, live 2026-08-08): with an ungranted library current, every
+    /// folder drop's grant POST 403'd on the header before the route could
+    /// run. The engine exempts these routes server-side
+    /// (`_library_header_validation_exempt`); the client must not send the
+    /// header at all — which also protects against an older engine.
+    @Test("/api/sandbox grant routes carry no library header")
+    func sandboxRoutesAreAppWide() {
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/sandbox/security-scoped-access") == true)
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/sandbox") == true)
+        // Anchored: no leak onto lookalike prefixes.
+        #expect(LibraryPathMiddleware.isAppWidePath("/api/sandboxed-thing") == false)
+    }
+
     // #2407: the exact endpoints that showed the 403→retry→200 burst on iPad are
     // all library-scoped, so the FIRST call to each carries X-Fichero-Library-Path
     // (never app-wide). Combined with warming token+session+identity before

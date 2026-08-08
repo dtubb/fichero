@@ -216,41 +216,48 @@ struct SidebarDragID: Transferable {
 }
 
 extension View {
-    /// Applies the sidebar drop-target highlight to any view.
+    /// The sidebar row's ONE platter — selection and drop target share the
+    /// same full-row canvas (Daniel's preview review, 2026-08-08, #4563/#4568):
     ///
-    /// Mail's drag grammar (Daniel, 2026-08-08, #4563): the targeted row is
-    /// the ENTIRE row solid accent with white content — full width, chevron
-    /// and indent strip included. The previous `.background` on the label
-    /// only tinted the label's frame ("there is the smaller drop target, not
-    /// the entire row"). `.listRowBackground` is the List's own full-row
-    /// canvas, and — applied from inside the row's label — it paints only
-    /// THIS row, never an expanded subtree (the #4229 trap lived at the
-    /// DisclosureGroup level, not here).
+    ///   - drop target  → ENTIRE row solid accent, white content (Mail).
+    ///     One style for every operation: move/copy/alias feedback belongs to
+    ///     the CURSOR badge (the delegate's `dropUpdated` proposal), never to
+    ///     the platter color — "the way the drop target changes for alias,
+    ///     copy, move is the cursor".
+    ///   - selected     → grey platter, accent name+icon (Finder). Painting
+    ///     it ourselves replaces the native emphasized accent platter, which
+    ///     read as a solid green block.
+    ///   - otherwise    → clear.
+    ///
+    /// `.listRowBackground` is the List's own full-row canvas — full width,
+    /// chevron and indent strip included (a label `.background` only tinted
+    /// the label's frame: "just the name not the actual row"). Attached to
+    /// the LABEL of each row shape, it scopes to THAT row; the #4229 subtree
+    /// wash came from attaching at the DisclosureGroup level, where the
+    /// group's frame is the folder plus its expanded children.
     @ViewBuilder
-    func sidebarDropHighlight(
-        _ active: Bool, operation: SidebarDropOperation = .move
-    ) -> some View {
-        // Modifier-drag tint — the closest native stand-in for AppKit's
-        // drag-cursor badges, which SwiftUI's row drag doesn't expose (no
-        // sourceOperationMask hook): ⌥ copy = green, ⌘⌥ alias = purple.
-        let tint: Color = switch operation {
-        case .move: Color.accentColor
-        case .copy: Color.green
-        case .alias: Color.purple
-        }
-        // Back to a LABEL background (2026-08-08, second revision): the
-        // listRowBackground form propagated to the WHOLE disclosure group —
-        // a stuck-targeted folder painted itself AND its children solid
-        // accent, which read as a phantom mass selection (Daniel's 12:49
-        // screenshots; the drop delegate can lose the trailing
-        // isTargeted=false when a row rebuilds mid-drag, #4229). A label
-        // background is bounded to the one row, so even a stuck flag can
-        // only mislight that row. Full-row coverage (#4568) needs the stuck
-        // state fixed first; solid-but-bounded is the safe intermediate.
-        self.background(
+    func sidebarDropHighlight(_ active: Bool, selected: Bool = false) -> some View {
+        self.listRowBackground(
             RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                .fill(active ? tint : Color.clear)
+                .fill(
+                    active
+                        ? Color.accentColor
+                        : selected ? SidebarConstants.selectedRowFill : Color.clear
+                )
+                .padding(.horizontal, 4)
                 .allowsHitTesting(false)
         )
+    }
+}
+
+extension SidebarConstants {
+    /// Finder's unemphasized selection grey — the sidebar platter for a
+    /// selected row in EVERY focus state (#4563). Never the accent.
+    static var selectedRowFill: Color {
+        #if os(macOS)
+        Color(nsColor: .unemphasizedSelectedContentBackgroundColor)
+        #else
+        Color(.secondarySystemFill)
+        #endif
     }
 }

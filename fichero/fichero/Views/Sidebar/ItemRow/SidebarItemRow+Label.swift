@@ -11,17 +11,14 @@ extension SidebarItemRow {
         selectedDestinations.contains(item.destination)
     }
 
-    /// Mail's full grammar has TWO selected looks, switched by emphasis
-    /// (Daniel's Mail screenshots, #4563): a FOCUSED selection is the accent
-    /// platter with WHITE content; an unfocused one is the grey platter with
-    /// accent content. SwiftUI publishes exactly that switch as
-    /// `backgroundProminence` (.increased inside an emphasized selected row).
-    /// Our explicit label colors must follow it — a fixed accent label reads
-    /// green-on-green the moment the platter goes emphasized, which is what
-    /// shipped on 2026-08-08 morning.
+    /// Finder's grammar, settled in Daniel's preview review (2026-08-08,
+    /// #4563): a selected sidebar row is the GREY platter with accent
+    /// name+icon in EVERY focus state — sidebarDropHighlight paints that
+    /// platter itself, so the native emphasized (accent) selection never
+    /// draws and no prominence switch is needed. White content appears only
+    /// over the one solid-accent fill left: the drop target (Mail).
     var rowContentColor: Color {
         if isDropTargeted { return .white }
-        if backgroundProminence == .increased { return .white }
         return rowLabelStyle.color
     }
 
@@ -275,10 +272,10 @@ extension SidebarItemRow {
     /// Color only the glyph. Text remains `.primary`, and selected rows revert
     /// to the system foreground so SwiftUI keeps its native contrast treatment.
     private var iconTint: Color {
-        // Drop target / focused emphasized selection: white over the accent
-        // platter — same rule as the name (rowContentColor, #4563).
-        if isDropTargeted || backgroundProminence == .increased { return .white }
-        // Unfocused selection: accent icon on the grey row fill (Mail).
+        // Drop target: white over the solid accent platter — same rule as
+        // the name (rowContentColor, #4563).
+        if isDropTargeted { return .white }
+        // Selection: accent icon on the grey row fill (Finder).
         guard !selectedDestinations.contains(item.destination) else { return .accentColor }
         switch item.sidebarTint {
         case .accent: return .accentColor

@@ -49,17 +49,6 @@ extension SidebarItemRow {
             // drag arena so the row's `.draggable` is the sole drag
             // source (#711).
             .textSelection(.disabled)
-            #if os(macOS)
-            // Copy-mode tint lifecycle: monitor lives only while targeted.
-            .onChange(of: isDropTargeted) { _, targeted in
-                updateOptionMonitor(targeted: targeted)
-            }
-            // A targeted row removed mid-drag (list rebuild) never gets the
-            // onChange(false) — tear the monitor down on disappear too.
-            .onDisappear {
-                updateOptionMonitor(targeted: false)
-            }
-            #endif
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -164,7 +153,7 @@ extension SidebarItemRow {
                 disclosureContent
             } label: {
                 fullWidthLabel
-                    .sidebarDropHighlight(isDropTargeted, operation: targetedDropOperation)
+                    .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection)
             }
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             // #4544: menu built at OPEN, not per render — see
@@ -201,7 +190,7 @@ extension SidebarItemRow {
     @ViewBuilder
     private var folderLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, operation: targetedDropOperation)
+            .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection)
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
@@ -211,7 +200,7 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, operation: targetedDropOperation)
+            .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection)
             .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }

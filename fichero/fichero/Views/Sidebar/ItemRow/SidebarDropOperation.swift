@@ -67,9 +67,10 @@ struct SidebarDropModifiers {
 /// sampled `SidebarDropModifiers` is passed down (#4475 C). Nothing below an
 /// entry point may call `.current()` itself: two functions re-reading live
 /// modifier flags at different instants is the "two things nothing forces to
-/// agree" shape this whole family of bugs is made of. The single exception is
-/// hover highlighting (`targetedDropOperation`), which is not a drop and MUST
-/// re-read so the cursor badge tracks the key being pressed mid-drag.
+/// agree" shape this whole family of bugs is made of. (The old hover-tint
+/// exception is gone with the per-operation highlight colors, 2026-08-08:
+/// operation feedback is the CURSOR badge from the delegate's `dropUpdated`
+/// proposal; the platter is one style for every operation.)
 func sidebarDropOperation(
     optionHeld: Bool,
     commandHeld: Bool,
