@@ -35,9 +35,10 @@ func sidebarSubtreeShouldDescend(into child: Document) -> Bool {
 ///
 /// A free function, not a `SidebarItemRow` method: the child tasks must not
 /// capture the row struct (non-Sendable stored services trip the compiler's
-/// region-based isolation checker — the "please file a bug" warning). The
-/// captures here are a `@unchecked Sendable` Document, the MainActor-bound
-/// store, and a Binding whose Value is Sendable.
+/// region-based isolation checker). The walk itself lives in
+/// `sidebarSubtreeExpansionIDs`, which RETURNS the ids rather than writing
+/// them — see its doc comment for why the Binding must not travel into the
+/// recursion.
 @MainActor
 func sidebarExpandSubtree(
     _ document: Document,
