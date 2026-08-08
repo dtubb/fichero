@@ -350,3 +350,17 @@ def test_rejection_detail_is_never_the_old_disjunction():
     for path in ("/Users/real-user/X.fichero", "/Users/real-user/notes.txt"):
         detail = api_main._rejected_library_path_detail(path)
         assert "not in an allowed location or not a .fichero package" not in detail
+
+
+def test_sandbox_grant_route_is_exempt_from_header_validation():
+    """The grant route EXPANDS the allowed set — validating the current
+    library's header against the not-yet-expanded set 403s the very request
+    that fixes it (chicken-and-egg, live 2026-08-08: every folder drop failed
+    while an ungranted library was current)."""
+    assert api_main._library_header_validation_exempt("/api/sandbox/security-scoped-access")
+    assert api_main._library_header_validation_exempt("/api/sandbox/anything-future")
+
+
+def test_every_other_route_still_validates_the_header():
+    for path in ("/api/documents", "/api/registry", "/api/health", "/api/sandboxed-not-really"):
+        assert not api_main._library_header_validation_exempt(path), path

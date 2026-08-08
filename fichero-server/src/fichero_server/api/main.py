@@ -960,9 +960,25 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+def _library_header_validation_exempt(path: str) -> bool:
+    """Routes whose library header must NOT be validated.
+
+    The sandbox grant route exists to EXPAND the allowed set. The app's client
+    stamps EVERY request with the current library's header, so when the current
+    library is itself unreachable, validating that header would 403 the very
+    request that grants access — a chicken-and-egg found live (2026-08-08):
+    every folder drop failed with "unexpected response (403) when granting
+    folder access" while an ungranted library was current. The sandbox routes
+    never read the library header.
+    """
+    return path.startswith("/api/sandbox/")
+
+
 @app.middleware("http")
 async def validate_library_path_header(request: Request, call_next):
     """Validate library header early, even when dependencies are overridden in tests."""
+    if _library_header_validation_exempt(request.url.path):
+        return await call_next(request)
     library_path = optional_library_path(request)
     if library_path and not _is_allowed_library_path(library_path):
         detail = _rejected_library_path_detail(library_path)
