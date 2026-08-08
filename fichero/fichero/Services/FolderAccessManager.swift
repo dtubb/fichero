@@ -209,14 +209,22 @@ class FolderAccessManager {
     /// re-sent at every spawn via the env var, so the worst case is ordering: the
     /// open fails with a permission error the app surfaces, and the retry succeeds.
     private func handOffToEngine(path: String, bookmark: Data) {
-        #if FICHERO_APP_STORE
+        // Runtime sandbox check, NOT `#if FICHERO_APP_STORE` — the build flag
+        // was a proxy for "are we sandboxed" from when MAS was the only
+        // sandboxed channel. That premise died on 2026-07-29 (every config is
+        // sandboxed now); `engineBookmarkPayload` was fixed then and these two
+        // methods were missed, so the runtime handoff compiled to a NO-OP in
+        // every non-MAS build: zero POSTs to /api/sandbox/security-scoped-access
+        // ever, every library picked after engine start unreachable, and
+        // folder-drop imports 403ing (found live, 2026-08-08). Same rationale
+        // as SandboxEnvironment.swift's own doc comment.
+        guard SandboxEnvironment.isSandboxed else { return }
         Task { @MainActor in
             // Fire-and-forget: this caller does not immediately read the path, so a
             // denial is swallowed here — it is still surfaced via engineAccessFailure
             // (set before the throw) and re-sent at the next spawn.
             try? await grantEngineAccess(path: path, bookmark: bookmark)
         }
-        #endif
     }
 
     /// Await the engine's grant for a freshly-minted bookmark (#3773). The ordered
@@ -231,7 +239,11 @@ class FolderAccessManager {
     /// spawn-time env var covers anything minted that early) and on the
     /// non-App-Store build (no sandbox — nothing to grant).
     private func grantEngineAccess(path: String, bookmark: Data) async throws {
-        #if FICHERO_APP_STORE
+        // Runtime check, not the FICHERO_APP_STORE build flag — see
+        // `handOffToEngine` above. An unsandboxed app has nothing to grant
+        // (the engine reads the filesystem directly), so returning without
+        // throwing is the documented no-grant-needed case.
+        guard SandboxEnvironment.isSandboxed else { return }
         guard let service = engineAccessService else {
             logger.debug("No engine access service yet; \(path) will be granted at next spawn")
             return
@@ -247,7 +259,6 @@ class FolderAccessManager {
             engineAccessFailure = error.localizedDescription
             throw error
         }
-        #endif
     }
 
     /// Persist access for a directory (a picked folder, or a `.fichero` package)
