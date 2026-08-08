@@ -103,7 +103,14 @@ extension EmbeddedBackendService {
 
     #if os(macOS)
     // Compiled OUT of the App Store build (#3749). Everything from here to the
-    // matching #endif enumerates or signals processes that are not our children
+    // matching #endif enumerates or signals processes that are not our children.
+    //
+    // This is BINARY-CONTENT POLICY, not a disguised "am I sandboxed" check —
+    // do NOT convert it to SandboxEnvironment.isSandboxed in a flag sweep: a
+    // runtime guard would put the pgrep/ps strings back into the binary App
+    // Review greps. check_mas_flag_containment.py allowlists exactly this file.
+    // (Whether these branches still WORK inside the now-sandboxed dev app is a
+    // separate, open runtime question — see the issue filed 2026-08-08.)
     // — pgrep, ps -E, kill() on a foreign PID. Under App Sandbox none of it
     // works, and shipping it dead would still put /usr/bin/pgrep and /bin/ps in
     // a binary the reviewer greps. The MAS build manages only the Process handle
