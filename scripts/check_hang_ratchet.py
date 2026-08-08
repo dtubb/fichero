@@ -78,17 +78,24 @@ def export_hangs_xml(trace: Path) -> str:
     return out.read_text()
 
 
-def measure_stall_log(text: str) -> dict:
-    """The sampler's session file -> the same three metrics, in ms."""
-    durations = []
-    saw_session = False
+def measure_stall_log(text: str, session: int = -1) -> dict:
+    """One session of the sampler's file -> the three metrics, in ms.
+
+    The file APPENDS sessions (a truncate-per-session design destroyed a
+    just-recorded session via a relaunch blip, live 2026-08-08); by default
+    the LAST session is measured. ``session`` indexes them (-1 = last,
+    -2 = previous, 0 = first).
+    """
+    sessions: list[list[float]] = []
     for line in text.splitlines():
         if line.startswith("SESSION "):
-            saw_session = True
+            sessions.append([])
             continue
         match = STALL_LINE.match(line.strip())
-        if match:
-            durations.append(float(match.group(1)))
+        if match and sessions:
+            sessions[-1].append(float(match.group(1)))
+    saw_session = bool(sessions)
+    durations = sessions[session] if sessions else []
     if not saw_session:
         # An empty or headerless file is BLIND, not a perfect session — the
         # sampler writes its SESSION header before anything else, so its

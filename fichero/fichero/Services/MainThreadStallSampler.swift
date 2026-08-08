@@ -70,10 +70,20 @@ final class MainThreadStallSampler: @unchecked Sendable {
                 .appendingPathComponent("Logs/Fichero", isDirectory: true)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let file = dir.appendingPathComponent("stalls.log")
-            // Truncate: the file is ALWAYS exactly the last session, so the
-            // ratchet needs no session arithmetic.
-            FileManager.default.createFile(atPath: file.path, contents: Data())
+            // APPEND, never truncate (learned live 2026-08-08): truncating per
+            // session let a 2-second relaunch blip DESTROY the just-recorded
+            // session before the ratchet had baselined it. Sessions are
+            // SESSION-headed; the ratchet reads the LAST COMPLETE one it is
+            // pointed at, and a >1MB file rotates so it cannot grow forever.
+            if let size = try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int,
+               size > 1_000_000 {
+                try? FileManager.default.removeItem(at: file)
+            }
+            if !FileManager.default.fileExists(atPath: file.path) {
+                FileManager.default.createFile(atPath: file.path, contents: Data())
+            }
             logHandle = try FileHandle(forWritingTo: file)
+            logHandle?.seekToEndOfFile()
             let header = "SESSION \(ISO8601DateFormatter().string(from: Date()))\n"
             logHandle?.write(Data(header.utf8))
         } catch {
