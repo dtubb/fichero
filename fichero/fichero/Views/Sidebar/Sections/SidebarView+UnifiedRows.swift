@@ -25,7 +25,9 @@ extension SidebarView {
 
         var reordered = items
         reordered.move(fromOffsets: source, toOffset: destination)
-        let reorderedKindPositions = reordered.indices.filter { unifiedRowsReorderKind(for: reordered[$0]) == movedKind }
+        let reorderedKindPositions = reordered.indices.filter {
+            unifiedRowsReorderKind(for: reordered[$0]) == movedKind
+        }
         guard reorderedKindPositions == kindPositions else { return nil }
 
         return movedKind

@@ -30,7 +30,8 @@ struct SidebarModeBar: View {
                 compactModeRow
             }
             .padding(.horizontal, 8)
-            .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView, EmptyView>.standardHeight)  // Normalize to 44pt
+            // Normalize to 44pt
+            .frame(maxWidth: .infinity, maxHeight: MiniToolbar<EmptyView, EmptyView>.standardHeight)
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
         }
     }

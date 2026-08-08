@@ -344,7 +344,7 @@ final class SidebarDropProviderDeliveryTests: XCTestCase {
     func testBothDragTypesExportTheNamedFlavor() throws {
         let root = try AppSource.root()
         let sidebarSource = try String(
-            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarDragID.swift"),
             encoding: .utf8
         )
         let modelSource = try String(

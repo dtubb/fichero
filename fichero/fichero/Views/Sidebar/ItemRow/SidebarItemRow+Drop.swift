@@ -220,6 +220,18 @@ extension SidebarItemRow {
             at: offset
         ) else { return }
 
+        performNestedInsertionMove(bareIds: bareIds, parentDoc: parentDoc, newOrder: newOrder, store: store)
+    }
+
+    /// The transactional move + optimistic reorder for a nested insertion —
+    /// extracted verbatim from `handleNestedInsertionDrop` (lint: function
+    /// body length).
+    private func performNestedInsertionMove(
+        bareIds: [String],
+        parentDoc: Document,
+        newOrder: [String],
+        store: DocumentStore
+    ) {
         Task {
             await MainActor.run {
                 sidebarState.dropErrorMessage = nil
