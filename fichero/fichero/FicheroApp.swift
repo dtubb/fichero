@@ -28,6 +28,13 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The unit-test host must never start a real engine (#3902).
         guard !isRunningXCTests() else { return }
+        // Neither may the Xcode Previews host (2026-08-08): it launches the
+        // REAL app to render one view, and an engine spawned here fought the
+        // live ⌘R instance over the container socket while blowing the
+        // preview's 30s launch window — previews render pure SwiftUI against
+        // fixtures and need no engine. `FicheroApp.init` already skips its
+        // side effects for previews; this is the delegate half of that guard.
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         logger.info("App did finish launching — starting engine app-scoped (#3945)")
         LaunchProfile.milestone("applicationDidFinishLaunching")
         // Self-measured main-thread stalls (#4550): FICHERO_STALL_LOG=1 in the
