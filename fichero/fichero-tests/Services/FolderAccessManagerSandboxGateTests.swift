@@ -61,7 +61,6 @@ struct FolderAccessManagerSandboxGateTests {
     }
 }
 
-
 /// The 2026-08-08 launch-grant race, pinned end to end: grants fired before
 /// the engine authenticated, the engine refused all eleven, and nothing ever
 /// re-sent them — every outside-container library stayed dead all session,
