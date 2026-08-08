@@ -80,9 +80,11 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow.swift")
         // Option-click on the chevron expands the entire subtree (Finder-style).
         XCTAssertTrue(source.contains("modifierFlags.contains(.option)"))
-        // A free function since 2026-08-08: the concurrent child tasks must
-        // not capture the row struct (region-isolation checker warning).
-        XCTAssertTrue(source.contains("func sidebarExpandSubtree("))
+        // The walk lives in SidebarExpandAll.swift since the 2026-08-08
+        // file-length split; the row still invokes it.
+        XCTAssertTrue(source.contains("await sidebarExpandSubtree("))
+        let walk = try Self.appSource("Views/Sidebar/ItemRow/SidebarExpandAll.swift")
+        XCTAssertTrue(walk.contains("func sidebarExpandSubtree("))
         // The dead childCount>0 gate on the EXPANDING document is gone
         // (#4515 made the field honest); the DESCEND predicate reads the
         // CHILD's count, which is a different check.
