@@ -61,7 +61,11 @@ extension LibraryView {
     @TableColumnBuilder<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>>
     internal var outlineColumns: some TableColumnContent<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>> {
         TableColumn("Name", value: \.document.name) { node in
+            // Same per-cell boundary injection as documentColumnCell — the
+            // name cell hosts the activity indicator (DocumentStore) and the
+            // thumbnail well (StorageService).
             outlineNameCell(for: node)
+                .modifier(tableCellServiceInjection)
         }
         .width(min: 150, ideal: 200)
         .customizationID("name")
@@ -290,11 +294,43 @@ extension LibraryView {
         switch node.kind {
         case .document:
             tableCellView(for: columnId, document: node.document)
+                .modifier(tableCellServiceInjection)
         case .childGroup, .pageItem, .artifactItem, .entityItem, .claimItem:
             EmptyView()
         }
     }
 
+    /// SwiftUI `Table` cells are their OWN hosting boundary on macOS 26 —
+    /// custom @Observable environment objects DON'T reach the cell content,
+    /// so the Output/entity cells' non-optional
+    /// `@Environment(ArtifactService.self)` read killed the process the
+    /// moment table mode rendered a document row (Daniel's live-test crash,
+    /// 2026-08-09: "Fatal error: No Observable object of type
+    /// ArtifactService found"). Re-inject the ONE service list per cell —
+    /// the same boundary treatment `.inspector`, sheets, and preview hosts
+    /// already get (LibraryServiceEnvironment).
+    var tableCellServiceInjection: TableCellServiceInjection {
+        TableCellServiceInjection(
+            library: libraryManager.getLibrary(id: windowState.libraryId)
+                ?? libraryManager.globalLibrary
+        )
+    }
+}
+
+/// The per-cell injection, as a ViewModifier so `@ViewBuilder` cells stay a
+/// single expression. A nil library (window mid-teardown) renders the bare
+/// cell — the columns that read services are entity/output cells, which the
+/// teardown path never reaches with a nil library AND a live document row.
+struct TableCellServiceInjection: ViewModifier {
+    let library: LibraryManager.LibraryReference?
+
+    func body(content: Content) -> some View {
+        if let library {
+            content.libraryServiceEnvironment(library)
+        } else {
+            content
+        }
+    }
 }
 
 // Canvas (2D) is now rendered by `Spatial2DCanvas` off the shared
