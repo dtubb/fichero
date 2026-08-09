@@ -248,6 +248,18 @@ def grant_access(path: str, encoded: str) -> bool:
         raise BookmarkGrantError("PyObjC/Foundation unavailable — cannot resolve a security-scoped bookmark")
 
     if not start_access_or_inherited(path, bookmark, foundation):
+        if not _engine_is_sandboxed():
+            # The refusal names the cause AND the remedy (the standing rule):
+            # a bare failure here sends a developer hunting bookmark bugs
+            # when the actual answer is one env var. Raised HERE, not in the
+            # shared funnel — the spawn path must degrade, never throw.
+            raise BookmarkGrantError(
+                f"could not resolve the bookmark for {path}, and this engine is UNSANDBOXED "
+                "(no APP_SANDBOX_CONTAINER_ID) — bookmark grants only apply to a sandboxed "
+                "engine and cannot widen the allowlist (audit A1). If this library lives "
+                "outside the standard allowed roots, add its root to "
+                "FICHERO_LIBRARY_ALLOWED_ROOTS instead."
+            )
         raise BookmarkGrantError(f"could not start security-scoped access to {path}")
     return True
 
