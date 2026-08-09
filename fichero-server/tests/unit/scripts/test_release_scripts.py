@@ -157,7 +157,13 @@ def test_embedded_engine_version_guard_rejects_stale_bundle(tmp_path: Path) -> N
 def test_release_all_always_rebuilds_engine_before_packaging() -> None:
     text = _script_text(RELEASE_ALL)
     rebuild = text.index('preflight-embedded-engine.sh" --rebuild')
-    packaging = text.index('if [ "$SKIP_DMG" = false ]')
+    # `; then` is load-bearing. The looser `if [ "$SKIP_DMG" = false ]` also
+    # matches the CREDENTIALS PREFLIGHT (`… && [ "$SKIP_NOTARIZE" = false ]`),
+    # which runs BEFORE the rebuild by design — so this test failed while the
+    # script was correct, and read as "a release can package a stale engine".
+    # A false alarm about #3956 is expensive: it is exactly the failure everyone
+    # is primed to believe. Match the packaging block and nothing else.
+    packaging = text.index('if [ "$SKIP_DMG" = false ]; then')
 
     assert rebuild < packaging
     assert '--skip-backend) SKIP_BACKEND=true' not in text
