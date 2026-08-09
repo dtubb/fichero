@@ -849,42 +849,47 @@ extension LibraryView {
 
 // MARK: - Previews
 
+// Both previews go through LibraryPreviewFixtures.environment (2026-08-09):
+// LibraryView reads nine non-optional environment objects, and injecting
+// only ArtifactService made BOTH of these trap on first body evaluation —
+// the boundary crash class, shipped in the previews themselves.
+
 #Preview("Empty") {
-    let client = FicheroClient(libraryPath: nil)
-    LibraryView(
-        documents: [],
-        contentCollection: .documents,
-        isLoading: false,
-        isConnected: true,
-        errorMessage: nil,
-        onRetry: {},
-        libraryToolbar: LibraryToolbarState(),
-        selection: .constant(Set<String>()),
-        detailDocument: .constant(nil),
-        viewMode: .constant(.icons),
-        displayMode: .icon,
-        folderId: nil
+    LibraryPreviewFixtures.environment(
+        LibraryView(
+            documents: [],
+            contentCollection: .documents,
+            isLoading: false,
+            isConnected: true,
+            errorMessage: nil,
+            onRetry: {},
+            libraryToolbar: LibraryToolbarState(),
+            selection: .constant(Set<String>()),
+            detailDocument: .constant(nil),
+            viewMode: .constant(.icons),
+            displayMode: .icon,
+            folderId: nil
+        )
     )
-    .environment(ArtifactService(ficheroClient: client))
     .frame(width: 600, height: 500)
 }
 
 #Preview("Disconnected") {
-    let client = FicheroClient(libraryPath: nil)
-    LibraryView(
-        documents: [],
-        contentCollection: .documents,
-        isLoading: false,
-        isConnected: false,
-        errorMessage: nil,
-        onRetry: {},
-        libraryToolbar: LibraryToolbarState(),
-        selection: .constant(Set<String>()),
-        detailDocument: .constant(nil),
-        viewMode: .constant(.icons),
-        displayMode: .icon,
-        folderId: nil
+    LibraryPreviewFixtures.environment(
+        LibraryView(
+            documents: [],
+            contentCollection: .documents,
+            isLoading: false,
+            isConnected: false,
+            errorMessage: nil,
+            onRetry: {},
+            libraryToolbar: LibraryToolbarState(),
+            selection: .constant(Set<String>()),
+            detailDocument: .constant(nil),
+            viewMode: .constant(.icons),
+            displayMode: .icon,
+            folderId: nil
+        )
     )
-    .environment(ArtifactService(ficheroClient: client))
     .frame(width: 600, height: 500)
 }

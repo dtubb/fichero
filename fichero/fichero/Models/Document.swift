@@ -540,6 +540,28 @@ extension Document {
 // MARK: - Default Workflows
 
 extension Document {
+    /// A VIRTUAL page cursor (2026-08-09): stands in for a page that is not
+    /// imported as a document, so the PDF reader can keep its place when the
+    /// user pages through an unprocessed PDF. Marked in metadata; consumers
+    /// that resolve artifacts tolerate the unknown id (they already tolerate
+    /// not-yet-processed pages). Never written to any store and never placed
+    /// in browserSelection.
+    static func virtualPageCursor(pdfParentId: String, pageIndex: Int) -> Document {
+        Document(
+            id: "\(pdfParentId):vpage:\(pageIndex)",
+            parentId: pdfParentId,
+            docType: .page,
+            name: "Page \(pageIndex + 1)",
+            sequence: pageIndex + 1,
+            metadata: [
+                "virtual_page": AnyCodable(true),
+                "pdf_parent_id": AnyCodable(pdfParentId),
+            ]
+        )
+    }
+}
+
+extension Document {
     /// Stable id of the engine's locked "Default Workflows" container folder;
     /// its system subfolders are ids in the `"\(id):…"` namespace. Mirrors
     /// `_DEFAULT_WORKFLOWS_CONTAINER_ID` in `fichero-server/src/fichero_server/db/__init__.py`.

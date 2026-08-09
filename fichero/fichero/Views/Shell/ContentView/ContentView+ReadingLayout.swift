@@ -85,6 +85,17 @@ extension ContentView {
             currentDocuments: documentStore.currentDocuments
         )
         guard let match = Self.pageDocument(atPDFIndex: pageIndex, in: candidates) else {
+            // The reader must PAGE even when the pages are not imported as
+            // documents (Daniel, 2026-08-09: a 21-page PDF selected from the
+            // grid — 'you ought to be able to change pages even though it
+            // can't update the position'). Returning without moving the
+            // cursor left the parent's selectedPageIndex unchanged, and the
+            // pane's keep-in-step onChange snapped the view straight back.
+            // A VIRTUAL page cursor keeps the reader's place; it is marked
+            // and never enters browserSelection.
+            if signal.movesPageFocus, let pdfId = detailPDFDocumentId {
+                pageFocusDocument = Document.virtualPageCursor(pdfParentId: pdfId, pageIndex: pageIndex)
+            }
             // Routine while scrolling — the transcript can report a page before
             // its children have loaded — but a CLICK that resolves to nothing
             // deserves a report. Which report depends on what actually

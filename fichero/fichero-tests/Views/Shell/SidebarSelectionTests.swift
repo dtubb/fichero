@@ -300,8 +300,8 @@ struct SidebarSelectionTests {
         // browserLeadingInset is defined in LibraryView+DisplayHelpers and consumed by the
         // icon grid in LibraryView+IconMode (file_length split of LibraryView+DisplayModes).
         let displayHelpersSource = try appSource("Views/Library/ViewModes/LibraryView+DisplayHelpers.swift")
-        let iconModeSource = try appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
-        let tableSource = try appSource("Views/Library/ViewModes/LibraryView+TableView.swift")
+        let iconModeSource = try appSource("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift")
+        let tableSource = try appSource("Views/Library/ViewModes/Table/LibraryView+TableView.swift")
 
         #expect(displayHelpersSource.contains("var browserLeadingInset: CGFloat { 12 }"))
         #expect(iconModeSource.contains(".padding(.leading, browserLeadingInset)"))

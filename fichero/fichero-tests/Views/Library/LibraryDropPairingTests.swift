@@ -218,9 +218,9 @@ final class LibraryDropPairingTests: XCTestCase {
     /// cannot cover list and miss columns.
     func testEveryLibraryViewModeRoutesThroughTheSharedCellDrop() throws {
         let modes = [
-            "Views/Library/ViewModes/LibraryView+ListView.swift",
-            "Views/Library/ViewModes/LibraryView+IconMode.swift",
-            "Views/Library/ViewModes/LibraryView+TableColumns.swift",
+            "Views/Library/ViewModes/List/LibraryView+ListView.swift",
+            "Views/Library/ViewModes/Icon/LibraryView+IconMode.swift",
+            "Views/Library/ViewModes/Table/LibraryView+TableColumns.swift",
             "Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift"
         ]
         for path in modes {

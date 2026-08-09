@@ -58,14 +58,14 @@ struct LibraryListModeGuardTests {
 
     @Test("list mode claims focus so onKeyPress receives keys")
     func listModeIsFocusable() throws {
-        let source = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let source = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(source.contains(".focusable()"))
         #expect(source.contains(".focusEffectDisabled()"))
     }
 
     @Test("list mode consumes the double-click center target")
     func centerTargetConsumed() throws {
-        let source = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let source = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(source.contains("listScrollCenterTarget"))
     }
 
@@ -75,9 +75,9 @@ struct LibraryListModeGuardTests {
         // is exactly why their copies of the bug survived step 1 (audit G1/G2).
         for path in [
             "Views/Library/LibraryView+ArrowNavigation.swift",
-            "Views/Library/ViewModes/LibraryView+ListView.swift",
-            "Views/Library/ViewModes/LibraryView+IconMode.swift",
-            "Views/Library/ViewModes/LibraryView+TableView.swift",
+            "Views/Library/ViewModes/List/LibraryView+ListView.swift",
+            "Views/Library/ViewModes/Icon/LibraryView+IconMode.swift",
+            "Views/Library/ViewModes/Table/LibraryView+TableView.swift",
             "Views/Library/LibraryView+DeleteActions.swift",
             "Views/Library/LibraryView+KeyboardShortcuts.swift"
         ] {
@@ -119,7 +119,7 @@ struct LibraryListModeGuardTests {
         // so focus flips still re-render selected rows.
         let helpers = try appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
         #expect(helpers.contains("LibrarySelectionStyle.fill"))
-        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let list = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(list.contains("tint: selectionTint"))
     }
 
@@ -148,7 +148,7 @@ struct LibraryListModeGuardTests {
         // appears — the one place these changes can silently break (audit).
         let helpers = try appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
         #expect(helpers.contains("var isRenaming: Bool"))
-        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let list = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(list.contains("isRenaming: renamingDocumentId == doc.id"))
     }
 
@@ -163,7 +163,7 @@ struct LibraryListModeGuardTests {
 
     @Test("list rows prefetch thumbnails and carry accessibility")
     func prefetchAndAccessibility() throws {
-        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let list = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(list.contains("scheduleThumbnailPrefetch(around: doc.id)"))
         let components = try appSource("Views/Library/LibraryViewComponents.swift")
         #expect(components.contains(".accessibilityElement(children: .combine)"))
@@ -176,7 +176,7 @@ struct LibraryListModeGuardTests {
         #expect(tiles.contains("EditableDocumentName("))
         #expect(tiles.contains("accessibilityIdentifier(\"libraryTile."))
         #expect(tiles.contains("accessibilityIdentifier(\"libraryEntityTile."))
-        let icon = try appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
+        let icon = try appSource("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift")
         #expect(icon.contains("LibraryIconCell("))
         #expect(icon.contains("isRenaming: renamingDocumentId == doc.id"))
         // Hover is FORBIDDEN in the library (Daniel 2026-08-09: not a mac idiom).
@@ -197,7 +197,7 @@ struct LibraryListModeGuardTests {
 
     @Test("table mode matches the list/icon bar: cursor, drag, a11y, hover")
     func tableModeParity() throws {
-        let table = try appSource("Views/Library/ViewModes/LibraryView+TableView.swift")
+        let table = try appSource("Views/Library/ViewModes/Table/LibraryView+TableView.swift")
         // Deterministic primary pick everywhere the native Table hands us a
         // Set — context menu, double-click, selection watcher (audit G1/G2).
         #expect(table.contains("func primaryNodeId(in items: Set<String>)"))
@@ -210,7 +210,7 @@ struct LibraryListModeGuardTests {
         // when the Table hands us a whole new Set.
         #expect(table.contains("SelectionGrammar.reconcile("))
         #expect(table.contains("selectionCursor = reconciled.cursor"))
-        let columns = try appSource("Views/Library/ViewModes/LibraryView+TableColumns.swift")
+        let columns = try appSource("Views/Library/ViewModes/Table/LibraryView+TableColumns.swift")
         // The document row's modifiers live in `documentNameCell(for:)` since
         // #4202 split it out of `outlineNameCell` — same modifiers, so the
         // drag now reads `for: document` rather than `for: node.document`.
