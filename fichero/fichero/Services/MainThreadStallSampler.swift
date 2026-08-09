@@ -5,22 +5,23 @@ import os
 // MARK: - Mid-stall main-thread backtrace (Daniel, 2026-08-08: "our stall
 // sampler should tell us WHERE it's happening, not just that it's happening")
 //
-// The watcher thread cannot read another thread's stack from Swift, so when a
-// ping is overdue it sends the MAIN thread SIGPROF; the handler — running ON
-// the stalled main thread, interrupting whatever is blocking it — records raw
+// The watcher thread cannot read another thread's stack from Swift. When a
+// ping is overdue, it signals the main thread; the handler — running on the
+// stalled thread itself, interrupting whatever blocks it — records raw
 // return addresses into a preallocated buffer, and the watcher symbolicates
-// them after the stall completes. `backtrace` is the standard practice for
-// debug samplers even though it is not on the paper async-signal-safe list;
-// this whole file is DEBUG tooling behind FICHERO_STALL_LOG=1 and never ships
-// enabled. The signal can surface as EINTR in main-thread syscalls — one more
-// reason this stays env-gated.
+// them after the stall completes. Walking the stack this way is standard
+// practice for debug samplers even though it is not on the paper
+// async-signal-safe list; the whole file is debug tooling behind the
+// stall-log environment flag and never ships enabled. The signal can surface
+// as an interrupted-syscall error on the main thread — one more reason this
+// stays gated.
 
 private let stallBacktraceMax = 64
-// nonisolated(unsafe) DELIBERATELY: a signal handler cannot take locks or
-// actors. One writer (the handler, on the stalled main thread) and one reader
-// (the watcher, which waits on `stallBacktraceReady` before touching the
-// buffer); plain Int32/pointer stores are single-copy atomic on arm64. Debug
-// tooling behind FICHERO_STALL_LOG=1.
+// Deliberately nonisolated and unsafe: a signal handler can take neither
+// locks nor actors. There is one writer — the handler, on the stalled main
+// thread — and one reader, the watcher, which waits on the ready flag before
+// touching the buffer; plain word-sized stores are single-copy atomic on
+// arm64. Debug tooling only, enabled by the stall-log environment flag.
 private nonisolated(unsafe) var stallBacktraceBuffer =
     [UnsafeMutableRawPointer?](repeating: nil, count: stallBacktraceMax)
 private nonisolated(unsafe) var stallBacktraceCount: Int32 = 0

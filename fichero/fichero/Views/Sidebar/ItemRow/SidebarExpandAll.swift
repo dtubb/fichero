@@ -1,10 +1,10 @@
 import SwiftUI
 
 // Option-click expand-all: the descend predicate and the concurrent
-// level-order walk. Split from SidebarItemRow.swift for the file-length
-// budget (Daniel, 2026-08-08); the row's isExpanded binding calls
-// sidebarExpandSubtree. See each doc comment for the three task-group
-// shapes the Swift 6 region checker rejected on the way here.
+// level-order walk. Split out of the sidebar row file for the file-length
+// budget (Daniel, 2026-08-08); the row's expansion binding drives the
+// subtree expansion below. Each doc comment records one of the three
+// task-group shapes the Swift 6 region checker rejected on the way here.
 
 /// Which children an option-click expand-all descends into: any container
 /// that HAS children — folders, and page-bearing documents like PDFs (their

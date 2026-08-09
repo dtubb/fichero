@@ -60,6 +60,18 @@ struct LibraryImageView: View {
         }
     }
 
+    /// The synchronous cache seed (#3870), split from loadImage for the
+    /// function-length budget. True = seeded; the load is done.
+    private func seedFromCache(_ key: LibraryImageLoadKey, _ storage: StorageService) -> Bool {
+        guard key.imageType == .thumbnail,
+              let cached = storage.cachedThumbnail(for: key.documentId) else { return false }
+        image = cached
+        loadedKey = key
+        isLoading = false
+        loadError = nil
+        return true
+    }
+
     private func loadImage(for key: LibraryImageLoadKey) async {
         guard loadedKey != key || image == nil else { return }
 
@@ -80,14 +92,7 @@ struct LibraryImageView: View {
 
         // Seed a cache hit synchronously so the first render shows the thumbnail with
         // no image=nil placeholder flash before the async fetch (#3870).
-        if key.imageType == .thumbnail,
-           let cached = storageService.cachedThumbnail(for: key.documentId) {
-            image = cached
-            loadedKey = key
-            isLoading = false
-            loadError = nil
-            return
-        }
+        if seedFromCache(key, storageService) { return }
 
         image = nil
         loadedKey = nil
