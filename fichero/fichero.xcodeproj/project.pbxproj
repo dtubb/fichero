@@ -166,14 +166,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		22EFCE1C87FC1487EC1CBF7F /* Shell */ = {
-			isa = PBXGroup;
-			children = (
-				7CF13B7B23C2FFCF3D20FA33 /* ContentView */,
-			);
-			path = Shell;
-			sourceTree = "<group>";
-		};
 		400 = {
 			isa = PBXGroup;
 			children = (
@@ -188,7 +180,6 @@
 				FE1DAD000000000000000020 /* fichero-ipad-tests */,
 				208ADA9A3022008200B83F96 /* FicheroIOSTests */,
 				420 /* Products */,
-				D0C0989BFAD8F78903736127 /* fichero */,
 			);
 			sourceTree = "<group>";
 		};
@@ -203,45 +194,6 @@
 				208ADA993022008200B83F96 /* FicheroIOSTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		51E2488023D4166B8E8218D5 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				22EFCE1C87FC1487EC1CBF7F /* Shell */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		7CF13B7B23C2FFCF3D20FA33 /* ContentView */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = ContentView;
-			sourceTree = "<group>";
-		};
-		8BCDA383103D21325C46621C /* Services */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		B03A945CBEE23DEE5CD58F29 /* App */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = App;
-			sourceTree = "<group>";
-		};
-		D0C0989BFAD8F78903736127 /* fichero */ = {
-			isa = PBXGroup;
-			children = (
-				51E2488023D4166B8E8218D5 /* Views */,
-				B03A945CBEE23DEE5CD58F29 /* App */,
-				8BCDA383103D21325C46621C /* Services */,
-			);
-			path = fichero;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -629,6 +581,7 @@
 				"  exit 1",
 				"fi",
 				"echo \"  embedded engine signed with {app-sandbox, inherit} as $IDENTITY\"",
+				"",
 			);
 		};
 		FEED00000000000000000255 /* SwiftLint */ = {
