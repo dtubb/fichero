@@ -250,9 +250,8 @@ struct LibrarySectionHeader: View {
                     reason: "came from inside the app with no readable id — refusing to import "
                         + "(importing would create the hollow duplicate this guard exists for)"
                 )
-                await MainActor.run {
-                    onDropError?("Couldn't read what was dragged. Nothing was moved or imported.")
-                }
+                // NO alert (Daniel #136) — logged above; the drag snaps
+                // back and nothing is lost.
 
             case .unsupported:
                 // #4533: `break` — the drop reached the header, was classified,

@@ -66,11 +66,12 @@ extension SidebarItemRow {
                 // Started inside the app and we could not read what it was.
                 // Re-importing would create a hollow duplicate of something
                 // already here — the #4401 data loss. Say so instead.
+                // NO alert (Daniel #136, 2026-08-09: "if drop fails don't
+                // do alert, unless its obvious. but log it properly") — the
+                // item snaps back; the log carries the diagnosis.
                 sidebarRowLogger.error(
-                    "Sidebar drop came from inside the app but carried no readable item id; refusing to import"
+                    "Sidebar drop came from inside the app but carried no readable item id; refusing to import (no-op, no alert)"
                 )
-                sidebarState.dropErrorMessage =
-                    "Couldn't read what was dragged. Nothing was moved or imported."
 
             case .unsupported:
                 // #4533 pattern: a silent no-op is indistinguishable from the

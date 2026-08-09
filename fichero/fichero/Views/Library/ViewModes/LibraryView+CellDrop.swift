@@ -108,11 +108,11 @@ extension LibraryView {
                 // Started inside the app and we could not read what it was.
                 // Re-importing would create a hollow duplicate of something
                 // already here — the #4401 data loss. Say so instead.
+                // NO alert (Daniel #136) — the log carries the diagnosis;
+                // the drag snaps back and nothing is lost.
                 cellDropLogger.error(
-                    "Folder-cell drop came from inside the app but carried no readable item id"
+                    "Folder-cell drop came from inside the app but carried no readable item id (no-op, no alert)"
                 )
-                windowState.dropErrorMessage =
-                    "Couldn't read what was dragged. Nothing was moved or copied."
 
             case .externalFiles:
                 // #4525-adjacent live fix (2026-08-04): folder cells IMPORT
