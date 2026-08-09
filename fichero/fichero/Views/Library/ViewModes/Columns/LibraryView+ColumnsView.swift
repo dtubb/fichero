@@ -134,7 +134,7 @@ extension LibraryView {
         // would also own per-column selection, breaking the single shared
         // selection set. What List gives free is provided explicitly:
         // selection (LibrarySelectableRow), a11y (combined elements +
-        // libraryColumnRow identifiers), hover (LibraryRowHoverWash).
+        // libraryColumnRow identifiers). No hover — not a mac idiom.
         // Same constraint as list mode's sanctioned entry.
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
@@ -164,7 +164,6 @@ extension LibraryView {
                         millerRow(doc, depth: depth, isActiveColumn: isActiveColumn)
                     }
                     .equatable()
-                    .modifier(LibraryRowHoverWash(enabled: !rowLooksSelected))
                     .id(doc.id)
                     .draggable(libraryItemDrag(for: doc)) {
                         DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)

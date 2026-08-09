@@ -179,7 +179,8 @@ struct LibraryListModeGuardTests {
         let icon = try appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
         #expect(icon.contains("LibraryIconCell("))
         #expect(icon.contains("isRenaming: renamingDocumentId == doc.id"))
-        #expect(icon.contains("LibraryRowHoverWash"))
+        // Hover is FORBIDDEN in the library (Daniel 2026-08-09: not a mac idiom).
+        #expect(!icon.contains("LibraryRowHoverWash"))
         // Empty-space click deselects, like Finder — through the ONE shared
         // grammar (#4436), never a hand-written removeAll.
         #expect(icon.contains("apply(SelectionGrammar.clear())"))
@@ -216,7 +217,7 @@ struct LibraryListModeGuardTests {
         #expect(columns.contains("func documentNameCell(for document: Document)"))
         #expect(columns.contains(".draggable(libraryItemDrag(for: document))"))
         #expect(columns.contains("libraryTableRow."))
-        #expect(columns.contains("LibraryRowHoverWash"))
+        #expect(!columns.contains("LibraryRowHoverWash"))
         // Thumbnails without prefetch = one image fetch per row on scroll (#4202).
         #expect(columns.contains("scheduleThumbnailPrefetch(around: document.id)"))
         // Child outline ids resolve to their parent doc for Return/Space (G2).

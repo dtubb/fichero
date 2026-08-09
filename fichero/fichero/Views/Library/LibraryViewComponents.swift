@@ -33,11 +33,6 @@ enum LibrarySelectionStyle {
         #endif
     }
 
-    /// Pointer-is-over wash (#4097): `fill` at half weight, so hover cannot read
-    /// as selection by construction rather than by two hand-picked values kept
-    /// in the right order — and it inherits `fill`'s contrast tracking.
-    static var hoverFill: Color { fill.opacity(0.5) }
-
     static let cornerRadius: CGFloat = 6
 
     static func labelTint(focused: Bool) -> Color {

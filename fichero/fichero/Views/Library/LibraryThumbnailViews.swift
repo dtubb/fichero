@@ -150,7 +150,9 @@ struct DocumentThumbnailView: View {
                 // `pageThumbnailLabel ?? name` still fell through to the
                 // storage name for a page with no sequence (#4416).
                 Text(DocumentTitle.displayName(for: document))
-                    .font(.caption)
+                    // .callout, not .caption (Daniel, 2026-08-09: "name font
+                    // size for icon is too small") — Finder's icon label size.
+                    .font(.callout)
                     // Fixed two-line label (#4191 density cap): short and
                     // long names produce identical tile heights, so the grid
                     // never re-pitches between rows.
@@ -165,8 +167,13 @@ struct DocumentThumbnailView: View {
                     .foregroundColor(isSelected ? .white : .primary)
                     .padding(.horizontal, 5)
                     .background(
+                        // ACCENT pill whenever selected (Daniel's Finder
+                        // screenshots, 2026-08-09: the label pill is the
+                        // system color — pane focus greying it read as "the
+                        // wrong color"). Finder keys this on the WINDOW, and
+                        // the window is key when the user is clicking.
                         RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
-                            .fill(isSelected ? effectiveSelectedTint : Color.clear)
+                            .fill(isSelected ? Color.accentColor : Color.clear)
                     )
                     // Middle-truncated labels reveal in full on hover (#4160).
                     .help(DocumentTitle.displayName(for: document))
@@ -316,13 +323,13 @@ struct EntityThumbnailView: View {
                     .lineLimit(2, reservesSpace: true)
                     .truncationMode(.tail)
                     .multilineTextAlignment(.center)
-                    // Finder's name pill — white on accent when key, white on
-                    // grey when not; see DocumentThumbnailView.
+                    // Finder's name pill — accent + white whenever selected;
+                    // see DocumentThumbnailView.
                     .foregroundColor(isSelected ? .white : .primary)
                     .padding(.horizontal, 5)
                     .background(
                         RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
-                            .fill(isSelected ? effectiveSelectedTint : Color.clear)
+                            .fill(isSelected ? Color.accentColor : Color.clear)
                     )
 
                 Text(secondaryText)

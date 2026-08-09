@@ -60,27 +60,10 @@ struct LibraryIconCell<Identity: Equatable & Sendable, Content: View>: View, Equ
     var body: some View { content }
 }
 
-/// Subtle hover wash on unselected list rows (#4160), like the sidebar's
-/// hover affordance — pointer feedback without stealing the selection tint.
-/// Per-row @State so hovering re-renders ONE row, not the list.
-struct LibraryRowHoverWash: ViewModifier {
-    let enabled: Bool
-    @State private var isHovered = false
-
-    func body(content: Content) -> some View {
-        content
-            // The shared hover token (V5, 2026-08-09): hoverFill was defined
-            // for exactly this and never called; the hardcoded value was the
-            // two-values-kept-in-order failure its doc comment warns about.
-            // Rounded to the same radius as the selection fill so hover and
-            // selection share one shape everywhere.
-            .background(
-                RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
-                    .fill(enabled && isHovered ? LibrarySelectionStyle.hoverFill : Color.clear)
-            )
-            .onHover { isHovered = $0 }
-    }
-}
+// LibraryRowHoverWash DELETED (Daniel, 2026-08-09: "why do we have hover?
+// that's not a mac idiom" — Finder's grammar is nothing on hover, rubber-band
+// selection, the system highlight, and cursor-borne drag feedback). Pointer
+// position paints NOTHING in the library.
 
 struct LibrarySelectableRow<Identity: Equatable & Sendable, Content: View>: View, Equatable {
     let identity: Identity
