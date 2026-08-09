@@ -60,7 +60,7 @@ extension LibraryView {
         .equatable()
         .id(doc.id)
         .draggable(libraryItemDrag(for: doc)) {
-            DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+            RowDragPreview(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
         }
         // Folder rows accept in-app item drops (#4124) — except read-only
         // system folders, which the engine refuses anyway (#4514).

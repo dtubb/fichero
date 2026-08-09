@@ -128,7 +128,7 @@ extension SidebarItemRow {
             .draggable(child.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: child)) {
                 // Explicit env-free preview — the default re-hosts the ROW
                 // without environment and crashes (see DragPreviewLabel).
-                DragPreviewLabel(name: child.name, systemImage: child.icon)
+                RowDragPreview(name: child.name, systemImage: child.icon)
             }
             .moveDisabled(child.icon == "tray.fill")
             .sidebarRowTypeErased()

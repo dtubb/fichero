@@ -86,7 +86,7 @@ extension LibraryView {
                                 .id(doc.id)
                                 .iconTileFrame(id: doc.id, in: "libraryIconGrid")
                                 .draggable(libraryItemDrag(for: doc)) {
-                                    DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+                                    TileDragPreview(document: doc)
                                 }
                                 // Folder cells are real drop targets (#4124):
                                 // only the hovered folder highlights, and the

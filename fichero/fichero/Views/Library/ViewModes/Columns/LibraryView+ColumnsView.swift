@@ -166,7 +166,7 @@ extension LibraryView {
                     .equatable()
                     .id(doc.id)
                     .draggable(libraryItemDrag(for: doc)) {
-                        DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+                        RowDragPreview(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
                     }
                     .modifier(LibraryFolderCellDrop(
                         acceptsDrop: doc.acceptsItemDrops,
