@@ -279,6 +279,15 @@ extension LibraryView {
                         sourceDocumentId: claimSelection.claim.sourceDocumentId
                     )
                 }
+            } else if let doc = filteredDocuments.first(where: { $0.id == nodeId }) {
+                // The MISSING else (night review, divergence 1): a plain
+                // DOCUMENT row — the overwhelmingly common click — fell off
+                // this chain, so table mode alone never drove the preview
+                // directly and relied on ContentView's browserSelection
+                // onChange arriving later (the double-fire path the same
+                // review removed). Same direct write the other three modes
+                // make in handleTap.
+                detailDocument = doc
             }
         }
     }

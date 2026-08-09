@@ -219,6 +219,15 @@ extension LibraryView {
             anchor: selectionAnchor,
             extendingRange: extending
         ))
+        // The preview follows the cursor row — the SAME rule the mouse path
+        // applies in handleTap (night review, divergence 2: arrow keys wrote
+        // `selection` only, so keyboard selection reached the preview through
+        // ContentView's later promotion policy while clicks wrote directly —
+        // two grammars for one outcome, and the policy path declines to
+        // promote in some layouts where the direct path always shows).
+        if let doc = filteredDocuments.first(where: { $0.id == targetId }) {
+            detailDocument = doc
+        }
     }
 
     private func focusSelectedEntityIfNeeded() {
