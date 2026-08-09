@@ -141,6 +141,51 @@ def start_access(path: str, bookmark: bytes, foundation: Any) -> bool:
     return True
 
 
+def _readable_via_inherited_scope(path: str) -> bool:
+    """Can this process ALREADY read ``path`` without resolving the bookmark?
+
+    Why this exists (found live, 2026-08-08): an app-scoped security bookmark
+    resolves only in the code identity that minted it. This engine is a
+    DIFFERENT bundle (``…fichero_server``) running under
+    ``com.apple.security.inherit`` — so ``NSURL`` resolution here fails with
+    NSCocoaError 259 ("isn't in the correct format") even for perfectly good
+    bookmarks, and every grant died on that error while the APP had already
+    resolved the same bookmark and called
+    ``startAccessingSecurityScopedResource()``. An inherit child SHARES the
+    parent's sandbox, including the extensions that call turned on — so the
+    right question is not "can I resolve this bookmark" but "can I read this
+    directory".
+
+    The probe is a real ``listdir``, not ``os.access``: ``os.access`` answers
+    from uid/permission bits and can say yes while the SANDBOX still denies
+    the open. A library is always a directory (a ``.fichero`` package or a
+    picked folder), so listing is the honest capability test.
+    """
+    try:
+        os.listdir(path)
+    except OSError:
+        return False
+    return True
+
+
+def start_access_or_inherited(path: str, bookmark: bytes, foundation: Any) -> bool:
+    """``start_access``, falling back to the inherited-sandbox probe above.
+
+    One funnel for BOTH grant paths (spawn env + runtime route), so they can
+    never disagree about what counts as granted.
+    """
+    if start_access(path, bookmark, foundation):
+        return True
+    if _readable_via_inherited_scope(path):
+        _GRANTED.add(path)
+        logger.info(
+            "Security-scoped access granted via inherited sandbox scope "
+            "(bookmark unresolvable in this process): %s", path
+        )
+        return True
+    return False
+
+
 class BookmarkGrantError(Exception):
     """A runtime bookmark could not be turned into access. Carries a reason for the app."""
 
@@ -181,7 +226,7 @@ def grant_access(path: str, encoded: str) -> bool:
         # misconfiguration, not a normal path — say so.
         raise BookmarkGrantError("PyObjC/Foundation unavailable — cannot resolve a security-scoped bookmark")
 
-    if not start_access(path, bookmark, foundation):
+    if not start_access_or_inherited(path, bookmark, foundation):
         raise BookmarkGrantError(f"could not start security-scoped access to {path}")
     return True
 
@@ -203,6 +248,6 @@ def activate_library_bookmarks(raw: str | None = None) -> list[str]:
         )
         return []
 
-    granted = [path for path, data in bookmarks.items() if start_access(path, data, foundation)]
+    granted = [path for path, data in bookmarks.items() if start_access_or_inherited(path, data, foundation)]
     logger.info("Security-scoped access: %d of %d librar(ies) granted", len(granted), len(bookmarks))
     return granted
