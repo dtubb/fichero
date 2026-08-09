@@ -77,7 +77,8 @@ extension SidebarView {
             unifiedRow(
                 for: item,
                 mergeAbove: sel(item) && index > 0 && sel(items[index - 1]),
-                mergeBelow: sel(item) && index + 1 < items.count && sel(items[index + 1])
+                mergeBelow: sel(item) && index + 1 < items.count && sel(items[index + 1]),
+                orderedSiblings: items.map(\.destination)
             )
             .sidebarRowTypeErased()
         }
@@ -186,7 +187,12 @@ extension SidebarView {
     /// Rows rely on native `List(selection: Set)` for click / shift-range /
     /// cmd-toggle selection via `.tag(item.destination)`.
     @ViewBuilder
-    private func unifiedRow(for item: SidebarItem, mergeAbove: Bool = false, mergeBelow: Bool = false) -> some View {
+    private func unifiedRow(
+        for item: SidebarItem,
+        mergeAbove: Bool = false,
+        mergeBelow: Bool = false,
+        orderedSiblings: [SidebarDestination] = []
+    ) -> some View {
         // `.moveDisabled` blocks AppKit-level reorder drag on Inbox
         // (#621). `.draggable` lives here on the row container — not
         // inside SidebarItemRow's body — so NSTableView's native
@@ -241,10 +247,23 @@ extension SidebarView {
         // needs modifier-extension on the name itself.
         row
             .simultaneousGesture(TapGesture().onEnded {
-                guard !NSEvent.modifierFlags.contains(.shift),
-                      !NSEvent.modifierFlags.contains(.command),
-                      selectionState.selectedDestinations != [item.destination] else { return }
-                applySidebarSelectionProposal([item.destination])
+                // #145 widened the fallback to MODIFIER clicks: on rows whose
+                // drag payload owns label presses, ⇧/⌘ on the NAME never
+                // reached List either ('you shift click on the name of the
+                // next line, it isn't added' / 'ditto for command click').
+                // Same Finder semantics, same ONE commit seam.
+                let proposal = sidebarFallbackProposal(
+                    clicked: item.destination,
+                    current: selectionState.selectedDestinations,
+                    anchor: selectionState.selectedDestination,
+                    orderedSiblings: orderedSiblings,
+                    modifiers: (
+                        shift: NSEvent.modifierFlags.contains(.shift),
+                        command: NSEvent.modifierFlags.contains(.command)
+                    )
+                )
+                guard proposal != selectionState.selectedDestinations else { return }
+                applySidebarSelectionProposal(proposal)
             })
         #else
         row
@@ -325,4 +344,35 @@ extension SidebarView {
             }
         }
     }
+}
+
+/// The draggable-row tap fallback's proposal, Finder semantics (#145):
+/// plain → the clicked row alone; ⌘ → toggle it within the set; ⇧ → the
+/// contiguous range from the routed anchor through the clicked row (falling
+/// back to UNION when the anchor is outside this sibling list, so a
+/// cross-section ⇧-click still adds rather than doing nothing). FILE SCOPE
+/// for Swift Testing.
+func sidebarFallbackProposal(
+    clicked: SidebarDestination,
+    current: Set<SidebarDestination>,
+    anchor: SidebarDestination?,
+    orderedSiblings: [SidebarDestination],
+    modifiers: (shift: Bool, command: Bool)
+) -> Set<SidebarDestination> {
+    if modifiers.command {
+        var next = current
+        if next.contains(clicked) { next.remove(clicked) } else { next.insert(clicked) }
+        return next
+    }
+    if modifiers.shift {
+        if let anchor,
+           let anchorIndex = orderedSiblings.firstIndex(of: anchor),
+           let clickedIndex = orderedSiblings.firstIndex(of: clicked) {
+            let bounds = anchorIndex <= clickedIndex
+                ? anchorIndex...clickedIndex : clickedIndex...anchorIndex
+            return current.union(orderedSiblings[bounds])
+        }
+        return current.union([clicked])
+    }
+    return [clicked]
 }
