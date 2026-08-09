@@ -103,24 +103,31 @@ struct LibraryListModeGuardTests {
         #expect(grammar.contains("holds the anchor still"))
     }
 
-    @Test("selection is Mail-style: grey fill + accent label, no inversion")
+    @Test("selection is Mail-style: accent+white focused, grey+accent unfocused")
     func selectedRowsUseMailStyle() throws {
-        // #4191 — the #4160 white-on-accent inversion is GONE (it existed
-        // only because black-on-solid-accent was illegible); the shared
-        // treatment is a subtle grey fill with the focus split in the label.
+        // Daniel's 2026-08-09 ruling SUPERSEDES the #4191 constant-grey pin
+        // this test used to hold: the library selects like Mail/Finder —
+        // system accent bar with white content when the pane is focused,
+        // system grey with accent content when it isn't. The native Table is
+        // the reference. rowFill/rowContent are the two tokens; labelTint is
+        // no longer the row-title path (it painted accent-on-accent in the
+        // Columns preview, 2026-08-09).
         let components = try appSource("Views/Library/LibraryViewComponents.swift")
         #expect(components.contains("enum LibrarySelectionStyle"))
         #expect(components.contains("unemphasizedSelectedContentBackgroundColor"))
-        #expect(components.contains("LibrarySelectionStyle.labelTint(focused: isPaneFocused)"))
-        #expect(!components.contains("invertsText"))
-        #expect(!components.contains(".white"))
+        #expect(components.contains("LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)"))
+        #expect(components.contains("return focused ? .accentColor : fill"))
+        #expect(components.contains("return focused ? .white : .accentColor"))
 
-        // The row fill is the constant grey; tint stays in the == comparison
-        // so focus flips still re-render selected rows.
-        let helpers = try appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
-        #expect(helpers.contains("LibrarySelectionStyle.fill"))
+        // Tint stays in the == comparison so focus flips still re-render
+        // selected rows.
         let list = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(list.contains("tint: selectionTint"))
+
+        // Columns rows draw name AND glyph through the same content token.
+        let columns = try appSource("Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift")
+        #expect(!columns.contains("labelTint"))
+        #expect(columns.contains("LibrarySelectionStyle.rowContent("))
     }
 
     @Test("rows and tiles have uniform density: reserved lines + capped lozenges")

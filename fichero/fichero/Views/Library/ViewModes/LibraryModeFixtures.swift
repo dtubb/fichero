@@ -12,17 +12,28 @@ import SwiftUI
 // through it; add new required objects HERE and every canvas keeps working.
 
 enum LibraryPreviewFixtures {
+    /// One inert library whose FULL service set backs every canvas — built
+    /// once so all previews in a canvas session share it.
+    @MainActor
+    static let library = LibraryManager.LibraryReference(
+        url: FileManager.default.temporaryDirectory.appendingPathComponent("fichero-preview-library"),
+        document: FicheroDocument(),
+        displayName: "Preview"
+    )
+
     @MainActor
     static func environment<V: View>(_ view: V) -> some View {
-        let client = FicheroClient(libraryPath: nil)
-        return view
+        view
+            // The ONE service list (LibraryServiceEnvironment) — hand-picking
+            // objects here crashed the Columns canvas the moment its trailing
+            // preview column mounted EditorView, which reads services the
+            // hand-picked nine didn't include (2026-08-09 SIGTRAP in
+            // EnvironmentValues.subscript). The shared list is the fix AND
+            // the regression guard: services added there reach previews too.
+            .libraryServiceEnvironment(library)
             .environment(AppState())
             .environment(LibraryManager.shared)
-            .environment(WindowState(libraryId: UUID()))
-            .environment(WorkflowStreamService(ficheroClient: client))
-            .environment(DocumentStore(apiClient: APIClient(client: client)))
-            .environment(EntityService(ficheroClient: client))
-            .environment(ArtifactService(ficheroClient: client))
+            .environment(WindowState(libraryId: library.id))
             .environment(WorkflowExecutionObserver())
             .environment(KGFocusState())
     }

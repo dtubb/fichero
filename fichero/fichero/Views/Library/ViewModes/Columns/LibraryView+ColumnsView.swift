@@ -196,7 +196,14 @@ extension LibraryView {
             Image(systemName: doc.displaySymbol())
                 .symbolVariant(doc.docType == .folder ? .fill : .none)
                 .symbolRenderingMode(doc.isLockedSystemNode ? .hierarchical : .monochrome)
-                .foregroundStyle(columnRowTint(doc))
+                // Selected rows recolor the glyph with the SAME content token
+                // as the name — an accent folder glyph on the focused accent
+                // platter otherwise vanishes.
+                .foregroundStyle(
+                    isActiveColumn && selection.contains(doc.id)
+                        ? LibrarySelectionStyle.rowContent(selected: true, focused: isActiveColumn && isPaneFocused)
+                        : columnRowTint(doc)
+                )
                 .frame(width: 16)
             if renamingDocumentId == doc.id {
                 EditableDocumentName(
@@ -214,10 +221,16 @@ extension LibraryView {
                 // one case it was supposed to cover.
                 Text(DocumentTitle.displayName(for: doc))
                     .font(.body)
+                    // The ONE grammar's content token (2026-08-09): the old
+                    // labelTint gave ACCENT text — invisible on the focused
+                    // accent platter rowFill now paints (the Columns preview
+                    // showed a selected row with no name at all). rowContent
+                    // is white-on-accent / accent-on-grey, same as Mail.
                     .foregroundStyle(
-                        isActiveColumn && selection.contains(doc.id)
-                            ? LibrarySelectionStyle.labelTint(focused: isPaneFocused)
-                            : .primary
+                        LibrarySelectionStyle.rowContent(
+                            selected: isActiveColumn && selection.contains(doc.id),
+                            focused: isActiveColumn && isPaneFocused
+                        )
                     )
                     .lineLimit(1)
                     .truncationMode(.middle)

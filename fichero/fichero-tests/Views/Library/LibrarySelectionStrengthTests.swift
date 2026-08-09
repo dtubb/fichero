@@ -39,17 +39,20 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         )
     }
 
-    func testFocusSplitLivesInTheLabelTint() throws {
-        // Focused pane → accent label; unfocused pane → secondary label.
+    func testFocusSplitLivesInTheSharedContentToken() throws {
+        // Daniel's 2026-08-09 ruling supersedes the #4191 label-tint pin:
+        // the focus split lives in rowFill/rowContent (accent+white focused,
+        // grey+accent unfocused — the native Table look). The tint that feeds
+        // the == comparison still flips with focus so rows re-render.
         let displayHelpers = try Self.appSource("Views/Library/ViewModes/LibraryView+DisplayHelpers.swift")
         XCTAssertTrue(
             displayHelpers.contains("isPaneFocused ? .accentColor : .secondary"),
-            "selectionTint must keep the focused/unfocused split in the label (#4191, HIG)."
+            "selectionTint must keep the focused/unfocused split so .equatable() rows re-render on focus flips."
         )
         let components = try Self.appSource("Views/Library/LibraryViewComponents.swift")
         XCTAssertTrue(
-            components.contains("LibrarySelectionStyle.labelTint(focused: isPaneFocused)"),
-            "The list-row title must take the accent tint from the shared style (#4191)."
+            components.contains("LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)"),
+            "The list-row title must take its color from the ONE content token (2026-08-09 ruling)."
         )
     }
 
