@@ -143,8 +143,13 @@ extension SidebarItemRow {
                 // trailing refresh is the prompt completion signal the store
                 // observes even if a per-file event was lost in flight, and
                 // replaces the old double-refresh + 500ms sleep that made the
-                // sidebar lag the spinner stop (#4067).
-                await documentStore?.refresh()
+                // sidebar lag the spinner stop (#4067). ONLY when live
+                // delivery is down (#24): a connected stream already spliced
+                // every created row in place, and the full refresh was the
+                // wholesale sidebar rebuild Daniel reported.
+                await documentStore?.refreshUnlessLiveDelivery(
+                    streamConnected: library?.changeStream.isConnected ?? false
+                )
                 if let message = ImportOutcome.merged(outcomes).partialFailureMessage {
                     sidebarRowLogger.error("External drop imported partially: \(message)")
                     await MainActor.run { sidebarState.dropErrorMessage = message }

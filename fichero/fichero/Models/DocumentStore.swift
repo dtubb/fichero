@@ -361,6 +361,21 @@ final class DocumentStore {
         }
     }
 
+    /// Post-IMPORT reconciliation (#24, Daniel: 'when I drag and drop to
+    /// sidebar, it refreshes entire sidebar to add the item'). With a LIVE
+    /// change stream the imported rows have already SPLICED in place
+    /// (DocumentStore+ChangeStream inserts creates into collections /
+    /// childrenCache / currentDocuments), so the trailing full refresh is
+    /// pure wholesale-rebuild cost. Refresh only when live delivery is down
+    /// — the fallback the splice cannot cover.
+    func refreshUnlessLiveDelivery(streamConnected: Bool) async {
+        guard !streamConnected else {
+            logger.info("Post-import refresh skipped — change stream live, rows spliced (#24)")
+            return
+        }
+        await refresh()
+    }
+
     // MARK: - Selection
 
     /// Select a collection and load its children.
