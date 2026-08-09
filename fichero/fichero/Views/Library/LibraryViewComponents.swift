@@ -97,8 +97,12 @@ struct MailStyleRow: View {
     @Environment(DocumentStore.self) private var documentStore
     let document: Document
     let isSelected: Bool
-    /// Mail-style selection (#4191): the focused selection tints the TITLE
-    /// accent over the subtle grey fill — never a white-on-accent inversion.
+    /// LIBRARY selection is WHITE NAME TEXT ON A GREEN (accent) BACKGROUND
+    /// when the pane is focused — Daniel's canonical ruling (2026-08-09),
+    /// which SUPERSEDES the #4191 "never a white-on-accent inversion" note
+    /// that used to live here. Unfocused keeps the native Table's grey fill
+    /// with accent text (his stated reference). The sidebar is deliberately
+    /// DIFFERENT: green text on light grey — do not unify the two.
     /// Safe with the row's `.equatable()` diffing: focus changes also change
     /// the `tint` LibrarySelectableRow already compares.
     var isPaneFocused: Bool = false

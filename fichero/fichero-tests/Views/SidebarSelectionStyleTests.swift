@@ -78,6 +78,34 @@ struct SidebarSelectionStyleTests {
         #expect(LibrarySelectionStyle.labelTint(focused: false) == .secondary)
     }
 
+    // MARK: - Daniel's canonical selection spec (2026-08-09). These test
+    // names STATE THE RULE — this surface has been re-litigated repeatedly
+    // from screenshots, and a named pin stops the next agent reverting it
+    // from an older note.
+
+    @Test("LIBRARY selection is WHITE name text on a GREEN (accent) background")
+    func librarySelectionIsWhiteOnGreen() {
+        #expect(LibrarySelectionStyle.rowFill(selected: true, focused: true) == .accentColor)
+        #expect(LibrarySelectionStyle.rowContent(selected: true, focused: true) == .white)
+    }
+
+    @Test("SIDEBAR selection is GREEN text on a light grey platter — never the accent fill")
+    func sidebarSelectionIsGreenOnGrey() {
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).weight == .regular)
+        // The platter must never be the accent (#137: "it's never a row
+        // green color, except when you're a drop target").
+        #expect(SidebarConstants.selectedRowFill != Color.accentColor)
+    }
+
+    @Test("the two selection languages are DELIBERATELY different — do not unify")
+    func libraryAndSidebarStayAsymmetric() {
+        // Library focused-selected content is white; sidebar selected label
+        // is accent. If either line fails, someone unified the treatments.
+        #expect(LibrarySelectionStyle.rowContent(selected: true, focused: true) == .white)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
+    }
+
     // MARK: - Structural: no second selection language in the sidebar
 
     private static func sidebarRoot() throws -> URL {
