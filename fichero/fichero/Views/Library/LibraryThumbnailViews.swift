@@ -30,11 +30,11 @@ struct DocumentThumbnailView: View {
     /// keyboard input — HIG: only key-window controls carry color. macOS-only;
     /// iOS has no key-window concept, so the selection stays tinted.
     private var effectiveSelectedTint: Color {
-        #if os(macOS)
-        controlActiveState == .key ? selectedTint : .secondary
-        #else
+        // V3 (2026-08-09): NO controlActiveState re-gate — selectedTint is
+        // selectionTint from the pane-focus test every row uses; a second
+        // key-window gate made a tile grey while the equivalent list row
+        // stayed accent. One focus test everywhere.
         selectedTint
-        #endif
     }
 
     var body: some View {
@@ -128,7 +128,7 @@ struct DocumentThumbnailView: View {
             // never a wash over the whole tile.
             .padding(3)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
                     .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
             )
 
@@ -165,7 +165,7 @@ struct DocumentThumbnailView: View {
                     .foregroundColor(isSelected ? .white : .primary)
                     .padding(.horizontal, 5)
                     .background(
-                        RoundedRectangle(cornerRadius: 5)
+                        RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
                             .fill(isSelected ? effectiveSelectedTint : Color.clear)
                     )
                     // Middle-truncated labels reveal in full on hover (#4160).
@@ -247,11 +247,11 @@ struct EntityThumbnailView: View {
     /// #1840: de-emphasize the selection tint to gray when the window isn't key
     /// (matching List/NSTableView). macOS-only; iOS keeps the tint.
     private var effectiveSelectedTint: Color {
-        #if os(macOS)
-        controlActiveState == .key ? selectedTint : .secondary
-        #else
+        // V3 (2026-08-09): NO controlActiveState re-gate — selectedTint is
+        // selectionTint from the pane-focus test every row uses; a second
+        // key-window gate made a tile grey while the equivalent list row
+        // stayed accent. One focus test everywhere.
         selectedTint
-        #endif
     }
 
     init(
@@ -304,7 +304,7 @@ struct EntityThumbnailView: View {
             // DocumentThumbnailView.
             .padding(3)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
                     .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
             )
 
@@ -321,7 +321,7 @@ struct EntityThumbnailView: View {
                     .foregroundColor(isSelected ? .white : .primary)
                     .padding(.horizontal, 5)
                     .background(
-                        RoundedRectangle(cornerRadius: 5)
+                        RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
                             .fill(isSelected ? effectiveSelectedTint : Color.clear)
                     )
 

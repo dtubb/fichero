@@ -44,6 +44,26 @@ enum LibrarySelectionStyle {
         focused ? .accentColor : .secondary
     }
 
+    // MARK: The ONE selection grammar (Daniel's ruling, 2026-08-09: the
+    // library selects like Mail/Finder — system accent when the pane is
+    // focused, grey when it isn't; the native Table already does this and is
+    // the reference. Supersedes the #4191 constant-grey decision above.)
+
+    /// Row/tile fill: accent when focused+selected (Mail's emphasized bar),
+    /// the system grey when selected but unfocused, clear otherwise.
+    static func rowFill(selected: Bool, focused: Bool) -> Color {
+        guard selected else { return .clear }
+        return focused ? .accentColor : fill
+    }
+
+    /// Content over the row fill: white over the focused accent bar,
+    /// accent over the unfocused grey, primary when unselected — the same
+    /// three states the native emphasized Table renders.
+    static func rowContent(selected: Bool, focused: Bool) -> Color {
+        guard selected else { return .primary }
+        return focused ? .white : .accentColor
+    }
+
     // MARK: - Sidebar rows (#4371)
 
     /// How a sidebar row's label renders.
@@ -280,7 +300,7 @@ struct MailStyleRow: View {
     /// pane is focused, secondary when it isn't. Secondary text stays
     /// `.secondary` in every state.
     private var titleColor: Color {
-        isSelected ? LibrarySelectionStyle.labelTint(focused: isPaneFocused) : .primary
+        LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)
     }
 
     private var statusColor: Color {

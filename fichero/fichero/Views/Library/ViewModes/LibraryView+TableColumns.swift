@@ -215,7 +215,8 @@ extension LibraryView {
                     handleFolderCellDrop(providers, into: document)
                 }
             ))
-            .modifier(LibraryRowHoverWash(enabled: !selection.contains(document.id)))
+// NO hover wash here (V4, 2026-08-09): native Table has no row-hover
+            // seam, and a NAME-CELL-only wash read as a bug beside the row modes.)
             // Same look-ahead window list/icon modes use (#4160): now that the
             // name cell renders a thumbnail, without this the table fetches one
             // image per row on scroll (#4202).

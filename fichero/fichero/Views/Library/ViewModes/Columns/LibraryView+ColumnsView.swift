@@ -134,6 +134,13 @@ extension LibraryView {
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach(docs) { doc in
+                    // Hoisted (V6, 2026-08-09): the SAME selected-looking
+                    // predicate feeds the fill AND the hover gate — hovering
+                    // an ancestor path segment used to wash a row that was
+                    // painted selected, because the hover gate only asked
+                    // about the live selection.
+                    let rowLooksSelected = (isActiveColumn && selection.contains(doc.id))
+                        || (!isActiveColumn && path.indices.contains(depth) && path[depth] == doc.id)
                     LibrarySelectableRow(
                         identity: ColumnRowIdentity(
                             document: doc,
@@ -142,16 +149,17 @@ extension LibraryView {
                             isRenaming: renamingDocumentId == doc.id
                         ),
                         // Active-column rows carry the live selection; an
-                        // ancestor's path segment keeps the same grey fill
-                        // as a passive trail marker (Finder/Mail).
-                        isSelected: (isActiveColumn && selection.contains(doc.id))
-                            || (!isActiveColumn && path.indices.contains(depth) && path[depth] == doc.id),
-                        tint: isActiveColumn ? selectionTint : .secondary
+                        // ancestor's path segment stays the passive GREY
+                        // trail marker (Finder) — `focused: false` keeps it
+                        // out of the accent grammar by construction.
+                        isSelected: rowLooksSelected,
+                        tint: isActiveColumn ? selectionTint : .secondary,
+                        focused: isActiveColumn && isPaneFocused
                     ) {
                         millerRow(doc, depth: depth, isActiveColumn: isActiveColumn)
                     }
                     .equatable()
-                    .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
+                    .modifier(LibraryRowHoverWash(enabled: !rowLooksSelected))
                     .id(doc.id)
                     .draggable(libraryItemDrag(for: doc)) {
                         DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)

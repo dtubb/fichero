@@ -40,7 +40,8 @@ extension LibraryView {
                 isRenaming: renamingDocumentId == doc.id
             ),
             isSelected: selection.contains(doc.id),
-            tint: selectionTint
+            tint: selectionTint,
+            focused: isPaneFocused
         ) {
             MailStyleRow(
                 document: doc,
@@ -95,7 +96,8 @@ extension LibraryView {
         LibrarySelectableRow(
             identity: entity,
             isSelected: selection.contains(entityId),
-            tint: selectionTint
+            tint: selectionTint,
+            focused: isPaneFocused
         ) {
             EntityRow(
                 entity: entity,
