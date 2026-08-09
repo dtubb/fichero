@@ -62,14 +62,11 @@ struct LibrarySectionHeader: View {
         headerContent
             .padding(.vertical, 2)
             .contentShape(Rectangle())
-            .background(
-                RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                    .fill(
-                        isDropTargeted
-                            ? Color.accentColor.opacity(0.25)
-                            : Color.clear
-                    )
-            )
+            // The same platter the item rows use (#4568, Daniel: "also for
+            // modes not just folders") — the ENTIRE row solid accent while
+            // targeted, never the old label-bounded 0.25 wash that made the
+            // library header's target look different from a folder's.
+            .sidebarDropHighlight(isDropTargeted)
             // ONE drop handler (#4401 follow-up). There used to be two on this
             // same view — an `.onDrop(of: [.fileURL])` that imported, and a
             // `.dropDestination(for: SidebarDragID.self)` that moved — and
@@ -130,7 +127,12 @@ struct LibrarySectionHeader: View {
     private var headerContent: some View {
         HStack(spacing: 6) {
             Image(systemName: "books.vertical")
-                .foregroundStyle(isCurrentLibrary ? Color.accentColor : Color.primary)
+                // White over the solid accent drop platter — the same
+                // inversion rule as the item rows (rowContentColor, #4568).
+                .foregroundStyle(
+                    isDropTargeted ? Color.white
+                        : isCurrentLibrary ? Color.accentColor : Color.primary
+                )
                 // #4098: `.body` rather than `.system(size: 13)`. This icon
                 // sits beside `Text(libraryName)`, which carries no explicit
                 // font and is therefore body — so the hardcoded 13pt was
@@ -138,13 +140,14 @@ struct LibrarySectionHeader: View {
                 // out of step the moment the user changed it.
                 .font(.body)
             Text(libraryName)
+                .foregroundStyle(isDropTargeted ? Color.white : Color.primary)
             locationBadge
             LibrarySharingBadge(library: library)
             Spacer()
             if itemCount > 0 {
                 Text("\(itemCount)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isDropTargeted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary))
             }
         }
         .simultaneousGesture(TapGesture().onEnded { onTap?() })
