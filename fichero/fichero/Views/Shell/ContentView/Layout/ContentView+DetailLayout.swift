@@ -257,6 +257,21 @@ extension ContentView {
     var inspectorView: some View {
         switch viewMode {
         case .library:
+            // Multi-selection interim (#146/#147, Daniel: 'this will be
+            // tricky for document inspector. perhaps for now it just
+            // disables?'): a clear N-items state instead of silently
+            // inspecting only the primary. The aggregate views (all entities
+            // across the selection; artifacts grouped by source) are the
+            // designed follow-up — task #35.
+            if browserSelection.count > 1 {
+                ContentUnavailableView(
+                    "\(browserSelection.count) Items Selected",
+                    systemImage: "square.on.square",
+                    description: Text(
+                        "Select a single item to inspect it. Multi-item editing is coming."
+                    )
+                )
+            } else {
             DocumentInspector(
                 document: inspectorDocument,
                 onNavigateToSource: { sourceDocId in
@@ -273,6 +288,8 @@ extension ContentView {
             .environment(artifactStore)
             .environment(entityStore)
             .environment(claimStore)
+
+            }
 
         case .chat, .comparison:
             ChatInspector(
