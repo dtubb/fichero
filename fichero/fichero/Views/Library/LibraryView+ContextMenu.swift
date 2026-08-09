@@ -391,7 +391,14 @@ extension LibraryView {
     // sidebar row and the library grid context menus.
 
     private func excludeToggleTargets(for document: Document) -> [Document] {
-        let targetIds = selection.isEmpty ? [document.id] : Array(selection)
+        // The Finder rule, as the OTHER target resolvers in this file already
+        // state it (#3535 below): the multi-selection applies only when it
+        // INCLUDES the clicked row; a right-click outside the selection acts
+        // on the clicked row alone. This one answered differently — any
+        // non-empty selection won even when the user right-clicked an
+        // unrelated row, so the toggle hit rows the user never pointed at
+        // (Daniel, 2026-08-08: right-click 'might not do the right thing').
+        let targetIds = selection.contains(document.id) ? Array(selection) : [document.id]
         let selectedDocuments = documents.filter { targetIds.contains($0.id) }
         return selectedDocuments.isEmpty ? [document] : selectedDocuments
     }
