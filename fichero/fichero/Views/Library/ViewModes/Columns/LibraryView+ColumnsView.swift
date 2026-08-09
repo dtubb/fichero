@@ -100,7 +100,12 @@ extension LibraryView {
             }
             // A document.* change can add/remove/rename anything mid-path —
             // refetch the open columns so they never go stale (#3249 class).
-            .onChange(of: documentStore.currentDocuments) { _, _ in
+            // O3 (2026-08-09): keyed on the store's cheap revision token,
+            // not the whole [Document] array — the array observation diffed
+            // every element per tick just to decide "something changed".
+            // The refetch itself stays force:true (#3249: a rename mid-path
+            // must not be served from the cache).
+            .onChange(of: documentStore.revision) { _, _ in
                 Task { @MainActor in await loadColumnsChildren(force: true) }
             }
             .onChange(of: listScrollTarget) { _, id in

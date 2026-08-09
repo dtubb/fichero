@@ -368,9 +368,17 @@ extension LibraryView {
             set: { newOrder in
                 guard let first = newOrder.first,
                       let field = LibrarySortField.field(forOutlineKeyPath: first.keyPath) else { return }
+                // O2 (2026-08-09): own the sync ONCE — the two field writes
+                // used to fire both field handlers, each running the server
+                // sync and the refilter (2x per header click).
+                isApplyingSortChange = true
                 sortFieldRaw = field.rawValue
                 sortAscending = first.order == .forward
+                isApplyingSortChange = false
+                syncSortOrder()
                 saveSortSettings(for: folderId)
+                syncServerListingSort()
+                recomputeFiltered()
             }
         )
     }

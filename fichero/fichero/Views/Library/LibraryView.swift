@@ -252,7 +252,19 @@ struct LibraryView: View {
     // Degraded fallback only: live activity/change-stream signals now trigger
     // the surgical pending-status refresh immediately (#3200). Keep the timer
     // only while live updates are paused/unavailable.
-    private let processingPollTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    // STATIC (O4, 2026-08-09): a stored `let` on a View struct re-created —
+    // and .autoconnect() re-subscribed — a new publisher on EVERY LibraryView
+    // init. One shared publisher serves every instance; the per-view guard
+    // below still suppresses the work.
+    private static let processingPollTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    private var processingPollTimer: Publishers.Autoconnect<Timer.TimerPublisher> { Self.processingPollTimer }
+
+    /// Reentrancy gate for the sort chain (O1/O2, 2026-08-09): a header click
+    /// used to run syncServerListingSort + recomputeFiltered THREE times —
+    /// sortOrder's handler writes sortFieldRaw/sortAscending, whose handlers
+    /// each re-ran the same sync. Writers that already sync set this flag so
+    /// the field handlers know the work is covered.
+    @State var isApplyingSortChange = false
     private var shouldUseProcessingPollFallback: Bool {
         guard let ref = scopedLibraryReference else { return false }
         return ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused
@@ -576,12 +588,16 @@ struct LibraryView: View {
                 recomputeFiltered()
             }
             .onChange(of: sortFieldRaw) { _, _ in
+                // O1: skip when a sortOrder/table-header write already owns
+                // the sync — this handler exists for EXTERNAL field writes.
+                guard !isApplyingSortChange else { return }
                 syncSortOrder()
                 saveSortSettings(for: folderId)
                 syncServerListingSort()
                 recomputeFiltered()
             }
             .onChange(of: sortAscending) { _, _ in
+                guard !isApplyingSortChange else { return }
                 syncSortOrder()
                 saveSortSettings(for: folderId)
                 // Direction is the engine's business for a server-ordered sort:
@@ -591,7 +607,9 @@ struct LibraryView: View {
                 recomputeFiltered()
             }
             .onChange(of: sortOrder) { _, newOrder in
+                isApplyingSortChange = true
                 handleSortOrderChange(newOrder)
+                isApplyingSortChange = false
                 syncServerListingSort()
                 recomputeFiltered()
             }

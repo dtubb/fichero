@@ -59,7 +59,13 @@ extension LibraryView {
     /// document. Explicit New Tab / New Window affordances stay in the context
     /// menu. (#3364)
     func handleDoubleClick(_ doc: Document) {
-        listScrollCenterTarget = doc.id
+        // O10 (2026-08-09): only icon and list CONSUME the center target;
+        // writing it in table/columns left a stale id that fired a spurious
+        // center-scroll on the next switch to a consuming mode — the exact
+        // bug the list consumer's comment says was fixed once already.
+        if displayMode == .icon || displayMode == .list {
+            listScrollCenterTarget = doc.id
+        }
         openDocument(doc)
     }
 
