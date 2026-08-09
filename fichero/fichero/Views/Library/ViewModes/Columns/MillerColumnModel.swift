@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Pure path logic for the Finder-style Miller column browser
 /// (#4160 step 4). The browse path is a chain of folder IDS below the
@@ -39,3 +40,7 @@ enum MillerColumnModel {
         min(max(0, depth), max(0, pathCount))
     }
 }
+
+// The model has no view of its own — preview the columns browser it drives
+// (Daniel, 2026-08-09: every view-mode file previews in place).
+#Preview("Columns mode") { LibraryPreviewFixtures.mode(.columns, .columns) }

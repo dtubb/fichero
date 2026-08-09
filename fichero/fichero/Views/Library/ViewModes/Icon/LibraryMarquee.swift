@@ -88,3 +88,7 @@ enum LibraryMarquee {
         Set(frames.filter { $0.value.intersects(rect) }.keys)
     }
 }
+
+// The marquee has no standalone view — preview the icon grid it selects in
+// (Daniel, 2026-08-09: every view-mode file previews in place).
+#Preview("Icon mode") { LibraryPreviewFixtures.mode(.icon, .icons) }

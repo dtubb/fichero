@@ -303,3 +303,7 @@ extension LibraryView {
 // duplicate this merge retires. `MapCard`/`MapGridBackground` in
 // LibraryMapComponents.swift are now unreferenced; manager can `git rm`
 // that file (pbxproj edits are gated to scripts, not hand-edited here).
+
+// Column definitions render inside the same whole-mode canvas as the table
+// view (Daniel, 2026-08-09: every view-mode file previews in place).
+#Preview("Table mode — columns") { LibraryPreviewFixtures.mode(.table, .table) }

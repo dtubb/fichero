@@ -384,3 +384,7 @@ extension LibraryView {
     }
 
 }
+
+// The whole-mode canvas for THIS file (Daniel, 2026-08-09: every view-mode
+// file previews in place). One shared fixture environment — LibraryModeFixtures.
+#Preview("Table mode") { LibraryPreviewFixtures.mode(.table, .table) }
