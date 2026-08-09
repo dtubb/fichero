@@ -222,7 +222,7 @@ extension LibraryView {
                 Text(DocumentTitle.displayName(for: doc))
                     .font(.body)
                     // The ONE grammar's content token (2026-08-09): the old
-                    // labelTint gave ACCENT text — invisible on the focused
+                    // The old per-label tint gave ACCENT text — invisible on the focused
                     // accent platter rowFill now paints (the Columns preview
                     // showed a selected row with no name at all). rowContent
                     // is white-on-accent / accent-on-grey, same as Mail.

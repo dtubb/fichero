@@ -107,6 +107,13 @@ struct SidebarDropProviderCapabilities: Equatable {
         guard !registersInternalFlavor, !isUnidentifiedBareData else { return false }
         return registeredTypeIdentifiers.contains { identifier in
             guard let type = UTType(identifier) else { return false }
+            // Prose is CONTENT, not a file: a text SELECTION dragged from
+            // another app registers only plain text (which still conforms to
+            // public.item), and importing it produced the #4569 second half —
+            // "unsupported" is the verdict for bare prose, not an ingest. A
+            // Finder drag of a .txt FILE keeps its file-url registration
+            // beside the text, so real text files still classify external.
+            if type.conforms(to: .plainText) { return false }
             return type.conforms(to: .item) || type.conforms(to: .url)
         }
     }
@@ -178,9 +185,7 @@ func isInternalSidebarItemID(_ candidate: String) -> Bool {
 /// Returns the `doc:`-prefixed form the rest of the sidebar pipeline expects, so
 /// nothing downstream needs to know which pane the drag came from.
 func internalSidebarItemID(fromLibraryDragJSON candidate: String) -> String? {
-    let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard trimmed.hasPrefix("{"), let data = trimmed.data(using: .utf8) else { return nil }
-    guard let drag = try? JSONDecoder().decode(LibraryItemDrag.self, from: data) else { return nil }
+    guard let drag = decodeLibraryDragJSON(candidate) else { return nil }
     // Artifacts, notes and annotations are not documents and cannot be
     // reparented — the same exclusion `moveDraggedItems` already makes.
     switch drag.kind {
@@ -192,6 +197,17 @@ func internalSidebarItemID(fromLibraryDragJSON candidate: String) -> String? {
     let identifier = drag.documentId ?? drag.id
     guard !identifier.isEmpty else { return nil }
     return "doc:\(identifier)"
+}
+
+/// Decode a candidate string as `LibraryItemDrag` JSON — ANY kind. A parse
+/// success is positive proof the drag started in this app, even when the kind
+/// is unreparentable (an annotation must be refused, never imported as a new
+/// document). Split from the id-extractor above so the classifier can tell
+/// "ours but unmovable" apart from "not ours at all".
+func decodeLibraryDragJSON(_ candidate: String) -> LibraryItemDrag? {
+    let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("{"), let data = trimmed.data(using: .utf8) else { return nil }
+    return try? JSONDecoder().decode(LibraryItemDrag.self, from: data)
 }
 
 // MARK: - Recognising OUR OWN export by its file URL alone (#4401)
@@ -272,7 +288,11 @@ func classifySidebarDropPayload(
     if !internalIDs.isEmpty {
         return .internalItems(internalIDs)
     }
-    if carriesOwnProcessFlavor {
+    // A payload that PARSES as our own drag JSON but yielded no reparentable
+    // id (an annotation, a note, an artifact) is provably ours — refuse it
+    // rather than letting the file URL riding beside it re-import anything.
+    if carriesOwnProcessFlavor
+        || loadedIDs.contains(where: { decodeLibraryDragJSON($0) != nil }) {
         // Started inside the app, but we could not read what it was. Do NOT
         // fall through to ingestion.
         return .unreadableInternal

@@ -11,7 +11,9 @@ final class LibraryItemDragTests: XCTestCase {
 
     func testExternalFileDragsSuggestTheDocumentName() throws {
         let root = try AppSource.root()
-        for path in ["Models/Document.swift", "Views/Sidebar/ItemRow/SidebarItemRow.swift"] {
+        // SidebarDragID's Transferable moved out of SidebarItemRow.swift in
+        // the 2026-08-09 row slimming; the export contract is what's pinned.
+        for path in ["Models/Document.swift", "Views/Sidebar/ItemRow/SidebarDragID.swift"] {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
             XCTAssertTrue(source.contains(".suggestedFileName(\\.name)"), path)
         }

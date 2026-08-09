@@ -123,9 +123,25 @@ class FolderAccessManager {
     /// could be served, which is what "creating a library doesn't work" was
     /// (2026-08-04). Asked at RUNTIME now, so it cannot go stale again.
     func engineBookmarkPayload() -> String? {
-        guard SandboxEnvironment.isSandboxed else { return nil }
         let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
-        return Self.bookmarkPayload(from: stored)
+        return Self.engineBookmarkPayload(
+            stored: stored, isSandboxed: SandboxEnvironment.isSandboxed
+        )
+    }
+
+    /// Channel gate + encoding, pure. The bookmarks belong to the sandbox; a
+    /// channel that has no sandbox must not be handed them (the DMG engine
+    /// would try to resolve, be refused, and log DENIED per library on every
+    /// launch). Pure because the old test observed the gate through the TEST
+    /// HOST's own sandbox state — true when the suite was written (Dev Local
+    /// unsandboxed), silently inverted on 2026-07-29 when Dev Local gained
+    /// the sandbox. A gate that can only be observed in one channel per build
+    /// is a gate nothing can pin; this form pins both directions.
+    static func engineBookmarkPayload(
+        stored: [String: Data], isSandboxed: Bool
+    ) -> String? {
+        guard isSandboxed else { return nil }
+        return bookmarkPayload(from: stored)
     }
 
     /// Pure JSON encoding of the payload — separated from UserDefaults so the wire

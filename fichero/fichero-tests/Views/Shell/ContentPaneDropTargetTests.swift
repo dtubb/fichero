@@ -135,13 +135,22 @@ final class ContentPaneDropTargetTests: XCTestCase {
         XCTAssertTrue(handlerBody.contains("ExternalFileDropLoader.loadAnyFileURL(from: provider)"))
     }
 
-    /// A drop the OS was told we accepted must never end in silence. The
-    /// synchronous `true` is a promise; "all loads failed" has to be said.
+    /// A drop the OS was told we accepted must never end in silence — but
+    /// "said" moved from an alert to the LOG (Daniel #136, 2026-08-09: "if
+    /// drop fails don't do alert… but log it properly", 799d2f62c). The pin
+    /// follows: the empty-loads branch logs at error level and never panels.
     func testAllLoadsFailingReportsInsteadOfVanishing() throws {
         let handlerBody = try Self.appSource("Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift")
             .components(separatedBy: "func handleContentPaneExternalDrop(")[1]
             .components(separatedBy: "\n    func handleFileDrop")[0]
         XCTAssertTrue(handlerBody.contains("guard !urls.isEmpty else"))
-        XCTAssertTrue(handlerBody.contains("Couldn't read the dropped item(s). Nothing was imported."))
+        XCTAssertTrue(
+            handlerBody.contains("all provider loads failed"),
+            "the empty-loads branch must log its refusal"
+        )
+        XCTAssertFalse(
+            handlerBody.contains("Couldn't read the dropped item(s). Nothing was imported."),
+            "the alert wording is back — Daniel #136: failed drops log, they don't panel"
+        )
     }
 }

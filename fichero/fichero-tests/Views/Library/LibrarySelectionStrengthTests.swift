@@ -22,9 +22,13 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         )
 
         let helpers = try Self.appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
+        // Daniel's 2026-08-09 ruling supersedes the flat-grey #4191 pin for
+        // LIST ROWS: the fill is the rowFill token (accent focused, grey
+        // unfocused — Mail's exact split). The grey lives on as the token's
+        // unfocused half and as the icon-tile fill below.
         XCTAssertTrue(
-            helpers.contains("LibrarySelectionStyle.fill"),
-            "List rows must draw the shared grey fill (#4191)."
+            helpers.contains("LibrarySelectionStyle.rowFill(selected: isSelected, focused: focused)"),
+            "List rows must draw the shared rowFill token (2026-08-09 ruling)."
         )
         XCTAssertTrue(
             helpers.contains("RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)"),
@@ -71,9 +75,12 @@ final class LibrarySelectionStrengthTests: XCTestCase {
             source.contains(".stroke(isSelected"),
             "The selected-well accent stroke must be gone — one selection idiom, not two (#4191)."
         )
-        // The label still carries the focus/key distinction (accent when key,
-        // grey otherwise) via effectiveSelectedTint.
-        XCTAssertTrue(source.contains("controlActiveState == .key ? selectedTint : .secondary"))
+        // V3 (2026-08-09): the label tint no longer re-gates on
+        // controlActiveState — selectedTint applies directly and the focus
+        // split lives upstream in the shared tokens. The re-gate coming back
+        // is the regression this now watches for.
+        XCTAssertFalse(source.contains("controlActiveState == .key ? selectedTint"))
+        XCTAssertTrue(source.contains("selectedTint"))
     }
 
     func testThumbnailWellHasExplicitPortraitBounds() throws {
@@ -112,11 +119,17 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         XCTAssertEqual(imageBranches.count, 2, "Expected the two icon image branches.")
         for branch in imageBranches {
             // Window covers the branch's modifier chain incl. comments; the
-            // next branch starts well past it.
-            let modifiers = branch.prefix(800)
+            // next branch starts well past it. The frame is inset now
+            // (wellContentInset, the #125-128 jail margin) but must remain
+            // EXPLICIT and wellWidth-derived — dropping it lets a landscape
+            // image's intrinsic width win the layout pass (#789).
+            // Bounded by the branch's own else-boundary, not a char count —
+            // the page-hugging chrome and its comments outgrew every window.
+            let modifiers = branch.components(separatedBy: "} else").first ?? ""
             XCTAssertTrue(
-                modifiers.contains(".frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)"),
-                "Each image branch must keep the explicit well frame (#789)."
+                modifiers.contains(".frame(")
+                    && modifiers.contains("Self.wellWidth"),
+                "Each image branch must keep an explicit wellWidth-derived frame (#789)."
             )
         }
     }

@@ -13,9 +13,11 @@ final class IconGridDefaultSizeTests: XCTestCase {
 
     func testDefaultScaleSlotHugsTheTile() {
         let bounds = LibraryView.iconGridItemBounds(scale: 1.0)
-        // Tile is 100pt; slot = tile + 8 breathing, +16 stretch allowance.
-        XCTAssertEqual(bounds.min, 108)
-        XCTAssertEqual(bounds.max, 124)
+        // Slot = tile + 8 breathing, +16 stretch allowance — expressed in
+        // terms of the tile so the #112 enlargement (100 → 108 well) and any
+        // future resize move this test with the ruling instead of failing it.
+        XCTAssertEqual(bounds.min, DocumentThumbnailView.wellWidth + 8)
+        XCTAssertEqual(bounds.max, DocumentThumbnailView.wellWidth + 24)
     }
 
     func testSlotCanNeverSpanTwoTiles() {

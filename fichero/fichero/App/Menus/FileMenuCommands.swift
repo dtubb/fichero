@@ -30,7 +30,7 @@ struct FileMenuCommands: View {
 
     var body: some View {
         Group {
-            // #4530: NOT `.disabled(newLibraryAction == nil)`. These commands
+            // #4530: never disabled-when-the-focused-action-is-nil. These commands
             // used to be gated on a `focusedSceneValue` that only a key
             // LibraryWindow supplies, so they went dead whenever no window was
             // key — with every window closed, or merely while Settings /

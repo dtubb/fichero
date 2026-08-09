@@ -39,8 +39,27 @@ final class NewLibraryPanelTests: XCTestCase {
     func testPackageNameIsNFCNormalized() {
         let decomposed = "Choco\u{0301}"                       // NFD
         let composed = "Chocó".precomposedStringWithCanonicalMapping  // NFC
-        XCTAssertNotEqual(decomposed, composed, "fixture is not actually decomposed")
+        // Scalar-level comparison is load-bearing: Swift's String == uses
+        // CANONICAL equivalence, so NFD and NFC forms always compare equal —
+        // the original `XCTAssertNotEqual(decomposed, composed)` could never
+        // pass and this test was born failing in the era the target didn't
+        // compile (Aug 4-9). The byte contract lives at the STRING boundary:
+        XCTAssertNotEqual(
+            Array(decomposed.unicodeScalars), Array(composed.unicodeScalars),
+            "fixture is not actually decomposed"
+        )
+        XCTAssertEqual(
+            Array(decomposed.nfcNormalized.unicodeScalars),
+            Array(composed.unicodeScalars),
+            "String.nfcNormalized must produce byte-for-byte NFC (#3076)"
+        )
 
+        // PLATFORM TRUTH, measured: EVERY Foundation URL init re-decomposes
+        // path components (fileURLWithPath, filePath:, appendingPathComponent
+        // all hand back NFD), so byte-NFC cannot be pinned through a URL.
+        // What the URL layer CAN promise is the canonical name+extension; the
+        // wire re-normalizes the string where it actually leaves the app
+        // (LibraryPathMiddleware.nfcNormalized, backend #3071).
         let resolved = NewLibraryPanel.resolvedLibraryURL(
             for: URL(fileURLWithPath: "/tmp/\(decomposed)")
         )

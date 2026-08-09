@@ -30,7 +30,7 @@ final class ActivityStreamService {
 
     /// The engine's OWN explanation for the 403, when it sent one (#4532).
     /// `nil` means it refused without a usable body. Never a guess: this is
-    /// rendered to the user, and the previous hardcoded "no role on library"
+    /// rendered to the user, and the previous hardcoded no-role sentence
     /// was wrong for the denial that actually occurs most often.
     private(set) var accessDeniedMessage: String?
 

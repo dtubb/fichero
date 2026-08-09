@@ -186,7 +186,9 @@ struct LibraryListModeGuardTests {
         let tiles = try appSource("Views/Library/LibraryThumbnailViews.swift")
         #expect(tiles.contains("EditableDocumentName("))
         #expect(tiles.contains("accessibilityIdentifier(\"libraryTile."))
-        #expect(tiles.contains("accessibilityIdentifier(\"libraryEntityTile."))
+        // EntityThumbnailView moved to its own file in the 2026-08-09 split.
+        let entityTiles = try appSource("Views/Library/EntityThumbnailView.swift")
+        #expect(entityTiles.contains("accessibilityIdentifier(\"libraryEntityTile."))
         let icon = try appSource("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift")
         #expect(icon.contains("LibraryIconCell("))
         #expect(icon.contains("isRenaming: renamingDocumentId == doc.id"))

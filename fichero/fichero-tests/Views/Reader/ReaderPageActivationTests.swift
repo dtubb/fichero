@@ -15,12 +15,15 @@ struct ReaderPageActivationTests {
 
     // MARK: - What each signal may move (#4373 over #1463)
 
-    /// The whole policy as a table. A scroll and a click resolve to the same
-    /// page document and differ ONLY here.
-    @Test("a click moves the library selection; a scroll does not")
-    func onlyAClickMovesTheBrowserSelection() {
+    /// Superseded ruling, updated 2026-08-09: Daniel, twice — "if you change
+    /// page in the preview it should change selection in the library". BOTH
+    /// signals move the browser selection now; what protects a user-built
+    /// multi-selection is applyReaderPageSignal's own guard (only a click may
+    /// replace a selection larger than one), not this policy bit.
+    @Test("both signals move the library selection (2026-08-09 ruling)")
+    func bothSignalsMoveTheBrowserSelection() {
         #expect(ReaderPageSignal.clicked.movesBrowserSelection)
-        #expect(!ReaderPageSignal.scrolledPast.movesBrowserSelection)
+        #expect(ReaderPageSignal.scrolledPast.movesBrowserSelection)
     }
 
     @Test("both signals move the page-focus cursor that drives preview and inspector")

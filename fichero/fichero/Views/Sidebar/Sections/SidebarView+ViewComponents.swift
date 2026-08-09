@@ -60,7 +60,7 @@ extension SidebarView {
         // it be. Row content colors (accent name/icon when selected) are set
         // explicitly in SidebarItemRow+Label via rowContentColor.
         // NO background override either (Daniel, 2026-08-08: "get sidebar
-        // background color like Finder, the gray"): `.background(.bar)`
+        // background color like Finder, the gray"): a bar-material background
         // painted the column with the light bar material, replacing the
         // split view's own translucent sidebar material — which IS Finder's
         // grey. Hide the scroll content's white and let the column show.

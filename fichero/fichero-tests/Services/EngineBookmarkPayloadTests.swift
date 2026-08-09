@@ -79,20 +79,29 @@ final class EngineBookmarkPayloadTests: XCTestCase {
     /// reads, rather than via saveBookmark(), which declines temp paths — seeding
     /// nothing would let this pass for the wrong reason. With the gate removed,
     /// engineBookmarkPayload() returns JSON here and the assertion fails.
+    /// Rewritten 2026-08-09: the old form called the instance method and relied
+    /// on the TEST HOST being unsandboxed to stand in for the DMG channel —
+    /// true when written, silently inverted when Dev Local gained the sandbox
+    /// (2026-07-29), at which point the test read Daniel's real stored
+    /// bookmarks out of UserDefaults.standard and failed. The gate is pure
+    /// now, so both channels are pinned regardless of the host's own state.
     func testDMGBuildSendsNoBookmarksEvenWhenSomeAreStored() {
-        let key = "FolderAccessBookmarks"
-        let defaults = EngineConfig.defaults
-        let saved = defaults.dictionary(forKey: key)
-        defer {
-            if let saved { defaults.set(saved, forKey: key) } else { defaults.removeObject(forKey: key) }
-        }
-        defaults.set(["/Users/d/Documents/L.fichero": Data("BOOKMARK".utf8)], forKey: key)
+        let stored = ["/Users/d/Documents/L.fichero": Data("BOOKMARK".utf8)]
 
         // The encoder itself is willing — so a nil result can only be the gate.
-        XCTAssertNotNil(FolderAccessManager.bookmarkPayload(from: ["/L.fichero": Data("B".utf8)]))
+        XCTAssertNotNil(FolderAccessManager.bookmarkPayload(from: stored))
         XCTAssertNil(
-            FolderAccessManager.shared.engineBookmarkPayload(),
+            FolderAccessManager.engineBookmarkPayload(stored: stored, isSandboxed: false),
             "the non-sandboxed engine must get no FICHERO_LIBRARY_BOOKMARKS at all"
+        )
+    }
+
+    /// The other direction, pinned for the first time: the sandboxed channel
+    /// DOES hand the engine its bookmarks.
+    func testSandboxedBuildSendsTheStoredBookmarks() {
+        let stored = ["/Users/d/Documents/L.fichero": Data("BOOKMARK".utf8)]
+        XCTAssertNotNil(
+            FolderAccessManager.engineBookmarkPayload(stored: stored, isSandboxed: true)
         )
     }
 }

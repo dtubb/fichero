@@ -303,9 +303,14 @@ final class SidebarDropGrammarBoundaryTests: XCTestCase {
         XCTAssertFalse(sidebarDropMightCarryInternalID([]))
     }
 
-    /// One string-capable provider anywhere in the set is enough — a
-    /// multi-item drag mixes provider shapes.
-    func testOneStringCapableProviderAnywhereIsEnough() {
+    /// One NAMED-flavor provider anywhere in the set is enough — a multi-item
+    /// drag mixes provider shapes. Rewritten for #4569 (67dccf9bf): a plain-
+    /// text registration no longer reads as possibly-internal — a Finder drag
+    /// of a .txt registers utf8-plain-text as CONTENT beside its file-url,
+    /// and counting it produced "Couldn't read what was dragged" on ordinary
+    /// text files. Ours is identified by NAME (ficheroDragItem) or by the
+    /// degraded bare-data envelope; prose is just prose.
+    func testOneNamedFlavorProviderAnywhereIsEnough() {
         let fileOnly = SidebarDropProviderCapabilities(
             canLoadURL: true, canLoadString: false,
             registeredTypeIdentifiers: [UTType.fileURL.identifier]
@@ -314,9 +319,17 @@ final class SidebarDropGrammarBoundaryTests: XCTestCase {
             canLoadURL: false, canLoadString: true,
             registeredTypeIdentifiers: [UTType.utf8PlainText.identifier]
         )
+        let named = SidebarDropProviderCapabilities(
+            canLoadURL: false, canLoadString: false,
+            registeredTypeIdentifiers: [UTType.ficheroDragItem.identifier]
+        )
         XCTAssertFalse(sidebarDropMightCarryInternalID([fileOnly, fileOnly]))
-        XCTAssertTrue(sidebarDropMightCarryInternalID([fileOnly, stringy]))
-        XCTAssertTrue(sidebarDropMightCarryInternalID([stringy, fileOnly]))
+        XCTAssertFalse(
+            sidebarDropMightCarryInternalID([fileOnly, stringy]),
+            "a text registration is content, not our flavor (#4569)"
+        )
+        XCTAssertTrue(sidebarDropMightCarryInternalID([fileOnly, named]))
+        XCTAssertTrue(sidebarDropMightCarryInternalID([named, fileOnly]))
     }
 
     /// The capability-shaped route still answers its own (narrower) question.

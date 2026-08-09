@@ -32,9 +32,13 @@ final class ArtifactServiceInjectionTests: XCTestCase {
     func testDocumentDetailWindowInjectsArtifactService() throws {
         let source = try Self.appSource("Views/Inspector/FocusedDocument.swift")
         // The detached document-detail scene (macOS FicheroApp + iOS
-        // FicheroApp_iOS) presents DocumentInspector, which reads the service.
+        // FicheroAppIOS) presents DocumentInspector, which reads the service.
+        // The one-service line became the WHOLE per-library chain
+        // (.libraryServiceEnvironment, 2026-08-09 scene-injection sweep) —
+        // artifactService rides in it along with every sibling service.
         XCTAssertTrue(
-            source.contains(".environment(library.artifactService)"),
+            source.contains(".libraryServiceEnvironment(library)")
+                || source.contains(".environment(library.artifactService)"),
             "DocumentDetailWindow must inject library.artifactService for the detached DocumentInspector (#3386)."
         )
     }

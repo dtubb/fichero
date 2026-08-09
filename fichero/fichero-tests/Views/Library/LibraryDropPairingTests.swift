@@ -324,9 +324,12 @@ final class LibraryDropPairingTests: XCTestCase {
             document.contains("CodableRepresentation(contentType: .json)"),
             "LibraryItemDrag keeps JSON first"
         )
-        let sidebarRow = try source("Views/Sidebar/ItemRow/SidebarItemRow.swift")
+        // SidebarDragID's Transferable moved out of SidebarItemRow.swift when
+        // the row was slimmed (2026-08-09 file split); the representation
+        // itself is what this pins, wherever it lives.
+        let sidebarDragID = try source("Views/Sidebar/ItemRow/SidebarDragID.swift")
         XCTAssertTrue(
-            sidebarRow.contains("ProxyRepresentation(exporting: \\.id)"),
+            sidebarDragID.contains("ProxyRepresentation(exporting: \\.id)"),
             "SidebarDragID keeps its id representation (first, per #4401)"
         )
     }
