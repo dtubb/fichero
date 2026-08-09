@@ -73,6 +73,14 @@ struct MarqueeRectangle: View {
 }
 
 enum LibraryMarquee {
+    /// True when a drag's start point touches NO tile — the only place a
+    /// rubber band may begin (Finder). Enforced at the gesture (#34: a
+    /// ⌘-click on a tile that moved 4pt became a degenerate sweep that
+    /// re-toggled the tile — the intermittent deselect).
+    static func startsInGutter(_ point: CGPoint, frames: [String: CGRect]) -> Bool {
+        !frames.values.contains { $0.contains(point) }
+    }
+
     /// The rect between the drag's start and current points.
     static func rect(from start: CGPoint, to current: CGPoint) -> CGRect {
         CGRect(

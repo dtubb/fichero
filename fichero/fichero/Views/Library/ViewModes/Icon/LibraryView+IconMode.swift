@@ -132,6 +132,15 @@ extension LibraryView {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 4, coordinateSpace: .named("libraryIconGrid"))
                         .onChanged { value in
+                            // The gutter-only claim above, ENFORCED (Daniel:
+                            // ⌘-click add 'sometimes deselects'): a click ON A
+                            // TILE that wiggles past 4pt started a degenerate
+                            // sweep that re-applied the toggle the tile's tap
+                            // had already made. A sweep may only BEGIN where
+                            // no tile is; once live it continues anywhere.
+                            guard marqueeModel.rect != nil
+                                || LibraryMarquee.startsInGutter(value.startLocation, frames: iconTileFrames)
+                            else { return }
                             let rect = LibraryMarquee.rect(from: value.startLocation, to: value.location)
                             // Per-tick: mutate the box (overlay-only render).
                             marqueeModel.rect = rect
