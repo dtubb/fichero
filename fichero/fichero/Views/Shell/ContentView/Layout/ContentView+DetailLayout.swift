@@ -94,7 +94,17 @@ extension ContentView {
 
     @ViewBuilder
     private var widescreenCanvasPaneContent: some View {
-        if let pdfDocumentId = detailPDFDocumentId {
+        let stackDocuments = previewStackDocuments(
+            selection: browserSelection, in: documentStore.currentDocuments
+        )
+        // Finder's stacked multi-selection preview (#95) — same gate as the
+        // standard-layout preview pane.
+        if stackDocuments.count > 1 {
+            MultiSelectionPreviewStack(documents: stackDocuments)
+                .overlay { paneFocusIndicator(for: .preview) }
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
+                .frame(maxWidth: .infinity)
+        } else if let pdfDocumentId = detailPDFDocumentId {
             PDFPageWithToolbar(
                 documentId: pdfDocumentId,
                 pageIndex: selectedPageIndex,
@@ -193,7 +203,14 @@ extension ContentView {
                     detailDocument: detailDocument,
                     inspectorDocument: inspectorDocument
                 )
-                if let pdfDocumentId = detailPDFDocumentId {
+                let stackDocuments = previewStackDocuments(
+                    selection: browserSelection, in: documentStore.currentDocuments
+                )
+                if stackDocuments.count > 1 {
+                    // Finder's stacked multi-selection preview (#95): the fan
+                    // + count, not a silent preview of only the primary.
+                    MultiSelectionPreviewStack(documents: stackDocuments)
+                } else if let pdfDocumentId = detailPDFDocumentId {
                     PDFReadingView(
                         document: pageFocusDocument ?? detailDocument,
                         pdfDocumentId: pdfDocumentId,
