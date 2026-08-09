@@ -374,6 +374,7 @@ extension ContentView {
                     viewMode: $viewMode,
                     browserSelection: $browserSelection,
                     detailDocument: $detailDocument,
+                    pageFocusDocument: $pageFocusDocument,
                     columnVisibility: $columnVisibility,
                     editingWorkflow: $editingWorkflow,
                     currentLayoutMode: $currentLayoutMode,

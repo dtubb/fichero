@@ -161,6 +161,10 @@ struct MainContentModifiers: ViewModifier {
     @Binding var viewMode: AppViewMode
     @Binding var browserSelection: Set<String>
     @Binding var detailDocument: Document?
+    /// The reader's page-focus cursor (#1463): moving it changes which page
+    /// the PDF canvas shows WITHOUT re-rooting `detailDocument`. The sidebar
+    /// page-click fix (2026-08-08) writes it — see `handleViewModeChange`.
+    @Binding var pageFocusDocument: Document?
     @Binding var columnVisibility: NavigationSplitViewVisibility
     @Binding var editingWorkflow: Workflow
     @Binding var currentLayoutMode: LayoutMode
@@ -308,6 +312,20 @@ struct MainContentModifiers: ViewModifier {
                 // even though success checkmarks persisted (#791).
                 documentStore.currentDocuments =
                     documentStore.applyStatusOverrides([document])
+                // A sidebar PAGE click must drive the PDF canvas to THAT page
+                // (Daniel, 2026-08-08: "the preview for it shows the first
+                // page"). This branch never touched the reader state, so the
+                // canvas kept the old detailDocument and pdfPageIndex(for:)
+                // returned 0 for it. Same seam as reader scroll/click
+                // (#1463): move the page-focus cursor; re-root
+                // detailDocument only when the page belongs to a DIFFERENT
+                // document than the one on canvas.
+                if document.docType == .page {
+                    pageFocusDocument = document
+                    if sidebarPageParentPDFId(for: document) != sidebarDetailPDFId(for: detailDocument) {
+                        detailDocument = document
+                    }
+                }
             }
         } else if case .library(nil) = newMode {
             logger.info("Library mode with no document selected - showing all documents")
