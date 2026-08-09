@@ -68,7 +68,10 @@ struct LibraryImageView: View {
             // and the document so the missing-injection surface can be found
             // from the log, then render the failure placeholder.
             Self.logger.error(
-                "LibraryImageView: StorageService missing from the environment for \(key.documentId) — rendering placeholder. The hosting surface needs .environment(library.storageService)."
+                """
+                LibraryImageView: StorageService missing from the environment for \(key.documentId) \
+                — rendering placeholder. The hosting surface needs .environment(library.storageService).
+                """
             )
             loadError = CocoaError(.fileNoSuchFile)
             isLoading = false

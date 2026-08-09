@@ -104,7 +104,10 @@ struct QuickLookDownloadView: View {
 
         guard let downloadService else {
             logger.error(
-                "QuickLookDownloadView: StorageService missing from the environment for \(documentId) — showing error state. The hosting surface needs .environment(library.storageService)."
+                """
+                QuickLookDownloadView: StorageService missing from the environment for \(documentId) \
+                — showing error state. The hosting surface needs .environment(library.storageService).
+                """
             )
             error = "This window lost its connection to the library's storage. Close and reopen it."
             isLoading = false
