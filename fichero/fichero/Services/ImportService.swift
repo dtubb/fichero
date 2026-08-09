@@ -75,7 +75,11 @@ class ImportService {
         onProgress: ((Int, Int) -> Void)? = nil
     ) async throws -> ImportOutcome {
         isImporting = true
-        defer { isImporting = false }
+        ImportActivityGauge.shared.begin()
+        defer {
+            isImporting = false
+            ImportActivityGauge.shared.end()
+        }
 
         var imported: [Document] = []
         var errors: [ImportError] = []
@@ -306,4 +310,19 @@ class ImportService {
         )
     }
 
+}
+
+/// App-wide count of imports in flight, across every library's ImportService
+/// (2026-08-09). Exists for ONE reader: the backend heartbeat, which must not
+/// declare a BUSY engine dead — heavy ingest starves the engine's event loop,
+/// probes exceed their deadline, and the #4064 supervisor SIGKILLed the very
+/// import it was guarding (Daniel's book, twice). MainActor like everything
+/// around it; a simple counter, no observation.
+@MainActor
+final class ImportActivityGauge {
+    static let shared = ImportActivityGauge()
+    private(set) var inFlight = 0
+
+    func begin() { inFlight += 1 }
+    func end() { inFlight = max(0, inFlight - 1) }
 }
