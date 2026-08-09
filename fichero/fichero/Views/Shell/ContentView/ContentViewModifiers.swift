@@ -171,9 +171,8 @@ struct MainContentModifiers: ViewModifier {
     /// Last workflow definition this window loaded or the server confirmed — the
     /// baseline that lets cross-window re-sync tell "no unsaved edits" (safe to
     /// overwrite) from "local edits pending" (must not clobber). See #2278 /
-    /// `WorkflowSync`.
-    // internal, not private: the view-mode routing extension
-    // (MainContentModifiers+ViewMode.swift) reads/writes these.
+    /// `WorkflowSync`. Internal, not private: the view-mode routing extension
+    /// (MainContentModifiers+ViewMode.swift) reads/writes it.
     @State var lastSyncedWorkflow: Workflow?
     /// Coalesces the active workflow's graph re-fetch on change-stream bursts
     /// (#2278), independent of the sidebar-list reload task in ContentView.
