@@ -48,15 +48,9 @@ struct MultiSelectionPreviewStack: View {
                     Array(documents.prefix(Self.maxCards).enumerated()).reversed(),
                     id: \.element.id
                 ) { card in
-                    DocumentThumbnail(
-                        document: card.element,
-                        width: Self.cardWidth,
-                        height: Self.cardHeight,
-                        contentMode: .fit,
-                        folderSymbolSize: 64
-                    )
-                    .rotationEffect(.degrees(stackRotationDegrees(forCardAt: card.offset)))
-                    .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                    stackCard(for: card.element)
+                        .rotationEffect(.degrees(stackRotationDegrees(forCardAt: card.offset)))
+                        .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
                 }
             }
             .frame(height: Self.cardHeight + 40)
@@ -69,6 +63,33 @@ struct MultiSelectionPreviewStack: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(documents.count) items selected")
         .accessibilityIdentifier("multiSelectionPreviewStack")
+    }
+
+    /// One card of the fan. Image-bearing documents render the PAGE itself —
+    /// white sheet + hairline hugging the fitted image's shape (Daniel
+    /// #121-123: "the shape of the paper around the paper is not the same
+    /// shape as the icon… render it on a page") — while folders/mirrors keep
+    /// the symbol well.
+    @ViewBuilder
+    private func stackCard(for document: Document) -> some View {
+        if DocumentThumbnailKind.forDocument(document).fetchesStorageThumbnail {
+            LibraryImageView(documentId: document.id, imageType: .thumbnail)
+                .aspectRatio(contentMode: .fit)
+                .background(Color(.textBackgroundColor))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
+                )
+                .frame(maxWidth: Self.cardWidth, maxHeight: Self.cardHeight)
+        } else {
+            DocumentThumbnail(
+                document: document,
+                width: Self.cardWidth,
+                height: Self.cardHeight,
+                contentMode: .fit,
+                folderSymbolSize: 64
+            )
+        }
     }
 }
 

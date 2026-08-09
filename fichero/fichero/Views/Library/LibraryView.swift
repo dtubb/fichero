@@ -755,6 +755,10 @@ extension LibraryView {
         )
     }
 
+}
+// MARK: - Bottom inset (extension, not the struct body — the 250-line
+// type_body ratchet; struct body is for state + body only)
+extension LibraryView {
     /// Everything stacked below the library's rows, in ONE inset with an
     /// explicit order (#4424).
     ///
@@ -806,6 +810,7 @@ extension LibraryView {
         return folderId.hasPrefix("doc:") ? String(folderId.dropFirst(4)) : folderId
     }
 }
+
 // MARK: - Spatial projection
 
 extension LibraryView {

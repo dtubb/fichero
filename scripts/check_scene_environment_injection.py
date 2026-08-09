@@ -62,6 +62,7 @@ ROOT = Path(__file__).resolve().parent.parent
 APP_DIR = ROOT / "fichero" / "fichero"
 WORKSPACE_ROOT_FILE = APP_DIR / "Views" / "Library" / "Workspace" / "LibraryWorkspaceRoot.swift"
 LIBRARY_MANAGER_FILE = APP_DIR / "Models" / "LibraryManager.swift"
+SERVICE_ENV_HELPER_FILE = APP_DIR / "Views" / "Shell" / "LibraryServiceEnvironment.swift"
 RULE_DOC = "#4513"
 
 # How far below a scene root to look for readers. Deeper is more truthful and
@@ -417,6 +418,7 @@ def scan(
     workspace_file: Path = WORKSPACE_ROOT_FILE,
     manager_file: Path = LIBRARY_MANAGER_FILE,
     detached: dict[str, str] | None = None,
+    helper_env_file: Path = SERVICE_ENV_HELPER_FILE,
 ) -> tuple[dict[str, str], int]:
     """`({"<scene> needs <Service>": detail}, scenes examined)`."""
     services = canonical_services(workspace_file, manager_file)
@@ -447,7 +449,25 @@ def scan(
                     "NOTHING; add it to DETACHED_SCENES stating what it injects and why that "
                     "is sufficient"
                 )
-            injected = injected_types(body, services, property_types)
+            # Injections are credited over the HELPER-EXPANDED body, the
+            # same text the root walk sees — a scene whose closure calls a
+            # same-file `documentDetailSceneRoot()` helper injects whatever
+            # that helper injects (2026-08-09; extracting the scene body into
+            # a helper for the type_body ratchet must not fail this check).
+            expanded_body = body
+            for name, helper_body in helpers.items():
+                if re.search(rf"\b{name}\s*\(", body):
+                    expanded_body += "\n" + helper_body
+            injected = injected_types(expanded_body, services, property_types)
+            if ".libraryServiceEnvironment(" in expanded_body:
+                # The ONE shared boundary list (2026-08-09): a scene that
+                # applies `libraryServiceEnvironment` injects exactly the
+                # services that helper's own `.environment(library.X)` calls
+                # name — parsed from the helper file, never assumed, so a
+                # service the helper lacks still gets reported.
+                injected |= injected_types(
+                    _read_text(helper_env_file), services, property_types
+                )
             for root in sorted(roots):
                 for service in sorted(required_services(root, index, services, property_types) - injected):
                     found[f"{label} needs {service}"] = (
@@ -491,10 +511,24 @@ def build_fixture(app_dir: Path) -> tuple[Path, Path]:
         "struct BadWindow: View { var body: some View { ArtifactsInspectorPane() } }\n",
         encoding="utf-8",
     )
+    # The shared boundary helper (LibraryServiceEnvironment) — a scene that
+    # applies it is credited with EXACTLY the services the helper names.
+    helper = app_dir / "LibraryServiceEnvironment.swift"
+    helper.write_text(
+        "extension View {\n"
+        "  func libraryServiceEnvironment(_ library: LibraryManager.LibraryReference) -> some View {\n"
+        "    self.environment(library.artifactService)\n  }\n}\n",
+        encoding="utf-8",
+    )
+    (app_dir / "Windows2.swift").write_text(
+        "struct HelperWindow: View { var body: some View { ArtifactsInspectorPane() } }\n",
+        encoding="utf-8",
+    )
     (app_dir / "App.swift").write_text(
         "struct DemoApp: App {\n  var body: some Scene {\n"
         '    Window("Good", id: "good") { GoodWindow().environment(library.artifactService) }\n'
         '    Window("Bad", id: "bad") { BadWindow() }\n'
+        '    Window("Helper", id: "helper") { HelperWindow().libraryServiceEnvironment(library) }\n'
         "  }\n}\n",
         encoding="utf-8",
     )
@@ -504,6 +538,7 @@ def build_fixture(app_dir: Path) -> tuple[Path, Path]:
 FIXTURE_CONTRACTS = {
     "good (Window)": "fixture: injects what its tree reads",
     "bad (Window)": "fixture: deliberately omits the injection",
+    "helper (Window)": "fixture: injects via the shared libraryServiceEnvironment helper",
 }
 
 
@@ -520,19 +555,32 @@ def _self_test() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         app_dir = Path(tmp)
         workspace, manager = build_fixture(app_dir)
-        found, examined = scan(app_dir, workspace, manager, detached=FIXTURE_CONTRACTS)
-        undeclared, _ = scan(app_dir, workspace, manager, detached={})
+        fixture_helper = app_dir / "LibraryServiceEnvironment.swift"
+        found, examined = scan(
+            app_dir, workspace, manager, detached=FIXTURE_CONTRACTS,
+            helper_env_file=fixture_helper,
+        )
+        undeclared, _ = scan(
+            app_dir, workspace, manager, detached={}, helper_env_file=fixture_helper
+        )
         stale, _ = scan(
-            app_dir, workspace, manager, detached=FIXTURE_CONTRACTS | {"ghost (Window)": "gone"}
+            app_dir, workspace, manager,
+            detached=FIXTURE_CONTRACTS | {"ghost (Window)": "gone"},
+            helper_env_file=fixture_helper,
         )
 
     failures = []
-    if examined != 2:
-        failures.append(f"expected 2 scenes examined, got {examined}")
+    if examined != 3:
+        failures.append(f"expected 3 scenes examined, got {examined}")
     if "bad (Window) needs ArtifactService" not in found:
         failures.append(f"rule 1: the missing-injection scene was NOT reported: {sorted(found)}")
     if any(key.startswith("good (Window)") for key in found):
         failures.append(f"rule 1: the correctly-injecting scene was falsely reported: {sorted(found)}")
+    if any(key.startswith("helper (Window)") for key in found):
+        failures.append(
+            "helper rule: a scene injecting via libraryServiceEnvironment was falsely "
+            f"reported: {sorted(found)}"
+        )
     if "good (Window) needs a declared environment contract" not in undeclared:
         failures.append(f"rule 2: an undeclared detached scene was NOT reported: {sorted(undeclared)}")
     if "ghost (Window) is a stale DETACHED_SCENES entry" not in stale:

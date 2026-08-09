@@ -565,10 +565,7 @@ struct FicheroApp: App {
         .defaultSize(width: 480, height: 620)
 
         WindowGroup("Document", id: "document-detail") {
-            DocumentDetailWindow()
-                .environment(libraryManager)
-                .environment(claimFocusState)
-                .environment(kgFocusState)
+            documentDetailSceneRoot()
         }
         .defaultSize(width: 540, height: 720)
 
@@ -685,3 +682,31 @@ private struct FeatureTierLegendWindow: View {
     }
 }
 #endif
+
+extension FicheroApp {
+    /// The document-detail scene's root, with the FULL boundary re-injection
+    /// (#4513, the Mac crash class): a detached scene inherits NOTHING, and
+    /// DocumentDetailWindow's subtree reads thirteen services non-optionally.
+    /// The ONE shared list (libraryServiceEnvironment) — never a hand-copied
+    /// subset. The window still resolves its own per-document library inside;
+    /// this covers the first mount before FocusedDocument publishes.
+    @ViewBuilder
+    func documentDetailSceneRoot() -> some View {
+        if let library = libraryManager.getLibrary(
+            id: FocusedDocument.shared.libraryId ?? UUID()
+        ) ?? libraryManager.globalLibrary {
+            DocumentDetailWindow()
+                .environment(libraryManager)
+                .environment(claimFocusState)
+                .environment(kgFocusState)
+                .libraryServiceEnvironment(library)
+        } else {
+            // No library open at all — the window renders its own
+            // "select a document" empty state and reads no services.
+            DocumentDetailWindow()
+                .environment(libraryManager)
+                .environment(claimFocusState)
+                .environment(kgFocusState)
+        }
+    }
+}

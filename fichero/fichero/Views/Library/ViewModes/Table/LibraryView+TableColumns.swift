@@ -317,29 +317,6 @@ extension LibraryView {
     }
 }
 
-/// The per-cell injection, as a ViewModifier so `@ViewBuilder` cells stay a
-/// single expression. A nil library (window mid-teardown) renders the bare
-/// cell — the columns that read services are entity/output cells, which the
-/// teardown path never reaches with a nil library AND a live document row.
-struct TableCellServiceInjection: ViewModifier {
-    let library: LibraryManager.LibraryReference?
-
-    func body(content: Content) -> some View {
-        if let library {
-            content.libraryServiceEnvironment(library)
-        } else {
-            content
-        }
-    }
-}
-
-// Canvas (2D) is now rendered by `Spatial2DCanvas` off the shared
-// canvasLayoutStore (#2667). The old `mapView` + its ephemeral, in-memory
-// `mapPositions` grid (never persisted, reset every launch) were the
-// duplicate this merge retires. `MapCard`/`MapGridBackground` in
-// LibraryMapComponents.swift are now unreferenced; manager can `git rm`
-// that file (pbxproj edits are gated to scripts, not hand-edited here).
-
 // Column definitions render inside the same whole-mode canvas as the table
 // view (Daniel, 2026-08-09: every view-mode file previews in place).
 #Preview("Table mode — columns") { LibraryPreviewFixtures.mode(.table, .table) }
