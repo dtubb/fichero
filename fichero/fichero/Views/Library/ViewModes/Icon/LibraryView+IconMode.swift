@@ -84,6 +84,7 @@ extension LibraryView {
                                 }
                                 .equatable()
                                 .id(doc.id)
+                                .iconTileFrame(id: doc.id, in: "libraryIconGrid")
                                 .draggable(libraryItemDrag(for: doc)) {
                                     DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
                                 }
@@ -115,10 +116,42 @@ extension LibraryView {
                     .padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
+                .coordinateSpace(name: "libraryIconGrid")
+                .onPreferenceChange(IconTileFramesKey.self) { iconTileFrames = $0 }
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
                 .onTapGesture {
                     apply(SelectionGrammar.clear())
+                }
+                // RUBBER BAND (Daniel's Finder ruling, 2026-08-09): a drag
+                // that starts in the gutter sweeps a rect; intersecting
+                // tiles feed SelectionGrammar.marquee LIVE (⇧/⌘ add, plain
+                // replaces, an empty plain sweep clears). Tiles' own
+                // .draggable wins on the tiles, so the marquee can only
+                // begin on empty space — exactly Finder.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 6, coordinateSpace: .named("libraryIconGrid"))
+                        .onChanged { value in
+                            let rect = LibraryMarquee.rect(from: value.startLocation, to: value.location)
+                            marqueeRect = rect
+                            apply(SelectionGrammar.marquee(
+                                ids: LibraryMarquee.hitIds(in: iconTileFrames, rect: rect),
+                                selection: marqueeBaseSelection ?? {
+                                    marqueeBaseSelection = selection
+                                    return selection
+                                }(),
+                                modifiers: currentSelectionModifiers
+                            ))
+                        }
+                        .onEnded { _ in
+                            marqueeRect = nil
+                            marqueeBaseSelection = nil
+                        }
+                )
+                .overlay(alignment: .topLeading) {
+                    if let rect = marqueeRect {
+                        MarqueeRectangle(rect: rect)
+                    }
                 }
                 // Right-click on empty library area → Import (#4449, third
                 // of the three affordances). Tile-level context menus
