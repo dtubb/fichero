@@ -193,7 +193,77 @@ def violations(files: list[Path] | None = None, root: Path = ROOT) -> list[tuple
     return bad
 
 
+# --- Rule 2 (2026-08-09): the PRIMARY-DRAW anti-pattern -------------------
+#
+# Seven sites resolved "which selected row is primary" via `Set.first` — an
+# arbitrary element, not the row the user acted on — and this check could not
+# see ONE of them: they live in Views/Shell and Models, outside the scan
+# roots above. The write-delegation rule stays scoped (Shell legitimately
+# writes selection during restore); THIS rule scans the shell too, and
+# forbids drawing a primary from a selection set's `.first`.
+#
+# The open sites are GRANDFATHERED by exact file so the gate is green today
+# and every fix shrinks the list; a NEW draw anywhere fires immediately.
+# Task #11 owns emptying the list (shellPrimarySelectionId / the published
+# primary are the sanctioned answers).
+
+SHELL_VIEWS = ROOT / "fichero" / "fichero" / "Views" / "Shell"
+MODELS = ROOT / "fichero" / "fichero" / "Models"
+
+_PRIMARY_DRAW = re.compile(
+    r"\b(?:browserSelection|newSelection|selection|selectedDocumentIds|selectedIds)\.first\b"
+)
+# Files whose remaining draws are known and owned by task #11 — shrink, never grow.
+_PRIMARY_DRAW_GRANDFATHERED = {
+    "fichero/fichero/Views/Shell/ContentView/ContentView+StatePreview.swift",
+    "fichero/fichero/Views/Shell/ContentView/ContentView+StateSelection.swift",
+    "fichero/fichero/Views/Shell/ContentView/Layout/ContentView+CompactReader.swift",
+    "fichero/fichero/Models/LayoutMode.swift",
+}
+
+
+def _primary_draws_in(text: str) -> list[tuple[int, str]]:
+    """Pure per-file half of rule 2 — self-testable without touching disk."""
+    hits: list[tuple[int, str]] = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        if _COMMENT.match(line):
+            continue
+        if _PRIMARY_DRAW.search(line):
+            hits.append((lineno, line.strip()))
+    return hits
+
+
+def primary_draw_violations(root: Path = ROOT) -> list[tuple[str, int, str]]:
+    bad: list[tuple[str, int, str]] = []
+    scan_files: list[Path] = []
+    for base in (SHELL_VIEWS, LIBRARY_VIEWS, MODELS):
+        scan_files.extend(sorted(base.rglob("*.swift")))
+    require_scan_floor(len(scan_files), 60, "shell+library+model Swift files (primary-draw rule)")
+    for path in scan_files:
+        rel = path.relative_to(root).as_posix()
+        if rel in _PRIMARY_DRAW_GRANDFATHERED:
+            continue
+        for lineno, line in _primary_draws_in(path.read_text(errors="ignore")):
+            bad.append((rel, lineno, line))
+    return bad
+
+
+def _self_test_rule2() -> None:
+    """Rule 2 fires on the violation shapes and passes the sanctioned forms."""
+    firing = "guard let firstId = browserSelection.first else { return }\n" \
+             "if let id = newSelection.first, done { x(id) }"
+    assert len(_primary_draws_in(firing)) == 2, "rule 2 failed to fire on known violations"
+    clean = "// browserSelection.first is forbidden — comments don't count\n" \
+            "let id = shellPrimarySelectionId(in: browserSelection, orderedBy: docs)\n" \
+            "let doc = documents.first(where: { selection.contains($0.id) })"
+    assert not _primary_draws_in(clean), "rule 2 fired on sanctioned forms"
+    print("self-test passed: rule 2 fires on violations, passes sanctioned forms")
+
+
 def main() -> int:
+    if "--self-test" in sys.argv:
+        _self_test_rule2()
+        return 0
     files = _swift_files()
     # #4487 scan floor on the POPULATION EXAMINED, not on findings: a zero-file
     # scan means the view-mode tree moved, not that every mode delegates.
@@ -202,9 +272,19 @@ def main() -> int:
     require_scan_floor(len(files), 36, "library view-mode Swift files (73 on 2026-08-03)")
 
     bad = violations()
+    draws = primary_draw_violations()
+    if draws:
+        print("selection-grammar guardrail FAILED — a NEW primary-selection "
+              "draw via Set.first (arbitrary element, not the row the user "
+              "acted on; 2026-08-09 rule 2). Use shellPrimarySelectionId / "
+              "the published primary instead:\n")
+        for rel, lineno, text in draws:
+            print(f"  {rel}:{lineno}  {text}")
+        return 1
     if not bad:
         print(f"selection-grammar guardrail: {len(files)} view-mode files, "
-              "every selection write goes through SelectionGrammar.")
+              "every selection write goes through SelectionGrammar; no new "
+              "primary draws in shell+library+models.")
         return 0
     print("selection-grammar guardrail FAILED — a library view mode writes "
           "selection by hand instead of delegating to SelectionGrammar (#4436). "

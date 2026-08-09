@@ -47,8 +47,13 @@ extension LibraryView {
     /// selection shows no preview column (Finder behavior — folders disclose
     /// their children instead).
     var columnsPreviewDocument: Document? {
+        // orderedPrimarySelectionId, not `selection.first` (rule 2 of the
+        // selection-grammar guardrail, 2026-08-09): the count==1 guard made
+        // .first deterministic HERE, but this was the one resolver on the
+        // wrong seam — and the guardrail now forbids the shape outright so
+        // the next reader doesn't copy it somewhere unguarded.
         guard selection.count == 1,
-              let id = selection.first,
+              let id = orderedPrimarySelectionId,
               let doc = navigableDocument(for: id),
               doc.docType != .folder else { return nil }
         return doc
