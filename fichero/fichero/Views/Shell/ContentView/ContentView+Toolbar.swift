@@ -205,26 +205,36 @@ extension ContentView {
     /// one use, so the symbol and its call site cannot drift apart again.
     private var viewDisplayModeMenu: some View {
         Menu {
-            ForEach(availableViewDisplayModes) { mode in
-                Button {
-                    updateViewDisplayMode(mode)
-                } label: {
-                    Label(mode.label, systemImage: mode.icon)
-                }
-            }
-            // Per-folder view memory is EXPLICIT-ONLY (Daniel's #4575 ruling):
-            // a toolbar pick is window-wide; this is the one way a folder gets
-            // its own remembered mode, Finder's "Use as Defaults" made
-            // per-folder. Hidden when nothing is selected to remember against.
-            if let folderId = sidebarSelectionState.selectedItemId {
-                Divider()
-                if displayMode(for: folderId) != nil {
-                    Button("Stop Remembering View for This Folder") {
-                        forgetDisplayMode(for: folderId)
+            // Deferred to menu-OPEN (the stall sampler attributed 217ms
+            // main-thread stalls to this menu's body, 2026-08-08 night):
+            // toolbar menu content is evaluated on window render, and the
+            // #4575 per-folder branch JSON-decodes the folder-mode map on
+            // every evaluation. Same mechanism as the row context menus
+            // (#4544) — one cheap struct init per render, the real work at
+            // open time.
+            SidebarDeferredMenuContent {
+                ForEach(availableViewDisplayModes) { mode in
+                    Button {
+                        updateViewDisplayMode(mode)
+                    } label: {
+                        Label(mode.label, systemImage: mode.icon)
                     }
-                } else {
-                    Button("Remember View for This Folder") {
-                        saveDisplayMode(viewDisplayMode, for: folderId)
+                }
+                // Per-folder view memory is EXPLICIT-ONLY (Daniel's #4575
+                // ruling): a toolbar pick is window-wide; this is the one way
+                // a folder gets its own remembered mode, Finder's "Use as
+                // Defaults" made per-folder. Hidden when nothing is selected
+                // to remember against.
+                if let folderId = sidebarSelectionState.selectedItemId {
+                    Divider()
+                    if displayMode(for: folderId) != nil {
+                        Button("Stop Remembering View for This Folder") {
+                            forgetDisplayMode(for: folderId)
+                        }
+                    } else {
+                        Button("Remember View for This Folder") {
+                            saveDisplayMode(viewDisplayMode, for: folderId)
+                        }
                     }
                 }
             }

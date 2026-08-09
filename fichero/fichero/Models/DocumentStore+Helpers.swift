@@ -350,14 +350,13 @@ extension DocumentStore {
     /// live container including `childrenCache`, where sidebar child rows
     /// actually live.
     func isDocumentBusy(_ documentId: String) -> Bool {
-        if workflowStatusOverrides[documentId] == .processing { return true }
-        if currentDocuments.first(where: { $0.id == documentId })?.status == .processing { return true }
-        if collections.first(where: { $0.id == documentId })?.status == .processing { return true }
-        for kids in childrenCache.values
-        where kids.contains(where: { $0.id == documentId && $0.status == .processing }) {
-            return true
-        }
-        return false
+        // One set-membership test against the dirty-flagged processing index
+        // (2026-08-09): the previous linear scans over currentDocuments +
+        // collections + every childrenCache array ran per row per render, and
+        // the stall sampler attributed 165-188ms main-thread stalls to
+        // exactly this function. Same sources, same union semantics — the
+        // index is rebuilt once per mutation in DocumentStore.
+        processingDocumentIds.contains(documentId)
     }
 
     /// Aggregate busy state for a folder row (#4295): any direct child busy —

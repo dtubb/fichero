@@ -35,14 +35,19 @@ final class DocumentStore {
     // MARK: - Observable State
 
     /// All collections (top-level documents)
-    var collections: [Document] = []
+    var collections: [Document] = [] {
+        didSet { processingIndexDirty = true }
+    }
 
     /// Currently selected collection
     var selectedCollection: Document?
 
     /// Documents in the current view (children of selected item)
     var currentDocuments: [Document] = [] {
-        didSet { revision += 1 }
+        didSet {
+            revision += 1
+            processingIndexDirty = true
+        }
     }
 
     /// Cheap O(1) change token for views that only need to know the visible
@@ -82,7 +87,9 @@ final class DocumentStore {
     /// success icons appeared persistent only because artifact existence
     /// derived completion separately, while errors silently disappeared (#791).
     /// In-memory only; clears on app restart.
-    var workflowStatusOverrides: [String: Status] = [:]
+    var workflowStatusOverrides: [String: Status] = [:] {
+        didSet { processingIndexDirty = true }
+    }
 
     /// Workspace documents (is_workspace == true) — the curated-items
     /// workspaces surfaced in the Research sidebar's Workspaces section (#1617).
@@ -134,7 +141,39 @@ final class DocumentStore {
 
     /// Cache of children by parent ID
     @ObservationIgnored
-    var childrenCache: [String: [Document]] = [:]
+    var childrenCache: [String: [Document]] = [:] {
+        didSet { processingIndexDirty = true }
+    }
+
+    // MARK: - Processing index (2026-08-09)
+    //
+    // The stall sampler attributed 165-188ms main-thread stalls to
+    // `isDocumentBusy`: it linearly scanned currentDocuments + collections +
+    // EVERY childrenCache array, per row, per render — O(total documents)
+    // multiplied by visible rows. The four didSets above mark the index dirty
+    // and `processingDocumentIds` rebuilds it once per mutation, so the per-
+    // row question is one set-membership test. @ObservationIgnored: this is a
+    // derived cache; observers track the source arrays, never the index.
+    @ObservationIgnored
+    var processingIndexDirty = true
+    @ObservationIgnored
+    private var processingIndex: Set<String> = []
+
+    /// Every document id whose status reads `.processing` in any store the
+    /// spinners consult (overrides win by construction — they are unioned in).
+    var processingDocumentIds: Set<String> {
+        if processingIndexDirty {
+            var ids = Set(workflowStatusOverrides.filter { $0.value == .processing }.keys)
+            for doc in currentDocuments where doc.status == .processing { ids.insert(doc.id) }
+            for doc in collections where doc.status == .processing { ids.insert(doc.id) }
+            for kids in childrenCache.values {
+                for kid in kids where kid.status == .processing { ids.insert(kid.id) }
+            }
+            processingIndex = ids
+            processingIndexDirty = false
+        }
+        return processingIndex
+    }
 
     // MARK: - Change-stream substrate (#1995 / #1996)
 
