@@ -46,10 +46,19 @@ extension ContentView {
         }
 
         viewSettings.libraryLayout = effectiveMode.libraryLayout
-        saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
+        // Per-folder memory is EXPLICIT-ONLY (Daniel's #4575 ruling,
+        // 2026-08-08): a toolbar pick is a window-wide choice, so it only
+        // UPDATES a per-folder override the user explicitly created (via
+        // "Remember View for This Folder") — it never creates one. The old
+        // implicit save stamped every pick onto whatever folder happened to
+        // be selected, and those entries later read as the mode "reverting"
+        // when the folder was revisited.
+        if displayMode(for: sidebarSelectionState.selectedItemId) != nil {
+            saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
+        }
         // Promote to the global default so a fresh window / new folder
-        // / new launch all start in this mode. Per-folder overrides
-        // (saveDisplayMode above) still win when present. (#943)
+        // / new launch all start in this mode. Explicit per-folder overrides
+        // still win when present. (#943)
         defaultLibraryViewDisplayMode = effectiveMode
     }
 
