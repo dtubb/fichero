@@ -266,14 +266,12 @@ struct LibraryView: View {
     /// the field handlers know the work is covered.
     @State var isApplyingSortChange = false
 
-    /// Rubber-band sweep state (icon mode, 2026-08-09): the live rect, the
-    /// tile frames reported from the grid's coordinate space, and the
-    /// selection as it stood when the sweep STARTED (Finder semantics: a
-    /// ⇧/⌘ sweep adds to the pre-sweep selection, not to its own live
-    /// updates — without the base, every onChanged compounds the last one).
-    @State var marqueeRect: CGRect?
+    /// Rubber-band sweep state (icon mode, 2026-08-09) — an @Observable box
+    /// so per-tick rect mutation re-renders only the overlay, never the
+    /// grid; see MarqueeModel. Frames stay @State (they change on layout,
+    /// not per tick).
+    @State var marqueeModel = MarqueeModel()
     @State var iconTileFrames: [String: CGRect] = [:]
-    @State var marqueeBaseSelection: Set<String>?
     private var shouldUseProcessingPollFallback: Bool {
         guard let ref = scopedLibraryReference else { return false }
         return ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused

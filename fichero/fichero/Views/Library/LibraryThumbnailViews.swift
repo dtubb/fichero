@@ -49,8 +49,11 @@ struct DocumentThumbnailView: View {
                 // get a rectangle that matches typical page proportions —
                 // not a square. Square forced one-row icon list to crop
                 // photos awkwardly. (#718)
+                // NO base card (Daniel, 2026-08-09: 'no white background') —
+                // Finder's unselected icons sit directly on the canvas; the
+                // grey squircle appears ONLY as the selection backdrop below.
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(.windowBackgroundColor))
+                    .fill(Color.clear)
                     .aspectRatio(1, contentMode: .fit)
 
                 // Symbol for the nodes that HAVE no picture — folders and

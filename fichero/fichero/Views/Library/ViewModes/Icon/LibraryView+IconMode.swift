@@ -130,28 +130,34 @@ extension LibraryView {
                 // .draggable wins on the tiles, so the marquee can only
                 // begin on empty space — exactly Finder.
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 6, coordinateSpace: .named("libraryIconGrid"))
+                    DragGesture(minimumDistance: 4, coordinateSpace: .named("libraryIconGrid"))
                         .onChanged { value in
                             let rect = LibraryMarquee.rect(from: value.startLocation, to: value.location)
-                            marqueeRect = rect
+                            // Per-tick: mutate the box (overlay-only render).
+                            marqueeModel.rect = rect
+                            if marqueeModel.baseSelection == nil {
+                                marqueeModel.baseSelection = selection
+                            }
+                            // Selection applies ONLY when the hit set changes
+                            // — the expensive grid re-render happens when a
+                            // tile enters/leaves the band, not per pixel.
+                            let hits = LibraryMarquee.hitIds(in: iconTileFrames, rect: rect)
+                            guard hits != marqueeModel.lastHits else { return }
+                            marqueeModel.lastHits = hits
                             apply(SelectionGrammar.marquee(
-                                ids: LibraryMarquee.hitIds(in: iconTileFrames, rect: rect),
-                                selection: marqueeBaseSelection ?? {
-                                    marqueeBaseSelection = selection
-                                    return selection
-                                }(),
+                                ids: hits,
+                                selection: marqueeModel.baseSelection ?? selection,
                                 modifiers: currentSelectionModifiers
                             ))
                         }
                         .onEnded { _ in
-                            marqueeRect = nil
-                            marqueeBaseSelection = nil
+                            marqueeModel.rect = nil
+                            marqueeModel.baseSelection = nil
+                            marqueeModel.lastHits = []
                         }
                 )
                 .overlay(alignment: .topLeading) {
-                    if let rect = marqueeRect {
-                        MarqueeRectangle(rect: rect)
-                    }
+                    MarqueeOverlayHost(model: marqueeModel)
                 }
                 // Right-click on empty library area → Import (#4449, third
                 // of the three affordances). Tile-level context menus

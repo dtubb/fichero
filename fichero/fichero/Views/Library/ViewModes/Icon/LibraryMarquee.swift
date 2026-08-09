@@ -34,6 +34,30 @@ extension View {
     }
 }
 
+/// Live sweep state in an @Observable BOX (2026-08-09 perf fix: as
+/// LibraryView @State, every mouse tick re-rendered the whole grid — 'the
+/// rubber band doesn't keep up with the mouse'). Only the small overlay
+/// view reads `rect`, so per-tick mutation re-renders ONE rectangle; the
+/// grid re-renders only when the HIT SET changes and selection is applied.
+@MainActor
+@Observable
+final class MarqueeModel {
+    var rect: CGRect?
+    @ObservationIgnored var lastHits: Set<String> = []
+    @ObservationIgnored var baseSelection: Set<String>?
+}
+
+/// The overlay host — the ONLY reader of the model's rect.
+struct MarqueeOverlayHost: View {
+    let model: MarqueeModel
+
+    var body: some View {
+        if let rect = model.rect {
+            MarqueeRectangle(rect: rect)
+        }
+    }
+}
+
 /// The translucent accent sweep rectangle.
 struct MarqueeRectangle: View {
     let rect: CGRect
