@@ -50,6 +50,20 @@ CANONICAL_HOST = APP / "Views" / "Library" / "Workspace" / "LibraryWorkspaceRoot
 MIRROR_HOSTS = [APP / "Views" / "Shell" / "DocumentTabView.swift"]
 BASELINE = REPO / "scripts" / "known_environment_forwarding_gaps.txt"
 
+# Self-test seam (2026-08-09): the self-test used to WRITE mutations into the
+# real source files and restore them in a `finally` — unsafe under a
+# concurrent writer (another agent's edit could be clobbered by the restore)
+# and not crash-safe (finally does not survive SIGKILL). All reads go through
+# `_read`, which consults this in-memory override map first; the self-test
+# synthesizes its regressions HERE and never touches disk.
+_TEXT_OVERRIDES: dict[Path, str] = {}
+
+
+def _read(path: Path) -> str:
+    if path in _TEXT_OVERRIDES:
+        return _TEXT_OVERRIDES[path]
+    return path.read_text(encoding="utf-8", errors="replace")
+
 # The shared re-injection helper, and the hosts that exist ONLY to carry the
 # library environment across a hosting boundary. See `boundary_gaps`.
 SHARED_HELPER = APP / "Views" / "Shell" / "LibraryServiceEnvironment.swift"
@@ -116,7 +130,7 @@ def non_optional_env_reads() -> dict[str, set[str]]:
     """
     found: dict[str, set[str]] = {}
     for path in APP.rglob("*.swift"):
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = _read(path)
         if not is_hosted_outside_the_view_tree(path, text):
             continue
         for type_name, _var, optional in ENV_READ_RE.findall(text):
@@ -128,7 +142,7 @@ def non_optional_env_reads() -> dict[str, set[str]]:
 
 def injected_types(path: Path, prop_types: dict[str, str]) -> set[str]:
     """Types a host injects, resolving `library.x` and bare locals to type names."""
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = _read(path)
     # A host's own `@Environment(T.self) var name` gives `name` -> `T`, and its
     # own stored `let windowState: WindowState` gives the rest — a host forwards
     # both things it received and things it holds.
@@ -151,7 +165,7 @@ def injected_library_types(path: Path, prop_types: dict[str, str]) -> set[str]:
     window/app objects (`windowState`, `kgFocusState`), and those are not part
     of the per-library contract being compared.
     """
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = _read(path)
     types: set[str] = set()
     for expr in INJECT_RE.findall(text):
         if "." not in expr:
@@ -190,7 +204,7 @@ def boundary_gaps(canonical: set[str], prop_types: dict[str, str]) -> list[str]:
     """
     gaps: list[str] = []
     for host in BOUNDARY_HOSTS:
-        text = host.read_text(encoding="utf-8", errors="replace")
+        text = _read(host)
         if host != SHARED_HELPER and HELPER_CALL in text:
             continue  # delegates to the one list — that IS the fix
         for type_name in sorted(canonical - injected_library_types(host, prop_types)):
@@ -286,28 +300,15 @@ def main() -> int:
 def self_test() -> int:
     """Prove the guardrail FIRES, not merely that it passes.
 
-    A check that only ever returns 0 is indistinguishable from a check that
-    inspects nothing — this repo has shipped that mistake more than once. So the
-    proof is runnable rather than a claim in a commit message:
-
-      1. the tree as it stands is clean;
-      2. reverting #4448's own fix (dropping the `library.activityStore`
-         forward) makes it fail, naming ActivityStore;
-      3. (there is only ONE real boundary case in the tree — ActivityStore —
-         so step 2 IS the synthesised violation; there is no baseline to
-         borrow one from, which is the point of the narrowing);
-      4. everything is restored afterwards.
-
-    Every mutation is written to a temp copy and restored in a `finally`, so an
-    interrupted self-test cannot leave edited source behind.
+    IN-MEMORY (2026-08-09 rewrite): every synthesized regression lives in
+    `_TEXT_OVERRIDES`; nothing is written to disk, so an interrupted or
+    concurrent run cannot clobber real source — the old form wrote mutations
+    into the actual files and restored in a `finally`, which is neither
+    crash-safe nor safe under a concurrent writer. The three cases are
+    reverts of real fixes, not invented shapes.
     """
     host = MIRROR_HOSTS[0]
-    host_original = host.read_text(encoding="utf-8")
-    helper_original = SHARED_HELPER.read_text(encoding="utf-8")
     detached = BOUNDARY_HOSTS[1]
-    detached_original = detached.read_text(encoding="utf-8")
-    baseline_existed = BASELINE.exists()
-    baseline_original = BASELINE.read_text(encoding="utf-8") if baseline_existed else ""
     failures: list[str] = []
 
     def expect(label: str, want: int) -> None:
@@ -319,44 +320,40 @@ def self_test() -> int:
     try:
         expect("tree as it stands is clean", 0)
 
+        host_original = _read(host)
         dropped = host_original.replace("                .environment(library.activityStore)\n", "")
         if dropped == host_original:
             failures.append("could not simulate the #4448 regression — the forward moved")
         else:
-            host.write_text(dropped, encoding="utf-8")
+            _TEXT_OVERRIDES[host] = dropped
             expect("reverting the #4448 ActivityStore forward is caught", 1)
-            host.write_text(host_original, encoding="utf-8")
+            _TEXT_OVERRIDES.clear()
 
-        # The 2026-08-08 regressions this script slept through. Both are
-        # reverts of a real fix, not invented shapes.
+        helper_original = _read(SHARED_HELPER)
         thinned = helper_original.replace(
             "            .environment(library.activityStore)\n", "")
         if thinned == helper_original:
             failures.append("could not thin the shared helper — the list moved")
         else:
-            SHARED_HELPER.write_text(thinned, encoding="utf-8")
+            _TEXT_OVERRIDES[SHARED_HELPER] = thinned
             expect("a service dropped from the shared helper is caught", 1)
-            SHARED_HELPER.write_text(helper_original, encoding="utf-8")
+            _TEXT_OVERRIDES.clear()
 
+        detached_original = _read(detached)
         hand_rolled = detached_original.replace(
             "            .libraryServiceEnvironment(library)\n",
             "            .environment(library.documentStore)\n")
         if hand_rolled == detached_original:
             failures.append("could not un-delegate the detached inspector — the call moved")
         else:
-            detached.write_text(hand_rolled, encoding="utf-8")
+            _TEXT_OVERRIDES[detached] = hand_rolled
             expect("a boundary host reverting to a hand-picked list is caught", 1)
-            detached.write_text(detached_original, encoding="utf-8")
+            _TEXT_OVERRIDES.clear()
 
-        expect("everything restored", 0)
+        expect("overrides cleared, tree clean again", 0)
     finally:
-        host.write_text(host_original, encoding="utf-8")
-        SHARED_HELPER.write_text(helper_original, encoding="utf-8")
-        detached.write_text(detached_original, encoding="utf-8")
-        if baseline_existed:
-            BASELINE.write_text(baseline_original, encoding="utf-8")
-        elif BASELINE.exists():
-            BASELINE.unlink()
+        _TEXT_OVERRIDES.clear()
+
 
     if failures:
         print("\nself-test FAILED:", "; ".join(failures), file=sys.stderr)

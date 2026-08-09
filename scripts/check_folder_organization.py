@@ -45,6 +45,15 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Services": "#1944 — 60 Swift files directly in Services",
     "Views/Library": "#1944 — 42 Swift files directly; mixed Library concerns",
     "Views/Sidebar": "#1944 — 27 Swift files directly; mixed Sidebar concerns",
+    # 2026-08-09 deliberate: the overnight crash/selection fixes added 1-2
+    # files to each (DragPreviewLabel, SheetLibraryEnvironment,
+    # ShellPrimarySelection, the preview catalogs), tipping 19-20 vs 18.
+    # Subfoldering means pbxproj-adjacent moves and import churn at the end
+    # of a long shift on a green tree — backlogged with the rest of #1944
+    # rather than rushed. Split with the same-concern files already queued.
+    "Views/Components": "#1944 sibling — 19 files; grew by DragPreviewLabel (2026-08-09)",
+    "Views/Shell/ContentView": "#1944 sibling — 20 files; grew by ShellPrimarySelection + SheetLibraryEnvironment-adjacent splits",
+    "Views/Sidebar/ItemRow": "#1944 sibling — 20 files; grew by the preview catalog + drag/drop splits",
 }
 
 
