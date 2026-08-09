@@ -94,7 +94,10 @@ extension SidebarItemRow {
         // capability NSTableView has, just one level up. Same-section
         // reorder via the row's native drag handle still goes through
         // `.onMove` and shows the system's row-drop indicator.
-        ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
+        ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+            // Contiguous-selection merging (2026-08-09): a block selection
+            // reads as ONE squircle — merged edges square off.
+            let childSelected = selectedDestinations.contains(child.destination)
             SidebarItemRow(
                 item: child,
                 lookupItem: lookupItem,
@@ -105,7 +108,11 @@ extension SidebarItemRow {
                 deleteState: deleteState,
                 sidebarState: sidebarState,
                 libraryManager: libraryManager,
-                onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
+                onOpenChatWithCurrentScope: onOpenChatWithCurrentScope,
+                mergeSelectionAbove: childSelected && index > 0
+                    && selectedDestinations.contains(children[index - 1].destination),
+                mergeSelectionBelow: childSelected && index + 1 < children.count
+                    && selectedDestinations.contains(children[index + 1].destination)
             )
             .contentShape(Rectangle())
             // `.draggable` BEFORE `.tag` so NSTableView's row-drag

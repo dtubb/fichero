@@ -16,10 +16,15 @@ struct DocumentThumbnailView: View {
     var onCommitRename: () -> Void = {}
     var onCancelRename: () -> Void = {}
 
-    /// The portrait 3:4 image well, at scale 1. Every branch pins to this
-    /// size so no image's intrinsic dimensions can distort the grid.
-    static let wellWidth: CGFloat = 100
-    static let wellHeight: CGFloat = wellWidth * 4 / 3
+    /// The SQUARE image well, at scale 1 (Daniel's Finder screenshots,
+    /// 2026-08-09: 'all icons should be square (a squircle) so the icon
+    /// thumbnail is centred in the square and a bit smaller, like in
+    /// Finder'). Every branch pins to this size so no image's intrinsic
+    /// dimensions can distort the grid; the content INSETS inside the well.
+    static let wellWidth: CGFloat = 108
+    static let wellHeight: CGFloat = wellWidth
+    /// The inset that makes the thumbnail 'a bit smaller' inside the well.
+    static let wellContentInset: CGFloat = 10
 
     #if os(macOS)
     @Environment(\.controlActiveState) private var controlActiveState
@@ -44,9 +49,9 @@ struct DocumentThumbnailView: View {
                 // get a rectangle that matches typical page proportions —
                 // not a square. Square forced one-row icon list to crop
                 // photos awkwardly. (#718)
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(Color(.windowBackgroundColor))
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                    .aspectRatio(1, contentMode: .fit)
 
                 // Symbol for the nodes that HAVE no picture — folders and
                 // workflow mirrors — thumbnail for everything else.
@@ -76,12 +81,15 @@ struct DocumentThumbnailView: View {
                     // keeps its fixed size — only the image letterboxes.
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fit)
-                        // Explicit frame, not maxWidth/maxHeight (#789 class,
-                        // the user 2026-07-27): a LANDSCAPE image's intrinsic
-                        // width wins the layout pass and blows the tile past
-                        // its portrait 3:4 cell, overlapping neighbours.
-                        // Required with .fit too — do not "simplify" it away.
-                        .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
+                        // Explicit frame, not maxWidth/maxHeight (#789 class):
+                        // a LANDSCAPE image's intrinsic width wins the layout
+                        // pass and blows the tile past its cell. Inset makes
+                        // the thumbnail 'a bit smaller' inside the square
+                        // well (Finder).
+                        .frame(
+                            width: (Self.wellWidth - 2 * Self.wellContentInset) * scale,
+                            height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
+                        )
                         .clipped()
                 } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
                     // Text-preview thumbnail (#625) is only for genuinely text
@@ -99,7 +107,10 @@ struct DocumentThumbnailView: View {
                     // the neighbour. Required with .fit too.
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
+                        .frame(
+                            width: (Self.wellWidth - 2 * Self.wellContentInset) * scale,
+                            height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
+                        )
                         .clipped()
                 }
 
@@ -122,7 +133,7 @@ struct DocumentThumbnailView: View {
             // Pin the whole well, not just the image branch — the ZStack
             // otherwise grows to its largest child's intrinsic size.
             .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             // Finder's icon-view selection, half one (Daniel's screenshot,
             // 2026-08-08, #4563): a grey rounded backdrop behind the ICON —
             // never a wash over the whole tile.

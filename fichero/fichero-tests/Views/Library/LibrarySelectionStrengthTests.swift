@@ -76,8 +76,10 @@ final class LibrarySelectionStrengthTests: XCTestCase {
     func testThumbnailWellHasExplicitPortraitBounds() throws {
         let source = try Self.appSource("Views/Library/LibraryThumbnailViews.swift")
 
-        XCTAssertTrue(source.contains("static let wellWidth: CGFloat = 100"))
-        XCTAssertTrue(source.contains("static let wellHeight: CGFloat = wellWidth * 4 / 3"))
+        // SQUARE well (Daniel's Finder-screenshot ruling, 2026-08-09) —
+        // supersedes the portrait 3:4 pin.
+        XCTAssertTrue(source.contains("static let wellWidth: CGFloat = 108"))
+        XCTAssertTrue(source.contains("static let wellHeight: CGFloat = wellWidth"))
         XCTAssertTrue(source.contains(".frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)"))
     }
 

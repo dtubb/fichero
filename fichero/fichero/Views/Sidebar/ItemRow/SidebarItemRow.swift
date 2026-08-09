@@ -74,6 +74,12 @@ struct SidebarItemRow: View {
     var automationService: AutomationAPIService? { library?.automationService }
     var importService: ImportService? { library?.importService }
 
+    /// Contiguous-selection merging (2026-08-09): true when the row directly
+    /// above/below in the SAME list is also selected — the platter squares
+    /// that edge so a block selection reads as one squircle.
+    var mergeSelectionAbove: Bool = false
+    var mergeSelectionBelow: Bool = false
+
     @State var isDropTargeted = false
     /// Pointer-over state driving the trailing open affordance (#2496).
     @State var isRowHovered = false

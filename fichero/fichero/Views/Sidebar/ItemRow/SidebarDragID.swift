@@ -236,16 +236,34 @@ extension View {
     /// wash came from attaching at the DisclosureGroup level, where the
     /// group's frame is the folder plus its expanded children.
     @ViewBuilder
-    func sidebarDropHighlight(_ active: Bool, selected: Bool = false) -> some View {
+    func sidebarDropHighlight(
+        _ active: Bool,
+        selected: Bool = false,
+        mergeAbove: Bool = false,
+        mergeBelow: Bool = false
+    ) -> some View {
+        // Contiguous multi-selection reads as ONE platter (Daniel,
+        // 2026-08-09: 'they should not have the divots between rows — the
+        // rounded squircles should be around the entire selection'):
+        // merged edges square off and bleed over the List's inter-row gap.
+        let radius = SidebarConstants.cornerRadius
         self.listRowBackground(
-            RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                .fill(
-                    active
-                        ? Color.accentColor
-                        : selected ? SidebarConstants.selectedRowFill : Color.clear
-                )
-                .padding(.horizontal, 4)
-                .allowsHitTesting(false)
+            UnevenRoundedRectangle(
+                topLeadingRadius: mergeAbove ? 0 : radius,
+                bottomLeadingRadius: mergeBelow ? 0 : radius,
+                bottomTrailingRadius: mergeBelow ? 0 : radius,
+                topTrailingRadius: mergeAbove ? 0 : radius,
+                style: .continuous
+            )
+            .fill(
+                active
+                    ? Color.accentColor
+                    : selected ? SidebarConstants.selectedRowFill : Color.clear
+            )
+            .padding(.horizontal, 4)
+            .padding(.top, mergeAbove ? -3 : 0)
+            .padding(.bottom, mergeBelow ? -3 : 0)
+            .allowsHitTesting(false)
         )
     }
 }

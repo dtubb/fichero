@@ -68,12 +68,18 @@ extension SidebarView {
         // natively (no custom overlay strip needed). Same-section
         // reorder still goes through `.onMove` and shows the system's
         // row-drop indicator.
-        ForEach(Array(items.enumerated()), id: \.element.id) { _, item in
-            // Row-boundary type erasure — see sidebarRowTypeErased(): the
-            // per-item value-witness copy of the composed row overflowed the
-            // stack (2026-08-08 night crash #2/#3). Load-bearing.
-            unifiedRow(for: item)
-                .sidebarRowTypeErased()
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            // Contiguous-selection merging (2026-08-09) + row-boundary type
+            // erasure (see sidebarRowTypeErased(): the per-item value-witness
+            // copy of the composed row overflowed the stack, 2026-08-08
+            // night crashes #2/#3 — load-bearing).
+            let sel = { (i: SidebarItem) in selectionState.selectedDestinations.contains(i.destination) }
+            unifiedRow(
+                for: item,
+                mergeAbove: sel(item) && index > 0 && sel(items[index - 1]),
+                mergeBelow: sel(item) && index + 1 < items.count && sel(items[index + 1])
+            )
+            .sidebarRowTypeErased()
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
             sidebarRowLogger.debug("unifiedRows .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
@@ -180,7 +186,7 @@ extension SidebarView {
     /// Rows rely on native `List(selection: Set)` for click / shift-range /
     /// cmd-toggle selection via `.tag(item.destination)`.
     @ViewBuilder
-    private func unifiedRow(for item: SidebarItem) -> some View {
+    private func unifiedRow(for item: SidebarItem, mergeAbove: Bool = false, mergeBelow: Bool = false) -> some View {
         // `.moveDisabled` blocks AppKit-level reorder drag on Inbox
         // (#621). `.draggable` lives here on the row container — not
         // inside SidebarItemRow's body — so NSTableView's native
@@ -205,6 +211,9 @@ extension SidebarView {
             sidebarState: sidebarState,
             libraryManager: libraryManager,
             onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
+        ,
+            mergeSelectionAbove: mergeAbove,
+            mergeSelectionBelow: mergeBelow
         )
         .contentShape(Rectangle())
         // Full payload (#4123): document rows export a real file copy + RTF
