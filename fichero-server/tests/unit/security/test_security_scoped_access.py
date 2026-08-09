@@ -298,6 +298,10 @@ def test_spawn_and_runtime_grants_share_one_registry(monkeypatch):
 
 
 def test_unresolvable_bookmark_grants_when_directory_is_readable(monkeypatch, tmp_path):
+    # SANDBOXED engine only (audit A1): there, listdir succeeds solely where
+    # the kernel already permits, so the fallback's reach is exactly what the
+    # app granted.
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
     lib = tmp_path / "Marshall.fichero"
     lib.mkdir()
     f = FakeFoundation(error="NSError 259: isn't in the correct format")
@@ -306,7 +310,29 @@ def test_unresolvable_bookmark_grants_when_directory_is_readable(monkeypatch, tm
     assert str(lib) in ssa.granted_paths()
 
 
+def test_unsandboxed_engine_never_grants_via_the_probe(monkeypatch, tmp_path):
+    """Audit A1 — the security consequence, written down this time.
+
+    A grant lands in the ALLOWED ROOTS (path_security spreads granted_paths
+    into the allowlist). In an UNSANDBOXED engine (Dev Local external, server
+    deployments) listdir succeeds across the whole home, so a probe-based
+    grant would let any caller holding the local token promote ANY readable
+    directory to an allowed root — the allowlist would stop being a control.
+    Resolution failure must stay fatal there, exactly as before the fallback
+    existed.
+    """
+    monkeypatch.delenv("APP_SANDBOX_CONTAINER_ID", raising=False)
+    lib = tmp_path / "Anything.fichero"
+    lib.mkdir()
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
+    with pytest.raises(ssa.BookmarkGrantError):
+        ssa.grant_access(str(lib), _b64(b"junk"))
+    assert str(lib) not in ssa.granted_paths()
+
+
 def test_unresolvable_bookmark_stays_fatal_when_directory_is_not_readable(monkeypatch, tmp_path):
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
     f = FakeFoundation(error="NSError 259: isn't in the correct format")
     monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
     with pytest.raises(ssa.BookmarkGrantError):
@@ -314,6 +340,7 @@ def test_unresolvable_bookmark_stays_fatal_when_directory_is_not_readable(monkey
 
 
 def test_spawn_payload_uses_the_same_fallback(monkeypatch, tmp_path):
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
     lib = tmp_path / "Diaries.fichero"
     lib.mkdir()
     f = FakeFoundation(error="NSError 259: isn't in the correct format")

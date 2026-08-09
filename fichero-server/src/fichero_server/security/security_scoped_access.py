@@ -168,15 +168,36 @@ def _readable_via_inherited_scope(path: str) -> bool:
     return True
 
 
+def _engine_is_sandboxed() -> bool:
+    """Is THIS process inside an App Sandbox? The kernel's own signal —
+    ``APP_SANDBOX_CONTAINER_ID`` is set by macOS in every sandboxed process
+    and absent otherwise — the same check the app's SandboxEnvironment makes.
+    """
+    return bool(os.environ.get("APP_SANDBOX_CONTAINER_ID"))
+
+
 def start_access_or_inherited(path: str, bookmark: bytes, foundation: Any) -> bool:
     """``start_access``, falling back to the inherited-sandbox probe above.
 
     One funnel for BOTH grant paths (spawn env + runtime route), so they can
     never disagree about what counts as granted.
+
+    SECURITY (lane audit A1, 2026-08-09): a grant lands in ``_GRANTED``,
+    which ``path_security`` spreads into the ALLOWED ROOTS — so the fallback
+    changes what the allowlist means. Its entire justification is "an
+    inherit child shares the parent's already-started extensions", so it
+    runs ONLY when this process is actually sandboxed: there, ``listdir``
+    can only succeed where the kernel already permits, and the fallback's
+    reach is exactly what the app granted. In an UNSANDBOXED engine (Dev
+    Local external, server deployments) ``listdir`` succeeds across the
+    whole home, so the same fallback would let any caller holding the local
+    token promote ANY readable directory to an allowed root — the allowlist
+    would stop being a control. There, resolution failure stays fatal, as
+    before 6d60cbf65.
     """
     if start_access(path, bookmark, foundation):
         return True
-    if _readable_via_inherited_scope(path):
+    if _engine_is_sandboxed() and _readable_via_inherited_scope(path):
         _GRANTED.add(path)
         logger.info(
             "Security-scoped access granted via inherited sandbox scope "
