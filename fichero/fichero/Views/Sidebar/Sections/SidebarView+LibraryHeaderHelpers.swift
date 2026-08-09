@@ -26,6 +26,9 @@ extension SidebarView {
             // report a refusal the item just appears to vanish (#4401).
             onDropError: { sidebarState.dropErrorMessage = $0 },
             onTap: {
+                // The header is OUTSIDE List selection (#160) — its tap is
+                // the one writer of both selection halves for this row.
+                selectionState.selectedDestinations = [.library(library.id)]
                 selectedItemId = sidebarLibrarySelectionId(library.id)
                 if windowState.libraryId != library.id { windowState.libraryId = library.id }
                 sidebarMode = .library

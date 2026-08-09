@@ -33,50 +33,80 @@ func sidebarScopeIsExpandableContainer(_ doc: Document) -> Bool {
     (doc.fileType == .pdf && doc.docType != .page) || doc.docType == .folder
 }
 
+/// The #156 single-leaf gate: a lone selected document scopes the library to
+/// itself only when NOTHING else owns the selection — containers browse in,
+/// pages move the cursor.
+func sidebarScopeIsSingleLeaf(_ doc: Document) -> Bool {
+    !sidebarScopeIsExpandableContainer(doc)
+        && doc.docType != .page
+        && !doc.isNavigableContainer
+}
+
 extension ContentView {
     /// Multi-selection → the library shows EXACTLY the selection (or the
     /// union of pages for an all-PDF selection). Single selections keep the
     /// existing navigate-into path; empties are the clear path.
     func handleSidebarMultiSelectionChange(_ destinations: Set<SidebarDestination>) {
         let ids = sidebarScopeDocumentIds(destinations)
+        // A SINGLE selected LEAF also scopes the library to itself (Daniel
+        // #156, 2026-08-09: 'one sidebar item is selected, the m4a file, it
+        // should only show that in library with the preview') — containers
+        // (folders/PDFs/pages) stay with the navigate path, which browses
+        // into them.
+        if ids.count == 1 {
+            if let doc = documentStore.resolveDocument(ids[0]), sidebarScopeIsSingleLeaf(doc) {
+                documentStore.currentDocuments = documentStore.applyStatusOverrides([doc])
+            }
+            return
+        }
         guard ids.count > 1 else { return }
         Task { @MainActor in
-            var docs: [Document] = []
-            for id in ids {
-                if let doc = documentStore.resolveDocument(id) {
-                    docs.append(doc)
-                } else if let fetched = try? await documentStore.documentService.getDocument(id) {
-                    docs.append(fetched)
-                } else {
-                    logger.error("Sidebar multi-scope could not resolve \(id) — shown set will omit it")
-                }
-            }
+            let docs = await sidebarScopeResolve(ids)
             // The selection may have moved while we fetched — never apply a
             // stale scope over a newer one.
             guard sidebarScopeDocumentIds(sidebarSelectionState.selectedDestinations) == ids else { return }
-            var shown: [Document] = []
-            if sidebarScopeExpandsToContents(docs) {
-                // Per-container expansion (#114/#115/#144): a PDF contributes
-                // its pages, a FOLDER its children (one level, Finder-style),
-                // either contributing ITSELF while empty/unprocessed so
-                // nothing vanishes; every leaf rides along as itself.
-                for doc in docs {
-                    if sidebarScopeIsExpandableContainer(doc) {
-                        var contents = await documentStore.cacheSidebarChildren(of: doc)
-                        if doc.fileType == .pdf {
-                            contents = contents.filter { $0.docType == .page }
-                        }
-                        shown += contents.isEmpty ? [doc] : contents
-                    } else {
-                        shown.append(doc)
-                    }
-                }
-                // Re-check again — the page fetches awaited too.
-                guard sidebarScopeDocumentIds(sidebarSelectionState.selectedDestinations) == ids else { return }
-            } else {
-                shown = docs
-            }
+            let shown = await sidebarScopeExpand(docs)
+            // Re-check — the expansion's child fetches awaited too.
+            guard sidebarScopeDocumentIds(sidebarSelectionState.selectedDestinations) == ids else { return }
             documentStore.currentDocuments = documentStore.applyStatusOverrides(shown)
         }
+    }
+
+    /// Resolve scope ids to documents (cache first, one fetch fallback each),
+    /// logging what the shown set will omit.
+    @MainActor
+    private func sidebarScopeResolve(_ ids: [String]) async -> [Document] {
+        var docs: [Document] = []
+        for id in ids {
+            if let doc = documentStore.resolveDocument(id) {
+                docs.append(doc)
+            } else if let fetched = try? await documentStore.documentService.getDocument(id) {
+                docs.append(fetched)
+            } else {
+                logger.error("Sidebar multi-scope could not resolve \(id) — shown set will omit it")
+            }
+        }
+        return docs
+    }
+
+    /// Per-container expansion (#114/#115/#144): a PDF contributes its pages,
+    /// a FOLDER its children (one level, Finder-style), either contributing
+    /// ITSELF while empty/unprocessed so nothing vanishes; leaves ride along.
+    @MainActor
+    private func sidebarScopeExpand(_ docs: [Document]) async -> [Document] {
+        guard sidebarScopeExpandsToContents(docs) else { return docs }
+        var shown: [Document] = []
+        for doc in docs {
+            if sidebarScopeIsExpandableContainer(doc) {
+                var contents = await documentStore.cacheSidebarChildren(of: doc)
+                if doc.fileType == .pdf {
+                    contents = contents.filter { $0.docType == .page }
+                }
+                shown += contents.isEmpty ? [doc] : contents
+            } else {
+                shown.append(doc)
+            }
+        }
+        return shown
     }
 }

@@ -103,7 +103,14 @@ extension SidebarView {
                             .contains(.library(library.id))
                     )
             }
-            .tag(SidebarDestination.library(library.id))
+            // NO .tag — deliberately OUTSIDE List selection (#160, 2026-08-09:
+            // 'sidebar should not have green when global library is selected').
+            // The label-level platter cannot suppress the native emphasized
+            // fill on a top-level DisclosureGroup row, so the row opts out of
+            // native selection entirely: LibraryHeaderRow's own onTap routes
+            // the destination (below), and the grey platter on the label is
+            // the whole selection treatment. Ceiling: a ⇧-range cannot span a
+            // library header — Finder's sidebar headers behave the same.
             .listRowInsets(SidebarRowMetrics.insets(.library))
         }
     }
