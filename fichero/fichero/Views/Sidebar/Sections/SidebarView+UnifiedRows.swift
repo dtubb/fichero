@@ -69,7 +69,11 @@ extension SidebarView {
         // reorder still goes through `.onMove` and shows the system's
         // row-drop indicator.
         ForEach(Array(items.enumerated()), id: \.element.id) { _, item in
+            // Row-boundary type erasure — see sidebarRowTypeErased(): the
+            // per-item value-witness copy of the composed row overflowed the
+            // stack (2026-08-08 night crash #2/#3). Load-bearing.
             unifiedRow(for: item)
+                .sidebarRowTypeErased()
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
             sidebarRowLogger.debug("unifiedRows .dropDestination FIRED with \(ids.count) ids at offset \(offset)")

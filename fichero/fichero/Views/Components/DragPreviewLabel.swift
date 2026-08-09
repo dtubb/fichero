@@ -23,3 +23,14 @@ struct DragPreviewLabel: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
     }
 }
+
+extension View {
+    /// Cap the concrete view type at a ForEach ROW boundary (2026-08-08 night
+    /// crash #2): SwiftUI's value-witness copy of a row's fully-composed type
+    /// (nested ExclusiveGestures from tap/drag modifiers) overflowed the
+    /// stack inside `ForEachState.item` — the column-root erasure
+    /// (`sidebarStyle()`) does not cover per-item copies. Apply BEFORE `.tag`
+    /// so the selection trait stays outside the erasure. Load-bearing, like
+    /// #4331 — do not remove.
+    func sidebarRowTypeErased() -> AnyView { AnyView(self) }
+}

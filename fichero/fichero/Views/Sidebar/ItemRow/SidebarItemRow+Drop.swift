@@ -119,6 +119,7 @@ extension SidebarItemRow {
                 DragPreviewLabel(name: child.name, systemImage: child.icon)
             }
             .moveDisabled(child.icon == "tray.fill")
+            .sidebarRowTypeErased()
             .tag(child.destination)
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
