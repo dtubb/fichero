@@ -555,7 +555,7 @@ extension Document {
             sequence: pageIndex + 1,
             metadata: [
                 "virtual_page": AnyCodable(true),
-                "pdf_parent_id": AnyCodable(pdfParentId),
+                "pdf_parent_id": AnyCodable(pdfParentId)
             ]
         )
     }

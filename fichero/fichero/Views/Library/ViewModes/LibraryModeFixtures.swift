@@ -36,7 +36,7 @@ enum LibraryPreviewFixtures {
             id: "text-1", docType: .file, fileType: .text, name: "Field notes.md",
             pageContent: "Rain again. The archive closes at noon."
         ),
-        Document(id: "img-1", docType: .file, fileType: .image, name: "scan_001.tif"),
+        Document(id: "img-1", docType: .file, fileType: .image, name: "scan_001.tif")
     ]
 
     @MainActor
