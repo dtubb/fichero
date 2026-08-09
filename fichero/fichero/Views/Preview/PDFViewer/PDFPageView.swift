@@ -69,6 +69,9 @@ struct PDFPageView: NSViewRepresentable {
     /// PDF page-arrangement mode (#2090). Default preserves the single-page
     /// behavior for callers that don't opt into layout switching.
     var displayMode: PDFDisplayMode = .singlePage
+    /// Page-turn axis (2026-08-09): horizontal for paged spreads (book),
+    /// vertical only for continuous modes. See PageLayoutMode.pdfDisplayDirection.
+    var displayDirection: PDFDisplayDirection = .horizontal
 
     // MARK: - Loupe State
 
@@ -97,6 +100,7 @@ struct PDFPageView: NSViewRepresentable {
         let view = PinchOwningPDFView()
         view.setAccessibilityIdentifier("pdfPreview")  // XCUITest hook (#1230)
         view.displayMode = displayMode
+        view.displayDirection = displayDirection
         view.displaysPageBreaks = false
         // autoScales re-fits the document to the pane on every layout pass.
         // That is exactly what we want until the user zooms — it is how a PDF
@@ -144,6 +148,7 @@ struct PDFPageView: NSViewRepresentable {
         // Apply the page-layout mode (#2090); idempotent-guarded so switching
         // modes updates the live view without churning PDFKit every pass.
         if view.displayMode != displayMode { view.displayMode = displayMode }
+        if view.displayDirection != displayDirection { view.displayDirection = displayDirection }
         context.coordinator.zoomController = zoomController
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view
@@ -583,6 +588,9 @@ struct PDFPageView: UIViewRepresentable {
     /// PDF page-arrangement mode (#2090). Default preserves the single-page
     /// behavior for callers that don't opt into layout switching.
     var displayMode: PDFDisplayMode = .singlePage
+    /// Page-turn axis (2026-08-09): horizontal for paged spreads (book),
+    /// vertical only for continuous modes. See PageLayoutMode.pdfDisplayDirection.
+    var displayDirection: PDFDisplayDirection = .horizontal
 
     @AppStorage("pdfPreview.loupeEnabled") private var loupeEnabled = false
     @AppStorage("pdfPreview.loupeMagnification") private var loupeMagnification: Double = 3.0
@@ -598,6 +606,7 @@ struct PDFPageView: UIViewRepresentable {
     func makeUIView(context: Context) -> PDFView {
         let view = PDFView()
         view.displayMode = displayMode
+        view.displayDirection = displayDirection
         view.displaysPageBreaks = false
         view.autoScales = true
         view.backgroundColor = UIColor(red: 253/255, green: 253/255, blue: 253/255, alpha: 1)
@@ -660,6 +669,7 @@ struct PDFPageView: UIViewRepresentable {
         // Apply the page-layout mode (#2090); idempotent-guarded so switching
         // modes updates the live view without churning PDFKit every pass.
         if view.displayMode != displayMode { view.displayMode = displayMode }
+        if view.displayDirection != displayDirection { view.displayDirection = displayDirection }
         context.coordinator.zoomController = zoomController
         context.coordinator.pageController = pageController
         zoomController?.pdfView = view

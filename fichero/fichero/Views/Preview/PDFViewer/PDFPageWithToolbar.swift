@@ -289,7 +289,8 @@ struct PDFPageWithToolbar: View {
                 ocrBoxes: drawableOCRBoxes,
                 isDrawingRegion: isDrawingRegion,
                 onCreateRegion: { box in persistRegion(box, tool: pendingTool) },
-                displayMode: pageLayout.pdfDisplayMode ?? .singlePage
+                displayMode: pageLayout.pdfDisplayMode ?? .singlePage,
+                displayDirection: pageLayout.pdfDisplayDirection
             )
             .onAppear {
                 localPageIndex = pageIndex

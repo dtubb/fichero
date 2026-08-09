@@ -74,6 +74,21 @@ final class PageLayoutModeTests: XCTestCase {
         XCTAssertFalse(PageLayoutMode.fourUp.isPDFKitNative)
     }
 
+    /// Daniel, 2026-08-09: "swiping is left and right to change pages. not up
+    /// and down (unless we're in a continuous PDF view)". Paged spreads turn
+    /// horizontally; continuous modes keep the vertical scroll.
+    func testPageTurnAxisFollowsContinuity() {
+        for mode in PageLayoutMode.allCases {
+            XCTAssertEqual(
+                mode.pdfDisplayDirection,
+                mode.isContinuous ? .vertical : .horizontal,
+                "\(mode)"
+            )
+        }
+        XCTAssertEqual(PageLayoutMode.singlePage.pdfDisplayDirection, .horizontal)
+        XCTAssertEqual(PageLayoutMode.singleContinuous.pdfDisplayDirection, .vertical)
+    }
+
     func testSystemImagesAreNonEmptyAndDistinct() {
         let images = PageLayoutMode.allCases.map(\.systemImage)
         XCTAssertFalse(images.contains(""))
