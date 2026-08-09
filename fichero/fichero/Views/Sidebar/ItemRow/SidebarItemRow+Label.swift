@@ -143,10 +143,17 @@ extension SidebarItemRow {
     /// re-truncates the row name (Every-Frame-Perfect). Hidden from
     /// accessibility: VoiceOver and keyboard users reach the identical
     /// action via the row context menu's Open in New Tab / New Window.
+    /// `NSWindow.userTabbingPreference` is a PREFERENCES read (IPC) and this
+    /// getter runs per row per render — it showed up six times in Daniel's
+    /// 2026-08-09 stall log. Read once per launch; ponytail: a user changing
+    /// the System Settings tabbing preference mid-run sees the new behavior
+    /// after relaunch, which is also how most AppKit apps behave.
+    private static let cachedUserTabbingPreference = NSWindow.userTabbingPreference
+
     @ViewBuilder
     var trailingOpenAffordance: some View {
         if item.libraryId != nil {
-            let prefersTab = sidebarOpenPrefersTab(NSWindow.userTabbingPreference)
+            let prefersTab = sidebarOpenPrefersTab(Self.cachedUserTabbingPreference)
             let visible = sidebarRowShowsOpenAffordance(
                 isHovered: isRowHovered,
                 isRenaming: renameState.renamingItemId == item.id,

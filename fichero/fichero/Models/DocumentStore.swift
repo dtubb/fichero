@@ -88,8 +88,21 @@ final class DocumentStore {
     /// derived completion separately, while errors silently disappeared (#791).
     /// In-memory only; clears on app restart.
     var workflowStatusOverrides: [String: Status] = [:] {
-        didSet { processingIndexDirty = true }
+        didSet {
+            processingIndexDirty = true
+            childActivityMemoToken &+= 1
+        }
     }
+
+    /// Invalidation token for the childActivityCounts memo (2026-08-09 stall
+    /// fix): bumps with every override write, alongside `revision` for the
+    /// document containers. @ObservationIgnored — the memo is a cache, and
+    /// tracking it would re-render views for a bookkeeping write.
+    @ObservationIgnored var childActivityMemoToken: Int = 0
+    /// (revision, overrides token) the memo below was computed against.
+    @ObservationIgnored var childActivityMemoKey: (revision: Int, token: Int) = (-1, -1)
+    /// Per-parent child activity counts, valid while the key matches.
+    @ObservationIgnored var childActivityMemo: [String: (busy: Int, total: Int)] = [:]
 
     /// Workspace documents (is_workspace == true) — the curated-items
     /// workspaces surfaced in the Research sidebar's Workspaces section (#1617).

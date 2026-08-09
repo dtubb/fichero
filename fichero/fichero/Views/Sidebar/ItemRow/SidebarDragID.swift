@@ -270,13 +270,19 @@ extension View {
 
 extension SidebarConstants {
     /// Finder's sidebar selection grey — the platter for a selected row in
-    /// EVERY focus state (#4563). Never the accent. tertiarySystemFill, not
-    /// unemphasizedSelectedContentBackgroundColor (Daniel, 2026-08-09 #116:
-    /// "grey might be too dark") — Finder's sidebar wash is lighter than the
-    /// table-selection grey.
+    /// EVERY focus state (#4563). Never the accent (#137: "it's never a row
+    /// green color, except when you're a drop target").
+    ///
+    /// MUST be OPAQUE: the platter paints OVER the native emphasized accent
+    /// selection, and the translucent tertiarySystemFill tried for #116
+    /// ("grey might be too dark") let the accent bleed through — "bright
+    /// green again" (#137). Lighter AND opaque: the window background
+    /// blended halfway toward the unemphasized selection grey.
     static var selectedRowFill: Color {
         #if os(macOS)
-        Color(nsColor: .tertiarySystemFill)
+        Color(nsColor: NSColor.windowBackgroundColor.blended(
+            withFraction: 0.55, of: .unemphasizedSelectedContentBackgroundColor
+        ) ?? .unemphasizedSelectedContentBackgroundColor)
         #else
         Color(.secondarySystemFill)
         #endif

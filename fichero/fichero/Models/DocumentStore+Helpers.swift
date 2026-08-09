@@ -389,6 +389,15 @@ extension DocumentStore {
     /// same child can appear in both, and counting it twice would report more
     /// work in flight than exists.
     func childActivityCounts(of parentId: String) -> (busy: Int, total: Int) {
+        // Memoized per (revision, overrides-token) — this ran O(all documents)
+        // per FOLDER ROW per render and stalled the main thread for 231ms in
+        // Daniel's 2026-08-09 log. Same sources, same answers; just cached
+        // until either input actually changes.
+        if childActivityMemoKey != (revision, childActivityMemoToken) {
+            childActivityMemo.removeAll(keepingCapacity: true)
+            childActivityMemoKey = (revision, childActivityMemoToken)
+        }
+        if let cached = childActivityMemo[parentId] { return cached }
         var statusById: [String: Bool] = [:]
 
         for doc in currentDocuments where doc.parentId == parentId {
@@ -402,7 +411,9 @@ extension DocumentStore {
             statusById[kid.id] = (statusById[kid.id] ?? false) || busy
         }
 
-        return (busy: statusById.values.filter { $0 }.count, total: statusById.count)
+        let counts = (busy: statusById.values.filter { $0 }.count, total: statusById.count)
+        childActivityMemo[parentId] = counts
+        return counts
     }
 
     /// Apply workflowStatusOverrides to a freshly-loaded array so the UI sees
