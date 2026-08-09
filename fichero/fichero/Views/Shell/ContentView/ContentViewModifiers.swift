@@ -52,7 +52,6 @@ struct ChangeHandlerModifiers: ViewModifier {
 
     let handleViewModeChange: (AppViewMode) -> Void
     let handleSidebarModeChange: (SidebarMode) -> Void
-    let handleBrowserSelectionChange: (Set<String>) -> Void
     let handleDocumentChange: (DocumentChange) -> Void
 
     func body(content: Content) -> some View {
@@ -62,9 +61,6 @@ struct ChangeHandlerModifiers: ViewModifier {
             }
             .onChange(of: sidebarMode) { _, newMode in
                 handleSidebarModeChange(newMode)
-            }
-            .onChange(of: browserSelection) { _, newSelection in
-                handleBrowserSelectionChange(newSelection)
             }
             .onReceive(
                 documentStore.documentChangePublisher
@@ -206,7 +202,6 @@ struct MainContentModifiers: ViewModifier {
                 detailDocument: $detailDocument,
                 handleViewModeChange: handleViewModeChange,
                 handleSidebarModeChange: handleSidebarModeChange,
-                handleBrowserSelectionChange: handleBrowserSelectionChange,
                 handleDocumentChange: handleDocumentChange
             ))
             // Note: SheetModifiers removed - app-level sheets now handled in LibraryWindow
@@ -360,21 +355,13 @@ struct MainContentModifiers: ViewModifier {
         }
     }
 
-    private func handleBrowserSelectionChange(_ newSelection: Set<String>) {
-        if newSelection.isEmpty {
-            detailDocument = nil
-            return
-        }
-        if let firstId = newSelection.first,
-           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
-           BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
-            layoutMode: currentLayoutMode,
-            selectedDocumentId: firstId,
-            currentDetailDocumentId: detailDocument?.id
-           ) {
-            detailDocument = doc
-        }
-    }
+    // handleBrowserSelectionChange DELETED (2026-08-08 night review, finding A):
+    // it was a STRIPPED COPY of ContentView.handleBrowserSelectionChange
+    // (StateEvents) registered as a SECOND onChange(of: browserSelection) on
+    // the same window — every selection click ran both bodies in undefined
+    // order and wrote detailDocument twice ("the preview redraws twice on
+    // each row"). The full handler in ContentView+RootLayout is the ONE
+    // registration; this struct no longer observes browserSelection at all.
 
     private func syncActiveWorkflowMetadata(with updatedWorkflows: [WorkflowSidebarItem]) {
         guard case .workflow(let selectedWorkflow) = viewMode,
