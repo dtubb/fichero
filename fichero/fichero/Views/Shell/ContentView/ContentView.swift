@@ -85,6 +85,10 @@ struct ContentView: View {
     /// boundary (libraryServiceEnvironment, 2026-08-08 crash loop) — resolved
     /// from the window's library via this manager.
     @Environment(LibraryManager.self) var libraryManager
+    /// Display-image cache access for the reader's page-turn prefetch (#18):
+    /// warming the pages either side of a turn is what makes the next flip
+    /// swap instantly instead of fetching through the white-frame window.
+    @Environment(StorageService.self) var storageService
 
     // MARK: - State (synced with @SceneStorage for persistence)
 

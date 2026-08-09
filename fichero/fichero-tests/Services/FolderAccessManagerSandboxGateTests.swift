@@ -55,8 +55,7 @@ struct FolderAccessManagerSandboxGateTests {
         ).count - 1
         #expect(
             guardCount >= 2,
-            "handOffToEngine and grantEngineAccess must each guard on the runtime "
-                + "sandbox check; found \(guardCount) guard(s)."
+            "handOffToEngine and grantEngineAccess must each guard on the runtime sandbox check; found \(guardCount) guard(s)."
         )
     }
 }

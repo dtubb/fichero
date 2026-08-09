@@ -143,3 +143,44 @@ struct ReaderPageResolutionTests {
     }
 
 }
+
+/// The page-turn prefetch set (#18): pages either side of a turn are warmed
+/// so the next flip swaps in place instead of fetching through the
+/// white-frame window.
+@MainActor
+struct ReaderAdjacentPagePrefetchTests {
+    private func pages(_ count: Int) -> [Document] {
+        (1...count).map { sequence in
+            Document(
+                id: "page-\(sequence)",
+                parentId: "pdf-1",
+                docType: .page,
+                name: "Page \(sequence)",
+                sequence: sequence
+            )
+        }
+    }
+
+    @Test("a mid-document turn prefetches ±1 then ±2, nearest first")
+    func midDocumentTurnPrefetchesNeighbors() {
+        let ids = ContentView.adjacentPageIds(around: 4, in: pages(10))
+        #expect(ids == ["page-4", "page-6", "page-3", "page-7"])
+    }
+
+    @Test("the first page prefetches only forward")
+    func firstPagePrefetchesOnlyForward() {
+        let ids = ContentView.adjacentPageIds(around: 0, in: pages(5))
+        #expect(ids == ["page-2", "page-3"])
+    }
+
+    @Test("the last page prefetches only backward")
+    func lastPagePrefetchesOnlyBackward() {
+        let ids = ContentView.adjacentPageIds(around: 4, in: pages(5))
+        #expect(ids == ["page-4", "page-3"])
+    }
+
+    @Test("no page children means nothing to prefetch")
+    func noPagesMeansNoPrefetch() {
+        #expect(ContentView.adjacentPageIds(around: 0, in: []).isEmpty)
+    }
+}

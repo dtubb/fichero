@@ -45,8 +45,7 @@ struct MainThreadStallSamplerTests {
         )
         #expect(
             app.contains("MainThreadStallSampler.startIfEnabled()"),
-            "the sampler must be armed in applicationDidFinishLaunching or every "
-                + "FICHERO_STALL_LOG=1 run silently measures nothing"
+            "the sampler must be armed in applicationDidFinishLaunching or every FICHERO_STALL_LOG=1 run silently measures nothing"
         )
     }
 }

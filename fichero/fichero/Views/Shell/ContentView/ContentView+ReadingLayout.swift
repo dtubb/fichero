@@ -51,6 +51,17 @@ extension ContentView {
         return (cached + browsed).filter { seen.insert($0.id).inserted }
     }
 
+    /// Pure: page-document ids at pdfIndex ±1/±2 — the prefetch set for a
+    /// page turn (#18). Nearest neighbours first so the bounded prefetch pool
+    /// warms the likeliest next flip before the speculative ones.
+    static func adjacentPageIds(around pageIndex: Int, in candidates: [Document]) -> [String] {
+        [-1, 1, -2, 2].compactMap { offset in
+            let index = pageIndex + offset
+            guard index >= 0 else { return nil }
+            return Self.pageDocument(atPDFIndex: index, in: candidates)?.id
+        }
+    }
+
     /// Pure: the 0-based PDF page index for a page Document (1-based `sequence`),
     /// clamped to 0; non-page docs (or nil) resolve to the first page. (#3013)
     static func pdfPageIndex(for doc: Document?) -> Int {
@@ -123,6 +134,15 @@ extension ContentView {
         }
         if signal.movesPageFocus, pageFocusDocument?.id != match.id {
             pageFocusDocument = match
+        }
+        // ★ EVERY FRAME PERFECT (#18): warm the display cache for the pages
+        // either side of this turn, so the NEXT flip finds its image cached
+        // and swaps in place with no fetch window. Best-effort — the prefetch
+        // pool skips cached ids and swallows errors.
+        let neighborIds = Self.adjacentPageIds(around: pageIndex, in: candidates)
+        if !neighborIds.isEmpty {
+            let storage = storageService
+            Task { await storage.prefetchDisplayImages(neighborIds) }
         }
         // A page-turn now HIGHLIGHTS the page in the library and the sidebar
         // (Daniel, 2026-08-09: "swipe left and right, and then the page
