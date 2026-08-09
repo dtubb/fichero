@@ -18,12 +18,19 @@ func sidebarScopeDocumentIds(_ destinations: Set<SidebarDestination>) -> [String
     }.sorted()
 }
 
-/// Daniel's composition rule (#114/#115, 2026-08-09 — supersedes the all-PDF
-/// gate): EVERY selected PDF expands to its pages; everything else shows as
-/// itself. Adding one image to five PDFs must not collapse the pages back to
-/// document icons.
-func sidebarScopeExpandsToPages(_ docs: [Document]) -> Bool {
-    docs.contains { $0.fileType == .pdf && $0.docType != .page }
+/// Daniel's composition rule (#114/#115, then #144, 2026-08-09): EVERY
+/// selected CONTAINER expands to its contents — a PDF to its pages, a FOLDER
+/// to its children ('if you select a folder it should also show contents in
+/// multiple selection like a pdf') — and every leaf shows as itself. Adding
+/// one image to five PDFs must not collapse the pages back to icons.
+func sidebarScopeExpandsToContents(_ docs: [Document]) -> Bool {
+    docs.contains(where: sidebarScopeIsExpandableContainer)
+}
+
+/// A container the multi-scope opens one level: a PDF document or a folder.
+/// One level only, like Finder's flattened selection — never recursive.
+func sidebarScopeIsExpandableContainer(_ doc: Document) -> Bool {
+    (doc.fileType == .pdf && doc.docType != .page) || doc.docType == .folder
 }
 
 extension ContentView {
@@ -48,16 +55,18 @@ extension ContentView {
             // stale scope over a newer one.
             guard sidebarScopeDocumentIds(sidebarSelectionState.selectedDestinations) == ids else { return }
             var shown: [Document] = []
-            if sidebarScopeExpandsToPages(docs) {
-                // Per-document expansion (#114/#115): each PDF contributes its
-                // pages (itself when it has none yet — unprocessed PDFs must
-                // not vanish); every non-PDF contributes itself, so a mixed
-                // PDFs+image selection shows pages AND the image.
+            if sidebarScopeExpandsToContents(docs) {
+                // Per-container expansion (#114/#115/#144): a PDF contributes
+                // its pages, a FOLDER its children (one level, Finder-style),
+                // either contributing ITSELF while empty/unprocessed so
+                // nothing vanishes; every leaf rides along as itself.
                 for doc in docs {
-                    if doc.fileType == .pdf, doc.docType != .page {
-                        let pages = await documentStore.cacheSidebarChildren(of: doc)
-                            .filter { $0.docType == .page }
-                        shown += pages.isEmpty ? [doc] : pages
+                    if sidebarScopeIsExpandableContainer(doc) {
+                        var contents = await documentStore.cacheSidebarChildren(of: doc)
+                        if doc.fileType == .pdf {
+                            contents = contents.filter { $0.docType == .page }
+                        }
+                        shown += contents.isEmpty ? [doc] : contents
                     } else {
                         shown.append(doc)
                     }

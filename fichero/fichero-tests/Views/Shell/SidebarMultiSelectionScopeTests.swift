@@ -20,20 +20,23 @@ struct SidebarMultiSelectionScopeTests {
         #expect(sidebarScopeDocumentIds([.search("s1"), .chat("c1")]) == [])
     }
 
-    @Test("any selected PDF triggers page expansion; none or empty does not")
-    func expandsWheneverAPDFIsSelected() {
-        // #114/#115 (supersedes the all-PDF gate): adding an image to five
-        // PDFs must not collapse the pages back to document icons — every
-        // PDF expands, non-PDFs ride along as themselves.
+    @Test("any selected CONTAINER (pdf or folder) triggers expansion; leaves do not")
+    func expandsWheneverAContainerIsSelected() {
+        // #114/#115 then #144: PDFs expand to pages, FOLDERS to their
+        // children ("if you select a folder it should also show contents in
+        // multiple selection like a pdf"); leaves ride along as themselves.
         let pdf1 = Document(id: "p1", docType: .file, fileType: .pdf, name: "A.pdf")
         let pdf2 = Document(id: "p2", docType: .file, fileType: .pdf, name: "B.pdf")
+        let folder = Document(id: "f1", docType: .folder, name: "Screen Shots")
         let image = Document(id: "i1", docType: .file, fileType: .image, name: "C.png")
         let page = Document(id: "pg1", parentId: "p1", docType: .page, fileType: .pdf, name: "Page 1")
-        #expect(sidebarScopeExpandsToPages([pdf1, pdf2]))
-        #expect(sidebarScopeExpandsToPages([pdf1, image]))
-        #expect(!sidebarScopeExpandsToPages([image]))
-        // A PAGE row is not a PDF container — selecting pages never re-expands.
-        #expect(!sidebarScopeExpandsToPages([page, image]))
-        #expect(!sidebarScopeExpandsToPages([]))
+        #expect(sidebarScopeExpandsToContents([pdf1, pdf2]))
+        #expect(sidebarScopeExpandsToContents([pdf1, image]))
+        #expect(sidebarScopeExpandsToContents([folder, image]))
+        #expect(sidebarScopeIsExpandableContainer(folder))
+        #expect(!sidebarScopeExpandsToContents([image]))
+        // A PAGE row is not a container — selecting pages never re-expands.
+        #expect(!sidebarScopeExpandsToContents([page, image]))
+        #expect(!sidebarScopeExpandsToContents([]))
     }
 }
