@@ -10,9 +10,9 @@
 //  (what the user sees), with a stable lexical fallback for unloaded ids.
 //
 
+@testable import Fichero
 import Foundation
 import Testing
-@testable import Fichero
 
 struct ShellPrimarySelectionTests {
 
