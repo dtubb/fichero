@@ -49,6 +49,20 @@ extension ContentView {
                 if let library = libraryManager.getLibrary(id: windowState.libraryId) {
                     inspectorContainerView
                         .libraryServiceEnvironment(library)
+                        // The window/app-level objects don't cross the
+                        // .inspector boundary either — re-inject everything
+                        // this ContentView holds (second crash of the night
+                        // was a service missing from a hand-picked list; the
+                        // rule is ALL of them).
+                        .environment(windowState)
+                        .environment(executionObserver)
+                        .environment(kgFocusState)
+                        .environment(claimFocusState)
+                        .environment(viewSettings)
+                        .environment(appState)
+                        .environment(errorService)
+                        .environment(featureManager)
+                        .environment(libraryManager)
                 } else {
                     inspectorContainerView
                 }
