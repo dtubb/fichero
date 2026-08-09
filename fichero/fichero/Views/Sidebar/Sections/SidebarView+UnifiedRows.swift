@@ -226,7 +226,29 @@ extension SidebarView {
         .moveDisabled(item.icon == "tray.fill" || !item.supportsSidebarReorder)
         .tag(item.destination)
 
+        #if os(macOS)
+        // Plain-click fallback for DRAGGABLE rows (Daniel live-testing,
+        // 2026-08-09: "you can click on global library and inbox text to
+        // select row, but not on PDF row text"). On rows whose full payload
+        // rides NSTableView's row drag, a press over the LABEL is claimed by
+        // the drag machinery and List(selection:) never commits the click —
+        // exactly the rows that are NOT the header (no draggable) or Inbox
+        // (empty payload + moveDisabled), which both work. The observing
+        // gesture routes through the SAME commit seam as the List binding
+        // (applySidebarSelectionProposal), so there is still one write path.
+        // ponytail: plain clicks only — ⇧/⌘ label clicks stay with the List
+        // (they did not work on these rows before either); revisit if Daniel
+        // needs modifier-extension on the name itself.
         row
+            .simultaneousGesture(TapGesture().onEnded {
+                guard !NSEvent.modifierFlags.contains(.shift),
+                      !NSEvent.modifierFlags.contains(.command),
+                      selectionState.selectedDestinations != [item.destination] else { return }
+                applySidebarSelectionProposal([item.destination])
+            })
+        #else
+        row
+        #endif
     }
 
     /// Cross-hierarchy insert: reparent dragged docs to library root

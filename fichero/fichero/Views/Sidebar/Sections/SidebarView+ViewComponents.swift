@@ -109,60 +109,66 @@ extension SidebarView {
     private var sidebarSelectionBinding: Binding<Set<SidebarDestination>> {
         Binding(
             get: { selectionState.selectedDestinations },
-            set: { proposed in
-                // A click that triggers the lazy child load rebuilds the tree,
-                // and while the clicked row is momentarily absent from the
-                // rendered rows the List writes the selection back WITHOUT it
-                // (#4297). Keep any dropped tree row that is currently
-                // unresolvable — that drop is the rebuild talking, not the
-                // user; the row re-selects itself when it re-materialises. A
-                // deselect of a row that IS resolvable is a real user action
-                // and passes through untouched.
-                let newValue = Self.sidebarResilientSelection(
-                    current: selectionState.selectedDestinations,
-                    proposed: proposed,
-                    isMomentarilyMissing: { destination in
-                        switch destination {
-                        case .library, .browser, .run:
-                            // Pinned/static rows and activity runs are not
-                            // resolved through the cached item index (see
-                            // `handleSelectionDestination`) — a drop of these
-                            // is always the user.
-                            return false
-                        default:
-                            return cachedItem(id: destination.serializedID) == nil
-                        }
-                    }
-                )
-                if newValue == selectionState.selectedDestinations, newValue != proposed {
-                    // Pure spurious clear — nothing changed; don't open a
-                    // click-timeline interval for a write the user never made.
-                    return
-                }
-                // Start of the click timeline (#4228). The setter is the first
-                // of OUR code the click reaches; everything before it is AppKit
-                // hit-testing. Closed in `handleSelectionChange` once the routed
-                // destination has been written.
-                InteractionProfile.begin(.selectionCommit)
-                selectionState.selectedDestinations = newValue
-                let primary = sidebarPrimaryDestination(
-                    for: newValue,
-                    previous: selectionState.selectedDestination
-                )
-                // Only reroute when the primary actually changes — a >1 batch
-                // selection returns the same primary, so this is a no-op and the
-                // detail pane stays put while the selection is built.
-                if selectionState.selectedDestination != primary {
-                    selectionState.selectedDestination = primary
-                } else {
-                    // No reroute — `.onChange` will not fire, so close the
-                    // interval here rather than leaving it open until the next
-                    // click supersedes it. An extend-selection click IS a
-                    // measurable interaction; it just ends early.
-                    InteractionProfile.end(.selectionCommit, detail: "highlight only")
-                }
-            }
+            set: { proposed in applySidebarSelectionProposal(proposed) }
         )
+    }
+
+    /// The ONE selection-commit seam, callable from the List binding AND the
+    /// draggable-row tap fallback (2026-08-09): resilience filter, timeline
+    /// interval, primary derivation. Extracted from the binding setter so the
+    /// fallback cannot drift from the native path.
+    func applySidebarSelectionProposal(_ proposed: Set<SidebarDestination>) {
+            // A click that triggers the lazy child load rebuilds the tree,
+            // and while the clicked row is momentarily absent from the
+            // rendered rows the List writes the selection back WITHOUT it
+            // (#4297). Keep any dropped tree row that is currently
+            // unresolvable — that drop is the rebuild talking, not the
+            // user; the row re-selects itself when it re-materialises. A
+            // deselect of a row that IS resolvable is a real user action
+            // and passes through untouched.
+            let newValue = Self.sidebarResilientSelection(
+                current: selectionState.selectedDestinations,
+                proposed: proposed,
+                isMomentarilyMissing: { destination in
+                    switch destination {
+                    case .library, .browser, .run:
+                        // Pinned/static rows and activity runs are not
+                        // resolved through the cached item index (see
+                        // `handleSelectionDestination`) — a drop of these
+                        // is always the user.
+                        return false
+                    default:
+                        return cachedItem(id: destination.serializedID) == nil
+                    }
+                }
+            )
+            if newValue == selectionState.selectedDestinations, newValue != proposed {
+                // Pure spurious clear — nothing changed; don't open a
+                // click-timeline interval for a write the user never made.
+                return
+            }
+            // Start of the click timeline (#4228). The setter is the first
+            // of OUR code the click reaches; everything before it is AppKit
+            // hit-testing. Closed in `handleSelectionChange` once the routed
+            // destination has been written.
+            InteractionProfile.begin(.selectionCommit)
+            selectionState.selectedDestinations = newValue
+            let primary = sidebarPrimaryDestination(
+                for: newValue,
+                previous: selectionState.selectedDestination
+            )
+            // Only reroute when the primary actually changes — a >1 batch
+            // selection returns the same primary, so this is a no-op and the
+            // detail pane stays put while the selection is built.
+            if selectionState.selectedDestination != primary {
+                selectionState.selectedDestination = primary
+            } else {
+                // No reroute — `.onChange` will not fire, so close the
+                // interval here rather than leaving it open until the next
+                // click supersedes it. An extend-selection click IS a
+                // measurable interaction; it just ends early.
+                InteractionProfile.end(.selectionCommit, detail: "highlight only")
+            }
     }
 
     /// Selection survives tree rebuilds (#4297): the sanitized selection the
