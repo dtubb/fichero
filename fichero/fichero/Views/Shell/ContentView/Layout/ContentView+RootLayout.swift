@@ -305,9 +305,9 @@ extension ContentView {
             .onChange(of: browserSelection) { _, newSelection in
                 handleBrowserSelectionChange(newSelection)
             }
-            .onChange(of: detailDocument) { _, newDoc in
+            .onChange(of: detailDocument) { oldDoc, newDoc in
                 syncFocusedDocumentSelection(newDoc)
-                handleDetailDocumentChange(newDoc)
+                handleDetailDocumentChange(from: oldDoc, to: newDoc)
             }
             // #4518: the ONE teardown for "this window now shows a different
             // library" — closing a library falls back to Global, and nothing

@@ -193,13 +193,20 @@ extension ContentView {
 
     /// Handles `.onChange(of: detailDocument)`.
     /// Keeps documentStore.selectedDocument in sync and records navigation.
-    func handleDetailDocumentChange(_ newDoc: Document?) {
+    func handleDetailDocumentChange(from oldDoc: Document?, to newDoc: Document?) {
         // Keep documentStore.selectedDocument in sync so WorkflowEditor
         // toolbar button sees the current document at run time.
         documentStore.selectedDocument = newDoc
-        // Clear page focus so the inspector starts fresh on the new container
-        // rather than showing a page from the previous document (#1463).
-        pageFocusDocument = nil
+        // Clear page focus so the inspector starts fresh on a DIFFERENT
+        // document — never on a refresh of the same one (#1463, corrected
+        // 2026-08-09): this cleared UNCONDITIONALLY, so any background
+        // refresh that merely replaced the detailDocument snapshot (a status
+        // poll, a change-stream splice) dropped the reader to page 1 with no
+        // user action ('snaps back to page 1', #4558). Same id = same
+        // document; the reader keeps its place.
+        if oldDoc?.id != newDoc?.id {
+            pageFocusDocument = nil
+        }
         guard !isRestoringNavigationHistory else { return }
         recordNavigationEntry()
     }
