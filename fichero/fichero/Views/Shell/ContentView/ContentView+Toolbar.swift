@@ -220,23 +220,11 @@ extension ContentView {
                         Label(mode.label, systemImage: mode.icon)
                     }
                 }
-                // Per-folder view memory is EXPLICIT-ONLY (Daniel's #4575
-                // ruling): a toolbar pick is window-wide; this is the one way
-                // a folder gets its own remembered mode, Finder's "Use as
-                // Defaults" made per-folder. Hidden when nothing is selected
-                // to remember against.
-                if let folderId = sidebarSelectionState.selectedItemId {
-                    Divider()
-                    if displayMode(for: folderId) != nil {
-                        Button("Stop Remembering View for This Folder") {
-                            forgetDisplayMode(for: folderId)
-                        }
-                    } else {
-                        Button("Remember View for This Folder") {
-                            saveDisplayMode(viewDisplayMode, for: folderId)
-                        }
-                    }
-                }
+                // NO per-folder items (Daniel's final #4575 ruling,
+                // 2026-08-09: the mode never changes with the folder —
+                // "confusing to have things jumping around"). The mode is one
+                // choice per window; the restore in
+                // handleSidebarSelectionChange is gone with this menu.
             }
         } label: {
             Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)

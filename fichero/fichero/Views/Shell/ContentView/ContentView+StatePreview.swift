@@ -156,9 +156,20 @@ extension ContentView {
             detailDocument = doc
         }
         // Keep detailDocument in sync when currentDocuments refreshes
-        // so the inspector shows updated page_content after workflows complete.
-        detailDocument = Self.refreshedFocusedDocument(detailDocument, in: newDocs)
-        pageFocusDocument = Self.refreshedFocusedDocument(pageFocusDocument, in: newDocs)
+        // so the inspector shows updated page_content after workflows
+        // complete. GUARDED with != (2026-08-09, the review's unguarded-
+        // rewrite finding): an unconditional write re-fires every
+        // detailDocument observer — including the canvas re-resolution — on
+        // every list tick, even when the snapshot is identical. The sibling
+        // handler below already guards for exactly this reason.
+        let refreshedDetail = Self.refreshedFocusedDocument(detailDocument, in: newDocs)
+        if refreshedDetail != detailDocument {
+            detailDocument = refreshedDetail
+        }
+        let refreshedPageFocus = Self.refreshedFocusedDocument(pageFocusDocument, in: newDocs)
+        if refreshedPageFocus != pageFocusDocument {
+            pageFocusDocument = refreshedPageFocus
+        }
     }
 
     /// Replace an actively-focused document snapshot with the freshly-loaded

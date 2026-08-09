@@ -25,22 +25,16 @@ extension ContentView {
             return
         }
         kgFocusState.clear()
-        // Restore per-folder view mode when switching folders.
-        // Priority: per-folder save > per-scene @SceneStorage value > global default.
-        // The @SceneStorage value holds the user's last choice for this window/tab
-        // and should win for new or unsaved folders so spatial is not forced (#2311).
-        if let saved = displayMode(for: newFolderId) {
-            viewDisplayMode = normalizedViewDisplayMode(saved)
-        } else {
-            let normalizedSceneValue = normalizedViewDisplayMode(viewDisplayMode)
-            let normalizedDefault = normalizedViewDisplayMode(defaultLibraryViewDisplayMode)
-            // If the scene value is unset or unavailable for this context, fall
-            // back to the global default rather than forcing a spatial/canvas mode.
-            if normalizedSceneValue != normalizedDefault {
-                viewDisplayMode = normalizedSceneValue
-            } else if viewDisplayMode != normalizedDefault {
-                viewDisplayMode = normalizedDefault
-            }
+        // NO per-folder view-mode restore (Daniel, 2026-08-09 morning: "it
+        // changes views depending on the folder open. I don't think we want
+        // that — it's confusing to have things jumping around"). This
+        // supersedes both the original implicit memory and the explicit-only
+        // #4575 middle step: the mode is ONE choice per window. Folder
+        // changes only re-normalize the current mode for the new context
+        // (a mode unavailable here falls back rather than sticking).
+        let normalized = normalizedViewDisplayMode(viewDisplayMode)
+        if normalized != viewDisplayMode {
+            viewDisplayMode = normalized
         }
 
         // Clear grid selection on sidebar folder change so the folder

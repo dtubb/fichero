@@ -299,27 +299,34 @@ struct MainContentModifiers: ViewModifier {
                     logger.info("selectCollection completed. currentDocuments count: \(docCount)")
                 }
             } else {
-                logger.info("Showing single file in gallery: \(document.name)")
-                // Apply status overrides so failed/processing state survives
-                // navigation to single-file gallery — direct assignment was
-                // bypassing the override layer that other load paths use,
-                // making the red-X workflow-error icon vanish on click-away
-                // even though success checkmarks persisted (#791).
-                documentStore.currentDocuments =
-                    documentStore.applyStatusOverrides([document])
                 // A sidebar PAGE click must drive the PDF canvas to THAT page
                 // (Daniel, 2026-08-08: "the preview for it shows the first
-                // page"). This branch never touched the reader state, so the
-                // canvas kept the old detailDocument and pdfPageIndex(for:)
-                // returned 0 for it. Same seam as reader scroll/click
-                // (#1463): move the page-focus cursor; re-root
-                // detailDocument only when the page belongs to a DIFFERENT
-                // document than the one on canvas.
+                // page"). Same seam as reader scroll/click (#1463): move the
+                // page-focus cursor; re-root detailDocument only when the
+                // page belongs to a DIFFERENT document than the one on canvas.
+                //
+                // And for a page, DON'T stomp currentDocuments (Daniel,
+                // 2026-08-09 morning: "if I change page in a sidebar, it
+                // reloads the PDF and resets to first page"): replacing the
+                // loaded sibling set with [page] fired the whole
+                // currentDocuments-change cascade — detail re-resolution,
+                // grid rebuild — which re-rooted the canvas and threw the
+                // cursor away. The parent's pages are already the loaded
+                // collection; only the cursor moves.
                 if document.docType == .page {
                     pageFocusDocument = document
                     if sidebarPageParentPDFId(for: document) != sidebarDetailPDFId(for: detailDocument) {
                         detailDocument = document
                     }
+                } else {
+                    logger.info("Showing single file in gallery: \(document.name)")
+                    // Apply status overrides so failed/processing state
+                    // survives navigation to single-file gallery — direct
+                    // assignment bypassed the override layer other load paths
+                    // use, so the red-X workflow-error icon vanished on
+                    // click-away while success checkmarks persisted (#791).
+                    documentStore.currentDocuments =
+                        documentStore.applyStatusOverrides([document])
                 }
             }
         } else if case .library(nil) = newMode {

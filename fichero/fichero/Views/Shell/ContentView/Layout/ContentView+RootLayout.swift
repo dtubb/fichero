@@ -64,7 +64,17 @@ extension ContentView {
                         .environment(featureManager)
                         .environment(libraryManager)
                 } else {
-                    inspectorContainerView
+                    // NO bare mount, ever (Daniel's table-open crash,
+                    // 2026-08-09 morning): at launch the restored selection
+                    // can mount the inspector BEFORE
+                    // libraryManager.getLibrary resolves, and an uninjected
+                    // panel dies on its first service read. The pane waits
+                    // out the beat instead; the library resolving re-renders
+                    // this closure and the real panel mounts injected.
+                    PaneEmptyStateView(
+                        reason: "Opening library…",
+                        systemImage: "clock"
+                    )
                 }
             }
             // Measure the real container width before the outer min-width
