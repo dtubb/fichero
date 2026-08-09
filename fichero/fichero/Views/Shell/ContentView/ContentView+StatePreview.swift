@@ -49,7 +49,10 @@ extension ContentView {
         // If documents were already loaded before onAppear, restore
         // the preview selection now (the onChange handler won't fire).
         if detailDocument == nil, !documentStore.currentDocuments.isEmpty {
-            let firstSelectedId = browserSelection.first
+            // Document-order primary, never Set.first (F3, 2026-08-09).
+            let firstSelectedId = shellPrimarySelectionId(
+                in: browserSelection, orderedBy: documentStore.currentDocuments
+            )
             if let firstSelectedId {
                 detailDocument = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId })
             }
@@ -147,7 +150,8 @@ extension ContentView {
     func handleCurrentDocumentsChange(_ newDocs: [Document]) {
         // Populate preview from restored selection whenever documents load
         if detailDocument == nil,
-           let firstSelectedId = browserSelection.first,
+           // Document-order primary, never Set.first (F3, 2026-08-09).
+           let firstSelectedId = shellPrimarySelectionId(in: browserSelection, orderedBy: newDocs),
            let doc = newDocs.first(where: { $0.id == firstSelectedId }) {
             detailDocument = doc
         }

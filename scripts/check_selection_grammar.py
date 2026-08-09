@@ -213,13 +213,10 @@ MODELS = ROOT / "fichero" / "fichero" / "Models"
 _PRIMARY_DRAW = re.compile(
     r"\b(?:browserSelection|newSelection|selection|selectedDocumentIds|selectedIds)\.first\b"
 )
-# Files whose remaining draws are known and owned by task #11 — shrink, never grow.
-_PRIMARY_DRAW_GRANDFATHERED = {
-    "fichero/fichero/Views/Shell/ContentView/ContentView+StatePreview.swift",
-    "fichero/fichero/Views/Shell/ContentView/ContentView+StateSelection.swift",
-    "fichero/fichero/Views/Shell/ContentView/Layout/ContentView+CompactReader.swift",
-    "fichero/fichero/Models/LayoutMode.swift",
-}
+# EMPTY as of 2026-08-09 (F3 complete): every known draw is converted to
+# shellPrimarySelectionId. This set exists so a future exception is a named,
+# reviewed decision — not a pattern hole.
+_PRIMARY_DRAW_GRANDFATHERED: set[str] = set()
 
 
 def _primary_draws_in(text: str) -> list[tuple[int, str]]:

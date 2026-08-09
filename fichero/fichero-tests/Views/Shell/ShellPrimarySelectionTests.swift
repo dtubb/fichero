@@ -51,3 +51,57 @@ struct ShellPrimarySelectionTests {
         )
     }
 }
+
+/// F2 (page-1 snapback) and F4 (right-click targeting) shipped without
+/// tests; both fix symptoms Daniel reported personally, so a silent
+/// regression is indistinguishable from the original bug. Source pins —
+/// the F2 handler mutates @State and the F4 resolver is private, so the
+/// RULE is pinned where it lives.
+struct ReportedSymptomRegressionPins {
+
+    private func source(_ repoRelative: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // Shell/
+            .deletingLastPathComponent()  // Views/
+            .deletingLastPathComponent()  // fichero-tests/
+            .deletingLastPathComponent()  // fichero/ (product dir)
+        return try String(contentsOf: root.appendingPathComponent(repoRelative), encoding: .utf8)
+    }
+
+    @Test("F2: page focus clears only when the document IDENTITY changes")
+    func pageFocusClearIsIdentityGated() throws {
+        let events = try source("fichero/Views/Shell/ContentView/ContentView+StateEvents.swift")
+        #expect(
+            events.contains("if oldDoc?.id != newDoc?.id {"),
+            "the unconditional pageFocusDocument clear is back — every background refresh snaps the reader to page 1 (#4558)"
+        )
+        #expect(events.contains("func handleDetailDocumentChange(from oldDoc: Document?, to newDoc: Document?)"))
+    }
+
+    @Test("F4: right-click targets follow the clicked-row rule")
+    func rightClickTargetsClickedRow() throws {
+        let menu = try source("fichero/Views/Library/LibraryView+ContextMenu.swift")
+        #expect(
+            menu.contains("selection.contains(document.id) ? Array(selection) : [document.id]"),
+            "excludeToggleTargets reverted to selection-wins — right-click acts on rows the user never pointed at"
+        )
+        #expect(
+            !menu.contains("selection.isEmpty ? [document.id] : Array(selection)"),
+            "the inverted (selection-wins) form is back"
+        )
+    }
+
+    @Test("F3: no shell surface draws a primary from Set.first any more")
+    func noPrimaryDrawsRemain() throws {
+        for path in [
+            "fichero/Views/Shell/ContentView/ContentView+StatePreview.swift",
+            "fichero/Views/Shell/ContentView/ContentView+StateSelection.swift",
+            "fichero/Views/Shell/ContentView/Layout/ContentView+CompactReader.swift",
+            "fichero/Models/LayoutMode.swift"
+        ] {
+            let text = try source(path)
+            #expect(!text.contains("browserSelection.first"), "hash-order draw back in \(path)")
+            #expect(!text.contains("selectedDocumentIds.first"), "hash-order draw back in \(path)")
+        }
+    }
+}

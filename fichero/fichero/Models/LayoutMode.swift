@@ -292,7 +292,11 @@ struct CanvasDocumentPolicy {
         detailDocument: Document?,
         inspectorDocument: Document?
     ) -> Document? {
-        if let selectedId = selectedDocumentIds.first,
+        // Document-order primary, never Set.first (F3, 2026-08-09): this
+        // feeds BOTH preview call sites, and a hash-order draw here while
+        // the shell resolves in document order meant the preview and the
+        // detail could name DIFFERENT members of one multi-selection.
+        if let selectedId = shellPrimarySelectionId(in: selectedDocumentIds, orderedBy: documents),
            let selected = documents.first(where: { $0.id == selectedId }),
            isCanvasPreviewable(selected) {
             return selected
