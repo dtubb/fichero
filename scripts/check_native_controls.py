@@ -41,7 +41,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # 2026-08-04 wave (#4514 read-only refusal + #4516 shared icon ladder
     # edited rows inside the block). Same sanctioned violation, same lines —
     # only the content hash moved.
-    "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#d4655fb678": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file)",
+    "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#f2b69e54c3": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file — re-hashed 2026-08-09 by the drag-preview + primary-selection edits inside the same grandfathered block)",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "#1912 baseline",
     # Same two content hashes as the +Views.swift entries they replace — only
     # the PATH moved. The file was split at its own MARK boundary when

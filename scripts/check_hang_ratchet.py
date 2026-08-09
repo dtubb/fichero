@@ -213,8 +213,17 @@ def main() -> None:
         print("[ok] within stall baseline")
         return
     if not inputs:
-        # NOT ARMED: no trace on this machine — the thing measured does not
-        # exist here yet. Never fail every developer's gate for that.
+        # NOT ARMED is only a pass when we can prove we are looking at the
+        # REAL repo (the meta-guardrail's contract, 2026-08-09: a script that
+        # exits 0 against an empty tree silently disables itself when a root
+        # moves). The committed baselines are the repo landmark: present →
+        # a developer without a trace passes, as designed; absent → BLIND.
+        if not (BASELINE_PATH.exists() or STALL_BASELINE_PATH.exists()):
+            print("BLIND: no trace supplied AND no committed baseline found "
+                  f"({BASELINE_PATH.name}/{STALL_BASELINE_PATH.name}) — the scan "
+                  "roots moved or this is not the repo. A missing landmark must "
+                  "fail, not pass.")
+            sys.exit(2)
         print("[ok] hang ratchet not armed: no trace supplied")
         return
 
