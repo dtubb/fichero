@@ -175,9 +175,23 @@ extension SidebarItemRow {
     }
     #endif
 
+    /// The row is expanded and its known children haven't arrived yet —
+    /// the OPENING row's icon carries the spinner (Daniel, 2026-08-09),
+    /// never a synthetic child row.
+    private var childrenLoading: Bool {
+        expandedItems.contains(item.id) && sidebarNeedsDeferredDisclosureContent(item)
+    }
+
     @ViewBuilder
     private var iconView: some View {
-        if workflowIsRunning {
+        if childrenLoading {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.8)
+                .frame(width: 16, alignment: .center)
+                .tint(.accentColor)
+                .accessibilityLabel("Loading items")
+        } else if workflowIsRunning {
             ZStack {
                 Circle()
                     .fill(Color.purple.opacity(isPulsing ? 0.4 : 0.15))

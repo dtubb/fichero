@@ -117,7 +117,13 @@ extension LibraryView {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
                 .coordinateSpace(name: "libraryIconGrid")
-                .onPreferenceChange(IconTileFramesKey.self) { iconTileFrames = $0 }
+                .onPreferenceChange(IconTileFramesKey.self) {
+                    // Equality guard (2026-08-09 log: 'Bound preference
+                    // IconTileFramesKey tried to update multiple times per
+                    // frame') — writing the identical dictionary re-rendered
+                    // the grid, which re-reported the frames, which…
+                    if iconTileFrames != $0 { iconTileFrames = $0 }
+                }
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
                 .onTapGesture {
