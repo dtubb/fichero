@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 struct PageContentPaneEditState {
@@ -86,11 +87,21 @@ struct PageContentClaimSourceHighlight: Equatable {
 /// text + saved-highlight rendering), `AnnotationToolbar`, and the pure
 /// `AnnotationHighlight` range math — scoped to the document rather than a PDF
 /// page (which `PageContentPane` already covers).
+private let readerBoundaryLogger = Logger(
+    subsystem: "app.fichero.fichero", category: "DocumentTextReader"
+)
+
 struct DocumentTextReader: View {
     let document: Document
     let content: String
 
-    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore
+    /// OPTIONAL read (#22, Daniel's JSON-open crash, 2026-08-09): this was
+    /// the one non-optional service read on the text-document route, and a
+    /// hosting boundary that misses AnnotationStore killed the process the
+    /// moment a JSON/text file opened. Annotations are an enhancement on this
+    /// surface — a missing store degrades to read-only text (toolbar hidden)
+    /// and logs, instead of trapping. The sanctioned optional form per #4513.
+    @Environment(AnnotationStore.self) private var annotationStore: AnnotationStore?
     @State private var selectionRange: Range<Int>?
     @State private var isComposingNote = false
     @State private var noteDraft = ""
@@ -109,15 +120,17 @@ struct DocumentTextReader: View {
                 highlights: highlightRanges,
                 selection: $selectionRange
             )
-            Divider()
-            AnnotationToolbar(
-                canAnnotateSelection: selectionRange != nil,
-                savedCount: documentAnnotations.count,
-                onHighlight: addHighlight,
-                onNote: beginNote
-            )
-            .popover(isPresented: $isComposingNote, arrowEdge: .bottom) {
-                noteComposer
+            if annotationStore != nil {
+                Divider()
+                AnnotationToolbar(
+                    canAnnotateSelection: selectionRange != nil,
+                    savedCount: documentAnnotations.count,
+                    onHighlight: addHighlight,
+                    onNote: beginNote
+                )
+                .popover(isPresented: $isComposingNote, arrowEdge: .bottom) {
+                    noteComposer
+                }
             }
         }
         .background(Color(.textBackgroundColor))
@@ -126,13 +139,13 @@ struct DocumentTextReader: View {
             selectionRange = nil
             loadAnnotations()
         }
-        .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
+        .onChange(of: annotationStore?.changeToken) { _, _ in loadAnnotations() }
     }
 
     // MARK: - Annotations
 
     private var documentAnnotations: [DocumentAnnotation] {
-        annotationStore.annotations.filter { $0.documentId == document.id }
+        (annotationStore?.annotations ?? []).filter { $0.documentId == document.id }
     }
 
     private var highlightRanges: [Range<Int>] {
@@ -143,6 +156,10 @@ struct DocumentTextReader: View {
     }
 
     private func loadAnnotations() {
+        guard let annotationStore else {
+            readerBoundaryLogger.error("DocumentTextReader mounted without AnnotationStore — annotations disabled (#22 boundary)")
+            return
+        }
         Task { await annotationStore.loadAnnotations(for: .document(document.id), force: true) }
     }
 
@@ -157,7 +174,7 @@ struct DocumentTextReader: View {
         guard let range = selectionRange else { return }
         let quoted = selectedText(range)
         Task {
-            _ = await annotationStore.addNote(
+            _ = await annotationStore?.addNote(
                 scope: .document(document.id),
                 text: quoted,
                 charStart: range.lowerBound,
@@ -178,7 +195,7 @@ struct DocumentTextReader: View {
         let range = selectionRange
         isComposingNote = false
         Task {
-            _ = await annotationStore.addNote(
+            _ = await annotationStore?.addNote(
                 scope: .document(document.id),
                 text: trimmed,
                 charStart: range?.lowerBound,
