@@ -10,6 +10,10 @@ import SwiftUI
 /// the browser.
 struct OntologySheetsModifier: ViewModifier {
     let browser: OntologyBrowser
+    /// Sheets are a hosting boundary (2026-08-08 night review B2): the SPARQL
+    /// console reads KGQueryStore non-optionally, and its only provider is
+    /// DocumentTabView — which a sheet does not inherit from. Re-inject.
+    @Environment(AppState.self) private var appState
 
     func body(content: Content) -> some View {
         content
@@ -35,6 +39,7 @@ struct OntologySheetsModifier: ViewModifier {
                 set: { browser.showSparqlConsole = $0 }
             )) {
                 KGQueryConsoleView()
+                    .environment(appState.kgQueryStore)
             }
     }
 }
@@ -56,6 +61,9 @@ private struct OntologyEntitySheetsModifier: ViewModifier {
 /// Predictions review + create + edit sheets.
 private struct OntologyCreateEditSheetsModifier: ViewModifier {
     let browser: OntologyBrowser
+    /// Sheet boundary (night review B4): HeuristicReviewSheet reads
+    /// ClaimStore non-optionally; re-inject across the sheet.
+    @Environment(ClaimStore.self) private var claimStore
 
     func body(content: Content) -> some View {
         content
@@ -66,6 +74,7 @@ private struct OntologyCreateEditSheetsModifier: ViewModifier {
                 HeuristicReviewSheet(response: wrapped.response) {
                     browser.pendingPredictions = nil
                 }
+                .environment(claimStore)
             }
             .sheet(isPresented: Binding(
                 get: { browser.showCreateSheet },

@@ -469,6 +469,13 @@ struct LibraryView: View {
                     }
                 }
             )
+            // Sheets are a HOSTING BOUNDARY (2026-08-08 night review B3, the
+            // crash class that killed the app four times that day): content
+            // must be re-injected with every non-optional @Environment object
+            // it reads. WorkflowEditor's sheet (its own file) is the house
+            // convention; these three under-injected. The full library list
+            // is the safe form — a hand-picked subset crashes on the next
+            // service a sheet grows.
             .sheet(isPresented: $showWorkflowPicker) {
                 WorkflowPickerSheet(
                     selectedDocumentIds: selectedDocumentIdsForBatch,
@@ -480,13 +487,17 @@ struct LibraryView: View {
                 )
                 .environment(libraryManager)
                 .environment(executionObserver)
+                .environment(windowState)
+                .modifier(SheetLibraryEnvironment(library: scopedLibraryReference))
             }
             .sheet(item: $workspacePickerDocument) { document in
                 WorkspaceItemPicker(document: document)
                     .environment(executionObserver)
+                    .modifier(SheetLibraryEnvironment(library: scopedLibraryReference))
             }
             .sheet(item: $bookmarkPickerDocument) { document in
                 BookmarksView(document: document, onOpen: { openDocument($0) })
+                    .modifier(SheetLibraryEnvironment(library: scopedLibraryReference))
             }
             // A failed drop onto a folder cell must SAY so (#4474). It used to
             // be logged only, so a refused move looked exactly like one that
