@@ -124,8 +124,21 @@ extension ContentView {
         if signal.movesPageFocus, pageFocusDocument?.id != match.id {
             pageFocusDocument = match
         }
-        if signal.movesBrowserSelection, browserSelection != [match.id] {
+        // A page-turn now HIGHLIGHTS the page in the library and the sidebar
+        // (Daniel, 2026-08-09: "swipe left and right, and then the page
+        // changes in the sidebar"). A scroll/swipe never stomps a
+        // multi-selection the user built — only a click replaces one.
+        if signal.movesBrowserSelection,
+           browserSelection != [match.id],
+           signal == .clicked || browserSelection.count <= 1 {
             browserSelection = [match.id]
+            // Sidebar HIGHLIGHT only — a direct destinations write, never the
+            // routing seam: routing would re-root the preview under the very
+            // swipe that was meant to move within it (#1463 class).
+            let destination = SidebarDestination.document(match.id)
+            if sidebarSelectionState.selectedDestinations != [destination] {
+                sidebarSelectionState.selectedDestinations = [destination]
+            }
         }
         // `detailDocument` is deliberately untouched by BOTH signals: it is the
         // reader's own input, and re-rooting it reloads the WebKit transcript
