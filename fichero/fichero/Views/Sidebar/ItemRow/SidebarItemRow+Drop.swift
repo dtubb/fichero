@@ -53,8 +53,12 @@ extension SidebarItemRow {
         // inline here, so the library pane could not reuse it without copying
         // it, and a copied classifier is how the library section header ended
         // up with a second divergent routing rule (#4401).
+        // Flavor loads ISSUE here, synchronously in the drop callback — a
+        // stalled main thread otherwise delays the Task past drag-session
+        // teardown and every load comes back 'cancelled' (drop#44).
+        let eager = eagerSidebarDropLoads(providers)
         Task {
-            switch await readSidebarDropPayload(providers, surface: "sidebar-row(\(item.name))") {
+            switch await readSidebarDropPayload(providers, surface: "sidebar-row(\(item.name))", preloaded: eager) {
             case .internalItems(let ids):
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
 

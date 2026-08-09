@@ -85,6 +85,8 @@ extension ContentView {
     /// not replace that path, which stays the proven-safe route for the
     /// common Finder-drag case.
     func handleContentPaneExternalDrop(_ providers: [NSItemProvider]) {
+        // Loads issued synchronously in the drop callback (drop#44 fix).
+        let eager = eagerSidebarDropLoads(providers)
         Task {
             // Read the payload BEFORE resolving any file URL (#4401). `.item`
             // is UTType's root, so this destination matches every in-app drag
@@ -93,7 +95,7 @@ extension ContentView {
             // document from the sidebar into the content pane therefore made a
             // second, hollow copy of it. Positive identification first is the
             // same rule the sidebar row and the folder cell already follow.
-            switch await readSidebarDropPayload(providers, surface: "content-pane") {
+            switch await readSidebarDropPayload(providers, surface: "content-pane", preloaded: eager) {
             case .internalItems, .unreadableInternal:
                 // NO alert for a no-op internal drop (Daniel #133, 2026-08-09:
                 // "nothing should happen, don't do an alert") — the drag

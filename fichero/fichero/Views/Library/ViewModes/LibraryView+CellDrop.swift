@@ -98,8 +98,10 @@ extension LibraryView {
 
         let operation = sidebarDropOperation(modifiers: .current(), kind: .document)
 
+        // Loads issued synchronously in the drop callback (drop#44 fix).
+        let eager = eagerSidebarDropLoads(providers)
         Task { @MainActor in
-            let payload = await readSidebarDropPayload(providers, surface: "library-cell(\(folder.id))")
+            let payload = await readSidebarDropPayload(providers, surface: "library-cell(\(folder.id))", preloaded: eager)
             switch payload {
             case .internalItems(let prefixedIDs):
                 await applyCellDrop(prefixedIDs, operation: operation, into: folder)

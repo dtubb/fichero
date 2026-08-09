@@ -219,12 +219,14 @@ struct LibrarySectionHeader: View {
         // Reads through the SHARED reader, like the row path and the library
         // folder cell. This used to be a third hand-rolled copy of the same
         // provider plumbing.
+        // Loads issued synchronously in the drop callback (drop#44 fix).
+        let eager = eagerSidebarDropLoads(providers)
         Task {
             // Surface name matches the drop DELEGATE's ("sidebar-library-header")
             // — this used to log as "sidebar-section-header", so one physical
             // drop produced two differently-named log trails and read as two
             // performs (live report 2026-08-04).
-            switch await readSidebarDropPayload(providers, surface: "sidebar-library-header") {
+            switch await readSidebarDropPayload(providers, surface: "sidebar-library-header", preloaded: eager) {
             case .internalItems(let ids):
                 guard let onSidebarItemDrop else {
                     // #4533: a surface wired without its handler accepts the
