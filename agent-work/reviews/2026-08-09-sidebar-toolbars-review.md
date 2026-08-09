@@ -183,6 +183,107 @@ Recording these so nobody re-audits them:
 
 ---
 
+---
+
+# Addendum — three questions added after the first pass
+
+## A. The status island against #4536
+
+Daniel wants separate indicators: backend connection, remote connections,
+agent/MCP/test/other sessions, and activity.
+
+What exists today (`Views/Shell/Toolbar/StatusIslandToolbarItem.swift:31-70`):
+`[EngineStatusToolbarItem] [message area] [ActivityStatusToolbarItem]` — so
+**two of the four**, backend connection and activity, plus an import-progress
+message that is genuinely good (real counts and a Cancel, #4203/#4235).
+
+The other two are not a layout problem. **The data does not exist to render
+them:**
+
+- Searched the Swift side for `activeSessions`, `connectedClients`,
+  `remoteConnections`, `sessionCount`, `mcpSession` — **no hits at all**.
+- The engine does expose `GET /api/auth/sessions`
+  (`fichero-server/src/fichero_server/api/routes/auth/accounts.py:596`),
+  returning `SessionResponse{id, user, device_label, created, last_seen}`
+  (`:94-104`), with a revoke sibling at `:629`.
+
+So "who is connected" is answerable *today* — by user and device label. What is
+**not** answerable is the part Daniel actually asked for: there is no `kind` on
+a session, so agent / MCP / test / human cannot be distinguished, and there is
+no remote-connection concept separate from a session.
+
+**This reframes #4536 from a toolbar task into a backend-then-toolbar task.** In
+rough order: add a client-kind to the session record and surface it on
+`/api/auth/sessions`; then the island can carry a third indicator whose popover
+lists sessions by kind, reusing the revoke that already exists. Worth saying
+before someone tries to build four indicators over two data sources and invents
+the missing two.
+
+*Inferred:* that `device_label` is not already being used as a de-facto kind
+marker (e.g. clients writing "mcp" into it). I did not read the clients that
+create sessions.
+
+## B. `.searchable` duplication — enforced by construction, but not guarded
+
+This is in better shape than the history suggests. There is exactly **one**
+`.searchable(` call in the entire app —
+`Views/Components/MiniToolbar.swift:250` — and it sits inside
+`conditionalSearchable(text:placement:prompt:isActive:)` (`:238-254`), which
+applies it only when `isActive`. The policy behind `isActive` is a single
+predicate, `ToolbarSearchRegistration.shouldRegister(isSecondarySplitPane:)`
+(`Views/Components/SplittablePane.swift:57-61`), fed by an environment key
+(`:33-46`) that marks every non-primary split-pane copy.
+
+That is the right shape: one call site, one predicate, one testable rule. The
+duplicate-identifier crash cannot happen from the current code.
+
+**The gap is that nothing stops the next one.** The rule lives in doc comments
+(`SplittablePane.swift:29-32`, `:48-56`) and in the fact that everyone has so
+far used the helper. A new mode view writing `.searchable(placement: .toolbar)`
+directly compiles, ships, and crashes the toolbar subsystem in a split pane.
+
+This is the *fireable* version of today's pattern, and it is cheap: a
+`check_*.py` that fails on any raw `.searchable(` outside
+`conditionalSearchable`'s own definition. One rule, one fixture, and the
+invariant stops depending on everyone remembering. **Ready to fix**, and I have
+added it to the cross-cutting list.
+
+## C. Is the sidebar coherent as a whole?
+
+Tonight put a lot of individually-correct changes into one surface — hover wash
+and name tooltip removed on Daniel's direction, native selection material, the
+full-row drop platter, per-row tap fallback deleted, AnyView erasure at two
+levels. Read as a whole rather than as a changelog:
+
+**It hangs together, and the direction is consistent.** Every one of those
+changes moves the same way — *stop drawing our own thing, let the platform draw
+it.* The selection platter is the native source-list material
+(`bc36d39bd`), the drop target is the full row like Finder's
+(`be75fa424`), the removed hover wash was a custom affordance AppKit does not
+have, and deleting the per-row tap fallback (`22424f614`) handed clicks back to
+the native `List`. That is one idea applied five times, not five ideas.
+
+Two places where the whole is now less coherent than the parts:
+
+1. **The sidebar went native while the library did not.** The sidebar now draws
+   Finder's grey; list and columns modes still draw the custom Mail-style fill,
+   and Table draws AppKit's own (companion review, G1). So the *same window*
+   now shows three selection languages, and tonight's work is what widened the
+   gap — correctly, but it makes settling G1 more urgent rather than less. If
+   the answer is "native everywhere", the sidebar has already shown what that
+   looks like and the library should follow it.
+
+2. **The bottom bar is now the least-Finder-like thing in the column.** With the
+   rows quieted down — no hover wash, no tooltip, native platter — an
+   always-present bar of six controls (`SidebarBottomToolbar.swift:104-195`) is
+   the loudest remaining element, and Finder has nothing equivalent. It is also
+   the one piece still hardcoded on (`shouldShowBottomToolbar`, §pattern above)
+   while #3404 says it should go or be scoped. The visual case for resolving
+   #3404 is stronger after tonight than before it.
+
+Neither is a regression. Both are "the surface improved enough to expose what
+had been hiding behind the noise", which is a good position to be in.
+
 ## Summary for triage
 
 **Cheap and certain:**
