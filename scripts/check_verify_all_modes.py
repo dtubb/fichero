@@ -60,6 +60,10 @@ def scan() -> dict[str, str]:
         "VERIFY_ALL_IOS",
         'if [[ "$tier" == "full" && "$run_macos" -eq 0 && "$run_ios" -eq 0 ]]; then',
         "run_platform_checks",
+        # A skipped Swift leg must be STATED in the summary, not silent —
+        # otherwise a routine bare run reads as a whole one (#42 gate audit).
+        "Swift (macOS) test leg NOT RUN",
+        "iOS compile leg NOT RUN",
     ]
     for issue in _require_all(verify_all_text, verify_all_checks, "scripts/verify_all.sh"):
         issues[f"verify_all::{issue}"] = issue
