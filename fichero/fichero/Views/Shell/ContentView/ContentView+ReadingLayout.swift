@@ -134,10 +134,20 @@ extension ContentView {
             browserSelection = [match.id]
             // Sidebar HIGHLIGHT only — a direct destinations write, never the
             // routing seam: routing would re-root the preview under the very
-            // swipe that was meant to move within it (#1463 class).
+            // swipe that was meant to move within it (#1463 class). DEBOUNCED
+            // (2026-08-09): a sidebar re-render per page-turn is a ~250ms
+            // childrenList pass — the white-flash budget on fast swipes. The
+            // highlight settles ~150ms after the last turn instead.
             let destination = SidebarDestination.document(match.id)
             if sidebarSelectionState.selectedDestinations != [destination] {
-                sidebarSelectionState.selectedDestinations = [destination]
+                sidebarHighlightDebounce?.cancel()
+                sidebarHighlightDebounce = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(150))
+                    guard !Task.isCancelled else { return }
+                    if sidebarSelectionState.selectedDestinations != [destination] {
+                        sidebarSelectionState.selectedDestinations = [destination]
+                    }
+                }
             }
         }
         // `detailDocument` is deliberately untouched by BOTH signals: it is the

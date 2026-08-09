@@ -109,6 +109,11 @@ struct ContentView: View {
     /// The page document currently in view, updated only by scroll/page-flip
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
     @State var pageFocusDocument: Document?
+    /// Coalesces the swipe→sidebar-highlight write (2026-08-09): re-rendering
+    /// the sidebar per page-turn is a ~250ms childrenList pass, which is the
+    /// white-flash budget. The library selection still moves per turn; the
+    /// SIDEBAR row highlight settles ~150ms after the last turn.
+    @State var sidebarHighlightDebounce: Task<Void, Never>?
     @State var columnVisibility: NavigationSplitViewVisibility = ContentView.defaultColumnVisibility
     /// Which column the split view roots at when it COLLAPSES to a stack on
     /// compact width (#2329/#2334). `.detail` lands a phone on the document
