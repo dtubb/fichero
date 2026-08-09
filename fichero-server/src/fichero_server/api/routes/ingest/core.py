@@ -105,7 +105,11 @@ class IngestFileRequest(BaseModel):
     copy_mode: bool = False  # Link (default) or copy into library
     mode: Literal["link", "copy", "move"] | None = None
     extract_text: bool = True
-    auto_embed: bool = True
+    # Deferred by default (2026-08-09): embeddings are produced by the
+    # post-ingest derivative stage (importers/derivatives.py), so the import
+    # returns as soon as rows land and the document stays `pending` until
+    # embedded. Pass true to embed inline (blocking) — tests/CLI only.
+    auto_embed: bool = False
 
 
 class IngestFolderRequest(BaseModel):
@@ -116,14 +120,12 @@ class IngestFolderRequest(BaseModel):
     copy_mode: bool = False
     mode: Literal["link", "copy", "move"] | None = None
     recursive: bool = True
-    # Default to True so a freshly-ingested folder is searchable as soon
-    # as the documents land — matches the single-file ingest default and
-    # avoids the "search returns nothing because nothing is indexed" trap
-    # users hit on first run. Image files without extractable text
-    # silently skip the embed call (db.embed guards on page_content) and
-    # get embedded later when transcribe runs and updates page_content.
     extract_text: bool = True
-    auto_embed: bool = True
+    # Deferred by default (2026-08-09) — see IngestFileRequest.auto_embed.
+    # The old inline default made a first import pay the ~19s model load
+    # plus per-page compute before the request finished; searchability now
+    # arrives moments later via the derivative stage instead.
+    auto_embed: bool = False
 
 
 class IngestTaskResponse(BaseModel):

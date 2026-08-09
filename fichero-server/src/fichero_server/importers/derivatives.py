@@ -63,6 +63,14 @@ def needs_derivative(doc: Document) -> bool:
     return doc.file_type in DERIVATIVE_FILE_TYPES
 
 
+def needs_embedding(doc: Document) -> bool:
+    """True when this document (or its PDF page children) carries text to
+    embed. Embedding moved here from the inline ingest path (2026-08-09) —
+    the ~19s first-model-load plus per-page compute froze imports; now the
+    row lands instantly and stays ``pending`` until this stage embeds it."""
+    return bool(doc.page_content) or doc.file_type == FileType.pdf
+
+
 def queue_derivatives(
     docs: Iterable[Document],
     *,
@@ -86,7 +94,9 @@ def queue_derivatives(
         logger.warning("Not queueing derivatives: no library path given")
         return []
 
-    queued = [doc.id for doc in docs if needs_derivative(doc)]
+    queued = [
+        doc.id for doc in docs if needs_derivative(doc) or needs_embedding(doc)
+    ]
     futures: list[Future] = []
     if not queued:
         return futures
@@ -101,6 +111,52 @@ def queue_derivatives(
     else:
         submit()
     return futures
+
+
+def _embed_document_tree(doc: Document, db: "Database") -> str | None:
+    """Embed a document's text, and its PDF page children, off the import
+    path. Returns an error summary (never raises) — an embed failure is
+    recorded on the document, not allowed to strand it in ``pending``.
+    """
+    import time as _time
+
+    failures = 0
+    embedded = 0
+    started = _time.monotonic()
+    targets: list[Document] = []
+    if doc.page_content:
+        targets.append(doc)
+    if doc.file_type == FileType.pdf:
+        try:
+            children = db.query(Document, parent_id=doc.id)
+        except Exception as exc:
+            return f"could not list pages: {type(exc).__name__}: {exc}"
+        targets.extend(child for child in children if child.page_content)
+    for target in targets:
+        try:
+            if not db.embed(target):
+                outcome = getattr(db, "last_embed_outcome", None)
+                reason = getattr(outcome, "reason", None)
+                # 'unsupported'/'empty' style outcomes are not failures.
+                if reason in (None, "embedding_failed", "error"):
+                    failures += 1
+            else:
+                embedded += 1
+        except Exception as exc:
+            failures += 1
+            logger.warning(
+                "Deferred embed failed for %s: %s", target.id, exc
+            )
+    if targets:
+        logger.info(
+            "derivatives.embed doc=%s targets=%d embedded=%d failed=%d "
+            "elapsed_ms=%d",
+            doc.id, len(targets), embedded, failures,
+            int((_time.monotonic() - started) * 1000),
+        )
+    if failures:
+        return f"{failures} of {len(targets)} embeds failed"
+    return None
 
 
 def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
@@ -129,15 +185,24 @@ def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
 
     thumb: Path | None = None
     error: str | None = None
-    try:
-        thumb = ensure_thumbnail(doc, package_path=Path(library), db=db)
-        if thumb is None:
-            error = "Thumbnail generation produced no image"
-    except Exception as exc:
-        error = f"{type(exc).__name__}: {exc}"
-        logger.warning("Derivative generation failed for %s: %s", doc_id, error)
+    if needs_derivative(doc):
+        try:
+            thumb = ensure_thumbnail(doc, package_path=Path(library), db=db)
+            if thumb is None:
+                error = "Thumbnail generation produced no image"
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            logger.warning(
+                "Derivative generation failed for %s: %s", doc_id, error
+            )
+
+    embed_error = _embed_document_tree(doc, db)
 
     metadata = dict(doc.metadata or {})
+    if embed_error:
+        metadata["embedding_error"] = embed_error
+    else:
+        metadata.pop("embedding_error", None)
     if error:
         metadata["derivative_error"] = error
     else:
