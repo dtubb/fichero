@@ -305,3 +305,30 @@ class TestDeferredEmbedding:
         refreshed = db.get(Document, doc.id)
         assert refreshed.status == Status.completed
         assert "embeds failed" in refreshed.metadata["embedding_error"]
+
+    def test_the_upload_import_path_defers_embedding_and_queues_the_stage(
+        self, db, test_package, monkeypatch
+    ):
+        """The 'Import…' button path (POST /import) froze on the inline
+        embed exactly like drag-in ingest did; it must queue instead."""
+        from fichero_server.api.routes.document.documents import (
+            import_uploaded_file_impl,
+        )
+        from fichero_server.importers import derivatives as derivatives_module
+
+        queued: list[str] = []
+        monkeypatch.setattr(
+            derivatives_module, "queue_derivatives",
+            lambda docs, **_kwargs: queued.extend(d.id for d in docs) or [],
+        )
+        embeds: list[str] = []
+        monkeypatch.setattr(
+            type(db), "embed", lambda self, d: embeds.append(d.id) or True
+        )
+        source = Path(test_package).parent / "upload.md"
+        source.write_text("uploaded text", encoding="utf-8")
+
+        doc = import_uploaded_file_impl(db, source, original_filename="upload.md")
+
+        assert embeds == []  # nothing embedded inline
+        assert queued == [doc.id]
