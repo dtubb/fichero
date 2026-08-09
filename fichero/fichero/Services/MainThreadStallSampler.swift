@@ -190,17 +190,22 @@ final class MainThreadStallSampler: @unchecked Sendable {
             guard let cString = symbols[index] else { continue }
             lines.append(String(cString: cString))
         }
-        // Drop the capture machinery's own frames (the SIGPROF handler and
-        // the signal trampoline top every capture — Daniel's first live log
-        // showed only those). Then prefer the app's frames; keep system
-        // frames only when nothing else survives (a pure-AppKit stall is
-        // still an answer).
-        let meaningful = lines.drop { line in
-            line.contains("stallSignalHandler") || line.contains("_sigtramp")
-                || line.contains("ficheroBacktrace")
+        // The signal TRAMPOLINE is the boundary: every frame above _sigtramp
+        // is capture machinery (the handler, its buffer closure — Daniel's
+        // first two live logs showed exactly those), every frame below is the
+        // interrupted stack — the actual stall. Name-matching the machinery
+        // was fragile (the closure demangles to a generic
+        // withUnsafeMutableBufferPointer); the trampoline cut is structural.
+        let interrupted: [String]
+        if let trampoline = lines.firstIndex(where: { $0.contains("_sigtramp") }) {
+            interrupted = Array(lines[(trampoline + 1)...])
+        } else {
+            interrupted = Array(lines.dropFirst(4))  // handler ≈ 4 frames deep
         }
-        let appFrames = meaningful.filter { $0.contains("Fichero") && !$0.contains("stallSignalHandler") }
-        return Array((appFrames.isEmpty ? Array(meaningful) : appFrames).prefix(12))
+        // Prefer the app's frames; keep system frames only when nothing else
+        // survives (a pure-AppKit stall is still an answer).
+        let appFrames = interrupted.filter { $0.contains("Fichero") }
+        return Array((appFrames.isEmpty ? interrupted : appFrames).prefix(12))
     }
 
     private func record(latency: TimeInterval, at date: Date, frames: [String] = []) {

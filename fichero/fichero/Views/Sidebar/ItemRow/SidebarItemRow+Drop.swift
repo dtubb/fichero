@@ -113,7 +113,11 @@ extension SidebarItemRow {
             // the row identity is bound. Apple's ArticleCollectionView
             // sample puts `.draggable` directly on the leaf cell view
             // with no intervening `.tag` — order matters here.
-            .draggable(child.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: child))
+            .draggable(child.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: child)) {
+                // Explicit env-free preview — the default re-hosts the ROW
+                // without environment and crashes (see DragPreviewLabel).
+                DragPreviewLabel(name: child.name, systemImage: child.icon)
+            }
             .moveDisabled(child.icon == "tray.fill")
             .tag(child.destination)
         }

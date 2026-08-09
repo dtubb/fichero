@@ -85,7 +85,9 @@ extension LibraryView {
                                 .equatable()
                                 .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
                                 .id(doc.id)
-                                .draggable(libraryItemDrag(for: doc))
+                                .draggable(libraryItemDrag(for: doc)) {
+                                    DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+                                }
                                 // Folder cells are real drop targets (#4124):
                                 // only the hovered folder highlights, and the
                                 // drop moves INTO it — not the viewed folder.

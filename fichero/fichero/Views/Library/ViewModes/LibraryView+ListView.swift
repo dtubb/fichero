@@ -59,7 +59,9 @@ extension LibraryView {
         .equatable()
         .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
         .id(doc.id)
-        .draggable(libraryItemDrag(for: doc))
+        .draggable(libraryItemDrag(for: doc)) {
+            DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+        }
         // Folder rows accept in-app item drops (#4124) — except read-only
         // system folders, which the engine refuses anyway (#4514).
         .modifier(LibraryFolderCellDrop(

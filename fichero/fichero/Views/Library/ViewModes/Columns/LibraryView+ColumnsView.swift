@@ -148,7 +148,9 @@ extension LibraryView {
                     .equatable()
                     .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
                     .id(doc.id)
-                    .draggable(libraryItemDrag(for: doc))
+                    .draggable(libraryItemDrag(for: doc)) {
+                        DragPreviewLabel(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+                    }
                     .modifier(LibraryFolderCellDrop(
                         acceptsDrop: doc.acceptsItemDrops,
                         onDropProviders: { providers in handleFolderCellDrop(providers, into: doc) }
