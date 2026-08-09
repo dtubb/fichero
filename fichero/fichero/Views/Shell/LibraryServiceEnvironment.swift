@@ -52,5 +52,11 @@ extension View {
             .environment(library.artifactStore)
             .environment(library.citationStore)
             .environment(library.referenceStore)
+            // Found by the 2026-08-08 night review BEFORE the crash: these two
+            // are in FocusedDocument's list but were missing here —
+            // DocumentInterpretationsSection reads InterpretationStore
+            // non-optionally from the docked inspector.
+            .environment(library.interpretationStore)
+            .environment(library.changeStream)
     }
 }

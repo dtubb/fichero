@@ -190,10 +190,17 @@ final class MainThreadStallSampler: @unchecked Sendable {
             guard let cString = symbols[index] else { continue }
             lines.append(String(cString: cString))
         }
-        // The app's own frames are the answer; keep system frames only when
-        // nothing else survives (a pure-AppKit stall is still an answer).
-        let appFrames = lines.filter { $0.contains("Fichero") }
-        return Array((appFrames.isEmpty ? lines : appFrames).prefix(12))
+        // Drop the capture machinery's own frames (the SIGPROF handler and
+        // the signal trampoline top every capture — Daniel's first live log
+        // showed only those). Then prefer the app's frames; keep system
+        // frames only when nothing else survives (a pure-AppKit stall is
+        // still an answer).
+        let meaningful = lines.drop { line in
+            line.contains("stallSignalHandler") || line.contains("_sigtramp")
+                || line.contains("ficheroBacktrace")
+        }
+        let appFrames = meaningful.filter { $0.contains("Fichero") && !$0.contains("stallSignalHandler") }
+        return Array((appFrames.isEmpty ? Array(meaningful) : appFrames).prefix(12))
     }
 
     private func record(latency: TimeInterval, at date: Date, frames: [String] = []) {
