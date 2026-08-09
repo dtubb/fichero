@@ -415,8 +415,23 @@ final class DocumentStore {
             // and skip the error state, but still clear `isLoadingChildren` below.
             if !error.isCancellationError {
                 logger.error("loadChildren failed: \(error.localizedDescription)")
-                self.error = error
-                self.currentDocuments = []
+                // STALE-SELECTION RECOVERY (2026-08-09, live: a restored
+                // selection pointed at a document of a DELETED library —
+                // get_children 404'd and the window sat on 'No Documents'
+                // forever). A missing parent is not a dead engine: fall back
+                // to the ROOT SET so the window always shows something real,
+                // and clear the phantom selection so re-clicks route fresh.
+                if error.isNotFoundError {
+                    logger.warning(
+                        "loadChildren 404 for \(document.id) — restored selection is stale; falling back to the root set"
+                    )
+                    selectedCollection = nil
+                    await loadCollections()
+                    currentDocuments = applyStatusOverrides(collections)
+                } else {
+                    self.error = error
+                    self.currentDocuments = []
+                }
             }
         }
 

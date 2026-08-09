@@ -155,6 +155,13 @@ extension ImportService {
         pollInterval: TimeInterval = 0.5,
         timeout: TimeInterval = 300
     ) async throws -> [String] {
+        // Poll BACKOFF (2026-08-09 storm): 2 polls/s against an engine busy
+        // ingesting stole loop time from the ingest itself (dozens of
+        // /ingest/status hits per 11s window, live log). Quiet polls double
+        // the interval up to 4s; any visible progress snaps it back to
+        // `pollInterval` so an active import still tracks closely.
+        var currentInterval = pollInterval
+        var lastProgressMark = -1.0
         // #4232: clear the published status on EVERY exit — completed, failed,
         // cancelled or thrown. `importFolder` already defers this, but the
         // drag-and-drop path (ImportService.swift:98) calls this function
@@ -196,6 +203,13 @@ extension ImportService {
             // assignment every 0.5s invalidates every observer for the whole
             // import even when no number moved.
             if activeIngest != status { activeIngest = status }
+            let progressMark = status.progress ?? -1.0
+            if progressMark != lastProgressMark {
+                lastProgressMark = progressMark
+                currentInterval = pollInterval
+            } else {
+                currentInterval = min(4.0, currentInterval * 2)
+            }
 
             // Update progress
             if let total = status.total, let processed = status.processed {
@@ -227,18 +241,18 @@ extension ImportService {
             case "cancelling":
                 // Cooperative: the file in flight still has to land. Keep
                 // polling until the engine settles on `cancelled`.
-                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                try await Task.sleep(nanoseconds: UInt64(currentInterval * 1_000_000_000))
 
             case "pending", "processing", "running":
                 // Continue polling. "running" is the backend's active status
                 // (pending → running → completed/failed, #3283); "processing" is
                 // kept for any legacy responses. Previously "running" fell to the
                 // default and log-spammed "Unknown task status" every poll.
-                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                try await Task.sleep(nanoseconds: UInt64(currentInterval * 1_000_000_000))
 
             default:
                 logger.warning("Unknown task status: \(status.status)")
-                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                try await Task.sleep(nanoseconds: UInt64(currentInterval * 1_000_000_000))
             }
         }
     }
