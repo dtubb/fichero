@@ -46,6 +46,16 @@ extension View {
             .environment(library.noteStore)
             .environment(library.annotationStore)
             .environment(library.actionStore)
+            // The docked inspector hosts the WHOLE detail view
+            // (`inspectorContainerView` → `detailView`), so Activity and the
+            // chain surfaces mount across this boundary too. All three were
+            // missing here while `check_environment_forwarding` reported zero
+            // gaps — it only looked at DocumentTabView. `ActivityBrowserView`
+            // reads ActivityStore non-optionally: the next crash, already
+            // loaded.
+            .environment(library.activityStore)
+            .environment(library.chainStore)
+            .environment(library.workflowExecutionStore)
             .environment(library.auditStore)
             .environment(library.researchStore)
             .environment(library.searchStore)

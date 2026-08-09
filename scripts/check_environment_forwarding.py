@@ -50,6 +50,15 @@ CANONICAL_HOST = APP / "Views" / "Library" / "Workspace" / "LibraryWorkspaceRoot
 MIRROR_HOSTS = [APP / "Views" / "Shell" / "DocumentTabView.swift"]
 BASELINE = REPO / "scripts" / "known_environment_forwarding_gaps.txt"
 
+# The shared re-injection helper, and the hosts that exist ONLY to carry the
+# library environment across a hosting boundary. See `boundary_gaps`.
+SHARED_HELPER = APP / "Views" / "Shell" / "LibraryServiceEnvironment.swift"
+BOUNDARY_HOSTS = [
+    SHARED_HELPER,
+    APP / "Views" / "Inspector" / "FocusedDocument.swift",
+]
+HELPER_CALL = ".libraryServiceEnvironment("
+
 # `.environment(library.foo)` / `.environment(appState.foo)` / `.environment(foo)`
 INJECT_RE = re.compile(r"\.environment\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)")
 # `@Environment(Type.self) [private] var name[: Type[?]]`
@@ -135,6 +144,60 @@ def injected_types(path: Path, prop_types: dict[str, str]) -> set[str]:
     return types
 
 
+def injected_library_types(path: Path, prop_types: dict[str, str]) -> set[str]:
+    """Only the LIBRARY-scoped types a file injects — `.environment(library.x)`.
+
+    Deliberately narrower than `injected_types`: a boundary host also forwards
+    window/app objects (`windowState`, `kgFocusState`), and those are not part
+    of the per-library contract being compared.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    types: set[str] = set()
+    for expr in INJECT_RE.findall(text):
+        if "." not in expr:
+            continue
+        if resolved := prop_types.get(expr.split(".")[-1]):
+            types.add(resolved)
+    return types
+
+
+def boundary_gaps(canonical: set[str], prop_types: dict[str, str]) -> list[str]:
+    """Types a cross-boundary re-injection host fails to carry — ALL of them.
+
+    Why this rule is absolute where the MIRROR_HOSTS rule is narrowed:
+
+    `DocumentTabView` sits INSIDE the library tree, so a value it omits is
+    still inherited by everything below it; only an out-of-tree reader (a
+    toolbar item, another Scene) can trap, and narrowing to those avoids
+    reporting 39 non-problems.
+
+    A BOUNDARY host has no such inheritance to fall back on and — critically —
+    no bounded subtree to reason about. `.inspector` content is hosted outside
+    the tab tree and `inspectorContainerView` mounts the WHOLE detail view
+    there, so "which types can this host's subtree read" is "all of them". Any
+    omission is a live `No Observable object of type X found` waiting for the
+    user to open the right pane.
+
+    That is not theoretical. On 2026-08-08 this script printed "no new
+    environment-forwarding gaps" through three consecutive crashes of exactly
+    this kind, because the only host it looked at was DocumentTabView. The
+    docked-inspector boundary re-injected NOTHING and was not on the list; the
+    detached one hand-copied 33 of 37. A sweep that cannot look at the failing
+    boundary is not a guardrail.
+
+    A host satisfies the rule either by calling the shared helper or, for the
+    helper itself, by listing the canonical set in full.
+    """
+    gaps: list[str] = []
+    for host in BOUNDARY_HOSTS:
+        text = host.read_text(encoding="utf-8", errors="replace")
+        if host != SHARED_HELPER and HELPER_CALL in text:
+            continue  # delegates to the one list — that IS the fix
+        for type_name in sorted(canonical - injected_library_types(host, prop_types)):
+            gaps.append(f"{host.name}:{type_name}")
+    return gaps
+
+
 def read_baseline() -> set[str]:
     if not BASELINE.exists():
         return set()
@@ -146,7 +209,7 @@ def read_baseline() -> set[str]:
 
 
 def main() -> int:
-    for required in (LIBRARY_MANAGER, CANONICAL_HOST, *MIRROR_HOSTS):
+    for required in (LIBRARY_MANAGER, CANONICAL_HOST, *MIRROR_HOSTS, *BOUNDARY_HOSTS):
         if not required.exists():
             print(f"environment-forwarding guardrail: {required} is missing — "
                   "the composition roots moved; update this check.", file=sys.stderr)
@@ -177,9 +240,26 @@ def main() -> int:
                 new_gaps.append(f"{key} (read non-optionally in "
                                 f"{len(reads[type_name])} view(s))")
 
+    library_canonical = injected_library_types(CANONICAL_HOST, prop_types)
+    missing_at_boundary = boundary_gaps(library_canonical, prop_types)
+
     print(f"Environment-forwarding guardrail: {len(canonical)} canonical "
           f"per-library injections in {CANONICAL_HOST.name}")
     print(f"  {len(all_gaps)} forwarding gap(s); {len(baseline)} known (#4455).")
+    print(f"  {len(BOUNDARY_HOSTS)} cross-boundary host(s) checked against the "
+          f"{len(library_canonical)} library-scoped types; "
+          f"{len(missing_at_boundary)} missing.")
+
+    if missing_at_boundary:
+        print("\nA cross-boundary re-injection host is INCOMPLETE. `.inspector`\n"
+              "content and detached Scenes inherit nothing, and the docked\n"
+              "inspector hosts the whole detail view — every omission below is a\n"
+              'live "No Observable object of type X found" (the 2026-08-08\n'
+              "crash loop). Forward it, or call libraryServiceEnvironment(_:):\n",
+              file=sys.stderr)
+        for gap in missing_at_boundary:
+            print(f"  {gap}", file=sys.stderr)
+        return 1
 
     if new_gaps:
         print("\nNEW environment-forwarding gap(s) — these trap at runtime with\n"
@@ -223,7 +303,11 @@ def self_test() -> int:
     """
     host = MIRROR_HOSTS[0]
     host_original = host.read_text(encoding="utf-8")
-    baseline_original = BASELINE.read_text(encoding="utf-8") if BASELINE.exists() else ""
+    helper_original = SHARED_HELPER.read_text(encoding="utf-8")
+    detached = BOUNDARY_HOSTS[1]
+    detached_original = detached.read_text(encoding="utf-8")
+    baseline_existed = BASELINE.exists()
+    baseline_original = BASELINE.read_text(encoding="utf-8") if baseline_existed else ""
     failures: list[str] = []
 
     def expect(label: str, want: int) -> None:
@@ -243,10 +327,36 @@ def self_test() -> int:
             expect("reverting the #4448 ActivityStore forward is caught", 1)
             host.write_text(host_original, encoding="utf-8")
 
+        # The 2026-08-08 regressions this script slept through. Both are
+        # reverts of a real fix, not invented shapes.
+        thinned = helper_original.replace(
+            "            .environment(library.activityStore)\n", "")
+        if thinned == helper_original:
+            failures.append("could not thin the shared helper — the list moved")
+        else:
+            SHARED_HELPER.write_text(thinned, encoding="utf-8")
+            expect("a service dropped from the shared helper is caught", 1)
+            SHARED_HELPER.write_text(helper_original, encoding="utf-8")
+
+        hand_rolled = detached_original.replace(
+            "            .libraryServiceEnvironment(library)\n",
+            "            .environment(library.documentStore)\n")
+        if hand_rolled == detached_original:
+            failures.append("could not un-delegate the detached inspector — the call moved")
+        else:
+            detached.write_text(hand_rolled, encoding="utf-8")
+            expect("a boundary host reverting to a hand-picked list is caught", 1)
+            detached.write_text(detached_original, encoding="utf-8")
+
         expect("everything restored", 0)
     finally:
         host.write_text(host_original, encoding="utf-8")
-        BASELINE.write_text(baseline_original, encoding="utf-8")
+        SHARED_HELPER.write_text(helper_original, encoding="utf-8")
+        detached.write_text(detached_original, encoding="utf-8")
+        if baseline_existed:
+            BASELINE.write_text(baseline_original, encoding="utf-8")
+        elif BASELINE.exists():
+            BASELINE.unlink()
 
     if failures:
         print("\nself-test FAILED:", "; ".join(failures), file=sys.stderr)
