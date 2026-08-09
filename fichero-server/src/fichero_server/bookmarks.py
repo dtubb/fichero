@@ -36,7 +36,7 @@ _FALSY = {"0", "false", "no", "off"}
 
 # Try to import Rubicon ObjC for macOS APIs
 try:
-    from rubicon.objc import ObjCClass
+    from rubicon.objc import ObjCClass, autoreleasepool
 
     NSURL = ObjCClass("NSURL")
     NSData = ObjCClass("NSData")
@@ -93,42 +93,48 @@ def create_bookmark(path: Path, read_only: bool = False) -> bytes | None:
         return None
 
     try:
-        url = NSURL.fileURLWithPath_(str(path.resolve()))
+        # Autorelease pool (2026-08-09): this runs PER FILE on a worker
+        # thread with NO pool — every NSURL/NSData created here leaked for
+        # the process lifetime, and `ctypes.string_at` read the autoreleased
+        # NSData's buffer with nothing keeping it alive (a use-after-free
+        # candidate for the no-traceback crash class). The pool bounds the
+        # objects' lifetime; the bytes are COPIED before the pool drains.
+        with autoreleasepool():
+            url = NSURL.fileURLWithPath_(str(path.resolve()))
 
-        # Build options
-        options = _BOOKMARK_CREATION_WITH_SECURITY_SCOPE
-        if read_only:
-            options |= _BOOKMARK_CREATION_SECURITY_SCOPE_ALLOW_ONLY_READ_ACCESS
+            # Build options
+            options = _BOOKMARK_CREATION_WITH_SECURITY_SCOPE
+            if read_only:
+                options |= _BOOKMARK_CREATION_SECURITY_SCOPE_ALLOW_ONLY_READ_ACCESS
 
-        # Create bookmark
-        # Method signature: bookmarkDataWithOptions:includingResourceValuesForKeys:relativeToURL:error:
-        bookmark_data = url.bookmarkDataWithOptions_includingResourceValuesForKeys_relativeToURL_error_(
-            options,
-            None,  # No resource keys
-            None,  # Not relative
-            None,  # No error pointer
-        )
+            # Create bookmark
+            # Method signature: bookmarkDataWithOptions:includingResourceValuesForKeys:relativeToURL:error:
+            bookmark_data = url.bookmarkDataWithOptions_includingResourceValuesForKeys_relativeToURL_error_(
+                options,
+                None,  # No resource keys
+                None,  # Not relative
+                None,  # No error pointer
+            )
 
-        if bookmark_data:
-            # Convert NSData to bytes
-            # Note: In Rubicon ObjC, bytes returns a ctypes.c_void_p pointer
-            try:
-                import ctypes
+            if bookmark_data:
+                # Convert NSData to bytes — copied INSIDE the pool, while the
+                # NSData is guaranteed alive.
+                try:
+                    import ctypes
 
-                length = bookmark_data.length
-                if callable(length):
-                    length = length()
-                if length > 0:
-                    ptr = bookmark_data.bytes
-                    if callable(ptr):
-                        ptr = ptr()
-                    # Use ctypes to extract bytes from the void pointer
-                    return ctypes.string_at(ptr, length)
-            except (TypeError, AttributeError, OSError) as e:
-                logger.warning("Error extracting bookmark data: %s", e)
+                    length = bookmark_data.length
+                    if callable(length):
+                        length = length()
+                    if length > 0:
+                        ptr = bookmark_data.bytes
+                        if callable(ptr):
+                            ptr = ptr()
+                        return ctypes.string_at(ptr, length)
+                except (TypeError, AttributeError, OSError) as e:
+                    logger.warning("Error extracting bookmark data: %s", e)
 
-        logger.warning("Failed to create bookmark for %s", path)
-        return None
+            logger.warning("Failed to create bookmark for %s", path)
+            return None
 
     except Exception as e:
         logger.warning("Bookmark creation error for %s: %s", path, e)

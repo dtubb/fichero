@@ -134,11 +134,18 @@ async def get_thumbnail(
         doc_id=doc_id,
     ) as perf:
         package_path = Path(x_fichero_library_path)
-        doc = _document_or_404(db, doc_id)
+        # OFF THE LOOP (2026-08-09): this sync `db.get` blocked the EVENT
+        # LOOP on the DuckDB transaction gate whenever an ingest held it —
+        # and a blocked loop stops /api/ingest/status (which touches no DB)
+        # from answering at all. The measured 'engine frozen during import'
+        # was THIS await-less read, not the ingest itself.
+        doc = await asyncio.to_thread(_document_or_404, db, doc_id)
 
         from fichero_server.db.storage import get_thumbnail, ensure_thumbnail, get_display, ensure_display
 
-        thumb_path = get_thumbnail(doc, package_path=package_path, db=db)
+        thumb_path = await asyncio.to_thread(
+            get_thumbnail, doc, package_path=package_path, db=db
+        )
         perf["cache_state"] = "hit" if thumb_path else "miss"
 
         if not thumb_path:
@@ -149,7 +156,7 @@ async def get_thumbnail(
             # Warm the companion display image so both formats exist after the
             # first access — avoids the asymmetry where only the requested format
             # is created lazily (#2216/#2217).
-            if thumb_path and not get_display(doc, package_path, db=db):
+            if thumb_path and not await asyncio.to_thread(get_display, doc, package_path, db=db):
                 background_tasks.add_task(
                     asyncio.to_thread, ensure_display, doc,
                     package_path=package_path, db=db,
@@ -192,12 +199,13 @@ async def get_display_image(
     so both formats exist after the first access (#2216).
     """
     package_path = Path(x_fichero_library_path)
-    doc = _document_or_404(db, doc_id)
+    # OFF THE LOOP — same event-loop-blocking read as the thumbnail route.
+    doc = await asyncio.to_thread(_document_or_404, db, doc_id)
 
     from fichero_server.db.storage import get_display, ensure_display, get_thumbnail, ensure_thumbnail
 
     # Try to get existing display image (with package path for library isolation)
-    display_path = get_display(doc, package_path, db=db)
+    display_path = await asyncio.to_thread(get_display, doc, package_path, db=db)
 
     # If no display image, try to generate one
     if not display_path:
@@ -207,7 +215,9 @@ async def get_display_image(
         # Warm the companion thumbnail so both formats exist after the first
         # access — avoids the asymmetry where only the requested format is
         # created lazily (#2216/#2217).
-        if display_path and not get_thumbnail(doc, package_path=package_path, db=db):
+        if display_path and not await asyncio.to_thread(
+            get_thumbnail, doc, package_path=package_path, db=db
+        ):
             background_tasks.add_task(
                 asyncio.to_thread, ensure_thumbnail, doc,
                 package_path=package_path, db=db,

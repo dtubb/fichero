@@ -40,6 +40,7 @@ import logging
 import mimetypes
 import os
 import shutil
+import time
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from enum import Enum
@@ -217,6 +218,7 @@ def ingest_file(
     db: "Database | None" = None,
     package_path: Path | None = None,
     original_filename: str | None = None,
+    known_checksum: str | None = None,
 ) -> Document:
     """Ingest a single file.
 
@@ -368,7 +370,9 @@ def ingest_file(
 
     # Extract metadata if requested
     if extract_metadata:
-        _extract_file_metadata(doc, content_path, sidecar_path=path)
+        _extract_file_metadata(
+            doc, content_path, sidecar_path=path, known_checksum=known_checksum
+        )
 
     if sidecar_metadata:
         doc.source_metadata = sidecar_metadata
@@ -983,7 +987,11 @@ def _try_apfs_clone(source: Path, dest: Path) -> bool:
 
 
 def _extract_file_metadata(
-    doc: Document, path: Path, *, sidecar_path: Path | None = None
+    doc: Document,
+    path: Path,
+    *,
+    sidecar_path: Path | None = None,
+    known_checksum: str | None = None,
 ) -> None:
     """Extract basic metadata from file.
 
@@ -998,7 +1006,9 @@ def _extract_file_metadata(
     # other ingest error.
     stat = path.stat()
     doc.metadata["file_size"] = stat.st_size
-    doc.metadata["checksum"] = _file_checksum(path)
+    # Folder ingest already hashed this file for the skip test — reuse it
+    # (2026-08-09): the double SHA-256 was a full second read of every file.
+    doc.metadata["checksum"] = known_checksum or _file_checksum(path)
 
     # Everything below is genuinely best-effort: a corrupt EXIF block or an
     # unparseable header should not fail an import whose bytes are fine.
@@ -1372,6 +1382,11 @@ def ingest_folder(
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
     library_path = package_path or getattr(db, "path", None)
+    # Timed (2026-08-09): this pre-scan materialises EVERY document row into
+    # Pydantic objects before the first file is touched — on a large library
+    # it was the silent multi-minute 'frozen with no progress' phase. A
+    # targeted SELECT of (source_path, checksum) is the queued upgrade.
+    _prescan_started = time.monotonic()
     try:
         for existing in db.all(Document):
             if existing.status == Status.failed:
@@ -1383,6 +1398,10 @@ def ingest_folder(
             checksum = (existing.metadata or {}).get("checksum")
             if isinstance(source_path, str) and isinstance(checksum, str):
                 existing_hashes.add((source_path, checksum))
+        logger.info(
+            "ingest.folder.prescan existing=%d elapsed_ms=%d",
+            len(existing_hashes), int((time.monotonic() - _prescan_started) * 1000),
+        )
     except Exception as exc:
         logger.warning(
             "Could not pre-index existing checksums for skip logic in %s: %s",
@@ -1504,6 +1523,10 @@ def ingest_folder(
                         save=True,
                         db=db,
                         package_path=package_path,
+                        # Reuse the skip-test hash EXCEPT for LINK mode, where
+                        # the recompute is the changed-while-ingesting tamper
+                        # check below (2026-08-09).
+                        known_checksum=None if mode == IngestMode.LINK else checksum,
                     )
                     actual_checksum = (doc.metadata or {}).get("checksum")
                     if (

@@ -828,12 +828,17 @@ async def lifespan(app: FastAPI):
             # `get_children` that runs in 2-3ms elsewhere took 24,799ms at the
             # same moment — not a slow query, a thread starved by the load.
             #
-            # `to_thread` matters as much as calling it: fastembed's init is
-            # synchronous CPU + disk work, and awaiting it inline here would
-            # move the stall from first-ingest to startup, which is the same
-            # stall wearing a different hat. This way the engine is already
-            # serving while the model loads behind it.
-            asyncio.create_task(asyncio.to_thread(_prewarm_embeddings))
+            # DIRECT CALL (2026-08-09): this function already runs on an
+            # executor thread (run_in_executor below), where there is NO
+            # running event loop — the previous
+            # `asyncio.create_task(asyncio.to_thread(...))` raised
+            # RuntimeError('no running event loop'), the except below ate it,
+            # and the pre-warm NEVER RAN ONCE. Every first import paid the
+            # ~19s model load inside its own transaction — the measured
+            # pathology this comment block describes was caused by the very
+            # line meant to prevent it. We are already off the loop; just
+            # call it.
+            _prewarm_embeddings()
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
             # engine that is already serving. It is logged at WARNING with a

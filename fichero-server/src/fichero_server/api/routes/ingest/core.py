@@ -333,10 +333,12 @@ async def ingest_folder(
 
     # Background ingest (capture db and package_path for use in background task)
     def do_background_ingest():
-        # Use a fresh database handle for the background thread instead of
-        # reusing the request-scoped object. This avoids stale/contended
-        # connection state on long-running folder ingests (#1216).
-        bg_db = db_manager.get_database(x_fichero_library_path)
+        # Everything — INCLUDING the database acquisition — inside the try
+        # (2026-08-09 wedge 4.8): `get_database` raises on migration/seed
+        # failure, and when it did the task dict froze at "pending" forever
+        # while the app polled /status indefinitely. Every exit path now
+        # lands in a terminal task state.
+        bg_db = None
 
         def on_progress(current: int, total: int):
             _tasks[task_id]["processed"] = current
@@ -392,8 +394,13 @@ async def ingest_folder(
 
         try:
             _tasks[task_id]["started_at"] = time.monotonic()
+            # Fresh handle for the background thread, not the request-scoped
+            # one — avoids stale/contended connection state on long folder
+            # ingests (#1216). Inside the try, see above.
+            bg_db = db_manager.get_database(x_fichero_library_path)
             if not _tasks[task_id]["cancel_requested"]:
                 _tasks[task_id]["status"] = "running"
+                logger.info("ingest.task task_id=%s status=running path=%s", task_id, path)
             # Route through the shared impl so the background task and the
             # audited ``import.folder`` action ingest via the SAME code path.
             result = registry.invoke(
@@ -417,12 +424,21 @@ async def ingest_folder(
             _tasks[task_id]["document_ids"] = list(
                 dict.fromkeys(_tasks[task_id]["document_ids"] + doc_ids)
             )
-            logger.info(f"Folder ingest complete: {path} ({len(doc_ids)} files)")
-        except Exception as e:
+            logger.info(
+                "ingest.task task_id=%s status=%s path=%s files=%d",
+                task_id, _tasks[task_id]["status"], path, len(doc_ids),
+            )
+        except BaseException as e:  # noqa: BLE001 — a dying worker THREAD must
+            # still leave a terminal, pollable state (2026-08-09 wedge 4.9):
+            # `except Exception` let MemoryError/SystemExit escape and the app
+            # polled a permanently-"running" task. Re-raise the interpreter's
+            # own exits after recording.
             _tasks[task_id]["status"] = "failed"
             _tasks[task_id]["finished_at"] = time.monotonic()
-            _tasks[task_id]["error"] = str(e)
-            logger.error(f"Folder ingest failed: {path}: {e}")
+            _tasks[task_id]["error"] = str(e) or type(e).__name__
+            logger.error(f"Folder ingest failed: {path}: {e!r}")
+            if not isinstance(e, Exception):
+                raise
 
     background_tasks.add_task(do_background_ingest)
 
@@ -641,6 +657,15 @@ def _invert_import_to_delete(
     domains=["document"],
     undoable=True,
     invert=_invert_import_to_delete,
+    # atomic=False (2026-08-09): the default atomic=True wrapped the ENTIRE
+    # file ingest — text extraction, both PDF parses, every page save, every
+    # page embedding, and (before the pre-warm fix) the 19s model load — in
+    # ONE transaction holding the DuckDB gate. Every reader (thumbnails,
+    # get_children, the loop itself via the storage routes) queued behind one
+    # file for minutes. The folder action has been atomic=False for exactly
+    # this reason; ingest_file's own writes commit per-step, and the undo
+    # inversion (delete the created doc) does not depend on atomicity.
+    atomic=False,
 )
 def _action_import_file(
     db: Database, params: IngestFileRequest, ctx: ActionContext

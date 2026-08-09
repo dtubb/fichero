@@ -162,8 +162,12 @@ def main(argv: list[str] | None = None):
     # Disable tokenizers parallelism (avoids fork warnings)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-    # Keep fatal thread dumps off by default; enable only when explicitly debugging crashes.
-    fault_enabled = _env_flag("FICHERO_BACKEND_FAULTHANDLER", default=False)
+    # Faulthandler ON by default (2026-08-09): a native fault in fitz /
+    # pdfium / ONNX / the ObjC bridge previously left NOTHING in engine.log —
+    # a whole day of 'the backend crashed' with no traceback. A C-level stack
+    # on SIGSEGV is worth infinitely more than clean logs; opt OUT with
+    # FICHERO_BACKEND_FAULTHANDLER=0 when clean logs truly matter.
+    fault_enabled = _env_flag("FICHERO_BACKEND_FAULTHANDLER", default=True)
     if fault_enabled:
         if not faulthandler.is_enabled():
             faulthandler.enable(all_threads=True)

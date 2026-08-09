@@ -1010,6 +1010,7 @@ class TestIngestFolder:
             save,
             db,
             package_path,
+            known_checksum=None,  # 2026-08-09: checksum-reuse plumbing
         ):
             return Document(
                 name=file_path.name,
