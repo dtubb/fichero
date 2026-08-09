@@ -39,7 +39,19 @@ extension ContentView {
         // iOS archive.
         requestBusesAndAppleScript
             .adaptiveInspector(placement: inspectorPlacement, isPresented: inspectorIsPresented) {
-                inspectorContainerView
+                // `.inspector` hosts this content OUTSIDE the tab tree, so the
+                // library environment does NOT inherit (live crash loop,
+                // 2026-08-08: a restored detailDocument mounted
+                // DocumentInspector at launch → fatal 'No Observable object of
+                // type ArtifactService'). Re-inject the FULL list across the
+                // boundary — one shared helper, not a hand-picked subset that
+                // crashes on the next service (see LibraryServiceEnvironment).
+                if let library = libraryManager.getLibrary(id: windowState.libraryId) {
+                    inspectorContainerView
+                        .libraryServiceEnvironment(library)
+                } else {
+                    inspectorContainerView
+                }
             }
             // Measure the real container width before the outer min-width
             // clamp, otherwise the reader only ever sees the framed width.

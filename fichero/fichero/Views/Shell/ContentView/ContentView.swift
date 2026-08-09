@@ -80,6 +80,11 @@ struct ContentView: View {
     @Environment(\.openWindow) var openWindow
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(ResearchService.self) var researchService
+    /// The docked inspector's content is hosted OUTSIDE this tree (`.inspector`),
+    /// so RootLayout re-injects the full library environment across that
+    /// boundary (libraryServiceEnvironment, 2026-08-08 crash loop) — resolved
+    /// from the window's library via this manager.
+    @Environment(LibraryManager.self) var libraryManager
 
     // MARK: - State (synced with @SceneStorage for persistence)
 
