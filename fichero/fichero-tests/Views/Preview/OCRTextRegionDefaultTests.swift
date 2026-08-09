@@ -46,6 +46,20 @@ struct OCRTextRegionDefaultTests {
         }
     }
 
+    /// The geometry probe re-runs when the DOCUMENT or the TOGGLE changes —
+    /// never the page (2026-08-08, "changing page in PDF feels slow"):
+    /// `OCRGeometrySelection.load`'s only input is the document id, so a
+    /// page-keyed task re-fired the identical artifact queries on every flip.
+    @Test("the OCR geometry task is keyed on document+toggle, not the page")
+    func geometryTaskIsNotPageKeyed() throws {
+        let source = try AppSource.text("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
+        #expect(source.contains(#".task(id: "\(effectiveDocumentId)|\(ocrBoxesEnabled)")"#))
+        #expect(
+            !source.contains(#"\(effectiveDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)"#),
+            "page-keyed geometry probe is back — every page flip refetches the whole document's geometry"
+        )
+    }
+
     /// The toggle itself stays. It is a view control ("show me the boxes"),
     /// not a feature flag — the same class of thing as the magnifier — and the
     /// no-needless-toggles rule is about capabilities that are half-built, not

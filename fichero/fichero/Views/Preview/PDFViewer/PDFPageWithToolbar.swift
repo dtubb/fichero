@@ -248,10 +248,13 @@ struct PDFPageWithToolbar: View {
                 activeSurfaceState?.registerUnpinned(surfaceId)
             }
         }
-        // #4418: re-probe when the document, the page, or the toggle changes.
-        // Keyed the same way the image preview keys its own load, so the two
-        // surfaces refresh on the same events.
-        .task(id: "\(effectiveDocumentId)|\(effectivePageIndex)|\(ocrBoxesEnabled)") {
+        // #4418: re-probe when the document or the toggle changes. NOT the
+        // page (2026-08-08, "changing page in PDF feels slow"): the loader's
+        // only input is the document id — `OCRGeometrySelection.load` fires
+        // one artifact query per geometry-bearing type, none of which see a
+        // page index — so keying on the page re-ran the identical network
+        // round-trips on EVERY flip and threw the identical answer away.
+        .task(id: "\(effectiveDocumentId)|\(ocrBoxesEnabled)") {
             // AppKit only: the PDF box renderer draws PDFAnnotations through
             // PDFPageView+OCRBoxes, which is itself #if canImport(AppKit). iOS
             // has no PDF overlay yet (#4418 shipped the Mac half), so there is
