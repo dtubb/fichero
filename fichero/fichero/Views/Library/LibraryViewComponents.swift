@@ -153,16 +153,10 @@ struct MailStyleRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 // Title row
                 HStack {
-                    // Folder / workflow-mirror glyph, from the one ladder the
-                    // sidebar reads (#4516) — a workflow mirror used to get no
-                    // glyph here at all. Purple + gear badge marks a read-only
-                    // system folder, same as the sidebar (#4514).
-                    if document.docType == .folder || document.isWorkflowNode {
-                        Image(systemName: document.displaySymbol())
-                            .symbolVariant(document.docType == .folder ? .fill : .none)
-                            .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
-                            .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
-                    }
+                    // NO inline folder/mirror glyph here — the leading
+                    // thumbnail well renders the #4516 symbol ladder now
+                    // (see DocumentThumbnail), so an inline copy showed
+                    // folders' icons TWICE (preview catalog, 2026-08-09).
 
                     // PDF page rows show their page number (prefer an
                     // extracted page_label once #2080 lands), not the
@@ -331,7 +325,12 @@ enum DocumentThumbnailKind: Equatable {
     case storageImage
 
     static func forDocument(_ document: Document) -> DocumentThumbnailKind {
-        if document.docType == .folder { return .folder }
+        // Workflow mirrors join folders in the symbol branch (2026-08-09):
+        // a mirror is a `.file` with no fileType, so it fell through to a
+        // storage fetch that returns nothing and rendered an EMPTY well —
+        // which is why MailStyleRow grew a second, inline glyph (#4516)
+        // that then showed folders' icons TWICE. One glyph, in the well.
+        if document.docType == .folder || document.isWorkflowNode { return .folder }
         if document.fileType == .image { return .storageImage }
         // Text-preview thumbnail (#625) is only for genuinely text documents
         // (JSON/plain text) with no page image. A PDF page ALWAYS shows its
@@ -374,9 +373,15 @@ struct DocumentThumbnail: View {
 
             switch DocumentThumbnailKind.forDocument(document) {
             case .folder:
-                Image(systemName: "folder.fill")
+                // The one symbol ladder the sidebar reads (#4516), lock-aware
+                // (#4514): purple gear-badged treatment for read-only system
+                // folders — previously an inline glyph in MailStyleRow, which
+                // doubled real folders' icons.
+                Image(systemName: document.displaySymbol())
                     .font(.system(size: folderSymbolSize))
-                    .foregroundColor(.accentColor)
+                    .symbolVariant(document.docType == .folder ? .fill : .none)
+                    .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
+                    .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
             case .textPreview(let preview):
                 TextPreviewThumbnail(text: preview)
                     .frame(width: width, height: height)

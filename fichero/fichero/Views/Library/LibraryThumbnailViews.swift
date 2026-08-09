@@ -99,9 +99,15 @@ struct DocumentThumbnailView: View {
                     // documents (JSON/plain text) with no page image. A PDF page
                     // ALWAYS renders its page image via the storage endpoint
                     // below — never its extracted `pageContent` text. (#2052)
+                    // A mini PAGE centered in the well, like Finder's text-file
+                    // icons — not full-bleed text across the square (the
+                    // preview catalog showed it as raw floating text once the
+                    // base card went clear, 2026-08-09).
                     TextPreviewThumbnail(text: preview)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
+                        .frame(
+                            width: (Self.wellHeight - 2 * Self.wellContentInset) * scale * 0.77,
+                            height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
+                        )
                 } else {
                     // Load thumbnail from backend API with library path header.
                     // Scale-to-fit (#4197): whole page visible, letterboxed.
@@ -391,9 +397,16 @@ struct TextPreviewThumbnail: View {
             .font(.system(size: 6, design: .monospaced))
             .foregroundStyle(.primary)
             .lineSpacing(1)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .clipped()
+            // Reads as a PAGE (Finder's text-file icon): white sheet with a
+            // hairline edge, so the tiny text isn't floating on the canvas.
             .background(Color(.textBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5)
+            )
             .allowsHitTesting(false)
     }
 }
