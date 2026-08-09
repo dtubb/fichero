@@ -93,8 +93,9 @@ extension EmbeddedBackendService {
     /// The old fixed budget made the app race its own engine, and whoever won
     /// decided whether the user saw the app or a failure gate. The engine's cold
     /// start is not something the app can predict, so it stopped guessing.
-    // Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
-    // in the Lifecycle extension file.
+    ///
+    /// Promoted from `private` to internal: called by spawnAndAdoptEmbeddedEngine
+    /// in the Lifecycle extension file.
     func waitForSpawnedBackend() async throws {
         // The engine's own startup, as one bar in Instruments. `defer` closes it
         // on every exit, so a launch that fails still renders a bar that ends
@@ -213,8 +214,9 @@ extension EmbeddedBackendService {
     /// remote host, a dev-run uvicorn, an adopted engine on :8765. There is no
     /// child there, so a timeout is the only honest bound. The engine we spawn
     /// uses `waitForSpawnedBackend()` instead (#3930).
-    // Promoted from `private` to internal: called by the adopt* / spawn methods
-    // in the Lifecycle extension file.
+    ///
+    /// Promoted from `private` to internal: called by the adopt* / spawn methods
+    /// in the Lifecycle extension file.
     func waitForBackend(timeout: TimeInterval) async throws {
         let startTime = Date()
         // Poll aggressively at first (100ms) so we catch the backend as soon as
