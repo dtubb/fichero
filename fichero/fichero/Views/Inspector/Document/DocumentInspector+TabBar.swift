@@ -38,17 +38,38 @@ extension DocumentInspector {
         let section = Self.section(for: tab, in: doc)
         let facets = facets(in: section, for: doc)
         if facets.count > 1 {
-            Picker("Facet", selection: facetSelection) {
-                ForEach(facets) { facet in
-                    Text(facet.rawValue).tag(facet)
-                }
+            // Width-adaptive (Daniel, 2026-08-09: "the tabs of the document
+            // inspector knowledge tabs are too long so that if the inspector
+            // is too narrow they're cut off"): full labels when they fit,
+            // otherwise Xcode's degrade-to-icons — never clipped text. The
+            // icon variant keeps the labels reachable via per-segment .help.
+            ViewThatFits(in: .horizontal) {
+                facetSegments(facets, iconOnly: false)
+                facetSegments(facets, iconOnly: true)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             .padding(.horizontal, 8)
             .padding(.bottom, 6)
             .accessibilityIdentifier("inspectorFacetPicker")
         }
+    }
+
+    /// One segmented facet picker, in label or icon form. Icons come from the
+    /// same InspectorTab.icon ladder the section bar reads.
+    private func facetSegments(_ facets: [InspectorTab], iconOnly: Bool) -> some View {
+        Picker("Facet", selection: facetSelection) {
+            ForEach(facets) { facet in
+                if iconOnly {
+                    Image(systemName: facet.icon)
+                        .help(facet.rawValue)
+                        .accessibilityLabel(facet.rawValue)
+                        .tag(facet)
+                } else {
+                    Text(facet.rawValue).tag(facet)
+                }
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
     }
 
     private var facetSelection: Binding<InspectorTab> {
