@@ -59,8 +59,12 @@ extension SidebarView {
         // Finder's grey material, focused or not; the experiment is to let
         // it be. Row content colors (accent name/icon when selected) are set
         // explicitly in SidebarItemRow+Label via rowContentColor.
+        // NO background override either (Daniel, 2026-08-08: "get sidebar
+        // background color like Finder, the gray"): `.background(.bar)`
+        // painted the column with the light bar material, replacing the
+        // split view's own translucent sidebar material — which IS Finder's
+        // grey. Hide the scroll content's white and let the column show.
         .scrollContentBackground(.hidden)
-        .background(.bar)
         #if os(macOS)
         // Finder-style double-click: open the primary selected row in a new
         // tab or window (#2496), mirroring the library table's container-level
