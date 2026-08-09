@@ -138,12 +138,21 @@ struct LibraryOutlineNode: Identifiable, Hashable {
         LibraryOutlineNode(kind: .claimItem(claim), document: parent, count: 0, children: nil)
     }
 
-    /// Native outline disclosure rule: document rows always expand; aggregate
-    /// child groups expand only once real children have materialized.
+    /// Native outline disclosure rule (Daniel, 2026-08-09: 'I only want to
+    /// have the disclosure triangle on an item if it has artifacts'): a
+    /// document row shows the chevron only when there is something to
+    /// disclose — materialized child groups, or known children (pages /
+    /// folder contents, childCount). Aggregate child groups expand only once
+    /// real children have materialized.
+    ///
+    /// ponytail: a document whose ONLY disclosable content is lazily-loaded
+    /// artifacts (childCount 0, rollup not yet fetched) shows no chevron
+    /// until its rollup lands — truthful for everything the row model can
+    /// see; an engine-side artifact count on the listing row is the upgrade.
     var canExpand: Bool {
         switch kind {
         case .document:
-            return true
+            return !(children?.isEmpty ?? true) || document.childCount > 0
         case .childGroup:
             return !(children?.isEmpty ?? true)
         case .pageItem, .artifactItem, .entityItem, .claimItem:
