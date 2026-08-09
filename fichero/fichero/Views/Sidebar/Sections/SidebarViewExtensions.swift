@@ -117,8 +117,17 @@ extension View {
     /// the bottom toolbar strip does not — so the bottom row stayed painted over
     /// the content column after collapse. The column min lives in ONE place now;
     /// `.clipped()` on the column content is the belt-and-braces guard.
-    func sidebarStyle() -> some View {
-        self
+    /// Returns `AnyView` DELIBERATELY (Daniel's live crash, 2026-08-08:
+    /// EXC_BAD_ACCESS with recursive `initializeWithCopy` frames bottoming
+    /// out here): the sidebar's fully-composed concrete type (nested
+    /// ExclusiveGestures, command modifiers, row platters) grew deep enough
+    /// that SwiftUI's value-witness COPY of it overflowed the stack — the
+    /// #4331 class, where the AnyView erasures are load-bearing, now on
+    /// macOS. Erasing at this boundary caps the copied type's depth; the
+    /// diffing cost of one AnyView at the column root is the price of not
+    /// crashing. Do not "simplify" this back to `some View`.
+    func sidebarStyle() -> AnyView {
+        AnyView(self)
     }
 }
 
