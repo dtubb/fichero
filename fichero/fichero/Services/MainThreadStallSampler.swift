@@ -1,5 +1,49 @@
+import Darwin
 import Foundation
 import os
+
+// MARK: - Mid-stall main-thread backtrace (Daniel, 2026-08-08: "our stall
+// sampler should tell us WHERE it's happening, not just that it's happening")
+//
+// The watcher thread cannot read another thread's stack from Swift, so when a
+// ping is overdue it sends the MAIN thread SIGPROF; the handler — running ON
+// the stalled main thread, interrupting whatever is blocking it — records raw
+// return addresses into a preallocated buffer, and the watcher symbolicates
+// them after the stall completes. `backtrace` is the standard practice for
+// debug samplers even though it is not on the paper async-signal-safe list;
+// this whole file is DEBUG tooling behind FICHERO_STALL_LOG=1 and never ships
+// enabled. The signal can surface as EINTR in main-thread syscalls — one more
+// reason this stays env-gated.
+
+private let stallBacktraceMax = 64
+// nonisolated(unsafe) DELIBERATELY: a signal handler cannot take locks or
+// actors. One writer (the handler, on the stalled main thread) and one reader
+// (the watcher, which waits on `stallBacktraceReady` before touching the
+// buffer); plain Int32/pointer stores are single-copy atomic on arm64. Debug
+// tooling behind FICHERO_STALL_LOG=1.
+private nonisolated(unsafe) var stallBacktraceBuffer =
+    [UnsafeMutableRawPointer?](repeating: nil, count: stallBacktraceMax)
+private nonisolated(unsafe) var stallBacktraceCount: Int32 = 0
+/// 0 = idle, 1 = handler finished writing the buffer.
+private nonisolated(unsafe) var stallBacktraceReady: Int32 = 0
+
+@_silgen_name("backtrace")
+private func ficheroBacktrace(
+    _ buffer: UnsafeMutablePointer<UnsafeMutableRawPointer?>, _ size: Int32
+) -> Int32
+
+@_silgen_name("backtrace_symbols")
+private func ficheroBacktraceSymbols(
+    _ buffer: UnsafePointer<UnsafeMutableRawPointer?>, _ size: Int32
+) -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+
+private func stallSignalHandler(_ signal: Int32) {
+    stallBacktraceCount = stallBacktraceBuffer.withUnsafeMutableBufferPointer { buf in
+        guard let base = buf.baseAddress else { return 0 }
+        return ficheroBacktrace(base, Int32(stallBacktraceMax))
+    }
+    stallBacktraceReady = 1
+}
 
 /// In-app main-thread stall measurement — Instruments made optional (#4550).
 ///
@@ -54,6 +98,11 @@ final class MainThreadStallSampler: @unchecked Sendable {
     private func start() {
         guard !running else { return }
         running = true
+        // Called from applicationDidFinishLaunching — ON the main thread —
+        // so this pthread_self IS the main thread, the SIGPROF target.
+        assert(Thread.isMainThread, "start() must run on main to capture its pthread")
+        mainPthread = pthread_self()
+        signal(SIGPROF, stallSignalHandler)
         openLog()
         let thread = Thread { [weak self] in self?.sampleLoop() }
         thread.name = "fichero.stall-sampler"
@@ -94,24 +143,68 @@ final class MainThreadStallSampler: @unchecked Sendable {
         }
     }
 
+    /// The main thread's pthread, captured in `start()` (which runs in
+    /// `applicationDidFinishLaunching`, on main) — the SIGPROF target.
+    private var mainPthread: pthread_t?
+
     private func sampleLoop() {
         while running {
             let pinged = Date()
             let done = DispatchSemaphore(value: 0)
             DispatchQueue.main.async { done.signal() }
-            done.wait()
+            var frames: [String] = []
+            if done.wait(timeout: .now() + Self.stallThreshold) == .timedOut {
+                // The stall is IN PROGRESS — sample the main thread now,
+                // mid-stall, so the log names the culprit (Daniel,
+                // 2026-08-08), then wait out the remainder to measure the
+                // full duration.
+                frames = captureMainThreadBacktrace()
+                done.wait()
+            }
             let latency = Date().timeIntervalSince(pinged)
             if latency > Self.stallThreshold {
-                record(latency: latency, at: pinged)
+                record(latency: latency, at: pinged, frames: frames)
             }
             Thread.sleep(forTimeInterval: Self.pingInterval)
         }
     }
 
-    private func record(latency: TimeInterval, at date: Date) {
-        let line = Self.stallLine(date: date, duration: latency) + "\n"
-        logHandle?.write(Data(line.utf8))
+    private func captureMainThreadBacktrace() -> [String] {
+        guard let mainPthread else { return [] }
+        stallBacktraceReady = 0
+        guard pthread_kill(mainPthread, SIGPROF) == 0 else { return [] }
+        var spins = 0
+        while stallBacktraceReady == 0 && spins < 2000 {  // ≤200ms
+            usleep(100)
+            spins += 1
+        }
+        guard stallBacktraceReady == 1, stallBacktraceCount > 0 else { return [] }
+        let count = stallBacktraceCount
+        guard let symbols = stallBacktraceBuffer.withUnsafeBufferPointer({ buf -> UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>? in
+            guard let base = buf.baseAddress else { return nil }
+            return ficheroBacktraceSymbols(base, count)
+        }) else { return [] }
+        defer { free(symbols) }
+        var lines: [String] = []
+        for index in 0..<Int(count) {
+            guard let cString = symbols[index] else { continue }
+            lines.append(String(cString: cString))
+        }
+        // The app's own frames are the answer; keep system frames only when
+        // nothing else survives (a pure-AppKit stall is still an answer).
+        let appFrames = lines.filter { $0.contains("Fichero") }
+        return Array((appFrames.isEmpty ? lines : appFrames).prefix(12))
+    }
+
+    private func record(latency: TimeInterval, at date: Date, frames: [String] = []) {
+        var block = Self.stallLine(date: date, duration: latency) + "\n"
+        // Frame lines are indented so the ratchet's ^STALL parser skips them.
+        for frame in frames {
+            block += "  \(frame)\n"
+        }
+        logHandle?.write(Data(block.utf8))
         // Mirror to unified logging so `log stream` shows stalls live.
-        logger.warning("main-thread stall: \(Int(latency * 1000))ms")
+        let top = frames.first.map { " — \($0)" } ?? ""
+        logger.warning("main-thread stall: \(Int(latency * 1000))ms\(top)")
     }
 }
