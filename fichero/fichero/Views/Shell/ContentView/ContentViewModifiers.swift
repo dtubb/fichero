@@ -185,6 +185,11 @@ struct MainContentModifiers: ViewModifier {
     @State private var selectionLoadTask: Task<Void, Never>?
 
     let handleDocumentChange: (DocumentChange) -> Void
+    /// True while the SIDEBAR holds a multi-selection (2026-08-09 scoping):
+    /// the multi-scope handler owns currentDocuments then, and the
+    /// single-selection navigate path below must stand down or it stomps
+    /// the scoped set with the primary's children.
+    let isSidebarMultiSelect: () -> Bool
 
     func body(content: Content) -> some View {
         content
@@ -288,6 +293,10 @@ struct MainContentModifiers: ViewModifier {
         // one definition of "container." Everything else (plain files) shows
         // as a single item in the gallery.
         if case .library(let doc) = newMode, let document = doc {
+            guard !isSidebarMultiSelect() else {
+                logger.info("Sidebar multi-selection active — the scope handler owns the library set")
+                return
+            }
             if document.isNavigableContainer {
                 logger.info("Loading children for container: \(document.name) (id: \(document.id))")
                 selectionLoadTask?.cancel()

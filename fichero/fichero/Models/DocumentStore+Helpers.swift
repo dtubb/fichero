@@ -349,6 +349,18 @@ extension DocumentStore {
     /// `updateProcessingStatus`, independent of any container) plus every
     /// live container including `childrenCache`, where sidebar child rows
     /// actually live.
+    /// Resolve a document id against everything loaded — the grid, the
+    /// collections, and the sidebar children cache (2026-08-09, the sidebar
+    /// multi-scope's lookup). Nil = not loaded anywhere; the caller fetches.
+    func resolveDocument(_ documentId: String) -> Document? {
+        if let doc = currentDocuments.first(where: { $0.id == documentId }) { return doc }
+        if let doc = collections.first(where: { $0.id == documentId }) { return doc }
+        for kids in childrenCache.values {
+            if let doc = kids.first(where: { $0.id == documentId }) { return doc }
+        }
+        return nil
+    }
+
     func isDocumentBusy(_ documentId: String) -> Bool {
         // One set-membership test against the dirty-flagged processing index
         // (2026-08-09): the previous linear scans over currentDocuments +

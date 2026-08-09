@@ -299,6 +299,12 @@ extension ContentView {
     @ViewBuilder
     private var decoratedNavigationSplitColumn: some View {
         navigationSplitColumn
+            // Multi-selection scoping (2026-08-09): registered BEFORE the
+            // single-id handler so a shrink-to-one still lets the navigate
+            // path run after the scope check declines it.
+            .onChange(of: sidebarSelectionState.selectedDestinations) { _, newDestinations in
+                handleSidebarMultiSelectionChange(newDestinations)
+            }
             .onChange(of: sidebarSelectionState.selectedItemId) { _, newFolderId in
                 selectedSidebarItemId = newFolderId
                 handleSidebarSelectionChange(newFolderId)
@@ -417,7 +423,8 @@ extension ContentView {
                     isImporting: $isImporting,
                     importProgress: $importProgress,
                     importError: $importError,
-                    handleDocumentChange: handleDocumentChange
+                    handleDocumentChange: handleDocumentChange,
+                    isSidebarMultiSelect: { sidebarSelectionState.selectedDestinations.count > 1 }
                 )
             )
     }
