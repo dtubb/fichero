@@ -1906,7 +1906,7 @@ def _write_joined_page_content(
     indices_by_doc: dict[str, list[int]],
     texts: list,
     library_path: str,
-) -> None:
+) -> list[str]:
     """Write ONE page_content per fan-in document: its texts, joined in order.
 
     Called after the per-file fan-out has completed, which is the only place the
@@ -1917,17 +1917,28 @@ def _write_joined_page_content(
     all saved correctly. It logs loudly rather than silently, because a page
     that keeps its old text after a successful run is exactly the kind of
     quiet wrongness this whole change exists to remove.
+
+    RETURNS the failures so the caller can surface them. Logging alone was not
+    enough: the caller folds these into its ``error`` field, so a run whose
+    transcription never reached the page reports that instead of appearing to
+    have succeeded. A log line nobody reads is the same silence in a longer
+    form — and the swallowed-exception seam is right to call it one.
     """
     from fichero_server.core.timeutil import utc_now
     from fichero_server.db import db_manager
     from fichero_server.models import Document, Status
     from fichero_server.workflows.curation_guard import page_content_is_user_edited
 
+    failures: list[str] = []
+
     try:
         db = db_manager.get_database(library_path)
-    except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+    except Exception as exc:  # noqa: BLE001 - reported to the caller, never swallowed
         logger.error("Could not open library to write joined page content: %s", exc)
-        return
+        return [
+            f"transcription not written to {len(indices_by_doc)} page(s): "
+            f"could not open the library ({exc})"
+        ]
 
     for doc_id, indices in indices_by_doc.items():
         # Index order IS tile order. Empty pieces are dropped so a strip that
@@ -1949,6 +1960,9 @@ def _write_joined_page_content(
                     doc_id,
                     len(pieces),
                 )
+                failures.append(
+                    f"transcription not written to {doc_id}: the document no longer exists"
+                )
                 continue
             if not isinstance(doc.metadata, dict):
                 doc.metadata = {}
@@ -1967,8 +1981,11 @@ def _write_joined_page_content(
                 len(pieces),
                 len(joined),
             )
-        except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+        except Exception as exc:  # noqa: BLE001 - reported to the caller, never swallowed
             logger.error("Could not write joined page content for %s: %s", doc_id, exc)
+            failures.append(f"transcription not written to {doc_id}: {exc}")
+
+    return failures
 
 
 async def process_vision(
@@ -3350,8 +3367,9 @@ async def process_vision(
     # The deferred page-content write for fan-in documents — see the note where
     # `_fan_in_indices_by_doc` is built. One write per document, joining its
     # files' texts in FILE ORDER, which is the order the tiles were cut in.
+    _join_failures: list[str] = []
     if _fan_in_indices_by_doc and library_path and save_to_db:
-        _write_joined_page_content(
+        _join_failures = _write_joined_page_content(
             indices_by_doc=_fan_in_indices_by_doc,
             texts=texts,
             library_path=library_path,
@@ -3365,6 +3383,14 @@ async def process_vision(
             error_msg = errors[0]
         else:
             error_msg = f"{len(errors)}/{len(files)} failed: {errors[0]}"
+
+    # A page whose transcription never reached the database is a FAILED run, even
+    # when every file was read successfully — the visible outcome is a page that
+    # kept its old text. Kept separate from the per-file count above so the
+    # "N/M failed" arithmetic still describes files, not writes.
+    if _join_failures:
+        joined = "; ".join(_join_failures)
+        error_msg = f"{error_msg}; {joined}" if error_msg else joined
 
     # For single file, return the value directly; for multiple, return list
     single_value = values[0] if len(values) == 1 else values

@@ -126,6 +126,7 @@ loaders/xmp_loader.py::_parse_xmp_file 1
 mcp/manager.py::MCPManager.load_all_tools 1
 security/keychain.py::_invalidate_llm_api_key_cache 1
 security/path_security.py::configured_library_allowed_roots 1
+security/provider_keys.py::_invalidate_llm_cache 1
 workflows/activity.py::ActivityTracker._save_activity 1
 workflows/activity.py::_recover_stale_runs_bg 1
 workflows/activity.py::_settle_recovered_run_documents 1
