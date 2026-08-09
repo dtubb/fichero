@@ -21,9 +21,10 @@ extension ContentView {
                 Divider()
             }
             centerContent
-            if horizontalSizeClass != .compact {
-                detailStatusPathBar
-            }
+            // NO window-wide status bar any more (Daniel #106-108,
+            // 2026-08-09: "we want the status bar just on the library") —
+            // the Finder-style path + status rows live in LibraryView's
+            // bottom inset, scoped to that pane. See LibraryPathStatusBar.
         }
         .background(Color(platformColor: .textBackgroundColor))
         // Keep every library/preview/reader combination inside the detail
@@ -60,25 +61,9 @@ extension ContentView {
         .background(.bar)
     }
 
-    /// Finder-style status bar: WHAT is selected (name or "N items selected"),
-    /// never the path — the path lives only in the toolbar's principal
-    /// breadcrumb. The dedicated location path bar and the pane breadcrumb
-    /// strip were two of FOUR in-window copies of the same path; retired
-    /// (#4102 dedupe).
-    private var detailStatusPathBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 8) {
-                Text(selectionStatusText)
-                    .font(.caption)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 24)
-            .background(.bar)
-        }
-    }
+    // detailStatusPathBar is RETIRED (Daniel #106-108) — see the comment at
+    // its old mount above. selectionStatusText remains in StateDisplay for
+    // the toolbar/other readers.
 
     /// The document-canvas pane of the widescreen reading layout — a PDF page
     /// viewer when a PDF is active, otherwise the image/preview editor. Carries

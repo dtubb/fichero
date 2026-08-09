@@ -779,7 +779,31 @@ extension LibraryView {
                 filterBarView
             }
             libraryBottomActionBar
+            // Finder's path bar + status line, scoped to THIS pane (Daniel
+            // #106-108: "we want the status bar just on the library" — the
+            // old window-wide detailStatusPathBar spanned every pane).
+            LibraryPathStatusBar(
+                crumbs: libraryPathCrumbs(
+                    anchorId: pathBarAnchorId,
+                    resolve: { documentStore.resolveDocument($0) }
+                ),
+                statusText: libraryStatusText(
+                    selectionCount: selection.count,
+                    itemCount: isShowingEntitiesCollection
+                        ? filteredEntities.count : filteredDocuments.count
+                ),
+                onNavigate: { doc in onNavigateInto(doc) }
+            )
         }
+    }
+
+    /// What the path bar's trailing crumb anchors on: the document-order
+    /// primary selection when there is one, else the browsed folder.
+    /// `folderId` is the sidebar item id, which prefixes documents "doc:".
+    private var pathBarAnchorId: String? {
+        if let primary = orderedPrimarySelectionId { return primary }
+        guard let folderId else { return nil }
+        return folderId.hasPrefix("doc:") ? String(folderId.dropFirst(4)) : folderId
     }
 }
 // MARK: - Spatial projection
