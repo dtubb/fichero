@@ -123,6 +123,14 @@ struct DocumentThumbnailView: View {
             // otherwise grows to its largest child's intrinsic size.
             .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            // Finder's icon-view selection, half one (Daniel's screenshot,
+            // 2026-08-08, #4563): a grey rounded backdrop behind the ICON —
+            // never a wash over the whole tile.
+            .padding(3)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
+            )
 
             // PDF page children label by page number (prefer extracted
             // page_label once #2080 lands), never their internal id/filename.
@@ -149,21 +157,25 @@ struct DocumentThumbnailView: View {
                     .lineLimit(2, reservesSpace: true)
                     .truncationMode(.middle)
                     .multilineTextAlignment(.center)
-                    .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
+                    // Finder's icon-view selection, half two (Daniel's
+                    // screenshot, 2026-08-08, #4563): the NAME gets the
+                    // accent pill with white text when the pane is key,
+                    // grey pill when it isn't (effectiveSelectedTint
+                    // already encodes that switch).
+                    .foregroundColor(isSelected ? .white : .primary)
+                    .padding(.horizontal, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(isSelected ? effectiveSelectedTint : Color.clear)
+                    )
                     // Middle-truncated labels reveal in full on hover (#4160).
                     .help(DocumentTitle.displayName(for: document))
             }
         }
         .frame(width: 100 * scale)
         .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                // Mail-style selection (#4191): constant subtle grey fill in
-                // every pane state; focus is signalled by the accent label
-                // (effectiveSelectedTint) — replaces the #3875 accent wash
-                // and the selected-well accent stroke.
-                .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
-        )
+        // No whole-tile wash: Finder highlights the icon and the name pill,
+        // never the tile (replaces the #4191 grey tile fill).
         // VoiceOver reads one coherent tile (#4160), same shape as list rows.
         .accessibilityElement(children: .combine)
         .accessibilityLabel(tileAccessibilityLabel)
@@ -287,6 +299,14 @@ struct EntityThumbnailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            // Finder's icon-view selection (Daniel's screenshot, 2026-08-08,
+            // #4563): grey backdrop behind the ICON — see
+            // DocumentThumbnailView.
+            .padding(3)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
+            )
 
             VStack(spacing: 2) {
                 Text(entity.canonicalName)
@@ -296,7 +316,14 @@ struct EntityThumbnailView: View {
                     .lineLimit(2, reservesSpace: true)
                     .truncationMode(.tail)
                     .multilineTextAlignment(.center)
-                .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
+                    // Finder's name pill — white on accent when key, white on
+                    // grey when not; see DocumentThumbnailView.
+                    .foregroundColor(isSelected ? .white : .primary)
+                    .padding(.horizontal, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(isSelected ? effectiveSelectedTint : Color.clear)
+                    )
 
                 Text(secondaryText)
                     .font(.caption2)
@@ -307,14 +334,8 @@ struct EntityThumbnailView: View {
         }
         .frame(width: 100 * scale)
         .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                // Mail-style selection (#4191): constant subtle grey fill in
-                // every pane state; focus is signalled by the accent label
-                // (effectiveSelectedTint) — replaces the #3875 accent wash
-                // and the selected-well accent stroke.
-                .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
-        )
+        // No whole-tile wash: Finder highlights the icon and the name pill,
+        // never the tile (replaces the #4191 grey tile fill).
         // VoiceOver: one coherent tile, same shape as document tiles (#4160).
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(entity.canonicalName), \(kindStyle.label)")
