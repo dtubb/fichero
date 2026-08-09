@@ -34,8 +34,10 @@ struct MultiSelectionPreviewStack: View {
 
     /// Finder fans at most a few cards; the count line carries the rest.
     private static let maxCards = 3
-    private static let cardWidth: CGFloat = 160
-    private static let cardHeight: CGFloat = 200
+    // Larger cards (Daniel, 2026-08-09, #112: "The preview icon can be
+    // larger as well") — the fan is the pane's whole content, let it read.
+    private static let cardWidth: CGFloat = 240
+    private static let cardHeight: CGFloat = 300
 
     var body: some View {
         VStack(spacing: 20) {

@@ -143,8 +143,12 @@ struct LibraryListModeGuardTests {
         #expect(!components.contains(".lineLimit(4)"))
         #expect(!components.contains(".lineLimit(3)"))
 
+        // Tile labels: the density cap lives in a fixed-height frame OUTSIDE
+        // the name pill (2026-08-09 — a reserved line INSIDE the text made
+        // the pill wrap dead space and one-line names sit high in the green).
         let tiles = try appSource("Views/Library/LibraryThumbnailViews.swift")
-        #expect(tiles.contains(".lineLimit(2, reservesSpace: true)"))
+        #expect(tiles.contains("labelBlockHeight"))
+        #expect(tiles.contains(".frame(height: Self.labelBlockHeight * scale, alignment: .top)"))
     }
 
     @Test("list rows support inline rename via the shared editable name")

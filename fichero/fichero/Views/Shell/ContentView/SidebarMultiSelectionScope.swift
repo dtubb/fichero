@@ -18,10 +18,12 @@ func sidebarScopeDocumentIds(_ destinations: Set<SidebarDestination>) -> [String
     }.sorted()
 }
 
-/// Daniel's composition rule: ALL PDFs → the union of their pages; anything
-/// mixed → the selected documents themselves.
-func sidebarScopeShowsPages(_ docs: [Document]) -> Bool {
-    !docs.isEmpty && docs.allSatisfy { $0.fileType == .pdf }
+/// Daniel's composition rule (#114/#115, 2026-08-09 — supersedes the all-PDF
+/// gate): EVERY selected PDF expands to its pages; everything else shows as
+/// itself. Adding one image to five PDFs must not collapse the pages back to
+/// document icons.
+func sidebarScopeExpandsToPages(_ docs: [Document]) -> Bool {
+    docs.contains { $0.fileType == .pdf && $0.docType != .page }
 }
 
 extension ContentView {
@@ -45,20 +47,27 @@ extension ContentView {
             // The selection may have moved while we fetched — never apply a
             // stale scope over a newer one.
             guard sidebarScopeDocumentIds(sidebarSelectionState.selectedDestinations) == ids else { return }
-            if sidebarScopeShowsPages(docs) {
-                var pages: [Document] = []
+            var shown: [Document] = []
+            if sidebarScopeExpandsToPages(docs) {
+                // Per-document expansion (#114/#115): each PDF contributes its
+                // pages (itself when it has none yet — unprocessed PDFs must
+                // not vanish); every non-PDF contributes itself, so a mixed
+                // PDFs+image selection shows pages AND the image.
                 for doc in docs {
-                    pages += await documentStore.cacheSidebarChildren(of: doc)
-                        .filter { $0.docType == .page }
+                    if doc.fileType == .pdf, doc.docType != .page {
+                        let pages = await documentStore.cacheSidebarChildren(of: doc)
+                            .filter { $0.docType == .page }
+                        shown += pages.isEmpty ? [doc] : pages
+                    } else {
+                        shown.append(doc)
+                    }
                 }
-                if !pages.isEmpty {
-                    documentStore.currentDocuments = documentStore.applyStatusOverrides(pages)
-                    return
-                }
-                // No page children anywhere (unprocessed PDFs) — fall through
-                // to showing the PDFs themselves rather than an empty grid.
+                // Re-check again — the page fetches awaited too.
+                guard sidebarScopeDocumentIds(sidebarSelectionState.selectedDestinations) == ids else { return }
+            } else {
+                shown = docs
             }
-            documentStore.currentDocuments = documentStore.applyStatusOverrides(docs)
+            documentStore.currentDocuments = documentStore.applyStatusOverrides(shown)
         }
     }
 }

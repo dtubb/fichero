@@ -25,6 +25,9 @@ struct DocumentThumbnailView: View {
     static let wellHeight: CGFloat = wellWidth
     /// The inset that makes the thumbnail 'a bit smaller' inside the well.
     static let wellContentInset: CGFloat = 10
+    /// Two callout lines — the #4191 uniform-tile reservation, held by an
+    /// outer frame so the name pill can hug the actual text (2026-08-09).
+    static let labelBlockHeight: CGFloat = 38
 
     #if os(macOS)
     @Environment(\.controlActiveState) private var controlActiveState
@@ -77,6 +80,19 @@ struct DocumentThumbnailView: View {
                         .symbolVariant(.fill)
                         .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
                         .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
+                        // Folders stack like PDFs do (Daniel, 2026-08-09:
+                        // "folders should work the same way") — sheets peek
+                        // out behind a fuller folder.
+                        .background {
+                            if document.docType == .folder,
+                               stackSheetCount(forChildCount: document.childCount) > 0 {
+                                PDFStackSheets(
+                                    scale: scale * 0.7,
+                                    count: stackSheetCount(forChildCount: document.childCount)
+                                )
+                                .padding(8 * scale)
+                            }
+                        }
                 } else if document.fileType == .image {
                     // Scale-to-FIT (#4197, the user 2026-07-28): show the whole
                     // page letterboxed in the well; cropping a landscape
@@ -94,6 +110,11 @@ struct DocumentThumbnailView: View {
                             height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
                         )
                         .clipped()
+                        // Finder's light thumbnail edge (Daniel #119).
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 3)
+                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                        )
                 } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
                     // Text-preview thumbnail (#625) is only for genuinely text
                     // documents (JSON/plain text) with no page image. A PDF page
@@ -121,6 +142,35 @@ struct DocumentThumbnailView: View {
                             height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
                         )
                         .clipped()
+                        // A multi-page PDF reads as a STACK, not one loose
+                        // page (Daniel, 2026-08-09: "make it so the PDF icons
+                        // are stacked") — sheets behind the cover, MORE of
+                        // them for bigger documents ("a 500 page pdf is
+                        // larger than a 2 page pdf").
+                        // Finder's light thumbnail edge (Daniel #119): a
+                        // hairline squircle outline so pale scans don't
+                        // dissolve into the canvas.
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 3)
+                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                        )
+                        .background {
+                            if document.fileType == .pdf, document.docType != .page,
+                               stackSheetCount(forChildCount: document.childCount) > 0 {
+                                PDFStackSheets(
+                                    scale: scale,
+                                    count: stackSheetCount(forChildCount: document.childCount)
+                                )
+                            }
+                        }
+                        // Re-center the composition (Daniel #119: "not quite
+                        // centred"): the sheets fan up-right, so the cover
+                        // shifts down-left by half the deepest sheet offset
+                        // and the GROUP sits centered in the well.
+                        .offset(
+                            x: -1.5 * CGFloat(stackSheetCount(forChildCount: document.childCount)) * scale,
+                            y: 1.5 * CGFloat(stackSheetCount(forChildCount: document.childCount)) * scale
+                        )
                 }
 
                 VStack {
@@ -173,10 +223,13 @@ struct DocumentThumbnailView: View {
                     // .callout, not .caption (Daniel, 2026-08-09: "name font
                     // size for icon is too small") — Finder's icon label size.
                     .font(.callout)
-                    // Fixed two-line label (#4191 density cap): short and
-                    // long names produce identical tile heights, so the grid
-                    // never re-pitches between rows.
-                    .lineLimit(2, reservesSpace: true)
+                    // lineLimit WITHOUT reservesSpace here (Daniel,
+                    // 2026-08-09: "text should be centred with the green" —
+                    // the reserved empty second line lived INSIDE the text
+                    // frame, so the pill wrapped it and one-line names sat
+                    // high with dead pill below). The density cap moves to
+                    // the fixed-height frame OUTSIDE the pill instead.
+                    .lineLimit(2)
                     .truncationMode(.middle)
                     .multilineTextAlignment(.center)
                     // Finder's icon-view selection, half two (Daniel's
@@ -186,6 +239,7 @@ struct DocumentThumbnailView: View {
                     // already encodes that switch).
                     .foregroundColor(isSelected ? .white : .primary)
                     .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
                     .background(
                         // ACCENT pill whenever selected (Daniel's Finder
                         // screenshots, 2026-08-09: the label pill is the
@@ -195,6 +249,10 @@ struct DocumentThumbnailView: View {
                         RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
                             .fill(isSelected ? Color.accentColor : Color.clear)
                     )
+                    // The #4191 density cap, now OUTSIDE the pill: every tile
+                    // reserves the same two-line block whether the name uses
+                    // one line or two, and the pill hugs the actual text.
+                    .frame(height: Self.labelBlockHeight * scale, alignment: .top)
                     // Middle-truncated labels reveal in full on hover (#4160).
                     .help(DocumentTitle.displayName(for: document))
             }
@@ -240,9 +298,11 @@ struct DocumentThumbnailView: View {
                 .background(.ultraThinMaterial)
                 .cornerRadius(4)
         case .completed:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .font(.caption)
+            // NO green done-check (Daniel, 2026-08-09): "it's not clear that
+            // it means anything… we want things are operating or there are
+            // errors." Activity and failure stay; quiet success is quiet.
+            // FUTURE: togglable per-icon workflow-metadata overlays.
+            EmptyView()
         case .failed:
             Image(systemName: "xmark.circle.fill")
                 .foregroundColor(.red)
@@ -338,19 +398,22 @@ struct EntityThumbnailView: View {
             VStack(spacing: 2) {
                 Text(entity.canonicalName)
                     .font(.caption)
-                    // Fixed two-line label (#4191 density cap) — see
-                    // DocumentThumbnailView.
-                    .lineLimit(2, reservesSpace: true)
+                    // Reservation OUTSIDE the pill (2026-08-09) — same fix as
+                    // DocumentThumbnailView: the pill must hug the text, not
+                    // the reserved empty second line.
+                    .lineLimit(2)
                     .truncationMode(.tail)
                     .multilineTextAlignment(.center)
                     // Finder's name pill — accent + white whenever selected;
                     // see DocumentThumbnailView.
                     .foregroundColor(isSelected ? .white : .primary)
                     .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
                     .background(
                         RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
                             .fill(isSelected ? Color.accentColor : Color.clear)
                     )
+                    .frame(height: 30, alignment: .top)
 
                 Text(secondaryText)
                     .font(.caption2)

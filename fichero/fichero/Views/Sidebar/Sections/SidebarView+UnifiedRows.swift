@@ -73,7 +73,7 @@ extension SidebarView {
             // erasure (see sidebarRowTypeErased(): the per-item value-witness
             // copy of the composed row overflowed the stack, 2026-08-08
             // night crashes #2/#3 — load-bearing).
-            let sel = { (i: SidebarItem) in selectionState.selectedDestinations.contains(i.destination) }
+            let sel = { (row: SidebarItem) in selectionState.selectedDestinations.contains(row.destination) }
             unifiedRow(
                 for: item,
                 mergeAbove: sel(item) && index > 0 && sel(items[index - 1]),
