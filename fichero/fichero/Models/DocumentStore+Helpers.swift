@@ -388,6 +388,31 @@ extension DocumentStore {
     /// Children are unioned by id across the grid and the sidebar cache: the
     /// same child can appear in both, and counting it twice would report more
     /// work in flight than exists.
+    /// Every document the sidebar knows — roots plus all cached children,
+    /// deduplicated by id.
+    ///
+    /// MEMOIZED (2026-08-09 stall log): rebuilding this union copied every
+    /// Document on EVERY access and hit 1747ms on the main thread resolving
+    /// one context menu. Keyed on (revision, cache shape) like the
+    /// childActivityCounts memo below. ponytail: a same-count in-place child
+    /// swap that skips the revision bump serves one stale read — splices and
+    /// loads bump revision, so in practice the key always moves; a structure
+    /// token on every childrenCache write is the upgrade if that ever bites.
+    var sidebarDocuments: [Document] {
+        let key = SidebarDocumentsMemoKey(
+            revision: revision,
+            roots: collections.count,
+            parents: childrenCache.count,
+            children: childrenCache.reduce(into: 0) { $0 += $1.value.count }
+        )
+        if let memo = sidebarDocumentsMemo, memo.key == key { return memo.docs }
+        var seen = Set<String>()
+        let docs = (collections + childrenCache.values.flatMap { $0 })
+            .filter { seen.insert($0.id).inserted }
+        sidebarDocumentsMemo = (key, docs)
+        return docs
+    }
+
     func childActivityCounts(of parentId: String) -> (busy: Int, total: Int) {
         // Memoized per (revision, overrides-token) — this ran O(all documents)
         // per FOLDER ROW per render and stalled the main thread for 231ms in

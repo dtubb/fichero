@@ -281,10 +281,12 @@ final class DocumentStore {
     }
     // MARK: - Loading Collections
 
-    var sidebarDocuments: [Document] {
-        var seen = Set<String>()
-        return (collections + childrenCache.values.flatMap { $0 }).filter { seen.insert($0.id).inserted }
-    }
+    /// Cache for `sidebarDocuments` (computed in DocumentStore+Helpers).
+    /// @ObservationIgnored — it is a memo, and tracking it would re-render
+    /// observers for a bookkeeping write. Stored here because @Observable
+    /// classes keep stored properties in the main declaration.
+    @ObservationIgnored
+    var sidebarDocumentsMemo: (key: SidebarDocumentsMemoKey, docs: [Document])?
 
     /// The ordering currently requested from the listing routes (#3322).
     ///
@@ -538,4 +540,12 @@ extension DocumentStore {
         store.collections = []
         return store
     }
+}
+
+/// Invalidation key for the `sidebarDocuments` memo (2026-08-09 stall log).
+struct SidebarDocumentsMemoKey: Equatable {
+    let revision: Int
+    let roots: Int
+    let parents: Int
+    let children: Int
 }
