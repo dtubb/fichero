@@ -1007,6 +1007,33 @@ class Database(DatabaseEmbeddingMixin):
         """Execute + ``fetchone`` atomically under the lock (#2508)."""
         return self._execute(sql, params, fetch="one")
 
+    def ingest_dedup_keys(self) -> set[tuple[str, str]]:
+        """(source_path, checksum) pairs for every non-failed document.
+
+        The folder-ingest skip-set. Previously built by ``all(Document)``,
+        which hydrates EVERY row into Pydantic objects before the first file
+        of an import is touched — on a large library that was a silent
+        multi-minute freeze. One targeted SELECT of two strings instead.
+        Semantics match the old loop exactly: failed docs excluded (so a
+        failed import retries), soft-deleted rows still included, source
+        path falls back to ``path`` when metadata lacks ``source_path``.
+        """
+        rows = self.execute_fetchall(
+            """
+            SELECT COALESCE(
+                       json_extract_string(metadata, '$.source_path'), path),
+                   json_extract_string(metadata, '$.checksum')
+            FROM documents
+            WHERE status != 'failed'
+              AND json_extract_string(metadata, '$.checksum') IS NOT NULL
+            """
+        )
+        return {
+            (source, checksum)
+            for source, checksum in rows
+            if isinstance(source, str) and isinstance(checksum, str)
+        }
+
     def child_counts(self, parent_ids: list[str]) -> dict[str, int]:
         """Live (non-deleted) child count per parent id, one query.
 

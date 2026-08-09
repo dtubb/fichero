@@ -1382,22 +1382,14 @@ def ingest_folder(
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
     library_path = package_path or getattr(db, "path", None)
-    # Timed (2026-08-09): this pre-scan materialises EVERY document row into
-    # Pydantic objects before the first file is touched — on a large library
-    # it was the silent multi-minute 'frozen with no progress' phase. A
-    # targeted SELECT of (source_path, checksum) is the queued upgrade.
+    # Timed (2026-08-09): this pre-scan used to materialise EVERY document
+    # row into Pydantic objects before the first file was touched — on a
+    # large library that was the silent multi-minute 'frozen with no
+    # progress' phase. Now one targeted SELECT in the persistence layer
+    # (#1876): Database.ingest_dedup_keys().
     _prescan_started = time.monotonic()
     try:
-        for existing in db.all(Document):
-            if existing.status == Status.failed:
-                continue
-            source_path = (
-                (existing.metadata or {}).get("source_path")
-                or existing.path
-            )
-            checksum = (existing.metadata or {}).get("checksum")
-            if isinstance(source_path, str) and isinstance(checksum, str):
-                existing_hashes.add((source_path, checksum))
+        existing_hashes.update(db.ingest_dedup_keys())
         logger.info(
             "ingest.folder.prescan existing=%d elapsed_ms=%d",
             len(existing_hashes), int((time.monotonic() - _prescan_started) * 1000),

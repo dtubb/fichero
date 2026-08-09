@@ -923,7 +923,7 @@ class TestIngestFolder:
         (tmp_path / "file1.txt").write_text("hello")
 
         mock_db = MagicMock()
-        mock_db.all.side_effect = RuntimeError("duckdb blew up")
+        mock_db.ingest_dedup_keys.side_effect = RuntimeError("duckdb blew up")
         mock_db.path = tmp_path / "Library.fichero" / "fichero.duckdb"
 
         with caplog.at_level(logging.WARNING):
