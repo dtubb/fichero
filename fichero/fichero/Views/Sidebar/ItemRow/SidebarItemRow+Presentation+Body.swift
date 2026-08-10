@@ -132,7 +132,6 @@ extension SidebarItemRow {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .selectionDisabled(true)
-                .environment(\.defaultMinListRowHeight, 0)
                 .accessibilityHidden(true)
         }
     }
