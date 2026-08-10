@@ -18,6 +18,17 @@ extension ArtifactPanel {
                     .frame(maxWidth: .infinity)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(4)
+            } else if onSave != nil, rawArtifactContent.count > Self.liveEditorCharacterLimit {
+                // BOOK-SIZED CONTENT NEVER ENTERS THE LIVE EDITOR (Daniel's
+                // beachball, 2026-08-10 00:4x, backtrace in hand): SwiftUI's
+                // AttributedString TextEditor lays out the ENTIRE document
+                // synchronously inside sizeThatFits (AppKitRichTextEditorAdaptor
+                // → NSTextLayoutManager.ensureLayoutForRange over the whole
+                // string) — 'My Book / Shifting Livelihoods' froze the main
+                // thread for minutes, on every layout pass. A parent document
+                // holding a whole book's text is a READ surface; its PAGES are
+                // where editing happens and they stay under the limit.
+                oversizeContentPreview
             } else if onSave != nil {
                 TextEditor(text: $draftText)
                     .editorScaledFont()
@@ -80,6 +91,46 @@ extension ArtifactPanel {
                 raw: rawArtifactContent,
                 encoded: ArtifactRichTextCodec.encodeAttributed(decoded)
             )
+        }
+    }
+
+    // MARK: - Oversize content (the live-editor beachball guard)
+
+    /// Characters above which the LIVE editor is not mounted. ~100k is a very
+    /// long chapter; books run to megabytes and TextKit walks every character
+    /// on the main thread in the editor's sizing pass.
+    static let liveEditorCharacterLimit = 100_000
+
+    /// How much of an oversize document the read-only preview shows.
+    static let oversizePreviewCharacters = 60_000
+
+    @ViewBuilder
+    private var oversizeContentPreview: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(
+                "Large document — showing a preview. Edit its pages instead.",
+                systemImage: "book.closed"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            ScrollView {
+                // Plain-string prefix, deliberately: the whole point is that
+                // no full-length AttributedString ever reaches layout.
+                Text(String(rawArtifactContent.prefix(Self.oversizePreviewCharacters)))
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+            }
+            .frame(maxHeight: fillsHeight ? .infinity : 360)
+            .background(Color(.textBackgroundColor))
+            .cornerRadius(4)
+            Text(
+                "\(rawArtifactContent.count.formatted()) characters total — "
+                    + "preview shows the first \(Self.oversizePreviewCharacters.formatted())."
+            )
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
         }
     }
 }
