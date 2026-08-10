@@ -223,3 +223,84 @@ class TestIngestRefusesPerFile:
         failed = by_name["evicted.jpg"]
         assert failed.status == Status.failed
         assert "no local bytes" in (failed.metadata or {}).get("ingest_error", "")
+
+
+class TestMaterialization:
+    """Daniel's ruling (2026-08-09): a dataless file is DOWNLOADED at ingest
+    time — reading it is the trigger — and refused only when that fails."""
+
+    def test_a_placeholder_whose_read_materializes_it_is_accepted(
+        self, tmp_path, monkeypatch
+    ):
+        f = tmp_path / "IMG_001.jpg"
+        f.write_bytes(b"x" * 4096)
+        # Dataless before the read, local after it — the read IS the download.
+        calls = iter(["zero allocated blocks", None])
+        monkeypatch.setattr(
+            "fichero_server.importers.dataless.dataless_reason",
+            lambda p: next(calls),
+        )
+
+        require_local_bytes(f)  # must not raise
+
+    def test_a_placeholder_that_stays_dataless_after_the_read_is_refused(
+        self, tmp_path, monkeypatch
+    ):
+        f = tmp_path / "IMG_001.jpg"
+        f.write_bytes(b"x" * 4096)
+        monkeypatch.setattr(
+            "fichero_server.importers.dataless.dataless_reason",
+            lambda p: "zero allocated blocks",
+        )
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(f)
+        message = str(excinfo.value)
+        assert "IMG_001.jpg" in message
+        assert "no local bytes" in message
+        assert "Download" in message
+
+    def test_a_read_error_is_a_refusal_not_a_crash(self, tmp_path, monkeypatch):
+        f = tmp_path / "IMG_001.jpg"
+        f.write_bytes(b"x" * 4096)
+        monkeypatch.setattr(
+            "fichero_server.importers.dataless.dataless_reason",
+            lambda p: "zero allocated blocks",
+        )
+        monkeypatch.setattr(
+            Path, "open", lambda *a, **k: (_ for _ in ()).throw(OSError("offline"))
+        )
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(f)
+        assert "offline" in str(excinfo.value)
+
+    def test_a_download_slower_than_the_deadline_is_refused(
+        self, tmp_path, monkeypatch
+    ):
+        from fichero_server.importers import dataless as mod
+
+        f = tmp_path / "big.mov"
+        f.write_bytes(b"x" * (2 * 1024 * 1024))
+        monkeypatch.setattr(mod, "dataless_reason", lambda p: "zero allocated blocks")
+        monkeypatch.setattr(mod, "_READ_CHUNK", 1024)  # force multiple chunks
+        # A clock that leaps past any deadline after the first chunk.
+        ticks = iter([0.0, 10.0**9])
+        monkeypatch.setattr("time.monotonic", lambda: next(ticks, 10.0**9))
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(f)
+        assert "did not finish in time" in str(excinfo.value)
+
+    def test_a_bare_icloud_stub_is_still_refused_without_a_read(
+        self, tmp_path, monkeypatch
+    ):
+        stub = tmp_path / ".IMG_001.jpg.icloud"
+        stub.write_bytes(b"plist")
+        monkeypatch.setattr(
+            Path, "open", lambda *a, **k: pytest.fail("a stub must not be read")
+        )
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(stub)
+        assert "stub" in str(excinfo.value)

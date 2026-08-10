@@ -1,4 +1,4 @@
-"""Refuse to import files whose bytes are not on this machine (#4233).
+"""Download files whose bytes are not on this machine before import (#4233, #45).
 
 Measured on Daniel's live library, 2026-07-28: 152 of 157 imported source
 files had ZERO allocated blocks. `~/Desktop/NCM_Diary_1925` reported 380 MB
@@ -16,11 +16,13 @@ Why a placeholder must not be imported silently:
   internally consistent and WRONG. The write-verification work (`7022aea08`)
   catches the short read for COPY mode; nothing caught LINK at all.
 
-Policy, tonight: REFUSE the file, loudly, per file. Materialising (forcing a
-download) is deliberately out of scope — forcing a 380 MB download because
-someone dragged a folder is hostile, and it is a decision to make deliberately.
-Refusing gives the user an actionable message and leaves an `ingest_error` on
-the failed stub, which the folder ingest already surfaces in the task status.
+Policy (revised, Daniel 2026-08-09: "when file is online it should be
+downloaded, no?"): MATERIALIZE the file at ingest time — reading a dataless
+file is the download trigger — and refuse loudly, per file, only when the
+download cannot complete (offline, timeout, or a bare `.icloud` stub, which
+is a different inode from the real file). A failure still leaves an
+`ingest_error` on the failed stub, which the folder ingest surfaces in the
+task status.
 
 Detection, in confidence order:
 
@@ -100,17 +102,75 @@ def dataless_reason(path: Path) -> str | None:
 
 
 def require_local_bytes(path: Path) -> None:
-    """Raise ``DatalessSourceError`` when ``path`` is a cloud placeholder.
+    """Materialize ``path`` if it is a cloud placeholder, or raise.
 
-    Called at INGEST time so the failure is attributable to one file and
-    lands in that file's ingest error, rather than surfacing much later as a
-    missing thumbnail on a document nobody can connect back to a download.
+    Daniel's ruling (2026-08-09): "when file is online it should be
+    downloaded, no?" — a dataless file is DOWNLOADED at ingest time, not
+    refused. Reading a dataless file is itself the download trigger: the
+    kernel faults the bytes in through fileproviderd for any process whose
+    VFS iopolicy materializes dataless files (the default). Only when the
+    download cannot complete does this raise ``DatalessSourceError``, at
+    INGEST time, so the failure is attributable to one file and lands in
+    that file's ingest error.
+
+    A bare ``.<name>.icloud`` stub is still refused outright: the stub is a
+    different inode from the real file — reading it downloads nothing, and
+    importing the stub was never what the user meant.
     """
     reason = dataless_reason(path)
     if reason is None:
         return
-    logger.warning("Refusing to import a file with no local bytes: %s (%s)", path, reason)
-    raise DatalessSourceError(
-        f"{path.name} has no local bytes: {reason}. Download it (keep it "
-        f"downloaded in Finder, or open it once) and import again."
+    if path.name.startswith(".") and path.name.endswith(".icloud"):
+        logger.warning("Refusing to import an iCloud stub: %s", path)
+        raise DatalessSourceError(
+            f"{path.name} has no local bytes: {reason}. Download the real file "
+            f"(keep it downloaded in Finder) and import that instead."
+        )
+    _materialize(path, reason)
+
+
+# ponytail: sequential read at an assumed ≥1 MB/s floor; a per-library
+# bandwidth estimate can replace the constant if slow links time out a lot.
+_MIN_TIMEOUT_SECONDS = 120.0
+_ASSUMED_BYTES_PER_SECOND = 1_000_000
+_READ_CHUNK = 8 * 1024 * 1024
+
+
+def _materialize(path: Path, reason: str) -> None:
+    """Fault the file's bytes in by reading it, bounded by a size-scaled
+    deadline, then verify the placeholder is actually gone."""
+    import time
+
+    size = getattr(path.stat(), "st_size", 0) or 0
+    deadline = time.monotonic() + max(
+        _MIN_TIMEOUT_SECONDS, size / _ASSUMED_BYTES_PER_SECOND
     )
+    logger.info(
+        "Downloading cloud placeholder before import: %s (%d bytes; %s)",
+        path, size, reason,
+    )
+    try:
+        with path.open("rb") as fh:
+            while fh.read(_READ_CHUNK):
+                if time.monotonic() > deadline:
+                    raise DatalessSourceError(
+                        f"{path.name} has no local bytes and the download did "
+                        f"not finish in time ({size} bytes). Download it in "
+                        f"Finder (keep it downloaded) and import again."
+                    )
+    except OSError as exc:
+        raise DatalessSourceError(
+            f"{path.name} has no local bytes and downloading it failed "
+            f"({exc}). Download it in Finder (keep it downloaded) and "
+            f"import again."
+        ) from exc
+
+    still = dataless_reason(path)
+    if still is not None:
+        logger.warning("Still dataless after a full read: %s (%s)", path, still)
+        raise DatalessSourceError(
+            f"{path.name} has no local bytes: {still}. Fichero tried to "
+            f"download it, but the bytes still are not local. Download it in "
+            f"Finder (keep it downloaded) and import again."
+        )
+    logger.info("Downloaded and importing: %s", path)
