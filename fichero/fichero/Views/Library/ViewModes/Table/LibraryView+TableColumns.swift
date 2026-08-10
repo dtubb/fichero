@@ -212,7 +212,14 @@ extension LibraryView {
             // Document rows drag out like list/icon rows (#4160 step 3):
             // real file copy + RTF via the shared LibraryItemDrag —
             // previously only CHILD rows were draggable in table mode.
-            .draggable(libraryItemDrag(for: document))
+            // Same lozenge preview as list/columns rows (#26/#133-136):
+            // the default cell snapshot read as a bare text scrap.
+            .draggable(libraryItemDrag(for: document)) {
+                RowDragPreview(
+                    name: document.name,
+                    systemImage: document.fileType?.icon ?? document.docType.icon
+                )
+            }
             .modifier(LibraryFolderCellDrop(
                 acceptsDrop: document.acceptsItemDrops,
                 onDropProviders: { providers in
@@ -260,7 +267,12 @@ extension LibraryView {
             )
             .font(.subheadline)
             .foregroundStyle(.primary)
-            .draggable(libraryItemDrag(for: page))
+            .draggable(libraryItemDrag(for: page)) {
+                RowDragPreview(
+                    name: DocumentTitle.displayName(for: page),
+                    systemImage: "doc.richtext"
+                )
+            }
         case .artifactItem(let artifact):
             Label(
                 artifact.stepName ?? artifact.artifactType,
