@@ -63,19 +63,17 @@ extension SidebarItemRow {
                     // the badge alone is invisible at sidebar sizes (Daniel,
                     // 2026-08-04).
                     .italic(rowIsAlias)
-                // The name Text hit-tests NORMALLY again (Daniel,
-                // 2026-08-10: "you can drag and drop row, successfully.
-                // but not if you try to click on the name of the row").
-                // `.allowsHitTesting(false)` here was the #713 fix for
-                // text-flavored drags, but it ALSO dropped name-presses
-                // past the row's `.draggable` into AppKit's own row
-                // machinery, where a drag from the name never lifted —
-                // the one difference between the working row body and the
-                // dead name area. The #713 interception is already closed
-                // by `.textSelection(.disabled)` on the row body (#711):
-                // a non-selectable Text registers no NSDraggingSource, so
-                // the row's `.draggable` claims a name-press like any
-                // other point on the row.
+                    .allowsHitTesting(false)
+                // `.allowsHitTesting(false)` on the Text (and Image) is
+                // load-bearing for CLICKS (#713/#13; re-learned live
+                // 2026-08-10): with it, name-presses fall through to the
+                // row surface, where List selection + the UnifiedRows tap
+                // fallback commit them. The morning's experiment that
+                // removed it (chasing drag-by-name) put presses into a
+                // path where NEITHER committed — "you can't click on a
+                // name, you have to click on row". Reverted. Drag-by-name
+                // remains a separate open investigation; do not chase it
+                // by re-enabling hit-testing here.
                 //
                 // No inline double-tap-to-rename gesture: `.simultaneousGesture
                 // (TapGesture(count: 2))` causes SwiftUI to hold every single
