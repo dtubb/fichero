@@ -79,7 +79,6 @@ extension ContentView {
         if direction > 0 { navigateSiblingNext() } else { navigateSiblingPrevious() }
     }
 
-
     /// Returns the sibling set used for prev/next navigation. When the current
     /// document is an image or page, navigation is scoped to image/page siblings
     /// only; otherwise all folder siblings are navigable.

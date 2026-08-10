@@ -26,11 +26,7 @@ final class OversizeContentGuardTests: XCTestCase {
         // Source pin: the branch must key on rawArtifactContent BEFORE the
         // TextEditor mounts — a guard after mount lays the book out once,
         // which is exactly the freeze.
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Inspector/Artifacts/ArtifactPanel+Content.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        let source = try AppSource.text("Views/Inspector/Artifacts/ArtifactPanel+Content.swift")
         let guardRange = try XCTUnwrap(
             source.range(of: "rawArtifactContent.count > Self.liveEditorCharacterLimit")
         )
