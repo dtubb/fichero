@@ -226,3 +226,22 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
         if logger:
             logger.warning("kreuzberg PDF probe errored: %s — disabled", exc)
     return _KREUZBERG_PDF_USABLE
+
+
+# ---------------------------------------------------------------------------
+# Pre-import kreuzberg's lazy Python dependencies (2026-08-09, the SECOND
+# wedge layer, faulthandler-dumped live once pdfium finally loaded).
+#
+# kreuzberg's Rust pipeline calls back into Python from FFI threads, and
+# those callbacks LAZILY import modules (charset_normalizer.api was caught
+# mid-import at the freeze). A lazy import from an FFI callback deadlocks:
+# the sync FFI entry holds the GIL while its worker needs the import lock —
+# every thread in the engine stops, health goes dark, the watchdog SIGKILLs.
+# Importing them here, single-threaded at startup, means the callback only
+# ever finds cached modules. Best-effort: a missing module just falls out.
+# ---------------------------------------------------------------------------
+for _lazy in ("charset_normalizer", "charset_normalizer.api"):
+    try:
+        __import__(_lazy)
+    except Exception:  # noqa: S112 — absence is kreuzberg's problem, not fatal
+        pass
