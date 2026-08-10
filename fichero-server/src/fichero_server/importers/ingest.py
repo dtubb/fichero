@@ -46,7 +46,15 @@ import mimetypes
 # EVERY file's metadata extraction failed, taking image dimensions down
 # with it. Initialise once from the built-in table only; identical answers
 # for every type this importer cares about, zero filesystem reads.
-mimetypes.init(files=[])
+#
+# CPython trap (live-verified on the sandboxed engine, same evening):
+# init(files=[]) is NOT enough — init() PREPENDS mimetypes.knownfiles to
+# whatever you pass (`files = knownfiles + list(files)`), so the system
+# reads still happen and, called at module scope, the PermissionError
+# became an IMPORT failure. Clearing knownfiles first is the documented
+# lever: init() then reads exactly nothing.
+mimetypes.knownfiles = []
+mimetypes.init()
 import os
 import shutil
 import time

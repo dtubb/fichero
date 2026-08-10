@@ -2262,7 +2262,13 @@ class TestMimetypesSandboxInit:
 
         import fichero_server.importers.ingest  # noqa: F401 — import side effect
 
-        assert mimetypes.inited, "ingest import must run mimetypes.init(files=[])"
+        assert mimetypes.inited, "ingest import must run mimetypes.init()"
+        # knownfiles MUST be empty: init() prepends it to any files= argument
+        # (the CPython trap that made the first fix an import-time crash on
+        # the sandboxed engine), so an empty list is the only state in which
+        # init reads nothing. This assertion fails on a dev machine exactly
+        # when it would crash in the sandbox.
+        assert mimetypes.knownfiles == [], "system mime tables would be read"
         # The built-in table answers the types this importer cares about.
         assert mimetypes.guess_type("a.jpg")[0] == "image/jpeg"
         assert mimetypes.guess_type("a.pdf")[0] == "application/pdf"
