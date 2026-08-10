@@ -779,7 +779,9 @@ def get_activity_tracker(db_path: Optional[str] = None) -> ActivityTracker:
 
     # Ensure we're using the string path
     db_path = str(db_path)
-    logger.info(f"get_activity_tracker called with db_path: {db_path}")
+    # DEBUG, not INFO (2026-08-10): this fired per stream (re)subscription and
+    # was the loudest line in a quiet log.
+    logger.debug(f"get_activity_tracker called with db_path: {db_path}")
 
     with _tracker_lock:
         if db_path not in _activity_trackers:

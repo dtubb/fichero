@@ -118,6 +118,27 @@ def _reload_enabled() -> bool:
 
 
 
+class _QuietSteadyStateAccessLog(logging.Filter):
+    NOISY_PREFIXES = (
+        "/api/health",
+        "/api/registry",
+        "/api/activity/stream",
+        "/api/ingest/status/",
+        "/api/storage/thumbnail/",
+        "/api/storage/display/",
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # uvicorn access records: args = (client, method, path, http, status)
+        try:
+            path, status = record.args[2], record.args[4]
+        except (TypeError, IndexError):
+            return True
+        if not isinstance(status, int) or not 200 <= status < 300:
+            return True
+        return not any(str(path).startswith(p) for p in self.NOISY_PREFIXES)
+
+
 def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
 
@@ -189,6 +210,18 @@ def main(argv: list[str] | None = None):
 
     # Import uvicorn
     import uvicorn
+
+    # ------------------------------------------------------------------
+    # Access-log hygiene (Daniel, 2026-08-10: "it pollutes our log every
+    # 2 seconds"). The heartbeat traffic — health probes, registry polls,
+    # SSE (re)subscribes, ingest-status polls, thumbnail/display fetches —
+    # is content-free at 2xx: the interesting event is a FAILURE or an
+    # endpoint outside this steady-state set. Filter those lines out of
+    # uvicorn's access logger; every non-2xx and every other route still
+    # logs. This is display hygiene only — app-level loggers are untouched.
+    # ------------------------------------------------------------------
+    logging.getLogger("uvicorn.access").addFilter(_QuietSteadyStateAccessLog())
+
 
     reload_enabled = _reload_enabled()
     src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
