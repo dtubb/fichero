@@ -174,7 +174,8 @@ extension LibraryView {
                     ))
                     .onTapGesture(count: 2) { handleDoubleClick(doc) }
                     .onTapGesture { handleColumnTap(doc, depth: depth) }
-                    .contextMenu { documentContextMenu(for: doc) }
+                    // Menu built at OPEN, not per render (#4544 pattern).
+                    .contextMenu { SidebarDeferredMenuContent { documentContextMenu(for: doc) } }
                 }
             }
         }

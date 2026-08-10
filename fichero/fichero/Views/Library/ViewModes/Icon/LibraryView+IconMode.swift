@@ -104,9 +104,8 @@ extension LibraryView {
                                     handleTap(doc)
                                     onRequestFocus()
                                 }
-                                .contextMenu {
-                                    documentContextMenu(for: doc)
-                                }
+                                // Menu built at OPEN, not per render (#4544).
+                                .contextMenu { SidebarDeferredMenuContent { documentContextMenu(for: doc) } }
                                 .onAppear {
                                     scheduleThumbnailPrefetch(around: doc.id)
                                 }

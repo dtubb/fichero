@@ -111,13 +111,18 @@ extension ArtifactPanel {
 
     // MARK: - Oversize content (the live-editor beachball guard)
 
-    /// Characters above which the LIVE editor is not mounted. ~100k is a very
-    /// long chapter; books run to megabytes and TextKit walks every character
-    /// on the main thread in the editor's sizing pass.
-    static let liveEditorCharacterLimit = 60_000
+    /// Characters above which the LIVE editor is not mounted. 20k because
+    /// Daniel's fifth backtrace (2026-08-10, 10:31) proved the adaptor's
+    /// `_overrideLayoutTraits` runs `ensureLayoutForRange` over the WHOLE
+    /// string even under a CONCRETE frame proposal (it fired inside a fixed
+    /// `_FrameLayout` placement) — content size is the only lever left. A
+    /// dense archival page transcript is a few thousand characters; 20k is
+    /// still several pages of typing headroom, and TextKit lays it out in
+    /// tens of milliseconds instead of seconds.
+    static let liveEditorCharacterLimit = 20_000
 
     /// How much of an oversize document the read-only preview shows.
-    static let oversizePreviewCharacters = 60_000
+    static let oversizePreviewCharacters = 20_000
 
     @ViewBuilder
     private var oversizeContentPreview: some View {

@@ -77,8 +77,9 @@ extension LibraryView {
             handleTap(doc)
             onRequestFocus()
         }
+        // Menu built at OPEN, not per render (#4544 pattern).
         .contextMenu {
-            documentContextMenu(for: doc)
+            SidebarDeferredMenuContent { documentContextMenu(for: doc) }
         }
         // Same look-ahead window icon mode uses (#4160):
         // batch-prefetch thumbnails around the appearing
