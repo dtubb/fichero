@@ -212,31 +212,26 @@ extension ContentView {
                     )
                 }
             } else {
-                HStack(spacing: 0) {
-                    WorkflowListView(
-                        displayMode: .list,
-                        onOpenWorkflow: { item in viewMode = .workflow(item) }
+                // NO legacy WorkflowListView column (Daniel, 2026-08-10:
+                // "it shows the old workflow list of all workflows… old logic").
+                // The SIDEBAR is the workflow list now (#4186 duplicate); the
+                // content column is the node editor for the selected workflow,
+                // full width.
+                if let selectedWorkflow = workflow {
+                    WorkflowEditor(
+                        workflow: selectedWorkflow,
+                        editingWorkflow: $editingWorkflow,
+                        displayMode: .icon,
+                        selectedDocumentIds: effectiveWorkflowRunSelection
                     )
-                    .frame(minWidth: 200, maxWidth: 280)
-
-                    Divider()
-
-                    if let selectedWorkflow = workflow {
-                        WorkflowEditor(
-                            workflow: selectedWorkflow,
-                            editingWorkflow: $editingWorkflow,
-                            displayMode: .icon,
-                            selectedDocumentIds: effectiveWorkflowRunSelection
-                        )
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        ContentUnavailableView(
-                            "Select a Workflow",
-                            systemImage: "flowchart",
-                            description: Text("Choose a workflow from the list to edit")
-                        )
-                        .frame(maxWidth: .infinity)
-                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    ContentUnavailableView(
+                        "Select a Workflow",
+                        systemImage: "flowchart",
+                        description: Text("Choose a workflow in the sidebar to edit it")
+                    )
+                    .frame(maxWidth: .infinity)
                 }
             }
 
