@@ -66,6 +66,20 @@ extension SidebarView {
         // grey. Hide the scroll content's white and let the column show.
         .scrollContentBackground(.hidden)
         #if os(macOS)
+        // Silence the NATIVE selection at the TABLE level (Daniel,
+        // 2026-08-10: keep the current grey-platter look, "except that
+        // flash"). One setting on the NSTableView, applied once — no
+        // per-row probes, no row-recycling races (the failure mode of the
+        // reverted SidebarRowChromeFixer): with selectionHighlightStyle
+        // .none AppKit draws NO selection and never flips the row to the
+        // emphasized appearance, so (a) the dark-accent platter cannot
+        // flash before our grey lands, and (b) the disclosure chevron
+        // keeps its normal dark-grey template rendering instead of
+        // invisible white. Selection TRACKING is unaffected — our
+        // listRowBackground platter is the one selected look.
+        .background(SidebarNativeSelectionSilencer())
+        #endif
+        #if os(macOS)
         // Finder-style double-click: open the primary selected row in a new
         // tab or window (#2496), mirroring the library table's container-level
         // double-click contract (#3364). Attached to the List, NOT per row —
