@@ -144,6 +144,10 @@ struct EditorView: View {
         /// Audio/video streamed via AVPlayer against the storage endpoint (#3208).
         case media(documentId: String)
         case quickLook
+        /// A plain folder previews like a PDF: its items are its "pages" (#25).
+        /// Shows the first previewable child; swiping then steps through the
+        /// folder via the ContentView sibling navigation.
+        case folderContents(folderId: String)
 
         var usesImageEditingPreviewForViewing: Bool {
             if case .imageEditor = self {
@@ -202,7 +206,7 @@ struct EditorView: View {
         if doc.fileType == .pdf {
             return .storageDisplay(documentId: doc.id)
         }
-        return .noSelection
+        return .folderContents(folderId: doc.id)
     }
 
     private static func pagePreviewRoute(
@@ -247,6 +251,11 @@ struct EditorView: View {
                 .id(documentId)
         case .quickLook:
             QuickLookDownloadView(document: doc)
+        case .folderContents(let folderId):
+            FolderContentsPreview(
+                folderId: folderId,
+                onNavigateToDocument: onNavigateToDocument
+            )
         }
     }
 

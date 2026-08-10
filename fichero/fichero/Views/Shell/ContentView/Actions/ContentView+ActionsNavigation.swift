@@ -83,7 +83,39 @@ extension ContentView {
     /// document is an image or page, navigation is scoped to image/page siblings
     /// only; otherwise all folder siblings are navigable.
     private func navigableSiblings(for document: Document) -> [Document] {
-        navigableFolderSiblings(for: document, in: documentStore.currentDocuments)
+        // #25: browsing INSIDE a selected folder — the current document is one
+        // of the folder's children, which the library listing (the folder's
+        // own siblings) does not contain. Its cached siblings-within-the-folder
+        // are the navigable set, so swipes keep stepping through the folder.
+        let listing = documentStore.currentDocuments
+        if !listing.contains(where: { $0.id == document.id }),
+           let parentId = document.parentId,
+           let folderKids = documentStore.childrenCache[parentId],
+           folderKids.contains(where: { $0.id == document.id }) {
+            return navigableFolderSiblings(for: document, in: folderKids)
+        }
+        return navigableFolderSiblings(for: document, in: listing)
+    }
+
+    /// #25 (Daniel): a selected folder previews like a PDF — its items are its
+    /// "pages". Stepping from the folder itself descends into its children;
+    /// `navigableSiblings` above then keeps later steps inside the folder.
+    private func navigateIntoFolder(_ folder: Document, forward: Bool) {
+        Task { @MainActor in
+            let kids = await documentStore.children(of: folder.id)
+                .filter { $0.docType != .folder }
+            guard let target = forward ? kids.first : kids.last else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                detailDocument = target
+                browserSelection = [target.id]
+            }
+        }
+    }
+
+    /// A folder with no previewable source of its own (image- or PDF-backed
+    /// "folders" preview themselves and step through the LIBRARY, not inward).
+    private func isPlainFolder(_ doc: Document) -> Bool {
+        doc.docType == .folder && doc.fileType != .image && doc.fileType != .pdf
     }
 
     /// Move detailDocument + browserSelection to the previous sibling in the
@@ -92,6 +124,10 @@ extension ContentView {
     /// of a hard cut.
     func navigateSiblingPrevious() {
         guard let current = detailDocument else { return }
+        if isPlainFolder(current) {
+            navigateIntoFolder(current, forward: false)
+            return
+        }
         let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
         let target = docs[idx - 1]
@@ -104,6 +140,10 @@ extension ContentView {
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
     func navigateSiblingNext() {
         guard let current = detailDocument else { return }
+        if isPlainFolder(current) {
+            navigateIntoFolder(current, forward: true)
+            return
+        }
         let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }
         let target = docs[idx + 1]
