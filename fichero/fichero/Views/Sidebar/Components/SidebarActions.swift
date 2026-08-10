@@ -114,6 +114,10 @@ extension SidebarView {
     func handleDeleteSelection() {
         let items = sidebarDeletableItems(selectedItems)
         guard !items.isEmpty else { return }
+        // Names, not a count (2026-08-10 Inbox incident): the one log line
+        // that says exactly what a delete is ABOUT to act on, so a wrong
+        // target set is diagnosable from the log alone.
+        logger.info("Delete confirmation for: \(items.map(\.name).joined(separator: ", "))")
         deleteState.showDeleteConfirmation(for: items)
     }
 
