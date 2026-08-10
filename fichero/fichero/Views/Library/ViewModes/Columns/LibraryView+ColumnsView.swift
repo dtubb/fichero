@@ -196,7 +196,7 @@ extension LibraryView {
             // is why a workflow mirror row read as a plain text document.
             Image(systemName: doc.displaySymbol())
                 .symbolVariant(doc.docType == .folder ? .fill : .none)
-                .symbolRenderingMode(doc.isLockedSystemNode ? .hierarchical : .monochrome)
+                .symbolRenderingMode(doc.usesWorkflowTint ? .hierarchical : .monochrome)
                 // Selected rows recolor the glyph with the SAME content token
                 // as the name — an accent folder glyph on the focused accent
                 // platter otherwise vanishes.
@@ -259,7 +259,7 @@ extension LibraryView {
     /// Purple for a system-owned node, matching the sidebar's locked rows
     /// (#4514); accent for a folder the user owns; secondary for a leaf.
     private func columnRowTint(_ doc: Document) -> Color {
-        if doc.isLockedSystemNode { return .purple }
+        if doc.usesWorkflowTint { return .purple }
         return doc.docType == .folder ? .accentColor : .secondary
     }
 

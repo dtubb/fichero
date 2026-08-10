@@ -384,8 +384,8 @@ struct DocumentThumbnail: View {
                 Image(systemName: document.displaySymbol())
                     .font(.system(size: folderSymbolSize))
                     .symbolVariant(document.docType == .folder ? .fill : .none)
-                    .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
-                    .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
+                    .symbolRenderingMode(document.usesWorkflowTint ? .hierarchical : .monochrome)
+                    .foregroundColor(document.usesWorkflowTint ? .purple : .accentColor)
             case .textPreview(let preview):
                 TextPreviewThumbnail(text: preview)
                     .frame(width: width, height: height)

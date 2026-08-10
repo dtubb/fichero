@@ -78,8 +78,8 @@ struct DocumentThumbnailView: View {
                         // `.symbolVariant` on the shared glyph rather than a
                         // second icon ladder that can drift from the sidebar's.
                         .symbolVariant(.fill)
-                        .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
-                        .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
+                        .symbolRenderingMode(document.usesWorkflowTint ? .hierarchical : .monochrome)
+                        .foregroundColor(document.usesWorkflowTint ? .purple : .accentColor)
                         // Folders stack like PDFs do (Daniel, 2026-08-09:
                         // "folders should work the same way") — sheets peek
                         // out behind a fuller folder.
