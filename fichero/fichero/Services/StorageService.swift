@@ -46,10 +46,13 @@ class StorageService {
     /// oldest-inserted entries are evicted first (FIFO) — by the time the
     /// cache is this full the user has scrolled well past those rows.
     static let thumbnailCacheLimit = 1000
-    /// Upper bound on the display-platform-image cache. Display images are
-    /// larger than thumbnails (~1–5 MB each); a small window around the
-    /// current position is all we need (#2469).
-    static let displayPlatformImageCacheLimit = 12
+    /// Upper bound on the display-platform-image cache (#2469). 32, up from
+    /// 12 (Daniel, 2026-08-10: page flips showed the OLD page then reloaded
+    /// — cache misses on revisit): 12 entries meant a ±2 prefetch window
+    /// plus a handful of displays evicted the page just left. ponytail:
+    /// count-bounded FIFO stays; a byte budget is the upgrade if memory
+    /// shows up in reviews.
+    static let displayPlatformImageCacheLimit = 32
     static let maxImageBytes = 50 * 1024 * 1024
     static let maxSourceBytes = 500 * 1024 * 1024
     /// Insertion order of thumbnail-cache keys, oldest first. Drives FIFO

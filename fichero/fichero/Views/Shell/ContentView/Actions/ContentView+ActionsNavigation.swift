@@ -144,6 +144,7 @@ extension ContentView {
             detailDocument = target
             browserSelection = [target.id]
         }
+        prefetchAdjacentSiblingDisplays(around: idx - 1, in: docs)
     }
 
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
@@ -160,6 +161,21 @@ extension ContentView {
             detailDocument = target
             browserSelection = [target.id]
         }
+        prefetchAdjacentSiblingDisplays(around: idx + 1, in: docs)
+    }
+
+    /// ★ EVERY FRAME PERFECT: warm the display cache both directions around
+    /// a sibling step, nearest first, so the NEXT swipe finds its image
+    /// cached and swaps in place — the reader's #18 page-turn prefetch,
+    /// extended to sibling navigation (Daniel, 2026-08-10: flips showed the
+    /// old page, then reloaded). Best-effort; the pool skips cached ids.
+    private func prefetchAdjacentSiblingDisplays(around index: Int, in docs: [Document]) {
+        let neighborIds = [index + 1, index - 1, index + 2, index - 2]
+            .filter { docs.indices.contains($0) }
+            .map { docs[$0].id }
+        guard !neighborIds.isEmpty else { return }
+        let storage = storageService
+        Task { await storage.prefetchDisplayImages(neighborIds) }
     }
 }
 

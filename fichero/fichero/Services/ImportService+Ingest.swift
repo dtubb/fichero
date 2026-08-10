@@ -179,19 +179,15 @@ extension ImportService {
             autoEmbed: autoEmbed
         )
 
-        let startTime = Date()
+        var watchdog = IngestStallWatchdog(limit: timeout)
 
-        // Poll until completion or timeout
+        // Poll until completion or stalled-too-long
         while true {
             // Check for cancellation
             try Task.checkCancellation()
 
-            // Check timeout
-            if Date().timeIntervalSince(startTime) > timeout {
-                throw ImportServiceError.timeout
-            }
-
             let status = try await getIngestStatus(task.taskId)
+            try watchdog.observe(status)
             // Publish so the progress surfaces see scanning, rate, failures and
             // cancellation as they happen — but ONLY on a real change. A blind
             // assignment every 0.5s invalidates every observer for the whole
@@ -297,5 +293,31 @@ extension ImportService {
         activeIngestLibraryName = nil
         lastError = nil
         currentTask = nil
+    }
+}
+
+/// PROGRESS watchdog, not a wall clock (Daniel, 2026-08-10: dropping an
+/// iCloud PDF died with 'Import task timed out' — the engine was
+/// legitimately DOWNLOADING the dataless file, #45's ruling, and a flat
+/// deadline cannot tell a big download from a wedge). `limit` bounds
+/// time-since-last-OBSERVED-CHANGE in the task's status: any progress
+/// resets it; only a genuinely stalled task trips.
+struct IngestStallWatchdog {
+    let limit: TimeInterval
+
+    init(limit: TimeInterval) {
+        self.limit = limit
+    }
+    private var lastChangeAt = Date()
+    private var lastObserved: IngestTaskStatus?
+
+    mutating func observe(_ status: IngestTaskStatus) throws {
+        if lastObserved != status {
+            lastObserved = status
+            lastChangeAt = Date()
+        }
+        if Date().timeIntervalSince(lastChangeAt) > limit {
+            throw ImportServiceError.timeout
+        }
     }
 }
