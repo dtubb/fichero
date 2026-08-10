@@ -179,14 +179,31 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(_PROBE_PDF)
             probe_path = f.name
-        code = (
-            "import kreuzberg;"
-            f"kreuzberg.extract_file_sync({probe_path!r}, None, kreuzberg.ExtractionConfig())"
+        # The child must run OUR probe module, and the shipped Briefcase
+        # engine bundles NO python binary — sys.executable is the app STUB,
+        # which with its default module boots a whole second engine (died on
+        # the DuckDB lock, measured live). The stub honors
+        # BRIEFCASE_MAIN_MODULE, so shipped builds run the stub pointed at
+        # the probe module; dev/venv layouts run their real python with -m.
+        env = {
+            **os.environ,
+            "FICHERO_PDFIUM_PROBE_PDF": probe_path,
+            "BRIEFCASE_MAIN_MODULE": "fichero_server._pdfium_probe",
+        }
+        # Dev/venv: sys.executable IS a python — run the module with -m
+        # (sys.base_prefix would escape the venv to a bare interpreter with
+        # no kreuzberg). Shipped Briefcase: sys.executable is the app stub,
+        # driven by BRIEFCASE_MAIN_MODULE above.
+        exe = Path(sys.executable)
+        command = (
+            [str(exe), "-m", "fichero_server._pdfium_probe"]
+            if exe.name.lower().startswith("python")
+            else [str(exe)]
         )
         proc = subprocess.run(
-            [sys.executable, "-c", code],
+            command,
             capture_output=True, timeout=60,
-            env={**os.environ},
+            env=env,
         )
         _KREUZBERG_PDF_USABLE = proc.returncode == 0
         if not _KREUZBERG_PDF_USABLE and logger:
