@@ -25,7 +25,11 @@ PHASE_ID = "CC0011223344556677889903"  # the non-MAS "Embed Fichero Server"
 REQUIRED = [
     # The sign itself, with the pair file, on the copied engine bundle.
     'codesign --force --sign \\"$IDENTITY\\" --entitlements \\"$ENGINE_ENTITLEMENTS\\" \\"$ENGINE_DST\\"',
-    "FicheroEngineAppStore.entitlements",
+    # #4555 (2026-08-09): the DEV file — the MAS pair plus
+    # disable-library-validation, required for kreuzberg's pdfium bind
+    # (hardlinked to the wheel's dylib by prepare_pdfium). The MAS phase
+    # keeps FicheroEngineAppStore.entitlements.
+    "FicheroEngineEmbedded.entitlements",
     # The two assertions that make a bad signature fail the BUILD.
     "com.apple.security.inherit",
     "com.apple.security.get-task-allow",
@@ -48,7 +52,7 @@ def self_test() -> None:
     signed = (
         f"{PHASE_ID} /* Embed Fichero Server */ = {{\n"
         '  "codesign --force --sign \\"$IDENTITY\\" --entitlements \\"$ENGINE_ENTITLEMENTS\\" \\"$ENGINE_DST\\"",\n'
-        '  "ENGINE_ENTITLEMENTS=${SRCROOT}/fichero/FicheroEngineAppStore.entitlements",\n'
+        '  "ENGINE_ENTITLEMENTS=${SRCROOT}/fichero/FicheroEngineEmbedded.entitlements",\n'
         '  "grep com.apple.security.inherit",\n'
         '  "grep com.apple.security.get-task-allow",\n'
     )

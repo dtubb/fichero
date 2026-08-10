@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  DEV-EMBEDDED engine entitlements (#4555, live-iterated 2026-08-09).
+	  The MAS pair {app-sandbox, inherit} fixed library grants but PDF text
+	  extraction died: kreuzberg binds libpdfium.dylib from a tmp path, and
+	  the measured failure ladder was: quarantined copy → refused; symlink →
+	  engine AMFI-killed; bare pair + clean file → untested-alone;
+	  THIS TRIPLE + unquarantined regular file → pdfium loads (live-proven
+	  22:03). kreuzberg_cache.prepare_pdfium() hardlinks the bind path to
+	  the wheel's own dylib so no quarantined write ever happens.
+
+	  MAS builds NEVER use this file — FicheroEngineAppStore.entitlements
+	  stays the bare pair (disable-library-validation is not MAS-allowed);
+	  the DMG release resign keeps its own FicheroEngine.entitlements.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.inherit</key>
+	<true/>
+	<!-- Load the wheel's ad-hoc-signed libpdfium (and any of the 800+
+	     third-party native wheels not signed with our Team ID). -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+</dict>
+</plist>

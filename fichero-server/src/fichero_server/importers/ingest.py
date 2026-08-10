@@ -516,6 +516,16 @@ def _kreuzberg_pdf_pages(path: Path) -> list[dict[str, Any]]:
     errors so callers can surface the real reason instead of collapsing them
     into "no pages" (#3135).
     """
+    # GATE FIRST (2026-08-09 freeze root): kreuzberg's sync FFI holds the
+    # GIL, so a hanging pdfium bind freezes the WHOLE engine — health goes
+    # dark and the watchdog SIGKILLs it. The gate probed PDF extraction in a
+    # throwaway subprocess; if that failed, do not gamble the process.
+    from fichero_server.loaders.kreuzberg_cache import kreuzberg_pdf_usable
+
+    if not kreuzberg_pdf_usable(logger=logger):
+        raise _KreuzbergUnavailableError(
+            "pdfium probe failed — kreuzberg disabled for PDFs this run"
+        )
     try:
         from kreuzberg import ExtractionConfig, PageConfig, extract_file_sync
     except ImportError as exc:

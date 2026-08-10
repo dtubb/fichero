@@ -554,7 +554,7 @@
 				"# must never travel with get-task-allow (aborts an inherit child, #3952).",
 				"# fm-bridge is signed too: a nested executable spawned by a sandboxed engine",
 				"# needs the same pair or the system kills it at exec (the MAS 90296 lesson).",
-				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineAppStore.entitlements\"",
+				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineEmbedded.entitlements\"",
 				"if [ ! -f \"$ENGINE_ENTITLEMENTS\" ]; then",
 				"  echo \"error: engine entitlements not found at $ENGINE_ENTITLEMENTS\" >&2",
 				"  exit 1",
