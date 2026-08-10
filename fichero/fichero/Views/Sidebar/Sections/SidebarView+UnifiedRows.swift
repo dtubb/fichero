@@ -224,7 +224,12 @@ extension SidebarView {
         .contentShape(Rectangle())
         // Full payload (#4123): document rows export a real file copy + RTF
         // transcript to other apps; the in-process id flavor is unchanged.
-        .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: item))
+        .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: item)) {
+            // Finder-parity preview (#135): the whole row platter, never the
+            // default re-hosted source view (which inherits no environment —
+            // the 2026-08-08 drag-crash class documented on DragPreviewLabel).
+            RowDragPreview(name: item.name, systemImage: item.icon)
+        }
         .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
         // Inbox is anchored (#621); non-reorderable kinds (schedules, triggers,
         // conversations…) disable the move drag so they don't show a system
