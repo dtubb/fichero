@@ -70,6 +70,17 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         guard !isTerminatingWithDeferredTeardown else { return .terminateLater }
         isTerminatingWithDeferredTeardown = true
 
+        // Drop unresolved DRAG-pasteboard promises BEFORE AppKit's terminate
+        // path resolves them (Daniel's force-quit backtrace, 2026-08-10:
+        // CFPasteboardResolveAllPromisedData → SwiftUI
+        // loadDataRepresentationSynchronously → semaphore_wait ON the main
+        // thread, waiting for promise data only the main thread can produce
+        // — a guaranteed deadlock whenever a sidebar/library drag happened
+        // that session). Drag-pasteboard content is worthless after quit;
+        // clearing it removes the promises terminate would block on. The
+        // GENERAL pasteboard is untouched — user copies survive quit.
+        NSPasteboard(name: .drag).clearContents()
+
         logger.info("Quit requested — deferring termination for bounded engine teardown (#4291)")
         Task {
             // `stopAndAwaitExit` signals on the main actor and then polls off it

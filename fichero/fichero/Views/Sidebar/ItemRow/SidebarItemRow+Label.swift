@@ -63,19 +63,19 @@ extension SidebarItemRow {
                     // the badge alone is invisible at sidebar sizes (Daniel,
                     // 2026-08-04).
                     .italic(rowIsAlias)
-                    .allowsHitTesting(false)
-                // `.allowsHitTesting(false)` on the Text (and Image) is
-                // critical: SwiftUI `Text` on macOS registers itself as
-                // an AppKit `NSDraggingSource` for selectable text, which
-                // intercepts press-and-drag from the name area BEFORE the
-                // row container's `.draggable` sees it — producing a
-                // text-flavored drag that bypasses our `.dropDestination`
-                // (#713). Disabling hit-testing on the Text makes presses
-                // fall through to the parent's `.contentShape(Rectangle())`
-                // so the row's `.draggable` claims them uniformly. The
-                // outer `.simultaneousGesture(TapGesture)` on the row body
-                // still fires for selection because contentShape provides
-                // the clickable surface.
+                // The name Text hit-tests NORMALLY again (Daniel,
+                // 2026-08-10: "you can drag and drop row, successfully.
+                // but not if you try to click on the name of the row").
+                // `.allowsHitTesting(false)` here was the #713 fix for
+                // text-flavored drags, but it ALSO dropped name-presses
+                // past the row's `.draggable` into AppKit's own row
+                // machinery, where a drag from the name never lifted —
+                // the one difference between the working row body and the
+                // dead name area. The #713 interception is already closed
+                // by `.textSelection(.disabled)` on the row body (#711):
+                // a non-selectable Text registers no NSDraggingSource, so
+                // the row's `.draggable` claims a name-press like any
+                // other point on the row.
                 //
                 // No inline double-tap-to-rename gesture: `.simultaneousGesture
                 // (TapGesture(count: 2))` causes SwiftUI to hold every single
