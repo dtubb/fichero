@@ -347,7 +347,24 @@ struct LibraryView: View {
     /// bounded now rather than after a failed build.
     @ViewBuilder
     private var libraryFailureOrRows: some View {
-        if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
+        if appState.engine.phase == .starting {
+            // FIRST LAUNCH, engine still booting (Daniel's screenshot,
+            // 2026-08-10 5:57pm): the pane showed "No Access to Local /
+            // You're not signed in" while the toolbar said "Starting
+            // engine…" — a stale AccessError from the pre-boot probe
+            // rendered as if the running engine had denied us. While the
+            // engine is STARTING there is nothing to be signed in to; show
+            // the calm truth, and the phase change re-evaluates this branch
+            // the moment the engine is up.
+            VStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Starting engine…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
             // Never a silent 403 / blank pane (F6): a denied library read lands on
             // the explicit access state — which library, why, who you are, and the
             // next action — instead of the generic "couldn't load" text.
