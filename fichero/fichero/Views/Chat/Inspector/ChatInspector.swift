@@ -46,7 +46,7 @@ struct ChatInspector: View {
             }
         }
         .background(Color(.windowBackgroundColor))
-        .onDrop(of: [.text, .plainText], isTargeted: $isDropTargeted) { providers in
+        .onDrop(of: [.ficheroDragItem, .text, .plainText], isTargeted: $isDropTargeted) { providers in
             handleDrop(providers: providers)
         }
         .overlay {
