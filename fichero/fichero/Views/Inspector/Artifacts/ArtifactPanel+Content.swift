@@ -34,7 +34,15 @@ extension ArtifactPanel {
                     .editorScaledFont()
                     .focused($isEditorFocused)
                     .scrollContentBackground(.hidden)
-                    .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil)
+                    // BOUNDED HEIGHT, never intrinsic (Daniel's live
+                    // backtraces, 2026-08-10): an unbounded proposal makes
+                    // the AttributedString editor's sizeThatFits run
+                    // NSTextLayoutManager.ensureLayoutForRange over the WHOLE
+                    // document on the main thread, per layout pass — the
+                    // spinning wheel while 'navigating a pdf'. A concrete
+                    // ceiling turns sizing O(1); the editor scrolls
+                    // internally past it, exactly like the fillsHeight pane.
+                    .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : 420)
                     .frame(minHeight: 60)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(4)
@@ -99,7 +107,7 @@ extension ArtifactPanel {
     /// Characters above which the LIVE editor is not mounted. ~100k is a very
     /// long chapter; books run to megabytes and TextKit walks every character
     /// on the main thread in the editor's sizing pass.
-    static let liveEditorCharacterLimit = 100_000
+    static let liveEditorCharacterLimit = 60_000
 
     /// How much of an oversize document the read-only preview shows.
     static let oversizePreviewCharacters = 60_000

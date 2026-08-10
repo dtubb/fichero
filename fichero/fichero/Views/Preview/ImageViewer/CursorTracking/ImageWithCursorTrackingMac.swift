@@ -170,7 +170,21 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // `scale` binding is still one turn behind, and writing it back would
         // undo the fit in the very same pass, leaving the image at whatever
         // stale zoom the binding happened to hold.
-        let autoAppliedScale = applyAutomaticFit(
+        // FIRST-PINCH SNAP-BACK (Daniel, 2026-08-09 '#47'): the automatic
+        // fit ran BEFORE the pinch gate, and the first pinch's re-render can
+        // arrive before the recognizer reports .began — any pane-size delta
+        // accrued since load (a panel appearing, an inspector settling) got
+        // cashed in as a refit right under the user's fingers: zoom snapped
+        // to fit, THEN pinching worked. A magnify event in flight means the
+        // user is zooming NOW: suppress the automatic fit for this pass and
+        // hand zoom ownership over (the same #4279 semantics .began applies,
+        // just before .began exists).
+        let pinchInFlight = context.coordinator.isUserMagnifying
+            || NSApp.currentEvent?.type == .magnify
+        if pinchInFlight {
+            context.coordinator.markManualZoom()
+        }
+        let autoAppliedScale = pinchInFlight ? nil : applyAutomaticFit(
             scrollView: scrollView,
             coordinator: context.coordinator,
             hasImage: hasImage

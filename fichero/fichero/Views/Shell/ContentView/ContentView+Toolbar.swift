@@ -289,11 +289,11 @@ extension ContentView {
                                 Text(libraryName)
                                     .font(.subheadline)
                                     .lineLimit(1)
+                                    .layoutPriority(1)
                                     // Middle-truncate (Daniel #176): a long
                                     // name must never push toolbar icons out.
                                     .truncationMode(.middle)
-                                    .frame(maxWidth: 160)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: 200)
                             }
                             .foregroundStyle(.secondary)
 
@@ -310,6 +310,10 @@ extension ContentView {
                             Text(toolbarTitle)
                                 .font(.headline)
                                 .lineLimit(1)
+                                // The NAME wins the space fight (#184: 'I…ox'
+                                // — the title was crushed to four characters
+                                // while the island had room to spare).
+                                .layoutPriority(2)
                                 // CAPPED + middle-truncated (Daniel #176, live:
                                 // a 70-char archival folder name swallowed the
                                 // whole toolbar and the trailing icons with
@@ -320,8 +324,7 @@ extension ContentView {
                                 // needs GeometryReader plumbing into toolbar
                                 // content — upgrade if 380pt misfits a size.
                                 .truncationMode(.middle)
-                                .frame(maxWidth: 380)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: 460)
                         }
                         .foregroundStyle(.primary)
                     }
