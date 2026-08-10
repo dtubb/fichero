@@ -288,6 +288,12 @@ extension ContentView {
                                     .imageScale(.small)
                                 Text(libraryName)
                                     .font(.subheadline)
+                                    .lineLimit(1)
+                                    // Middle-truncate (Daniel #176): a long
+                                    // name must never push toolbar icons out.
+                                    .truncationMode(.middle)
+                                    .frame(maxWidth: 160)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             .foregroundStyle(.secondary)
 
@@ -304,6 +310,18 @@ extension ContentView {
                             Text(toolbarTitle)
                                 .font(.headline)
                                 .lineLimit(1)
+                                // CAPPED + middle-truncated (Daniel #176, live:
+                                // a 70-char archival folder name swallowed the
+                                // whole toolbar and the trailing icons with
+                                // it). An ellipsis mid-name loses the least —
+                                // archival names front-load the year and
+                                // back-load the distinguishing tail.
+                                // ponytail: fixed cap; a window-relative cap
+                                // needs GeometryReader plumbing into toolbar
+                                // content — upgrade if 380pt misfits a size.
+                                .truncationMode(.middle)
+                                .frame(maxWidth: 380)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         .foregroundStyle(.primary)
                     }

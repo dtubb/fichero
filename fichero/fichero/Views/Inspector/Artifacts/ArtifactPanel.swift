@@ -1,6 +1,3 @@
-#if os(macOS)
-import AppKit
-#endif
 import SwiftUI
 
 /// One read-only panel showing a single artifact (transcription, catalogue,
