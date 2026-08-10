@@ -280,7 +280,7 @@ extension ContentView {
                     return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
                 }()
 
-                HStack(spacing: 16) {
+                HStack(spacing: 10) {
                     HStack(spacing: 4) {
                         if let libraryName {
                             HStack(spacing: 3) {
@@ -328,6 +328,18 @@ extension ContentView {
                         }
                         .foregroundStyle(.primary)
                     }
+                    // HUG the content (Daniel, 2026-08-10 #220: "this is too
+                    // wide the island… spacing between icons and chevron and
+                    // next is too much"): the per-text maxWidth caps (#176)
+                    // are EXPANDING frames under the toolbar's generous
+                    // proposal, so short names centered in wide frames read
+                    // as giant gaps. fixedSize proposes nil width, which
+                    // makes every frame(maxWidth:) hug its text (still
+                    // capped and middle-truncated for long names), and the
+                    // island shrinks to what it actually says. The edge
+                    // padding gives the leading icon room from the capsule.
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 6)
                     // No painted lozenge (#4360): the toolbar's own Liquid Glass
                     // carries this principal item; the old low-opacity primary
                     // fill was a hand-rolled approximation of that material.

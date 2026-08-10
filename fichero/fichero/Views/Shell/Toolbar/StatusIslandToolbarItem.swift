@@ -113,7 +113,7 @@ struct StatusIslandToolbarItem: View {
             // island and the budget test tells you to re-derive the character
             // count. `truncationMode` stays as a backstop for a pathological
             // glyph run — it is not the length policy.
-            .frame(minWidth: 120, maxWidth: StatusIslandMessage.declaredMaxWidth)
+            .frame(minWidth: 40, maxWidth: StatusIslandMessage.declaredMaxWidth)
     }
 
     private static func label(for work: BackendWorkStatus) -> String {
