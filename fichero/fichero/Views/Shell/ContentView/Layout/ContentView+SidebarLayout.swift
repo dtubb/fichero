@@ -133,9 +133,9 @@ extension ContentView {
             // Non-library/search modes (activity, workflows, chat, etc.) never use
             // the preview split — they own the full content area themselves.
             contentWithOptionalModeRail
-                .overlay { paneFocusIndicator(for: .content) }
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
                 .frame(maxWidth: .infinity)
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                .overlay { paneFocusIndicator(for: .content) }
         } else {
             // Folders now show the current layout so the WebKit/reading
             // pane remains visible for folder-level aggregate content (#1405).
@@ -149,33 +149,33 @@ extension ContentView {
                 case .none:
                     if showDocumentGrid {
                         contentWithOptionalModeRail
-                            .overlay { paneFocusIndicator(for: .content) }
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
                             .frame(maxWidth: .infinity)
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                            .overlay { paneFocusIndicator(for: .content) }
                     } else {
                         // Grid hidden (#616): show only the preview/editor at full width.
                         previewView
-                            .overlay { paneFocusIndicator(for: .preview) }
                             .frame(maxWidth: .infinity)
+                            .overlay { paneFocusIndicator(for: .preview) }
                     }
 
                 case .standard:
                     if showDocumentGrid {
                         PlatformVSplitView {
                             contentWithOptionalModeRail
-                                .overlay { paneFocusIndicator(for: .content) }
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
                                 .frame(minHeight: 150, idealHeight: 180)
+                                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                                .overlay { paneFocusIndicator(for: .content) }
 
                             previewView
-                                .overlay { paneFocusIndicator(for: .preview) }
                                 .frame(minHeight: 400, idealHeight: 720)
+                                .overlay { paneFocusIndicator(for: .preview) }
                         }
                         .frame(maxWidth: .infinity)
                     } else {
                         previewView
-                            .overlay { paneFocusIndicator(for: .preview) }
                             .frame(maxWidth: .infinity)
+                            .overlay { paneFocusIndicator(for: .preview) }
                     }
 
                 case .widescreen:
@@ -202,14 +202,14 @@ extension ContentView {
                             adaptiveSplittablePane(storageKey: "library") {
                                 contentWithOptionalModeRail
                             }
-                            .overlay { paneFocusIndicator(for: .content) }
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
                             .frame(width: widescreenContentFixedWidth)
                             .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
                             // The library pane must never paint past its own split
                             // column — otherwise list/grid rows can bleed under the
                             // shell sidebar or off the left window edge.
                             .clipped()
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                            .overlay { paneFocusIndicator(for: .content) }
                         }
 
                         if panePlan.showsLibraryDivider {

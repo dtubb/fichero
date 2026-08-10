@@ -100,9 +100,9 @@ extension ContentView {
                 documentTitle: detailDocument?.name,
                 onClose: { setPaneVisible(.canvas, false) }
             )
-            .overlay { paneFocusIndicator(for: .preview) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+            .overlay { paneFocusIndicator(for: .preview) }
         } else {
             let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
                 selectedDocumentIds: browserSelection,
@@ -121,9 +121,9 @@ extension ContentView {
                 },
                 selectedDocumentIDs: browserSelection
             )
-            .overlay { paneFocusIndicator(for: .preview) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
             .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+            .overlay { paneFocusIndicator(for: .preview) }
         }
     }
 
