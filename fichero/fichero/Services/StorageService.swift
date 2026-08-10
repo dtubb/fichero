@@ -112,6 +112,10 @@ class StorageService {
     // MARK: - Image Loading
 
     /// Get thumbnail image for a document. Memoised per-service-instance.
+    /// Bounds concurrent image fetches so scroll bursts can't starve the
+    /// transport pool — see ImageFetchGate.
+    let imageFetchGate = ImageFetchGate(slots: 12)
+
     func getThumbnail(_ docId: String) async throws -> Image {
         if let cached = thumbnailCache[docId] {
             return cached
@@ -121,6 +125,8 @@ class StorageService {
             if let cached = self.thumbnailCache[docId] { return cached }
             // .debug, not .info: fires per uncached thumbnail during hot scroll (#3870).
             logger.debug("Loading thumbnail for document: \(docId)")
+            await self.imageFetchGate.acquire()
+            defer { self.imageFetchGate.release() }
             let data = try await self.thumbnailData(for: docId)
             let image = try await Self.decodeImage(from: data)
             self.cacheThumbnail(image, for: docId)
@@ -171,6 +177,8 @@ class StorageService {
             guard let self else { throw StorageServiceError.unexpectedResponse }
             if let cached = self.displayCache[docId] { return cached }
             logger.info("Loading display image for document: \(docId)")
+            await self.imageFetchGate.acquire()
+            defer { self.imageFetchGate.release() }
             let data = try await self.displayData(for: docId)
             let image = try await Self.decodeImage(from: data)
             self.displayCache[docId] = image

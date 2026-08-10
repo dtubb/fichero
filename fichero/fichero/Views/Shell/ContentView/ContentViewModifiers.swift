@@ -259,29 +259,63 @@ struct MainContentModifiers: ViewModifier {
         }
     }
 
-    private func handleSidebarModeChange(_ newMode: SidebarMode) {
-        switch newMode {
+    /// Whether the current view already belongs to `mode`'s family WITH an
+    /// explicit selection — the #1475 preservation rule, shared by the
+    /// workflows/automation/activity arms so a mode change can never stomp
+    /// the editor the same click just selected.
+    static func viewBelongsToMode(_ view: AppViewMode, mode: SidebarMode) -> Bool {
+        switch mode {
         case .library:
-            if case .library = viewMode { return }
-            viewMode = .library(nil)
+            if case .library = view { return true }
+            return false
         case .chat:
-            // Model Comparison lives under the chat sidebar mode. "New
-            // Comparison" sets sidebarMode = .chat AND viewMode = .comparison(nil);
-            // without this guard the mode-change handler immediately overwrote
-            // viewMode back to .chat(nil), so the comparison UI was never
-            // reachable (#1475). Preserve an explicitly-set comparison view.
-            if case .comparison = viewMode { return }
-            viewMode = .chat(nil)
+            if case .chat = view { return true }
+            if case .comparison = view { return true }
+            return false
         case .workflows:
-            viewMode = .workflow(nil)
+            return workflowsFamilyHolds(view)
         case .automation:
-            viewMode = .automation
+            return automationFamilyHolds(view)
         case .activity:
-            viewMode = .activity(nil)
+            if case .activity(let selected) = view { return selected != nil }
+            return false
         case .research, .knowledgeGraph:
-            // Research and Knowledge Graph have no ViewMode case; contentView
-            // intercepts on sidebarMode == .research / .knowledgeGraph, so leave
-            // viewMode untouched.
+            return false
+        }
+    }
+
+    private static func workflowsFamilyHolds(_ view: AppViewMode) -> Bool {
+        if case .workflow(let selected) = view { return selected != nil }
+        if case .chain(let selected) = view { return selected != nil }
+        if case .batches = view { return true }
+        return false
+    }
+
+    private static func automationFamilyHolds(_ view: AppViewMode) -> Bool {
+        if case .automation = view { return true }
+        if case .schedule(let selected) = view { return selected != nil }
+        if case .trigger(let selected) = view { return selected != nil }
+        return false
+    }
+
+    private func handleSidebarModeChange(_ newMode: SidebarMode) {
+        // ONE family rule (#1475, generalized 2026-08-10 after Daniel's "it
+        // never shows the node editor"): the mirror-click routing sets BOTH
+        // sidebarMode and viewMode, then this handler fired on the mode flip
+        // and overwrote the freshly selected editor back to its mode's nil
+        // default — the 'Select a Workflow' placeholder every time. If the
+        // current view already belongs to the new mode's family, this
+        // handler has nothing to normalize.
+        if Self.viewBelongsToMode(viewMode, mode: newMode) { return }
+        switch newMode {
+        case .library: viewMode = .library(nil)
+        case .chat: viewMode = .chat(nil)
+        case .workflows: viewMode = .workflow(nil)
+        case .automation: viewMode = .automation
+        case .activity: viewMode = .activity(nil)
+        case .research, .knowledgeGraph:
+            // No ViewMode case; contentView intercepts on sidebarMode, so
+            // leave viewMode untouched.
             break
         }
     }
