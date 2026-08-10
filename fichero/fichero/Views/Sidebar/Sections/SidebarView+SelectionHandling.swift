@@ -73,6 +73,9 @@ extension SidebarView {
             sidebarMode = .workflows
             viewMode = .workflow(nil)
         case .batches:
+            // BOTH axes, always (views audit 1d): setting only viewMode left
+            // the mode bar/menus disagreeing with the pane.
+            sidebarMode = .workflows
             viewMode = .batches
         case .entities:
             sidebarMode = .library
@@ -81,7 +84,11 @@ extension SidebarView {
             sidebarMode = .chat
             viewMode = .comparison(nil)
         case .research:
+            // BOTH axes, always (views audit 1d): setting only sidebarMode
+            // was the exact stale-pane bug — the center flips to Research
+            // while preview/reader/inspector keep switching on viewMode.
             sidebarMode = .research
+            viewMode = .library(nil)
         }
     }
 

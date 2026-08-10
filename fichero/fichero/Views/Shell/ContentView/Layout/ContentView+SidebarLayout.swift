@@ -156,6 +156,7 @@ extension ContentView {
                         // Grid hidden (#616): show only the preview/editor at full width.
                         previewView
                             .frame(maxWidth: .infinity)
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
                             .overlay { paneFocusIndicator(for: .preview) }
                     }
 
@@ -175,6 +176,7 @@ extension ContentView {
                     } else {
                         previewView
                             .frame(maxWidth: .infinity)
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
                             .overlay { paneFocusIndicator(for: .preview) }
                     }
 

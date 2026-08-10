@@ -8,6 +8,7 @@ extension SidebarView {
         let searchItems: [SidebarItem]
         let workflowItems: [SidebarItem]
         let comparisonItems: [SidebarItem]
+        let conversationItems: [SidebarItem]
         let chainItems: [SidebarItem]
         let scheduleItems: [SidebarItem]
         let triggerItems: [SidebarItem]
@@ -24,6 +25,7 @@ extension SidebarView {
         let searchItems: [SidebarItem]
         let workflowItems: [SidebarItem]
         let comparisonItems: [SidebarItem]
+        let conversationItems: [SidebarItem]
     }
 
     /// Filter a library header's children into the document / search / workflow
@@ -52,11 +54,23 @@ extension SidebarView {
             if case .comparison = item.itemType { return true }
             return false
         }
+        // Views audit 2026-08-10 (#1 of the top-10): CONVERSATIONS were the
+        // other still-live half of the same missing-bucket defect — built by
+        // buildChatHierarchy, then filtered out here, so every chat row was
+        // loaded and never rendered, and a newly created chat pointed
+        // selection at a row that could not exist. Chats are nodes in the
+        // one tree, like everything else (Daniel's node doctrine).
+        let conversationItems = allChildren.filter { item in
+            if case .conversation = item.itemType { return true }
+            if case .folder = item.itemType, item.category == .chat { return true }
+            return false
+        }
         return CachedLibraryItemBuckets(
             documentItems: documentItems,
             searchItems: searchItems,
             workflowItems: workflowItems,
-            comparisonItems: comparisonItems
+            comparisonItems: comparisonItems,
+            conversationItems: conversationItems
         )
     }
 
@@ -134,6 +148,7 @@ extension SidebarView {
         let searchItems = itemBuckets.searchItems
         let workflowItems = itemBuckets.workflowItems
         let comparisonItems = itemBuckets.comparisonItems
+        let conversationItems = itemBuckets.conversationItems
         let isGlobalLibrary = libraryId == LibraryManager.globalLibraryId
         let chainItems = (isGlobalLibrary && FeatureManager.shared.isWorkflowChainsEnabled)
             ? chains.map { SidebarItem.fromChain($0, libraryId: libraryId) }
@@ -151,6 +166,7 @@ extension SidebarView {
             searchItems: searchItems,
             workflowItems: workflowItems,
             comparisonItems: comparisonItems,
+            conversationItems: conversationItems,
             chainItems: chainItems,
             scheduleItems: scheduleItems,
             triggerItems: triggerItems,
@@ -200,6 +216,12 @@ extension SidebarView {
         // every node type in one continuous list, kind conveyed by icon.
         if FeatureManager.shared.isVisible(.modelComparison) {
             items.append(contentsOf: buckets.comparisonItems)
+        }
+
+        // Conversations are nodes in the same one list (views audit #1) —
+        // the missing bucket made every chat row invisible.
+        if FeatureManager.shared.isChatEnabled {
+            items.append(contentsOf: buckets.conversationItems)
         }
 
         // Default Workflows is a global-only destination, same as chains/
