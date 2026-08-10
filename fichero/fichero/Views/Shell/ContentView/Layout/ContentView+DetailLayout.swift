@@ -147,6 +147,11 @@ extension ContentView {
                 onClose: { setPaneVisible(.reading, false) }
             )
         }
+        // Native focus rings OFF in this pane (Daniel's screenshot, 3:56pm:
+        // a persistent blue edge above the reader toolbar — macOS 14+ makes
+        // scroll views keyboard-focusable and rings them natively). The
+        // fading paneFocusIndicator is the one focus indicator.
+        .focusEffectDisabled()
         .overlay { paneFocusIndicator(for: .reading) }
         .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading })
     }
