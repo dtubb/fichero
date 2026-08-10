@@ -8,8 +8,17 @@ extension SidebarView {
         standardSidebarContent
     }
 
-    @ViewBuilder
     var standardSidebarContent: some View {
+        // Third depth cap (launch EXC_BAD_ACCESS code=2 — the stack guard
+        // page — 2026-08-10 midday, same #4331 class): erase the whole
+        // column stack too, so no caller ever value-copies the composed
+        // VStack+List type inline. Load-bearing with the caps in
+        // unifiedContent and sidebarStyle().
+        AnyView(standardSidebarContentBody)
+    }
+
+    @ViewBuilder
+    private var standardSidebarContentBody: some View {
         VStack(spacing: 0) {
             // The persistent shell sidebar (the library/folder tree) stays
             // visible in EVERY mode — Research included. Research no longer
