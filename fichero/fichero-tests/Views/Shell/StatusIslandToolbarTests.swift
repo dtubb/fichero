@@ -24,7 +24,8 @@ struct StatusIslandToolbarTests {
         isImporting: Bool = false,
         importProgress: String? = nil,
         backendWorkLabel: String? = nil,
-        runningWorkflows: Int = 0
+        runningWorkflows: Int = 0,
+        selectionCount: Int = 0
     ) -> StatusIslandMessage {
         StatusIslandMessage.resolve(
             enginePhase: enginePhase,
@@ -33,8 +34,28 @@ struct StatusIslandToolbarTests {
             isImporting: isImporting,
             importProgress: importProgress,
             backendWorkLabel: backendWorkLabel,
-            runningWorkflows: runningWorkflows
+            runningWorkflows: runningWorkflows,
+            selectionCount: selectionCount
         )
+    }
+
+    // MARK: - Photos-style selection indicator (#29 / Daniel #138)
+
+    @Test("a multi-selection reads N selected, outranking background work")
+    func multiSelectionOutranksBackgroundWork() {
+        let status = resolve(backendWorkLabel: "Embedding — 40%", runningWorkflows: 3, selectionCount: 12)
+        #expect(status == StatusIslandMessage(text: "12 selected", isError: false))
+    }
+
+    @Test("a single selection stays quiet — Ready wins")
+    func singleSelectionStaysQuiet() {
+        #expect(resolve(selectionCount: 1) == StatusIslandMessage(text: "Ready", isError: false))
+    }
+
+    @Test("an error or a live import outranks the selection count")
+    func errorsAndImportsOutrankSelection() {
+        #expect(resolve(importError: "Disk full", selectionCount: 12).isError)
+        #expect(resolve(isImporting: true, selectionCount: 12).text == "Importing…")
     }
 
     // MARK: - Message precedence

@@ -26,6 +26,10 @@ struct StatusIslandToolbarItem: View {
     let importProgress: String?
     let libraryId: UUID
     let libraryName: String
+    /// Photos-style selection indicator (#29, Daniel #138): while a
+    /// multi-selection is being built the island says "N selected" — the
+    /// count is the thing the user is actively producing.
+    let selectionCount: Int
     @Binding var importError: String?
 
     var body: some View {
@@ -96,7 +100,8 @@ struct StatusIslandToolbarItem: View {
             isImporting: isImporting,
             importProgress: importProgress,
             backendWorkLabel: activityStore.backendWork.map(Self.label(for:)),
-            runningWorkflows: executionObserver.activeExecutions.count
+            runningWorkflows: executionObserver.activeExecutions.count,
+            selectionCount: selectionCount
         )
         return Text(status.text)
             .font(.subheadline)
@@ -150,7 +155,8 @@ struct StatusIslandMessage: Equatable {
         "Ready",
         "Importing…",
         "Running 1 workflow…",
-        "Running 99 workflows…"
+        "Running 99 workflows…",
+        "9,999 selected"
     ]
 
     /// The short form of a string the app did not author.
@@ -206,7 +212,8 @@ struct StatusIslandMessage: Equatable {
         isImporting: Bool,
         importProgress: String?,
         backendWorkLabel: String?,
-        runningWorkflows: Int
+        runningWorkflows: Int,
+        selectionCount: Int = 0
     ) -> StatusIslandMessage {
         switch enginePhase {
         case .portConflict, .authRejected, .unreachable, .failed:
@@ -223,6 +230,13 @@ struct StatusIslandMessage: Equatable {
         // app-authored and short by construction.
         if let importError { return .init(text: shortForm(importError), isError: true) }
         if isImporting { return .init(text: shortForm(importProgress ?? "Importing…"), isError: false) }
+        // Photos grammar (#29/#138): a multi-selection in progress is what the
+        // user is actively doing — it outranks background work and workflow
+        // chatter, but never an error or a live import. A SINGLE selection is
+        // the app's normal state and stays quiet.
+        if selectionCount > 1 {
+            return .init(text: "\(selectionCount.formatted()) selected", isError: false)
+        }
         if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         if runningWorkflows > 0 {
             let text = runningWorkflows == 1

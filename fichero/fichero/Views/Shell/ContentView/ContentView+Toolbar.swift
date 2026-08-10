@@ -341,6 +341,7 @@ extension ContentView {
                         importProgress: importProgress,
                         libraryId: windowState.libraryId,
                         libraryName: windowState.library?.displayName ?? "Library",
+                        selectionCount: browserSelection.count,
                         importError: $importError
                     )
                 }
