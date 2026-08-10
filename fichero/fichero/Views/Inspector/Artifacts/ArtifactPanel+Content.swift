@@ -30,22 +30,29 @@ extension ArtifactPanel {
                 // where editing happens and they stay under the limit.
                 oversizeContentPreview
             } else if onSave != nil {
-                TextEditor(text: $draftText)
-                    .editorScaledFont()
-                    .focused($isEditorFocused)
-                    .scrollContentBackground(.hidden)
-                    // BOUNDED HEIGHT, never intrinsic (Daniel's live
-                    // backtraces, 2026-08-10): an unbounded proposal makes
-                    // the AttributedString editor's sizeThatFits run
-                    // NSTextLayoutManager.ensureLayoutForRange over the WHOLE
-                    // document on the main thread, per layout pass — the
-                    // spinning wheel while 'navigating a pdf'. A concrete
-                    // ceiling turns sizing O(1); the editor scrolls
-                    // internally past it, exactly like the fillsHeight pane.
-                    .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : 420)
-                    .frame(minHeight: 60)
-                    .background(Color(.textBackgroundColor))
-                    .cornerRadius(4)
+                // THE EDITOR NEVER SEES A NIL SIZE PROPOSAL (Daniel's live
+                // backtraces, 2026-08-10, four of them): the AttributedString
+                // editor's sizeThatFits answers an unbounded/ideal proposal by
+                // running NSTextLayoutManager.ensureLayoutForRange over the
+                // WHOLE document on the main thread. A maxHeight frame did NOT
+                // close this — the stack's ideal-size probe (lengthThatFits →
+                // prioritize in the stall backtrace) sends a nil proposal,
+                // which a flexible frame forwards to the child and only clamps
+                // the RESULT of. GeometryReader is the structural fix: it
+                // sizes itself without consulting its child, so the editor
+                // always receives the concrete resolved size and sizing stays
+                // O(1); it scrolls internally past its height.
+                GeometryReader { geo in
+                    TextEditor(text: $draftText)
+                        .editorScaledFont()
+                        .focused($isEditorFocused)
+                        .scrollContentBackground(.hidden)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                }
+                .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : 420)
+                .frame(minHeight: 60)
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(4)
                     .onChange(of: draftText) { _, _ in scheduleAutoSave() }
                     .onChange(of: isEditorFocused) { _, focused in
                         if focused {
