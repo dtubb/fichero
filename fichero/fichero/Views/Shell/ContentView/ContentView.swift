@@ -358,9 +358,12 @@ struct ContentView: View {
             cyclePaneFocus(reverse: true)
             return .handled
         }
-        // Option+Left/Right cycles between panes (sidebar → content → preview → inspector).
-        // Plain left/right are reserved for inner-pane navigation (grid columns, DisclosureGroup expand).
-        // Command+Left/Right navigates to previous/next sibling document (#593).
+        // Tab/⇧Tab is THE pane mover (Daniel, 2026-08-10: "tab is correct.
+        // but not the option arrow keys" — ⌥-arrows collide with folder
+        // expand/collapse and word-wise text movement). Plain left/right are
+        // reserved for inner-pane navigation (grid columns, DisclosureGroup
+        // expand). Command+Left/Right navigates to previous/next sibling
+        // document (#593).
         // Trackpad swipe in the image preview steps siblings (Daniel,
         // 2026-08-10) — same destination as ⌘←/→ below.
         .onReceive(NotificationCenter.default.publisher(for: .previewSiblingSwipe)) { note in
@@ -384,19 +387,11 @@ struct ContentView: View {
                 navigateSiblingPrevious()
                 return .handled
             }
-            if keyPress.modifiers.contains(.option) {
-                cyclePaneFocus(reverse: true)
-                return .handled
-            }
             return .ignored
         }
         .onKeyPress(.rightArrow, phases: .down) { keyPress in
             if keyPress.modifiers.contains(.command) {
                 navigateSiblingNext()
-                return .handled
-            }
-            if keyPress.modifiers.contains(.option) {
-                cyclePaneFocus(reverse: false)
                 return .handled
             }
             return .ignored
