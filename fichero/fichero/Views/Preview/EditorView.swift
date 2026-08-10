@@ -148,6 +148,9 @@ struct EditorView: View {
         /// Shows the first previewable child; swiping then steps through the
         /// folder via the ContentView sibling navigation.
         case folderContents(folderId: String)
+        /// A calm large-symbol placeholder for nodes that have nothing to
+        /// preview by design (workflow mirrors) — never an error state.
+        case glyph(systemImage: String, title: String)
 
         var usesImageEditingPreviewForViewing: Bool {
             if case .imageEditor = self {
@@ -166,6 +169,14 @@ struct EditorView: View {
     }
 
     static func previewRoute(for doc: Document, isEditing: Bool) -> PreviewRoute {
+        if doc.isWorkflowNode {
+            // A workflow mirror has NO source file — the Quick Look route
+            // showed a scary "Preview unavailable / Source file not
+            // available / Retry" (Daniel, 2026-08-10: "say something better
+            // than that, or just do the folder icon"). A calm glyph is the
+            // honest preview: workflows are edited, not previewed.
+            return .glyph(systemImage: doc.displaySymbol(), title: doc.name)
+        }
         if doc.docType == .folder {
             return folderPreviewRoute(for: doc, isEditing: isEditing)
         }
@@ -256,6 +267,8 @@ struct EditorView: View {
                 folderId: folderId,
                 onNavigateToDocument: onNavigateToDocument
             )
+        case .glyph(let systemImage, let title):
+            GlyphPreviewPlaceholder(systemImage: systemImage, title: title)
         }
     }
 
@@ -341,3 +354,22 @@ struct EditorView: View {
     .frame(width: 390, height: 780)
 }
 // ZoomableImageView retired in #1402 — all image display now routes through DocumentCanvas.
+
+/// Calm large-symbol preview for nodes with nothing to preview by design
+/// (workflow mirrors) — never an error state (Daniel, 2026-08-10).
+private struct GlyphPreviewPlaceholder: View {
+    let systemImage: String
+    let title: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 56))
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}

@@ -44,8 +44,11 @@ struct FolderContentsPreview: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: folderId) {
+            // Previewable children only: subfolders are a selection, not a
+            // preview, and a workflow mirror has no source file — routing one
+            // here surfaced the Quick Look error state (Daniel, 2026-08-10).
             firstItem = await documentStore.children(of: folderId)
-                .first { $0.docType != .folder }
+                .first { $0.docType != .folder && !$0.isWorkflowNode }
             loaded = true
         }
     }

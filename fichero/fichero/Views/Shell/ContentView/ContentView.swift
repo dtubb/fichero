@@ -245,6 +245,13 @@ struct ContentView: View {
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
+    /// The LAST pane that took focus — drives the fading focus ring (Daniel,
+    /// 2026-08-10: "the fading ring doesn't show up anywhere, except once on
+    /// the sidebar"). `focusedPane` is FocusState: a write that no .focused
+    /// binding claims (most panes) evaporates to nil before the ring can
+    /// render, so the ring reads THIS instead — set by every tap writer and
+    /// mirrored from real focus changes.
+    @State var paneFocusHint: PaneFocus?
 
     // NOTE: the toolbar's contextual Delete button was removed. Reading
     // `@FocusedValue(\.libraryDeleteSelection)` HERE (ContentView hosts
@@ -347,6 +354,12 @@ struct ContentView: View {
         // 2026-08-10) — same destination as ⌘←/→ below.
         .onReceive(NotificationCenter.default.publisher(for: .previewSiblingSwipe)) { note in
             handlePreviewSiblingSwipe(note)
+        }
+        // Mirror REAL focus changes into the ring hint (sidebar's .focused
+        // binding is the one FocusState writer that sticks; Tab-cycling and
+        // arrow handoffs land here too).
+        .onChange(of: focusedPane) { _, newPane in
+            if let newPane { paneFocusHint = newPane }
         }
         .onKeyPress(.leftArrow, phases: .down) { keyPress in
             if keyPress.modifiers.contains(.command) {

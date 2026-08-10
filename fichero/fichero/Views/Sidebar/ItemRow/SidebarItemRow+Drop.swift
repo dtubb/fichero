@@ -91,6 +91,21 @@ extension SidebarItemRow {
         return true
     }
 
+    /// Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still not
+    /// working for clicking on name of item child of folder") — the
+    /// UnifiedRows fallback only wraps TOP-LEVEL rows, so a nested row's
+    /// name-press was claimed by the drag machinery and never committed.
+    /// Plain clicks only; modifier clicks stay with the List.
+    private func childPlainClickFallback(_ child: SidebarItem) -> some Gesture {
+        TapGesture().onEnded {
+            #if os(macOS)
+            guard !NSEvent.modifierFlags.contains(.shift),
+                  !NSEvent.modifierFlags.contains(.command) else { return }
+            #endif
+            selectedItemId = child.id
+        }
+    }
+
     @ViewBuilder
     func childrenList(_ children: [SidebarItem]) -> some View {
         // Cross-hierarchy / cross-section drops use SwiftUI's native
@@ -131,6 +146,13 @@ extension SidebarItemRow {
                 RowDragPreview(name: child.name, systemImage: child.icon)
             }
             .moveDisabled(child.icon == "tray.fill")
+            // Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still
+            // not working for clicking on name of item child of folder") —
+            // the UnifiedRows fallback only wraps TOP-LEVEL rows, so a
+            // nested row's name-press was claimed by the drag machinery and
+            // never committed. Same seam: write the primary selection id.
+            // Plain clicks only; modifier clicks stay with the List.
+            .simultaneousGesture(childPlainClickFallback(child))
             .sidebarRowTypeErased()
             .tag(child.destination)
         }

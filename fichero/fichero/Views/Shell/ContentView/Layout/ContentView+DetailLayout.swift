@@ -87,7 +87,7 @@ extension ContentView {
         if stackDocuments.count > 1 {
             MultiSelectionPreviewStack(documents: stackDocuments)
                 .overlay { paneFocusIndicator(for: .preview) }
-                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
                 .frame(maxWidth: .infinity)
         } else if let pdfDocumentId = detailPDFDocumentId {
             PDFPageWithToolbar(
@@ -101,7 +101,7 @@ extension ContentView {
                 onClose: { setPaneVisible(.canvas, false) }
             )
             .overlay { paneFocusIndicator(for: .preview) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
         } else {
             let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
@@ -122,7 +122,7 @@ extension ContentView {
                 selectedDocumentIDs: browserSelection
             )
             .overlay { paneFocusIndicator(for: .preview) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
             .frame(maxWidth: .infinity)
         }
     }
@@ -148,7 +148,7 @@ extension ContentView {
             )
         }
         .overlay { paneFocusIndicator(for: .reading) }
-        .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading })
+        .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading })
     }
 
     // `adaptiveSplittablePane` is internal (not private) because it is also
@@ -337,7 +337,7 @@ extension ContentView {
         inspectorView
             // Focus tracking without .focusable() — avoids swallowing first click
             .overlay { paneFocusIndicator(for: .inspector) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector })
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.bar)
     }
