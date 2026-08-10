@@ -38,6 +38,15 @@ import hashlib
 import json
 import logging
 import mimetypes
+
+# SANDBOX (2026-08-09, Daniel's live log): a bare guess_type() lazily runs
+# mimetypes.init(), which tries to READ system Apache tables
+# (/etc/apache2/mime.types et al). The App Sandbox denies that with
+# [Errno 1] Operation not permitted — and because init never succeeds,
+# EVERY file's metadata extraction failed, taking image dimensions down
+# with it. Initialise once from the built-in table only; identical answers
+# for every type this importer cares about, zero filesystem reads.
+mimetypes.init(files=[])
 import os
 import shutil
 import time

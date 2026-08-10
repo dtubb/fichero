@@ -2249,3 +2249,20 @@ class TestTouchAncestorDocumentsCycleGuard:
         # parent_id must terminate the walk.
         assert mock_db.get.call_count == 1
         assert mock_db.save.call_count == 1
+
+
+class TestMimetypesSandboxInit:
+    """mimetypes must be initialised from the built-in table, never system
+    files (2026-08-09): the sandbox denies /etc/apache2/mime.types, a lazy
+    init re-failed per call, and EVERY import's metadata extraction died on
+    [Errno 1] — image dimensions included."""
+
+    def test_import_initialises_mimetypes_without_file_reads(self):
+        import mimetypes
+
+        import fichero_server.importers.ingest  # noqa: F401 — import side effect
+
+        assert mimetypes.inited, "ingest import must run mimetypes.init(files=[])"
+        # The built-in table answers the types this importer cares about.
+        assert mimetypes.guess_type("a.jpg")[0] == "image/jpeg"
+        assert mimetypes.guess_type("a.pdf")[0] == "application/pdf"
