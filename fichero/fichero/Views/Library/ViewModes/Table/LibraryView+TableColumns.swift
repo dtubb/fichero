@@ -250,12 +250,22 @@ extension LibraryView {
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                // Explicit env-free preview — the DEFAULT preview re-hosts
+                // the row with NO environment and crashes on first drag
+                // (Daniel's table-view crash, 2026-08-10: EnvironmentObjectKey
+                // force-unwrap under PasteboardUtility.File). See
+                // DragPreviewLabel's contract.
                 .draggable(LibraryItemDrag(
                     kind: .group,
                     id: node.id,
                     documentId: node.document.id,
                     text: type.groupLabel(count: node.count)
-                ))
+                )) {
+                    RowDragPreview(
+                        name: type.groupLabel(count: node.count),
+                        systemImage: type.systemImage
+                    )
+                }
         case .pageItem(let page):
             // `pageThumbnailLabel ?? name` is nil exactly for a page with no
             // sequence — the case with no page number to show — so it fell
@@ -280,6 +290,7 @@ extension LibraryView {
             )
             .font(.subheadline)
             .foregroundStyle(.primary)
+            // Same env-free preview contract as the group row above.
             .draggable(LibraryItemDrag(
                 kind: .artifact,
                 id: artifact.id,
@@ -287,7 +298,12 @@ extension LibraryView {
                 text: artifact.content?.isEmpty == false
                     ? artifact.content ?? artifact.artifactTypeDisplayName
                     : artifact.artifactTypeDisplayName
-            ))
+            )) {
+                RowDragPreview(
+                    name: artifact.stepName ?? artifact.artifactType,
+                    systemImage: "shippingbox"
+                )
+            }
         case .entityItem(let entity):
             Label(entity.canonicalName, systemImage: "person.crop.circle")
                 .font(.subheadline)

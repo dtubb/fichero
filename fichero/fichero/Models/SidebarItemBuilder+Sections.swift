@@ -164,20 +164,10 @@ extension SidebarItemBuilder {
     }
 
     /// Build hierarchical workflow items from workflows
-    static func buildWorkflowHierarchy(from workflows: [WorkflowSidebarItem], libraryId: UUID) -> [SidebarItem] {
-        return buildHierarchyFromPath(
-            items: workflows,
-            libraryId: libraryId,
-            extractPath: { $0.folderPath },
-            extractSortOrder: { $0.sortOrder },
-            buildItem: { workflow, _ in
-                SidebarItem.fromWorkflow(workflow, libraryId: libraryId)
-            },
-            category: .workflow
-        )
-    }
+// buildWorkflowHierarchy deleted (views audit 2026-08-10): the dormant
+    // re-entry point for the #4186 duplicate client-side workflow hierarchy —
+    // workflows reach the tree as engine-mirrored document nodes.
 
-    /// Build chain items with folder hierarchy
     static func buildChainItems(from chains: [WorkflowChain], libraryId: UUID) -> [SidebarItem] {
         return buildHierarchyFromPath(
             items: chains,

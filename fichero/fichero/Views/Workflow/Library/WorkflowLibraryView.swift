@@ -2,46 +2,10 @@ import FicheroAPIClient
 import SwiftUI
 
 /// Tab selection for workflow library
-enum WorkflowLibraryTab: String, CaseIterable {
-    case workflows = "Workflows"
-    case chains = "Chains"
-}
+// WorkflowLibraryView + its tab enum deleted (views audit 2026-08-10:
+// an unreachable second workflow-list shell; Daniel: the mode-shell era is over).
+// WorkflowListView below remains the live list renderer.
 
-// View for browsing and managing saved workflows and workflow chains
-struct WorkflowLibraryView: View {
-    @Environment(WorkflowStore.self) var workflowStore
-    @State private var selectedTab: WorkflowLibraryTab = .workflows
-
-    /// View display mode from toolbar (icon, list, table, map)
-    let displayMode: ViewDisplayMode
-
-    /// Callback when user wants to open a workflow in the editor
-    var onOpenWorkflow: ((WorkflowSidebarItem) -> Void)?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // Tab picker
-            Picker("View", selection: $selectedTab) {
-                ForEach(WorkflowLibraryTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-
-            // Content based on selected tab
-            switch selectedTab {
-            case .workflows:
-                WorkflowListView(displayMode: displayMode, onOpenWorkflow: onOpenWorkflow)
-            case .chains:
-                WorkflowChainListView()
-            }
-        }
-    }
-}
-
-// View for browsing and managing saved workflows
 struct WorkflowListView: View {
     @Environment(WorkflowStore.self) var workflowStore
     @Environment(WorkflowService.self) var workflowService
@@ -243,9 +207,3 @@ struct WorkflowListView: View {
 // - WorkflowDetailView.swift (includes StatView)
 // - NewWorkflowSheet.swift
 
-#Preview {
-    let ficheroClient = FicheroClient(libraryPath: "/tmp/preview.fichero")
-    return WorkflowLibraryView(displayMode: .list)
-        .environment(WorkflowStore(ficheroClient: ficheroClient))
-        .environment(WorkflowService(ficheroClient: ficheroClient))
-}
