@@ -520,24 +520,25 @@ def _kreuzberg_pdf_pages(path: Path) -> list[dict[str, Any]]:
     # GIL, so a hanging pdfium bind freezes the WHOLE engine — health goes
     # dark and the watchdog SIGKILLs it. The gate probed PDF extraction in a
     # throwaway subprocess; if that failed, do not gamble the process.
-    from fichero_server.loaders.kreuzberg_cache import kreuzberg_pdf_usable
+    from fichero_server.loaders.kreuzberg_cache import (
+        KreuzbergSubprocessError,
+        extract_pdf_pages_subprocess,
+        kreuzberg_pdf_usable,
+    )
 
     if not kreuzberg_pdf_usable(logger=logger):
         raise _KreuzbergUnavailableError(
             "pdfium probe failed — kreuzberg disabled for PDFs this run"
         )
+    # OUT OF PROCESS (2026-08-10): the in-process extract_file_sync
+    # deadlocked the whole engine — its sync FFI holds the GIL while worker
+    # callbacks lazily import C extensions (charset_normalizer one
+    # faulthandler dump, uuid_utils the next). The child pays for any hang
+    # with its own life at the timeout; the engine never stops serving.
     try:
-        from kreuzberg import ExtractionConfig, PageConfig, extract_file_sync
-    except ImportError as exc:
-        raise _KreuzbergUnavailableError(str(exc)) from exc
-
-    try:
-        cfg = ExtractionConfig(pages=PageConfig(extract_pages=True))
-        result = extract_file_sync(str(path), None, cfg)
-    except Exception as exc:
+        return extract_pdf_pages_subprocess(path)
+    except KreuzbergSubprocessError as exc:
         raise _KreuzbergExtractionError(str(exc)) from exc
-
-    return result.pages or []
 
 
 def _page_records_have_text(records: list[dict[str, Any]]) -> int:

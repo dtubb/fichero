@@ -1843,7 +1843,14 @@ class TestTextExtraction:
 
         fake_db = FakeDB()
         with patch("fichero_server.bookmarks.create_bookmark") as mock_bookmark, \
-             patch("kreuzberg.extract_file_sync", return_value=fake_pages_result):
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.extract_pdf_pages_subprocess",
+                 return_value=fake_pages_result.pages,
+             ), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.kreuzberg_pdf_usable",
+                 return_value=True,
+             ):
             mock_bookmark.return_value = None
             parent = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=fake_db)
 
@@ -1908,7 +1915,14 @@ class TestTextExtraction:
         ]
 
         with patch("fichero_server.bookmarks.create_bookmark") as mock_bookmark, \
-             patch("kreuzberg.extract_file_sync", return_value=fake_pages_result):
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.extract_pdf_pages_subprocess",
+                 return_value=fake_pages_result.pages,
+             ), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.kreuzberg_pdf_usable",
+                 return_value=True,
+             ):
             mock_bookmark.return_value = None
             ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=FakeDB())
 
@@ -1966,7 +1980,14 @@ class TestTextExtraction:
         ]
 
         parent = Document(name="partial.pdf", doc_type=DocType.file)
-        with patch("kreuzberg.extract_file_sync", return_value=fake_pages_result), \
+        with patch(
+                 "fichero_server.loaders.kreuzberg_cache.extract_pdf_pages_subprocess",
+                 return_value=fake_pages_result.pages,
+             ), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.kreuzberg_pdf_usable",
+                 return_value=True,
+             ), \
              patch("fitz.open", return_value=FakePDF()):
             pages = _create_pdf_page_children(parent, file_path, FakeDB())
 

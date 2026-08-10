@@ -179,31 +179,9 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
             f.write(_PROBE_PDF)
             probe_path = f.name
-        # The child must run OUR probe module, and the shipped Briefcase
-        # engine bundles NO python binary — sys.executable is the app STUB,
-        # which with its default module boots a whole second engine (died on
-        # the DuckDB lock, measured live). The stub honors
-        # BRIEFCASE_MAIN_MODULE, so shipped builds run the stub pointed at
-        # the probe module; dev/venv layouts run their real python with -m.
-        env = {
-            **os.environ,
-            "FICHERO_PDFIUM_PROBE_PDF": probe_path,
-            "BRIEFCASE_MAIN_MODULE": "fichero_server._pdfium_probe",
-        }
-        # Dev/venv: sys.executable IS a python — run the module with -m
-        # (sys.base_prefix would escape the venv to a bare interpreter with
-        # no kreuzberg). Shipped Briefcase: sys.executable is the app stub,
-        # driven by BRIEFCASE_MAIN_MODULE above.
-        exe = Path(sys.executable)
-        command = (
-            [str(exe), "-m", "fichero_server._pdfium_probe"]
-            if exe.name.lower().startswith("python")
-            else [str(exe)]
-        )
         proc = subprocess.run(
-            command,
-            capture_output=True, timeout=60,
-            env=env,
+            _worker_command(), capture_output=True, timeout=60,
+            env=_worker_env({**os.environ, "FICHERO_PDFIUM_PROBE_PDF": probe_path}),
         )
         _KREUZBERG_PDF_USABLE = proc.returncode == 0
         if not _KREUZBERG_PDF_USABLE and logger:
@@ -245,3 +223,73 @@ for _lazy in ("charset_normalizer", "charset_normalizer.api"):
         __import__(_lazy)
     except Exception:  # noqa: S112 — absence is kreuzberg's problem, not fatal
         pass
+
+
+def _worker_command() -> list[str]:
+    """The out-of-process kreuzberg worker invocation for THIS layout."""
+    import sys
+
+    exe = Path(sys.executable)
+    if exe.name.lower().startswith("python"):
+        # Dev/venv: sys.executable IS a python (sys.base_prefix would escape
+        # the venv to a bare interpreter with no kreuzberg).
+        return [str(exe), "-m", "fichero_server._pdfium_probe"]
+    # Shipped Briefcase: sys.executable is the app stub; BRIEFCASE_MAIN_MODULE
+    # (set in _worker_env) points it at the worker module instead of the app.
+    return [str(exe)]
+
+
+def _worker_env(env: dict) -> dict:
+    env = dict(env)
+    env["BRIEFCASE_MAIN_MODULE"] = "fichero_server._pdfium_probe"
+    return env
+
+
+class KreuzbergSubprocessError(RuntimeError):
+    """The out-of-process kreuzberg extraction failed (rc, timeout, bad JSON)."""
+
+
+def extract_pdf_pages_subprocess(path, timeout: int = 300) -> list:
+    """Per-page kreuzberg extraction, OUT OF PROCESS (#4555).
+
+    The in-process call deadlocked the whole engine (sync FFI holds the GIL
+    while callbacks lazily import C extensions — charset_normalizer one
+    faulthandler dump, uuid_utils the next; the list does not converge).
+    A child does the extraction and hands back JSON; a hang costs the child
+    its life at `timeout`, never the engine's.
+    """
+    import json
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as out:
+        out_path = out.name
+    env = {
+        **os.environ,
+        "FICHERO_KREUZBERG_EXTRACT_INPUT": str(path),
+        "FICHERO_KREUZBERG_EXTRACT_OUTPUT": out_path,
+    }
+    try:
+        proc = subprocess.run(
+            _worker_command(), capture_output=True, timeout=timeout,
+            env=_worker_env(env),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise KreuzbergSubprocessError(
+            f"kreuzberg worker timed out after {timeout}s (killed; engine unharmed)"
+        ) from exc
+    if proc.returncode != 0:
+        tail = (proc.stderr or b"")[-400:].decode(errors="replace")
+        raise KreuzbergSubprocessError(
+            f"kreuzberg worker rc={proc.returncode}: {tail}"
+        )
+    try:
+        with open(out_path, encoding="utf-8") as f:
+            return json.load(f).get("pages") or []
+    except (OSError, ValueError) as exc:
+        raise KreuzbergSubprocessError(f"worker output unreadable: {exc}") from exc
+    finally:
+        try:
+            os.unlink(out_path)
+        except OSError:
+            pass
