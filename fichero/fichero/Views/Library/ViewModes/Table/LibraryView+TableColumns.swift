@@ -239,6 +239,32 @@ extension LibraryView {
             .accessibilityAddTraits(selection.contains(document.id) ? .isSelected : [])
     }
 
+    /// Artifact child-row name cell — split out of `outlineNameCell` for the
+    /// function-body-length budget.
+    @ViewBuilder
+    private func artifactNameCell(for artifact: Artifact) -> some View {
+                Label(
+                    artifact.stepName ?? artifact.artifactType,
+                    systemImage: "shippingbox"
+                )
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                // Same env-free preview contract as the group row above.
+                .draggable(LibraryItemDrag(
+                    kind: .artifact,
+                    id: artifact.id,
+                    documentId: artifact.documentId,
+                    text: artifact.content?.isEmpty == false
+                        ? artifact.content ?? artifact.artifactTypeDisplayName
+                        : artifact.artifactTypeDisplayName
+                )) {
+                    RowDragPreview(
+                        name: artifact.stepName ?? artifact.artifactType,
+                        systemImage: "shippingbox"
+                    )
+                }
+    }
+
     /// Name-column cell. Documents render the existing name cell; child-group rows
     /// show a count summary ("12 entities"); page/artifact items show their own label.
     @ViewBuilder
@@ -284,26 +310,7 @@ extension LibraryView {
                 )
             }
         case .artifactItem(let artifact):
-            Label(
-                artifact.stepName ?? artifact.artifactType,
-                systemImage: "shippingbox"
-            )
-            .font(.subheadline)
-            .foregroundStyle(.primary)
-            // Same env-free preview contract as the group row above.
-            .draggable(LibraryItemDrag(
-                kind: .artifact,
-                id: artifact.id,
-                documentId: artifact.documentId,
-                text: artifact.content?.isEmpty == false
-                    ? artifact.content ?? artifact.artifactTypeDisplayName
-                    : artifact.artifactTypeDisplayName
-            )) {
-                RowDragPreview(
-                    name: artifact.stepName ?? artifact.artifactType,
-                    systemImage: "shippingbox"
-                )
-            }
+            artifactNameCell(for: artifact)
         case .entityItem(let entity):
             Label(entity.canonicalName, systemImage: "person.crop.circle")
                 .font(.subheadline)

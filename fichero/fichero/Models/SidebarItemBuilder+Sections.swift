@@ -163,8 +163,7 @@ extension SidebarItemBuilder {
         )
     }
 
-    /// Build hierarchical workflow items from workflows
-// buildWorkflowHierarchy deleted (views audit 2026-08-10): the dormant
+    // buildWorkflowHierarchy deleted (views audit 2026-08-10): the dormant
     // re-entry point for the #4186 duplicate client-side workflow hierarchy —
     // workflows reach the tree as engine-mirrored document nodes.
 

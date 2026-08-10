@@ -1,7 +1,6 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// Tab selection for workflow library
 // WorkflowLibraryView + its tab enum deleted (views audit 2026-08-10:
 // an unreachable second workflow-list shell; Daniel: the mode-shell era is over).
 // WorkflowListView below remains the live list renderer.
@@ -206,4 +205,3 @@ struct WorkflowListView: View {
 // - WorkflowMiniPreview.swift
 // - WorkflowDetailView.swift (includes StatView)
 // - NewWorkflowSheet.swift
-
