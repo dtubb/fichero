@@ -133,6 +133,7 @@ extension ContentView {
             // the preview split — they own the full content area themselves.
             contentWithOptionalModeRail
                 .overlay { paneFocusIndicator(for: .content) }
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content })
                 .frame(maxWidth: .infinity)
         } else {
             // Folders now show the current layout so the WebKit/reading
@@ -148,6 +149,7 @@ extension ContentView {
                     if showDocumentGrid {
                         contentWithOptionalModeRail
                             .overlay { paneFocusIndicator(for: .content) }
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content })
                             .frame(maxWidth: .infinity)
                     } else {
                         // Grid hidden (#616): show only the preview/editor at full width.
@@ -161,6 +163,7 @@ extension ContentView {
                         PlatformVSplitView {
                             contentWithOptionalModeRail
                                 .overlay { paneFocusIndicator(for: .content) }
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content })
                                 .frame(minHeight: 150, idealHeight: 180)
 
                             previewView
@@ -199,6 +202,7 @@ extension ContentView {
                                 contentWithOptionalModeRail
                             }
                             .overlay { paneFocusIndicator(for: .content) }
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content })
                             .frame(width: widescreenContentFixedWidth)
                             .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
                             // The library pane must never paint past its own split
