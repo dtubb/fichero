@@ -2,6 +2,17 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Identifies which main pane has keyboard focus for Tab cycling
+/// True while a text-input view owns the keyboard — the window-level Tab
+/// pane-cycle must yield to it (rename fields, search, the editor).
+@MainActor
+var textEditingHasKeyboard: Bool {
+    #if os(macOS)
+    NSApp.keyWindow?.firstResponder is NSTextView
+    #else
+    false
+    #endif
+}
+
 enum PaneFocus: Hashable {
     case sidebar, content, preview, reading, inspector
 
@@ -350,11 +361,18 @@ struct ContentView: View {
         }
         #endif
         .onKeyPress(.tab, phases: .down) { keyPress in
+            // Tab inside an ACTIVE TEXT FIELD belongs to the text (Daniel,
+            // 2026-08-10: "tab would be used for editing in text fields
+            // no?") — the pane cycle only claims Tab when nothing is
+            // editing, so rename fields, search, and the content editor
+            // keep their native tab behavior.
+            guard !textEditingHasKeyboard else { return .ignored }
             cyclePaneFocus(reverse: keyPress.modifiers.contains(.shift))
             return .handled
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "\u{19}"), phases: .down) { _ in
             // Shift+Tab can arrive as back-tab (U+0019) rather than Tab+Shift.
+            guard !textEditingHasKeyboard else { return .ignored }
             cyclePaneFocus(reverse: true)
             return .handled
         }
