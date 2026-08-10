@@ -89,7 +89,20 @@ extension ContentView {
 
     /// The one place a reader page signal is applied. `signal` decides how much
     /// of the window may move; everything else is identical between the two.
+    ///
+    /// EDITS FIRST (Daniel 2026-08-09, live: "the content window always needs
+    /// to save if I've made changes" — a swipe reseeded the Content editor
+    /// from the NEW page and the draft was replaced unsaved). The in-flight
+    /// page-content edit flushes BEFORE the page focus moves; a clean editor
+    /// makes this a guarded no-op, so ordinary swipes pay nothing.
     private func applyReaderPageSignal(_ signal: ReaderPageSignal, pageIndex: Int) {
+        Task { @MainActor in
+            await documentStore.flushActivePageEdit()
+            applyReaderPageSignalAfterFlush(signal, pageIndex: pageIndex)
+        }
+    }
+
+    private func applyReaderPageSignalAfterFlush(_ signal: ReaderPageSignal, pageIndex: Int) {
         let candidates = Self.readerPageCandidates(
             readerDocument: detailDocument ?? pageFocusDocument,
             childrenCache: documentStore.childrenCache,
