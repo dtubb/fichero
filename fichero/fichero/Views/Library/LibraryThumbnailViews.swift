@@ -109,10 +109,13 @@ struct DocumentThumbnailView: View {
                             width: (Self.wellWidth - 2 * Self.wellContentInset) * scale,
                             height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
                         )
-                        .clipped()
+                        // Clipped INTO the squircle (#125/#128): the photo's
+                        // corners follow the jail's continuous curve instead
+                        // of poking square into it.
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         // Finder's light thumbnail edge (Daniel #119).
                         .overlay(
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
                         )
                         // Finder's grey squircle "jail" (#23, Daniel #125-128):
