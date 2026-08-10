@@ -274,6 +274,11 @@ struct ContentView: View {
     /// render, so the ring reads THIS instead — set by every tap writer and
     /// mirrored from real focus changes.
     @State var paneFocusHint: PaneFocus?
+    /// True while a pane divider drag is in flight (views audit B3): the
+    /// window-width observers stand down so a drag cannot re-enter
+    /// updateColumnVisibility and invalidate the NavigationSplitView
+    /// mid-drag.
+    @State var dividerDragInFlight = false
 
     // NOTE: the toolbar's contextual Delete button was removed. Reading
     // `@FocusedValue(\.libraryDeleteSelection)` HERE (ContentView hosts

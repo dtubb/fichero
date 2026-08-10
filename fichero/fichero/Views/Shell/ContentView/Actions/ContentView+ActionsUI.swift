@@ -18,6 +18,12 @@ extension ContentView {
 
     func handleWindowWidthChange(_ newWidth: Double) {
         guard newWidth > 0 else { return }
+        // Views audit B3: a divider drag changes pane geometry every frame;
+        // recomputing column visibility mid-drag rewrote columnVisibility and
+        // invalidated the whole NavigationSplitView WHILE dragging. The
+        // window itself cannot resize during a divider drag, so deferring is
+        // free; the next real window resize re-runs this.
+        guard !dividerDragInFlight else { return }
         if abs(measuredWindowWidth - newWidth) < 0.5 {
             return
         }

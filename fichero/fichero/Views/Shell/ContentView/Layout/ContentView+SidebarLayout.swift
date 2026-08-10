@@ -73,6 +73,9 @@ extension ContentView {
                 Color.clear
                     .onChange(of: geo.size.width) { _, newWidth in
                         guard newWidth > 0, abs(newWidth - sidebarWidth) > 2 else { return }
+                        // Views audit B3: no geometry write-back while a
+                        // divider drag is invalidating layout every frame.
+                        guard !dividerDragInFlight else { return }
                         sidebarWidth = newWidth
                     }
             }
@@ -219,7 +222,8 @@ extension ContentView {
                                 width: $widescreenContentPaneWidth,
                                 minWidth: ContentView.contentListMinWidth,
                                 maxWidth: 900,
-                                edge: .leading
+                                edge: .leading,
+                                isDragging: $dividerDragInFlight
                             )
                         }
 
@@ -231,7 +235,8 @@ extension ContentView {
                                     width: $pageContentPaneWidth,
                                     minWidth: ContentView.readingPaneMinWidth,
                                     maxWidth: 900,
-                                    edge: .trailing
+                                    edge: .trailing,
+                                    isDragging: $dividerDragInFlight
                                 )
                                 widescreenReadingPane
                                     .frame(width: CGFloat(pageContentPaneWidth))
