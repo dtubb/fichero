@@ -597,59 +597,9 @@ struct SidebarItemBuilderTests {
         #expect(SidebarItemBuilder.childOrder(beta, alpha) == false)
     }
 
-    // MARK: - buildWorkflowHierarchy
-
-    @Test("buildWorkflowHierarchy with root items")
-    func workflowRootItems() {
-        let workflows = [
-            makeWorkflow(id: "w1", name: "First", sortOrder: 1),
-            makeWorkflow(id: "w2", name: "Second", sortOrder: 0),
-        ]
-        let result = SidebarItemBuilder.buildWorkflowHierarchy(from: workflows, libraryId: testLibraryId)
-
-        #expect(result.count == 2)
-        // Should be sorted by sortOrder
-        #expect(result[0].name == "Second")
-        #expect(result[1].name == "First")
-    }
-
-    @Test("buildWorkflowHierarchy creates folder for non-root paths")
-    func workflowWithFolders() {
-        let workflows = [
-            makeWorkflow(id: "w1", name: "Root WF", folderPath: "/"),
-            makeWorkflow(id: "w2", name: "Nested WF", folderPath: "/production"),
-        ]
-        let result = SidebarItemBuilder.buildWorkflowHierarchy(from: workflows, libraryId: testLibraryId)
-
-        // Should have root WF + production folder
-        #expect(result.count == 2)
-
-        let folder = result.first { $0.isFolder }
-        #expect(folder?.name == "production")
-        #expect(folder?.children?.count == 1)
-        #expect(folder?.children?[0].name == "Nested WF")
-    }
-
-    @Test("buildWorkflowHierarchy creates nested folder structure")
-    func workflowNestedFolders() {
-        let workflows = [
-            makeWorkflow(id: "w1", name: "Deep WF", folderPath: "/a/b"),
-        ]
-        let result = SidebarItemBuilder.buildWorkflowHierarchy(from: workflows, libraryId: testLibraryId)
-
-        // Should create /a folder containing /a/b folder containing the workflow
-        #expect(result.count == 1)
-        let folderA = result[0]
-        #expect(folderA.name == "a")
-        #expect(folderA.isFolder == true)
-
-        let folderB = folderA.children?[0]
-        #expect(folderB?.name == "b")
-        #expect(folderB?.isFolder == true)
-
-        let wf = folderB?.children?[0]
-        #expect(wf?.name == "Deep WF")
-    }
+    // buildWorkflowHierarchy tests deleted with the function (views audit
+    // 2026-08-10): the client-side workflow hierarchy was the dormant #4186
+    // duplicate; workflows reach the tree as engine-mirrored document nodes.
 
     // MARK: - buildSearchHierarchy
 
