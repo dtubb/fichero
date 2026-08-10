@@ -343,6 +343,11 @@ struct ContentView: View {
         // Option+Left/Right cycles between panes (sidebar → content → preview → inspector).
         // Plain left/right are reserved for inner-pane navigation (grid columns, DisclosureGroup expand).
         // Command+Left/Right navigates to previous/next sibling document (#593).
+        // Trackpad swipe in the image preview steps siblings (Daniel,
+        // 2026-08-10) — same destination as ⌘←/→ below.
+        .onReceive(NotificationCenter.default.publisher(for: .previewSiblingSwipe)) { note in
+            handlePreviewSiblingSwipe(note)
+        }
         .onKeyPress(.leftArrow, phases: .down) { keyPress in
             if keyPress.modifiers.contains(.command) {
                 navigateSiblingPrevious()

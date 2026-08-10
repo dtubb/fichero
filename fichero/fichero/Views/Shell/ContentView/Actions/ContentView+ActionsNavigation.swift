@@ -70,6 +70,16 @@ extension ContentView {
 
     // MARK: - Sibling Document Navigation (#593 / #2420)
 
+    /// Trackpad swipe → sibling step (Daniel, 2026-08-10: "swipe left or
+    /// right … should take you to the next one in the library; up or down no").
+    /// Posted by SiblingSwipeScrollView only when the current image cannot pan
+    /// horizontally, so a zoomed pan never turns the page.
+    func handlePreviewSiblingSwipe(_ notification: Notification) {
+        guard let direction = notification.object as? Int else { return }
+        if direction > 0 { navigateSiblingNext() } else { navigateSiblingPrevious() }
+    }
+
+
     /// Returns the sibling set used for prev/next navigation. When the current
     /// document is an image or page, navigation is scoped to image/page siblings
     /// only; otherwise all folder siblings are navigable.
