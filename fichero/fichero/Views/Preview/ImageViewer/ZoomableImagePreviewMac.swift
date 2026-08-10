@@ -152,6 +152,17 @@ struct ZoomableImagePreview: View {
     // opening-zoom rule in PreviewInitialZoomPolicy.swift (moved/extracted to
     // keep this body under the type-body-length budget).
 
+    /// Whether the scaled image can travel horizontally in the viewport —
+    /// the arrow-key grammar's pan-vs-navigate test (same rule the trackpad
+    /// swipe uses in SiblingSwipeScrollView): the scaled width must exceed
+    /// the visible width by more than a hairline.
+    var canPanHorizontally: Bool {
+        // visibleRect is NORMALIZED (0-1): seeing less than the full image
+        // width means horizontal travel is possible.
+        guard visibleRect.width > 0 else { return false }
+        return visibleRect.width < 0.999
+    }
+
     /// The position to use for magnifier (locked or cursor)
     var magnifierPosition: CGPoint {
         magnifierLocked ? lockedPosition : cursorPosition
@@ -286,8 +297,24 @@ struct ZoomableImagePreview: View {
         .onKeyPress(.init("0"), phases: .down) { _ in actualSize(); return .handled }
         .onChange(of: magnifierLocked) { wasLocked, isLocked in handleMagnifierLockChanged(wasLocked, isLocked) }
         .onKeyPress(.init("9"), phases: .down) { _ in fitToWindow(); return .handled }
-        .onKeyPress(.leftArrow, phases: .down) { _ in panLeft(); return .handled }
-        .onKeyPress(.rightArrow, phases: .down) { _ in panRight(); return .handled }
+        // Daniel's ruling (2026-08-10, audit 3c): left/right = PREVIOUS/NEXT
+        // item, up/down = pan the current image. The old unconditional pan
+        // claim inverted that — with the preview focused, ←/→ panned and the
+        // sibling step never fired. Pan on ←/→ only while the zoomed image
+        // can actually travel horizontally; otherwise step siblings via the
+        // same seam the trackpad swipe uses.
+        .onKeyPress(.leftArrow, phases: .down) { _ in
+            if canPanHorizontally { panLeft() } else {
+                NotificationCenter.default.post(name: .previewSiblingSwipe, object: -1)
+            }
+            return .handled
+        }
+        .onKeyPress(.rightArrow, phases: .down) { _ in
+            if canPanHorizontally { panRight() } else {
+                NotificationCenter.default.post(name: .previewSiblingSwipe, object: 1)
+            }
+            return .handled
+        }
         .onKeyPress(.upArrow, phases: .down) { _ in panUp(); return .handled }
         .onKeyPress(.downArrow, phases: .down) { _ in panDown(); return .handled }
         .focusedSceneValue(\.imageZoomActions, ImageZoomActions(

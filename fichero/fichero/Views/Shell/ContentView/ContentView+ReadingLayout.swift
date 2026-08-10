@@ -146,7 +146,7 @@ extension ContentView {
             return
         }
         if signal.movesPageFocus, pageFocusDocument?.id != match.id {
-            pageFocusDocument = match
+            NavTrace.log("readerPageActivation.pageFocus", "→ \(match.id)"); pageFocusDocument = match
         }
         // ★ EVERY FRAME PERFECT (#18): warm the display cache for the pages
         // either side of this turn, so the NEXT flip finds its image cached
@@ -164,7 +164,7 @@ extension ContentView {
         if signal.movesBrowserSelection,
            browserSelection != [match.id],
            signal == .clicked || browserSelection.count <= 1 {
-            browserSelection = [match.id]
+            NavTrace.log("readerPageActivation.browserSelection", "→ \(match.id)"); browserSelection = [match.id]
             // Sidebar HIGHLIGHT only — a direct destinations write, never the
             // routing seam: routing would re-root the preview under the very
             // swipe that was meant to move within it (#1463 class). DEBOUNCED

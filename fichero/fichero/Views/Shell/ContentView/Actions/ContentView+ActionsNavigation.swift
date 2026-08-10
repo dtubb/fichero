@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 // MARK: - ContentView Navigation Actions
@@ -15,9 +16,11 @@ extension ContentView {
         // the edit is discarded when the editor reseeds to the new doc (#2476).
         // Only defer when an editor is actually registered so ordinary
         // selection stays synchronous.
+        NavTrace.log("selectDocument", "→ \(documentId)")
         if documentStore.activePageEditFlush != nil {
             Task { @MainActor in
                 await documentStore.flushActivePageEdit()
+                NavTrace.log("selectDocument.afterFlush", "→ \(documentId)")
                 detailDocument = doc
                 browserSelection = [documentId]
             }
@@ -85,6 +88,7 @@ extension ContentView {
     /// horizontally, so a zoomed pan never turns the page.
     func handlePreviewSiblingSwipe(_ notification: Notification) {
         guard let direction = notification.object as? Int else { return }
+        NavTrace.log("previewSiblingSwipe", "direction \(direction)")
         if direction > 0 { navigateSiblingNext() } else { navigateSiblingPrevious() }
     }
 
@@ -140,6 +144,7 @@ extension ContentView {
         let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
         let target = docs[idx - 1]
+        NavTrace.log("navigateSiblingPrevious", "\(current.id) → \(target.id)")
         withAnimation(.easeInOut(duration: 0.2)) {
             detailDocument = target
             browserSelection = [target.id]
@@ -157,6 +162,7 @@ extension ContentView {
         let docs = navigableSiblings(for: current)
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }
         let target = docs[idx + 1]
+        NavTrace.log("navigateSiblingNext", "\(current.id) → \(target.id)")
         withAnimation(.easeInOut(duration: 0.2)) {
             detailDocument = target
             browserSelection = [target.id]
@@ -178,6 +184,26 @@ extension ContentView {
         Task { await storage.prefetchDisplayImages(neighborIds) }
     }
 }
+
+// MARK: - Navigation write tracing (Debug diagnostic, 2026-08-10)
+//
+// Daniel's swipe/page-select bug shows a WRITE RACE ("shows the same page
+// then changes"; "I select a page and it goes back to the first"). Every
+// writer of detailDocument/browserSelection in the navigation family logs
+// through here with a monotonically increasing sequence number, so ONE
+// gesture in a live session prints the exact write order. Remove (or quiet)
+// once the race is fixed.
+enum NavTrace {
+    nonisolated(unsafe) static var seq = 0
+    static func log(_ site: String, _ detail: String) {
+        #if DEBUG
+        seq += 1
+        navTraceLogger.info("NAVTRACE #\(seq) \(site): \(detail)")
+        #endif
+    }
+}
+
+private let navTraceLogger = Logger(subsystem: "app.fichero.fichero", category: "NavTrace")
 
 // MARK: - Helper Functions
 
