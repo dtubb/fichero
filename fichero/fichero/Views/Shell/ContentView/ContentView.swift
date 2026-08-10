@@ -4,6 +4,17 @@ import UniformTypeIdentifiers
 /// Identifies which main pane has keyboard focus for Tab cycling
 enum PaneFocus: Hashable {
     case sidebar, content, preview, reading, inspector
+
+    /// Human name for the pane — VoiceOver announcements on pane moves.
+    var paneTitle: String {
+        switch self {
+        case .sidebar: return "Sidebar"
+        case .content: return "Library"
+        case .preview: return "Preview"
+        case .reading: return "Reader"
+        case .inspector: return "Inspector"
+        }
+    }
 }
 
 // Main content view with three-column navigation
@@ -360,6 +371,13 @@ struct ContentView: View {
         // arrow handoffs land here too).
         .onChange(of: focusedPane) { _, newPane in
             if let newPane { paneFocusHint = newPane }
+        }
+        // VoiceOver hears every pane move (Daniel, 2026-08-10: "also for
+        // voice over") — the fading ring is visual-only; the announcement is
+        // its non-visual twin.
+        .onChange(of: paneFocusHint) { _, pane in
+            guard let pane else { return }
+            AccessibilityNotification.Announcement("\(pane.paneTitle) pane focused").post()
         }
         .onKeyPress(.leftArrow, phases: .down) { keyPress in
             if keyPress.modifiers.contains(.command) {

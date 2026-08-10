@@ -55,17 +55,22 @@ extension ContentView {
             panes.append(.inspector)
         }
 
-        guard let current = focusedPane, let idx = panes.firstIndex(of: current) else {
-            // No pane focused — default to content
+        // The HINT is the cycle's memory (Daniel, 2026-08-10: "we ought to
+        // have a way to move between panes"): focusedPane is FocusState and
+        // usually nil (only the sidebar has a .focused binding), so cycling
+        // from it perpetually reset to .content instead of ADVANCING.
+        guard let current = focusedPane ?? paneFocusHint,
+              let idx = panes.firstIndex(of: current) else {
             focusedPane = .content
+            paneFocusHint = .content
             return
         }
 
-        if reverse {
-            focusedPane = panes[(idx - 1 + panes.count) % panes.count]
-        } else {
-            focusedPane = panes[(idx + 1) % panes.count]
-        }
+        let next = reverse
+            ? panes[(idx - 1 + panes.count) % panes.count]
+            : panes[(idx + 1) % panes.count]
+        focusedPane = next
+        paneFocusHint = next
     }
 
     // MARK: - Sibling Document Navigation (#593 / #2420)
