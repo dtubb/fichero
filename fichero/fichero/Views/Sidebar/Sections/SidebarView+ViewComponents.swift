@@ -8,17 +8,8 @@ extension SidebarView {
         standardSidebarContent
     }
 
-    var standardSidebarContent: some View {
-        // Third depth cap (launch EXC_BAD_ACCESS code=2 — the stack guard
-        // page — 2026-08-10 midday, same #4331 class): erase the whole
-        // column stack too, so no caller ever value-copies the composed
-        // VStack+List type inline. Load-bearing with the caps in
-        // unifiedContent and sidebarStyle().
-        AnyView(standardSidebarContentBody)
-    }
-
     @ViewBuilder
-    private var standardSidebarContentBody: some View {
+    var standardSidebarContent: some View {
         VStack(spacing: 0) {
             // The persistent shell sidebar (the library/folder tree) stays
             // visible in EVERY mode — Research included. Research no longer
@@ -119,14 +110,6 @@ extension SidebarView {
             return .handled
         }
         #endif
-        // SECOND type-erasure cap (Daniel's launch crash, 2026-08-10 midday:
-        // swift_retain → six nested ExclusiveGesture value-witness copies
-        // inside SidebarView.body → sidebarStyle()). The #4331 class again:
-        // the List + its gesture/background modifier stack finally overflowed
-        // the stack DURING the copy, so the outer sidebarStyle() erasure
-        // never helps — the pre-erasure value is what recurses. Capping HERE
-        // splits the composed depth in two. Load-bearing; do not remove.
-        .sidebarStyle()
     }
 
     /// Bridges the sidebar tree's native multi-selection to the state.

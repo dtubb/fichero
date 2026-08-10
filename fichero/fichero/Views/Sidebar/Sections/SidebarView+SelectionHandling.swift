@@ -48,13 +48,6 @@ extension SidebarView {
         default:
             let item = cachedItem(id: destination.serializedID)
             if item == nil {
-                // LOUD (workflow-routing bug, 2026-08-10): a click that
-                // resolves to nothing routes NOTHING — the pane silently
-                // keeps its previous mode, which read as "it doesn't see
-                // the workflow selected".
-                sidebarViewLogger.error(
-                    "Selection \(destination.serializedID) resolved to NO cached item — content pane not rerouted"
-                )
                 // Launch-restore can arrive before the sidebar caches are
                 // built; the id resolves to nothing yet. Un-stamp the
                 // destination so `reconcileRestoredSelection()` (#2548)
@@ -313,11 +306,9 @@ extension SidebarView {
             sidebarMode = .chat
             viewMode = .chat(nil)
         case .workflow:
-            // Expansion only (Daniel, 2026-08-10): a workflow section folder
-            // (Books, Catalogue…) must not hijack the content pane into the
-            // empty workflow surface — the pane keeps showing what it was
-            // showing; selecting an actual WORKFLOW opens its editor.
-            sidebarViewLogger.info("Workflow folder — just toggling expansion")
+            sidebarViewLogger.info("Switching to empty workflow view")
+            sidebarMode = .workflows
+            viewMode = .workflow(nil)
         case .automation, .batch, .activity:
             // Automation-related folders
             sidebarViewLogger.info("Automation folder - just toggling expansion")
