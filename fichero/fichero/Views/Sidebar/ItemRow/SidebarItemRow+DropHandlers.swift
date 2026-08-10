@@ -182,7 +182,9 @@ extension SidebarItemRow {
         sidebarRowLogger.debug(" handleDropIntoFolder called with \(itemIDs.count) items onto \(targetFolder.name)")
         sidebarRowLogger.debug("Item IDs: \(itemIDs)")
         sidebarRowLogger.debug("Target folder ID: \(targetFolder.id)")
-        sidebarRowLogger.debug("Target folder itemType: \(String(describing: targetFolder.itemType))")
+        // Identity only — describing itemType embeds the whole Document,
+        // pageContent included (the privacy/stall class fixed 2026-08-10).
+        sidebarRowLogger.debug("Target folder: \(targetFolder.id) \(targetFolder.name)")
 
         // #585 / sidebar plan Step 9: accept any folder row as a drop target
         // (document folders, search folders, workflow folders, chat folders).

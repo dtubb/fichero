@@ -8,7 +8,12 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Content
 // one that keeps growing rulings (#156 single-leaf scope, #161 root set).
 extension MainContentModifiers {
     func handleViewModeChange(_ newMode: AppViewMode) {
-        logger.info("handleViewModeChange called with mode: \(String(describing: newMode))")
+        // IDENTITY ONLY, never the payload (Daniel, 2026-08-10: "why is all
+        // that text in the log?"): String(describing: viewMode) dumped the
+        // ENTIRE Document — pageContent included, 584k characters of book —
+        // into os_log, and FORMATTING it on the main thread was itself a
+        // measured stall (the 1.3s CoreText/CFStringAppend samples).
+        logger.info("handleViewModeChange called with mode: \(newMode.logDescription)")
 
         // Load workflow from API when workflow mode changes
         if case .workflow(let workflowItem) = newMode, let item = workflowItem {

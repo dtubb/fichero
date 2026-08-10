@@ -136,9 +136,11 @@ extension SidebarView {
             return
         }
 
-        let itemTypeDesc = String(describing: item.itemType)
+        // Kind + id ONLY — String(describing: itemType) dumped the whole
+        // Document (pageContent = an entire book) into os_log; see
+        // MainContentModifiers+ViewMode for the measured cost.
         sidebarViewLogger.info(
-            "handleSelection: \(item.name) (category: \(item.category.rawValue), type: \(itemTypeDesc))"
+            "handleSelection: \(item.name) (category: \(item.category.rawValue), id: \(item.id))"
         )
 
         handleLibrarySwitching(for: item)

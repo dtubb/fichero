@@ -25,6 +25,29 @@ enum AppViewMode: Equatable {
         case .activity: return .workflow
         }
     }
+
+    /// Identity-only log form. NEVER a payload dump: `String(describing:)`
+    /// on a `.library(Document)` interpolated the document's ENTIRE
+    /// pageContent — the user's archive, a whole book — into os_log
+    /// (Daniel, 2026-08-10: "why is all that text in the log? … it's also
+    /// about privacy"). os_log persists and travels in sysdiagnoses, so
+    /// archive CONTENT must never reach it; and formatting megabytes on
+    /// the main thread was itself a measured stall. Ids only.
+    var logDescription: String {
+        switch self {
+        case .library(let doc): return "library(doc: \(doc?.id ?? "nil"))"
+        case .chat: return "chat"
+        case .comparison: return "comparison"
+        case .workflow(let workflow): return "workflow(\(workflow?.id ?? "nil"))"
+        case .chain: return "chain"
+        case .batches: return "batches"
+        case .batch: return "batch"
+        case .automation: return "automation"
+        case .schedule: return "schedule"
+        case .trigger: return "trigger"
+        case .activity: return "activity"
+        }
+    }
 }
 
 // MARK: - Activity Run Selection
