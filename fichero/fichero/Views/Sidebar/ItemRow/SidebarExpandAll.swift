@@ -84,3 +84,22 @@ private func sidebarSubtreeExpansionIDs(
     }
     return ids
 }
+
+/// Option-click on an OPEN chevron collapses the ENTIRE subtree (Daniel,
+/// 2026-08-10: "option left click on chevron that is open should close
+/// chevron, then close all children" — the mirror of expand-all above).
+/// A pure cache walk, synchronous and network-free: a container whose
+/// children were never fetched was never expanded, so there is nothing
+/// of its subtree in `expandedItems` to remove.
+@MainActor
+func sidebarCollapseSubtree(
+    _ document: Document,
+    store: DocumentStore,
+    expandedItems: Binding<Set<String>>
+) {
+    var frontier = [document]
+    while let node = frontier.popLast() {
+        expandedItems.wrappedValue.remove("doc:\(node.id)")
+        frontier.append(contentsOf: store.childrenCache[node.id] ?? [])
+    }
+}

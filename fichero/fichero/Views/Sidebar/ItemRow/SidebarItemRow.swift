@@ -225,6 +225,18 @@ struct SidebarItemRow: View {
                     }
                 } else {
                     expandedItems.remove(item.id)
+                    // Option-click on an open chevron also collapses every
+                    // descendant (Finder grammar, #48) — the mirror of the
+                    // expand-all above. Cache-only walk, so it is synchronous.
+                    #if canImport(AppKit)
+                    if NSApp.currentEvent?.modifierFlags.contains(.option) == true,
+                       case .document(let document) = item.itemType,
+                       let store = documentStore {
+                        sidebarCollapseSubtree(
+                            document, store: store, expandedItems: $expandedItems
+                        )
+                    }
+                    #endif
                 }
             }
         )
