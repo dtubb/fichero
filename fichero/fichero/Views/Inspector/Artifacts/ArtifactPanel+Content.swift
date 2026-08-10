@@ -18,7 +18,16 @@ extension ArtifactPanel {
                     .frame(maxWidth: .infinity)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(4)
-            } else if onSave != nil, rawArtifactContent.count > Self.liveEditorCharacterLimit {
+            } else if onSave != nil,
+                      rawArtifactContent.count > Self.liveEditorCharacterLimit
+                        || draftText.characters.count > Self.liveEditorCharacterLimit {
+                // BOTH sides are checked (Daniel's sixth backtrace, clicking a
+                // NO-TEXT pdf): rawArtifactContent is the INCOMING document,
+                // but draftText (@State) still holds the PREVIOUS one until
+                // the reseed task runs — mounting the editor in that window
+                // laid the old book out once. The size walk is O(n) but n is
+                // small in every steady state; the stale-big case shows one
+                // preview frame, then reseeds and mounts the editor.
                 // BOOK-SIZED CONTENT NEVER ENTERS THE LIVE EDITOR (Daniel's
                 // beachball, 2026-08-10 00:4x, backtrace in hand): SwiftUI's
                 // AttributedString TextEditor lays out the ENTIRE document

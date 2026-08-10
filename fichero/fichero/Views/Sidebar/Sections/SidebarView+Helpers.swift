@@ -132,10 +132,19 @@ extension SidebarView {
 
     /// Rebuild all sidebar item caches from ALL libraries
     func rebuildCaches() {
-        cachedLibraryHeaders = libraryManager.openLibraries.map { library in
-            let header = buildLibraryHeader(for: library)
-            cacheLibraryDerivedState(header: header, library: library)
-            return header
+        // NO insertion animation on a rebuild (Daniel, 2026-08-10: expanding
+        // a PDF made the arriving page rows "pop in from top of sidebar").
+        // The async child fetch lands OUTSIDE the expand's own transaction,
+        // so the List animated the whole tree from stale geometry. Rows now
+        // just appear in place; the chevron rotation still animates.
+        var stillTree = Transaction()
+        stillTree.disablesAnimations = true
+        withTransaction(stillTree) {
+            cachedLibraryHeaders = libraryManager.openLibraries.map { library in
+                let header = buildLibraryHeader(for: library)
+                cacheLibraryDerivedState(header: header, library: library)
+                return header
+            }
         }
         cachedItemIndex = sidebarItemIndex(cachedLibraryHeaders)
 
@@ -153,7 +162,12 @@ extension SidebarView {
         guard let library = libraryManager.getLibrary(id: libraryId) else { return }
         let header = buildLibraryHeader(for: library)
         cacheLibraryDerivedState(header: header, library: library)
-        cachedLibraryHeaders = sidebarReplacingLibraryHeader(cachedLibraryHeaders, with: header)
+        // Same no-animation rule as the full rebuild above.
+        var stillTree = Transaction()
+        stillTree.disablesAnimations = true
+        withTransaction(stillTree) {
+            cachedLibraryHeaders = sidebarReplacingLibraryHeader(cachedLibraryHeaders, with: header)
+        }
         // Reindexing the whole forest costs one pass over rows this call has
         // just rebuilt anyway; a per-library index would have to be merged on
         // every lookup, which is the cost we are removing.

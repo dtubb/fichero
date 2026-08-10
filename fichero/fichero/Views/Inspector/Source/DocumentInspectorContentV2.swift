@@ -132,6 +132,13 @@ struct DocumentInspectorContentV2: View {
                     maxHeight: mode == .pageContentOnly ? .infinity : nil,
                     alignment: .top
                 )
+                // Identity follows the DOCUMENT (Daniel's sixth beachball
+                // backtrace, 2026-08-10): without this the panel's @State
+                // draftText carried the PREVIOUS document's text (a whole
+                // book) into the next document's mount, and the rich editor
+                // laid it out once before the reseed task ran. A new document
+                // is a new panel: fresh state, fresh undo stack.
+                .id("pageContent-\(document.id)")
             }
 
             // Generated artifacts — only when the mode wants them. Each one
@@ -268,6 +275,9 @@ struct DocumentInspectorContentV2: View {
                 await saveArtifact(artifact, content: newContent)
             }
         )
+        // Same identity rule as the page-content panel above: a different
+        // artifact is a different panel, so stale @State can never cross.
+        .id("artifact-\(artifact.id)")
         // #4386: the ROW is the target, not the label. `contentShape` alone
         // only makes a view's OWN frame hittable, and an unstretched row's
         // frame is its content's width — which is why clicks landed only to

@@ -120,9 +120,20 @@ extension SidebarItemRow {
             // row for spinner then adds in files. the spinner should be on
             // the icon of the row I am opening") — the row's OWN iconView
             // shows the spinner while this state holds (see childrenLoading
-            // in SidebarItemRow+Label). The 0.5pt clear keeps the chevron
-            // rendered (#3355) without drawing a phantom line.
-            Color.clear.frame(height: 0.5)
+            // in SidebarItemRow+Label). The clear view keeps the chevron
+            // rendered (#3355), but must occupy NO row: the List's minimum
+            // row height turned the old 0.5pt frame into a visible blank row
+            // (green-highlighted, then replaced when pages arrived — Daniel,
+            // 2026-08-10: "don't open an empty row"). Zero height, zero
+            // insets, no separator, selection disabled = an invisible slot.
+            Color.clear
+                .frame(height: 0)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .selectionDisabled(true)
+                .environment(\.defaultMinListRowHeight, 0)
+                .accessibilityHidden(true)
         }
     }
 
@@ -152,7 +163,7 @@ extension SidebarItemRow {
                 fullWidthLabel
                     .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection, mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
             }
-            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
+            .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
             // #4544: menu built at OPEN, not per render — see
             // SidebarDeferredMenuContent.
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
@@ -189,6 +200,18 @@ extension SidebarItemRow {
     /// row (`public.folder` conforms to `public.item`, not to `public.data`).
     static let dropTypes: [UTType] = [.ficheroDragItem, .utf8PlainText, .item, .fileURL, .data]
 
+    /// Only CONTAINERS are drop targets (Daniel, 2026-08-10: "if you try to
+    /// add a file or image to a pdf it should do a cursor negative or pop
+    /// back"). A document leaf — PDF, image, file — refuses the drop
+    /// natively: no .onDrop means the forbidden cursor and the snap-back,
+    /// exactly Finder's grammar. Read-only system folders refuse too
+    /// (#4514, `acceptsItemDrops`). Non-document rows (sections, workflow
+    /// containers) keep their existing drop surfaces.
+    var rowIsDropTarget: Bool {
+        if case .document(let doc) = item.itemType { return doc.acceptsItemDrops }
+        return true
+    }
+
     /// Folder row: drop target always; drag source EXCEPT for the
     /// protected Inbox folder (#621). Inbox stays anchored at the top;
     /// users can drag files INTO it but not drag Inbox itself to
@@ -197,7 +220,7 @@ extension SidebarItemRow {
     private var folderLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection, mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
-            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
+            .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
 
@@ -207,7 +230,7 @@ extension SidebarItemRow {
     private var leafLabel: some View {
         fullWidthLabel
             .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection, mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
-            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
+            .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
 
@@ -223,5 +246,21 @@ extension SidebarItemRow {
             surface: "sidebar-row",
             onDropProviders: { handleRowDrop($0) }
         )
+    }
+}
+
+/// Attaches the row drop delegate only when the row genuinely accepts drops
+/// — a leaf gets NO drop surface, so AppKit shows the forbidden cursor and
+/// snaps the item back (Daniel's PDF ruling, 2026-08-10).
+struct SidebarRowDropGate: ViewModifier {
+    let enabled: Bool
+    let delegate: LibraryItemDropDelegate
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onDrop(of: SidebarItemRow.dropTypes, delegate: delegate)
+        } else {
+            content
+        }
     }
 }

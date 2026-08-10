@@ -1,6 +1,7 @@
 import Foundation
 import os
 import OSLog
+import SwiftUI
 import UniformTypeIdentifiers
 
 // MARK: - ONE drag/drop instrument (Daniel's logging mandate, 2026-08-04)
@@ -256,11 +257,35 @@ struct EagerSidebarDropLoad {
     let bareData: Task<Data, Error>?
 }
 
+/// The in-app item ids read SYNCHRONOUSLY off the DRAG pasteboard, in
+/// session order. `data(forType:)` forces each promise on the spot, while
+/// the drag session is still alive — Daniel's 2026-08-10 11:11 multi-folder
+/// drop showed the ISSUED-early provider loads (the drop#44 fix) still
+/// coming back 'cancelled' (Cocoa 3072): main-thread stalls pushed their
+/// RESOLUTION past session teardown, and AppKit cancels pending promises at
+/// teardown no matter when they were issued. A synchronous pasteboard read
+/// cannot lose that race.
+@MainActor
+private func dragPasteboardFicheroIDs() -> [String] {
+    #if os(macOS)
+    let type = NSPasteboard.PasteboardType(UTType.ficheroDragItem.identifier)
+    return (NSPasteboard(name: .drag).pasteboardItems ?? []).map { item in
+        item.data(forType: type).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+    #else
+    return []
+    #endif
+}
+
 /// Call SYNCHRONOUSLY inside the drop callback and hand the result to
 /// `readSidebarDropPayload(_:surface:preloaded:)`.
 @MainActor
 func eagerSidebarDropLoads(_ providers: [NSItemProvider]) -> [EagerSidebarDropLoad] {
     let capabilities = sidebarDropCapabilities(of: providers)
+    // Snapshot the drag pasteboard NOW (synchronous, session alive) so a
+    // provider promise AppKit cancels at teardown has a same-index fallback
+    // instead of failing the whole drop as unreadableInternal.
+    let pasteboardIDs = dragPasteboardFicheroIDs()
     return providers.enumerated().map { index, provider in
         EagerSidebarDropLoad(
             ficheroItem: provider.hasItemConformingToTypeIdentifier(UTType.ficheroDragItem.identifier)
@@ -268,7 +293,13 @@ func eagerSidebarDropLoads(_ providers: [NSItemProvider]) -> [EagerSidebarDropLo
                     _ = provider.loadDataRepresentation(
                         forTypeIdentifier: UTType.ficheroDragItem.identifier
                     ) { data, error in
-                        done(sidebarDropDecodeEnvelope(data, error: error))
+                        let decoded = sidebarDropDecodeEnvelope(data, error: error)
+                        if case .failure = decoded,
+                           index < pasteboardIDs.count, !pasteboardIDs[index].isEmpty {
+                            done(.success(pasteboardIDs[index]))
+                        } else {
+                            done(decoded)
+                        }
                     }
                 }
                 : nil,

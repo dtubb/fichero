@@ -264,9 +264,66 @@ extension View {
             .padding(.top, mergeAbove ? -3 : 0)
             .padding(.bottom, mergeBelow ? -3 : 0)
             .allowsHitTesting(false)
+            #if os(macOS)
+            // Rides in the row background so every sidebar row carries it.
+            .background(SidebarRowChromeFixer(selected: selected))
+            #endif
         )
     }
 }
+
+#if os(macOS)
+/// Keeps the native row chrome legible on a selected row (Daniel's
+/// screenshot, 2026-08-10 11:09: "sidebar chevron should be green when
+/// selected. if its white its invisible").
+///
+/// The disclosure chevron is an APPKIT button on the `NSTableRowView`, not
+/// SwiftUI content — tint/backgroundProminence overrides never reach it, and
+/// AppKit paints it WHITE because the row is `isEmphasized` under our opaque
+/// grey platter. This representable lives in the row's `listRowBackground`
+/// (hosted inside the row view), climbs to the `NSTableRowView`, forces
+/// `isEmphasized = false` (our platter owns the selected look — #4563), and
+/// tints the row's disclosure button with the accent so the chevron matches
+/// the selected name and icon. Re-applied on every background update (the
+/// `selected` flip re-renders it) plus one async pass so AppKit's own
+/// selection write never lands last.
+private struct SidebarRowChromeFixer: NSViewRepresentable {
+    let selected: Bool
+
+    final class Probe: NSView {
+        var selected = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            apply()
+        }
+
+        func apply() {
+            var view: NSView? = self
+            while let current = view, !(current is NSTableRowView) {
+                view = current.superview
+            }
+            guard let row = view as? NSTableRowView else { return }
+            row.isEmphasized = false
+            tintDisclosureButtons(in: row)
+        }
+
+        private func tintDisclosureButtons(in row: NSTableRowView) {
+            for case let button as NSButton in row.subviews {
+                button.contentTintColor = selected ? .controlAccentColor : nil
+            }
+        }
+    }
+
+    func makeNSView(context: Context) -> Probe { Probe() }
+
+    func updateNSView(_ probe: Probe, context: Context) {
+        probe.selected = selected
+        probe.apply()
+        DispatchQueue.main.async { [weak probe] in probe?.apply() }
+    }
+}
+#endif
 
 extension SidebarConstants {
     /// Finder's sidebar selection grey — the platter for a selected row in
