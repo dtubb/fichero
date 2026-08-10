@@ -115,6 +115,18 @@ struct DocumentThumbnailView: View {
                             RoundedRectangle(cornerRadius: 3)
                                 .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
                         )
+                        // Finder's grey squircle "jail" (#23, Daniel #125-128):
+                        // an image thumbnail sits centered in a light grey
+                        // rounded square filling the WHOLE well, so odd
+                        // aspect ratios read as one consistent square tile
+                        // with equal margins (wellContentInset on every side).
+                        // Images only — PDFs/folders keep their page-stack and
+                        // glyph treatments on the bare canvas.
+                        .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
+                        .background(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(.quaternary.opacity(0.5))
+                        )
                 } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
                     // Text-preview thumbnail (#625) is only for genuinely text
                     // documents (JSON/plain text) with no page image. A PDF page
