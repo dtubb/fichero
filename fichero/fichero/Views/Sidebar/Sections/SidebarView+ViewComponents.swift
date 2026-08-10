@@ -110,6 +110,14 @@ extension SidebarView {
             return .handled
         }
         #endif
+        // SECOND type-erasure cap (Daniel's launch crash, 2026-08-10 midday:
+        // swift_retain → six nested ExclusiveGesture value-witness copies
+        // inside SidebarView.body → sidebarStyle()). The #4331 class again:
+        // the List + its gesture/background modifier stack finally overflowed
+        // the stack DURING the copy, so the outer sidebarStyle() erasure
+        // never helps — the pre-erasure value is what recurses. Capping HERE
+        // splits the composed depth in two. Load-bearing; do not remove.
+        .sidebarStyle()
     }
 
     /// Bridges the sidebar tree's native multi-selection to the state.
