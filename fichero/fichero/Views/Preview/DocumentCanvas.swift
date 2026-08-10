@@ -115,7 +115,8 @@ private struct MarkdownCanvas: View {
                 .font(.body)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+                // Slim margin — more width for the text (Daniel, 2026-08-10).
+                .padding(8)
         }
     }
 }

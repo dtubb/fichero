@@ -72,7 +72,10 @@ struct AnnotatableTextView: NSViewRepresentable {
         textView.isEditable = false
         textView.isSelectable = true
         textView.drawsBackground = false
-        textView.textContainerInset = NSSize(width: 8, height: 8)
+        // Slimmer side margin (Daniel, 2026-08-10: "can the margin be a bit
+        // less so we have more width") — the transcript column keeps its
+        // vertical breathing room but gives the text the pane's width.
+        textView.textContainerInset = NSSize(width: 4, height: 8)
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.lineFragmentPadding = 0
