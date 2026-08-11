@@ -29,7 +29,8 @@ ROOT = Path(__file__).resolve().parent.parent
 TARGET_FILES = (
     "fichero-server/src/fichero_server/db/embeddings.py",
     "fichero-server/src/fichero_server/llm/__init__.py",
-    "fichero-server/src/fichero_server/llm/embeddings.py",
+    # llm/embeddings.py DELETED 2026-08-11 — the second (OpenAI) embedding
+    # space is gone; db/embeddings.py is the one vector path.
     "fichero-server/src/fichero_server/llm/providers.py",
 )
 METADATA_KEYS = {

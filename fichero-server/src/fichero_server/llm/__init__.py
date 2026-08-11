@@ -25,9 +25,6 @@ Usage:
         config=config
     )
 
-    # Embeddings
-    vectors = embed(["text to embed"])
-
     # Streaming
     async for chunk in chat("Hello!", config, stream=True):
         print(chunk, end="")
@@ -61,12 +58,6 @@ from fichero_server.llm.model_types import (  # noqa: F401 (re-exported)
     get_model_info,
     list_models_for_provider,
 )
-from fichero_server.llm.embeddings import (  # noqa: F401 (re-exported)
-    _get_langchain_embeddings,
-    aembed,
-    embed,
-)
-
 logger = logging.getLogger(__name__)
 
 _FM_BRIDGE_MISSING_MESSAGE = (
@@ -150,12 +141,6 @@ def clear_api_key_cache(provider: str | None = None) -> None:
         else:
             _API_KEY_CACHE.pop(provider, None)
 
-    # A rotated key must also drop cached embedding clients built with the old
-    # key (#2545 N1). Cheap and rare; clear all (the client cache isn't keyed
-    # by provider). Lazy import avoids a circular dependency at module load.
-    from fichero_server.llm.embeddings import clear_embeddings_client_cache
-
-    clear_embeddings_client_cache()
 
 # Content-addressed result cache for vision (and future LLM) calls (#2224).
 # Keyed by SHA-256 of (provider, model, prompt, per-image content hashes).
@@ -4287,8 +4272,6 @@ __all__ = [
     "vision_batch",
     "is_recognition_only_vision_model",
     # Embeddings
-    "embed",
-    "aembed",
     # Tools
     "chat_with_tools",
     # Structured
