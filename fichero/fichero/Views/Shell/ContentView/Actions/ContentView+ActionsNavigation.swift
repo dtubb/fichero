@@ -198,7 +198,16 @@ enum NavTrace {
     static func log(_ site: String, _ detail: String) {
         #if DEBUG
         seq += 1
-        navTraceLogger.info("NAVTRACE #\(seq) \(site): \(detail)")
+        // .notice, not .info: info-level os_log is memory-only on macOS — it
+        // never reaches the log store, so `log show` after a repro finds
+        // nothing. Notice persists, letting the trace be pulled after the
+        // fact without Console.app streaming.
+        // privacy: .public — without it the dynamic parts persist as
+        // "<private>". The trace carries only sites and document IDs,
+        // never archive content (log-privacy rule).
+        navTraceLogger.notice(
+            "NAVTRACE #\(seq) \(site, privacy: .public): \(detail, privacy: .public)"
+        )
         #endif
     }
 }

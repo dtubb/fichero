@@ -91,6 +91,20 @@ _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 _DUCKDB_WRITE_CONFLICT_RETRIES = 3
 _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
 
+# Models get() folds onto Document rows with special-case handling; the
+# gate-free read path (get_committed) routes these to plain get() rather
+# than reimplementing the fold.
+_FOLDED_GET_MODEL_NAMES = frozenset(
+    {
+        "SavedSearch",
+        "SpatialRoom",
+        "ResearchProject",
+        "ResearchPlan",
+        "ResearchTask",
+        "ResearchStep",
+    }
+)
+
 
 def transient_field_names(model_cls: type) -> set[str]:
     """Fields a model declares for the WIRE but never for the database (#3355).
@@ -693,6 +707,14 @@ class Database(DatabaseEmbeddingMixin):
         self._lock = threading.RLock()
         self._transaction_gate = threading.RLock()
         self._tx_state = threading.local()
+        # Dedicated READ connection for latency-critical GET paths (#4523).
+        # conn.cursor() is a second DuckDB connection over the same database
+        # instance: it reads last-COMMITTED state under MVCC and never queues
+        # on _transaction_gate, so a thumbnail lookup answers in milliseconds
+        # while an ingest writer holds the gate for a long transaction.
+        # Lazily created (and recreated after invalidation) in get_committed.
+        self._read_conn = None
+        self._read_lock = threading.RLock()
         # Per-table count of LanceDB appends since the last compaction. Drives
         # the bounded auto-compaction trigger in save_vectors (#2542).
         self._vector_append_counts: dict[str, int] = {}
@@ -2132,6 +2154,48 @@ class Database(DatabaseEmbeddingMixin):
             return None
 
         return self._hydrate_row(model, columns, result)
+
+    def get_committed(self, model: Type[T], id: str) -> T | None:
+        """Get a single object by ID through the dedicated READ connection.
+
+        Unlike ``get``, this never queues on the transaction gate: it reads
+        last-COMMITTED state under DuckDB MVCC from a second connection over
+        the same database instance (#4523). Built for latency-critical GET
+        paths (thumbnails, display images) that must answer while an ingest
+        writer holds the gate for seconds at a time. Rows written inside a
+        still-open transaction are invisible — exactly right for a cache
+        lookup, wrong for read-your-own-write flows, which should use ``get``.
+
+        Models folded onto Document with special-case handling in ``get``
+        (SavedSearch, SpatialRoom, Research*) are routed to ``get`` — same
+        result, gated latency — rather than half-reimplementing the fold.
+        """
+        if model.__name__ in _FOLDED_GET_MODEL_NAMES:
+            return self.get(model, id)
+        sql_table = self._sql_table_name(model)
+        # No _ensure_table here: every schema table is created in __init__'s
+        # migrate loop, and DDL would need the write gate this path exists
+        # to avoid.
+        with self._read_lock:
+            for attempt in (0, 1):
+                try:
+                    if self._read_conn is None:
+                        self._read_conn = self.conn.cursor()
+                    cur = self._read_conn.execute(
+                        f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
+                    )
+                    row = cur.fetchone()
+                    columns = [d[0] for d in cur.description]
+                    break
+                except duckdb.Error:
+                    # Stale cursor (parent connection was reopened after
+                    # invalidation) — drop it and retry once on a fresh one.
+                    self._read_conn = None
+                    if attempt == 1:
+                        raise
+        if row is None:
+            return None
+        return self._hydrate_row(model, columns, row)
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""
