@@ -283,8 +283,21 @@ struct FicheroApp: App {
     /// primary `id: "main"` window and the value-seeded Duplicate Window group
     /// (#2262), so there is exactly one LibraryWindow scene definition — the
     /// duplicate path reuses it rather than introducing a parallel one.
+    ///
+    /// AnyView return — LOAD-BEARING (#4331 class, 2026-08-11): the composed
+    /// scene generic overflowed the stack while SwiftUI's NewItemCommands
+    /// resolved a KEYPATH into it (swift_getTypeByMangledName →
+    /// buildEnvironmentPath, EXC_BAD_ACCESS code=2 building the File menu).
+    /// Property splits bound the type-checker, not runtime type depth; only
+    /// erasure truncates the generic the keypath walk must demangle. Same fix
+    /// as requestBusesAndAppleScript (401d08ecd), applied at the widest
+    /// boundary: the window root every scene shares.
+    private func libraryWindowRoot(seed: WindowSeed?) -> AnyView {
+        AnyView(libraryWindowRootContent(seed: seed))
+    }
+
     @ViewBuilder
-    private func libraryWindowRoot(seed: WindowSeed?) -> some View {
+    private func libraryWindowRootContent(seed: WindowSeed?) -> some View {
         // #2864/#3107: the root switches on the single `engine.phase` sum
         // type — one authoritative "is the backend usable" decision, not
         // ANDed booleans. `.setupNeeded` (iOS first-run pairing; never on
