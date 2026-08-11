@@ -1029,7 +1029,21 @@ class Database(DatabaseEmbeddingMixin):
         """Execute + ``fetchone`` atomically under the lock (#2508)."""
         return self._execute(sql, params, fetch="one")
 
-    def ingest_dedup_source_sizes(self) -> dict[str, int]:
+    # Restricts a dedup query to the destination subtree (2026-08-11): the
+    # skip-set used to be library-GLOBAL, so importing a folder that already
+    # existed elsewhere — or re-importing after an interrupted import — skipped
+    # every file that existed ANYWHERE, leaving the new tree Swiss-cheese.
+    # Scoped to the import root, a same-destination re-import stays idempotent
+    # (and REPAIRS a partial import), while a new destination gets a full copy.
+    _SUBTREE_CTE = """
+        WITH RECURSIVE subtree(id) AS (
+            SELECT id FROM documents WHERE id = ?
+            UNION ALL
+            SELECT d.id FROM documents d JOIN subtree s ON d.parent_id = s.id
+        )
+    """
+
+    def ingest_dedup_source_sizes(self, root_id: str | None = None) -> dict[str, int]:
         """source_path → stored file_size for every non-failed document.
 
         Companion to ``ingest_dedup_keys`` for the DATALESS fast-skip
@@ -1038,9 +1052,9 @@ class Database(DatabaseEmbeddingMixin):
         cloud folder downloaded everything just to prove it was already
         there. A path+size match lets the skip happen without touching the
         bytes; any mismatch falls through to the exact checksum path.
+        ``root_id`` restricts the map to that document's subtree.
         """
-        rows = self.execute_fetchall(
-            """
+        body = """
             SELECT COALESCE(
                        json_extract_string(metadata, '$.source_path'), path),
                    TRY_CAST(json_extract_string(metadata, '$.file_size') AS BIGINT)
@@ -1048,10 +1062,16 @@ class Database(DatabaseEmbeddingMixin):
             WHERE status != 'failed'
               AND json_extract_string(metadata, '$.file_size') IS NOT NULL
             """
-        )
+        if root_id is None:
+            rows = self.execute_fetchall(body)
+        else:
+            rows = self.execute_fetchall(
+                self._SUBTREE_CTE + body + " AND id IN (SELECT id FROM subtree)",
+                [root_id],
+            )
         return {row[0]: int(row[1]) for row in rows if row[0] and row[1] is not None}
 
-    def ingest_dedup_keys(self) -> set[tuple[str, str]]:
+    def ingest_dedup_keys(self, root_id: str | None = None) -> set[tuple[str, str]]:
         """(source_path, checksum) pairs for every non-failed document.
 
         The folder-ingest skip-set. Previously built by ``all(Document)``,
@@ -1061,9 +1081,9 @@ class Database(DatabaseEmbeddingMixin):
         Semantics match the old loop exactly: failed docs excluded (so a
         failed import retries), soft-deleted rows still included, source
         path falls back to ``path`` when metadata lacks ``source_path``.
+        ``root_id`` restricts the set to that document's subtree.
         """
-        rows = self.execute_fetchall(
-            """
+        body = """
             SELECT COALESCE(
                        json_extract_string(metadata, '$.source_path'), path),
                    json_extract_string(metadata, '$.checksum')
@@ -1071,7 +1091,13 @@ class Database(DatabaseEmbeddingMixin):
             WHERE status != 'failed'
               AND json_extract_string(metadata, '$.checksum') IS NOT NULL
             """
-        )
+        if root_id is None:
+            rows = self.execute_fetchall(body)
+        else:
+            rows = self.execute_fetchall(
+                self._SUBTREE_CTE + body + " AND id IN (SELECT id FROM subtree)",
+                [root_id],
+            )
         return {
             (source, checksum)
             for source, checksum in rows

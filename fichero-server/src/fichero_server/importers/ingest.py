@@ -1416,10 +1416,19 @@ def ingest_folder(
     # large library that was the silent multi-minute 'frozen with no
     # progress' phase. Now one targeted SELECT in the persistence layer
     # (#1876): Database.ingest_dedup_keys().
+    #
+    # Scoped to the DESTINATION subtree (2026-08-11): a library-global
+    # skip-set skipped files that existed anywhere — so importing a folder
+    # already (partially) imported elsewhere, or re-importing after an
+    # interrupted import, silently dropped most of its files ("67 images,
+    # only 10 imported"). Scoped to folder_id, a same-destination re-import
+    # stays idempotent and REPAIRS a partial tree; a new destination gets a
+    # full copy. folder_id=None (flat import at library root) keeps the
+    # global set, which is that case's whole tree anyway.
     _prescan_started = time.monotonic()
     try:
-        existing_hashes.update(db.ingest_dedup_keys())
-        existing_source_sizes.update(db.ingest_dedup_source_sizes())
+        existing_hashes.update(db.ingest_dedup_keys(root_id=folder_id))
+        existing_source_sizes.update(db.ingest_dedup_source_sizes(root_id=folder_id))
         logger.info(
             "ingest.folder.prescan existing=%d elapsed_ms=%d",
             len(existing_hashes), int((time.monotonic() - _prescan_started) * 1000),
