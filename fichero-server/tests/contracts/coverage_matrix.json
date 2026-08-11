@@ -15,15 +15,15 @@
     },
     {
       "domain": "activity",
-      "total": 11,
+      "total": 8,
       "swiftui_wired": 7,
-      "swiftui_unwired": 4,
-      "swiftui_allowlisted": 4,
-      "swiftui_coverage": 0.6364,
-      "cli_wired": 10,
-      "cli_untested": 1,
-      "cli_allowlisted": 1,
-      "cli_coverage": 0.9091
+      "swiftui_unwired": 1,
+      "swiftui_allowlisted": 1,
+      "swiftui_coverage": 0.875,
+      "cli_wired": 8,
+      "cli_untested": 0,
+      "cli_allowlisted": 0,
+      "cli_coverage": 1.0
     },
     {
       "domain": "agent-memory",
@@ -63,12 +63,12 @@
     },
     {
       "domain": "artifacts",
-      "total": 4,
+      "total": 5,
       "swiftui_wired": 4,
-      "swiftui_unwired": 0,
-      "swiftui_allowlisted": 0,
-      "swiftui_coverage": 1.0,
-      "cli_wired": 4,
+      "swiftui_unwired": 1,
+      "swiftui_allowlisted": 1,
+      "swiftui_coverage": 0.8,
+      "cli_wired": 5,
       "cli_untested": 0,
       "cli_allowlisted": 0,
       "cli_coverage": 1.0
@@ -351,12 +351,12 @@
     },
     {
       "domain": "ingest",
-      "total": 4,
-      "swiftui_wired": 3,
+      "total": 5,
+      "swiftui_wired": 4,
       "swiftui_unwired": 1,
       "swiftui_allowlisted": 1,
-      "swiftui_coverage": 0.75,
-      "cli_wired": 4,
+      "swiftui_coverage": 0.8,
+      "cli_wired": 5,
       "cli_untested": 0,
       "cli_allowlisted": 0,
       "cli_coverage": 1.0
@@ -771,15 +771,15 @@
     },
     {
       "domain": "workflow-execution",
-      "total": 18,
-      "swiftui_wired": 12,
+      "total": 19,
+      "swiftui_wired": 13,
       "swiftui_unwired": 6,
       "swiftui_allowlisted": 6,
-      "swiftui_coverage": 0.6667,
-      "cli_wired": 17,
-      "cli_untested": 1,
-      "cli_allowlisted": 1,
-      "cli_coverage": 0.9444
+      "swiftui_coverage": 0.6842,
+      "cli_wired": 19,
+      "cli_untested": 0,
+      "cli_allowlisted": 0,
+      "cli_coverage": 1.0
     },
     {
       "domain": "workflows",

@@ -276,3 +276,23 @@ See `docs/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (#3747
 
 <redoc spec-url="openapi.json" hide-download-button></redoc>
 <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+
+### Artifact span → page region
+
+`GET /api/artifacts/{artifact_id}/region` resolves a line or character span of
+a transcription artifact to its normalized page region — the single addressing
+scheme (#4418) behind sentence-level highlight provenance. Optional query
+parameters `char_start`/`char_end` (offsets into the artifact's content) or
+`line` (zero-based) choose the span. The response is `ArtifactRegionResponse`:
+a `geometry_status` (so "this engine cannot point at the page" is
+distinguishable from "this page is blank"), an optional `geometry_reason`, and
+the resolved `region` when geometry exists. Unknown artifact ids return `404`.
+
+### Workflow run comparison
+
+`GET /api/workflow-execution/comparisons` diffs what two runs produced from
+the same input. Required query parameters `left` and `right` are the two
+thread ids. Artifacts pair on (document, artifact type); the
+`RunComparisonResponse` reports line-level differences for transcriptions and,
+for extraction runs, which entities or claims each side found that the other
+missed.
