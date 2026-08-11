@@ -289,6 +289,24 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
         userHasZoomedManually = true
     }
 
+    /// A magnification this code just set programmatically, written BEFORE the
+    /// `scale` binding's Task write has landed (2026-08-11, hi-res swap): the
+    /// magnification↔scale sync in `updateNSView` must WAIT for the binding to
+    /// catch up, or it re-asserts the stale scale and snaps the view — the
+    /// "first pinch zooms out again" defect.
+    var pendingProgrammaticScale: CGFloat?
+
+    /// True when the sync may run: no pending programmatic scale, or the
+    /// binding has caught up (which also clears the pending value).
+    func consumePendingScaleIfMatched(_ bindingScale: CGFloat) -> Bool {
+        guard let pending = pendingProgrammaticScale else { return true }
+        if abs(bindingScale - pending) <= 0.01 {
+            pendingProgrammaticScale = nil
+            return true
+        }
+        return false
+    }
+
     /// A new item is on screen — hand the zoom back to the automatic fit.
     func resetZoomOwnershipForNewItem() {
         userHasZoomedManually = false

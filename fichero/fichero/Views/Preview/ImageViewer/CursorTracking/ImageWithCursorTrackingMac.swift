@@ -198,6 +198,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // `Coordinator.onScaleChanged` instead.
         if autoAppliedScale == nil,
            !context.coordinator.isUserMagnifying,
+           context.coordinator.consumePendingScaleIfMatched(scale),
            abs(scrollView.magnification - scale) > 0.01 {
             scrollView.magnification = scale
         }
@@ -362,6 +363,37 @@ extension ImageWithCursorTracking {
         guard needsImageUpdate else { return }
 
         if let overrideImage {
+            // SAME item, higher resolution (2026-08-11): the hi-res image
+            // arrives asynchronously moments after the display-size one, and
+            // treating it as "a different item" re-fitted the zoom — right
+            // under the user's first pinch ("it immediately snaps back to
+            // zoomed out, then I can pinch and it remembers"). A swap whose
+            // URL is unchanged preserves the on-screen view instead: same
+            // apparent size (magnification scaled by the pixel-width ratio),
+            // same scroll position, zoom ownership untouched.
+            if !urlChanged, let old = coordinator.currentOverrideImage,
+               old.size.width > 0, overrideImage.size.width > 0 {
+                let ratio = old.size.width / overrideImage.size.width
+                let preservedMagnification = scrollView.magnification * ratio
+                let visibleOrigin = scrollView.contentView.bounds.origin
+                imageView.image = overrideImage
+                imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
+                coordinator.currentOverrideImage = overrideImage
+                Task { @MainActor in
+                    self.imageSize = overrideImage.size
+                }
+                scrollView.magnification = preservedMagnification
+                scrollView.contentView.scroll(
+                    to: NSPoint(x: visibleOrigin.x / ratio, y: visibleOrigin.y / ratio)
+                )
+                // The binding write lands a turn later — park the value so the
+                // magnification↔scale sync doesn't snap back to the stale scale.
+                coordinator.pendingProgrammaticScale = preservedMagnification
+                Task { @MainActor in
+                    self.scale = preservedMagnification
+                }
+                return
+            }
             // Already-decoded override: apply synchronously, fit in the same
             // frame so the new image never renders at the old magnification
             // for a frame (#773/#777).

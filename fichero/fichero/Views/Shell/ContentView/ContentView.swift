@@ -226,6 +226,14 @@ struct ContentView: View {
     // Per-folder view mode persistence (JSON-encoded [folderId: displayMode.rawValue], per-window)
     @SceneStorage("folderViewDisplayModes") var folderViewDisplayModesJSON: String = "{}"
 
+    // SAME keys as LibraryView's per-folder sort persistence (@SceneStorage is
+    // per-scene, so these read the values the library writes). Sibling
+    // swipe/arrow stepping must walk the order the library DISPLAYS, not the
+    // raw server order (2026-08-11: swipes went 61 → 60 → 6 → 59 —
+    // lexicographic — where the list showed Finder-style numeric names).
+    @SceneStorage("library.sortFieldsByFolder") var navSortFieldsByFolderJSON: String = "{}"
+    @SceneStorage("library.sortAscendingByFolder") var navSortAscendingByFolderJSON: String = "{}"
+
     @State var itemRegistry = ItemTypeRegistry()
     @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()

@@ -105,9 +105,33 @@ extension ContentView {
            let parentId = document.parentId,
            let folderKids = documentStore.childrenCache[parentId],
            folderKids.contains(where: { $0.id == document.id }) {
-            return navigableFolderSiblings(for: document, in: folderKids)
+            return displayOrdered(
+                navigableFolderSiblings(for: document, in: folderKids),
+                folderId: parentId
+            )
         }
-        return navigableFolderSiblings(for: document, in: listing)
+        return displayOrdered(
+            navigableFolderSiblings(for: document, in: listing),
+            folderId: document.parentId
+        )
+    }
+
+    /// The library's DISPLAYED order for a folder (2026-08-11): sibling
+    /// stepping walked the raw server order, so swipes went 61 → 60 → 6 → 59
+    /// (lexicographic) while the list showed Finder-style numeric names. Reads
+    /// the same per-folder @SceneStorage sort LibraryView persists, through the
+    /// same decoder, and applies the same display ordering.
+    func displayOrdered(_ documents: [Document], folderId: String?) -> [Document] {
+        let saved = LibrarySortField.savedSort(
+            forFolder: folderId,
+            fieldsJSON: navSortFieldsByFolderJSON,
+            ascendingJSON: navSortAscendingByFolderJSON
+        )
+        return LibrarySortField.orderedForDisplay(
+            documents,
+            field: saved.field,
+            using: saved.field.comparator(ascending: saved.ascending)
+        )
     }
 
     /// #25 (Daniel): a selected folder previews like a PDF — its items are its
@@ -115,8 +139,11 @@ extension ContentView {
     /// `navigableSiblings` above then keeps later steps inside the folder.
     private func navigateIntoFolder(_ folder: Document, forward: Bool) {
         Task { @MainActor in
-            let kids = await documentStore.children(of: folder.id)
-                .filter { $0.docType != .folder }
+            let kids = displayOrdered(
+                await documentStore.children(of: folder.id)
+                    .filter { $0.docType != .folder },
+                folderId: folder.id
+            )
             guard let target = forward ? kids.first : kids.last else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 detailDocument = target
