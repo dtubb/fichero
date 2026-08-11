@@ -106,10 +106,17 @@ extension ContentView {
                 selection: $browserSelection,
                 detailDocument: $detailDocument,
                 viewMode: $viewSettings.libraryLayout,
-                isPaneFocused: focusedPane == .content,
+                // The HINT is part of "focused" (2026-08-11, Daniel's Mail
+                // comparison): focusedPane is FocusState and stays nil unless
+                // a view carries a matching .focused binding — only the
+                // sidebar does — so a clicked library row rendered the
+                // UNFOCUSED grey+accent selection instead of Mail's
+                // accent-bar-with-white. Every pane tap already writes the
+                // hint, so hint==.content is "the library is the active pane".
+                isPaneFocused: focusedPane == .content || paneFocusHint == .content,
                 displayMode: viewDisplayMode,
                 folderId: sidebarSelectionState.selectedItemId,
-                onRequestFocus: { focusedPane = .content },
+                onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
                 onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
                 onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
                 onNavigateInto: { doc in navigateToDocument(doc) },

@@ -176,14 +176,14 @@ struct MailStyleRow: View {
                         )
                     } else {
                         // Same fall-through as the thumbnail grid (#4416).
+                        // ONE line (Daniel 2026-08-11, supersedes the #4191
+                        // two-line reservation): "title is in one line (with
+                        // truncation)" — rows stay uniform because one line
+                        // reserves exactly as predictably as two did.
                         Text(DocumentTitle.displayName(for: document))
                             .font(.headline)
                             .foregroundStyle(titleColor)
-                            // Uniform rows (#4191 density cap): the title
-                            // always occupies exactly two lines so every row
-                            // is the same height — scroll position is stable
-                            // and PageUp/Down's row step stays honest.
-                            .lineLimit(2, reservesSpace: true)
+                            .lineLimit(1)
                             .truncationMode(.middle)
                             // Middle-truncated titles reveal in full on hover.
                             .help(DocumentTitle.displayName(for: document))
@@ -207,31 +207,15 @@ struct MailStyleRow: View {
                     }
 
                     Spacer()
-
-                    Text(document.createdAt, style: .date)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
-                // Status + Type row. Display only — earlier these were
-                // tappable to filter, but a single click on the badge
-                // hijacked row selection and the user could end up with
-                // a stuck filter ('No results for "Image"') with no
-                // visible escape. ⌘F opens the filter bar for explicit
-                // filtering. (#519 follow-up — the maintainer: 'right now its
-                // single clicking and changing'.)
-                HStack(spacing: 8) {
-                    StatusBadge(status: document.status)
-                    if document.docType == .folder {
-                        Text("Folder")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if let fileType = document.fileType {
-                        Text(fileType.rawValue.capitalized)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                // NO badge row (Daniel 2026-08-11, supersedes #519's
+                // display-only badges): "completed is useless, image is
+                // useless, and August 11, 2026 is useless" — the status dot
+                // already carries state, the thumbnail carries type, and the
+                // date belongs in the coming Xcode-style metadata popover
+                // (task #18) with the rest of the optional attributes. What
+                // the row is FOR is the title and the transcript below.
 
                 // Summary/Output preview — ALWAYS two reserved lines
                 // (#4191 density cap): docs without body text keep the same
