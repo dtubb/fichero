@@ -141,12 +141,14 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
 
     func testActivityIsRemovedFromSidebarEntryPoints() throws {
         let viewMenuSource = try Self.appSource("App/Menus/ViewMenuCommands.swift")
-        let modeBarSource = try Self.appSource("Views/Sidebar/Modes/SidebarModeBar.swift")
         let pinnedRowsSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+PinnedNavigationRows.swift")
 
         XCTAssertFalse(viewMenuSource.contains("mode: .activity"))
-        XCTAssertFalse(modeBarSource.contains("modeIcon(.activity)"))
-        XCTAssertFalse(modeBarSource.contains("modes.append(.activity)"))
+        // The mode bar itself was deleted (2026-08-10, Daniel: old UI
+        // approach) — its absence IS the strongest "no activity entry point".
+        let modeBarURL = try AppSource.root()
+            .appendingPathComponent("Views/Sidebar/Modes/SidebarModeBar.swift")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: modeBarURL.path))
         XCTAssertFalse(pinnedRowsSource.contains("activityNavigationRow()"))
         XCTAssertFalse(pinnedRowsSource.contains("Activity Unavailable"))
     }

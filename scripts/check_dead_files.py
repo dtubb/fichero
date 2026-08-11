@@ -41,6 +41,8 @@ IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift": "#4235-class — extension file; SidebarRowDropGate is the private drop-gate helper used by the same-file SidebarItemRow body (surfaced when the 2026-08-10 dead-code sweep removed the sibling files the scanner had credited)",
+    "Views/Workflow/Library/WorkflowChainListView.swift": "2026-08-10 — candidate dead file: orphaned when the legacy WorkflowLibraryView list was removed (workflow clicks route straight to the node editor). Daniel is leaning 'chains fold into workflows'; delete this (and its Parts/) or rewire once he rules. Do not let this entry outlive the decision.",
     "Models/DocumentStore+ChangeStream.swift": "#4235 — extension file; SpliceChanges is the private changed-flags carrier for spliceDocuments",
     "Views/Library/LibraryView+FilterAndBatch.swift": "#4235 — extension file; LibraryEmptyPlaceholder classifies empty/loading/importing for LibraryView",
     "Services/EmbeddedBackendService+Readiness.swift": "#1943 — extension file; SpawnWaitStep used by EmbeddedBackendService readiness methods (service split)",
@@ -61,9 +63,8 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Library/ViewModes/LibraryView+EntityFiltering.swift": "#1945 — candidate dead file: KgKindMapping (moved here from LibraryView+DisplayModes when that file was split by file_length; used only by the same-file entity-filter extension)",
     "Views/Preview/ImageViewer/ScrollWheelZoom.swift": "#1945 — candidate dead file: scroll-wheel zoom bridge types",
     "Views/Preview/PDFViewer/PageImageGrid.swift": "#1945 — candidate dead file: page image grid helper types",
-    "Views/Library/Workspace/CollectionWorkspaceStub.swift": "#1945 — candidate dead file: workspace stub helper",
+    "Services/ImportService+Ingest.swift": "#4235-class — extension file; IngestStallWatchdog is the private stall-not-wall-clock import timeout used by the same-file ImportService ingest loop (2026-08-10)",
     "Views/Workflow/Canvas/WorkflowCanvasView+EdgeConnection.swift": "#4477 — live but scanner-blind: PortConnectionRules is the pure edge-legality function, consumed IN THIS FILE by the view's canConnect (lines 118, 168) and by PortConnectionRulesTests. Internal rather than private because the tests must reach it; the scanner's 'declared only here' heuristic does not model same-file use.",
-    "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift": "#1945 — candidate dead file: library header helper row",
     "Views/Workflow/Editor/WorkflowEditor+Actions.swift": "#1945 — candidate dead file: workflow completion helper",
     "Views/Settings/MCP/MCPToolsCatalogView.swift": "#1945 — candidate dead file: MCP tools catalog helper types",
     "Views/Settings/MCP/MCPServersSheet.swift": "#3366 — settings routing keeps legacy sheet compiled for transition/back-compat",

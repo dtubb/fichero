@@ -243,6 +243,11 @@ class TestMaterialization:
 
         require_local_bytes(f)  # must not raise
 
+        # Both probes consumed: dataless before the read AND re-checked after
+        # it — proof the accept path is probe→read→re-probe, not a single
+        # pre-check that would pass a file the read failed to materialize.
+        assert next(calls, "exhausted") == "exhausted"
+
     def test_a_placeholder_that_stays_dataless_after_the_read_is_refused(
         self, tmp_path, monkeypatch
     ):
