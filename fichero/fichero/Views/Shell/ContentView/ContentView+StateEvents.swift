@@ -148,6 +148,7 @@ extension ContentView {
                 return
             }
             kgFocusState.focusEntity(entityId: firstId)
+            NavTrace.log("selChange.entityClear", "nil")
             detailDocument = nil
             return
         }
@@ -161,11 +162,13 @@ extension ContentView {
                 currentDetailDocumentId: detailDocument?.id
               ) else {
             if newSelection.isEmpty {
+                NavTrace.log("selChange.emptyClear", "nil")
                 detailDocument = nil
             }
             return
         }
         if let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
+            NavTrace.log("selChange.promote", "\(firstId) (rewrite; had \(detailDocument?.id ?? "nil"))")
             detailDocument = doc
             return
         }
@@ -180,6 +183,7 @@ extension ContentView {
                shellPrimarySelectionId(
                    in: browserSelection, orderedBy: documentStore.currentDocuments
                ) == firstId {
+                NavTrace.log("selChange.asyncFetch", "\(firstId)")
                 detailDocument = fetched
             }
         }

@@ -54,6 +54,7 @@ extension ContentView {
                 in: browserSelection, orderedBy: documentStore.currentDocuments
             )
             if let firstSelectedId {
+                NavTrace.log("statePreview.restore", "\(firstSelectedId)")
                 detailDocument = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId })
             }
         }
