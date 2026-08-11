@@ -56,7 +56,7 @@ def test_rebuild_uses_default_options(monkeypatch):
             "triples_written": 3,
         }
 
-    monkeypatch.setattr("fichero_server.kg.rebuild.rebuild_kg", fake_rebuild)
+    monkeypatch.setattr("fichero_server.knowledge.rebuild.rebuild_kg", fake_rebuild)
     db = object()
 
     response = asyncio.run(routes.rebuild_kg(request=None, db=db))
@@ -69,7 +69,7 @@ def test_rebuild_uses_default_options(monkeypatch):
 def test_rebuild_forwards_disabled_stages(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        "fichero_server.kg.rebuild.rebuild_kg",
+        "fichero_server.knowledge.rebuild.rebuild_kg",
         lambda db, *, vectors, triples: calls.append((db, vectors, triples)) or {
             "entities": 0,
             "claims": 0,

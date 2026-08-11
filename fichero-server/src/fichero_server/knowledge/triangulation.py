@@ -34,7 +34,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from fichero_server.kg._common import enum_value, extract_svo, slug_verb
+from fichero_server.knowledge._common import enum_value, extract_svo, slug_verb
 
 if TYPE_CHECKING:  # pragma: no cover
     from fichero_server.db import Database
@@ -115,8 +115,8 @@ def _normalize_object(text: str) -> str:
     return " ".join(text.lower().split())
 
 
-# Predicate slug — shared with fichero_server.kg.triples._predicate_uri via
-# fichero_server.kg._common.slug_verb so SPARQL queries over the RDF graph
+# Predicate slug — shared with fichero_server.knowledge.triples._predicate_uri via
+# fichero_server.knowledge._common.slug_verb so SPARQL queries over the RDF graph
 # agree with the in-Python aggregation below.
 _predicate_slug = slug_verb
 

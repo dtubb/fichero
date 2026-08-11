@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
-from fichero_server.kg.graph import (
+from fichero_server.knowledge.graph import (
     CentralityScore,
     MergeCandidate,
     build_full_cooccurrence,
@@ -25,17 +25,17 @@ from fichero_server.kg.graph import (
     contradiction_subgraph,
     invalidate_graph_cache,
 )
-from fichero_server.kg.ner import BaseNERProvider, ExtractedEntity, NERProvider
-from fichero_server.kg.paragraph import (
+from fichero_server.knowledge.ner import BaseNERProvider, ExtractedEntity, NERProvider
+from fichero_server.knowledge.paragraph import (
     ParagraphCitation,
     ParagraphMarker,
     ParagraphRenderRequest,
     ParagraphRenderResponse,
     ParagraphStyle,
 )
-from fichero_server.kg.probabilistic_scorer import ThresholdDecision
-from fichero_server.kg.pykeen_predictor import LinkPrediction, load_model, predict_for_subject
-from fichero_server.kg.triangulation import TripleKey, TripleSupport
+from fichero_server.knowledge.probabilistic_scorer import ThresholdDecision
+from fichero_server.knowledge.pykeen_predictor import LinkPrediction, load_model, predict_for_subject
+from fichero_server.knowledge.triangulation import TripleKey, TripleSupport
 from fichero_server.models.knowledge import ClaimRelationType
 
 
@@ -303,7 +303,7 @@ def test_predict_for_subject_orders_truncated_predictions(tmp_path, monkeypatch)
 
     model = object()
     # predict_for_subject resolves load_model from its own module
-    # (fichero_server.knowledge.pykeen_predictor); fichero_server.kg.pykeen_predictor is just
+    # (fichero_server.knowledge.pykeen_predictor); fichero_server.knowledge.pykeen_predictor is just
     # an `import *` shim, so patching the shim name has no effect on the call.
     monkeypatch.setattr(
         "fichero_server.knowledge.pykeen_predictor.load_model",

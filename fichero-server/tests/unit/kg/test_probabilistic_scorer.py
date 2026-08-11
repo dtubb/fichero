@@ -1,6 +1,6 @@
 """Tests for probabilistic entity-match scoring (#988 step 3)."""
 
-from fichero_server.kg.probabilistic_scorer import (
+from fichero_server.knowledge.probabilistic_scorer import (
     _alias_overlap_score,
     _canonical_name_similarity,
     apply_thresholds,

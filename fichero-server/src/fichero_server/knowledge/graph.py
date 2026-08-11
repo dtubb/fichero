@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING, Iterable, Optional
 
 import networkx as nx
 
-from fichero_server.kg._common import enum_value, extract_svo
+from fichero_server.knowledge._common import enum_value, extract_svo
 
 if TYPE_CHECKING:  # pragma: no cover
     from fichero_server.db import Database

@@ -1,6 +1,6 @@
 from enum import Enum
 
-from fichero_server.kg._common import (
+from fichero_server.knowledge._common import (
     enum_value,
     extract_svo,
     is_bare_is_a_copula,

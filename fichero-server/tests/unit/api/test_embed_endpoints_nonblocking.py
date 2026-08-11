@@ -18,7 +18,7 @@ import pytest
 from fastapi import HTTPException
 
 from fichero_server.api.routes import kg_claim_search, kg_entity_curation
-from fichero_server.kg import rebuild
+from fichero_server.knowledge import rebuild
 from fichero_server.models.knowledge import (
     ClaimType,
     EntityType,

@@ -71,7 +71,7 @@ def _maybe_trigger_retrain(db: Database, background_tasks: BackgroundTasks) -> N
 def _run_retrain(db: Database) -> None:
     """Background-thread PyKEEN retrain. Logs only."""
     try:
-        from fichero_server.kg.pykeen_predictor import train_model
+        from fichero_server.knowledge.pykeen_predictor import train_model
         stats = train_model(db)
         logger.info(
             "auto-retrain: %s — triples=%s, entities=%s, relations=%s",
@@ -196,7 +196,7 @@ async def graph_candidates(
     limit: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
-    from fichero_server.kg.graph import (
+    from fichero_server.knowledge.graph import (
         build_full_cooccurrence,
         graph_context_merge_candidates,
     )
@@ -316,7 +316,7 @@ async def accept_pair(
 
     # 4. Drop the candidate's vector + refresh the survivor's.
     try:
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
         entity_vectors.remove(db=db, entity_id=candidate.id)
         entity_vectors.index_entity(
             db=db,

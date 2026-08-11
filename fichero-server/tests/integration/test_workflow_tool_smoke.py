@@ -243,10 +243,10 @@ def test_registered_tool_survives_one_canned_invocation(
 
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.find_similar", lambda *args, **kwargs: []
+        "fichero_server.knowledge.entity_vectors.find_similar", lambda *args, **kwargs: []
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity", lambda *args, **kwargs: None
+        "fichero_server.knowledge.entity_vectors.index_entity", lambda *args, **kwargs: None
     )
 
     # Mocked model for LLM-backed tools: chat/chat_structured route through

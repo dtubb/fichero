@@ -7,8 +7,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from fichero_server.kg import spacy_ner
-from fichero_server.kg.ner import BaseNERProvider, ExtractedEntity
+from fichero_server.knowledge import spacy_ner
+from fichero_server.knowledge.ner import BaseNERProvider, ExtractedEntity
 
 logger = logging.getLogger(__name__)
 

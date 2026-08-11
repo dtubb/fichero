@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from fichero_server.api.routes import kg_triangulation as routes
-from fichero_server.kg.triangulation import TripleKey, TripleSupport
+from fichero_server.knowledge.triangulation import TripleKey, TripleSupport
 
 
 def _support() -> TripleSupport:
@@ -22,7 +22,7 @@ def test_entity_triangulation_maps_support_records(monkeypatch):
     support = _support()
     calls = []
     monkeypatch.setattr(
-        "fichero_server.kg.triangulation.triples_for_entity",
+        "fichero_server.knowledge.triangulation.triples_for_entity",
         lambda db, entity_id: calls.append((db, entity_id)) or [support],
     )
     db = object()
@@ -46,7 +46,7 @@ def test_entity_triangulation_maps_support_records(monkeypatch):
 def test_library_triangulation_forwards_threshold(monkeypatch):
     calls = []
     monkeypatch.setattr(
-        "fichero_server.kg.triangulation.triangulated_facts",
+        "fichero_server.knowledge.triangulation.triangulated_facts",
         lambda db, *, threshold: calls.append((db, threshold)) or [],
     )
     db = object()
@@ -59,7 +59,7 @@ def test_library_triangulation_forwards_threshold(monkeypatch):
 
 
 def test_recompute_reports_updated_claim_count(monkeypatch):
-    monkeypatch.setattr("fichero_server.kg.triangulation.persist_support_counts", lambda db: 7)
+    monkeypatch.setattr("fichero_server.knowledge.triangulation.persist_support_counts", lambda db: 7)
 
     response = asyncio.run(routes.recompute_triangulation(db=object()))
 

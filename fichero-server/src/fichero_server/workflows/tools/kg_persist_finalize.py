@@ -3,12 +3,12 @@
 This final reviewable workflow stage reuses the existing KG finalize paths
 instead of inventing new persistence:
 
-- ``fichero_server.kg.triangulation.persist_support_counts`` recomputes and persists
+- ``fichero_server.knowledge.triangulation.persist_support_counts`` recomputes and persists
   cross-source corroboration counts onto claims.
 - ``Database.embed_entities`` / ``Database.embed_claims`` backfill the
   canonical LanceDB embedding tables when they are missing or stale by row
   count.
-- ``fichero_server.kg.rebuild.rebuild_kg(..., triples=True)`` refreshes ``kg.nt``
+- ``fichero_server.knowledge.rebuild.rebuild_kg(..., triples=True)`` refreshes ``kg.nt``
   when the graph snapshot is missing or triangulation changed claim state.
 
 Steps 2-4 already persist entities and claims through the canonical writers, so
@@ -27,8 +27,8 @@ from fichero_server.db.embeddings import (
     KG_CLAIM_EMBEDDINGS_TABLE,
     KG_ENTITY_EMBEDDINGS_TABLE,
 )
-from fichero_server.kg.rebuild import rebuild_kg
-from fichero_server.kg.triangulation import persist_support_counts
+from fichero_server.knowledge.rebuild import rebuild_kg
+from fichero_server.knowledge.triangulation import persist_support_counts
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.llm import LLMConfig
 from fichero_server.models import Document

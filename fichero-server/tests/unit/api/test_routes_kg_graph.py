@@ -16,9 +16,9 @@ from fichero_server.knowledge.graph import CentralityScore
 def test_centrality_maps_scores_and_filters_type(monkeypatch):
     graph = nx.MultiDiGraph()
     calls = []
-    monkeypatch.setattr("fichero_server.kg.graph.build_full_cooccurrence", lambda db: graph)
+    monkeypatch.setattr("fichero_server.knowledge.graph.build_full_cooccurrence", lambda db: graph)
     monkeypatch.setattr(
-        "fichero_server.kg.graph.centrality",
+        "fichero_server.knowledge.graph.centrality",
         lambda value, *, top_k, only_type: calls.append((value, top_k, only_type)) or [
             CentralityScore("entity-1", "Alice", 3, 0.2, 0.4)
         ],
@@ -38,7 +38,7 @@ def test_cooccurrence_sorts_neighbors_and_rejects_unknown_entity(monkeypatch):
     graph.add_node("entity-3", canonical_name="Carol", entity_type="place")
     graph.add_edge("entity-1", "entity-2", weight=1)
     graph.add_edge("entity-1", "entity-3", weight=3)
-    monkeypatch.setattr("fichero_server.kg.graph.build_full_cooccurrence", lambda _db: graph)
+    monkeypatch.setattr("fichero_server.knowledge.graph.build_full_cooccurrence", lambda _db: graph)
 
     response = asyncio.run(routes.cooccurrence_neighbours("entity-1", db=object()))
 
@@ -52,9 +52,9 @@ def test_cooccurrence_sorts_neighbors_and_rejects_unknown_entity(monkeypatch):
 
 def test_shortest_path_reports_edge_length(monkeypatch):
     graph = nx.MultiDiGraph()
-    monkeypatch.setattr("fichero_server.kg.graph.build_full_graph", lambda db: graph)
+    monkeypatch.setattr("fichero_server.knowledge.graph.build_full_graph", lambda db: graph)
     monkeypatch.setattr(
-        "fichero_server.kg.graph.shortest_path_entities",
+        "fichero_server.knowledge.graph.shortest_path_entities",
         lambda value, source, target: [source, "middle", target],
     )
 

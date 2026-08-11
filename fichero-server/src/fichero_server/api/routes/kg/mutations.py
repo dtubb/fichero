@@ -121,7 +121,7 @@ async def undo_mutation(
     # Refresh the LanceDB vector for restored entities.
     if log.entity_type == "KnowledgeEntity":
         try:
-            from fichero_server.kg import entity_vectors
+            from fichero_server.knowledge import entity_vectors
             entity_vectors.index_entity(
                 db=db,
                 entity_id=restored.id,

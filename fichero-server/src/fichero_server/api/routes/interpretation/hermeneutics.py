@@ -20,7 +20,7 @@ from fichero_server.models.hermeneutics import (
     PatternInstance,
     PatternStatus,
 )
-from fichero_server.kg._common import canonical_hermeneutic_predicate
+from fichero_server.knowledge._common import canonical_hermeneutic_predicate
 from fichero_server.models.knowledge import KnowledgeClaim
 
 

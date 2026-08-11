@@ -76,7 +76,7 @@ def rebuild_kg(
 
     if triples:
         try:
-            from fichero_server.kg import triples as triples_module
+            from fichero_server.knowledge import triples as triples_module
 
             path = triples_path or (Path(db.path).parent / "kg.nt")
             graph = triples_module.build_graph(entities, claims)

@@ -21,7 +21,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
 )
-from fichero_server.kg import triples
+from fichero_server.knowledge import triples
 
 
 # =============================================================================
@@ -43,7 +43,7 @@ class TestEntityToTriples:
         assert (e_uri, RDFS.label, Literal("Eugenio Córdoba")) in g
 
     def test_place_maps_to_schema_place(self):
-        from fichero_server.kg.triples import SCHEMA
+        from fichero_server.knowledge.triples import SCHEMA
 
         g = triples.make_graph()
         ent = KnowledgeEntity(
@@ -112,7 +112,7 @@ class TestEntityToTriples:
 
 class TestClaimToTriples:
     def test_svo_produces_subject_predicate_object_edge(self):
-        from fichero_server.kg.triples import FICHERO
+        from fichero_server.knowledge.triples import FICHERO
 
         g = triples.make_graph()
         ent = KnowledgeEntity(
@@ -133,7 +133,7 @@ class TestClaimToTriples:
         assert (triples._entity_uri("e-1"), signed, Literal("the deed")) in g
 
     def test_reification_carries_claim_level_metadata(self):
-        from fichero_server.kg.triples import FICHERO
+        from fichero_server.knowledge.triples import FICHERO
 
         g = triples.make_graph()
         claim = KnowledgeClaim(
@@ -161,7 +161,7 @@ class TestClaimToTriples:
         ) in g
 
     def test_no_svo_emits_schema_about_edge(self):
-        from fichero_server.kg.triples import SCHEMA
+        from fichero_server.knowledge.triples import SCHEMA
 
         g = triples.make_graph()
         claim = KnowledgeClaim(
@@ -177,7 +177,7 @@ class TestClaimToTriples:
         assert (doc_uri, SCHEMA.about, ent_uri) in g
 
     def test_object_resolves_to_entity_when_known(self):
-        from fichero_server.kg.triples import FICHERO
+        from fichero_server.knowledge.triples import FICHERO
 
         g = triples.make_graph()
         subject = KnowledgeEntity(

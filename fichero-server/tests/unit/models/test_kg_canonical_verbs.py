@@ -1,7 +1,7 @@
 """Tests for the canonical-verb vocabulary (#1123 Phase C).
 
 The free-text predicate_verb on every claim gets canonicalised at write
-time via ``fichero_server.kg._common.canonical_verb``. These tests pin the
+time via ``fichero_server.knowledge._common.canonical_verb``. These tests pin the
 mapping contract: each variant maps to its canonical, lookup is
 case-insensitive, unknown verbs return None (honest absence rather
 than guessed mapping), and ``save_claim`` populates
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from fichero_server.kg._common import CANONICAL_VERBS, canonical_verb, slug_verb
+from fichero_server.knowledge._common import CANONICAL_VERBS, canonical_verb, slug_verb
 
 
 # ---------------------------------------------------------------------------

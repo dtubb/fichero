@@ -553,15 +553,15 @@ def test_catalogue_full_pipeline_runs_from_folder_with_stubs(
         fake_claims_for_entity,
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.find_similar",
+        "fichero_server.knowledge.entity_vectors.find_similar",
         lambda *args, **kwargs: [],
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity",
+        "fichero_server.knowledge.entity_vectors.index_entity",
         lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
-        "fichero_server.kg.rebuild.rebuild_kg",
+        "fichero_server.knowledge.rebuild.rebuild_kg",
         lambda *args, **kwargs: {"entities": 0, "claims": 0, "triples_written": 0},
     )
     monkeypatch.setattr(

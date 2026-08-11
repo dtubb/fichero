@@ -1,6 +1,6 @@
 """Tests for POST /api/kg/sparql (#987 / #983 Stage 1c).
 
-The endpoint is a thin wrapper over fichero_server.kg.triples.sparql() —
+The endpoint is a thin wrapper over fichero_server.knowledge.triples.sparql() —
 materializes the RDF graph from current entity + claim rows and runs
 the user's SPARQL query against it. Read-only; mutating verbs rejected.
 """

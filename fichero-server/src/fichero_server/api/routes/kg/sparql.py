@@ -1,7 +1,7 @@
 """SPARQL query endpoint over the RDF triple substrate (#987 / #983 Stage 1c).
 
 The backend already materializes KnowledgeEntity + KnowledgeClaim rows as
-RDF triples via ``fichero_server.kg.triples`` (foaf:Person / schema:Place /
+RDF triples via ``fichero_server.knowledge.triples`` (foaf:Person / schema:Place /
 skos:Concept ontology + reified rdf:Statement claims with SVO predicates).
 This module exposes that graph behind a single HTTP endpoint so the
 frontend (and any external SPARQL-aware tooling) can query it directly.
@@ -172,7 +172,7 @@ async def sparql_query(
         )
 
     try:
-        from fichero_server.kg import triples as triples_module
+        from fichero_server.knowledge import triples as triples_module
     except ImportError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -310,7 +310,7 @@ def _term_to_json(term: Any) -> Any:
 
 
 # Library-scoped rdflib graph cache. Same key shape as the networkx
-# graph cache in fichero_server.kg.graph (count + max(updated_at) on claims
+# graph cache in fichero_server.knowledge.graph (count + max(updated_at) on claims
 # and entities) so both caches invalidate on the same write events.
 # Cuts SPARQL latency from ~3-4s to ~50ms on warm cache at 200K triples.
 # (#992 — scaling-review bottleneck 3)
@@ -325,8 +325,8 @@ def _cached_rdf_graph(db: Database) -> Any:
     Imports rdflib + the triple builder lazily because rdflib pulls in
     pyparsing and pulls hard.
     """
-    from fichero_server.kg import graph as graph_module
-    from fichero_server.kg import triples as triples_module
+    from fichero_server.knowledge import graph as graph_module
+    from fichero_server.knowledge import triples as triples_module
     from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
     key = str(db.path)

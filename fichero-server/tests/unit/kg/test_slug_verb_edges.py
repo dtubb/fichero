@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero_server.kg._common import slug_verb
+from fichero_server.knowledge._common import slug_verb
 
 
 @pytest.mark.parametrize("verb", ["", "   ", "\t\n"])

@@ -1,7 +1,7 @@
 """PyKEEN models should load once per library path, not per prediction.
 
 Regression coverage for the process-global cache added to
-``fichero_server.kg.pykeen_predictor.load_model``. Mirrors the embedder cache tests:
+``fichero_server.knowledge.pykeen_predictor.load_model``. Mirrors the embedder cache tests:
 same library path loads once, distinct library paths load once each, and
 concurrent callers still deserialize the model exactly once.
 """
@@ -16,7 +16,7 @@ import types
 
 import pytest
 
-from fichero_server.kg import pykeen_predictor
+from fichero_server.knowledge import pykeen_predictor
 
 
 @pytest.fixture(autouse=True)

@@ -20,7 +20,7 @@ from functools import wraps
 from typing import Optional
 
 from fichero_server.db import Database
-from fichero_server.kg._common import is_bare_is_a_copula
+from fichero_server.knowledge._common import is_bare_is_a_copula
 from fichero_server.models.knowledge import (
     AttributionRole,
     AttributionStep,
@@ -1504,7 +1504,7 @@ def upsert_entity(
     # so the EntityMatchCandidate row references a real candidate id.
     _pending_review: Optional[tuple[str, float, str]] = None
     try:
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
 
         hits = entity_vectors.find_similar(
             db=db,
@@ -1593,7 +1593,7 @@ def upsert_entity(
         # encoded description grows with each merged occurrence so
         # future matches keep improving.
         try:
-            from fichero_server.kg import entity_vectors
+            from fichero_server.knowledge import entity_vectors
 
             entity_vectors.index_entity(
                 db=db,
@@ -1691,7 +1691,7 @@ def upsert_entity(
         return survivor.id
 
     try:
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
 
         entity_vectors.index_entity(
             db=db,
@@ -1949,7 +1949,7 @@ def save_claim(
     # over guessed mapping). Callers don't need to import canonical_verb
     # at every save site; centralising here means new vocabulary
     # additions in kg/_common.py reach every existing writer for free.
-    from fichero_server.kg._common import canonical_verb as _canonical_verb
+    from fichero_server.knowledge._common import canonical_verb as _canonical_verb
     pred_canonical = _canonical_verb(sv)
 
     incoming_svo_subject = svo_subject if svo_subject is not None else sc

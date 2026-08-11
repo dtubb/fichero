@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server.books.page_offset import page_offset_from_inputs, resolve_printed_page
 from fichero_server.db import db_manager
-from fichero_server.kg._common import slug_verb
+from fichero_server.knowledge._common import slug_verb
 from fichero_server.models.knowledge import ClaimType, EntityType, KnowledgeEntity
 from fichero_server.llm import LLMConfig, chat_structured_with_fallback
 from fichero_server.models import Artifact, Document

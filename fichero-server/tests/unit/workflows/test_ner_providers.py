@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from fichero_server.kg import spacy_ner
-from fichero_server.kg.ner import ExtractedEntity
+from fichero_server.knowledge import spacy_ner
+from fichero_server.knowledge.ner import ExtractedEntity
 from fichero_server.workflows.ner.providers import (
     LLMNERProvider,
     SpacyNERProvider,

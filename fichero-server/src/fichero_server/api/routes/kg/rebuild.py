@@ -1,6 +1,6 @@
 """Knowledge graph rebuild routes.
 
-Exposes the ``fichero_server.kg.rebuild`` helper as an HTTP endpoint so a
+Exposes the ``fichero_server.knowledge.rebuild`` helper as an HTTP endpoint so a
 caller can backfill entity vectors / refresh the RDF triple file
 without re-running Catalogue. Useful after pulling a new engine
 version that changed how vectors are computed.
@@ -97,7 +97,7 @@ async def rebuild_kg(
     db: Database = Depends(get_library_database_for_write),
 ) -> RebuildResponse:
     """Backfill the KG derived stores from canonical DuckDB rows."""
-    from fichero_server.kg.rebuild import rebuild_kg as do_rebuild
+    from fichero_server.knowledge.rebuild import rebuild_kg as do_rebuild
 
     req = request or RebuildRequest()
     stats = do_rebuild(db, vectors=req.vectors, triples=req.triples)

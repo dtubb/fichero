@@ -174,7 +174,7 @@ async def inspector(
     # Similar entities via LanceDB cosine.
     similar: list[SimilarEntity] = []
     try:
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
         hits = entity_vectors.find_similar(
             db=db,
             canonical_name=entity.canonical_name,
@@ -196,7 +196,7 @@ async def inspector(
     # Triangulated facts about this entity as subject.
     triangulated: list[TriangulatedFact] = []
     try:
-        from fichero_server.kg.triangulation import triples_for_entity
+        from fichero_server.knowledge.triangulation import triples_for_entity
         for support in triples_for_entity(db, entity_id):
             triangulated.append(TriangulatedFact(
                 predicate=support.key.predicate,
