@@ -333,13 +333,15 @@ async def run_extractor(
 
     llm_config = None
     if use_llm:
-        # Resolve the user's default LLM the same way other workflows do.
+        # On-device default. `fichero_server.settings` never existed — the
+        # old import here raised ImportError on every use_llm=True call
+        # (found 2026-08-11 while giving the search query compiler the same
+        # fallback).
         from fichero_server.llm import LLMConfig
-        from fichero_server.settings import settings
 
         llm_config = LLMConfig(
-            provider=settings.default_llm_provider or "apple",
-            model=settings.default_llm_model or "apple-intelligence",
+            provider="apple",
+            model="apple-intelligence",
         )
 
     merged = await extract_full(doc, llm_config=llm_config)

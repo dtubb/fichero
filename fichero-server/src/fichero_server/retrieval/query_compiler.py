@@ -88,8 +88,13 @@ def looks_like_natural_language(query: str) -> bool:
 
 def _resolve_compiler_config(db: "Database"):
     """First enabled provider/model from the library's Providers config —
-    the same resolution chat uses. None when no provider is configured
-    (compilation is then simply unavailable, which the response reports)."""
+    the same resolution chat uses. A library with NO configured providers
+    falls back to the settings default (on-device Apple Intelligence), the
+    same resolution bibliography extraction uses — Ask mode refusing with
+    "no enabled LLM provider configured" on a fresh library was Daniel's
+    2026-08-11 "that's terrible": the machine has an LLM, use it. If Apple
+    FM is genuinely unavailable at runtime, chat_structured raises and
+    enhanced_search reports it while searching the raw words — unchanged."""
     from fichero_server.llm import LLMConfig
     from fichero_server.llm.providers import get_provider_info
     # NOT `ModelModel`/`ProviderModel` — those are chat.py's local import
@@ -100,7 +105,12 @@ def _resolve_compiler_config(db: "Database"):
 
     configured = db.query(ProviderModel, enabled=True)
     if not configured:
-        return None
+        return LLMConfig(
+            provider="apple",
+            model="apple-intelligence",
+            temperature=0.0,
+            max_tokens=400,
+        )
     provider_row = configured[0]
     provider = provider_row.provider_type.value
     models = db.query(ModelModel, provider_id=provider_row.id, enabled=True)

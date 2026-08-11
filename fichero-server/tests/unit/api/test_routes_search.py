@@ -1486,11 +1486,17 @@ class TestQueryCompilation:
         # Regression (reported live): the resolver imported
         # `ModelModel`/`ProviderModel` — chat.py's local ALIASES, not real
         # names in fichero_server.models — so every live compile raised
-        # ImportError while the mocked tests stayed green. Call it for
-        # real: no providers configured → None, and the imports execute.
+        # ImportError while the mocked tests stayed green. Call it for real.
+        #
+        # 2026-08-11 (Daniel: "why does it say we can't use llm to construct
+        # search. that's terrible"): a library with NO configured providers
+        # now falls back to on-device Apple Intelligence instead of refusing.
         from fichero_server.retrieval.query_compiler import _resolve_compiler_config
 
-        assert _resolve_compiler_config(db) is None
+        config = _resolve_compiler_config(db)
+        assert config is not None
+        assert config.provider == "apple"
+        assert config.model == "apple-intelligence"
 
     def test_natural_language_gate(self):
         from fichero_server.retrieval.query_compiler import looks_like_natural_language as nl
