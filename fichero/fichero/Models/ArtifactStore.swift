@@ -65,6 +65,17 @@ final class ArtifactStore: ObservableDomainStore {
     /// repeated set of the same already-loaded scope is a no-op unless `force`
     /// is set (reload button / post-mutation refresh).
     func setScope(documentId: String, includeDescendants: Bool = false, force: Bool = false) async {
+        // A virtual page cursor is a page that is NOT imported as a document —
+        // it has no artifacts by definition. Asking the engine 404'd once per
+        // swipe on unprocessed PDFs (2026-08-11 console churn).
+        if Document.isVirtualPageCursorId(documentId) {
+            items = []
+            currentDocumentId = documentId
+            currentIncludeDescendants = includeDescendants
+            loadedScope = Self.scopeKey(documentId: documentId, includeDescendants: includeDescendants)
+            loadError = nil
+            return
+        }
         let scope = Self.scopeKey(documentId: documentId, includeDescendants: includeDescendants)
         // Guards on the scope actually LOADED, not on `!items.isEmpty`. Now that
         // a failed fetch can leave rows in place, "non-empty" no longer means

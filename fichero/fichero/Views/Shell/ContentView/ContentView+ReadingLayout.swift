@@ -96,9 +96,62 @@ extension ContentView {
     /// page-content edit flushes BEFORE the page focus moves; a clean editor
     /// makes this a guarded no-op, so ordinary swipes pay nothing.
     private func applyReaderPageSignal(_ signal: ReaderPageSignal, pageIndex: Int) {
+        // SYNCHRONOUS when there is nothing to flush (2026-08-11, the
+        // snap-back race): the Task hop deferred the state write by a runloop
+        // turn even for a clean editor, so PDFKit had already flipped while
+        // the parent still rendered the OLD selectedPageIndex — and the
+        // pane's keep-in-step onChange pushed the stale page back. Only an
+        // actual in-flight edit pays the async flush.
+        guard documentStore.activePageEditFlush != nil else {
+            applyReaderPageSignalAfterFlush(signal, pageIndex: pageIndex)
+            return
+        }
         Task { @MainActor in
             await documentStore.flushActivePageEdit()
             applyReaderPageSignalAfterFlush(signal, pageIndex: pageIndex)
+        }
+    }
+
+    /// The signal resolved to no page DOCUMENT. The reader must PAGE even when
+    /// the pages are not imported as documents (Daniel, 2026-08-09: a 21-page
+    /// PDF selected from the grid — "you ought to be able to change pages even
+    /// though it can't update the position"). Returning without moving the
+    /// cursor left the parent's selectedPageIndex unchanged, and the pane's
+    /// keep-in-step onChange snapped the view straight back. A VIRTUAL page
+    /// cursor keeps the reader's place; it is marked and never enters
+    /// browserSelection.
+    private func applyUnresolvedReaderPageSignal(
+        _ signal: ReaderPageSignal, pageIndex: Int, candidates: [Document]
+    ) {
+        if signal.movesPageFocus, let pdfId = detailPDFDocumentId {
+            // Instrumented (2026-08-11): this branch was the ONE page-focus
+            // writer without a trace — the reason swipe repros printed
+            // vpage artifact fetches but zero NAVTRACE lines.
+            NavTrace.log("readerPageActivation.virtualPage", "\(pdfId) → page \(pageIndex)")
+            pageFocusDocument = Document.virtualPageCursor(pdfParentId: pdfId, pageIndex: pageIndex)
+        }
+        // Routine while scrolling — the transcript can report a page before
+        // its children have loaded — but a CLICK that resolves to nothing
+        // deserves a report. Which report depends on what actually
+        // happened: a document with page children where the index missed
+        // is a real resolution failure (the click "did nothing"); a
+        // document with NO page children anywhere (single-page imports,
+        // transcripts of unpaginated documents) has nothing to select, and
+        // calling that an error was the #4373 over-logging Daniel saw.
+        guard signal == .clicked else { return }
+        let pageChildCount = Self.pdfDocPageCount(in: candidates)
+        if pageChildCount > 0 {
+            readerPageActivationLogger.error(
+                """
+                Reader page click found no page document at index \
+                \(pageIndex, privacy: .public) among \
+                \(pageChildCount, privacy: .public) page children
+                """
+            )
+        } else {
+            readerPageActivationLogger.debug(
+                "Reader page click on a document with no page children — nothing to select"
+            )
         }
     }
 
@@ -109,40 +162,7 @@ extension ContentView {
             currentDocuments: documentStore.currentDocuments
         )
         guard let match = Self.pageDocument(atPDFIndex: pageIndex, in: candidates) else {
-            // The reader must PAGE even when the pages are not imported as
-            // documents (Daniel, 2026-08-09: a 21-page PDF selected from the
-            // grid — 'you ought to be able to change pages even though it
-            // can't update the position'). Returning without moving the
-            // cursor left the parent's selectedPageIndex unchanged, and the
-            // pane's keep-in-step onChange snapped the view straight back.
-            // A VIRTUAL page cursor keeps the reader's place; it is marked
-            // and never enters browserSelection.
-            if signal.movesPageFocus, let pdfId = detailPDFDocumentId {
-                pageFocusDocument = Document.virtualPageCursor(pdfParentId: pdfId, pageIndex: pageIndex)
-            }
-            // Routine while scrolling — the transcript can report a page before
-            // its children have loaded — but a CLICK that resolves to nothing
-            // deserves a report. Which report depends on what actually
-            // happened: a document with page children where the index missed
-            // is a real resolution failure (the click "did nothing"); a
-            // document with NO page children anywhere (single-page imports,
-            // transcripts of unpaginated documents) has nothing to select, and
-            // calling that an error was the #4373 over-logging Daniel saw.
-            guard signal == .clicked else { return }
-            let pageChildCount = Self.pdfDocPageCount(in: candidates)
-            if pageChildCount > 0 {
-                readerPageActivationLogger.error(
-                    """
-                    Reader page click found no page document at index \
-                    \(pageIndex, privacy: .public) among \
-                    \(pageChildCount, privacy: .public) page children
-                    """
-                )
-            } else {
-                readerPageActivationLogger.debug(
-                    "Reader page click on a document with no page children — nothing to select"
-                )
-            }
+            applyUnresolvedReaderPageSignal(signal, pageIndex: pageIndex, candidates: candidates)
             return
         }
         if signal.movesPageFocus, pageFocusDocument?.id != match.id {

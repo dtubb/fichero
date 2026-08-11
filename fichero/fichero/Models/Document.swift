@@ -557,6 +557,15 @@ extension Document {
     /// that resolve artifacts tolerate the unknown id (they already tolerate
     /// not-yet-processed pages). Never written to any store and never placed
     /// in browserSelection.
+    ///
+    /// `isVirtualPageCursorId` is how server-state consumers (artifact loads,
+    /// document fetches) recognise these ids and short-circuit instead of
+    /// asking the engine about a document that does not exist — the source of
+    /// the per-swipe `…:vpage:N … 404` churn (2026-08-11).
+    static func isVirtualPageCursorId(_ id: String) -> Bool {
+        id.contains(":vpage:")
+    }
+
     static func virtualPageCursor(pdfParentId: String, pageIndex: Int) -> Document {
         Document(
             id: "\(pdfParentId):vpage:\(pageIndex)",
