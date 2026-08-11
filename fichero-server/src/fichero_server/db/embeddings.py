@@ -1193,6 +1193,49 @@ class DatabaseEmbeddingMixin:
             total += len(records)
         return total
 
+    def rank_claim_ids_by_query(
+        self, query: str, claim_ids: set[str], limit: int
+    ) -> list[str]:
+        """Rank ``claim_ids`` by semantic similarity to ``query`` using the
+        STORED kg_claim_embeddings — the first consumer these vectors have
+        ever had (2026-08-11 semantic-index audit: graph-RAG injected claims
+        ordered BY UUID while claim embeddings sat unread).
+
+        Returns at most ``limit`` ids, best-first, containing only ids that
+        have a stored vector. [] on any degraded condition (no table, query
+        can't embed, model-space mismatch) — the caller keeps its
+        deterministic order, which is the documented degraded mode, and the
+        condition is logged rather than silently absorbed.
+        """
+        if not query.strip() or not claim_ids or limit <= 0:
+            return []
+        if KG_CLAIM_EMBEDDINGS_TABLE not in self._lance_tables():
+            return []
+        try:
+            self.assert_vector_table_model_compatible(KG_CLAIM_EMBEDDINGS_TABLE)
+            vector = self._embed_text(query)
+        except Exception as exc:
+            logger.warning(
+                "claim ranking degraded to deterministic order: %s", exc
+            )
+            return []
+        if not vector:
+            return []
+        safe_ids = ", ".join("'" + cid.replace("'", "''") + "'" for cid in claim_ids)
+        table = self.lance.open_table(KG_CLAIM_EMBEDDINGS_TABLE)
+        hits = (
+            table.search(list(vector))
+            .where(f"id IN ({safe_ids})")
+            .limit(min(limit, len(claim_ids)))
+            .to_list()
+        )
+        ranked: list[str] = []
+        for hit in hits:
+            cid = hit.get("id")
+            if cid and cid not in ranked:
+                ranked.append(cid)
+        return ranked
+
     def schedule_entity_embedding(self, entity) -> None:
         """Best-effort background embed for a just-written entity."""
         self._schedule_embedding_task([entity], label="entity")

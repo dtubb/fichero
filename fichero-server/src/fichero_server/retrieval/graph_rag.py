@@ -108,6 +108,7 @@ class GraphAwareRetriever:
 
         self._augment_with_kg(
             payload=payload,
+            query=query,
             seed_doc_ids=seed_doc_ids,
             content_by_doc_id=content_by_doc_id,
             graph_hops=graph_hops,
@@ -119,6 +120,7 @@ class GraphAwareRetriever:
         self,
         *,
         payload: RetrievalPayload,
+        query: str,
         seed_doc_ids: list[str],
         content_by_doc_id: dict[str, str],
         graph_hops: int,
@@ -201,13 +203,28 @@ class GraphAwareRetriever:
                         next_frontier.add(eid)
             frontier = next_frontier
 
-        ordered_claims = sorted(
+        # RELEVANCE-ranked injection (2026-08-11): the gathered pool used to
+        # be cut to max_kg_claims sorted by (seed-first, UUID) — which claims
+        # made it into the prompt was effectively arbitrary while the claim
+        # embeddings sat unread. Rank against the query first; the old
+        # deterministic order fills any remaining slots (and is the whole
+        # order when ranking is degraded — no embeddings, model mismatch).
+        ranked_ids = self.db.rank_claim_ids_by_query(
+            query, set(gathered_claim_ids), max_kg_claims
+        ) if hasattr(self.db, "rank_claim_ids_by_query") else []
+        deterministic = sorted(
             (claim_by_id[cid] for cid in gathered_claim_ids if cid in claim_by_id),
             key=lambda c: (
                 0 if c.source_document_id in seed_doc_ids else 1,
                 c.id,
             ),
-        )[:max_kg_claims]
+        )
+        ordered_claims = [
+            claim_by_id[cid] for cid in ranked_ids if cid in claim_by_id
+        ]
+        ranked_set = {c.id for c in ordered_claims}
+        ordered_claims += [c for c in deterministic if c.id not in ranked_set]
+        ordered_claims = ordered_claims[:max_kg_claims]
 
         for claim in ordered_claims:
             entity_names = [

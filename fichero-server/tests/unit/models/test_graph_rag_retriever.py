@@ -392,3 +392,46 @@ class TestGraphAwareRetriever:
         assert claim_ids == ["kg-claim:claim-a2", "kg-claim:claim-b2"]
         assert "kg-claim:claim-c2" not in claim_ids
         assert payload.kg_claims_used == 2
+
+    def test_injected_claims_are_ranked_by_query_relevance(self, db):
+        """2026-08-11: the max_kg_claims cut used to be (seed-first, UUID) —
+        which claims reached the prompt was arbitrary while the stored claim
+        embeddings went unread. With embeddings present, the query decides."""
+        doc = Document(
+            id="doc-rank",
+            name="Seed",
+            page_content="Cacao harvests and river transport in Choco.",
+        )
+        db.save(doc)
+        db.embed(doc)
+
+        db.save(KnowledgeEntity(id="ent-r1", canonical_name="Cacao"))
+        claims = []
+        for cid, text in [
+            ("claim-aaa", "The notary certified the boundary survey."),
+            ("claim-bbb", "A mule train carried supplies to the mine."),
+            ("claim-zzz", "Cacao harvests were shipped down the river."),
+        ]:
+            claim = KnowledgeClaim(
+                id=cid,
+                text=text,
+                source_document_id="doc-rank",
+                entity_ids=["ent-r1"],
+            )
+            db.save(claim)
+            claims.append(claim)
+        db.embed_claims(claims)
+
+        payload = GraphAwareRetriever(db).retrieve(
+            query="cacao shipped on the river",
+            max_sources=1,
+            graph_hops=0,
+            max_kg_claims=1,
+        )
+
+        claim_ids = [
+            item["id"] for item in payload.context_docs if item["kind"] == "kg_claim"
+        ]
+        # UUID order would inject claim-aaa; relevance must pick claim-zzz.
+        assert claim_ids == ["kg-claim:claim-zzz"]
+
