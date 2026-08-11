@@ -305,7 +305,13 @@ DEFAULT_MAX_CONCURRENT = 10
 # here for months while the tool was registered as "extract_entities", so a
 # source→extract_entities edge ran as one batch call instead of per-file
 # Sends). test_parallel_and_source_tool_names_resolve guards this.
-PARALLEL_TOOLS = {"transcribe", "describe", "summarize", "extract_entities"}
+PARALLEL_TOOLS = {
+    "transcribe",
+    "describe",
+    "summarize",
+    "extract_entities",
+    "detect_regions",
+}
 
 
 def _result_worth_caching(result: Any) -> bool:

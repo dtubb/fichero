@@ -51,6 +51,10 @@
   "preset_version": 1,
   "sha256": "b2e52b5b8655ab11aeef89b179c4efd6b29792aca88fe98fec5ec974a2452a99"
  },
+ "detect_regions.json": {
+  "preset_version": 1,
+  "sha256": "a9ea3e63262e6bcd234af33e3025f22216b3ecbc8b470061fbe7677632b2f8c0"
+ },
  "enhance_images.json": {
   "preset_version": 1,
   "sha256": "5841fe4c6dd973335e08d7094927de34ea3f135ccb586f841e11ba880d6ac774"

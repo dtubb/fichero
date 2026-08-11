@@ -36,7 +36,10 @@ enum OCRGeometrySelection {
     ///
     /// `text_geometry` outranks `transcription` because it is the PDF's own
     /// text layer: exact coordinates from the file, not a model's estimate.
-    static let geometryBearingTypes = ["text_geometry", "transcription"]
+    /// `regions` (the bboxes-first Apple Vision pre-pass, 2026-08-11) ranks
+    /// last: it is boxes without aligned text, so it shows a page's geometry
+    /// BEFORE any transcription exists and yields to both richer types after.
+    static let geometryBearingTypes = ["text_geometry", "transcription", "regions"]
 
     /// Key the producer writes alongside a geometry artifact, letting an empty
     /// one be skipped from the LIST payload without spending a fetch on it.

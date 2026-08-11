@@ -64,6 +64,15 @@ TRANSCRIBE_CONFIG = {
             "providers transcribe without geometry and say so)"
         ),
     },
+    "regions_first": {
+        "type": "boolean",
+        "default": True,
+        "description": (
+            "Detect text regions on-device (Apple Vision) BEFORE transcribing, "
+            "saving per-page bounding boxes as a regions artifact — works for "
+            "every provider, unlike return_boxes"
+        ),
+    },
     "update_page_content": {
         "type": "boolean",
         "default": True,
@@ -242,6 +251,7 @@ def build_transcribe_prompt(config: dict) -> str:
         "vision_mode": "auto",
         "language": "auto",
         "return_boxes": False,
+        "regions_first": True,
         "update_page_content": True,
         "save_to_db": True,
     },
@@ -276,6 +286,31 @@ async def transcribe(
     language = resolution.language or UNKNOWN
     return_boxes = inputs.get("return_boxes", False)
     update_page_content = inputs.get("update_page_content", True)
+
+    # Bboxes FIRST (Daniel, 2026-08-11): detect text regions on-device before
+    # any transcription, so every page carries geometry regardless of which
+    # provider transcribes. Under per-file fan-out this runs per page — true
+    # page-level regions-then-text with no graph changes. Detection failure
+    # must never cost a transcription: log loudly and continue (the regions
+    # artifact is an enhancement; the text is the contract).
+    if inputs.get("regions_first", True) and files:
+        from fichero_server.workflows.tools.detect_regions import (  # noqa: PLC0415
+            detect_regions as _detect_regions,
+        )
+
+        try:
+            await _detect_regions(
+                inputs={"files": files, "documents": documents},
+                state=state,
+                llm_config=llm_config,
+            )
+        except Exception as regions_err:
+            logger.warning(
+                "regions_first: detection failed for %d file(s), continuing "
+                "with transcription: %s",
+                len(files),
+                regions_err,
+            )
 
     # Build prompt
     prompt = inputs.get("prompt") or _build_prompt(language, return_boxes)
