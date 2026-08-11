@@ -621,7 +621,13 @@ def build_graph(
     # Add fan-out conditional edges (one per source node)
     for source_id, target_ids in parallel_by_source.items():
         source_name = node_names[source_id]
-        fan_out_fn = _make_fan_out_function(source_id, target_ids, node_names)
+        source_node = workflow.get_node(source_id)
+        fan_out_fn = _make_fan_out_function(
+            source_id,
+            target_ids,
+            node_names,
+            source_tool=source_node.tool if source_node else None,
+        )
         target_process_names = [f"{node_names[t]}_process" for t in target_ids]
         graph.add_conditional_edges(source_name, fan_out_fn, target_process_names)
         # Connect each process node to its aggregate
@@ -681,6 +687,7 @@ def build_graph(
             if has_parallel_targets and enable_parallel:
                 fan_out_fn = _make_route_map_fan_out_function(
                     edge.route_key, edge.route_map, node_names, route_map_parallel,
+                    source_tool_by_id={n.id: n.tool for n in workflow.nodes},
                 )
                 path_map = {}
                 for tid in edge.route_map.values():
@@ -1180,7 +1187,10 @@ def _make_node_function(
 
 
 def _make_fan_out_function(
-    source_node_id: str, target_node_ids: list[str], node_names: dict[str, str]
+    source_node_id: str,
+    target_node_ids: list[str],
+    node_names: dict[str, str],
+    source_tool: str | None = None,
 ):
     """Create a function that fans out to parallel processing using Send API.
 
@@ -1209,8 +1219,26 @@ def _make_fan_out_function(
         documents = source_output.get("documents", [])
 
         if not files:
-            logger.warning(f"No files from {source_node_id} to fan out")
-            return []
+            # Daniel's ruling (2026-08-11): a run over ZERO files FAILS
+            # loudly instead of completing green — absence read as success
+            # hid dead runs. The one deliberate exception is a search
+            # source: an index-backed query legitimately finding nothing is
+            # a result, not a failure (sources.py returns empty for it by
+            # design). Every other source RAISES on an empty selection
+            # (#4467), so reaching here without files means the run state
+            # is broken — refuse to pretend the work happened.
+            if source_tool == "search":
+                logger.warning(
+                    "Search source %s matched no files; workflow completes "
+                    "with zero fan-out by design",
+                    source_node_id,
+                )
+                return []
+            raise ValueError(
+                f"Fan-out from {node_names.get(source_node_id, source_node_id)} "
+                f"received 0 files — refusing to complete a run that would do "
+                f"nothing (source tool: {source_tool!r})"
+            )
 
         total = len(files)
         logger.info(f"Fanning out {total} files to {len(target_node_ids)} targets")
@@ -1297,6 +1325,7 @@ def _make_route_map_fan_out_function(
     route_map: dict[str, str],
     node_names: dict[str, str],
     route_map_parallel: dict[str, str],
+    source_tool_by_id: dict[str, str] | None = None,
 ):
     """Create a combined route + fan-out conditional edge function (#2236).
 
@@ -1365,11 +1394,25 @@ def _make_route_map_fan_out_function(
         documents = source_output.get("documents", [])
 
         if not files:
-            logger.warning(
-                "route_map_fan_out: no files from %s to fan out to %s",
-                files_source_id, target_id,
+            # Same zero-file ruling as fan_out (2026-08-11): fail loudly
+            # rather than routing to a _process node with no parallel_file —
+            # that Send-less hop either errored downstream or no-opped into
+            # a green run. Search sources keep the deliberate empty pass.
+            files_source_tool = (source_tool_by_id or {}).get(files_source_id)
+            if files_source_tool == "search":
+                logger.warning(
+                    "route_map_fan_out: search source %s matched no files "
+                    "for %s; completing with zero fan-out by design",
+                    files_source_id,
+                    target_id,
+                )
+                return f"{target_name}_process"
+            raise ValueError(
+                f"route_map fan-out to {target_name} received 0 files from "
+                f"{node_names.get(files_source_id, files_source_id)} — "
+                f"refusing to complete a run that would do nothing "
+                f"(source tool: {files_source_tool!r})"
             )
-            return f"{target_name}_process"
 
         total = len(files)
         sends = []
