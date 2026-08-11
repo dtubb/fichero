@@ -290,15 +290,28 @@ extension ContentView {
 
     /// Handles `.onChange(of: sidebarMode)`.
     /// Re-normalizes view/preview/layout modes for the new sidebar context.
-    func handleSidebarModeChange() {
-        viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
-        viewSettings.libraryLayout = switch viewDisplayMode {
-        case .icon: .icons
-        case .list: .list
-        case .table: .table
-        case .columns: .columns
-        case .canvas, .space, .workspace: .canvas
+    static func libraryLayout(for mode: ViewDisplayMode) -> LibraryLayout {
+        switch mode {
+        case .icon: return .icons
+        case .list: return .list
+        case .table: return .table
+        case .columns: return .columns
+        case .canvas, .space, .workspace: return .canvas
         }
+    }
+
+    func handleSidebarModeChange() {
+        // TAKEOVER modes (workflows/automation/activity/research/KG) have no
+        // preview at all — availablePreviewModes is empty and the layout
+        // ignores previewMode there. Normalizing ANYWAY overwrote the STORED
+        // preview setting to .none, so returning to the library kept the
+        // preview hidden (Daniel, 2026-08-10: "when I am in a node editor
+        // and then go back to a file, the preview is hidden — there's
+        // something not remembering what's open"). A mode with nothing to
+        // normalize must leave the user's layout memory alone.
+        guard !availablePreviewModes.isEmpty else { return }
+        viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
+        viewSettings.libraryLayout = Self.libraryLayout(for: viewDisplayMode)
 
         let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)
         if effectivePreviewMode != viewSettings.previewMode {
