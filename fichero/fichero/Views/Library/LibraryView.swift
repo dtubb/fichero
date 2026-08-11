@@ -89,6 +89,12 @@ struct LibraryView: View {
     /// explicitly rather than relying on the default.
     @State var fileImportMode: IngestMode = .link
     @FocusState var filterFieldFocused: Bool
+    /// The summoned engine-search field (#4521). Tracked so the row keyboard
+    /// grammar can stand down while the user is TYPING — ancestor `.onKeyPress`
+    /// handlers intercept keys before a focused descendant TextField sees
+    /// them, so without this guard the search field looked dead (2026-08-11:
+    /// "it won't even let me search by typing into search box").
+    @FocusState var searchFieldFocused: Bool
     @State var sortOrder: [KeyPathComparator<Document>] = [.init(\.name, order: .forward)]
     @SceneStorage("library.sortFieldsByFolder") var sortFieldsByFolderJSON: String = "{}"
     @SceneStorage("library.sortAscendingByFolder") var sortAscendingByFolderJSON: String = "{}"

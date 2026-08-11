@@ -54,6 +54,17 @@ extension LibraryView {
         }
     }
 
+    /// The row keyboard grammar stands down while the user is TYPING
+    /// somewhere: an inline rename, the quick-filter field, or the summoned
+    /// search field (#4521). Ancestor `.onKeyPress` handlers intercept keys
+    /// BEFORE a focused descendant TextField sees them, so any handler that
+    /// claims a printable key (or Return/Space/arrows) makes that field look
+    /// dead unless it yields here (2026-08-11: "it won't even let me search
+    /// by typing into search box").
+    var isTextEntryActive: Bool {
+        renamingDocumentId != nil || filterFieldFocused || searchFieldFocused
+    }
+
     @ViewBuilder
     private func applyPrimaryKeyHandlers(to content: some View) -> some View {
         content
@@ -61,19 +72,21 @@ extension LibraryView {
             .onDeleteCommand(perform: promptDeleteSelected)
             #endif
             .onKeyPress(.return) {
+                // Yield Return to a focused text field — there the key means
+                // `.onSubmit`, not open-the-selected-row.
+                guard !isTextEntryActive else { return .ignored }
                 openSelectedDocument()
                 return .handled
             }
             // Space → Quick Look of the cursor document, Finder-style
             // (#4160). Toggles: a second press closes the panel.
             .onKeyPress(.space) {
-                guard renamingDocumentId == nil else { return .ignored }
+                guard !isTextEntryActive else { return .ignored }
                 return quickLookSelectedDocument()
             }
             .quickLookPreview($quickLookURL)
             .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters)) { keyPress in
-                // Skip if a rename is in progress
-                guard renamingDocumentId == nil else { return .ignored }
+                guard !isTextEntryActive else { return .ignored }
                 handleTypeToSelect(keyPress.characters)
                 return .handled
             }
@@ -83,28 +96,36 @@ extension LibraryView {
     private func applyArrowKeyHandlers(to content: some View) -> some View {
         content
             .onKeyPress(.upArrow, phases: .down) { _ in
-                handleArrowKey(direction: .upDir)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .upDir)
             }
             .onKeyPress(.downArrow, phases: .down) { _ in
-                handleArrowKey(direction: .down)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .down)
             }
             .onKeyPress(.leftArrow, phases: .down) { _ in
-                handleArrowKey(direction: .left)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .left)
             }
             .onKeyPress(.rightArrow, phases: .down) { _ in
-                handleArrowKey(direction: .right)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .right)
             }
             .onKeyPress(.pageUp, phases: .down) { _ in
-                handleArrowKey(direction: .pageUp)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .pageUp)
             }
             .onKeyPress(.pageDown, phases: .down) { _ in
-                handleArrowKey(direction: .pageDown)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .pageDown)
             }
             .onKeyPress(.home, phases: .down) { _ in
-                handleArrowKey(direction: .home)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .home)
             }
             .onKeyPress(.end, phases: .down) { _ in
-                handleArrowKey(direction: .end)
+                guard !isTextEntryActive else { return .ignored }
+                return handleArrowKey(direction: .end)
             }
             #if os(macOS)
             .onMoveCommand { direction in
