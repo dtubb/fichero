@@ -1583,6 +1583,9 @@ class TestProcessVisionSave:
                 # never `None`, which would claim geometry was never attempted.
                 page_geometries=ANY,
                 artifact_data=None,
+                # Per-node thinking capture (2026-08-11): the apple path has
+                # no thinking model, so the slot rides through as None.
+                page_thinking=None,
             )
             geometries = mock_propagate.await_args.kwargs["page_geometries"]
             assert len(geometries) == 2

@@ -1587,6 +1587,7 @@ async def _propagate_to_page_children(
     llm_config: LLMConfig | None = None,
     page_geometries: list[OCRGeometryResult | None] | None = None,
     artifact_data: dict | None = None,
+    page_thinking: list[str | None] | None = None,
 ) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
 
@@ -1657,6 +1658,18 @@ async def _propagate_to_page_children(
                     # Save even for blank pages so the inspector can
                     # distinguish "blank page" from "tool didn't run" (#1082).
                     artifact_content = page_text if not is_blank else ""
+                    # Per-node thinking capture (2026-08-11): each page's
+                    # reasoning rides its own artifact's data.
+                    page_data = artifact_data
+                    if (
+                        page_thinking
+                        and page_idx < len(page_thinking)
+                        and page_thinking[page_idx]
+                    ):
+                        page_data = {
+                            **(artifact_data or {}),
+                            "thinking": page_thinking[page_idx],
+                        }
                     if matched:
                         art = matched[0]
                         art.content = artifact_content
@@ -1665,14 +1678,14 @@ async def _propagate_to_page_children(
                             if page_geometries and page_idx < len(page_geometries)
                             else None
                         )
-                        if artifact_data is not None:
-                            art.data = artifact_data
+                        if page_data is not None:
+                            art.data = page_data
                     else:
                         art = Artifact(
                             document_id=page_doc.id,
                             artifact_type=artifact_type,
                             content=artifact_content,
-                            data=artifact_data,
+                            data=page_data,
                             ocr_geometry=(
                                 page_geometries[page_idx]
                                 if page_geometries and page_idx < len(page_geometries)
@@ -2526,6 +2539,12 @@ async def process_vision(
             per_page_texts: list[str] | None = None
             per_page_geometries: list[OCRGeometryResult | None] | None = None
             page_geometry: OCRGeometryResult | None = None
+            # Per-node thinking capture (Daniel, 2026-08-11): a thinking
+            # model's reasoning was parsed, logged truncated, and DISCARDED —
+            # uninvestigable after the run. Captured per page and persisted
+            # on the artifact's data ("thinking") so a run can be audited.
+            per_page_thinking: list[str | None] | None = None
+            page_thinking_single: str | None = None
 
             # PDF text-layer short-circuit (#957, #1033, #1064). A born-digital
             # PDF (InDesign export, LaTeX, Word→PDF) already carries a
@@ -2733,6 +2752,7 @@ async def process_vision(
                     )
                     _llm_page_texts: list[str] = []
                     _llm_page_geometries: list[OCRGeometryResult | None] = []
+                    _llm_page_thinking: list[str | None] = []
                     for _page_idx in range(_llm_num_pages):
                         try:
                             _page_uri = _pdf_page_to_data_uri(
@@ -2755,6 +2775,21 @@ async def process_vision(
                                 if _thk:
                                     logger.info("Thinking (page %d): %s...", _page_idx, _thk[:100])
                                 _llm_page_texts.append(str(_ans or ""))
+                                _llm_page_thinking.append(_thk or None)
+                                # Keep geometries index-aligned with texts:
+                                # this branch never captured any (latent
+                                # misalignment before thinking capture forced
+                                # per-branch appends).
+                                _llm_page_geometries.append(
+                                    _llm_geometry_unavailable(
+                                        effective_config,
+                                        return_boxes=_boxes_requested,
+                                        reason=(
+                                            "thinking-model inference path "
+                                            "captures no geometry"
+                                        ),
+                                    )
+                                )
                             else:
                                 _pt = await _vision_resilient(
                                     lambda: vision(
@@ -2775,6 +2810,7 @@ async def process_vision(
                                     )
                                     _llm_page_geometries.append(_geometry)
                                     _llm_page_texts.append(_page_text)
+                                    _llm_page_thinking.append(None)
                                 else:
                                     _llm_page_geometries.append(
                                         _llm_geometry_unavailable(
@@ -2784,6 +2820,7 @@ async def process_vision(
                                         )
                                     )
                                     _llm_page_texts.append(_payload)
+                                    _llm_page_thinking.append(None)
                         except ProviderRateLimitedError:
                             # #2543: breaker is OPEN for this provider — abort
                             # the per-page loop and fail this file fast rather
@@ -2796,6 +2833,7 @@ async def process_vision(
                                 _page_idx, Path(file_path).name, _pe,
                             )
                             _llm_page_texts.append("")
+                            _llm_page_thinking.append(None)
                             _llm_page_geometries.append(
                                 _llm_geometry_unavailable(
                                     effective_config,
@@ -2816,6 +2854,7 @@ async def process_vision(
                         ]
                     per_page_texts = _llm_page_texts
                     per_page_geometries = _llm_page_geometries
+                    per_page_thinking = _llm_page_thinking
                     _parts: list[str] = []
                     for _i, _t in enumerate(per_page_texts):
                         if _t:
@@ -2870,6 +2909,7 @@ async def process_vision(
                             # Log thinking process if present
                             if thinking:
                                 logger.info(f"Model thinking process: {thinking[:200]}...")
+                                page_thinking_single = thinking
 
                             # Use answer for further processing
                             parsed = parse_output(answer, output_format, output_options)
@@ -2979,6 +3019,19 @@ async def process_vision(
 
             # Save to database
             if save_to_db and library_path:
+                # Persist single-page thinking on the artifact's data so the
+                # run is investigable after the fact (per-node capture,
+                # 2026-08-11). The multipage path threads per_page_thinking
+                # into _propagate_to_page_children instead.
+                # Distinct name: assigning to `artifact_data` here would make
+                # it local to this closure and UnboundLocalError every read
+                # above (the parameter lives in the enclosing scope).
+                effective_artifact_data = artifact_data
+                if page_thinking_single:
+                    effective_artifact_data = {
+                        **(artifact_data or {}),
+                        "thinking": page_thinking_single,
+                    }
                 # Set proper provider/model labels for local processing
                 save_config = effective_config
                 if pdf_layer_used:
@@ -3046,7 +3099,8 @@ async def process_vision(
                         artifact_type=tool_config.artifact_type,
                         llm_config=save_config,
                         page_geometries=per_page_geometries,
-                        artifact_data=artifact_data,
+                        artifact_data=effective_artifact_data,
+                        page_thinking=per_page_thinking,
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
@@ -3081,7 +3135,8 @@ async def process_vision(
                             artifact_type=tool_config.artifact_type,
                             llm_config=save_config,
                             page_geometries=per_page_geometries,
-                            artifact_data=artifact_data,
+                            artifact_data=effective_artifact_data,
+                            page_thinking=per_page_thinking,
                         )
                         if page_artifact_ids is None:
                             # Still unsplittable. FAIL LOUD rather than write a
@@ -3113,7 +3168,7 @@ async def process_vision(
                                 if per_page_geometries
                                 else None
                             ),
-                            data=artifact_data,
+                            data=effective_artifact_data,
                             metadata_field=metadata_field,
                             custom_metadata=custom_metadata,
                             document=_preloaded_doc,
@@ -3135,7 +3190,7 @@ async def process_vision(
                         task_id=task_id,
                         tool_config=tool_config,
                         ocr_geometry=page_geometry,
-                        data=artifact_data,
+                        data=effective_artifact_data,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
