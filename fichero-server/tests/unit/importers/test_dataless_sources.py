@@ -304,3 +304,44 @@ class TestMaterialization:
         with pytest.raises(DatalessSourceError) as excinfo:
             require_local_bytes(stub)
         assert "stub" in str(excinfo.value)
+
+
+class TestDatalessFastSkip:
+    """Re-importing an already-imported cloud folder must not download
+    everything just to prove it's already there (2026-08-10): a path+size
+    match skips an evicted file WITHOUT reading its bytes."""
+
+    def test_reimport_skips_evicted_duplicate_without_reading(
+        self, db, test_package, tmp_path, monkeypatch
+    ):
+        from fichero_server.importers.ingest import IngestMode, ingest_folder
+        from fichero_server.models import Document
+
+        folder = tmp_path / "cloud"
+        folder.mkdir()
+        f = folder / "evicted.jpg"
+        f.write_bytes(b"x" * 4096)
+
+        # First import: file is local; imports normally.
+        ingest_folder(folder, mode=IngestMode.LINK, db=db,
+                      package_path=Path(test_package), extract_text=False, auto_embed=False)
+        assert any(d.name == "evicted.jpg" for d in db.query(Document))
+
+        # Second import: the file is now "evicted" (dataless). Reading it
+        # would be the download — fail the test if anything opens it.
+        monkeypatch.setattr(
+            "fichero_server.importers.ingest.dataless_reason",
+            lambda p: "zero allocated blocks" if p.name == "evicted.jpg" else None,
+        )
+        real_open = Path.open
+
+        def guarded_open(self, *args, **kwargs):
+            if self.name == "evicted.jpg":
+                raise AssertionError("evicted duplicate was READ (downloaded) during re-import")
+            return real_open(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", guarded_open)
+        ingest_folder(folder, mode=IngestMode.LINK, db=db,
+                      package_path=Path(test_package), extract_text=False, auto_embed=False)
+        docs = [d for d in db.query(Document) if d.name == "evicted.jpg"]
+        assert len(docs) == 1, "duplicate row created or original lost"

@@ -65,7 +65,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 from uuid import uuid4
 
-from fichero_server.importers.dataless import require_local_bytes
+from fichero_server.importers.dataless import dataless_reason, require_local_bytes
 from fichero_server.models import Artifact, Document, DocType, FileType, Status
 
 if TYPE_CHECKING:
@@ -1409,6 +1409,7 @@ def ingest_folder(
         on_progress(0, total)
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
+    existing_source_sizes: dict[str, int] = {}
     library_path = package_path or getattr(db, "path", None)
     # Timed (2026-08-09): this pre-scan used to materialise EVERY document
     # row into Pydantic objects before the first file was touched — on a
@@ -1418,6 +1419,7 @@ def ingest_folder(
     _prescan_started = time.monotonic()
     try:
         existing_hashes.update(db.ingest_dedup_keys())
+        existing_source_sizes.update(db.ingest_dedup_source_sizes())
         logger.info(
             "ingest.folder.prescan existing=%d elapsed_ms=%d",
             len(existing_hashes), int((time.monotonic() - _prescan_started) * 1000),
@@ -1489,6 +1491,24 @@ def ingest_folder(
         try:
             if file_path.is_symlink():
                 raise ValueError(f"Refusing to ingest symlinked file: {file_path}")
+            # DATALESS FAST-SKIP (2026-08-10, Daniel: "importing from iCloud
+            # after already imported is super slow"): _file_checksum READS
+            # the whole file, which for an evicted cloud file triggers the
+            # FULL DOWNLOAD — of a file about to be skipped as a duplicate.
+            # A known source path whose stored size matches the placeholder's
+            # logical size skips without touching the bytes; any mismatch
+            # (changed in the cloud, new file) falls through to the exact
+            # checksum path, which downloads as #45 intends.
+            if dataless_reason(file_path) is not None:
+                stored_size = existing_source_sizes.get(str(file_path))
+                if stored_size is not None and stored_size == file_path.stat().st_size:
+                    logger.info(
+                        "Skipping evicted cloud file (path+size match, no download): %s",
+                        file_path,
+                    )
+                    if on_progress:
+                        on_progress(i + 1, total)
+                    continue
             checksum = _file_checksum(file_path)
             source_key = str(file_path)
             if (source_key, checksum) in existing_hashes:

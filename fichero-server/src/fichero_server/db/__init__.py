@@ -1007,6 +1007,28 @@ class Database(DatabaseEmbeddingMixin):
         """Execute + ``fetchone`` atomically under the lock (#2508)."""
         return self._execute(sql, params, fetch="one")
 
+    def ingest_dedup_source_sizes(self) -> dict[str, int]:
+        """source_path → stored file_size for every non-failed document.
+
+        Companion to ``ingest_dedup_keys`` for the DATALESS fast-skip
+        (2026-08-10): computing a checksum on an evicted iCloud file
+        DOWNLOADS the whole file, so a re-import of an already-imported
+        cloud folder downloaded everything just to prove it was already
+        there. A path+size match lets the skip happen without touching the
+        bytes; any mismatch falls through to the exact checksum path.
+        """
+        rows = self.execute_fetchall(
+            """
+            SELECT COALESCE(
+                       json_extract_string(metadata, '$.source_path'), path),
+                   TRY_CAST(json_extract_string(metadata, '$.file_size') AS BIGINT)
+            FROM documents
+            WHERE status != 'failed'
+              AND json_extract_string(metadata, '$.file_size') IS NOT NULL
+            """
+        )
+        return {row[0]: int(row[1]) for row in rows if row[0] and row[1] is not None}
+
     def ingest_dedup_keys(self) -> set[tuple[str, str]]:
         """(source_path, checksum) pairs for every non-failed document.
 
