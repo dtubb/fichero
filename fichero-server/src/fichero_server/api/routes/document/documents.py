@@ -1667,6 +1667,7 @@ def import_uploaded_file_impl(
     handed a server-side path it does not delete.
     """
     from fichero_server.importers.ingest import ingest_file, IngestMode
+    from fichero_server.importers.derivatives import queue_derivatives
 
     # Get library package path from database path.
     # db.path is like /path/to/Library.fichero/fichero.duckdb
@@ -1686,11 +1687,16 @@ def import_uploaded_file_impl(
         parent_id=parent_id,
         extract_metadata=True,  # Extract file metadata
         extract_text=True,  # Extract text for search
+        # Deferred (2026-08-09): the upload request used to block on the
+        # ~19s embedding-model load plus per-page compute — the frozen
+        # 'Import…' button. The derivative stage embeds after the response.
+        auto_embed=False,
         save=True,  # Save to database
         db=db,  # Database instance
         package_path=package_path,  # Library package path
         original_filename=original_filename,
     )
+    queue_derivatives([doc], library_path=package_path, db=db)
 
     logger.info(f"Imported document: {doc.id} ({doc.name})")
     return doc

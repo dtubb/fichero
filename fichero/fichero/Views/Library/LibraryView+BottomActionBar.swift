@@ -267,7 +267,9 @@ extension LibraryView {
                     ?? libraryManager.globalLibrary else { return }
                 do {
                     let outcome = try await library.importService.importFiles(urls, mode: mode, parentId: targetFolderId)
-                    await library.documentStore.refresh()
+                    await library.documentStore.refreshUnlessLiveDelivery(
+                        streamConnected: library.changeStream.isConnected
+                    )
                     // #3276: this returns normally when SOME files failed, so
                     // without this the shared importer handler reported a
                     // partial loss as a clean import.

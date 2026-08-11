@@ -106,9 +106,28 @@ class LibraryAccessDeniedError(HTTPException):
         self.payload = payload
 
 
-def _log_rejected_library_path(path: str) -> None:
-    failed_check = "suffix" if Path(path).expanduser().suffix != ".fichero" else "roots"
+def _rejected_library_path_detail(path: str) -> str:
+    """Log the rejection and return ONE accurate sentence for the 403.
+
+    The old detail was a disjunction — "not in an allowed location or not a
+    .fichero package" — and to the user BOTH clauses read as false: the file
+    IS a .fichero package and they DID choose the location. The check already
+    knows which branch failed; say that branch, and name the path, because
+    "not in an allowed location" means nothing without it.
+    """
+    if Path(path).expanduser().suffix != ".fichero":
+        failed_check = "suffix"
+        detail = f"'{path}' is not a .fichero library package (its name must end in .fichero)."
+    else:
+        failed_check = "roots"
+        detail = (
+            f"'{path}' is a .fichero package, but it is outside every location this "
+            "engine may open (allowed roots and security-scoped grants). "
+            "Open it from the app so access can be granted, or move it into an "
+            "allowed location such as Documents."
+        )
     logger.warning("Rejected library path: path=%s home=%s failed_check=%s", path, Path.home(), failed_check)
+    return detail
 
 
 def _install_warning_filters() -> None:
@@ -634,7 +653,21 @@ async def _watch_parent_process() -> None:
                 parent_pid,
             )
             os.kill(os.getpid(), signal.SIGTERM)
-            return
+            # ESCALATE, mirroring the supervising app (SIGTERM, 2s, SIGKILL —
+            # #4291). Self-SIGTERM starts a GRACEFUL shutdown, and a graceful
+            # shutdown can hang (a stream that will not drain) — with the
+            # parent already dead there is nobody left to force-kill us, so a
+            # hung shutdown made the orphan IMMORTAL: it kept the socket and
+            # the next launch hit identityMismatch forever (live 2026-08-08,
+            # "fichero server is still running despite app being closed").
+            # If shutdown completes, the process dies during this sleep and
+            # the hard exit below is never reached.
+            await asyncio.sleep(5)
+            logger.error(
+                "Graceful shutdown did not complete within 5s of the parent "
+                "vanishing — hard-exiting to free the socket (#4291 sibling)"
+            )
+            os._exit(70)  # EX_SOFTWARE; distinct from a clean shutdown's 0
 
 
 def _auth_enabled() -> bool:
@@ -795,12 +828,17 @@ async def lifespan(app: FastAPI):
             # `get_children` that runs in 2-3ms elsewhere took 24,799ms at the
             # same moment — not a slow query, a thread starved by the load.
             #
-            # `to_thread` matters as much as calling it: fastembed's init is
-            # synchronous CPU + disk work, and awaiting it inline here would
-            # move the stall from first-ingest to startup, which is the same
-            # stall wearing a different hat. This way the engine is already
-            # serving while the model loads behind it.
-            asyncio.create_task(asyncio.to_thread(_prewarm_embeddings))
+            # DIRECT CALL (2026-08-09): this function already runs on an
+            # executor thread (run_in_executor below), where there is NO
+            # running event loop — the previous
+            # `asyncio.create_task(asyncio.to_thread(...))` raised
+            # RuntimeError('no running event loop'), the except below ate it,
+            # and the pre-warm NEVER RAN ONCE. Every first import paid the
+            # ~19s model load inside its own transaction — the measured
+            # pathology this comment block describes was caused by the very
+            # line meant to prevent it. We are already off the loop; just
+            # call it.
+            _prewarm_embeddings()
         except Exception as exc:
             # Deliberately not fatal: a failed warm-up must not take down an
             # engine that is already serving. It is logged at WARNING with a
@@ -941,20 +979,31 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+def _library_header_validation_exempt(path: str) -> bool:
+    """Routes whose library header must NOT be validated.
+
+    The sandbox grant route exists to EXPAND the allowed set. The app's client
+    stamps EVERY request with the current library's header, so when the current
+    library is itself unreachable, validating that header would 403 the very
+    request that grants access — a chicken-and-egg found live (2026-08-08):
+    every folder drop failed with "unexpected response (403) when granting
+    folder access" while an ungranted library was current. The sandbox routes
+    never read the library header.
+    """
+    return path.startswith("/api/sandbox/")
+
+
 @app.middleware("http")
 async def validate_library_path_header(request: Request, call_next):
     """Validate library header early, even when dependencies are overridden in tests."""
+    if _library_header_validation_exempt(request.url.path):
+        return await call_next(request)
     library_path = optional_library_path(request)
     if library_path and not _is_allowed_library_path(library_path):
-        _log_rejected_library_path(library_path)
+        detail = _rejected_library_path_detail(library_path)
         from fastapi.responses import JSONResponse
 
-        return JSONResponse(
-            status_code=403,
-            content={
-                "detail": "Library path is not in an allowed location or not a .fichero package."
-            },
-        )
+        return JSONResponse(status_code=403, content={"detail": detail})
     return await call_next(request)
 
 
@@ -971,6 +1020,9 @@ def _is_allowed_library_path(library_path: str) -> bool:
     - ~/Library/Containers/<one container>/Data/Library/Application Support —
       the sandboxed host app's own container, scoped via
       _is_sandbox_container_app_support (NOT the whole Containers tree)
+    - ~/Library/Containers/<one container>/Data/tmp/<name>.fichero — New
+      Library staging, scoped via is_sandbox_container_library_staging
+      (suffix-gated; tmp itself is NOT a root)
     - ~/Library/CloudStorage (Box/Dropbox/iCloud provider roots)
     - ~/Library/Mobile Documents/com~apple~CloudDocs — iCloud Drive AND
       iCloud-synced Documents/Desktop physically live here
@@ -1052,10 +1104,9 @@ def _get_library_database_for_access(
         )
 
     if not _is_allowed_library_path(x_fichero_library_path):
-        _log_rejected_library_path(x_fichero_library_path)
         raise HTTPException(
             status_code=403,
-            detail="Library path is not in an allowed location or not a .fichero package.",
+            detail=_rejected_library_path_detail(x_fichero_library_path),
         )
 
     _bootstrap_legacy_library_owner_if_needed(request, x_fichero_library_path)
@@ -1206,10 +1257,9 @@ async def health_check(
 
     if x_fichero_library_path:
         if not _is_allowed_library_path(x_fichero_library_path):
-            _log_rejected_library_path(x_fichero_library_path)
             raise HTTPException(
                 status_code=403,
-                detail="Library path is not in an allowed location or not a .fichero package.",
+                detail=_rejected_library_path_detail(x_fichero_library_path),
             )
         assert_library_read_authorized(request, x_fichero_library_path)
         # Library-specific health check

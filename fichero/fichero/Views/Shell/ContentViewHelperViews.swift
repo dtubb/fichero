@@ -23,18 +23,27 @@ struct ResizableDivider: View {
         case trailing  // panel on right/bottom — drag left/up to grow
     }
 
+    /// True while a drag is in flight. The window-width observers gate on
+    /// this (views audit B3): without it, a divider drag re-entered
+    /// handleWindowWidthChange/updateColumnVisibility mid-drag and rewrote
+    /// columnVisibility — invalidating the NavigationSplitView WHILE the
+    /// user dragged, one of the width-change stall's feedback loops.
+    var isDragging: Binding<Bool>?
+
     init(
         width: Binding<Double>,
         minWidth: Double,
         maxWidth: Double,
         edge: Edge = .trailing,
-        axis: DividerResizeAxis = .horizontal
+        axis: DividerResizeAxis = .horizontal,
+        isDragging: Binding<Bool>? = nil
     ) {
         self._width = width
         self.minWidth = minWidth
         self.maxWidth = maxWidth
         self.edge = edge
         self.axis = axis
+        self.isDragging = isDragging
     }
 
     var body: some View {
@@ -67,7 +76,10 @@ struct ResizableDivider: View {
                 // the divider moves during drag (the classic SwiftUI oscillation bug).
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
-                        if initialWidth == nil { initialWidth = width }
+                        if initialWidth == nil {
+                            initialWidth = width
+                            isDragging?.wrappedValue = true
+                        }
                         guard let start = initialWidth else { return }
                         let delta = axis == .horizontal
                             ? value.location.x - value.startLocation.x
@@ -75,10 +87,19 @@ struct ResizableDivider: View {
                         let newWidth = edge == .trailing
                             ? start - delta
                             : start + delta
-                        width = min(max(newWidth, minWidth), maxWidth)
+                        let clamped = min(max(newWidth, minWidth), maxWidth)
+                        // Whole-point granularity: sub-point deltas recompose
+                        // the entire content tree for an invisible change
+                        // (views audit B1 — live-follow kept per Daniel's
+                        // ruling; this halves-or-better the write rate for
+                        // free without changing the feel).
+                        if abs(clamped - width) >= 1 {
+                            width = clamped
+                        }
                     }
                     .onEnded { _ in
                         initialWidth = nil
+                        isDragging?.wrappedValue = false
                     }
             )
     }

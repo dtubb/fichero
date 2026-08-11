@@ -48,6 +48,12 @@ extension SidebarView {
         default:
             let item = cachedItem(id: destination.serializedID)
             if item == nil {
+                // LOUD (workflow-routing bug): a click that resolves to
+                // nothing routes NOTHING — the pane silently keeps its
+                // previous mode, which reads as "it doesn't open the editor".
+                sidebarViewLogger.error(
+                    "Selection \(destination.serializedID) resolved to NO cached item — content pane not rerouted"
+                )
                 // Launch-restore can arrive before the sidebar caches are
                 // built; the id resolves to nothing yet. Un-stamp the
                 // destination so `reconcileRestoredSelection()` (#2548)
@@ -73,6 +79,9 @@ extension SidebarView {
             sidebarMode = .workflows
             viewMode = .workflow(nil)
         case .batches:
+            // BOTH axes, always (views audit 1d): setting only viewMode left
+            // the mode bar/menus disagreeing with the pane.
+            sidebarMode = .workflows
             viewMode = .batches
         case .entities:
             sidebarMode = .library
@@ -81,7 +90,11 @@ extension SidebarView {
             sidebarMode = .chat
             viewMode = .comparison(nil)
         case .research:
+            // BOTH axes, always (views audit 1d): setting only sidebarMode
+            // was the exact stale-pane bug — the center flips to Research
+            // while preview/reader/inspector keep switching on viewMode.
             sidebarMode = .research
+            viewMode = .library(nil)
         }
     }
 
@@ -136,9 +149,11 @@ extension SidebarView {
             return
         }
 
-        let itemTypeDesc = String(describing: item.itemType)
+        // Kind + id ONLY — String(describing: itemType) dumped the whole
+        // Document (pageContent = an entire book) into os_log; see
+        // MainContentModifiers+ViewMode for the measured cost.
         sidebarViewLogger.info(
-            "handleSelection: \(item.name) (category: \(item.category.rawValue), type: \(itemTypeDesc))"
+            "handleSelection: \(item.name) (category: \(item.category.rawValue), id: \(item.id))"
         )
 
         handleLibrarySwitching(for: item)
@@ -306,9 +321,10 @@ extension SidebarView {
             sidebarMode = .chat
             viewMode = .chat(nil)
         case .workflow:
-            sidebarViewLogger.info("Switching to empty workflow view")
-            sidebarMode = .workflows
-            viewMode = .workflow(nil)
+            // Expansion only (Daniel, 2026-08-10): a workflow section folder
+            // must not hijack the pane into the empty 'Select a Workflow'
+            // surface; selecting an actual WORKFLOW opens its editor.
+            sidebarViewLogger.info("Workflow folder — just toggling expansion")
         case .automation, .batch, .activity:
             // Automation-related folders
             sidebarViewLogger.info("Automation folder - just toggling expansion")

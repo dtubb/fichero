@@ -284,3 +284,75 @@ def test_spawn_and_runtime_grants_share_one_registry(monkeypatch):
 
     assert ssa.grant_access("/lib", _b64(b"B")) is True
     assert len(foundation.calls) == 1, "the spawn-time grant must satisfy the runtime one"
+
+
+# --- the inherited-sandbox fallback (2026-08-08) ---
+#
+# An app-scoped bookmark resolves only in the code identity that minted it;
+# this engine is a different bundle under com.apple.security.inherit, so
+# NSURL resolution fails with error 259 even for good bookmarks — while the
+# APP has already resolved the same bookmark and turned the sandbox extension
+# on for the shared sandbox. The fallback grants when the directory is
+# ACTUALLY readable (a real listdir, never os.access), and stays fatal when
+# it isn't.
+
+
+def test_unresolvable_bookmark_grants_when_directory_is_readable(monkeypatch, tmp_path):
+    # SANDBOXED engine only (audit A1): there, listdir succeeds solely where
+    # the kernel already permits, so the fallback's reach is exactly what the
+    # app granted.
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
+    lib = tmp_path / "Marshall.fichero"
+    lib.mkdir()
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
+    assert ssa.grant_access(str(lib), _b64(b"stale")) is True
+    assert str(lib) in ssa.granted_paths()
+
+
+def test_unsandboxed_engine_never_grants_via_the_probe(monkeypatch, tmp_path):
+    """Audit A1 — the security consequence, written down this time.
+
+    A grant lands in the ALLOWED ROOTS (path_security spreads granted_paths
+    into the allowlist). In an UNSANDBOXED engine (Dev Local external, server
+    deployments) listdir succeeds across the whole home, so a probe-based
+    grant would let any caller holding the local token promote ANY readable
+    directory to an allowed root — the allowlist would stop being a control.
+    Resolution failure must stay fatal there, exactly as before the fallback
+    existed.
+    """
+    monkeypatch.delenv("APP_SANDBOX_CONTAINER_ID", raising=False)
+    lib = tmp_path / "Anything.fichero"
+    lib.mkdir()
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
+    with pytest.raises(ssa.BookmarkGrantError):
+        ssa.grant_access(str(lib), _b64(b"junk"))
+    assert str(lib) not in ssa.granted_paths()
+
+
+def test_unresolvable_bookmark_stays_fatal_when_directory_is_not_readable(monkeypatch, tmp_path):
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
+    with pytest.raises(ssa.BookmarkGrantError):
+        ssa.grant_access(str(tmp_path / "gone.fichero"), _b64(b"stale"))
+
+
+def test_spawn_payload_uses_the_same_fallback(monkeypatch, tmp_path):
+    monkeypatch.setenv("APP_SANDBOX_CONTAINER_ID", "app.fichero.fichero")
+    lib = tmp_path / "Diaries.fichero"
+    lib.mkdir()
+    f = FakeFoundation(error="NSError 259: isn't in the correct format")
+    monkeypatch.setattr(ssa, "_load_foundation", lambda: f)
+    granted = ssa.activate_library_bookmarks(_payload({str(lib): b"stale"}))
+    assert granted == [str(lib)]
+
+
+def test_probe_is_a_real_listdir_not_os_access(tmp_path):
+    # A FILE passes os.access(R_OK) but cannot be listed — and a library is
+    # always a directory, so a file must NOT satisfy the probe.
+    file_path = tmp_path / "not-a-library"
+    file_path.write_text("x")
+    assert ssa._readable_via_inherited_scope(str(file_path)) is False
+    assert ssa._readable_via_inherited_scope(str(tmp_path)) is True

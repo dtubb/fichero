@@ -118,6 +118,27 @@ def _reload_enabled() -> bool:
 
 
 
+class _QuietSteadyStateAccessLog(logging.Filter):
+    NOISY_PREFIXES = (
+        "/api/health",
+        "/api/registry",
+        "/api/activity/stream",
+        "/api/ingest/status/",
+        "/api/storage/thumbnail/",
+        "/api/storage/display/",
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # uvicorn access records: args = (client, method, path, http, status)
+        try:
+            path, status = record.args[2], record.args[4]
+        except (TypeError, IndexError):
+            return True
+        if not isinstance(status, int) or not 200 <= status < 300:
+            return True
+        return not any(str(path).startswith(p) for p in self.NOISY_PREFIXES)
+
+
 def main(argv: list[str] | None = None):
     """Start the Fichero API backend server."""
 
@@ -162,8 +183,12 @@ def main(argv: list[str] | None = None):
     # Disable tokenizers parallelism (avoids fork warnings)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
-    # Keep fatal thread dumps off by default; enable only when explicitly debugging crashes.
-    fault_enabled = _env_flag("FICHERO_BACKEND_FAULTHANDLER", default=False)
+    # Faulthandler ON by default (2026-08-09): a native fault in fitz /
+    # pdfium / ONNX / the ObjC bridge previously left NOTHING in engine.log —
+    # a whole day of 'the backend crashed' with no traceback. A C-level stack
+    # on SIGSEGV is worth infinitely more than clean logs; opt OUT with
+    # FICHERO_BACKEND_FAULTHANDLER=0 when clean logs truly matter.
+    fault_enabled = _env_flag("FICHERO_BACKEND_FAULTHANDLER", default=True)
     if fault_enabled:
         if not faulthandler.is_enabled():
             faulthandler.enable(all_threads=True)
@@ -185,6 +210,18 @@ def main(argv: list[str] | None = None):
 
     # Import uvicorn
     import uvicorn
+
+    # ------------------------------------------------------------------
+    # Access-log hygiene (Daniel, 2026-08-10: "it pollutes our log every
+    # 2 seconds"). The heartbeat traffic — health probes, registry polls,
+    # SSE (re)subscribes, ingest-status polls, thumbnail/display fetches —
+    # is content-free at 2xx: the interesting event is a FAILURE or an
+    # endpoint outside this steady-state set. Filter those lines out of
+    # uvicorn's access logger; every non-2xx and every other route still
+    # logs. This is display hygiene only — app-level loggers are untouched.
+    # ------------------------------------------------------------------
+    logging.getLogger("uvicorn.access").addFilter(_QuietSteadyStateAccessLog())
+
 
     reload_enabled = _reload_enabled()
     src_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -221,6 +258,13 @@ def main(argv: list[str] | None = None):
             log_level="info",
             loop="asyncio",
             ws="websockets-sansio",
+            # The app's SSE clients (activity/change streams) hold their
+            # connections open across shutdown, and uvicorn's default is to
+            # wait for them INDEFINITELY — so every quit blew through the
+            # supervising app's 2s SIGTERM window and ended in SIGKILL
+            # (#4291, live all day 2026-08-08). One second is enough for any
+            # genuine in-flight response; lingering streams are force-closed.
+            timeout_graceful_shutdown=1,
         )
         logger.info("Starting Fichero Backend (UDS transport)")
         logger.info("Server will listen on unix:%s (no TCP port, no TLS)", uds_path)
@@ -253,6 +297,8 @@ def main(argv: list[str] | None = None):
         loop="asyncio",
         ws="websockets-sansio",
         reload=reload_enabled,
+        # Same 1s drain bound as the UDS transport above (#4291).
+        timeout_graceful_shutdown=1,
     )
     if reload_enabled:
         # Limit reload scope to backend source to avoid whole-home scan noise.

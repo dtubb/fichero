@@ -62,14 +62,11 @@ struct LibrarySectionHeader: View {
         headerContent
             .padding(.vertical, 2)
             .contentShape(Rectangle())
-            .background(
-                RoundedRectangle(cornerRadius: SidebarConstants.cornerRadius)
-                    .fill(
-                        isDropTargeted
-                            ? Color.accentColor.opacity(0.25)
-                            : Color.clear
-                    )
-            )
+            // The same platter the item rows use (#4568, Daniel: "also for
+            // modes not just folders") — the ENTIRE row solid accent while
+            // targeted, never the old label-bounded 0.25 wash that made the
+            // library header's target look different from a folder's.
+            .sidebarDropHighlight(isDropTargeted)
             // ONE drop handler (#4401 follow-up). There used to be two on this
             // same view — an `.onDrop(of: [.fileURL])` that imported, and a
             // `.dropDestination(for: SidebarDragID.self)` that moved — and
@@ -130,7 +127,12 @@ struct LibrarySectionHeader: View {
     private var headerContent: some View {
         HStack(spacing: 6) {
             Image(systemName: "books.vertical")
-                .foregroundStyle(isCurrentLibrary ? Color.accentColor : Color.primary)
+                // White over the solid accent drop platter — the same
+                // inversion rule as the item rows (rowContentColor, #4568).
+                .foregroundStyle(
+                    isDropTargeted ? Color.white
+                        : isCurrentLibrary ? Color.accentColor : Color.primary
+                )
                 // #4098: `.body` rather than `.system(size: 13)`. This icon
                 // sits beside `Text(libraryName)`, which carries no explicit
                 // font and is therefore body — so the hardcoded 13pt was
@@ -138,13 +140,14 @@ struct LibrarySectionHeader: View {
                 // out of step the moment the user changed it.
                 .font(.body)
             Text(libraryName)
+                .foregroundStyle(isDropTargeted ? Color.white : Color.primary)
             locationBadge
             LibrarySharingBadge(library: library)
             Spacer()
             if itemCount > 0 {
                 Text("\(itemCount)")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isDropTargeted ? AnyShapeStyle(Color.white) : AnyShapeStyle(.secondary))
             }
         }
         .simultaneousGesture(TapGesture().onEnded { onTap?() })
@@ -216,12 +219,14 @@ struct LibrarySectionHeader: View {
         // Reads through the SHARED reader, like the row path and the library
         // folder cell. This used to be a third hand-rolled copy of the same
         // provider plumbing.
+        // Loads issued synchronously in the drop callback (drop#44 fix).
+        let eager = eagerSidebarDropLoads(providers)
         Task {
             // Surface name matches the drop DELEGATE's ("sidebar-library-header")
             // — this used to log as "sidebar-section-header", so one physical
             // drop produced two differently-named log trails and read as two
             // performs (live report 2026-08-04).
-            switch await readSidebarDropPayload(providers, surface: "sidebar-library-header") {
+            switch await readSidebarDropPayload(providers, surface: "sidebar-library-header", preloaded: eager) {
             case .internalItems(let ids):
                 guard let onSidebarItemDrop else {
                     // #4533: a surface wired without its handler accepts the
@@ -247,9 +252,8 @@ struct LibrarySectionHeader: View {
                     reason: "came from inside the app with no readable id — refusing to import "
                         + "(importing would create the hollow duplicate this guard exists for)"
                 )
-                await MainActor.run {
-                    onDropError?("Couldn't read what was dragged. Nothing was moved or imported.")
-                }
+                // NO alert (Daniel #136) — logged above; the drag snaps
+                // back and nothing is lost.
 
             case .unsupported:
                 // #4533: `break` — the drop reached the header, was classified,

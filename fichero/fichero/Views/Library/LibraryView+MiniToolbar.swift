@@ -83,7 +83,12 @@ extension LibraryView {
 
             searchModeMenu
         }
-        .frame(minWidth: 140)
+        // Bounded BOTH ways (views audit #6): the bare minWidth was an
+        // unshrinkable 140pt floor that propagated up and helped set the
+        // library pane's 300-340pt minimum ("the mini toolbars are screwing
+        // up the width of the centre views"). The field still grows into
+        // available space, but no longer dictates the pane's floor.
+        .frame(minWidth: 80, maxWidth: 280)
     }
 
     /// Ask vs Keyword. Was `.searchScopes`, which is what actually drew the
@@ -159,7 +164,12 @@ extension LibraryView {
                 }
             }
         } label: {
+            // ICON ONLY (views audit #6): the label was the SORT FIELD NAME
+            // ("Date Modified"…) under .fixedSize(), so the library pane's
+            // minimum width varied with the user's sort choice. The icon is
+            // stable-width; the field name lives in the menu and the help.
             Label(model.label, systemImage: model.systemImage)
+                .labelStyle(.iconOnly)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()

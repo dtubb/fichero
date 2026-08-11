@@ -31,6 +31,12 @@ class StorageService {
     /// instantly. Scoped to this service instance (one per library), so
     /// switching libraries naturally resets.
     private var thumbnailCache: [String: Image] = [:]
+    // One in-flight task per image key (#4572): concurrent same-key loads
+    // share the first task instead of each fetching. The engine log showed
+    // EVERY thumbnail fetched exactly twice before this.
+    private let thumbnailFlights = InFlightCoalescer<Image>()
+    private let displayFlights = InFlightCoalescer<Image>()
+    private let displayPlatformFlights = InFlightCoalescer<PlatformImage>()
     private var displayCache: [String: Image] = [:]
     private var displayPlatformImageCache: [String: PlatformImage] = [:]
     private var sourceDataCache: [String: Data] = [:]
@@ -40,10 +46,13 @@ class StorageService {
     /// oldest-inserted entries are evicted first (FIFO) — by the time the
     /// cache is this full the user has scrolled well past those rows.
     static let thumbnailCacheLimit = 1000
-    /// Upper bound on the display-platform-image cache. Display images are
-    /// larger than thumbnails (~1–5 MB each); a small window around the
-    /// current position is all we need (#2469).
-    static let displayPlatformImageCacheLimit = 12
+    /// Upper bound on the display-platform-image cache (#2469). 32, up from
+    /// 12 (Daniel, 2026-08-10: page flips showed the OLD page then reloaded
+    /// — cache misses on revisit): 12 entries meant a ±2 prefetch window
+    /// plus a handful of displays evicted the page just left. ponytail:
+    /// count-bounded FIFO stays; a byte budget is the upgrade if memory
+    /// shows up in reviews.
+    static let displayPlatformImageCacheLimit = 32
     static let maxImageBytes = 50 * 1024 * 1024
     static let maxSourceBytes = 500 * 1024 * 1024
     /// Insertion order of thumbnail-cache keys, oldest first. Drives FIFO
@@ -103,16 +112,26 @@ class StorageService {
     // MARK: - Image Loading
 
     /// Get thumbnail image for a document. Memoised per-service-instance.
+    /// Bounds concurrent image fetches so scroll bursts can't starve the
+    /// transport pool — see ImageFetchGate.
+    let imageFetchGate = ImageFetchGate(slots: 12)
+
     func getThumbnail(_ docId: String) async throws -> Image {
         if let cached = thumbnailCache[docId] {
             return cached
         }
-        // .debug, not .info: fires per uncached thumbnail during hot scroll (#3870).
-        logger.debug("Loading thumbnail for document: \(docId)")
-        let data = try await thumbnailData(for: docId)
-        let image = try await Self.decodeImage(from: data)
-        cacheThumbnail(image, for: docId)
-        return image
+        return try await thumbnailFlights.run(docId) { [weak self] in
+            guard let self else { throw StorageServiceError.unexpectedResponse }
+            if let cached = self.thumbnailCache[docId] { return cached }
+            // .debug, not .info: fires per uncached thumbnail during hot scroll (#3870).
+            logger.debug("Loading thumbnail for document: \(docId)")
+            await self.imageFetchGate.acquire()
+            defer { self.imageFetchGate.release() }
+            let data = try await self.thumbnailData(for: docId)
+            let image = try await Self.decodeImage(from: data)
+            self.cacheThumbnail(image, for: docId)
+            return image
+        }
     }
 
     /// Insert a thumbnail into the cache, evicting the oldest entries (FIFO)
@@ -154,11 +173,17 @@ class StorageService {
         if let cached = displayCache[docId] {
             return cached
         }
-        logger.info("Loading display image for document: \(docId)")
-        let data = try await displayData(for: docId)
-        let image = try await Self.decodeImage(from: data)
-        displayCache[docId] = image
-        return image
+        return try await displayFlights.run(docId) { [weak self] in
+            guard let self else { throw StorageServiceError.unexpectedResponse }
+            if let cached = self.displayCache[docId] { return cached }
+            logger.info("Loading display image for document: \(docId)")
+            await self.imageFetchGate.acquire()
+            defer { self.imageFetchGate.release() }
+            let data = try await self.displayData(for: docId)
+            let image = try await Self.decodeImage(from: data)
+            self.displayCache[docId] = image
+            return image
+        }
     }
 
     /// Get display-quality image for zoomable canvases.
@@ -168,13 +193,26 @@ class StorageService {
         if let cached = displayPlatformImageCache[docId] {
             return cached
         }
-        logger.info("Loading display image for document: \(docId)")
-        let data = try await displayData(for: docId)
-        guard let image = PlatformImage(data: data) else {
-            throw StorageServiceError.invalidImageData
+        return try await displayPlatformFlights.run(docId) { [weak self] in
+            guard let self else { throw StorageServiceError.unexpectedResponse }
+            if let cached = self.displayPlatformImageCache[docId] { return cached }
+            logger.info("Loading display image for document: \(docId)")
+            let data = try await self.displayData(for: docId)
+            // Decode OFF the main actor — `PlatformImage(data:)` parses the
+            // full bitmap synchronously, and doing it here on the MainActor
+            // was the measured 959ms "Loading display image" stall
+            // (2026-08-08 session; the exact #605 anti-pattern this file's
+            // own decodeImage comment warns about). The bitmap is parsed in
+            // the detached CGImage decode; wrapping it on main is cheap.
+            let cgImage = try await Self.decodeCGImage(from: data)
+            #if os(macOS)
+            let image = PlatformImage(cgImage: cgImage, size: .zero)
+            #else
+            let image = PlatformImage(cgImage: cgImage)
+            #endif
+            self.cacheDisplayPlatformImage(image, for: docId)
+            return image
         }
-        cacheDisplayPlatformImage(image, for: docId)
-        return image
     }
 
     /// Insert a display platform image into the bounded cache, evicting the
@@ -307,6 +345,18 @@ class StorageService {
     /// hands back a `Sendable` `Image` value. `Image(decorative:scale:)`
     /// wraps a CGImage for SwiftUI display; it's safe to construct off
     /// the main actor and the resulting `Image` can cross actor boundaries.
+    /// Decode to a CGImage off-main — the bitmap parse happens detached; the
+    /// caller wraps the (immutable, Sendable) CGImage in its platform type.
+    nonisolated private static func decodeCGImage(from data: Data) async throws -> CGImage {
+        try await Task.detached(priority: .userInitiated) {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                throw StorageServiceError.invalidImageData
+            }
+            return cgImage
+        }.value
+    }
+
     nonisolated private static func decodeImage(from data: Data) async throws -> Image {
         try await Task.detached(priority: .userInitiated) {
             guard let source = CGImageSourceCreateWithData(data as CFData, nil),

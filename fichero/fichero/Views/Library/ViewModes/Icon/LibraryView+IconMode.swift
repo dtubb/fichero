@@ -83,9 +83,11 @@ extension LibraryView {
                                     )
                                 }
                                 .equatable()
-                                .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
                                 .id(doc.id)
-                                .draggable(libraryItemDrag(for: doc))
+                                .iconTileFrame(id: doc.id, in: "libraryIconGrid")
+                                .draggable(libraryItemDrag(for: doc)) {
+                                    TileDragPreview(document: doc)
+                                }
                                 // Folder cells are real drop targets (#4124):
                                 // only the hovered folder highlights, and the
                                 // drop moves INTO it — not the viewed folder.
@@ -102,9 +104,8 @@ extension LibraryView {
                                     handleTap(doc)
                                     onRequestFocus()
                                 }
-                                .contextMenu {
-                                    documentContextMenu(for: doc)
-                                }
+                                // Menu built at OPEN, not per render (#4544).
+                                .contextMenu { SidebarDeferredMenuContent { documentContextMenu(for: doc) } }
                                 .onAppear {
                                     scheduleThumbnailPrefetch(around: doc.id)
                                 }
@@ -114,10 +115,63 @@ extension LibraryView {
                     .padding()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
+                .coordinateSpace(name: "libraryIconGrid")
+                .onPreferenceChange(IconTileFramesKey.self) {
+                    // Equality guard (2026-08-09 log: 'Bound preference
+                    // IconTileFramesKey tried to update multiple times per
+                    // frame') — writing the identical dictionary re-rendered
+                    // the grid, which re-reported the frames, which…
+                    if iconTileFrames != $0 { iconTileFrames = $0 }
+                }
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
                 .onTapGesture {
                     apply(SelectionGrammar.clear())
+                }
+                // RUBBER BAND (Daniel's Finder ruling, 2026-08-09): a drag
+                // that starts in the gutter sweeps a rect; intersecting
+                // tiles feed SelectionGrammar.marquee LIVE (⇧/⌘ add, plain
+                // replaces, an empty plain sweep clears). Tiles' own
+                // .draggable wins on the tiles, so the marquee can only
+                // begin on empty space — exactly Finder.
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 4, coordinateSpace: .named("libraryIconGrid"))
+                        .onChanged { value in
+                            // The gutter-only claim above, ENFORCED (Daniel:
+                            // ⌘-click add 'sometimes deselects'): a click ON A
+                            // TILE that wiggles past 4pt started a degenerate
+                            // sweep that re-applied the toggle the tile's tap
+                            // had already made. A sweep may only BEGIN where
+                            // no tile is; once live it continues anywhere.
+                            guard marqueeModel.rect != nil
+                                || LibraryMarquee.startsInGutter(value.startLocation, frames: iconTileFrames)
+                            else { return }
+                            let rect = LibraryMarquee.rect(from: value.startLocation, to: value.location)
+                            // Per-tick: mutate the box (overlay-only render).
+                            marqueeModel.rect = rect
+                            if marqueeModel.baseSelection == nil {
+                                marqueeModel.baseSelection = selection
+                            }
+                            // Selection applies ONLY when the hit set changes
+                            // — the expensive grid re-render happens when a
+                            // tile enters/leaves the band, not per pixel.
+                            let hits = LibraryMarquee.hitIds(in: iconTileFrames, rect: rect)
+                            guard hits != marqueeModel.lastHits else { return }
+                            marqueeModel.lastHits = hits
+                            apply(SelectionGrammar.marquee(
+                                ids: hits,
+                                selection: marqueeModel.baseSelection ?? selection,
+                                modifiers: currentSelectionModifiers
+                            ))
+                        }
+                        .onEnded { _ in
+                            marqueeModel.rect = nil
+                            marqueeModel.baseSelection = nil
+                            marqueeModel.lastHits = []
+                        }
+                )
+                .overlay(alignment: .topLeading) {
+                    MarqueeOverlayHost(model: marqueeModel)
                 }
                 // Right-click on empty library area → Import (#4449, third
                 // of the three affordances). Tile-level context menus
@@ -339,3 +393,7 @@ extension LibraryView {
         return "\(aliasCount) \(aliasLabel) • \(corroborationCount) \(corroborationLabel)"
     }
 }
+
+// The whole-mode canvas for THIS file (Daniel, 2026-08-09: every view-mode
+// file previews in place). One shared fixture environment — LibraryModeFixtures.
+#Preview("Icon mode") { LibraryPreviewFixtures.mode(.icon, .icons) }

@@ -33,15 +33,30 @@ enum LibrarySelectionStyle {
         #endif
     }
 
-    /// Pointer-is-over wash (#4097): `fill` at half weight, so hover cannot read
-    /// as selection by construction rather than by two hand-picked values kept
-    /// in the right order — and it inherits `fill`'s contrast tracking.
-    static var hoverFill: Color { fill.opacity(0.5) }
-
     static let cornerRadius: CGFloat = 6
 
     static func labelTint(focused: Bool) -> Color {
         focused ? .accentColor : .secondary
+    }
+
+    // MARK: The ONE selection grammar (Daniel's ruling, 2026-08-09: the
+    // library selects like Mail/Finder — system accent when the pane is
+    // focused, grey when it isn't; the native Table already does this and is
+    // the reference. Supersedes the #4191 constant-grey decision above.)
+
+    /// Row/tile fill: accent when focused+selected (Mail's emphasized bar),
+    /// the system grey when selected but unfocused, clear otherwise.
+    static func rowFill(selected: Bool, focused: Bool) -> Color {
+        guard selected else { return .clear }
+        return focused ? .accentColor : fill
+    }
+
+    /// Content over the row fill: white over the focused accent bar,
+    /// accent over the unfocused grey, primary when unselected — the same
+    /// three states the native emphasized Table renders.
+    static func rowContent(selected: Bool, focused: Bool) -> Color {
+        guard selected else { return .primary }
+        return focused ? .white : .accentColor
     }
 
     // MARK: - Sidebar rows (#4371)
@@ -66,7 +81,13 @@ enum LibrarySelectionStyle {
     /// This is also what keeps the icon's semantic colour: nothing here
     /// re-tints it, so a green folder stays green when selected.
     static func sidebarLabel(isSelected: Bool) -> SidebarRowLabel {
-        SidebarRowLabel(color: .primary, weight: .regular)
+        // Finder's selection grammar (Daniel, 2026-08-08, screenshots on
+        // file — supersedes #4371's "selection changes nothing"): the grey
+        // fill carries the ROW, and the NAME and icon take the system accent,
+        // exactly like Finder's sidebar and Mail's mailbox list. Weight stays
+        // regular — the accent is the signal, never bolding, and never the
+        // white-on-accent inversion (that is reserved for the DROP target).
+        SidebarRowLabel(color: isSelected ? .accentColor : .primary, weight: .regular)
     }
 }
 
@@ -76,8 +97,12 @@ struct MailStyleRow: View {
     @Environment(DocumentStore.self) private var documentStore
     let document: Document
     let isSelected: Bool
-    /// Mail-style selection (#4191): the focused selection tints the TITLE
-    /// accent over the subtle grey fill — never a white-on-accent inversion.
+    /// LIBRARY selection is WHITE NAME TEXT ON A GREEN (accent) BACKGROUND
+    /// when the pane is focused — Daniel's canonical ruling (2026-08-09),
+    /// which SUPERSEDES the #4191 "never a white-on-accent inversion" note
+    /// that used to live here. Unfocused keeps the native Table's grey fill
+    /// with accent text (his stated reference). The sidebar is deliberately
+    /// DIFFERENT: green text on light grey — do not unify the two.
     /// Safe with the row's `.equatable()` diffing: focus changes also change
     /// the `tint` LibrarySelectableRow already compares.
     var isPaneFocused: Bool = false
@@ -132,16 +157,10 @@ struct MailStyleRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 // Title row
                 HStack {
-                    // Folder / workflow-mirror glyph, from the one ladder the
-                    // sidebar reads (#4516) — a workflow mirror used to get no
-                    // glyph here at all. Purple + gear badge marks a read-only
-                    // system folder, same as the sidebar (#4514).
-                    if document.docType == .folder || document.isWorkflowNode {
-                        Image(systemName: document.displaySymbol())
-                            .symbolVariant(document.docType == .folder ? .fill : .none)
-                            .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
-                            .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
-                    }
+                    // NO inline folder/mirror glyph here — the leading
+                    // thumbnail well renders the #4516 symbol ladder now
+                    // (see DocumentThumbnail), so an inline copy showed
+                    // folders' icons TWICE (preview catalog, 2026-08-09).
 
                     // PDF page rows show their page number (prefer an
                     // extracted page_label once #2080 lands), not the
@@ -274,7 +293,7 @@ struct MailStyleRow: View {
     /// pane is focused, secondary when it isn't. Secondary text stays
     /// `.secondary` in every state.
     private var titleColor: Color {
-        isSelected ? LibrarySelectionStyle.labelTint(focused: isPaneFocused) : .primary
+        LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)
     }
 
     private var statusColor: Color {
@@ -310,7 +329,12 @@ enum DocumentThumbnailKind: Equatable {
     case storageImage
 
     static func forDocument(_ document: Document) -> DocumentThumbnailKind {
-        if document.docType == .folder { return .folder }
+        // Workflow mirrors join folders in the symbol branch (2026-08-09):
+        // a mirror is a `.file` with no fileType, so it fell through to a
+        // storage fetch that returns nothing and rendered an EMPTY well —
+        // which is why MailStyleRow grew a second, inline glyph (#4516)
+        // that then showed folders' icons TWICE. One glyph, in the well.
+        if document.docType == .folder || document.isWorkflowNode { return .folder }
         if document.fileType == .image { return .storageImage }
         // Text-preview thumbnail (#625) is only for genuinely text documents
         // (JSON/plain text) with no page image. A PDF page ALWAYS shows its
@@ -353,9 +377,15 @@ struct DocumentThumbnail: View {
 
             switch DocumentThumbnailKind.forDocument(document) {
             case .folder:
-                Image(systemName: "folder.fill")
+                // The one symbol ladder the sidebar reads (#4516), lock-aware
+                // (#4514): purple gear-badged treatment for read-only system
+                // folders — previously an inline glyph in MailStyleRow, which
+                // doubled real folders' icons.
+                Image(systemName: document.displaySymbol())
                     .font(.system(size: folderSymbolSize))
-                    .foregroundColor(.accentColor)
+                    .symbolVariant(document.docType == .folder ? .fill : .none)
+                    .symbolRenderingMode(document.usesWorkflowTint ? .hierarchical : .monochrome)
+                    .foregroundColor(document.usesWorkflowTint ? .purple : .accentColor)
             case .textPreview(let preview):
                 TextPreviewThumbnail(text: preview)
                     .frame(width: width, height: height)

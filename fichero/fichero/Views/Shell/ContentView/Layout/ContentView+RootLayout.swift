@@ -39,7 +39,43 @@ extension ContentView {
         // iOS archive.
         requestBusesAndAppleScript
             .adaptiveInspector(placement: inspectorPlacement, isPresented: inspectorIsPresented) {
-                inspectorContainerView
+                // `.inspector` hosts this content OUTSIDE the tab tree, so the
+                // library environment does NOT inherit (live crash loop,
+                // 2026-08-08: a restored detailDocument mounted
+                // DocumentInspector at launch → fatal 'No Observable object of
+                // type ArtifactService'). Re-inject the FULL list across the
+                // boundary — one shared helper, not a hand-picked subset that
+                // crashes on the next service (see LibraryServiceEnvironment).
+                if let library = libraryManager.getLibrary(id: windowState.libraryId) {
+                    inspectorContainerView
+                        .libraryServiceEnvironment(library)
+                        // The window/app-level objects don't cross the
+                        // .inspector boundary either — re-inject everything
+                        // this ContentView holds (second crash of the night
+                        // was a service missing from a hand-picked list; the
+                        // rule is ALL of them).
+                        .environment(windowState)
+                        .environment(executionObserver)
+                        .environment(kgFocusState)
+                        .environment(claimFocusState)
+                        .environment(viewSettings)
+                        .environment(appState)
+                        .environment(errorService)
+                        .environment(featureManager)
+                        .environment(libraryManager)
+                } else {
+                    // NO bare mount, ever (Daniel's table-open crash,
+                    // 2026-08-09 morning): at launch the restored selection
+                    // can mount the inspector BEFORE
+                    // libraryManager.getLibrary resolves, and an uninjected
+                    // panel dies on its first service read. The pane waits
+                    // out the beat instead; the library resolving re-renders
+                    // this closure and the real panel mounts injected.
+                    PaneEmptyStateView(
+                        reason: "Opening library…",
+                        systemImage: "clock"
+                    )
+                }
             }
             // Measure the real container width before the outer min-width
             // clamp, otherwise the reader only ever sees the framed width.
@@ -263,6 +299,12 @@ extension ContentView {
     @ViewBuilder
     private var decoratedNavigationSplitColumn: some View {
         navigationSplitColumn
+            // Multi-selection scoping (2026-08-09): registered BEFORE the
+            // single-id handler so a shrink-to-one still lets the navigate
+            // path run after the scope check declines it.
+            .onChange(of: sidebarSelectionState.selectedDestinations) { _, newDestinations in
+                handleSidebarMultiSelectionChange(newDestinations)
+            }
             .onChange(of: sidebarSelectionState.selectedItemId) { _, newFolderId in
                 selectedSidebarItemId = newFolderId
                 handleSidebarSelectionChange(newFolderId)
@@ -279,9 +321,9 @@ extension ContentView {
             .onChange(of: browserSelection) { _, newSelection in
                 handleBrowserSelectionChange(newSelection)
             }
-            .onChange(of: detailDocument) { _, newDoc in
+            .onChange(of: detailDocument) { oldDoc, newDoc in
                 syncFocusedDocumentSelection(newDoc)
-                handleDetailDocumentChange(newDoc)
+                handleDetailDocumentChange(from: oldDoc, to: newDoc)
             }
             // #4518: the ONE teardown for "this window now shows a different
             // library" — closing a library falls back to Global, and nothing
@@ -374,13 +416,15 @@ extension ContentView {
                     viewMode: $viewMode,
                     browserSelection: $browserSelection,
                     detailDocument: $detailDocument,
+                    pageFocusDocument: $pageFocusDocument,
                     columnVisibility: $columnVisibility,
                     editingWorkflow: $editingWorkflow,
                     currentLayoutMode: $currentLayoutMode,
                     isImporting: $isImporting,
                     importProgress: $importProgress,
                     importError: $importError,
-                    handleDocumentChange: handleDocumentChange
+                    handleDocumentChange: handleDocumentChange,
+                    isSidebarMultiSelect: { sidebarSelectionState.selectedDestinations.count > 1 }
                 )
             )
     }

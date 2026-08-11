@@ -141,6 +141,72 @@ def start_access(path: str, bookmark: bytes, foundation: Any) -> bool:
     return True
 
 
+def _readable_via_inherited_scope(path: str) -> bool:
+    """Can this process ALREADY read ``path`` without resolving the bookmark?
+
+    Why this exists (found live, 2026-08-08): an app-scoped security bookmark
+    resolves only in the code identity that minted it. This engine is a
+    DIFFERENT bundle (``…fichero_server``) running under
+    ``com.apple.security.inherit`` — so ``NSURL`` resolution here fails with
+    NSCocoaError 259 ("isn't in the correct format") even for perfectly good
+    bookmarks, and every grant died on that error while the APP had already
+    resolved the same bookmark and called
+    ``startAccessingSecurityScopedResource()``. An inherit child SHARES the
+    parent's sandbox, including the extensions that call turned on — so the
+    right question is not "can I resolve this bookmark" but "can I read this
+    directory".
+
+    The probe is a real ``listdir``, not ``os.access``: ``os.access`` answers
+    from uid/permission bits and can say yes while the SANDBOX still denies
+    the open. A library is always a directory (a ``.fichero`` package or a
+    picked folder), so listing is the honest capability test.
+    """
+    try:
+        os.listdir(path)
+    except OSError:
+        return False
+    return True
+
+
+def _engine_is_sandboxed() -> bool:
+    """Is THIS process inside an App Sandbox? The kernel's own signal —
+    ``APP_SANDBOX_CONTAINER_ID`` is set by macOS in every sandboxed process
+    and absent otherwise — the same check the app's SandboxEnvironment makes.
+    """
+    return bool(os.environ.get("APP_SANDBOX_CONTAINER_ID"))
+
+
+def start_access_or_inherited(path: str, bookmark: bytes, foundation: Any) -> bool:
+    """``start_access``, falling back to the inherited-sandbox probe above.
+
+    One funnel for BOTH grant paths (spawn env + runtime route), so they can
+    never disagree about what counts as granted.
+
+    SECURITY (lane audit A1, 2026-08-09): a grant lands in ``_GRANTED``,
+    which ``path_security`` spreads into the ALLOWED ROOTS — so the fallback
+    changes what the allowlist means. Its entire justification is "an
+    inherit child shares the parent's already-started extensions", so it
+    runs ONLY when this process is actually sandboxed: there, ``listdir``
+    can only succeed where the kernel already permits, and the fallback's
+    reach is exactly what the app granted. In an UNSANDBOXED engine (Dev
+    Local external, server deployments) ``listdir`` succeeds across the
+    whole home, so the same fallback would let any caller holding the local
+    token promote ANY readable directory to an allowed root — the allowlist
+    would stop being a control. There, resolution failure stays fatal, as
+    before 6d60cbf65.
+    """
+    if start_access(path, bookmark, foundation):
+        return True
+    if _engine_is_sandboxed() and _readable_via_inherited_scope(path):
+        _GRANTED.add(path)
+        logger.info(
+            "Security-scoped access granted via inherited sandbox scope "
+            "(bookmark unresolvable in this process): %s", path
+        )
+        return True
+    return False
+
+
 class BookmarkGrantError(Exception):
     """A runtime bookmark could not be turned into access. Carries a reason for the app."""
 
@@ -181,7 +247,19 @@ def grant_access(path: str, encoded: str) -> bool:
         # misconfiguration, not a normal path — say so.
         raise BookmarkGrantError("PyObjC/Foundation unavailable — cannot resolve a security-scoped bookmark")
 
-    if not start_access(path, bookmark, foundation):
+    if not start_access_or_inherited(path, bookmark, foundation):
+        if not _engine_is_sandboxed():
+            # The refusal names the cause AND the remedy (the standing rule):
+            # a bare failure here sends a developer hunting bookmark bugs
+            # when the actual answer is one env var. Raised HERE, not in the
+            # shared funnel — the spawn path must degrade, never throw.
+            raise BookmarkGrantError(
+                f"could not resolve the bookmark for {path}, and this engine is UNSANDBOXED "
+                "(no APP_SANDBOX_CONTAINER_ID) — bookmark grants only apply to a sandboxed "
+                "engine and cannot widen the allowlist (audit A1). If this library lives "
+                "outside the standard allowed roots, add its root to "
+                "FICHERO_LIBRARY_ALLOWED_ROOTS instead."
+            )
         raise BookmarkGrantError(f"could not start security-scoped access to {path}")
     return True
 
@@ -203,6 +281,6 @@ def activate_library_bookmarks(raw: str | None = None) -> list[str]:
         )
         return []
 
-    granted = [path for path, data in bookmarks.items() if start_access(path, data, foundation)]
+    granted = [path for path, data in bookmarks.items() if start_access_or_inherited(path, data, foundation)]
     logger.info("Security-scoped access: %d of %d librar(ies) granted", len(granted), len(bookmarks))
     return granted

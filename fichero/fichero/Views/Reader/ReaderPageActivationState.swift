@@ -44,9 +44,16 @@ enum ReaderPageSignal: Equatable {
     /// page and the inspector (#1463).
     var movesPageFocus: Bool { true }
 
-    /// Only a click moves the library/sidebar selection. Scrolling a long
-    /// transcript would otherwise drag the browser selection along behind it.
-    var movesBrowserSelection: Bool { self == .clicked }
+    /// BOTH move the library selection now (Daniel, 2026-08-09, twice: "if
+    /// you change page in the preview it should change selection in the
+    /// library"; "when I change page in preview it changes highlight in
+    /// reader, great. but [not] in library view") — a preview page-turn IS
+    /// deliberate navigation, and the swipe→highlight loop is the point.
+    /// The old scroll-doesn't-select rule guarded the READER's transcript
+    /// scroll; that path still can't stomp a multi-selection because
+    /// applyReaderPageSignal only writes when the selection differs and the
+    /// match is a real page document.
+    var movesBrowserSelection: Bool { true }
 
     /// NEITHER re-roots `detailDocument`. It stays pinned to the container
     /// (the parent PDF / folder) so the WebKit transcript is not torn down and

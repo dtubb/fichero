@@ -35,14 +35,19 @@ final class DocumentStore {
     // MARK: - Observable State
 
     /// All collections (top-level documents)
-    var collections: [Document] = []
+    var collections: [Document] = [] {
+        didSet { processingIndexDirty = true }
+    }
 
     /// Currently selected collection
     var selectedCollection: Document?
 
     /// Documents in the current view (children of selected item)
     var currentDocuments: [Document] = [] {
-        didSet { revision += 1 }
+        didSet {
+            revision += 1
+            processingIndexDirty = true
+        }
     }
 
     /// Cheap O(1) change token for views that only need to know the visible
@@ -82,7 +87,22 @@ final class DocumentStore {
     /// success icons appeared persistent only because artifact existence
     /// derived completion separately, while errors silently disappeared (#791).
     /// In-memory only; clears on app restart.
-    var workflowStatusOverrides: [String: Status] = [:]
+    var workflowStatusOverrides: [String: Status] = [:] {
+        didSet {
+            processingIndexDirty = true
+            childActivityMemoToken &+= 1
+        }
+    }
+
+    /// Invalidation token for the childActivityCounts memo (2026-08-09 stall
+    /// fix): bumps with every override write, alongside `revision` for the
+    /// document containers. @ObservationIgnored — the memo is a cache, and
+    /// tracking it would re-render views for a bookkeeping write.
+    @ObservationIgnored var childActivityMemoToken: Int = 0
+    /// (revision, overrides token) the memo below was computed against.
+    @ObservationIgnored var childActivityMemoKey: (revision: Int, token: Int) = (-1, -1)
+    /// Per-parent child activity counts, valid while the key matches.
+    @ObservationIgnored var childActivityMemo: [String: (busy: Int, total: Int)] = [:]
 
     /// Workspace documents (is_workspace == true) — the curated-items
     /// workspaces surfaced in the Research sidebar's Workspaces section (#1617).
@@ -134,7 +154,39 @@ final class DocumentStore {
 
     /// Cache of children by parent ID
     @ObservationIgnored
-    var childrenCache: [String: [Document]] = [:]
+    var childrenCache: [String: [Document]] = [:] {
+        didSet { processingIndexDirty = true }
+    }
+
+    // MARK: - Processing index (2026-08-09)
+    //
+    // The stall sampler attributed 165-188ms main-thread stalls to
+    // `isDocumentBusy`: it linearly scanned currentDocuments + collections +
+    // EVERY childrenCache array, per row, per render — O(total documents)
+    // multiplied by visible rows. The four didSets above mark the index dirty
+    // and `processingDocumentIds` rebuilds it once per mutation, so the per-
+    // row question is one set-membership test. @ObservationIgnored: this is a
+    // derived cache; observers track the source arrays, never the index.
+    @ObservationIgnored
+    var processingIndexDirty = true
+    @ObservationIgnored
+    private var processingIndex: Set<String> = []
+
+    /// Every document id whose status reads `.processing` in any store the
+    /// spinners consult (overrides win by construction — they are unioned in).
+    var processingDocumentIds: Set<String> {
+        if processingIndexDirty {
+            var ids = Set(workflowStatusOverrides.filter { $0.value == .processing }.keys)
+            for doc in currentDocuments where doc.status == .processing { ids.insert(doc.id) }
+            for doc in collections where doc.status == .processing { ids.insert(doc.id) }
+            for kids in childrenCache.values {
+                for kid in kids where kid.status == .processing { ids.insert(kid.id) }
+            }
+            processingIndex = ids
+            processingIndexDirty = false
+        }
+        return processingIndex
+    }
 
     // MARK: - Change-stream substrate (#1995 / #1996)
 
@@ -229,10 +281,12 @@ final class DocumentStore {
     }
     // MARK: - Loading Collections
 
-    var sidebarDocuments: [Document] {
-        var seen = Set<String>()
-        return (collections + childrenCache.values.flatMap { $0 }).filter { seen.insert($0.id).inserted }
-    }
+    /// Cache for `sidebarDocuments` (computed in DocumentStore+Helpers).
+    /// @ObservationIgnored — it is a memo, and tracking it would re-render
+    /// observers for a bookkeeping write. Stored here because @Observable
+    /// classes keep stored properties in the main declaration.
+    @ObservationIgnored
+    var sidebarDocumentsMemo: (key: SidebarDocumentsMemoKey, docs: [Document])?
 
     /// The ordering currently requested from the listing routes (#3322).
     ///
@@ -309,6 +363,21 @@ final class DocumentStore {
         }
     }
 
+    /// Post-IMPORT reconciliation (#24, Daniel: 'when I drag and drop to
+    /// sidebar, it refreshes entire sidebar to add the item'). With a LIVE
+    /// change stream the imported rows have already SPLICED in place
+    /// (DocumentStore+ChangeStream inserts creates into collections /
+    /// childrenCache / currentDocuments), so the trailing full refresh is
+    /// pure wholesale-rebuild cost. Refresh only when live delivery is down
+    /// — the fallback the splice cannot cover.
+    func refreshUnlessLiveDelivery(streamConnected: Bool) async {
+        guard !streamConnected else {
+            logger.info("Post-import refresh skipped — change stream live, rows spliced (#24)")
+            return
+        }
+        await refresh()
+    }
+
     // MARK: - Selection
 
     /// Select a collection and load its children.
@@ -348,8 +417,23 @@ final class DocumentStore {
             // and skip the error state, but still clear `isLoadingChildren` below.
             if !error.isCancellationError {
                 logger.error("loadChildren failed: \(error.localizedDescription)")
-                self.error = error
-                self.currentDocuments = []
+                // STALE-SELECTION RECOVERY (2026-08-09, live: a restored
+                // selection pointed at a document of a DELETED library —
+                // get_children 404'd and the window sat on 'No Documents'
+                // forever). A missing parent is not a dead engine: fall back
+                // to the ROOT SET so the window always shows something real,
+                // and clear the phantom selection so re-clicks route fresh.
+                if error.isNotFoundError {
+                    logger.warning(
+                        "loadChildren 404 for \(document.id) — restored selection is stale; falling back to the root set"
+                    )
+                    selectedCollection = nil
+                    await loadCollections()
+                    currentDocuments = applyStatusOverrides(collections)
+                } else {
+                    self.error = error
+                    self.currentDocuments = []
+                }
             }
         }
 
@@ -456,4 +540,12 @@ extension DocumentStore {
         store.collections = []
         return store
     }
+}
+
+/// Invalidation key for the `sidebarDocuments` memo (2026-08-09 stall log).
+struct SidebarDocumentsMemoKey: Equatable {
+    let revision: Int
+    let roots: Int
+    let parents: Int
+    let children: Int
 }

@@ -14,8 +14,10 @@ private let logger = Logger(subsystem: "app.fichero.fichero", category: "Sandbox
 /// user ever picks — and the engine is never restarted. Without this call those
 /// libraries stay unreadable until the app relaunches.
 ///
-/// App Store build only. The DMG engine is not sandboxed and can already open the
-/// library; the caller gates on FICHERO_APP_STORE.
+/// Used by every SANDBOXED app (all configs since 2026-07-29) — the caller gates
+/// on the runtime `SandboxEnvironment.isSandboxed`, never a build flag (the old
+/// MAS-flag gate compiled this handoff to a no-op in non-MAS builds; fixed
+/// 2026-08-08). An unsandboxed engine can already open the library directly.
 ///
 /// A thin service over the generated OpenAPI client — no hand-rolled URLSession.
 @MainActor
@@ -67,7 +69,17 @@ class SandboxAccessService {
                 path: path,
                 reason: detail?.detail?.description ?? "validation error"
             )
-        case .undocumented(let statusCode, _):
+        case .undocumented(let statusCode, let payload):
+            // Drain the engine's own sentence (#4562's sibling): a bare
+            // "unexpected response (403)" survived TWO diagnosis rounds on
+            // 2026-08-08 because the body naming the actual refuser was
+            // discarded right here.
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw SandboxAccessServiceError.notGranted(
+                    path: path,
+                    reason: "the engine refused (\(statusCode)): \(denial.localizedDescription)"
+                )
+            }
             throw SandboxAccessServiceError.unexpectedResponse(statusCode)
         }
     }

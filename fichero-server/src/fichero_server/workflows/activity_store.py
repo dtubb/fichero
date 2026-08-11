@@ -11,6 +11,7 @@ import json
 import logging
 import threading
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from typing import Any, Optional
 
@@ -468,8 +469,11 @@ def _rebuild_workflow_runs_flipping_stale(
         except Exception:
             pass
         logger.exception(
-            "workflow_runs crash-safe rebuild FAILED for %s — zombie rows "
-            "left as-is; library remains open (#1362)",
+            "workflow_runs crash-safe rebuild FAILED for %s — the ART index "
+            "on workflow_runs (thread_id PK + secondary indexes) is corrupt "
+            "and could not be rebuilt; stale rows left as-is and WORKFLOW-RUN "
+            "HISTORY MAY BE INCOMPLETE. The library itself remains open "
+            "(#1362/#39)",
             db_path,
         )
         return None
@@ -541,8 +545,7 @@ def _recover_stale_workflow_runs(
             )
         return flipped_ids
     except duckdb.Error as exc:
-        # Connection is now poisoned (FATAL index error or otherwise). Do NOT
-        # touch `conn` again. Rebuild the table on a fresh connection.
+        # Connection is now poisoned (FATAL index error or otherwise).
         logger.warning(
             "recover_stale_runs: in-place UPDATE failed (%s: %s) — falling "
             "back to crash-safe table rebuild for %s (#1362)",
@@ -550,10 +553,53 @@ def _recover_stale_workflow_runs(
             exc,
             db_path,
         )
+        # A DuckDB FatalException invalidates the database INSTANCE
+        # process-wide, and the instance is only discarded once its LAST
+        # connection closes. Any open connection — this one, and the
+        # library's long-lived managed one — pins the poisoned instance, so
+        # every 'fresh' duckdb.connect(db_path) below would join it and the
+        # rebuild could never succeed; the library then 500s 'database has
+        # been invalidated' on every request, on every spawn (#39's bricked
+        # state). Release both pins BEFORE rebuilding: a fatal during
+        # recovery must degrade workflow history, never the library.
+        try:
+            conn.close()
+        except Exception:
+            pass
+        _reopen_managed_library_connection(db_path)
         return _rebuild_workflow_runs_flipping_stale(
             db_path,
             started_before=started_before,
             exclude_thread_ids=exclude_thread_ids,
+        )
+
+
+def _reopen_managed_library_connection(db_path: str) -> None:
+    """Reopen the library's managed shared connection, if one is cached.
+
+    Best-effort and loud on failure — the caller is already on a degraded
+    path and must proceed to the rebuild either way.
+    """
+    try:
+        from fichero_server.db.manager import db_manager
+
+        package = str(Path(db_path).parent)
+        if package not in db_manager.open_library_paths():
+            return  # No managed connection to reopen (tests, CLI, early boot).
+        db = db_manager.get_database(package)
+        db._reconnect_after_invalidated()  # noqa: SLF001 — the sanctioned seam
+        logger.warning(
+            "Reopened the managed library connection for %s after a "
+            "workflow_runs recovery fatal; the library stays usable",
+            package,
+        )
+    except Exception as reopen_exc:
+        logger.error(
+            "Could not reopen the managed library connection for %s after a "
+            "recovery fatal: %s — library queries may keep failing until the "
+            "library is closed and reopened",
+            db_path,
+            reopen_exc,
         )
 
 

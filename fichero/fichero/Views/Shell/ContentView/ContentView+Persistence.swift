@@ -142,6 +142,7 @@ extension ContentView {
     }
 
     func restorePersistedState() {
+        wipeImplicitFolderDisplayModesOnce()
         columnVisibility = Self.restoredColumnVisibility(from: columnVisibilityRaw)
         // Derive explicit left-sidebar state from persisted split-view visibility.
         // In this app's layout, `.doubleColumn` means sidebar + content.
@@ -208,6 +209,32 @@ extension ContentView {
            let json = String(data: encoded, encoding: .utf8) {
             folderViewDisplayModesJSON = json
         }
+    }
+
+    /// Remove a folder's explicit view-mode override ("Stop Remembering",
+    /// #4575). The folder then follows the window's mode again.
+    func forgetDisplayMode(for folderId: String?) {
+        guard let folderId else { return }
+        guard let data = folderViewDisplayModesJSON.data(using: .utf8),
+              var dict = try? JSONDecoder().decode([String: String].self, from: data),
+              dict.removeValue(forKey: folderId) != nil,
+              let encoded = try? JSONEncoder().encode(dict),
+              let json = String(data: encoded, encoding: .utf8) else { return }
+        folderViewDisplayModesJSON = json
+    }
+
+    /// One-time wipe of the pre-#4575 per-folder map (Daniel's ruling:
+    /// per-folder memory only when EXPLICIT). Every entry that exists before
+    /// this flag flips was stamped implicitly by a toolbar pick — the exact
+    /// entries that made the mode "revert" on revisit — so they are all
+    /// deleted once. Entries created after this exist only via "Remember View
+    /// for This Folder" and are kept forever.
+    func wipeImplicitFolderDisplayModesOnce() {
+        let flag = "library.folderViewModes.explicitOnlyMigrated"
+        guard !UserDefaults.standard.bool(forKey: flag) else { return }
+        folderViewDisplayModesJSON = "{}"
+        UserDefaults.standard.set(true, forKey: flag)
+        logger.info("Per-folder view modes wiped once — explicit-only from here (#4575)")
     }
 
     func savePersistedState() {

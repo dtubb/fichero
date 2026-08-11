@@ -457,6 +457,17 @@ case "$tier" in
 esac
 
 echo
+# A skipped platform leg must SAY so in the summary (#42 gate audit,
+# 2026-08-09): bare `verify_all` skips the Swift/iOS legs by design, and a
+# green summary with ~4,400 Swift tests never considered reads as a whole
+# run. Absence-as-success, one level up — the FicheroTests target was broken
+# on integration for five days and no routine run said "not looked".
+if [[ "$run_macos" -eq 0 ]]; then
+  echo "NOTE: Swift (macOS) test leg NOT RUN — pass --macos or --full to include it"
+fi
+if [[ "$run_ios" -eq 0 ]]; then
+  echo "NOTE: iOS compile leg NOT RUN — pass --ios or --full to include it"
+fi
 if [[ "$fail" = 0 ]]; then
   echo "verify_all (${tier}): ALL PASS"
 else

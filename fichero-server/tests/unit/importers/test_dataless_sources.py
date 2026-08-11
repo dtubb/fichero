@@ -223,3 +223,130 @@ class TestIngestRefusesPerFile:
         failed = by_name["evicted.jpg"]
         assert failed.status == Status.failed
         assert "no local bytes" in (failed.metadata or {}).get("ingest_error", "")
+
+
+class TestMaterialization:
+    """Daniel's ruling (2026-08-09): a dataless file is DOWNLOADED at ingest
+    time — reading it is the trigger — and refused only when that fails."""
+
+    def test_a_placeholder_whose_read_materializes_it_is_accepted(
+        self, tmp_path, monkeypatch
+    ):
+        f = tmp_path / "IMG_001.jpg"
+        f.write_bytes(b"x" * 4096)
+        # Dataless before the read, local after it — the read IS the download.
+        calls = iter(["zero allocated blocks", None])
+        monkeypatch.setattr(
+            "fichero_server.importers.dataless.dataless_reason",
+            lambda p: next(calls),
+        )
+
+        require_local_bytes(f)  # must not raise
+
+        # Both probes consumed: dataless before the read AND re-checked after
+        # it — proof the accept path is probe→read→re-probe, not a single
+        # pre-check that would pass a file the read failed to materialize.
+        assert next(calls, "exhausted") == "exhausted"
+
+    def test_a_placeholder_that_stays_dataless_after_the_read_is_refused(
+        self, tmp_path, monkeypatch
+    ):
+        f = tmp_path / "IMG_001.jpg"
+        f.write_bytes(b"x" * 4096)
+        monkeypatch.setattr(
+            "fichero_server.importers.dataless.dataless_reason",
+            lambda p: "zero allocated blocks",
+        )
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(f)
+        message = str(excinfo.value)
+        assert "IMG_001.jpg" in message
+        assert "no local bytes" in message
+        assert "Download" in message
+
+    def test_a_read_error_is_a_refusal_not_a_crash(self, tmp_path, monkeypatch):
+        f = tmp_path / "IMG_001.jpg"
+        f.write_bytes(b"x" * 4096)
+        monkeypatch.setattr(
+            "fichero_server.importers.dataless.dataless_reason",
+            lambda p: "zero allocated blocks",
+        )
+        monkeypatch.setattr(
+            Path, "open", lambda *a, **k: (_ for _ in ()).throw(OSError("offline"))
+        )
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(f)
+        assert "offline" in str(excinfo.value)
+
+    def test_a_download_slower_than_the_deadline_is_refused(
+        self, tmp_path, monkeypatch
+    ):
+        from fichero_server.importers import dataless as mod
+
+        f = tmp_path / "big.mov"
+        f.write_bytes(b"x" * (2 * 1024 * 1024))
+        monkeypatch.setattr(mod, "dataless_reason", lambda p: "zero allocated blocks")
+        monkeypatch.setattr(mod, "_READ_CHUNK", 1024)  # force multiple chunks
+        # A clock that leaps past any deadline after the first chunk.
+        ticks = iter([0.0, 10.0**9])
+        monkeypatch.setattr("time.monotonic", lambda: next(ticks, 10.0**9))
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(f)
+        assert "did not finish in time" in str(excinfo.value)
+
+    def test_a_bare_icloud_stub_is_still_refused_without_a_read(
+        self, tmp_path, monkeypatch
+    ):
+        stub = tmp_path / ".IMG_001.jpg.icloud"
+        stub.write_bytes(b"plist")
+        monkeypatch.setattr(
+            Path, "open", lambda *a, **k: pytest.fail("a stub must not be read")
+        )
+
+        with pytest.raises(DatalessSourceError) as excinfo:
+            require_local_bytes(stub)
+        assert "stub" in str(excinfo.value)
+
+
+class TestDatalessFastSkip:
+    """Re-importing an already-imported cloud folder must not download
+    everything just to prove it's already there (2026-08-10): a path+size
+    match skips an evicted file WITHOUT reading its bytes."""
+
+    def test_reimport_skips_evicted_duplicate_without_reading(
+        self, db, test_package, tmp_path, monkeypatch
+    ):
+        from fichero_server.importers.ingest import IngestMode, ingest_folder
+        from fichero_server.models import Document
+
+        folder = tmp_path / "cloud"
+        folder.mkdir()
+        f = folder / "evicted.jpg"
+        f.write_bytes(b"x" * 4096)
+
+        # First import: file is local; imports normally.
+        ingest_folder(folder, mode=IngestMode.LINK, db=db,
+                      package_path=Path(test_package), extract_text=False, auto_embed=False)
+        assert any(d.name == "evicted.jpg" for d in db.query(Document))
+
+        # Second import: the file is now "evicted" (dataless). Reading it
+        # would be the download — fail the test if anything opens it.
+        monkeypatch.setattr(
+            "fichero_server.importers.ingest.dataless_reason",
+            lambda p: "zero allocated blocks" if p.name == "evicted.jpg" else None,
+        )
+        real_open = Path.open
+
+        def guarded_open(self, *args, **kwargs):
+            if self.name == "evicted.jpg":
+                raise AssertionError("evicted duplicate was READ (downloaded) during re-import")
+            return real_open(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", guarded_open)
+        ingest_folder(folder, mode=IngestMode.LINK, db=db,
+                      package_path=Path(test_package), extract_text=False, auto_embed=False)
+        docs = [d for d in db.query(Document) if d.name == "evicted.jpg"]
+        assert len(docs) == 1, "duplicate row created or original lost"

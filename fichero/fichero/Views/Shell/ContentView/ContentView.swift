@@ -2,8 +2,30 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Identifies which main pane has keyboard focus for Tab cycling
+/// True while a text-input view owns the keyboard — the window-level Tab
+/// pane-cycle must yield to it (rename fields, search, the editor).
+@MainActor
+var textEditingHasKeyboard: Bool {
+    #if os(macOS)
+    NSApp.keyWindow?.firstResponder is NSTextView
+    #else
+    false
+    #endif
+}
+
 enum PaneFocus: Hashable {
     case sidebar, content, preview, reading, inspector
+
+    /// Human name for the pane — VoiceOver announcements on pane moves.
+    var paneTitle: String {
+        switch self {
+        case .sidebar: return "Sidebar"
+        case .content: return "Library"
+        case .preview: return "Preview"
+        case .reading: return "Reader"
+        case .inspector: return "Inspector"
+        }
+    }
 }
 
 // Main content view with three-column navigation
@@ -80,6 +102,15 @@ struct ContentView: View {
     @Environment(\.openWindow) var openWindow
     @Environment(ClaimFocusState.self) var claimFocusState
     @Environment(ResearchService.self) var researchService
+    /// The docked inspector's content is hosted OUTSIDE this tree (`.inspector`),
+    /// so RootLayout re-injects the full library environment across that
+    /// boundary (libraryServiceEnvironment, 2026-08-08 crash loop) — resolved
+    /// from the window's library via this manager.
+    @Environment(LibraryManager.self) var libraryManager
+    /// Display-image cache access for the reader's page-turn prefetch (#18):
+    /// warming the pages either side of a turn is what makes the next flip
+    /// swap instantly instead of fetching through the white-frame window.
+    @Environment(StorageService.self) var storageService
 
     // MARK: - State (synced with @SceneStorage for persistence)
 
@@ -104,6 +135,11 @@ struct ContentView: View {
     /// The page document currently in view, updated only by scroll/page-flip
     /// events. Drives the inspector without re-rooting the WebKit pane (#1463).
     @State var pageFocusDocument: Document?
+    /// Coalesces the swipe→sidebar-highlight write (2026-08-09): re-rendering
+    /// the sidebar per page-turn is a ~250ms childrenList pass, which is the
+    /// white-flash budget. The library selection still moves per turn; the
+    /// SIDEBAR row highlight settles ~150ms after the last turn.
+    @State var sidebarHighlightDebounce: Task<Void, Never>?
     @State var columnVisibility: NavigationSplitViewVisibility = ContentView.defaultColumnVisibility
     /// Which column the split view roots at when it COLLAPSES to a stack on
     /// compact width (#2329/#2334). `.detail` lands a phone on the document
@@ -231,6 +267,18 @@ struct ContentView: View {
 
     // Pane focus state for Tab cycling
     @FocusState var focusedPane: PaneFocus?
+    /// The LAST pane that took focus — drives the fading focus ring (Daniel,
+    /// 2026-08-10: "the fading ring doesn't show up anywhere, except once on
+    /// the sidebar"). `focusedPane` is FocusState: a write that no .focused
+    /// binding claims (most panes) evaporates to nil before the ring can
+    /// render, so the ring reads THIS instead — set by every tap writer and
+    /// mirrored from real focus changes.
+    @State var paneFocusHint: PaneFocus?
+    /// True while a pane divider drag is in flight (views audit B3): the
+    /// window-width observers stand down so a drag cannot re-enter
+    /// updateColumnVisibility and invalidate the NavigationSplitView
+    /// mid-drag.
+    @State var dividerDragInFlight = false
 
     // NOTE: the toolbar's contextual Delete button was removed. Reading
     // `@FocusedValue(\.libraryDeleteSelection)` HERE (ContentView hosts
@@ -318,24 +366,48 @@ struct ContentView: View {
         }
         #endif
         .onKeyPress(.tab, phases: .down) { keyPress in
+            // Tab inside an ACTIVE TEXT FIELD belongs to the text (Daniel,
+            // 2026-08-10: "tab would be used for editing in text fields
+            // no?") — the pane cycle only claims Tab when nothing is
+            // editing, so rename fields, search, and the content editor
+            // keep their native tab behavior.
+            guard !textEditingHasKeyboard else { return .ignored }
             cyclePaneFocus(reverse: keyPress.modifiers.contains(.shift))
             return .handled
         }
         .onKeyPress(characters: CharacterSet(charactersIn: "\u{19}"), phases: .down) { _ in
             // Shift+Tab can arrive as back-tab (U+0019) rather than Tab+Shift.
+            guard !textEditingHasKeyboard else { return .ignored }
             cyclePaneFocus(reverse: true)
             return .handled
         }
-        // Option+Left/Right cycles between panes (sidebar → content → preview → inspector).
-        // Plain left/right are reserved for inner-pane navigation (grid columns, DisclosureGroup expand).
-        // Command+Left/Right navigates to previous/next sibling document (#593).
+        // Tab/⇧Tab is THE pane mover (Daniel, 2026-08-10: "tab is correct.
+        // but not the option arrow keys" — ⌥-arrows collide with folder
+        // expand/collapse and word-wise text movement). Plain left/right are
+        // reserved for inner-pane navigation (grid columns, DisclosureGroup
+        // expand). Command+Left/Right navigates to previous/next sibling
+        // document (#593).
+        // Trackpad swipe in the image preview steps siblings (Daniel,
+        // 2026-08-10) — same destination as ⌘←/→ below.
+        .onReceive(NotificationCenter.default.publisher(for: .previewSiblingSwipe)) { note in
+            handlePreviewSiblingSwipe(note)
+        }
+        // Mirror REAL focus changes into the ring hint (sidebar's .focused
+        // binding is the one FocusState writer that sticks; Tab-cycling and
+        // arrow handoffs land here too).
+        .onChange(of: focusedPane) { _, newPane in
+            if let newPane { paneFocusHint = newPane }
+        }
+        // VoiceOver hears every pane move (Daniel, 2026-08-10: "also for
+        // voice over") — the fading ring is visual-only; the announcement is
+        // its non-visual twin.
+        .onChange(of: paneFocusHint) { _, pane in
+            guard let pane else { return }
+            AccessibilityNotification.Announcement("\(pane.paneTitle) pane focused").post()
+        }
         .onKeyPress(.leftArrow, phases: .down) { keyPress in
             if keyPress.modifiers.contains(.command) {
                 navigateSiblingPrevious()
-                return .handled
-            }
-            if keyPress.modifiers.contains(.option) {
-                cyclePaneFocus(reverse: true)
                 return .handled
             }
             return .ignored
@@ -343,10 +415,6 @@ struct ContentView: View {
         .onKeyPress(.rightArrow, phases: .down) { keyPress in
             if keyPress.modifiers.contains(.command) {
                 navigateSiblingNext()
-                return .handled
-            }
-            if keyPress.modifiers.contains(.option) {
-                cyclePaneFocus(reverse: false)
                 return .handled
             }
             return .ignored

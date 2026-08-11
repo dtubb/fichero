@@ -60,24 +60,19 @@ struct LibraryIconCell<Identity: Equatable & Sendable, Content: View>: View, Equ
     var body: some View { content }
 }
 
-/// Subtle hover wash on unselected list rows (#4160), like the sidebar's
-/// hover affordance — pointer feedback without stealing the selection tint.
-/// Per-row @State so hovering re-renders ONE row, not the list.
-struct LibraryRowHoverWash: ViewModifier {
-    let enabled: Bool
-    @State private var isHovered = false
-
-    func body(content: Content) -> some View {
-        content
-            .background(enabled && isHovered ? Color.primary.opacity(0.05) : Color.clear)
-            .onHover { isHovered = $0 }
-    }
-}
+// LibraryRowHoverWash DELETED (Daniel, 2026-08-09: "why do we have hover?
+// that's not a mac idiom" — Finder's grammar is nothing on hover, rubber-band
+// selection, the system highlight, and cursor-borne drag feedback). Pointer
+// position paints NOTHING in the library.
 
 struct LibrarySelectableRow<Identity: Equatable & Sendable, Content: View>: View, Equatable {
     let identity: Identity
     let isSelected: Bool
     let tint: Color
+    /// Pane focus — drives the Mail grammar's accent-vs-grey fill (2026-08-09
+    /// ruling). Defaulted true so existing call sites keep the focused look
+    /// until they pass their pane state.
+    var focused: Bool = true
     @ViewBuilder let content: Content
 
     // nonisolated: this View is implicitly @MainActor, but Equatable's `==` must be
@@ -88,19 +83,19 @@ struct LibrarySelectableRow<Identity: Equatable & Sendable, Content: View>: View
         lhs.identity == rhs.identity
             && lhs.isSelected == rhs.isSelected
             && lhs.tint == rhs.tint
+            && lhs.focused == rhs.focused
     }
 
     var body: some View {
         content
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            // Mail-style selection (#4191): the fill is always the subtle
-            // grey rounded rect — focus is signalled by the row's LABEL tint,
-            // not the fill. `tint` still carries the focus-dependent label
-            // color so `==` re-renders selected rows when focus flips.
+            // The ONE selection grammar (2026-08-09 ruling): accent fill
+            // when the pane is focused, system grey when it isn't — the same
+            // two states the native Table shows, so every mode reads alike.
             .background(
                 RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
-                    .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
+                    .fill(LibrarySelectionStyle.rowFill(selected: isSelected, focused: focused))
             )
             .contentShape(Rectangle())
     }

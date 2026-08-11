@@ -58,14 +58,14 @@ struct LibraryListModeGuardTests {
 
     @Test("list mode claims focus so onKeyPress receives keys")
     func listModeIsFocusable() throws {
-        let source = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let source = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(source.contains(".focusable()"))
         #expect(source.contains(".focusEffectDisabled()"))
     }
 
     @Test("list mode consumes the double-click center target")
     func centerTargetConsumed() throws {
-        let source = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let source = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(source.contains("listScrollCenterTarget"))
     }
 
@@ -75,9 +75,9 @@ struct LibraryListModeGuardTests {
         // is exactly why their copies of the bug survived step 1 (audit G1/G2).
         for path in [
             "Views/Library/LibraryView+ArrowNavigation.swift",
-            "Views/Library/ViewModes/LibraryView+ListView.swift",
-            "Views/Library/ViewModes/LibraryView+IconMode.swift",
-            "Views/Library/ViewModes/LibraryView+TableView.swift",
+            "Views/Library/ViewModes/List/LibraryView+ListView.swift",
+            "Views/Library/ViewModes/Icon/LibraryView+IconMode.swift",
+            "Views/Library/ViewModes/Table/LibraryView+TableView.swift",
             "Views/Library/LibraryView+DeleteActions.swift",
             "Views/Library/LibraryView+KeyboardShortcuts.swift"
         ] {
@@ -103,24 +103,31 @@ struct LibraryListModeGuardTests {
         #expect(grammar.contains("holds the anchor still"))
     }
 
-    @Test("selection is Mail-style: grey fill + accent label, no inversion")
+    @Test("selection is Mail-style: accent+white focused, grey+accent unfocused")
     func selectedRowsUseMailStyle() throws {
-        // #4191 — the #4160 white-on-accent inversion is GONE (it existed
-        // only because black-on-solid-accent was illegible); the shared
-        // treatment is a subtle grey fill with the focus split in the label.
+        // Daniel's 2026-08-09 ruling SUPERSEDES the #4191 constant-grey pin
+        // this test used to hold: the library selects like Mail/Finder —
+        // system accent bar with white content when the pane is focused,
+        // system grey with accent content when it isn't. The native Table is
+        // the reference. rowFill/rowContent are the two tokens; labelTint is
+        // no longer the row-title path (it painted accent-on-accent in the
+        // Columns preview, 2026-08-09).
         let components = try appSource("Views/Library/LibraryViewComponents.swift")
         #expect(components.contains("enum LibrarySelectionStyle"))
         #expect(components.contains("unemphasizedSelectedContentBackgroundColor"))
-        #expect(components.contains("LibrarySelectionStyle.labelTint(focused: isPaneFocused)"))
-        #expect(!components.contains("invertsText"))
-        #expect(!components.contains(".white"))
+        #expect(components.contains("LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)"))
+        #expect(components.contains("return focused ? .accentColor : fill"))
+        #expect(components.contains("return focused ? .white : .accentColor"))
 
-        // The row fill is the constant grey; tint stays in the == comparison
-        // so focus flips still re-render selected rows.
-        let helpers = try appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
-        #expect(helpers.contains("LibrarySelectionStyle.fill"))
-        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        // Tint stays in the == comparison so focus flips still re-render
+        // selected rows.
+        let list = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(list.contains("tint: selectionTint"))
+
+        // Columns rows draw name AND glyph through the same content token.
+        let columns = try appSource("Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift")
+        #expect(!columns.contains("labelTint"))
+        #expect(columns.contains("LibrarySelectionStyle.rowContent("))
     }
 
     @Test("rows and tiles have uniform density: reserved lines + capped lozenges")
@@ -136,8 +143,12 @@ struct LibraryListModeGuardTests {
         #expect(!components.contains(".lineLimit(4)"))
         #expect(!components.contains(".lineLimit(3)"))
 
+        // Tile labels: the density cap lives in a fixed-height frame OUTSIDE
+        // the name pill (2026-08-09 — a reserved line INSIDE the text made
+        // the pill wrap dead space and one-line names sit high in the green).
         let tiles = try appSource("Views/Library/LibraryThumbnailViews.swift")
-        #expect(tiles.contains(".lineLimit(2, reservesSpace: true)"))
+        #expect(tiles.contains("labelBlockHeight"))
+        #expect(tiles.contains(".frame(height: Self.labelBlockHeight * scale, alignment: .top)"))
     }
 
     @Test("list rows support inline rename via the shared editable name")
@@ -148,7 +159,7 @@ struct LibraryListModeGuardTests {
         // appears — the one place these changes can silently break (audit).
         let helpers = try appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
         #expect(helpers.contains("var isRenaming: Bool"))
-        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let list = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(list.contains("isRenaming: renamingDocumentId == doc.id"))
     }
 
@@ -163,7 +174,7 @@ struct LibraryListModeGuardTests {
 
     @Test("list rows prefetch thumbnails and carry accessibility")
     func prefetchAndAccessibility() throws {
-        let list = try appSource("Views/Library/ViewModes/LibraryView+ListView.swift")
+        let list = try appSource("Views/Library/ViewModes/List/LibraryView+ListView.swift")
         #expect(list.contains("scheduleThumbnailPrefetch(around: doc.id)"))
         let components = try appSource("Views/Library/LibraryViewComponents.swift")
         #expect(components.contains(".accessibilityElement(children: .combine)"))
@@ -175,11 +186,14 @@ struct LibraryListModeGuardTests {
         let tiles = try appSource("Views/Library/LibraryThumbnailViews.swift")
         #expect(tiles.contains("EditableDocumentName("))
         #expect(tiles.contains("accessibilityIdentifier(\"libraryTile."))
-        #expect(tiles.contains("accessibilityIdentifier(\"libraryEntityTile."))
-        let icon = try appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
+        // EntityThumbnailView moved to its own file in the 2026-08-09 split.
+        let entityTiles = try appSource("Views/Library/EntityThumbnailView.swift")
+        #expect(entityTiles.contains("accessibilityIdentifier(\"libraryEntityTile."))
+        let icon = try appSource("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift")
         #expect(icon.contains("LibraryIconCell("))
         #expect(icon.contains("isRenaming: renamingDocumentId == doc.id"))
-        #expect(icon.contains("LibraryRowHoverWash"))
+        // Hover is FORBIDDEN in the library (Daniel 2026-08-09: not a mac idiom).
+        #expect(!icon.contains("LibraryRowHoverWash"))
         // Empty-space click deselects, like Finder — through the ONE shared
         // grammar (#4436), never a hand-written removeAll.
         #expect(icon.contains("apply(SelectionGrammar.clear())"))
@@ -196,7 +210,7 @@ struct LibraryListModeGuardTests {
 
     @Test("table mode matches the list/icon bar: cursor, drag, a11y, hover")
     func tableModeParity() throws {
-        let table = try appSource("Views/Library/ViewModes/LibraryView+TableView.swift")
+        let table = try appSource("Views/Library/ViewModes/Table/LibraryView+TableView.swift")
         // Deterministic primary pick everywhere the native Table hands us a
         // Set — context menu, double-click, selection watcher (audit G1/G2).
         #expect(table.contains("func primaryNodeId(in items: Set<String>)"))
@@ -209,14 +223,14 @@ struct LibraryListModeGuardTests {
         // when the Table hands us a whole new Set.
         #expect(table.contains("SelectionGrammar.reconcile("))
         #expect(table.contains("selectionCursor = reconciled.cursor"))
-        let columns = try appSource("Views/Library/ViewModes/LibraryView+TableColumns.swift")
+        let columns = try appSource("Views/Library/ViewModes/Table/LibraryView+TableColumns.swift")
         // The document row's modifiers live in `documentNameCell(for:)` since
         // #4202 split it out of `outlineNameCell` — same modifiers, so the
         // drag now reads `for: document` rather than `for: node.document`.
         #expect(columns.contains("func documentNameCell(for document: Document)"))
         #expect(columns.contains(".draggable(libraryItemDrag(for: document))"))
         #expect(columns.contains("libraryTableRow."))
-        #expect(columns.contains("LibraryRowHoverWash"))
+        #expect(!columns.contains("LibraryRowHoverWash"))
         // Thumbnails without prefetch = one image fetch per row on scroll (#4202).
         #expect(columns.contains("scheduleThumbnailPrefetch(around: document.id)"))
         // Child outline ids resolve to their parent doc for Return/Space (G2).

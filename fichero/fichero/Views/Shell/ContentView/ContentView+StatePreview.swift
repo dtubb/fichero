@@ -49,7 +49,10 @@ extension ContentView {
         // If documents were already loaded before onAppear, restore
         // the preview selection now (the onChange handler won't fire).
         if detailDocument == nil, !documentStore.currentDocuments.isEmpty {
-            let firstSelectedId = browserSelection.first
+            // Document-order primary, never Set.first (F3, 2026-08-09).
+            let firstSelectedId = shellPrimarySelectionId(
+                in: browserSelection, orderedBy: documentStore.currentDocuments
+            )
             if let firstSelectedId {
                 detailDocument = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId })
             }
@@ -147,14 +150,26 @@ extension ContentView {
     func handleCurrentDocumentsChange(_ newDocs: [Document]) {
         // Populate preview from restored selection whenever documents load
         if detailDocument == nil,
-           let firstSelectedId = browserSelection.first,
+           // Document-order primary, never Set.first (F3, 2026-08-09).
+           let firstSelectedId = shellPrimarySelectionId(in: browserSelection, orderedBy: newDocs),
            let doc = newDocs.first(where: { $0.id == firstSelectedId }) {
             detailDocument = doc
         }
         // Keep detailDocument in sync when currentDocuments refreshes
-        // so the inspector shows updated page_content after workflows complete.
-        detailDocument = Self.refreshedFocusedDocument(detailDocument, in: newDocs)
-        pageFocusDocument = Self.refreshedFocusedDocument(pageFocusDocument, in: newDocs)
+        // so the inspector shows updated page_content after workflows
+        // complete. GUARDED with != (2026-08-09, the review's unguarded-
+        // rewrite finding): an unconditional write re-fires every
+        // detailDocument observer — including the canvas re-resolution — on
+        // every list tick, even when the snapshot is identical. The sibling
+        // handler below already guards for exactly this reason.
+        let refreshedDetail = Self.refreshedFocusedDocument(detailDocument, in: newDocs)
+        if refreshedDetail != detailDocument {
+            detailDocument = refreshedDetail
+        }
+        let refreshedPageFocus = Self.refreshedFocusedDocument(pageFocusDocument, in: newDocs)
+        if refreshedPageFocus != pageFocusDocument {
+            pageFocusDocument = refreshedPageFocus
+        }
     }
 
     /// Replace an actively-focused document snapshot with the freshly-loaded
@@ -275,15 +290,28 @@ extension ContentView {
 
     /// Handles `.onChange(of: sidebarMode)`.
     /// Re-normalizes view/preview/layout modes for the new sidebar context.
-    func handleSidebarModeChange() {
-        viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
-        viewSettings.libraryLayout = switch viewDisplayMode {
-        case .icon: .icons
-        case .list: .list
-        case .table: .table
-        case .columns: .columns
-        case .canvas, .space, .workspace: .canvas
+    static func libraryLayout(for mode: ViewDisplayMode) -> LibraryLayout {
+        switch mode {
+        case .icon: return .icons
+        case .list: return .list
+        case .table: return .table
+        case .columns: return .columns
+        case .canvas, .space, .workspace: return .canvas
         }
+    }
+
+    func handleSidebarModeChange() {
+        // TAKEOVER modes (workflows/automation/activity/research/KG) have no
+        // preview at all — availablePreviewModes is empty and the layout
+        // ignores previewMode there. Normalizing ANYWAY overwrote the STORED
+        // preview setting to .none, so returning to the library kept the
+        // preview hidden (Daniel, 2026-08-10: "when I am in a node editor
+        // and then go back to a file, the preview is hidden — there's
+        // something not remembering what's open"). A mode with nothing to
+        // normalize must leave the user's layout memory alone.
+        guard !availablePreviewModes.isEmpty else { return }
+        viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
+        viewSettings.libraryLayout = Self.libraryLayout(for: viewDisplayMode)
 
         let effectivePreviewMode = normalizedPreviewMode(viewSettings.previewMode)
         if effectivePreviewMode != viewSettings.previewMode {

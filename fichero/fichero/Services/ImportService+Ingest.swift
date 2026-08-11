@@ -155,6 +155,7 @@ extension ImportService {
         pollInterval: TimeInterval = 0.5,
         timeout: TimeInterval = 300
     ) async throws -> [String] {
+        var pacer = IngestPollPacer(base: pollInterval)
         // #4232: clear the published status on EVERY exit — completed, failed,
         // cancelled or thrown. `importFolder` already defers this, but the
         // drag-and-drop path (ImportService.swift:98) calls this function
@@ -178,24 +179,21 @@ extension ImportService {
             autoEmbed: autoEmbed
         )
 
-        let startTime = Date()
+        var watchdog = IngestStallWatchdog(limit: timeout)
 
-        // Poll until completion or timeout
+        // Poll until completion or stalled-too-long
         while true {
             // Check for cancellation
             try Task.checkCancellation()
 
-            // Check timeout
-            if Date().timeIntervalSince(startTime) > timeout {
-                throw ImportServiceError.timeout
-            }
-
             let status = try await getIngestStatus(task.taskId)
+            try watchdog.observe(status)
             // Publish so the progress surfaces see scanning, rate, failures and
             // cancellation as they happen — but ONLY on a real change. A blind
             // assignment every 0.5s invalidates every observer for the whole
             // import even when no number moved.
             if activeIngest != status { activeIngest = status }
+            pacer.record(progress: status.progress)
 
             // Update progress
             if let total = status.total, let processed = status.processed {
@@ -227,18 +225,18 @@ extension ImportService {
             case "cancelling":
                 // Cooperative: the file in flight still has to land. Keep
                 // polling until the engine settles on `cancelled`.
-                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                try await Task.sleep(nanoseconds: UInt64(pacer.interval * 1_000_000_000))
 
             case "pending", "processing", "running":
                 // Continue polling. "running" is the backend's active status
                 // (pending → running → completed/failed, #3283); "processing" is
                 // kept for any legacy responses. Previously "running" fell to the
                 // default and log-spammed "Unknown task status" every poll.
-                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                try await Task.sleep(nanoseconds: UInt64(pacer.interval * 1_000_000_000))
 
             default:
                 logger.warning("Unknown task status: \(status.status)")
-                try await Task.sleep(nanoseconds: UInt64(pollInterval * 1_000_000_000))
+                try await Task.sleep(nanoseconds: UInt64(pacer.interval * 1_000_000_000))
             }
         }
     }
@@ -295,5 +293,31 @@ extension ImportService {
         activeIngestLibraryName = nil
         lastError = nil
         currentTask = nil
+    }
+}
+
+/// PROGRESS watchdog, not a wall clock (Daniel, 2026-08-10: dropping an
+/// iCloud PDF died with 'Import task timed out' — the engine was
+/// legitimately DOWNLOADING the dataless file, #45's ruling, and a flat
+/// deadline cannot tell a big download from a wedge). `limit` bounds
+/// time-since-last-OBSERVED-CHANGE in the task's status: any progress
+/// resets it; only a genuinely stalled task trips.
+struct IngestStallWatchdog {
+    let limit: TimeInterval
+
+    init(limit: TimeInterval) {
+        self.limit = limit
+    }
+    private var lastChangeAt = Date()
+    private var lastObserved: IngestTaskStatus?
+
+    mutating func observe(_ status: IngestTaskStatus) throws {
+        if lastObserved != status {
+            lastObserved = status
+            lastChangeAt = Date()
+        }
+        if Date().timeIntervalSince(lastChangeAt) > limit {
+            throw ImportServiceError.timeout
+        }
     }
 }

@@ -1007,6 +1007,55 @@ class Database(DatabaseEmbeddingMixin):
         """Execute + ``fetchone`` atomically under the lock (#2508)."""
         return self._execute(sql, params, fetch="one")
 
+    def ingest_dedup_source_sizes(self) -> dict[str, int]:
+        """source_path → stored file_size for every non-failed document.
+
+        Companion to ``ingest_dedup_keys`` for the DATALESS fast-skip
+        (2026-08-10): computing a checksum on an evicted iCloud file
+        DOWNLOADS the whole file, so a re-import of an already-imported
+        cloud folder downloaded everything just to prove it was already
+        there. A path+size match lets the skip happen without touching the
+        bytes; any mismatch falls through to the exact checksum path.
+        """
+        rows = self.execute_fetchall(
+            """
+            SELECT COALESCE(
+                       json_extract_string(metadata, '$.source_path'), path),
+                   TRY_CAST(json_extract_string(metadata, '$.file_size') AS BIGINT)
+            FROM documents
+            WHERE status != 'failed'
+              AND json_extract_string(metadata, '$.file_size') IS NOT NULL
+            """
+        )
+        return {row[0]: int(row[1]) for row in rows if row[0] and row[1] is not None}
+
+    def ingest_dedup_keys(self) -> set[tuple[str, str]]:
+        """(source_path, checksum) pairs for every non-failed document.
+
+        The folder-ingest skip-set. Previously built by ``all(Document)``,
+        which hydrates EVERY row into Pydantic objects before the first file
+        of an import is touched — on a large library that was a silent
+        multi-minute freeze. One targeted SELECT of two strings instead.
+        Semantics match the old loop exactly: failed docs excluded (so a
+        failed import retries), soft-deleted rows still included, source
+        path falls back to ``path`` when metadata lacks ``source_path``.
+        """
+        rows = self.execute_fetchall(
+            """
+            SELECT COALESCE(
+                       json_extract_string(metadata, '$.source_path'), path),
+                   json_extract_string(metadata, '$.checksum')
+            FROM documents
+            WHERE status != 'failed'
+              AND json_extract_string(metadata, '$.checksum') IS NOT NULL
+            """
+        )
+        return {
+            (source, checksum)
+            for source, checksum in rows
+            if isinstance(source, str) and isinstance(checksum, str)
+        }
+
     def child_counts(self, parent_ids: list[str]) -> dict[str, int]:
         """Live (non-deleted) child count per parent id, one query.
 
@@ -4461,9 +4510,9 @@ class Database(DatabaseEmbeddingMixin):
             if search_type in ["fulltext", "hybrid"]:
                 try:
                     # Use DuckDB for full-text search
+                    folded_terms = expanded_terms or [_fold_for_search(query)]
                     if has_embeddings:
                         table = self.lance.open_table(EMBEDDINGS_TABLE)
-                        folded_terms = expanded_terms or [_fold_for_search(query)]
                         candidate_limit = max(limit * 4, offset + limit * 2)
                         raw_fulltext_hits: list[dict] = []
                         if not use_fuzzy_match:
@@ -4582,6 +4631,69 @@ class Database(DatabaseEmbeddingMixin):
                                 if max_bm25 > 0
                                 else 1.0
                             )
+                    else:
+                        # NO-EMBEDDINGS FALLBACK (2026-08-10, Daniel: "search
+                        # doesn't seem to work"): the whole full-text leg above
+                        # runs over the LanceDB EMBEDDINGS table, so a corpus
+                        # that has never been embedded — every fresh import —
+                        # was invisible to keyword search too, and hybrid
+                        # returned ZERO for text sitting verbatim in
+                        # page_content (probe-proven). Full text must not
+                        # depend on embeddings: scan the documents table's
+                        # page_content directly. A folded contains + BM25 over
+                        # the matching rows is honest and bounded for local
+                        # libraries; the LanceDB FTS path takes over as soon
+                        # as embeddings exist.
+                        rows = self._execute(
+                            """
+                            SELECT d.id, d.name, d.doc_type, d.file_type,
+                                   d.created_at, d.updated_at, d.page_content
+                            FROM documents d
+                            WHERE d.deleted_at IS NULL
+                              AND d.page_content IS NOT NULL
+                              AND length(d.page_content) > 0
+                            """
+                        ).fetchall()
+                        matched = []
+                        for row in rows:
+                            document_id = row[0]
+                            if not self._is_active_document_id(document_id):
+                                continue
+                            if self._has_indexed_page_children(document_id):
+                                continue
+                            folded_content = _fold_for_search(str(row[6] or ""))
+                            if not any(term and term in folded_content for term in folded_terms):
+                                continue
+                            matched.append((row, folded_content))
+                        if matched:
+                            bm25_scores = _bm25_scores(
+                                [folded for _, folded in matched],
+                                [t for t in folded_terms if t],
+                            )
+                            max_bm25 = max(bm25_scores, default=0.0)
+                            for (row, _), raw_score in zip(matched, bm25_scores):
+                                score = (
+                                    max(0.0, min(1.0, raw_score / max_bm25))
+                                    if max_bm25 > 0
+                                    else 1.0
+                                )
+                                fulltext_results.append(
+                                    {
+                                        "document_id": row[0],
+                                        "score": score,
+                                        "content": str(row[6] or ""),
+                                        "metadata": {
+                                            "name": row[1],
+                                            "doc_type": row[2],
+                                            "file_type": row[3],
+                                            "created_at": row[4],
+                                            "updated_at": row[5],
+                                            "bm25_score": score,
+                                            "match_source": "content-scan",
+                                        },
+                                    }
+                                )
+                            fulltext_results.sort(key=lambda r: r["score"], reverse=True)
                 except Exception as e:
                     logger.warning("Full-text search failed: %s", e)
 

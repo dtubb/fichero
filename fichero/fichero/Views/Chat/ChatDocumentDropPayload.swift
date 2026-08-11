@@ -3,6 +3,12 @@ import UniformTypeIdentifiers
 
 enum ChatDocumentDropPayload {
     static let typeIdentifiers = [
+        // The in-app flavor FIRST (Daniel, 2026-08-10: dragging a PDF from
+        // the SIDEBAR into the chat inspector "won't go" — the sidebar's
+        // named data flavor is what survives multi-item drags, the #4401
+        // lesson; text-only acceptance was the #4474 typed-destination
+        // mismatch, one surface over).
+        UTType.ficheroDragItem.identifier,
         UTType.text.identifier,
         UTType.plainText.identifier
     ]

@@ -102,7 +102,7 @@ final class DropLogVisibilityTests: XCTestCase {
             "the insertion refusal is silent again (#4533)"
         )
         XCTAssertEqual(
-            source.components(separatedBy: "DragDropLog.refused(").count - 1, 4,
+            source.components(separatedBy: "DragDropLog.refused(").count - 1, 5,
             "expected every wired refusal in this file to report through the shared seam"
         )
     }
@@ -118,8 +118,12 @@ final class DropLogVisibilityTests: XCTestCase {
             "Views/Sidebar/ItemRow/SidebarDropOperation.swift"
         ] {
             let source = try Self.appSource(path)
+            // The DECLARATION is what's forbidden — a bare substring match
+            // also hit `handleLibraryHeaderDrop` (the handler's own name) and
+            // the #4533 comments retelling the story, so this test was born
+            // failing in the era the target didn't compile (Aug 4-9).
             XCTAssertFalse(
-                source.contains("LibraryHeaderDrop"),
+                source.contains("category: \"LibraryHeaderDrop\""),
                 "\(path) resurrected the private LibraryHeaderDrop category (#4533)"
             )
         }
@@ -142,7 +146,7 @@ final class DropLogVisibilityTests: XCTestCase {
     /// not just present: a file can lose one refusal and still contain others.
     func testEverySidebarDropSurfaceReportsRefusals() throws {
         let expected = [
-            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": 4,
+            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": 5,
             "Views/Sidebar/ItemRow/SidebarDropOperation.swift": 2,
             "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift": 3,
             "Views/Sidebar/Sections/SidebarSectionHeader.swift": 7

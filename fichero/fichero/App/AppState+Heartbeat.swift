@@ -59,7 +59,24 @@ extension AppState {
 
     func noteHeartbeatFailure(reason: String) async {
         heartbeatFailureCount += 1
-        guard heartbeatFailureCount >= offlineFlipThreshold else { return }
+        // A BUSY engine is not a dead engine (2026-08-09): heavy ingest
+        // starves the single event loop, probes exceed their deadline, and
+        // this path SIGKILLed the very import it was supervising (Daniel's
+        // book import died to our own watchdog, twice). While imports are in
+        // flight the flip threshold quadruples (~40s of patience instead of
+        // ~10s); a genuinely dead engine still gets restarted, just later.
+        let importsRunning = ImportActivityGauge.shared.inFlight > 0
+        let effectiveThreshold = importsRunning
+            ? offlineFlipThreshold * 4 : offlineFlipThreshold
+        if importsRunning, heartbeatFailureCount < effectiveThreshold {
+            logger.info(
+                """
+                Backend heartbeat: probe failed during an in-flight import \
+                (\(self.heartbeatFailureCount)/\(effectiveThreshold)) — treating as busy, not dead
+                """
+            )
+        }
+        guard heartbeatFailureCount >= effectiveThreshold else { return }
         // The active endpoint has stopped answering. Before declaring the paired
         // host unreachable, walk its OTHER known endpoints (LAN → tailnet), each
         // over its own per-endpoint trust and never localhost (#3098). Only when

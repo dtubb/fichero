@@ -510,7 +510,18 @@ extension Document {
     /// view modes read to decide "purple, locked, and refuses drops" (#4514).
     /// Two surfaces asking the same question two ways is how the library grid
     /// ended up with no read-only concept at all.
-    var isLockedSystemNode: Bool { isReadOnly || isWorkflowNode }
+    /// LOCKED means the ENGINE will refuse writes (`read_only`) — nothing
+    /// else. Being a workflow node no longer implies locked (Daniel,
+    /// 2026-08-10: "when you make a new one outside the Default Workflows
+    /// folder it should be editable — currently my new workflow has a lock
+    /// icon"). Default Workflows ship with read_only set; user workflows
+    /// don't.
+    var isLockedSystemNode: Bool { isReadOnly }
+
+    /// The purple "system/workflow" icon treatment — a VISUAL family cue,
+    /// deliberately separate from the lock: every workflow node is purple,
+    /// locked or not.
+    var usesWorkflowTint: Bool { isWorkflowNode || isReadOnly }
 
     /// A folder the user may drop items INTO. A read-only system folder is
     /// not one: the engine 403s the move, so lighting the cell and then
@@ -538,6 +549,28 @@ extension Document {
 }
 
 // MARK: - Default Workflows
+
+extension Document {
+    /// A VIRTUAL page cursor (2026-08-09): stands in for a page that is not
+    /// imported as a document, so the PDF reader can keep its place when the
+    /// user pages through an unprocessed PDF. Marked in metadata; consumers
+    /// that resolve artifacts tolerate the unknown id (they already tolerate
+    /// not-yet-processed pages). Never written to any store and never placed
+    /// in browserSelection.
+    static func virtualPageCursor(pdfParentId: String, pageIndex: Int) -> Document {
+        Document(
+            id: "\(pdfParentId):vpage:\(pageIndex)",
+            parentId: pdfParentId,
+            docType: .page,
+            name: "Page \(pageIndex + 1)",
+            sequence: pageIndex + 1,
+            metadata: [
+                "virtual_page": AnyCodable(true),
+                "pdf_parent_id": AnyCodable(pdfParentId)
+            ]
+        )
+    }
+}
 
 extension Document {
     /// Stable id of the engine's locked "Default Workflows" container folder;

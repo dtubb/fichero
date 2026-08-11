@@ -7,15 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1E62D77EC36B539229657FEE /* DocumentService+Roots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */; };
-		466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */; };
-		6670DE6D7028DF0A6BC7A01D /* DocumentService+Roots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */; };
-		9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
-		B4E1A5D44C050539E13A341F /* ProviderKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
-		EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 /* End PBXBuildFile section */
@@ -72,10 +66,7 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NewLibraryPanel.swift; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProviderKeyStore.swift; sourceTree = "<group>"; };
-		905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentService+Roots.swift"; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
@@ -175,14 +166,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		22EFCE1C87FC1487EC1CBF7F /* Shell */ = {
-			isa = PBXGroup;
-			children = (
-				7CF13B7B23C2FFCF3D20FA33 /* ContentView */,
-			);
-			path = Shell;
-			sourceTree = "<group>";
-		};
 		400 = {
 			isa = PBXGroup;
 			children = (
@@ -197,7 +180,6 @@
 				FE1DAD000000000000000020 /* fichero-ipad-tests */,
 				208ADA9A3022008200B83F96 /* FicheroIOSTests */,
 				420 /* Products */,
-				D0C0989BFAD8F78903736127 /* fichero */,
 			);
 			sourceTree = "<group>";
 		};
@@ -212,48 +194,6 @@
 				208ADA993022008200B83F96 /* FicheroIOSTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		51E2488023D4166B8E8218D5 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				22EFCE1C87FC1487EC1CBF7F /* Shell */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		7CF13B7B23C2FFCF3D20FA33 /* ContentView */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = ContentView;
-			sourceTree = "<group>";
-		};
-		8BCDA383103D21325C46621C /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				20E7E0649E750E42A713D33B /* ProviderKeyStore.swift */,
-				905297AAE1142F18C57ABEAF /* DocumentService+Roots.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		B03A945CBEE23DEE5CD58F29 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				17DCEB98E9E09246087D1F9E /* NewLibraryPanel.swift */,
-			);
-			path = App;
-			sourceTree = "<group>";
-		};
-		D0C0989BFAD8F78903736127 /* fichero */ = {
-			isa = PBXGroup;
-			children = (
-				51E2488023D4166B8E8218D5 /* Views */,
-				B03A945CBEE23DEE5CD58F29 /* App */,
-				8BCDA383103D21325C46621C /* Services */,
-			);
-			path = fichero;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -596,6 +536,51 @@
 				"cp -R \"$ENGINE_SRC\" \"$ENGINE_DST\"",
 				"\"${SRCROOT}/../scripts/clean-embedded-engine.sh\" \"$ENGINE_DST\"",
 				"",
+				"",
+				"",
+				"# ── Rung 1 (2026-08-08): sign the embedded engine INTO the app's sandbox ──",
+				"#",
+				"# Every config is sandboxed since 2026-07-29, but this phase copied the engine",
+				"# WITHOUT signing it. Two live failures follow from that one omission:",
+				"#   - the engine is not part of the app's sandbox identity, so app-scoped",
+				"#     bookmarks never resolve (NSCocoaError 259 on every grant), and",
+				"#   - it keeps Briefcase's hardened-runtime signature with NO entitlements, so",
+				"#     a runtime-extracted pdfium is refused by library validation (#4555).",
+				"#",
+				"# Mirrors the MAS phase's rules: sign IN this phase (Xcode's CodeSign runs",
+				"# after and seals the outer app), NEVER --deep (it re-signs nested code with",
+				"# the PARENT's entitlements), entitlements are the MAS pair {app-sandbox,",
+				"# inherit} — proven by the #3746 spike to run the full engine — and the pair",
+				"# must never travel with get-task-allow (aborts an inherit child, #3952).",
+				"# fm-bridge is signed too: a nested executable spawned by a sandboxed engine",
+				"# needs the same pair or the system kills it at exec (the MAS 90296 lesson).",
+				"ENGINE_ENTITLEMENTS=\"${SRCROOT}/fichero/FicheroEngineEmbedded.entitlements\"",
+				"if [ ! -f \"$ENGINE_ENTITLEMENTS\" ]; then",
+				"  echo \"error: engine entitlements not found at $ENGINE_ENTITLEMENTS\" >&2",
+				"  exit 1",
+				"fi",
+				"IDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:--}\"",
+				"[ -n \"$IDENTITY\" ] || IDENTITY=\"-\"",
+				"FM_BRIDGE=\"$ENGINE_DST/Contents/Resources/app/fichero_server/resources/bin/fm-bridge\"",
+				"if [ -f \"$FM_BRIDGE\" ]; then",
+				"  codesign --force --sign \"$IDENTITY\" --entitlements \"$ENGINE_ENTITLEMENTS\" \"$FM_BRIDGE\" || {",
+				"    echo \"error: failed to sign fm-bridge with the sandbox pair\" >&2; exit 1; }",
+				"fi",
+				"codesign --force --sign \"$IDENTITY\" --entitlements \"$ENGINE_ENTITLEMENTS\" \"$ENGINE_DST\" || {",
+				"  echo \"error: failed to sign the embedded engine with the sandbox pair\" >&2; exit 1; }",
+				"if ! codesign --verify --strict \"$ENGINE_DST\" >/dev/null 2>&1; then",
+				"  echo \"error: embedded engine signature is invalid after signing\" >&2",
+				"  exit 1",
+				"fi",
+				"if ! codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.inherit\"; then",
+				"  echo \"error: embedded engine is missing com.apple.security.inherit\" >&2",
+				"  exit 1",
+				"fi",
+				"if codesign --display --entitlements - \"$ENGINE_DST\" 2>&1 | grep -q \"com.apple.security.get-task-allow\"; then",
+				"  echo \"error: embedded engine carries get-task-allow — incompatible with inherit; the child would abort (#3952)\" >&2",
+				"  exit 1",
+				"fi",
+				"echo \"  embedded engine signed with {app-sandbox, inherit} as $IDENTITY\"",
 				"",
 			);
 		};
@@ -1031,9 +1016,6 @@
 		510 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				EF755E61C77D7A41C64F1A88 /* NewLibraryPanel.swift in Sources */,
-				B4E1A5D44C050539E13A341F /* ProviderKeyStore.swift in Sources */,
-				1E62D77EC36B539229657FEE /* DocumentService+Roots.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1054,9 +1036,6 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				9C35248DE1B8482BD482EBF3 /* NewLibraryPanel.swift in Sources */,
-				466FA5FDCC9820254127EEB5 /* ProviderKeyStore.swift in Sources */,
-				6670DE6D7028DF0A6BC7A01D /* DocumentService+Roots.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

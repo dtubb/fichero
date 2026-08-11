@@ -58,17 +58,16 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Chat/ModelComparison/ComparisonDetailView+Actions.swift",
         # #4123: Transferable export closures run OUTSIDE the SwiftUI
         # environment — the drag-out file promise must resolve the library
-        # via LibraryManager.shared at export time.
-        "fichero/fichero/Views/Sidebar/ItemRow/SidebarItemRow.swift",
+        # via LibraryManager.shared at export time. (The c7f5cb00e lint sweep
+        # moved the export into SidebarDragID.swift; same code, new path.)
+        "fichero/fichero/Views/Sidebar/ItemRow/SidebarDragID.swift",
         # #4106: transient search resolves the ACTIVE library per window at
         # call time (per-library stores live in LibraryManager containers);
         # a single @Environment store cannot express that.
         "fichero/fichero/Views/Shell/ContentView/ContentView+SearchResults.swift",
         "fichero/fichero/Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift",
-        "fichero/fichero/Views/Inspector/Knowledge/EntityDigestView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGMapView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/KGTimelineView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Claim/ClaimReviewQueueSheet.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Claim/ClaimSummaryCard+Details.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Claim/ContradictionTriageSheet.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntityDetailView+Audit.swift",
@@ -78,12 +77,9 @@ KNOWN_VIOLATIONS: dict[str, str] = dict.fromkeys(
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/EntitySplitSheet.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/ForceDirectedGraphView.swift",
-        "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/Entity/NewEntitySheet.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser+Toolbar.swift",
         "fichero/fichero/Views/Library/ViewModes/Graph/Ontology/OntologyBrowser.swift",
-        "fichero/fichero/Views/Inspector/Source/Info/DocumentInspectorInfoTab+Prototype.swift",
-        "fichero/fichero/Views/Inspector/Source/Info/DocumentInspectorInfoTab+RelatedClaims.swift",
         "fichero/fichero/Views/Components/NodeClassPicker.swift",
         "fichero/fichero/Views/Connect/ConnectPairingIOS.swift",
         "fichero/fichero/Views/Settings/AI/LocalModelsSettingsView.swift",

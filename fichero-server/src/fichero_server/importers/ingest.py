@@ -38,8 +38,26 @@ import hashlib
 import json
 import logging
 import mimetypes
+
+# SANDBOX (2026-08-09, Daniel's live log): a bare guess_type() lazily runs
+# mimetypes.init(), which tries to READ system Apache tables
+# (/etc/apache2/mime.types et al). The App Sandbox denies that with
+# [Errno 1] Operation not permitted — and because init never succeeds,
+# EVERY file's metadata extraction failed, taking image dimensions down
+# with it. Initialise once from the built-in table only; identical answers
+# for every type this importer cares about, zero filesystem reads.
+#
+# CPython trap (live-verified on the sandboxed engine, same evening):
+# init(files=[]) is NOT enough — init() PREPENDS mimetypes.knownfiles to
+# whatever you pass (`files = knownfiles + list(files)`), so the system
+# reads still happen and, called at module scope, the PermissionError
+# became an IMPORT failure. Clearing knownfiles first is the documented
+# lever: init() then reads exactly nothing.
+mimetypes.knownfiles = []
+mimetypes.init()
 import os
 import shutil
+import time
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
 from enum import Enum
@@ -47,7 +65,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
 from uuid import uuid4
 
-from fichero_server.importers.dataless import require_local_bytes
+from fichero_server.importers.dataless import dataless_reason, require_local_bytes
 from fichero_server.models import Artifact, Document, DocType, FileType, Status
 
 if TYPE_CHECKING:
@@ -217,6 +235,7 @@ def ingest_file(
     db: "Database | None" = None,
     package_path: Path | None = None,
     original_filename: str | None = None,
+    known_checksum: str | None = None,
 ) -> Document:
     """Ingest a single file.
 
@@ -368,7 +387,9 @@ def ingest_file(
 
     # Extract metadata if requested
     if extract_metadata:
-        _extract_file_metadata(doc, content_path, sidecar_path=path)
+        _extract_file_metadata(
+            doc, content_path, sidecar_path=path, known_checksum=known_checksum
+        )
 
     if sidecar_metadata:
         doc.source_metadata = sidecar_metadata
@@ -495,18 +516,29 @@ def _kreuzberg_pdf_pages(path: Path) -> list[dict[str, Any]]:
     errors so callers can surface the real reason instead of collapsing them
     into "no pages" (#3135).
     """
-    try:
-        from kreuzberg import ExtractionConfig, PageConfig, extract_file_sync
-    except ImportError as exc:
-        raise _KreuzbergUnavailableError(str(exc)) from exc
+    # GATE FIRST (2026-08-09 freeze root): kreuzberg's sync FFI holds the
+    # GIL, so a hanging pdfium bind freezes the WHOLE engine — health goes
+    # dark and the watchdog SIGKILLs it. The gate probed PDF extraction in a
+    # throwaway subprocess; if that failed, do not gamble the process.
+    from fichero_server.loaders.kreuzberg_cache import (
+        KreuzbergSubprocessError,
+        extract_pdf_pages_subprocess,
+        kreuzberg_pdf_usable,
+    )
 
+    if not kreuzberg_pdf_usable(logger=logger):
+        raise _KreuzbergUnavailableError(
+            "pdfium probe failed — kreuzberg disabled for PDFs this run"
+        )
+    # OUT OF PROCESS (2026-08-10): the in-process extract_file_sync
+    # deadlocked the whole engine — its sync FFI holds the GIL while worker
+    # callbacks lazily import C extensions (charset_normalizer one
+    # faulthandler dump, uuid_utils the next). The child pays for any hang
+    # with its own life at the timeout; the engine never stops serving.
     try:
-        cfg = ExtractionConfig(pages=PageConfig(extract_pages=True))
-        result = extract_file_sync(str(path), None, cfg)
-    except Exception as exc:
+        return extract_pdf_pages_subprocess(path)
+    except KreuzbergSubprocessError as exc:
         raise _KreuzbergExtractionError(str(exc)) from exc
-
-    return result.pages or []
 
 
 def _page_records_have_text(records: list[dict[str, Any]]) -> int:
@@ -983,7 +1015,11 @@ def _try_apfs_clone(source: Path, dest: Path) -> bool:
 
 
 def _extract_file_metadata(
-    doc: Document, path: Path, *, sidecar_path: Path | None = None
+    doc: Document,
+    path: Path,
+    *,
+    sidecar_path: Path | None = None,
+    known_checksum: str | None = None,
 ) -> None:
     """Extract basic metadata from file.
 
@@ -998,7 +1034,9 @@ def _extract_file_metadata(
     # other ingest error.
     stat = path.stat()
     doc.metadata["file_size"] = stat.st_size
-    doc.metadata["checksum"] = _file_checksum(path)
+    # Folder ingest already hashed this file for the skip test — reuse it
+    # (2026-08-09): the double SHA-256 was a full second read of every file.
+    doc.metadata["checksum"] = known_checksum or _file_checksum(path)
 
     # Everything below is genuinely best-effort: a corrupt EXIF block or an
     # unparseable header should not fail an import whose bytes are fine.
@@ -1371,18 +1409,21 @@ def ingest_folder(
         on_progress(0, total)
     documents: list[Document] = []
     existing_hashes: set[tuple[str, str]] = set()
+    existing_source_sizes: dict[str, int] = {}
     library_path = package_path or getattr(db, "path", None)
+    # Timed (2026-08-09): this pre-scan used to materialise EVERY document
+    # row into Pydantic objects before the first file was touched — on a
+    # large library that was the silent multi-minute 'frozen with no
+    # progress' phase. Now one targeted SELECT in the persistence layer
+    # (#1876): Database.ingest_dedup_keys().
+    _prescan_started = time.monotonic()
     try:
-        for existing in db.all(Document):
-            if existing.status == Status.failed:
-                continue
-            source_path = (
-                (existing.metadata or {}).get("source_path")
-                or existing.path
-            )
-            checksum = (existing.metadata or {}).get("checksum")
-            if isinstance(source_path, str) and isinstance(checksum, str):
-                existing_hashes.add((source_path, checksum))
+        existing_hashes.update(db.ingest_dedup_keys())
+        existing_source_sizes.update(db.ingest_dedup_source_sizes())
+        logger.info(
+            "ingest.folder.prescan existing=%d elapsed_ms=%d",
+            len(existing_hashes), int((time.monotonic() - _prescan_started) * 1000),
+        )
     except Exception as exc:
         logger.warning(
             "Could not pre-index existing checksums for skip logic in %s: %s",
@@ -1450,6 +1491,24 @@ def ingest_folder(
         try:
             if file_path.is_symlink():
                 raise ValueError(f"Refusing to ingest symlinked file: {file_path}")
+            # DATALESS FAST-SKIP (2026-08-10, Daniel: "importing from iCloud
+            # after already imported is super slow"): _file_checksum READS
+            # the whole file, which for an evicted cloud file triggers the
+            # FULL DOWNLOAD — of a file about to be skipped as a duplicate.
+            # A known source path whose stored size matches the placeholder's
+            # logical size skips without touching the bytes; any mismatch
+            # (changed in the cloud, new file) falls through to the exact
+            # checksum path, which downloads as #45 intends.
+            if dataless_reason(file_path) is not None:
+                stored_size = existing_source_sizes.get(str(file_path))
+                if stored_size is not None and stored_size == file_path.stat().st_size:
+                    logger.info(
+                        "Skipping evicted cloud file (path+size match, no download): %s",
+                        file_path,
+                    )
+                    if on_progress:
+                        on_progress(i + 1, total)
+                    continue
             checksum = _file_checksum(file_path)
             source_key = str(file_path)
             if (source_key, checksum) in existing_hashes:
@@ -1504,6 +1563,10 @@ def ingest_folder(
                         save=True,
                         db=db,
                         package_path=package_path,
+                        # Reuse the skip-test hash EXCEPT for LINK mode, where
+                        # the recompute is the changed-while-ingesting tamper
+                        # check below (2026-08-09).
+                        known_checksum=None if mode == IngestMode.LINK else checksum,
                     )
                     actual_checksum = (doc.metadata or {}).get("checksum")
                     if (

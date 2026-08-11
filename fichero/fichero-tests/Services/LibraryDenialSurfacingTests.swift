@@ -19,6 +19,11 @@
 import Foundation
 import XCTest
 
+// @MainActor: DocumentStore.isRetriableLoadFailure and
+// LibraryManager.loadFailureReason are statics on MainActor types (statics
+// inherit the type's isolation), so the test class must share it to call
+// them synchronously.
+@MainActor
 final class LibraryDenialSurfacingTests: XCTestCase {
 
     private static let engineSentence =

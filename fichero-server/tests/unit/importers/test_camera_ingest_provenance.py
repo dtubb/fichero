@@ -41,13 +41,9 @@ class TestCameraIngestProvenance:
         checksum = _file_checksum(file)
 
         mock_db = MagicMock()
-        mock_db.all.return_value = [
-            Document(
-                name=file.name,
-                path=str(file),
-                metadata={"source_path": str(file), "checksum": checksum},
-            )
-        ]
+        # The skip-set is one targeted SELECT now (2026-08-09):
+        # Database.ingest_dedup_keys() returns (source_path, checksum) pairs.
+        mock_db.ingest_dedup_keys.return_value = {(str(file), checksum)}
         mock_db.save.side_effect = lambda *_args, **_kwargs: None
 
         docs = ingest_folder(camera_dir, db=mock_db, create_collection=False)

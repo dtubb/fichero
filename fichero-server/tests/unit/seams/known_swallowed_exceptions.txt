@@ -134,6 +134,8 @@ workflows/activity.py::get_activity_tracker 1
 workflows/activity_store.py::ActivityStore._init_database 6
 workflows/activity_store.py::ActivityStore.recover_stale_runs._recover 1
 workflows/activity_store.py::_rebuild_workflow_runs_flipping_stale 4
+workflows/activity_store.py::_recover_stale_workflow_runs 1
+workflows/activity_store.py::_reopen_managed_library_connection 1
 workflows/builder.py::_make_node_function.node_function 2
 workflows/builder.py::_make_parallel_node_function.parallel_node_function 7
 workflows/builder.py::_resolve_node_llm_config_inner 1

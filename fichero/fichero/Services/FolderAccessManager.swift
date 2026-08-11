@@ -12,6 +12,14 @@ import SwiftUI
 
 #if os(macOS)
 
+extension Notification.Name {
+    /// Posted whenever the live engine ACCEPTS a security-scoped grant — the
+    /// signal that "terminal" 403 stream denials are no longer terminal
+    /// (2026-08-08: streams gave up during launch, before auth; the
+    /// post-ready sweep then granted access and nothing told them).
+    static let ficheroEngineAccessChanged = Notification.Name("ficheroEngineAccessChanged")
+}
+
 @MainActor
 @Observable
 class FolderAccessManager {
@@ -106,7 +114,7 @@ class FolderAccessManager {
     /// refused by `startAccessingSecurityScopedResource()`, and log a DENIED
     /// error per library per launch. So the gate stays; only the question changed.
     ///
-    /// It asked `#if FICHERO_APP_STORE`, on the premise that App Store was the
+    /// It asked the MAS build flag, on the premise that App Store was the
     /// only sandboxed channel. That died when Dev builds became sandboxed
     /// (2026-07-29): the guard answered "not sandboxed" for a sandboxed Dev
     /// engine, no bookmark reached it, `_granted_roots()` stayed empty — and
@@ -115,9 +123,25 @@ class FolderAccessManager {
     /// could be served, which is what "creating a library doesn't work" was
     /// (2026-08-04). Asked at RUNTIME now, so it cannot go stale again.
     func engineBookmarkPayload() -> String? {
-        guard SandboxEnvironment.isSandboxed else { return nil }
         let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
-        return Self.bookmarkPayload(from: stored)
+        return Self.engineBookmarkPayload(
+            stored: stored, isSandboxed: SandboxEnvironment.isSandboxed
+        )
+    }
+
+    /// Channel gate + encoding, pure. The bookmarks belong to the sandbox; a
+    /// channel that has no sandbox must not be handed them (the DMG engine
+    /// would try to resolve, be refused, and log DENIED per library on every
+    /// launch). Pure because the old test observed the gate through the TEST
+    /// HOST's own sandbox state — true when the suite was written (Dev Local
+    /// unsandboxed), silently inverted on 2026-07-29 when Dev Local gained
+    /// the sandbox. A gate that can only be observed in one channel per build
+    /// is a gate nothing can pin; this form pins both directions.
+    static func engineBookmarkPayload(
+        stored: [String: Data], isSandboxed: Bool
+    ) -> String? {
+        guard isSandboxed else { return nil }
+        return bookmarkPayload(from: stored)
     }
 
     /// Pure JSON encoding of the payload — separated from UserDefaults so the wire
@@ -209,14 +233,22 @@ class FolderAccessManager {
     /// re-sent at every spawn via the env var, so the worst case is ordering: the
     /// open fails with a permission error the app surfaces, and the retry succeeds.
     private func handOffToEngine(path: String, bookmark: Data) {
-        #if FICHERO_APP_STORE
+        // Runtime sandbox check, never the MAS build flag — that flag
+        // was a proxy for "are we sandboxed" from when MAS was the only
+        // sandboxed channel. That premise died on 2026-07-29 (every config is
+        // sandboxed now); `engineBookmarkPayload` was fixed then and these two
+        // methods were missed, so the runtime handoff compiled to a NO-OP in
+        // every non-MAS build: zero POSTs to /api/sandbox/security-scoped-access
+        // ever, every library picked after engine start unreachable, and
+        // folder-drop imports 403ing (found live, 2026-08-08). Same rationale
+        // as SandboxEnvironment.swift's own doc comment.
+        guard SandboxEnvironment.isSandboxed else { return }
         Task { @MainActor in
             // Fire-and-forget: this caller does not immediately read the path, so a
             // denial is swallowed here — it is still surfaced via engineAccessFailure
             // (set before the throw) and re-sent at the next spawn.
             try? await grantEngineAccess(path: path, bookmark: bookmark)
         }
-        #endif
     }
 
     /// Await the engine's grant for a freshly-minted bookmark (#3773). The ordered
@@ -231,7 +263,11 @@ class FolderAccessManager {
     /// spawn-time env var covers anything minted that early) and on the
     /// non-App-Store build (no sandbox — nothing to grant).
     private func grantEngineAccess(path: String, bookmark: Data) async throws {
-        #if FICHERO_APP_STORE
+        // Runtime check, not the MAS build flag — see
+        // `handOffToEngine` above. An unsandboxed app has nothing to grant
+        // (the engine reads the filesystem directly), so returning without
+        // throwing is the documented no-grant-needed case.
+        guard SandboxEnvironment.isSandboxed else { return }
         guard let service = engineAccessService else {
             logger.debug("No engine access service yet; \(path) will be granted at next spawn")
             return
@@ -239,6 +275,9 @@ class FolderAccessManager {
         do {
             try await service.grantAccess(toPath: path, bookmark: bookmark)
             engineAccessFailure = nil
+            // Revive any stream that hit a "terminal" 403 before this grant
+            // existed — the authorization answer just changed.
+            NotificationCenter.default.post(name: .ficheroEngineAccessChanged, object: nil)
         } catch {
             // Loud AND fatal to the caller's engine work: the engine cannot read
             // this folder, so ingesting/opening it would fail later with an
@@ -247,7 +286,6 @@ class FolderAccessManager {
             engineAccessFailure = error.localizedDescription
             throw error
         }
-        #endif
     }
 
     /// Persist access for a directory (a picked folder, or a `.fichero` package)
@@ -269,6 +307,35 @@ class FolderAccessManager {
         // engine either inherits same-sandbox access or the grant is a no-op.
         guard let bookmarkData = mintBookmark(for: url) else { return }
         try await grantEngineAccess(path: url.path, bookmark: bookmarkData)
+    }
+
+    /// Re-send EVERY persisted bookmark to the live engine.
+    ///
+    /// Why (Daniel's launch log, 2026-08-08): eleven grants fired DURING
+    /// launch — bookmark restore/refresh runs long before the engine is
+    /// authenticated — and the engine refused each one (403). Nothing ever
+    /// re-sent them, so every library outside the container stayed
+    /// unreachable for the whole session even though the app held valid,
+    /// freshly-minted bookmarks. The lifecycle controller calls this once at
+    /// first-authenticated-ready; the grant route is idempotent, so
+    /// re-sending already-held paths costs nothing.
+    func resendAllGrantsToEngine() async {
+        guard SandboxEnvironment.isSandboxed else { return }
+        let stored = UserDefaults.standard.dictionary(forKey: bookmarksKey) as? [String: Data] ?? [:]
+        guard !stored.isEmpty else { return }
+        var granted = 0
+        for (path, bookmark) in stored {
+            do {
+                try await grantEngineAccess(path: path, bookmark: bookmark)
+                granted += 1
+            } catch {
+                // grantEngineAccess already logged the refusal and surfaced
+                // engineAccessFailure; the sweep reports the tally below.
+            }
+        }
+        logger.info(
+            "Post-ready grant sweep: \(granted) of \(stored.count) bookmark(s) granted to the live engine"
+        )
     }
 
     /// Restore bookmarks on app launch
@@ -382,8 +449,9 @@ extension FolderAccessManager {
     /// A DENIED grant throws BEFORE `engineWork` runs, so the engine is never asked
     /// to read a path it can't open (the error propagates to the caller). One
     /// awaited seam so the ordering is unit-testable without a live sandbox
-    /// (FICHERO_APP_STORE is off in the test target, so the real grant is a no-op
-    /// there — this pins the contract both paths rely on).
+    /// (the runtime sandbox guard answers false in the unsandboxed test
+    /// target, so the real grant is a no-op there — this pins the contract
+    /// both paths rely on).
     @MainActor
     static func grantThenEngineWork<T>(
         grant: () async throws -> Void,

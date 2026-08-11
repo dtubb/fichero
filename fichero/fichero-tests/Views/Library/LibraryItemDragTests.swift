@@ -11,7 +11,9 @@ final class LibraryItemDragTests: XCTestCase {
 
     func testExternalFileDragsSuggestTheDocumentName() throws {
         let root = try AppSource.root()
-        for path in ["Models/Document.swift", "Views/Sidebar/ItemRow/SidebarItemRow.swift"] {
+        // SidebarDragID's Transferable moved out of SidebarItemRow.swift in
+        // the 2026-08-09 row slimming; the export contract is what's pinned.
+        for path in ["Models/Document.swift", "Views/Sidebar/ItemRow/SidebarDragID.swift"] {
             let source = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
             XCTAssertTrue(source.contains(".suggestedFileName(\\.name)"), path)
         }
@@ -23,12 +25,12 @@ final class LibraryItemDragTests: XCTestCase {
         // renamed/split; the doc-drag marker now lives in both IconMode and
         // ListView, and the page-drag marker in TableColumns.
         let surfaces = [
-            ("Views/Library/ViewModes/LibraryView+IconMode.swift", ".draggable(libraryItemDrag(for: doc))"),
-            ("Views/Library/ViewModes/LibraryView+ListView.swift", ".draggable(libraryItemDrag(for: doc))"),
+            ("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift", ".draggable(libraryItemDrag(for: doc))"),
+            ("Views/Library/ViewModes/List/LibraryView+ListView.swift", ".draggable(libraryItemDrag(for: doc))"),
             ("Views/Inspector/Artifacts/ArtifactListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Inspector/Notes/Annotations/AnnotationListView.swift", ".draggable(LibraryItemDrag("),
             ("Views/Library/Notes/NoteListView.swift", ".draggable(LibraryItemDrag("),
-            ("Views/Library/ViewModes/LibraryView+TableColumns.swift", ".draggable(libraryItemDrag(for: page))")
+            ("Views/Library/ViewModes/Table/LibraryView+TableColumns.swift", ".draggable(libraryItemDrag(for: page))")
         ]
 
         for (path, marker) in surfaces {

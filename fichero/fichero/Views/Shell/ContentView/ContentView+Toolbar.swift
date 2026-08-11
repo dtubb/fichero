@@ -205,12 +205,26 @@ extension ContentView {
     /// one use, so the symbol and its call site cannot drift apart again.
     private var viewDisplayModeMenu: some View {
         Menu {
-            ForEach(availableViewDisplayModes) { mode in
-                Button {
-                    updateViewDisplayMode(mode)
-                } label: {
-                    Label(mode.label, systemImage: mode.icon)
+            // Deferred to menu-OPEN (the stall sampler attributed 217ms
+            // main-thread stalls to this menu's body, 2026-08-08 night):
+            // toolbar menu content is evaluated on window render, and the
+            // #4575 per-folder branch JSON-decodes the folder-mode map on
+            // every evaluation. Same mechanism as the row context menus
+            // (#4544) — one cheap struct init per render, the real work at
+            // open time.
+            SidebarDeferredMenuContent {
+                ForEach(availableViewDisplayModes) { mode in
+                    Button {
+                        updateViewDisplayMode(mode)
+                    } label: {
+                        Label(mode.label, systemImage: mode.icon)
+                    }
                 }
+                // NO per-folder items (Daniel's final #4575 ruling,
+                // 2026-08-09: the mode never changes with the folder —
+                // "confusing to have things jumping around"). The mode is one
+                // choice per window; the restore in
+                // handleSidebarSelectionChange is gone with this menu.
             }
         } label: {
             Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
@@ -266,7 +280,7 @@ extension ContentView {
                     return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
                 }()
 
-                HStack(spacing: 16) {
+                HStack(spacing: 10) {
                     HStack(spacing: 4) {
                         if let libraryName {
                             HStack(spacing: 3) {
@@ -274,6 +288,12 @@ extension ContentView {
                                     .imageScale(.small)
                                 Text(libraryName)
                                     .font(.subheadline)
+                                    .lineLimit(1)
+                                    .layoutPriority(1)
+                                    // Middle-truncate (Daniel #176): a long
+                                    // name must never push toolbar icons out.
+                                    .truncationMode(.middle)
+                                    .frame(maxWidth: 200)
                             }
                             .foregroundStyle(.secondary)
 
@@ -290,9 +310,36 @@ extension ContentView {
                             Text(toolbarTitle)
                                 .font(.headline)
                                 .lineLimit(1)
+                                // The NAME wins the space fight (#184: 'I…ox'
+                                // — the title was crushed to four characters
+                                // while the island had room to spare).
+                                .layoutPriority(2)
+                                // CAPPED + middle-truncated (Daniel #176, live:
+                                // a 70-char archival folder name swallowed the
+                                // whole toolbar and the trailing icons with
+                                // it). An ellipsis mid-name loses the least —
+                                // archival names front-load the year and
+                                // back-load the distinguishing tail.
+                                // ponytail: fixed cap; a window-relative cap
+                                // needs GeometryReader plumbing into toolbar
+                                // content — upgrade if 380pt misfits a size.
+                                .truncationMode(.middle)
+                                .frame(maxWidth: 460)
                         }
                         .foregroundStyle(.primary)
                     }
+                    // HUG the content (Daniel, 2026-08-10 #220: "this is too
+                    // wide the island… spacing between icons and chevron and
+                    // next is too much"): the per-text maxWidth caps (#176)
+                    // are EXPANDING frames under the toolbar's generous
+                    // proposal, so short names centered in wide frames read
+                    // as giant gaps. fixedSize proposes nil width, which
+                    // makes every frame(maxWidth:) hug its text (still
+                    // capped and middle-truncated for long names), and the
+                    // island shrinks to what it actually says. The edge
+                    // padding gives the leading icon room from the capsule.
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 6)
                     // No painted lozenge (#4360): the toolbar's own Liquid Glass
                     // carries this principal item; the old low-opacity primary
                     // fill was a hand-rolled approximation of that material.
@@ -306,6 +353,7 @@ extension ContentView {
                         importProgress: importProgress,
                         libraryId: windowState.libraryId,
                         libraryName: windowState.library?.displayName ?? "Library",
+                        selectionCount: browserSelection.count,
                         importError: $importError
                     )
                 }

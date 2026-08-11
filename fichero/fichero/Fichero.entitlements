@@ -1,10 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Debug / Dev Embedded app entitlements. These configs are SANDBOXED via the
+  ENABLE_APP_SANDBOX build setting (2026-07-29) but this file carried only
+  the keychain group — no user-selected file access and no bookmark rights,
+  so the dev app minted app-scoped bookmarks it was not entitled to mint
+  (mintBookmark does not throw; the engine then fails to resolve them with
+  NSCocoaError 259 — engine sandbox P0 plan, 2026-08-08). Mirrors the MAS
+  file's file-access grants.
+-->
 <plist version="1.0">
 <dict>
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)app.fichero.fichero</string>
 	</array>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.document-scope</key>
+	<true/>
 </dict>
 </plist>

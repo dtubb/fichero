@@ -51,7 +51,28 @@ final class SidebarDropProviderDeliveryTests: XCTestCase {
             "platform truth: an NSString provider bridges to URL; if this ever flips, the doc above is stale"
         )
         XCTAssertTrue(capabilities[0].registeredTypeIdentifiers.contains(UTType.utf8PlainText.identifier))
-        XCTAssertTrue(sidebarDropMightCarryInternalID(capabilities))
+        // #4569: a plain-text registration NO LONGER marks a drag as
+        // possibly-internal — a Finder drag of a .txt registers
+        // public.utf8-plain-text as CONTENT, and both real in-app drag types
+        // export the NAMED ficheroDragItem flavor. A bare string provider is
+        // exactly how foreign text looks, so it must not be ours.
+        XCTAssertFalse(sidebarDropMightCarryInternalID(capabilities))
+    }
+
+    /// #4569 regression: a Finder drag of a TEXT FILE — file-url plus
+    /// utf8-plain-text CONTENT — is an external import, never
+    /// possibly-internal ("Couldn't read what was dragged", empty.txt,
+    /// live 2026-08-08).
+    func testAFinderTextFileDragIsExternalNotInternal() {
+        let capabilities = [SidebarDropProviderCapabilities(
+            canLoadURL: true,
+            canLoadString: true,
+            registeredTypeIdentifiers: [
+                UTType.fileURL.identifier, UTType.utf8PlainText.identifier
+            ]
+        )]
+        XCTAssertFalse(sidebarDropMightCarryInternalID(capabilities))
+        XCTAssertTrue(capabilities[0].registersExternalPayload)
     }
 
     /// A Finder-shaped provider vends a URL — and, PLATFORM TRUTH, ALSO
@@ -173,13 +194,13 @@ final class SidebarDropProviderDeliveryTests: XCTestCase {
     /// "Couldn't read what was dragged" — an accusation about a drag that never
     /// came from inside the app. Deliberately safe-by-default (the alternative
     /// re-imports real documents), but the message is wrong for this case.
-    func testForeignPlainTextDeliversTheUnreadableInternalVerdict() async {
+    func testForeignPlainTextDeliversUnsupportedNotUnreadable() async {
+        // #4569: bare prose (a text SELECTION dragged from another app)
+        // registers only plain text — which no longer reads as our flavor, so
+        // the verdict is a loudly-logged .unsupported, not the
+        // "Couldn't read what was dragged" alert meant for OUR broken drags.
         let payload = await readSidebarDropPayload([stringProvider("some pasted prose")])
-        XCTAssertEqual(payload, .unreadableInternal)
-        XCTAssertNotEqual(
-            payload, .externalFiles,
-            "safe by default: never fall through to ingestion"
-        )
+        XCTAssertEqual(payload, .unsupported)
     }
 
     /// The #4401 shape itself, delivered rather than simulated: a drag that
@@ -344,7 +365,7 @@ final class SidebarDropProviderDeliveryTests: XCTestCase {
     func testBothDragTypesExportTheNamedFlavor() throws {
         let root = try AppSource.root()
         let sidebarSource = try String(
-            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarDragID.swift"),
             encoding: .utf8
         )
         let modelSource = try String(

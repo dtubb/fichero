@@ -119,4 +119,31 @@ final class DocumentStoreBusyStateTests: XCTestCase {
         ]
         XCTAssertTrue(store.folderHasBusyChild("folder-2"))
     }
+
+    /// The processing INDEX (2026-08-09 perf fix: isDocumentBusy went from
+    /// O(all documents) scans per call to one set test) must invalidate on
+    /// every source mutation — a stale index would freeze or phantom a
+    /// spinner, which is worse than the scan it replaced.
+    func testProcessingIndexInvalidatesOnEverySource() {
+        let store = makeStore()
+        XCTAssertFalse(store.isDocumentBusy("a"))
+
+        store.workflowStatusOverrides["a"] = .processing
+        XCTAssertTrue(store.isDocumentBusy("a"), "override mutation must invalidate")
+        store.workflowStatusOverrides.removeValue(forKey: "a")
+        XCTAssertFalse(store.isDocumentBusy("a"), "override removal must invalidate")
+
+        store.currentDocuments = [doc("b", parent: nil, status: .processing)]
+        XCTAssertTrue(store.isDocumentBusy("b"), "currentDocuments mutation must invalidate")
+        store.currentDocuments = []
+        XCTAssertFalse(store.isDocumentBusy("b"))
+
+        store.collections = [doc("c", parent: nil, status: .processing)]
+        XCTAssertTrue(store.isDocumentBusy("c"), "collections mutation must invalidate")
+
+        store.childrenCache["p"] = [doc("d", parent: "p", status: .processing)]
+        XCTAssertTrue(store.isDocumentBusy("d"), "childrenCache mutation must invalidate")
+        store.childrenCache["p"] = []
+        XCTAssertFalse(store.isDocumentBusy("d"), "childrenCache overwrite must invalidate")
+    }
 }

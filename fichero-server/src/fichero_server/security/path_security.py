@@ -245,6 +245,44 @@ def is_sandbox_container_drop_staging(path: Path, home: Path) -> bool:
     )
 
 
+def is_sandbox_container_library_staging(path: Path, home: Path) -> bool:
+    """True iff path is a .fichero package staged in ONE sandbox container's tmp.
+
+    The New Library flow creates `Untitled-….fichero` under the app
+    container's `Data/tmp` before moving it into place — and that directory
+    was not in the allowed roots, so a sandboxed app could not create a
+    library inside its OWN sandbox (engine sandbox P0 plan, option (a),
+    approved by Daniel 2026-08-08; log evidence 08:40:09).
+
+    Same TWO SHAPES as `is_sandbox_container_drop_staging` (see its docstring
+    for why): the sandboxed engine sees the container tmp as `$HOME/tmp`, the
+    unsandboxed one as `~/Library/Containers/<container>/Data/tmp`.
+
+    ponytail: like its drop-staging sibling this is DELIBERATELY narrower
+    than the tmp directory — the first component under tmp must itself be a
+    `.fichero` package, so it admits Fichero's own library staging and
+    nothing else in any container's tmp. NEVER relax the single-component
+    container or the suffix.
+    """
+    try:
+        parts = path.relative_to(home / "tmp").parts
+    except ValueError:
+        pass
+    else:
+        return bool(parts) and parts[0].endswith(".fichero")
+
+    try:
+        parts = path.relative_to(home / "Library" / "Containers").parts
+    except ValueError:
+        return False
+    # parts = (<container>, "Data", "tmp", "<name>.fichero", <...>*)
+    return (
+        len(parts) >= 4
+        and parts[1:3] == ("Data", "tmp")
+        and parts[3].endswith(".fichero")
+    )
+
+
 def ingest_allowed_roots() -> list[Path]:
     """Directory roots a file may be imported FROM.
 
@@ -314,6 +352,8 @@ def is_allowed_ingest_path(path: str | Path) -> bool:
         is_sandbox_container_app_support(candidate, home) for candidate in candidates
     ) or any(
         is_sandbox_container_drop_staging(candidate, home) for candidate in candidates
+    ) or any(
+        is_sandbox_container_library_staging(candidate, home) for candidate in candidates
     )
 
 

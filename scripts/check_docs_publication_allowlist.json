@@ -42,6 +42,7 @@
     "contributor/release/backend-python-dependencies.md",
     "contributor/release/release-notes-0.0.2.md",
     "contributor/release/release-readiness.md",
+    "contributor/verify-checklists/sidebar-ux-verify.md",
     "design/agentic-surface-consolidation-fabel-review.md",
     "design/engine-package-reorg.md",
     "design/engine-startup-speedup-plan.md",

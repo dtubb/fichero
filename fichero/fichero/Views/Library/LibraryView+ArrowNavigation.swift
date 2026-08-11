@@ -80,7 +80,10 @@ extension LibraryView {
         }
 
         applySelection(targetIndex: targetIndex, ids: ids)
-        if displayMode == .icon || displayMode == .list || displayMode == .table || displayMode == .columns {
+        // O11 (2026-08-09): .table has NO listScrollTarget consumer (no
+        // ScrollViewReader) — writing it there left a stale id for the next
+        // mode switch. Native Table follows its own selection.
+        if displayMode == .icon || displayMode == .list || displayMode == .columns {
             listScrollTarget = ids[targetIndex]
         }
         focusSelectedEntityIfNeeded()
@@ -219,6 +222,19 @@ extension LibraryView {
             anchor: selectionAnchor,
             extendingRange: extending
         ))
+        // The preview follows the cursor row — the SAME rule the mouse path
+        // applies in handleTap (night review, divergence 2: arrow keys wrote
+        // `selection` only, so keyboard selection reached the preview through
+        // ContentView's later promotion policy while clicks wrote directly —
+        // two grammars for one outcome, and the policy path declines to
+        // promote in some layouts where the direct path always shows).
+        // O12 (2026-08-09): navigableDocument, not filteredDocuments —
+        // deeper-column rows live in columnsChildren and are absent from the
+        // filtered list, so arrows there selected a row whose preview never
+        // followed while a click on the same row worked.
+        if let doc = navigableDocument(for: targetId) {
+            detailDocument = doc
+        }
     }
 
     private func focusSelectedEntityIfNeeded() {

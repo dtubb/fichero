@@ -52,7 +52,6 @@ struct ChangeHandlerModifiers: ViewModifier {
 
     let handleViewModeChange: (AppViewMode) -> Void
     let handleSidebarModeChange: (SidebarMode) -> Void
-    let handleBrowserSelectionChange: (Set<String>) -> Void
     let handleDocumentChange: (DocumentChange) -> Void
 
     func body(content: Content) -> some View {
@@ -62,9 +61,6 @@ struct ChangeHandlerModifiers: ViewModifier {
             }
             .onChange(of: sidebarMode) { _, newMode in
                 handleSidebarModeChange(newMode)
-            }
-            .onChange(of: browserSelection) { _, newSelection in
-                handleBrowserSelectionChange(newSelection)
             }
             .onReceive(
                 documentStore.documentChangePublisher
@@ -161,6 +157,10 @@ struct MainContentModifiers: ViewModifier {
     @Binding var viewMode: AppViewMode
     @Binding var browserSelection: Set<String>
     @Binding var detailDocument: Document?
+    /// The reader's page-focus cursor (#1463): moving it changes which page
+    /// the PDF canvas shows WITHOUT re-rooting `detailDocument`. The sidebar
+    /// page-click fix (2026-08-08) writes it — see `handleViewModeChange`.
+    @Binding var pageFocusDocument: Document?
     @Binding var columnVisibility: NavigationSplitViewVisibility
     @Binding var editingWorkflow: Workflow
     @Binding var currentLayoutMode: LayoutMode
@@ -171,13 +171,26 @@ struct MainContentModifiers: ViewModifier {
     /// Last workflow definition this window loaded or the server confirmed — the
     /// baseline that lets cross-window re-sync tell "no unsaved edits" (safe to
     /// overwrite) from "local edits pending" (must not clobber). See #2278 /
-    /// `WorkflowSync`.
-    @State private var lastSyncedWorkflow: Workflow?
+    /// `WorkflowSync`. Internal, not private: the view-mode routing extension
+    /// (MainContentModifiers+ViewMode.swift) reads/writes it.
+    @State var lastSyncedWorkflow: Workflow?
     /// Coalesces the active workflow's graph re-fetch on change-stream bursts
     /// (#2278), independent of the sidebar-list reload task in ContentView.
     @State private var workflowGraphResyncTask: Task<Void, Never>?
+    /// The in-flight selection→content load (#4574). Cancelled and replaced
+    /// on every selection change: without this, each click spawned an
+    /// untracked Task and rapid page-clicks STACKED full loads — the
+    /// signposts measured a superseded load still costing 620.8ms on the
+    /// main thread. `loadChildren` treats cancellation as a non-failure, so
+    /// cancelling the loser is free.
+    @State var selectionLoadTask: Task<Void, Never>?
 
     let handleDocumentChange: (DocumentChange) -> Void
+    /// True while the SIDEBAR holds a multi-selection (2026-08-09 scoping):
+    /// the multi-scope handler owns currentDocuments then, and the
+    /// single-selection navigate path below must stand down or it stomps
+    /// the scoped set with the primary's children.
+    let isSidebarMultiSelect: () -> Bool
 
     func body(content: Content) -> some View {
         content
@@ -195,7 +208,6 @@ struct MainContentModifiers: ViewModifier {
                 detailDocument: $detailDocument,
                 handleViewModeChange: handleViewModeChange,
                 handleSidebarModeChange: handleSidebarModeChange,
-                handleBrowserSelectionChange: handleBrowserSelectionChange,
                 handleDocumentChange: handleDocumentChange
             ))
             // Note: SheetModifiers removed - app-level sheets now handled in LibraryWindow
@@ -247,107 +259,74 @@ struct MainContentModifiers: ViewModifier {
         }
     }
 
-    private func handleViewModeChange(_ newMode: AppViewMode) {
-        logger.info("handleViewModeChange called with mode: \(String(describing: newMode))")
-
-        // Load workflow from API when workflow mode changes
-        if case .workflow(let workflowItem) = newMode, let item = workflowItem {
-            // Keep editable metadata aligned immediately to avoid rename races while
-            // the full workflow payload is loading asynchronously.
-            if editingWorkflow.id == item.id {
-                editingWorkflow.name = item.name
-                editingWorkflow.description = item.description ?? ""
-            }
-
-            Task {
-                do {
-                    let fullWorkflow = try await workflowStore.getWorkflow(item.id)
-                    // Use the initializer that copies ALL fields (nodes, edges, provider, model, etc.)
-                    editingWorkflow = Workflow(from: fullWorkflow)
-                    // Freshly loaded from the server → this IS the baseline for
-                    // cross-window re-sync (#2278): no local edits yet.
-                    lastSyncedWorkflow = editingWorkflow
-                } catch {
-                    logger.error("Failed to load workflow: \(error.localizedDescription)")
-                    editingWorkflow = Workflow(id: item.id, name: item.name, description: item.description ?? "")
-                    lastSyncedWorkflow = nil
-                }
-            }
+    /// Whether the current view already belongs to `mode`'s family WITH an
+    /// explicit selection — the #1475 preservation rule, shared by the
+    /// workflows/automation/activity arms so a mode change can never stomp
+    /// the editor the same click just selected.
+    static func viewBelongsToMode(_ view: AppViewMode, mode: SidebarMode) -> Bool {
+        switch mode {
+        case .library:
+            if case .library = view { return true }
+            return false
+        case .chat:
+            if case .chat = view { return true }
+            if case .comparison = view { return true }
+            return false
+        case .workflows:
+            return workflowsFamilyHolds(view)
+        case .automation:
+            return automationFamilyHolds(view)
+        case .activity:
+            if case .activity(let selected) = view { return selected != nil }
+            return false
+        case .research, .knowledgeGraph:
+            return false
         }
+    }
 
-        // Load children from backend when a library container is selected.
-        // Containers = folders (contents) + PDFs (pages, per #568/#570). Using
-        // Document.isNavigableContainer keeps this check in sync with
-        // double-click routing and sidebar-filter semantics — one property,
-        // one definition of "container." Everything else (plain files) shows
-        // as a single item in the gallery.
-        if case .library(let doc) = newMode, let document = doc {
-            if document.isNavigableContainer {
-                logger.info("Loading children for container: \(document.name) (id: \(document.id))")
-                Task {
-                    await documentStore.selectCollection(document)
-                    detailDocument = document
-                    let docCount = documentStore.currentDocuments.count
-                    logger.info("selectCollection completed. currentDocuments count: \(docCount)")
-                }
-            } else {
-                logger.info("Showing single file in gallery: \(document.name)")
-                // Apply status overrides so failed/processing state survives
-                // navigation to single-file gallery — direct assignment was
-                // bypassing the override layer that other load paths use,
-                // making the red-X workflow-error icon vanish on click-away
-                // even though success checkmarks persisted (#791).
-                documentStore.currentDocuments =
-                    documentStore.applyStatusOverrides([document])
-            }
-        } else if case .library(nil) = newMode {
-            logger.info("Library mode with no document selected - showing all documents")
-        }
+    private static func workflowsFamilyHolds(_ view: AppViewMode) -> Bool {
+        if case .workflow(let selected) = view { return selected != nil }
+        if case .chain(let selected) = view { return selected != nil }
+        if case .batches = view { return true }
+        return false
+    }
 
+    private static func automationFamilyHolds(_ view: AppViewMode) -> Bool {
+        if case .automation = view { return true }
+        if case .schedule(let selected) = view { return selected != nil }
+        if case .trigger(let selected) = view { return selected != nil }
+        return false
     }
 
     private func handleSidebarModeChange(_ newMode: SidebarMode) {
+        // ONE family rule (#1475, generalized 2026-08-10 after Daniel's "it
+        // never shows the node editor"): the mirror-click routing sets BOTH
+        // sidebarMode and viewMode, then this handler fired on the mode flip
+        // and overwrote the freshly selected editor back to its mode's nil
+        // default — the 'Select a Workflow' placeholder every time. If the
+        // current view already belongs to the new mode's family, this
+        // handler has nothing to normalize.
+        if Self.viewBelongsToMode(viewMode, mode: newMode) { return }
         switch newMode {
-        case .library:
-            if case .library = viewMode { return }
-            viewMode = .library(nil)
-        case .chat:
-            // Model Comparison lives under the chat sidebar mode. "New
-            // Comparison" sets sidebarMode = .chat AND viewMode = .comparison(nil);
-            // without this guard the mode-change handler immediately overwrote
-            // viewMode back to .chat(nil), so the comparison UI was never
-            // reachable (#1475). Preserve an explicitly-set comparison view.
-            if case .comparison = viewMode { return }
-            viewMode = .chat(nil)
-        case .workflows:
-            viewMode = .workflow(nil)
-        case .automation:
-            viewMode = .automation
-        case .activity:
-            viewMode = .activity(nil)
+        case .library: viewMode = .library(nil)
+        case .chat: viewMode = .chat(nil)
+        case .workflows: viewMode = .workflow(nil)
+        case .automation: viewMode = .automation
+        case .activity: viewMode = .activity(nil)
         case .research, .knowledgeGraph:
-            // Research and Knowledge Graph have no ViewMode case; contentView
-            // intercepts on sidebarMode == .research / .knowledgeGraph, so leave
-            // viewMode untouched.
+            // No ViewMode case; contentView intercepts on sidebarMode, so
+            // leave viewMode untouched.
             break
         }
     }
 
-    private func handleBrowserSelectionChange(_ newSelection: Set<String>) {
-        if newSelection.isEmpty {
-            detailDocument = nil
-            return
-        }
-        if let firstId = newSelection.first,
-           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
-           BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
-            layoutMode: currentLayoutMode,
-            selectedDocumentId: firstId,
-            currentDetailDocumentId: detailDocument?.id
-           ) {
-            detailDocument = doc
-        }
-    }
+    // handleBrowserSelectionChange DELETED (2026-08-08 night review, finding A):
+    // it was a STRIPPED COPY of ContentView.handleBrowserSelectionChange
+    // (StateEvents) registered as a SECOND onChange(of: browserSelection) on
+    // the same window — every selection click ran both bodies in undefined
+    // order and wrote detailDocument twice ("the preview redraws twice on
+    // each row"). The full handler in ContentView+RootLayout is the ONE
+    // registration; this struct no longer observes browserSelection at all.
 
     private func syncActiveWorkflowMetadata(with updatedWorkflows: [WorkflowSidebarItem]) {
         guard case .workflow(let selectedWorkflow) = viewMode,

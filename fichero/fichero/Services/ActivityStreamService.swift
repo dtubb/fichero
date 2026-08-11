@@ -30,7 +30,7 @@ final class ActivityStreamService {
 
     /// The engine's OWN explanation for the 403, when it sent one (#4532).
     /// `nil` means it refused without a usable body. Never a guess: this is
-    /// rendered to the user, and the previous hardcoded "no role on library"
+    /// rendered to the user, and the previous hardcoded no-role sentence
     /// was wrong for the denial that actually occurs most often.
     private(set) var accessDeniedMessage: String?
 
@@ -64,9 +64,39 @@ final class ActivityStreamService {
     func start(onEvent: @escaping @MainActor (ActivityItem) -> Void) {
         guard !started else { return }
         started = true
+        lastOnEvent = onEvent
         task = Task { [weak self] in
             await self?.runLoop(onEvent: onEvent)
         }
+    }
+
+    /// The handler kept for a revival after a "terminal" denial — a 403 IS
+    /// terminal for retry loops, but a granted bookmark changes the answer
+    /// (2026-08-08: launch-time denials preceded the post-ready grant sweep).
+    private var lastOnEvent: (@MainActor (ActivityItem) -> Void)?
+    private var accessChangeObserver: (any NSObjectProtocol)?
+
+    private func armRevivalOnAccessChange() {
+        guard accessChangeObserver == nil else { return }
+        accessChangeObserver = NotificationCenter.default.addObserver(
+            forName: .ficheroEngineAccessChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.reviveAfterAccessChange() }
+        }
+    }
+
+    private func reviveAfterAccessChange() {
+        if let observer = accessChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            accessChangeObserver = nil
+        }
+        guard accessDenied, let onEvent = lastOnEvent else { return }
+        log.info("activity stream reviving — a grant changed the engine's answer")
+        accessDenied = false
+        accessDeniedMessage = nil
+        liveUpdatesUnavailable = false
+        started = false
+        start(onEvent: onEvent)
     }
 
     func stop() {
@@ -96,6 +126,7 @@ final class ActivityStreamService {
                     accessDeniedMessage = detail
                     accessDenied = true
                     liveUpdatesUnavailable = true
+                    armRevivalOnAccessChange()
                 }
                 return
             } catch {

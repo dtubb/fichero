@@ -124,7 +124,21 @@ def test_canonical_list_is_derived_from_the_workspace_root(tmp_path):
 def test_every_scene_is_examined(tmp_path):
     app_dir, workspace, manager = _fixture(tmp_path)
     _, examined = scan(app_dir, workspace, manager, detached=CONTRACTS)
-    assert examined == 2
+    # 3 since the 2026-08-09 helper-credit rule: good, bad, and the scene
+    # injecting via the shared libraryServiceEnvironment helper.
+    assert examined == 3
+
+
+def test_helper_injected_scene_stays_quiet(tmp_path):
+    """A scene applying the shared helper is credited with exactly the
+    services the helper's own .environment calls name (2026-08-09) — the
+    Swift-side fix for the 13 document-detail gaps must not re-fire."""
+    app_dir, workspace, manager = _fixture(tmp_path)
+    found, _ = scan(
+        app_dir, workspace, manager, detached=CONTRACTS,
+        helper_env_file=app_dir / "LibraryServiceEnvironment.swift",
+    )
+    assert not any(key.startswith("helper (Window)") for key in found), sorted(found)
 
 
 def test_helper_function_roots_are_inlined(tmp_path):

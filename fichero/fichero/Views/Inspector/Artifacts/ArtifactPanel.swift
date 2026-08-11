@@ -179,11 +179,29 @@ struct ArtifactPanel: View {
         // SwiftUI frame onto the attribute strip above it (#1245).
         .clipped()
         .onDisappear {
+            // FLUSH FIRST (Daniel 2026-08-09 #174): teardown is a navigation
+            // too — a window switch or layout change that removes the editor
+            // must persist the in-flight draft, not drop it with the view.
+            // The task holds the @State boxes it needs; clean drafts no-op.
+            if onSave != nil { Task { await flushAutoSave() } }
             // Stop offering this editor's flush once it leaves the hierarchy
             // (tab switched away, document deselected) so a later
             // flushActivePageEdit() doesn't call into a gone editor (#2476).
             if isPageContent { documentStore?.unregisterActivePageEdit() }
         }
+        #if os(macOS)
+        // A WINDOW SWITCH does not blur the editor — the old window keeps its
+        // first responder, so the .onChange(of: isEditorFocused) flush never
+        // fires and the draft sat unsaved (Daniel 2026-08-09 #174: "I moved
+        // to another window and my edits weren't saved"). Key-loss is the
+        // signal; a clean draft makes the flush a guarded no-op.
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)
+        ) { _ in
+            guard onSave != nil else { return }
+            Task { await flushAutoSave() }
+        }
+        #endif
         .onChange(of: isExpanded) { _, newValue in
             // Persist the user's choice so it carries across documents
             // and across app launches. See `storageKey(for:)` for keying.

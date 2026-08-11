@@ -36,19 +36,29 @@ extension LibraryView {
     /// The documents of column `depth`: 0 = the browsed set, deeper = the
     /// cached children of the path segment above it.
     func columnsDocuments(atDepth depth: Int) -> [Document] {
-        guard depth > 0 else { return filteredDocuments }
+        // Depth 0 is the library's TOP LEVEL (Daniel, 2026-08-10 #222: "the
+        // column view should begin at the current top level, and not with
+        // the selection") — selecting a page in the sidebar used to make
+        // column one that PDF's pages with no path context to browse left
+        // through. `collections` is the store's root listing; the current
+        // listing remains the fallback until roots have loaded.
+        guard depth > 0 else {
+            let roots = documentStore.collections
+            return roots.isEmpty ? filteredDocuments : roots
+        }
         let path = columnsLivePath
         guard depth <= path.count else { return [] }
         return columnsChildren[path[depth - 1]] ?? []
     }
 
-    /// The trailing preview column's document: a SINGLE selected non-folder,
-    /// wherever it lives in the open columns. Multi-select or a folder
-    /// selection shows no preview column (Finder behavior — folders disclose
-    /// their children instead).
     var columnsPreviewDocument: Document? {
+        // orderedPrimarySelectionId, not `selection.first` (rule 2 of the
+        // selection-grammar guardrail, 2026-08-09): the count==1 guard made
+        // .first deterministic HERE, but this was the one resolver on the
+        // wrong seam — and the guardrail now forbids the shape outright so
+        // the next reader doesn't copy it somewhere unguarded.
         guard selection.count == 1,
-              let id = selection.first,
+              let id = orderedPrimarySelectionId,
               let doc = navigableDocument(for: id),
               doc.docType != .folder else { return nil }
         return doc
@@ -62,6 +72,7 @@ extension LibraryView {
     }
 
     var columnsView: some View {
+        GeometryReader { outer in
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 HStack(spacing: 0) {
@@ -77,9 +88,15 @@ extension LibraryView {
                     // no editing; Reader/Inspector stay separate surfaces).
                     // Stable id keeps the mount across doc flips (#788).
                     if let previewDoc = columnsPreviewDocument {
+                        // Full remaining width (Daniel #222: "it should be
+                        // able to have a wider preview so we can use the
+                        // full preview width") — the preview column fills
+                        // whatever the open columns leave, never less than
+                        // a readable floor.
+                        let columnsWidth = CGFloat(columnsLivePath.count + 1) * 241
                         EditorView(document: previewDoc)
                             .id("columns.preview")
-                            .frame(width: 320)
+                            .frame(width: max(360, outer.size.width - columnsWidth))
                             .accessibilityIdentifier("libraryColumnPreview")
                         Divider()
                     }
@@ -95,7 +112,12 @@ extension LibraryView {
             }
             // A document.* change can add/remove/rename anything mid-path —
             // refetch the open columns so they never go stale (#3249 class).
-            .onChange(of: documentStore.currentDocuments) { _, _ in
+            // O3 (2026-08-09): keyed on the store's cheap revision token,
+            // not the whole [Document] array — the array observation diffed
+            // every element per tick just to decide "something changed".
+            // The refetch itself stays force:true (#3249: a rename mid-path
+            // must not be served from the cache).
+            .onChange(of: documentStore.revision) { _, _ in
                 Task { @MainActor in await loadColumnsChildren(force: true) }
             }
             .onChange(of: listScrollTarget) { _, id in
@@ -103,6 +125,10 @@ extension LibraryView {
                 proxy.scrollTo(id, anchor: nil)
                 listScrollTarget = nil
             }
+            // Seed root→…→parent from the current selection so entering
+            // columns mode shows the selected item IN CONTEXT (#222).
+            .task { await seedColumnsPathFromSelection() }
+        }
         }
     }
 
@@ -124,11 +150,18 @@ extension LibraryView {
         // would also own per-column selection, breaking the single shared
         // selection set. What List gives free is provided explicitly:
         // selection (LibrarySelectableRow), a11y (combined elements +
-        // libraryColumnRow identifiers), hover (LibraryRowHoverWash).
+        // libraryColumnRow identifiers). No hover — not a mac idiom.
         // Same constraint as list mode's sanctioned entry.
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach(docs) { doc in
+                    // Hoisted (V6, 2026-08-09): the SAME selected-looking
+                    // predicate feeds the fill AND the hover gate — hovering
+                    // an ancestor path segment used to wash a row that was
+                    // painted selected, because the hover gate only asked
+                    // about the live selection.
+                    let rowLooksSelected = (isActiveColumn && selection.contains(doc.id))
+                        || (!isActiveColumn && path.indices.contains(depth) && path[depth] == doc.id)
                     LibrarySelectableRow(
                         identity: ColumnRowIdentity(
                             document: doc,
@@ -137,25 +170,28 @@ extension LibraryView {
                             isRenaming: renamingDocumentId == doc.id
                         ),
                         // Active-column rows carry the live selection; an
-                        // ancestor's path segment keeps the same grey fill
-                        // as a passive trail marker (Finder/Mail).
-                        isSelected: (isActiveColumn && selection.contains(doc.id))
-                            || (!isActiveColumn && path.indices.contains(depth) && path[depth] == doc.id),
-                        tint: isActiveColumn ? selectionTint : .secondary
+                        // ancestor's path segment stays the passive GREY
+                        // trail marker (Finder) — `focused: false` keeps it
+                        // out of the accent grammar by construction.
+                        isSelected: rowLooksSelected,
+                        tint: isActiveColumn ? selectionTint : .secondary,
+                        focused: isActiveColumn && isPaneFocused
                     ) {
                         millerRow(doc, depth: depth, isActiveColumn: isActiveColumn)
                     }
                     .equatable()
-                    .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
                     .id(doc.id)
-                    .draggable(libraryItemDrag(for: doc))
+                    .draggable(libraryItemDrag(for: doc)) {
+                        RowDragPreview(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+                    }
                     .modifier(LibraryFolderCellDrop(
                         acceptsDrop: doc.acceptsItemDrops,
                         onDropProviders: { providers in handleFolderCellDrop(providers, into: doc) }
                     ))
                     .onTapGesture(count: 2) { handleDoubleClick(doc) }
                     .onTapGesture { handleColumnTap(doc, depth: depth) }
-                    .contextMenu { documentContextMenu(for: doc) }
+                    // Menu built at OPEN, not per render (#4544 pattern).
+                    .contextMenu { SidebarDeferredMenuContent { documentContextMenu(for: doc) } }
                 }
             }
         }
@@ -176,8 +212,15 @@ extension LibraryView {
             // is why a workflow mirror row read as a plain text document.
             Image(systemName: doc.displaySymbol())
                 .symbolVariant(doc.docType == .folder ? .fill : .none)
-                .symbolRenderingMode(doc.isLockedSystemNode ? .hierarchical : .monochrome)
-                .foregroundStyle(columnRowTint(doc))
+                .symbolRenderingMode(doc.usesWorkflowTint ? .hierarchical : .monochrome)
+                // Selected rows recolor the glyph with the SAME content token
+                // as the name — an accent folder glyph on the focused accent
+                // platter otherwise vanishes.
+                .foregroundStyle(
+                    isActiveColumn && selection.contains(doc.id)
+                        ? LibrarySelectionStyle.rowContent(selected: true, focused: isActiveColumn && isPaneFocused)
+                        : columnRowTint(doc)
+                )
                 .frame(width: 16)
             if renamingDocumentId == doc.id {
                 EditableDocumentName(
@@ -195,10 +238,16 @@ extension LibraryView {
                 // one case it was supposed to cover.
                 Text(DocumentTitle.displayName(for: doc))
                     .font(.body)
+                    // The ONE grammar's content token (2026-08-09): the old
+                    // The old per-label tint gave ACCENT text — invisible on the focused
+                    // accent platter rowFill now paints (the Columns preview
+                    // showed a selected row with no name at all). rowContent
+                    // is white-on-accent / accent-on-grey, same as Mail.
                     .foregroundStyle(
-                        isActiveColumn && selection.contains(doc.id)
-                            ? LibrarySelectionStyle.labelTint(focused: isPaneFocused)
-                            : .primary
+                        LibrarySelectionStyle.rowContent(
+                            selected: isActiveColumn && selection.contains(doc.id),
+                            focused: isActiveColumn && isPaneFocused
+                        )
                     )
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -226,7 +275,7 @@ extension LibraryView {
     /// Purple for a system-owned node, matching the sidebar's locked rows
     /// (#4514); accent for a folder the user owns; secondary for a leaf.
     private func columnRowTint(_ doc: Document) -> Color {
-        if doc.isLockedSystemNode { return .purple }
+        if doc.usesWorkflowTint { return .purple }
         return doc.docType == .folder ? .accentColor : .secondary
     }
 
@@ -345,3 +394,7 @@ extension LibraryView {
         }
     }
 }
+
+// The whole-mode canvas for THIS file (Daniel, 2026-08-09: every view-mode
+// file previews in place). One shared fixture environment — LibraryModeFixtures.
+#Preview("Columns mode") { LibraryPreviewFixtures.mode(.columns, .columns) }

@@ -99,6 +99,13 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
         .frame(height: Self.standardHeight)
         .controlSize(.regular)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        // NEVER wider than the pane (Daniel, 2026-08-10: "the mini toolbars
+        // I think should never be wider than their view") — a crowded row's
+        // intrinsic minimum otherwise propagates up and pushes the pane's
+        // layout width past its visible split cell. min 0 breaks that
+        // propagation; the clip hides any overflowing tail.
+        .frame(minWidth: 0, maxWidth: .infinity)
+        .clipped()
         #else
         GlassEffectContainer {
             HStack(spacing: 12) {
@@ -115,6 +122,9 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
             #endif
             .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 10))
         }
+        // Same width clamp as the visionOS branch above — see that comment.
+        .frame(minWidth: 0, maxWidth: .infinity)
+        .clipped()
         #endif
     }
 

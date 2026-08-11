@@ -319,8 +319,48 @@ def test_grant_does_not_allow_dotdot_escape(monkeypatch):
 
 
 def test_rejected_path_log_includes_path_home_and_failed_check(caplog):
-    api_main._log_rejected_library_path("/Users/real-user/X.fichero")
+    api_main._rejected_library_path_detail("/Users/real-user/X.fichero")
 
     assert "path=/Users/real-user/X.fichero" in caplog.text
     assert f"home={Path.home()}" in caplog.text
     assert "failed_check=roots" in caplog.text
+
+
+def test_rejection_detail_names_the_suffix_when_not_a_fichero_package():
+    """The 403 must state the branch that actually failed — never the old
+    "not in an allowed location OR not a .fichero package" disjunction, in
+    which both clauses read as false to the user."""
+    detail = api_main._rejected_library_path_detail("/Users/real-user/notes.txt")
+
+    assert "/Users/real-user/notes.txt" in detail
+    assert ".fichero" in detail
+    assert "allowed" not in detail.lower()  # the location clause must not appear
+
+
+def test_rejection_detail_names_the_location_when_outside_all_roots():
+    detail = api_main._rejected_library_path_detail("/Users/real-user/X.fichero")
+
+    assert "/Users/real-user/X.fichero" in detail
+    assert "outside" in detail
+    # It must AFFIRM the package is valid rather than cast doubt on it.
+    assert "is a .fichero package" in detail
+
+
+def test_rejection_detail_is_never_the_old_disjunction():
+    for path in ("/Users/real-user/X.fichero", "/Users/real-user/notes.txt"):
+        detail = api_main._rejected_library_path_detail(path)
+        assert "not in an allowed location or not a .fichero package" not in detail
+
+
+def test_sandbox_grant_route_is_exempt_from_header_validation():
+    """The grant route EXPANDS the allowed set — validating the current
+    library's header against the not-yet-expanded set 403s the very request
+    that fixes it (chicken-and-egg, live 2026-08-08: every folder drop failed
+    while an ungranted library was current)."""
+    assert api_main._library_header_validation_exempt("/api/sandbox/security-scoped-access")
+    assert api_main._library_header_validation_exempt("/api/sandbox/anything-future")
+
+
+def test_every_other_route_still_validates_the_header():
+    for path in ("/api/documents", "/api/registry", "/api/health", "/api/sandboxed-not-really"):
+        assert not api_main._library_header_validation_exempt(path), path

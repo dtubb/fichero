@@ -23,26 +23,24 @@ import Testing
 @MainActor
 struct SidebarSelectionStyleTests {
 
-    // MARK: - Selection does not touch the label
+    // MARK: - Finder's selection grammar (Daniel, 2026-08-08)
 
-    /// Daniel's two named defects, as one equality: selecting a row must
-    /// change NOTHING about its label. If a future change makes selection
-    /// bold or re-colour the text, this is the assertion that fails.
-    @Test("selection changes nothing about the label")
-    func selectionDoesNotChangeTheLabel() {
-        #expect(
-            LibrarySelectionStyle.sidebarLabel(isSelected: true)
-                == LibrarySelectionStyle.sidebarLabel(isSelected: false)
-        )
+    /// Supersedes #4371's "selection changes nothing": like Finder's sidebar
+    /// and Mail's mailbox list, the grey fill carries the ROW and the NAME
+    /// takes the system accent when selected. Weight never changes — the
+    /// accent is the signal, and white-on-accent stays reserved for the
+    /// DROP target.
+    @Test("a selected label takes the accent colour, an unselected one stays primary")
+    func selectionTintsTheLabelAccent() {
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false).color == .primary)
     }
 
-    @Test("the label keeps the standard text colour, never white or accent")
-    func labelKeepsStandardColour() {
+    @Test("the label is never white — the inversion belongs to the drop target only")
+    func labelIsNeverWhite() {
         for isSelected in [true, false] {
             let style = LibrarySelectionStyle.sidebarLabel(isSelected: isSelected)
-            #expect(style.color == .primary, "isSelected: \(isSelected)")
-            #expect(style.color != .white)
-            #expect(style.color != .accentColor)
+            #expect(style.color != .white, "isSelected: \(isSelected)")
         }
     }
 
@@ -78,6 +76,34 @@ struct SidebarSelectionStyleTests {
     func libraryLabelTintIsUnchanged() {
         #expect(LibrarySelectionStyle.labelTint(focused: true) == .accentColor)
         #expect(LibrarySelectionStyle.labelTint(focused: false) == .secondary)
+    }
+
+    // MARK: - Daniel's canonical selection spec (2026-08-09). These test
+    // names STATE THE RULE — this surface has been re-litigated repeatedly
+    // from screenshots, and a named pin stops the next agent reverting it
+    // from an older note.
+
+    @Test("LIBRARY selection is WHITE name text on a GREEN (accent) background")
+    func librarySelectionIsWhiteOnGreen() {
+        #expect(LibrarySelectionStyle.rowFill(selected: true, focused: true) == .accentColor)
+        #expect(LibrarySelectionStyle.rowContent(selected: true, focused: true) == .white)
+    }
+
+    @Test("SIDEBAR selection is GREEN text on a light grey platter — never the accent fill")
+    func sidebarSelectionIsGreenOnGrey() {
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).weight == .regular)
+        // The platter must never be the accent (#137: "it's never a row
+        // green color, except when you're a drop target").
+        #expect(SidebarConstants.selectedRowFill != Color.accentColor)
+    }
+
+    @Test("the two selection languages are DELIBERATELY different — do not unify")
+    func libraryAndSidebarStayAsymmetric() {
+        // Library focused-selected content is white; sidebar selected label
+        // is accent. If either line fails, someone unified the treatments.
+        #expect(LibrarySelectionStyle.rowContent(selected: true, focused: true) == .white)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
     }
 
     // MARK: - Structural: no second selection language in the sidebar
@@ -137,17 +163,30 @@ struct SidebarSelectionStyleTests {
     func sidebarRowAppliesTheSharedStyle() throws {
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
         #expect(source.contains("LibrarySelectionStyle.sidebarLabel(isSelected:"))
-        #expect(source.contains(".foregroundStyle(rowLabelStyle.color)"))
+        // The one content-colour rule (rowContentColor, Daniel's preview
+        // review 2026-08-08): white ONLY while a drop targets the row (the
+        // one solid-accent platter left), otherwise the shared style's
+        // colour. No prominence switch — the selected platter is the grey
+        // fill sidebarDropHighlight paints itself, never the native
+        // emphasized accent, so the content never needs to invert.
+        #expect(source.contains(".foregroundStyle(rowContentColor)"))
+        #expect(!source.contains("backgroundProminence"))
         #expect(source.contains(".fontWeight(rowLabelStyle.weight)"))
     }
 
     /// The system's own selection fill is tinted to the shared colour, so the
     /// native treatment and the app's vocabulary agree instead of fighting.
-    @Test("the sidebar list tints the native selection to the shared fill")
-    func sidebarListTintsTheNativeSelection() throws {
+    @Test("the sidebar list keeps the NATIVE source-list selection — no tint")
+    func sidebarListKeepsNativeSelection() throws {
         let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        #expect(source.contains(".tint(LibrarySelectionStyle.fill)"))
-        // Still a native sidebar List — the fix is the colour, not a rewrite.
+        // #4563 (2026-08-08): the #4371 tint did not hold for the FOCUSED
+        // selection on the current SDK — the platter rendered saturated
+        // accent ("bright green background"). The native .sidebar selection
+        // is Finder's grey material in both focus states; no tint may wrap
+        // it again without a new decision from Daniel.
+        #expect(!source.contains(".tint(LibrarySelectionStyle.fill)"))
+        // Still a native sidebar List — the fix is removing the override,
+        // not a rewrite.
         #expect(source.contains(".listStyle(.sidebar)"))
         #expect(source.contains("List(selection: sidebarSelectionBinding)"))
     }

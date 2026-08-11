@@ -85,6 +85,8 @@ extension ContentView {
     /// not replace that path, which stays the proven-safe route for the
     /// common Finder-drag case.
     func handleContentPaneExternalDrop(_ providers: [NSItemProvider]) {
+        // Loads issued synchronously in the drop callback (drop#44 fix).
+        let eager = eagerSidebarDropLoads(providers)
         Task {
             // Read the payload BEFORE resolving any file URL (#4401). `.item`
             // is UTType's root, so this destination matches every in-app drag
@@ -93,20 +95,13 @@ extension ContentView {
             // document from the sidebar into the content pane therefore made a
             // second, hollow copy of it. Positive identification first is the
             // same rule the sidebar row and the folder cell already follow.
-            switch await readSidebarDropPayload(providers, surface: "content-pane") {
+            switch await readSidebarDropPayload(providers, surface: "content-pane", preloaded: eager) {
             case .internalItems, .unreadableInternal:
-                logger.error("Content-pane drop came from inside the app; refusing to import")
-                await MainActor.run {
-                    // #4311: this claimed the item was "already in this
-                    // library", which this branch cannot know — a drag from
-                    // another OPEN library lands here too, and the payload
-                    // carries no library. It now states only what is true.
-                    importError = """
-                        That item was dragged from inside Fichero, so it wasn't imported. \
-                        Drop it on a folder to file it, or — if it came from another \
-                        library — copying between libraries isn't supported yet.
-                        """
-                }
+                // NO alert for a no-op internal drop (Daniel #133, 2026-08-09:
+                // "nothing should happen, don't do an alert") — the drag
+                // simply doesn't land; macOS snaps the item back. The refusal
+                // is fully logged for diagnosis instead.
+                logger.error("Content-pane drop came from inside the app; refusing to import (no-op, no alert)")
                 return
             case .externalFiles, .unsupported:
                 break
@@ -118,10 +113,10 @@ extension ContentView {
                 }
             }
             guard !urls.isEmpty else {
-                logger.warning("Content-pane drop: all provider loads failed — import won't fire")
-                await MainActor.run {
-                    importError = "Couldn't read the dropped item(s). Nothing was imported."
-                }
+                // Unreadable payloads stay silent too (Daniel #136: 'if drop
+                // fails don't do alert, unless its obvious. but log it
+                // properly') — nothing moved, nothing lost, snap-back says no.
+                logger.error("Content-pane drop: all provider loads failed — import won't fire (no-op, no alert)")
                 return
             }
             await MainActor.run {
@@ -145,16 +140,11 @@ extension ContentView {
     private func externalURLsRefusingOwnDragExports(_ urls: [URL]) -> [URL] {
         let (external, internalExports) = partitionFicheroInternalDragExports(urls)
         guard !internalExports.isEmpty else { return external }
+        // NO alert (Daniel #133): the internal-export portion is a no-op —
+        // logged, dropped, and the genuinely external files still import.
         logger.error(
-            "Refusing to import \(internalExports.count) item(s) dragged from inside the app"
+            "Refusing to import \(internalExports.count) item(s) dragged from inside the app (no-op, no alert)"
         )
-        // #4311: identifies our export by the `fichero-drag-` prefix EVERY
-        // library shares, so it cannot know which library sent it.
-        importError = """
-            That item was dragged from inside Fichero, so it wasn't imported. \
-            Drop it on a folder to file it, or — if it came from another \
-            library — copying between libraries isn't supported yet.
-            """
         return external
     }
 

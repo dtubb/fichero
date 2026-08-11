@@ -1,6 +1,33 @@
 import FicheroAPIClient
 import SwiftUI
 
+/// Whether a library click on `clicked` should move the page-focus cursor
+/// (onPageFocus) instead of re-rooting `detailDocument` — true exactly when
+/// it is a PAGE of the PDF the preview is already rooted on, directly or via
+/// an earlier page of the same parent. Re-rooting on a sibling page reloads
+/// the transcript pane under a click meant to move within it (#1463 class);
+/// table mode has moved the cursor since the sidebar page-click fix, and the
+/// grid modes now match (2026-08-09, #100 sibling sweep).
+///
+/// FILE SCOPE deliberately: a static on a `View` inherits MainActor under the
+/// macOS 26 SDK and SIGTRAPs Swift Testing off-main (DocumentThumbnailKind
+/// precedent).
+func pageClickMovesCursorOnly(clicked: Document, detailDocument: Document?) -> Bool {
+    guard clicked.docType == .page, let root = detailDocument else { return false }
+    let clickedParent = pdfParentDocumentId(of: clicked)
+    guard clickedParent != nil else { return false }
+    if root.fileType == .pdf { return clickedParent == root.id }
+    if root.docType == .page { return clickedParent == pdfParentDocumentId(of: root) }
+    return false
+}
+
+/// A page's owning PDF id: the explicit `pdf_parent_id` metadata when present
+/// (virtual page cursors), else its `parentId` — the same ladder
+/// `resolvedParentPDFDocumentId` reads.
+func pdfParentDocumentId(of doc: Document) -> String? {
+    doc.metadata["pdf_parent_id"]?.value as? String ?? doc.parentId
+}
+
 // MARK: - Selection, Tap Handling, and Open Affordances
 
 extension LibraryView {
@@ -59,7 +86,13 @@ extension LibraryView {
     /// document. Explicit New Tab / New Window affordances stay in the context
     /// menu. (#3364)
     func handleDoubleClick(_ doc: Document) {
-        listScrollCenterTarget = doc.id
+        // O10 (2026-08-09): only icon and list CONSUME the center target;
+        // writing it in table/columns left a stale id that fired a spurious
+        // center-scroll on the next switch to a consuming mode — the exact
+        // bug the list consumer's comment says was fixed once already.
+        if displayMode == .icon || displayMode == .list {
+            listScrollCenterTarget = doc.id
+        }
         openDocument(doc)
     }
 
@@ -102,7 +135,17 @@ extension LibraryView {
         // DESELECTED it, in which case previewing it would contradict the
         // selection.
         if result.selection.contains(doc.id) {
-            detailDocument = doc
+            // A page of the ALREADY-rooted PDF moves the page-focus cursor
+            // only (2026-08-09, #100 sibling sweep): table mode has done this
+            // via onPageFocus since the sidebar page-click fix, while the
+            // grid modes re-rooted detailDocument — reloading the transcript
+            // pane under a click meant to move within it (#1463 class) and
+            // leaving the preview's page label to a stale cursor.
+            if pageClickMovesCursorOnly(clicked: doc, detailDocument: detailDocument) {
+                onPageFocus(doc)
+            } else {
+                detailDocument = doc
+            }
         }
 
         // Drill-in is a PLAIN-click behaviour only: a ⇧ or ⌘ click is building

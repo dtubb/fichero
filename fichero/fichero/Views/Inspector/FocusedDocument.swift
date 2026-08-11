@@ -112,43 +112,17 @@ struct DocumentDetailWindow: View {
         for document: Document,
         library: LibraryManager.LibraryReference
     ) -> some View {
+        // A detached inspector is its own Scene, so NOTHING inherits: the
+        // library environment has to be carried across by hand. This used to
+        // be a hand-copied list of 33 — the second of three such lists, and it
+        // had already drifted (no `workflowStore`, no Activity stores). One
+        // shared list now (#4455, 2026-08-08 crash loop); add a service there
+        // and every boundary gets it.
         DocumentInspector(document: document)
-            .environment(library.entityService)
-            .environment(library.artifactService)
-            .environment(library.kgCurationService)
-            .environment(library.savedSearchService)
-            .environment(library.bookmarkService)
-            .environment(library.searchService)
-            .environment(library.conversationService)
-            .environment(library.chatService)
-            .environment(library.workspaceStore)
-            .environment(library.batchStore)
-            .environment(library.workflowService)
-            .environment(library.workflowStreamService)
-            .environment(library.importService)
-            .environment(library.documentService)
-            .environment(library.storageService)
-            .environment(library.providerService)
-            .environment(library.modelService)
-            .environment(library.researchService)
-            .environment(library.apiClient)
+            .libraryServiceEnvironment(library)
             .environment(libraryManager)
             .environment(claimFocusState)
             .environment(windowState)
             .environment(kgFocusState)
-            .environment(library.documentStore)
-            .environment(library.entityStore)
-            .environment(library.claimStore)
-            .environment(library.noteStore)
-            .environment(library.annotationStore)
-            .environment(library.actionStore)
-            .environment(library.auditStore)
-            .environment(library.researchStore)
-            .environment(library.searchStore)
-            .environment(library.artifactStore)
-            .environment(library.citationStore)
-            .environment(library.referenceStore)
-            .environment(library.interpretationStore)
-            .environment(library.changeStream)
     }
 }

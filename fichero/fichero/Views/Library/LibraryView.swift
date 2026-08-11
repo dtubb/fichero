@@ -252,7 +252,26 @@ struct LibraryView: View {
     // Degraded fallback only: live activity/change-stream signals now trigger
     // the surgical pending-status refresh immediately (#3200). Keep the timer
     // only while live updates are paused/unavailable.
-    private let processingPollTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    // STATIC (O4, 2026-08-09): a stored `let` on a View struct re-created —
+    // and .autoconnect() re-subscribed — a new publisher on EVERY LibraryView
+    // init. One shared publisher serves every instance; the per-view guard
+    // below still suppresses the work.
+    private static let processingPollTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    private var processingPollTimer: Publishers.Autoconnect<Timer.TimerPublisher> { Self.processingPollTimer }
+
+    /// Reentrancy gate for the sort chain (O1/O2, 2026-08-09): a header click
+    /// used to run syncServerListingSort + recomputeFiltered THREE times —
+    /// sortOrder's handler writes sortFieldRaw/sortAscending, whose handlers
+    /// each re-ran the same sync. Writers that already sync set this flag so
+    /// the field handlers know the work is covered.
+    @State var isApplyingSortChange = false
+
+    /// Rubber-band sweep state (icon mode, 2026-08-09) — an @Observable box
+    /// so per-tick rect mutation re-renders only the overlay, never the
+    /// grid; see MarqueeModel. Frames stay @State (they change on layout,
+    /// not per tick).
+    @State var marqueeModel = MarqueeModel()
+    @State var iconTileFrames: [String: CGRect] = [:]
     private var shouldUseProcessingPollFallback: Bool {
         guard let ref = scopedLibraryReference else { return false }
         return ref.changeStream.liveUpdatesUnavailable || ref.activityStore.liveUpdatesPaused
@@ -328,7 +347,24 @@ struct LibraryView: View {
     /// bounded now rather than after a failed build.
     @ViewBuilder
     private var libraryFailureOrRows: some View {
-        if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
+        if appState.engine.phase == .starting {
+            // FIRST LAUNCH, engine still booting (Daniel's screenshot,
+            // 2026-08-10 5:57pm): the pane showed "No Access to Local /
+            // You're not signed in" while the toolbar said "Starting
+            // engine…" — a stale AccessError from the pre-boot probe
+            // rendered as if the running engine had denied us. While the
+            // engine is STARTING there is nothing to be signed in to; show
+            // the calm truth, and the phase change re-evaluates this branch
+            // the moment the engine is up.
+            VStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Starting engine…")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !isShowingEntitiesCollection, let denial = documentStore.error as? AccessError {
             // Never a silent 403 / blank pane (F6): a denied library read lands on
             // the explicit access state — which library, why, who you are, and the
             // next action — instead of the generic "couldn't load" text.
@@ -469,6 +505,13 @@ struct LibraryView: View {
                     }
                 }
             )
+            // Sheets are a HOSTING BOUNDARY (2026-08-08 night review B3, the
+            // crash class that killed the app four times that day): content
+            // must be re-injected with every non-optional @Environment object
+            // it reads. WorkflowEditor's sheet (its own file) is the house
+            // convention; these three under-injected. The full library list
+            // is the safe form — a hand-picked subset crashes on the next
+            // service a sheet grows.
             .sheet(isPresented: $showWorkflowPicker) {
                 WorkflowPickerSheet(
                     selectedDocumentIds: selectedDocumentIdsForBatch,
@@ -480,13 +523,17 @@ struct LibraryView: View {
                 )
                 .environment(libraryManager)
                 .environment(executionObserver)
+                .environment(windowState)
+                .modifier(SheetLibraryEnvironment(library: scopedLibraryReference))
             }
             .sheet(item: $workspacePickerDocument) { document in
                 WorkspaceItemPicker(document: document)
                     .environment(executionObserver)
+                    .modifier(SheetLibraryEnvironment(library: scopedLibraryReference))
             }
             .sheet(item: $bookmarkPickerDocument) { document in
                 BookmarksView(document: document, onOpen: { openDocument($0) })
+                    .modifier(SheetLibraryEnvironment(library: scopedLibraryReference))
             }
             // A failed drop onto a folder cell must SAY so (#4474). It used to
             // be logged only, so a refused move looked exactly like one that
@@ -565,12 +612,16 @@ struct LibraryView: View {
                 recomputeFiltered()
             }
             .onChange(of: sortFieldRaw) { _, _ in
+                // O1: skip when a sortOrder/table-header write already owns
+                // the sync — this handler exists for EXTERNAL field writes.
+                guard !isApplyingSortChange else { return }
                 syncSortOrder()
                 saveSortSettings(for: folderId)
                 syncServerListingSort()
                 recomputeFiltered()
             }
             .onChange(of: sortAscending) { _, _ in
+                guard !isApplyingSortChange else { return }
                 syncSortOrder()
                 saveSortSettings(for: folderId)
                 // Direction is the engine's business for a server-ordered sort:
@@ -580,7 +631,9 @@ struct LibraryView: View {
                 recomputeFiltered()
             }
             .onChange(of: sortOrder) { _, newOrder in
+                isApplyingSortChange = true
                 handleSortOrderChange(newOrder)
+                isApplyingSortChange = false
                 syncServerListingSort()
                 recomputeFiltered()
             }
@@ -630,7 +683,9 @@ extension LibraryView {
         libraryManager.getLibrary(id: windowState.libraryId)
     }
 
-    private var libraryReference: LibraryManager.LibraryReference? {
+    // Internal, not private: the columns extension (seedColumnsPathFromSelection)
+    // resolves ancestry through the same reference.
+    var libraryReference: LibraryManager.LibraryReference? {
         libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
     }
 
@@ -719,6 +774,10 @@ extension LibraryView {
         )
     }
 
+}
+// MARK: - Bottom inset (extension, not the struct body — the 250-line
+// type_body ratchet; struct body is for state + body only)
+extension LibraryView {
     /// Everything stacked below the library's rows, in ONE inset with an
     /// explicit order (#4424).
     ///
@@ -743,9 +802,34 @@ extension LibraryView {
                 filterBarView
             }
             libraryBottomActionBar
+            // Finder's path bar + status line, scoped to THIS pane (Daniel
+            // #106-108: "we want the status bar just on the library" — the
+            // old window-wide detailStatusPathBar spanned every pane).
+            LibraryPathStatusBar(
+                crumbs: libraryPathCrumbs(
+                    anchorId: pathBarAnchorId,
+                    resolve: { documentStore.resolveDocument($0) }
+                ),
+                statusText: libraryStatusText(
+                    selectionCount: selection.count,
+                    itemCount: isShowingEntitiesCollection
+                        ? filteredEntities.count : filteredDocuments.count
+                ),
+                onNavigate: { doc in onNavigateInto(doc) }
+            )
         }
     }
+
+    /// What the path bar's trailing crumb anchors on: the document-order
+    /// primary selection when there is one, else the browsed folder.
+    /// `folderId` is the sidebar item id, which prefixes documents "doc:".
+    private var pathBarAnchorId: String? {
+        if let primary = orderedPrimarySelectionId { return primary }
+        guard let folderId else { return nil }
+        return folderId.hasPrefix("doc:") ? String(folderId.dropFirst(4)) : folderId
+    }
 }
+
 // MARK: - Spatial projection
 
 extension LibraryView {
@@ -820,42 +904,47 @@ extension LibraryView {
 
 // MARK: - Previews
 
+// Both previews go through LibraryPreviewFixtures.environment (2026-08-09):
+// LibraryView reads nine non-optional environment objects, and injecting
+// only ArtifactService made BOTH of these trap on first body evaluation —
+// the boundary crash class, shipped in the previews themselves.
+
 #Preview("Empty") {
-    let client = FicheroClient(libraryPath: nil)
-    LibraryView(
-        documents: [],
-        contentCollection: .documents,
-        isLoading: false,
-        isConnected: true,
-        errorMessage: nil,
-        onRetry: {},
-        libraryToolbar: LibraryToolbarState(),
-        selection: .constant(Set<String>()),
-        detailDocument: .constant(nil),
-        viewMode: .constant(.icons),
-        displayMode: .icon,
-        folderId: nil
+    LibraryPreviewFixtures.environment(
+        LibraryView(
+            documents: [],
+            contentCollection: .documents,
+            isLoading: false,
+            isConnected: true,
+            errorMessage: nil,
+            onRetry: {},
+            libraryToolbar: LibraryToolbarState(),
+            selection: .constant(Set<String>()),
+            detailDocument: .constant(nil),
+            viewMode: .constant(.icons),
+            displayMode: .icon,
+            folderId: nil
+        )
     )
-    .environment(ArtifactService(ficheroClient: client))
     .frame(width: 600, height: 500)
 }
 
 #Preview("Disconnected") {
-    let client = FicheroClient(libraryPath: nil)
-    LibraryView(
-        documents: [],
-        contentCollection: .documents,
-        isLoading: false,
-        isConnected: false,
-        errorMessage: nil,
-        onRetry: {},
-        libraryToolbar: LibraryToolbarState(),
-        selection: .constant(Set<String>()),
-        detailDocument: .constant(nil),
-        viewMode: .constant(.icons),
-        displayMode: .icon,
-        folderId: nil
+    LibraryPreviewFixtures.environment(
+        LibraryView(
+            documents: [],
+            contentCollection: .documents,
+            isLoading: false,
+            isConnected: false,
+            errorMessage: nil,
+            onRetry: {},
+            libraryToolbar: LibraryToolbarState(),
+            selection: .constant(Set<String>()),
+            detailDocument: .constant(nil),
+            viewMode: .constant(.icons),
+            displayMode: .icon,
+            folderId: nil
+        )
     )
-    .environment(ArtifactService(ficheroClient: client))
     .frame(width: 600, height: 500)
 }

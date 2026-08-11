@@ -623,7 +623,9 @@ class TestParallelExecution:
         assert "transcribe" in PARALLEL_TOOLS
         assert "describe" in PARALLEL_TOOLS
         assert "summarize" in PARALLEL_TOOLS
-        assert "entities" in PARALLEL_TOOLS
+        # The registered tool name — "entities" was a phantom that resolved to
+        # no tool, silently disabling fan-out (test_builder_tool_name_registry).
+        assert "extract_entities" in PARALLEL_TOOLS
         # Non-parallel tools should not be in the set
         assert "collection" not in PARALLEL_TOOLS
         assert "search" not in PARALLEL_TOOLS

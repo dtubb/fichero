@@ -25,22 +25,16 @@ extension ContentView {
             return
         }
         kgFocusState.clear()
-        // Restore per-folder view mode when switching folders.
-        // Priority: per-folder save > per-scene @SceneStorage value > global default.
-        // The @SceneStorage value holds the user's last choice for this window/tab
-        // and should win for new or unsaved folders so spatial is not forced (#2311).
-        if let saved = displayMode(for: newFolderId) {
-            viewDisplayMode = normalizedViewDisplayMode(saved)
-        } else {
-            let normalizedSceneValue = normalizedViewDisplayMode(viewDisplayMode)
-            let normalizedDefault = normalizedViewDisplayMode(defaultLibraryViewDisplayMode)
-            // If the scene value is unset or unavailable for this context, fall
-            // back to the global default rather than forcing a spatial/canvas mode.
-            if normalizedSceneValue != normalizedDefault {
-                viewDisplayMode = normalizedSceneValue
-            } else if viewDisplayMode != normalizedDefault {
-                viewDisplayMode = normalizedDefault
-            }
+        // NO per-folder view-mode restore (Daniel, 2026-08-09 morning: "it
+        // changes views depending on the folder open. I don't think we want
+        // that — it's confusing to have things jumping around"). This
+        // supersedes both the original implicit memory and the explicit-only
+        // #4575 middle step: the mode is ONE choice per window. Folder
+        // changes only re-normalize the current mode for the new context
+        // (a mode unavailable here falls back rather than sticking).
+        let normalized = normalizedViewDisplayMode(viewDisplayMode)
+        if normalized != viewDisplayMode {
+            viewDisplayMode = normalized
         }
 
         // Clear grid selection on sidebar folder change so the folder
@@ -144,8 +138,11 @@ extension ContentView {
         if !newSelection.isEmpty {
             windowState.preservedDocumentSelection = Array(newSelection)
         }
+        let primaryId = shellPrimarySelectionId(
+            in: newSelection, orderedBy: documentStore.currentDocuments
+        )
         if isEntityLibrarySelection {
-            guard let firstId = newSelection.first else {
+            guard let firstId = primaryId else {
                 kgFocusState.clear()
                 detailDocument = nil
                 return
@@ -157,7 +154,7 @@ extension ContentView {
         if kgFocusState.focusedEntityId != nil {
             kgFocusState.clear()
         }
-        guard let firstId = newSelection.first,
+        guard let firstId = primaryId,
               BrowserSelectionPreviewPolicy.shouldPromoteSelectionToDetail(
                 layoutMode: currentLayoutMode,
                 selectedDocumentId: firstId,
@@ -179,7 +176,10 @@ extension ContentView {
         // always reaches the preview pane instead of an empty state (#4299).
         Task { @MainActor in
             let fetched = try? await documentStore.documentService.getDocument(firstId)
-            if let fetched, browserSelection.first == firstId {
+            if let fetched,
+               shellPrimarySelectionId(
+                   in: browserSelection, orderedBy: documentStore.currentDocuments
+               ) == firstId {
                 detailDocument = fetched
             }
         }
@@ -187,13 +187,20 @@ extension ContentView {
 
     /// Handles `.onChange(of: detailDocument)`.
     /// Keeps documentStore.selectedDocument in sync and records navigation.
-    func handleDetailDocumentChange(_ newDoc: Document?) {
+    func handleDetailDocumentChange(from oldDoc: Document?, to newDoc: Document?) {
         // Keep documentStore.selectedDocument in sync so WorkflowEditor
         // toolbar button sees the current document at run time.
         documentStore.selectedDocument = newDoc
-        // Clear page focus so the inspector starts fresh on the new container
-        // rather than showing a page from the previous document (#1463).
-        pageFocusDocument = nil
+        // Clear page focus so the inspector starts fresh on a DIFFERENT
+        // document — never on a refresh of the same one (#1463, corrected
+        // 2026-08-09): this cleared UNCONDITIONALLY, so any background
+        // refresh that merely replaced the detailDocument snapshot (a status
+        // poll, a change-stream splice) dropped the reader to page 1 with no
+        // user action ('snaps back to page 1', #4558). Same id = same
+        // document; the reader keeps its place.
+        if oldDoc?.id != newDoc?.id {
+            pageFocusDocument = nil
+        }
         guard !isRestoringNavigationHistory else { return }
         recordNavigationEntry()
     }

@@ -59,6 +59,14 @@ public struct LibraryPathMiddleware: ClientMiddleware {
     ///   keep the header. `matchesRootPath` is prefix-with-`/` exact, so
     ///   `/api/authz/library` does not match `/api/auth`; the tests pin that
     ///   one-character distinction.
+    /// - `/sandbox` — the security-scoped GRANT routes exist to EXPAND what the
+    ///   engine may open, so they must never be judged by the current library's
+    ///   header (#4562, 2026-08-08): while an ungranted library is current, a
+    ///   header-validating engine 403s the very request that would grant access
+    ///   — the chicken-and-egg observed live as "engine refused (403)" on every
+    ///   folder drop. The engine exempts these routes server-side too
+    ///   (`_library_header_validation_exempt`); this is the client half, which
+    ///   also protects against an older engine still serving.
     /// - `/authz/libraries` (PLURAL) — the one `/authz` route that IS app-wide.
     ///   It lists *which libraries this credential has a role on* (`authz.py:37`,
     ///   `GET /authz/libraries`, no `require_library_path`); the answer spans
@@ -78,8 +86,9 @@ public struct LibraryPathMiddleware: ClientMiddleware {
         let isAuth = matchesRootPath(path, allowedPath: "/api/auth")
         let isUsers = matchesRootPath(path, allowedPath: "/api/users")
         let isAccessibleLibraries = matchesRootPath(path, allowedPath: "/api/authz/libraries")
+        let isSandbox = matchesRootPath(path, allowedPath: "/api/sandbox")
         return isHealth || isAppWideProvider || isSettings || isRegistry
-            || isAuth || isUsers || isAccessibleLibraries
+            || isAuth || isUsers || isAccessibleLibraries || isSandbox
     }
 
     private static func matchesRootPath(_ path: String, allowedPath: String) -> Bool {

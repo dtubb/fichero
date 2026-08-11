@@ -115,7 +115,8 @@ private struct MarkdownCanvas: View {
                 .font(.body)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding()
+                // Slim margin — more width for the text (Daniel, 2026-08-10).
+                .padding(8)
         }
     }
 }
@@ -128,6 +129,10 @@ private struct StorageDisplayImageCanvas: View {
     @Environment(StorageService.self) private var storageService
     @State private var image: PlatformImage?
     @State private var loadError: Error?
+    /// Monotonic token: each load claims a generation and only the latest may
+    /// publish. Guards the rapid page-flip race — an older page's slower fetch
+    /// must not land AFTER the current page's image and replace it.
+    @State private var loadGeneration = 0
 
     var body: some View {
         ZStack {
@@ -162,11 +167,23 @@ private struct StorageDisplayImageCanvas: View {
     }
 
     private func loadImage() async {
-        image = nil
+        // ★ EVERY FRAME PERFECT (#18/#113 page-turn flash): do NOT nil the
+        // current image while the next page loads. Nil-first meant every page
+        // flip dropped to the white skeleton for the fetch+decode window; the
+        // previous page now stays up and the new one replaces it in place
+        // (instant on a cache/prefetch hit). The skeleton still shows on
+        // FIRST load, when there is nothing older to hold.
+        loadGeneration += 1
+        let claimed = loadGeneration
         loadError = nil
         do {
-            image = try await storageService.getDisplayPlatformImage(documentId)
+            let loaded = try await storageService.getDisplayPlatformImage(documentId)
+            guard claimed == loadGeneration else { return }  // a newer flip won
+            image = loaded
         } catch {
+            guard claimed == loadGeneration else { return }
+            // A failed load must not silently keep showing the WRONG page.
+            image = nil
             loadError = error
         }
     }

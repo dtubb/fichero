@@ -25,7 +25,9 @@ extension SidebarView {
 
         var reordered = items
         reordered.move(fromOffsets: source, toOffset: destination)
-        let reorderedKindPositions = reordered.indices.filter { unifiedRowsReorderKind(for: reordered[$0]) == movedKind }
+        let reorderedKindPositions = reordered.indices.filter {
+            unifiedRowsReorderKind(for: reordered[$0]) == movedKind
+        }
         guard reorderedKindPositions == kindPositions else { return nil }
 
         return movedKind
@@ -66,8 +68,19 @@ extension SidebarView {
         // natively (no custom overlay strip needed). Same-section
         // reorder still goes through `.onMove` and shows the system's
         // row-drop indicator.
-        ForEach(Array(items.enumerated()), id: \.element.id) { _, item in
-            unifiedRow(for: item)
+        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+            // Contiguous-selection merging (2026-08-09) + row-boundary type
+            // erasure (see sidebarRowTypeErased(): the per-item value-witness
+            // copy of the composed row overflowed the stack, 2026-08-08
+            // night crashes #2/#3 — load-bearing).
+            let sel = { (row: SidebarItem) in selectionState.selectedDestinations.contains(row.destination) }
+            unifiedRow(
+                for: item,
+                mergeAbove: sel(item) && index > 0 && sel(items[index - 1]),
+                mergeBelow: sel(item) && index + 1 < items.count && sel(items[index + 1]),
+                orderedSiblings: items.map(\.destination)
+            )
+            .sidebarRowTypeErased()
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
             sidebarRowLogger.debug("unifiedRows .dropDestination FIRED with \(ids.count) ids at offset \(offset)")
@@ -174,7 +187,12 @@ extension SidebarView {
     /// Rows rely on native `List(selection: Set)` for click / shift-range /
     /// cmd-toggle selection via `.tag(item.destination)`.
     @ViewBuilder
-    private func unifiedRow(for item: SidebarItem) -> some View {
+    private func unifiedRow(
+        for item: SidebarItem,
+        mergeAbove: Bool = false,
+        mergeBelow: Bool = false,
+        orderedSiblings: [SidebarDestination] = []
+    ) -> some View {
         // `.moveDisabled` blocks AppKit-level reorder drag on Inbox
         // (#621). `.draggable` lives here on the row container — not
         // inside SidebarItemRow's body — so NSTableView's native
@@ -182,7 +200,9 @@ extension SidebarView {
         // whole row (including taps on the inner icon/name).
         let row = SidebarItemRow(
             item: item,
-            allCachedItems: allCachedItems,
+            // O(1) id lookup against the cached index — never hand rows the
+            // whole forest to copy (#4545).
+            lookupItem: { cachedItem(id: $0) },
             expandedItems: Binding(
                 get: { sidebarState.expandedItems },
                 set: { sidebarState.expandedItems = $0 }
@@ -197,11 +217,19 @@ extension SidebarView {
             sidebarState: sidebarState,
             libraryManager: libraryManager,
             onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
+        ,
+            mergeSelectionAbove: mergeAbove,
+            mergeSelectionBelow: mergeBelow
         )
         .contentShape(Rectangle())
         // Full payload (#4123): document rows export a real file copy + RTF
         // transcript to other apps; the in-process id flavor is unchanged.
-        .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: item))
+        .draggable(item.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: item)) {
+            // Finder-parity preview (#135): the whole row platter, never the
+            // default re-hosted source view (which inherits no environment —
+            // the 2026-08-08 drag-crash class documented on DragPreviewLabel).
+            RowDragPreview(name: item.name, systemImage: item.icon)
+        }
         .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
         // Inbox is anchored (#621); non-reorderable kinds (schedules, triggers,
         // conversations…) disable the move drag so they don't show a system
@@ -209,7 +237,42 @@ extension SidebarView {
         .moveDisabled(item.icon == "tray.fill" || !item.supportsSidebarReorder)
         .tag(item.destination)
 
+        #if os(macOS)
+        // Plain-click fallback for DRAGGABLE rows (Daniel live-testing,
+        // 2026-08-09: "you can click on global library and inbox text to
+        // select row, but not on PDF row text"). On rows whose full payload
+        // rides NSTableView's row drag, a press over the LABEL is claimed by
+        // the drag machinery and List(selection:) never commits the click —
+        // exactly the rows that are NOT the header (no draggable) or Inbox
+        // (empty payload + moveDisabled), which both work. The observing
+        // gesture routes through the SAME commit seam as the List binding
+        // (applySidebarSelectionProposal), so there is still one write path.
+        // ponytail: plain clicks only — ⇧/⌘ label clicks stay with the List
+        // (they did not work on these rows before either); revisit if Daniel
+        // needs modifier-extension on the name itself.
         row
+            .simultaneousGesture(TapGesture().onEnded {
+                // #145 widened the fallback to MODIFIER clicks: on rows whose
+                // drag payload owns label presses, ⇧/⌘ on the NAME never
+                // reached List either ('you shift click on the name of the
+                // next line, it isn't added' / 'ditto for command click').
+                // Same Finder semantics, same ONE commit seam.
+                let proposal = sidebarFallbackProposal(
+                    clicked: item.destination,
+                    current: selectionState.selectedDestinations,
+                    anchor: selectionState.selectedDestination,
+                    orderedSiblings: orderedSiblings,
+                    modifiers: (
+                        shift: NSEvent.modifierFlags.contains(.shift),
+                        command: NSEvent.modifierFlags.contains(.command)
+                    )
+                )
+                guard proposal != selectionState.selectedDestinations else { return }
+                applySidebarSelectionProposal(proposal)
+            })
+        #else
+        row
+        #endif
     }
 
     /// Cross-hierarchy insert: reparent dragged docs to library root
@@ -286,4 +349,35 @@ extension SidebarView {
             }
         }
     }
+}
+
+/// The draggable-row tap fallback's proposal, Finder semantics (#145):
+/// plain → the clicked row alone; ⌘ → toggle it within the set; ⇧ → the
+/// contiguous range from the routed anchor through the clicked row (falling
+/// back to UNION when the anchor is outside this sibling list, so a
+/// cross-section ⇧-click still adds rather than doing nothing). FILE SCOPE
+/// for Swift Testing.
+func sidebarFallbackProposal(
+    clicked: SidebarDestination,
+    current: Set<SidebarDestination>,
+    anchor: SidebarDestination?,
+    orderedSiblings: [SidebarDestination],
+    modifiers: (shift: Bool, command: Bool)
+) -> Set<SidebarDestination> {
+    if modifiers.command {
+        var next = current
+        if next.contains(clicked) { next.remove(clicked) } else { next.insert(clicked) }
+        return next
+    }
+    if modifiers.shift {
+        if let anchor,
+           let anchorIndex = orderedSiblings.firstIndex(of: anchor),
+           let clickedIndex = orderedSiblings.firstIndex(of: clicked) {
+            let bounds = anchorIndex <= clickedIndex
+                ? anchorIndex...clickedIndex : clickedIndex...anchorIndex
+            return current.union(orderedSiblings[bounds])
+        }
+        return current.union([clicked])
+    }
+    return [clicked]
 }

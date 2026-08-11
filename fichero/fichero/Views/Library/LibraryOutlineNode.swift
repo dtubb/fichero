@@ -138,12 +138,12 @@ struct LibraryOutlineNode: Identifiable, Hashable {
         LibraryOutlineNode(kind: .claimItem(claim), document: parent, count: 0, children: nil)
     }
 
-    /// Native outline disclosure rule: document rows always expand; aggregate
-    /// child groups expand only once real children have materialized.
+    /// Disclosure only with something to disclose (Daniel, 2026-08-09).
+    /// ponytail: artifact-only rows chevron only once their rollup lands.
     var canExpand: Bool {
         switch kind {
         case .document:
-            return true
+            return !(children?.isEmpty ?? true) || document.childCount > 0
         case .childGroup:
             return !(children?.isEmpty ?? true)
         case .pageItem, .artifactItem, .entityItem, .claimItem:

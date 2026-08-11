@@ -143,8 +143,13 @@ extension SidebarItemRow {
                 // trailing refresh is the prompt completion signal the store
                 // observes even if a per-file event was lost in flight, and
                 // replaces the old double-refresh + 500ms sleep that made the
-                // sidebar lag the spinner stop (#4067).
-                await documentStore?.refresh()
+                // sidebar lag the spinner stop (#4067). ONLY when live
+                // delivery is down (#24): a connected stream already spliced
+                // every created row in place, and the full refresh was the
+                // wholesale sidebar rebuild Daniel reported.
+                await documentStore?.refreshUnlessLiveDelivery(
+                    streamConnected: library?.changeStream.isConnected ?? false
+                )
                 if let message = ImportOutcome.merged(outcomes).partialFailureMessage {
                     sidebarRowLogger.error("External drop imported partially: \(message)")
                     await MainActor.run { sidebarState.dropErrorMessage = message }
@@ -177,7 +182,9 @@ extension SidebarItemRow {
         sidebarRowLogger.debug(" handleDropIntoFolder called with \(itemIDs.count) items onto \(targetFolder.name)")
         sidebarRowLogger.debug("Item IDs: \(itemIDs)")
         sidebarRowLogger.debug("Target folder ID: \(targetFolder.id)")
-        sidebarRowLogger.debug("Target folder itemType: \(String(describing: targetFolder.itemType))")
+        // Identity only — describing itemType embeds the whole Document,
+        // pageContent included (the privacy/stall class fixed 2026-08-10).
+        sidebarRowLogger.debug("Target folder: \(targetFolder.id) \(targetFolder.name)")
 
         // #585 / sidebar plan Step 9: accept any folder row as a drop target
         // (document folders, search folders, workflow folders, chat folders).

@@ -212,16 +212,20 @@ extension ContentView {
                     )
                 }
             } else {
-                HStack(spacing: 0) {
-                    WorkflowListView(
-                        displayMode: .list,
-                        onOpenWorkflow: { item in viewMode = .workflow(item) }
-                    )
-                    .frame(minWidth: 200, maxWidth: 280)
-
-                    Divider()
-
-                    if let selectedWorkflow = workflow {
+                // NO legacy WorkflowListView column (Daniel, twice on
+                // 2026-08-10: "when you click on a workflow node, it should
+                // take you to that editor, not the generic thing you then
+                // have to click around in"). The SIDEBAR is the workflow
+                // list (#4186); the content column is the node editor, full
+                // width.
+                //
+                // AnyView is LOAD-BEARING on BOTH branches (#4331 / views
+                // audit fix #2): the first attempt at this reshape shipped
+                // WITHOUT caps and crashed at launch — this case sits inside
+                // the same contentView getter whose .library sibling already
+                // needed erasure to stop the value-copy recursion.
+                if let selectedWorkflow = workflow {
+                    AnyView(
                         WorkflowEditor(
                             workflow: selectedWorkflow,
                             editingWorkflow: $editingWorkflow,
@@ -229,14 +233,16 @@ extension ContentView {
                             selectedDocumentIds: effectiveWorkflowRunSelection
                         )
                         .frame(maxWidth: .infinity)
-                    } else {
+                    )
+                } else {
+                    AnyView(
                         ContentUnavailableView(
                             "Select a Workflow",
                             systemImage: "flowchart",
-                            description: Text("Choose a workflow from the list to edit")
+                            description: Text("Choose a workflow in the sidebar to edit it")
                         )
                         .frame(maxWidth: .infinity)
-                    }
+                    )
                 }
             }
 

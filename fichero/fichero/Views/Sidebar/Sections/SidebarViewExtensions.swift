@@ -3,53 +3,6 @@ import SwiftUI
 
 private let sidebarExtLogger = Logger(subsystem: "app.fichero.fichero", category: "SidebarExtensions")
 
-func sidebarDeleteConfirmationMessage(for item: SidebarItem?) -> String {
-    guard let item else {
-        return "Move this item to Trash? You can put it back later."
-    }
-    if case .document(let doc) = item.itemType,
-       doc.isLinked,
-       let path = doc.path {
-        return
-            "Move the Fichero reference to \"\(item.name)\" to Trash? "
-            + "The original file at \(path) stays on disk, and you can put this back later."
-    }
-    return "Move \"\(item.name)\" to Trash? You can put it back later."
-}
-
-/// Delete-confirmation title: names the single item, or the count for a batch.
-func sidebarDeleteConfirmationTitle(for items: [SidebarItem]) -> String {
-    if items.count > 1 { return "Delete \(items.count) items?" }
-    return items.first.map { "Delete \"\($0.name)\"?" } ?? "Delete?"
-}
-
-/// Delete-confirmation body: the per-item message for one, a batch line for many.
-func sidebarDeleteConfirmationMessage(for items: [SidebarItem]) -> String {
-    if items.count > 1 {
-        return "Move \(items.count) items to Trash? You can put them back later."
-    }
-    return sidebarDeleteConfirmationMessage(for: items.first)
-}
-
-/// The rows in a selection that can actually be deleted (drops library headers,
-/// comparisons, activity runs — anything `canBeDeleted` rejects).
-func sidebarDeletableItems(_ items: [SidebarItem]) -> [SidebarItem] {
-    items.filter { $0.itemType.canBeDeleted }
-}
-
-/// Items the context-menu Delete acts on. Right-clicking a row inside the
-/// current multi-selection targets the whole deletable selection (Finder
-/// semantics); a row outside the selection targets itself alone. Falls back
-/// to the clicked row when nothing in the selection is deletable so the
-/// menu item's enabled state still reflects the row under the pointer.
-func sidebarContextDeleteTargets(clicked: SidebarItem, selection: [SidebarItem]) -> [SidebarItem] {
-    guard selection.count > 1, selection.contains(where: { $0.id == clicked.id }) else {
-        return [clicked]
-    }
-    let deletable = sidebarDeletableItems(selection)
-    return deletable.isEmpty ? [clicked] : deletable
-}
-
 /// #4292 — the workflow-editor destination for a workflow MIRROR doc row.
 ///
 /// The engine mirrors every workflow into the document tree as a `.file` doc
@@ -117,8 +70,12 @@ extension View {
     /// the bottom toolbar strip does not — so the bottom row stayed painted over
     /// the content column after collapse. The column min lives in ONE place now;
     /// `.clipped()` on the column content is the belt-and-braces guard.
-    func sidebarStyle() -> some View {
-        self
+    /// Returns `AnyView` DELIBERATELY (2026-08-08 live crash: the sidebar's
+    /// fully-composed concrete type overflowed the stack during SwiftUI's
+    /// value-witness copy — the #4331 class, where the erasures are
+    /// load-bearing, now on macOS). Do not "simplify" back to `some View`.
+    func sidebarStyle() -> AnyView {
+        AnyView(self)
     }
 }
 

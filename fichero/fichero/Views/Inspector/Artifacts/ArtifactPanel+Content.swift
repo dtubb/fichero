@@ -18,15 +18,50 @@ extension ArtifactPanel {
                     .frame(maxWidth: .infinity)
                     .background(Color(.textBackgroundColor))
                     .cornerRadius(4)
+            } else if onSave != nil,
+                      rawArtifactContent.count > Self.liveEditorCharacterLimit
+                        || draftText.characters.count > Self.liveEditorCharacterLimit {
+                // BOTH sides are checked (Daniel's sixth backtrace, clicking a
+                // NO-TEXT pdf): rawArtifactContent is the INCOMING document,
+                // but draftText (@State) still holds the PREVIOUS one until
+                // the reseed task runs — mounting the editor in that window
+                // laid the old book out once. The size walk is O(n) but n is
+                // small in every steady state; the stale-big case shows one
+                // preview frame, then reseeds and mounts the editor.
+                // BOOK-SIZED CONTENT NEVER ENTERS THE LIVE EDITOR (Daniel's
+                // beachball, 2026-08-10 00:4x, backtrace in hand): SwiftUI's
+                // AttributedString TextEditor lays out the ENTIRE document
+                // synchronously inside sizeThatFits (AppKitRichTextEditorAdaptor
+                // → NSTextLayoutManager.ensureLayoutForRange over the whole
+                // string) — 'My Book / Shifting Livelihoods' froze the main
+                // thread for minutes, on every layout pass. A parent document
+                // holding a whole book's text is a READ surface; its PAGES are
+                // where editing happens and they stay under the limit.
+                oversizeContentPreview
             } else if onSave != nil {
-                TextEditor(text: $draftText)
-                    .editorScaledFont()
-                    .focused($isEditorFocused)
-                    .scrollContentBackground(.hidden)
-                    .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil)
-                    .frame(minHeight: 60)
-                    .background(Color(.textBackgroundColor))
-                    .cornerRadius(4)
+                // THE EDITOR NEVER SEES A NIL SIZE PROPOSAL (Daniel's live
+                // backtraces, 2026-08-10, four of them): the AttributedString
+                // editor's sizeThatFits answers an unbounded/ideal proposal by
+                // running NSTextLayoutManager.ensureLayoutForRange over the
+                // WHOLE document on the main thread. A maxHeight frame did NOT
+                // close this — the stack's ideal-size probe (lengthThatFits →
+                // prioritize in the stall backtrace) sends a nil proposal,
+                // which a flexible frame forwards to the child and only clamps
+                // the RESULT of. GeometryReader is the structural fix: it
+                // sizes itself without consulting its child, so the editor
+                // always receives the concrete resolved size and sizing stays
+                // O(1); it scrolls internally past its height.
+                GeometryReader { geo in
+                    TextEditor(text: $draftText)
+                        .editorScaledFont()
+                        .focused($isEditorFocused)
+                        .scrollContentBackground(.hidden)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                }
+                .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : 420)
+                .frame(minHeight: 60)
+                .background(Color(.textBackgroundColor))
+                .cornerRadius(4)
                     .onChange(of: draftText) { _, _ in scheduleAutoSave() }
                     .onChange(of: isEditorFocused) { _, focused in
                         if focused {
@@ -80,6 +115,51 @@ extension ArtifactPanel {
                 raw: rawArtifactContent,
                 encoded: ArtifactRichTextCodec.encodeAttributed(decoded)
             )
+        }
+    }
+
+    // MARK: - Oversize content (the live-editor beachball guard)
+
+    /// Characters above which the LIVE editor is not mounted. 20k because
+    /// Daniel's fifth backtrace (2026-08-10, 10:31) proved the adaptor's
+    /// `_overrideLayoutTraits` runs `ensureLayoutForRange` over the WHOLE
+    /// string even under a CONCRETE frame proposal (it fired inside a fixed
+    /// `_FrameLayout` placement) — content size is the only lever left. A
+    /// dense archival page transcript is a few thousand characters; 20k is
+    /// still several pages of typing headroom, and TextKit lays it out in
+    /// tens of milliseconds instead of seconds.
+    static let liveEditorCharacterLimit = 20_000
+
+    /// How much of an oversize document the read-only preview shows.
+    static let oversizePreviewCharacters = 20_000
+
+    @ViewBuilder
+    private var oversizeContentPreview: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(
+                "Large document — showing a preview. Edit its pages instead.",
+                systemImage: "book.closed"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            ScrollView {
+                // Plain-string prefix, deliberately: the whole point is that
+                // no full-length AttributedString ever reaches layout.
+                Text(String(rawArtifactContent.prefix(Self.oversizePreviewCharacters)))
+                    .font(.body)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+            }
+            .frame(maxHeight: fillsHeight ? .infinity : 360)
+            .background(Color(.textBackgroundColor))
+            .cornerRadius(4)
+            Text(
+                "\(rawArtifactContent.count.formatted()) characters total — "
+                    + "preview shows the first \(Self.oversizePreviewCharacters.formatted())."
+            )
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
         }
     }
 }

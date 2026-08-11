@@ -50,7 +50,10 @@ extension ContentView {
     private func compactReaderLeaf() -> Document? {
         Self.resolveCompactReaderLeaf(
             detailDocument: detailDocument,
-            selectedId: browserSelection.first,
+            // Document-order primary, never Set.first (F3, 2026-08-09).
+            selectedId: shellPrimarySelectionId(
+                in: browserSelection, orderedBy: documentStore.currentDocuments
+            ),
             // The SAME array LibraryView is showing: transient-search hits can
             // live outside the browsed folder, so resolving only from
             // `currentDocuments` left search-result taps unresolvable (#2666).

@@ -379,3 +379,102 @@ class TestActivityStoreRecoverStaleRunsApi:
         # db remains usable
         runs = await store.list_workflow_runs(limit=10)
         assert any(r.thread_id == "zombie-async" for r in runs)
+
+
+class TestFatalReleasesThePinsBeforeRebuild:
+    """#39 part (2), authorised 2026-08-09: a fatal during recovery must not
+    leave the library poisoned.
+
+    A DuckDB FatalException invalidates the database INSTANCE process-wide,
+    and the instance is only discarded when its last connection closes. The
+    poisoned recovery connection and the library's long-lived managed
+    connection both PIN that instance — so the 'fresh' rebuild connection
+    would join the same invalidated instance and the rebuild could never
+    succeed, on every spawn (the self-perpetuating bricked state). The
+    fallback must therefore close the poisoned connection and reopen the
+    managed one BEFORE rebuilding.
+    """
+
+    class _PoisonedConn:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def execute(self, *args, **kwargs):
+            raise duckdb.FatalException(
+                "FATAL Error: Failed: database has been invalidated"
+            )
+
+        def close(self) -> None:
+            self.closed = True
+
+    def test_the_poisoned_connection_is_closed_before_the_rebuild(
+        self, tmp_path: Path
+    ) -> None:
+        db_path = str(tmp_path / "lib.duckdb")
+        _seed_indexed_zombies(db_path, n=2)
+        poisoned = self._PoisonedConn()
+
+        flipped = _recover_stale_workflow_runs(
+            poisoned, db_path, started_before=None
+        )
+
+        assert poisoned.closed, "the poisoned connection still pins the instance"
+        assert flipped is not None and len(flipped) == 2
+
+    def test_the_managed_library_connection_is_reopened(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        from fichero_server.db.manager import db_manager
+        from fichero_server.workflows import activity_store as store_module
+
+        package = tmp_path / "lib.fichero"
+        package.mkdir()
+        db_path = str(package / "fichero.duckdb")
+        _seed_indexed_zombies(db_path, n=1)
+
+        reopened: list[str] = []
+
+        class _ManagedStub:
+            def _reconnect_after_invalidated(self) -> None:
+                reopened.append("yes")
+
+        monkeypatch.setattr(
+            db_manager, "open_library_paths", lambda: [str(package)]
+        )
+        monkeypatch.setattr(
+            db_manager, "get_database", lambda _path: _ManagedStub()
+        )
+
+        store_module._recover_stale_workflow_runs(
+            self._PoisonedConn(), db_path, started_before=None
+        )
+
+        assert reopened, "managed connection was not reopened after the fatal"
+
+    def test_a_reopen_failure_is_loud_but_does_not_block_the_rebuild(
+        self, tmp_path: Path, monkeypatch, caplog
+    ) -> None:
+        from fichero_server.db.manager import db_manager
+        from fichero_server.workflows import activity_store as store_module
+
+        package = tmp_path / "lib.fichero"
+        package.mkdir()
+        db_path = str(package / "fichero.duckdb")
+        _seed_indexed_zombies(db_path, n=1)
+
+        monkeypatch.setattr(
+            db_manager, "open_library_paths", lambda: [str(package)]
+        )
+
+        def exploding_get(_path):
+            raise RuntimeError("manager blew up")
+
+        monkeypatch.setattr(db_manager, "get_database", exploding_get)
+
+        with caplog.at_level("ERROR"):
+            flipped = store_module._recover_stale_workflow_runs(
+                self._PoisonedConn(), db_path, started_before=None
+            )
+
+        assert flipped is not None and len(flipped) == 1  # rebuild still ran
+        assert "Could not reopen the managed library connection" in caplog.text

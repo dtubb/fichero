@@ -23,13 +23,17 @@ struct QuickLookDownloadView: View {
     @State private var error: String?
     @State private var requestGate = PreviewDownloadService.RequestGate()
 
-    @Environment(StorageService.self) var storageService
+    // OPTIONAL — the non-optional form is a process-killing assertion when a
+    // hosting context (a panel, a preview host) misses the injection; see the
+    // 2026-08-08 crash note on LibraryImageView. `load()` names this view in
+    // the log and shows the error state instead.
+    @Environment(StorageService.self) var storageService: StorageService?
 
     /// The download/temp-file flow lives in the service (#3207/#3726); the view
     /// keeps only fileURL/isLoading/error state. Built from the environment's
     /// storage service so transport stays on the generated client.
-    private var downloadService: PreviewDownloadService {
-        PreviewDownloadService(storage: storageService)
+    private var downloadService: PreviewDownloadService? {
+        storageService.map { PreviewDownloadService(storage: $0) }
     }
 
     var body: some View {
@@ -98,6 +102,17 @@ struct QuickLookDownloadView: View {
         fileURL = nil
         logger.info("Loading file from API for document: \(documentId)")
 
+        guard let downloadService else {
+            logger.error(
+                """
+                QuickLookDownloadView: StorageService missing from the environment for \(documentId) \
+                — showing error state. The hosting surface needs .environment(library.storageService).
+                """
+            )
+            error = "This window lost its connection to the library's storage. Close and reopen it."
+            isLoading = false
+            return
+        }
         let outcome = await downloadService.download(.init(
             documentId: documentId,
             cacheKey: cacheKey,

@@ -1,6 +1,7 @@
 import Foundation
 import os
 import OSLog
+import SwiftUI
 import UniformTypeIdentifiers
 
 // MARK: - ONE drag/drop instrument (Daniel's logging mandate, 2026-08-04)
@@ -129,24 +130,32 @@ func sidebarDropCapabilities(of providers: [NSItemProvider]) -> [SidebarDropProv
 @MainActor
 func readSidebarDropPayload(
     _ providers: [NSItemProvider],
-    surface: String = "unlabelled"
+    surface: String = "unlabelled",
+    preloaded: [EagerSidebarDropLoad]? = nil
 ) async -> SidebarDropPayload {
     DragDropLog.entered(surface, providers: providers)
     let capabilities = sidebarDropCapabilities(of: providers)
     let hasExternalPayload = capabilities.contains(where: \.registersExternalPayload)
     let mightBeInternal = sidebarDropMightCarryInternalID(capabilities)
+    // Loads that were NOT issued eagerly start here — late, and under a
+    // main-thread stall late enough for the drag session to be torn down
+    // first, which is the 'operation was cancelled' refusal on the alias
+    // drop (drop#44, 2026-08-09). Handlers should pass
+    // `eagerSidebarDropLoads(providers)` captured SYNCHRONOUSLY in the drop
+    // callback.
+    let loads = preloaded ?? eagerSidebarDropLoads(providers)
 
     var loadedIDs: [String] = []
     for (index, provider) in providers.enumerated() {
         if provider.hasItemConformingToTypeIdentifier(UTType.ficheroDragItem.identifier) {
-            if let payload = try? await sidebarDropLoadFicheroItem(from: provider) {
+            if let payload = try? await loads[index].ficheroItem?.value {
                 loadedIDs.append(payload)
                 continue
             }
             DragDropLog.refused(surface, reason: "a fichero-drag-item flavor failed to load its data")
         }
         if provider.canLoadObject(ofClass: NSString.self),
-           let string = try? await sidebarDropLoadString(from: provider) {
+           let string = try? await loads[index].string?.value {
             loadedIDs.append(string)
             continue
         }
@@ -158,9 +167,7 @@ func readSidebarDropPayload(
         // as the envelope and let the classifier judge — recovering the MOVE
         // on builds whose pasteboard still carries the degraded shape.
         if capabilities[index].isUnidentifiedBareData,
-           let data = try? await sidebarDropLoadData(
-               from: provider, typeIdentifier: UTType.data.identifier
-           ),
+           let data = try? await loads[index].bareData?.value,
            let string = String(data: data, encoding: .utf8), !string.isEmpty {
             DragDropLog.performed(
                 surface,
@@ -234,5 +241,121 @@ func sidebarDropLoadString(from provider: NSItemProvider) async throws -> String
                 continuation.resume(throwing: NSError(domain: "SidebarRowDrop", code: -1))
             }
         }
+    }
+}
+
+// MARK: - Eager loads (drop#44 fix, 2026-08-09)
+
+/// One provider's flavor loads, ISSUED at construction. The
+/// `loadDataRepresentation`/`loadObject` calls go out in the same runloop
+/// tick as the drop callback, before AppKit can tear the drag session down —
+/// the reader then awaits results that are already in flight. A stalled main
+/// thread delays the AWAIT, never the LOAD.
+struct EagerSidebarDropLoad {
+    let ficheroItem: Task<String, Error>?
+    let string: Task<String, Error>?
+    let bareData: Task<Data, Error>?
+}
+
+/// The in-app item ids read SYNCHRONOUSLY off the DRAG pasteboard, in
+/// session order. `data(forType:)` forces each promise on the spot, while
+/// the drag session is still alive — Daniel's 2026-08-10 11:11 multi-folder
+/// drop showed the ISSUED-early provider loads (the drop#44 fix) still
+/// coming back 'cancelled' (Cocoa 3072): main-thread stalls pushed their
+/// RESOLUTION past session teardown, and AppKit cancels pending promises at
+/// teardown no matter when they were issued. A synchronous pasteboard read
+/// cannot lose that race.
+@MainActor
+private func dragPasteboardFicheroIDs() -> [String] {
+    #if os(macOS)
+    let type = NSPasteboard.PasteboardType(UTType.ficheroDragItem.identifier)
+    return (NSPasteboard(name: .drag).pasteboardItems ?? []).map { item in
+        item.data(forType: type).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+    #else
+    return []
+    #endif
+}
+
+/// Call SYNCHRONOUSLY inside the drop callback and hand the result to
+/// `readSidebarDropPayload(_:surface:preloaded:)`.
+@MainActor
+func eagerSidebarDropLoads(_ providers: [NSItemProvider]) -> [EagerSidebarDropLoad] {
+    let capabilities = sidebarDropCapabilities(of: providers)
+    // Snapshot the drag pasteboard NOW (synchronous, session alive) so a
+    // provider promise AppKit cancels at teardown has a same-index fallback
+    // instead of failing the whole drop as unreadableInternal.
+    let pasteboardIDs = dragPasteboardFicheroIDs()
+    return providers.enumerated().map { index, provider in
+        EagerSidebarDropLoad(
+            ficheroItem: provider.hasItemConformingToTypeIdentifier(UTType.ficheroDragItem.identifier)
+                ? eagerLoad { done in
+                    _ = provider.loadDataRepresentation(
+                        forTypeIdentifier: UTType.ficheroDragItem.identifier
+                    ) { data, error in
+                        let decoded = sidebarDropDecodeEnvelope(data, error: error)
+                        if case .failure = decoded,
+                           index < pasteboardIDs.count, !pasteboardIDs[index].isEmpty {
+                            done(.success(pasteboardIDs[index]))
+                        } else {
+                            done(decoded)
+                        }
+                    }
+                }
+                : nil,
+            string: provider.canLoadObject(ofClass: NSString.self)
+                ? eagerLoad { done in
+                    _ = provider.loadObject(ofClass: NSString.self) { value, error in
+                        if let string = value as? String, !string.isEmpty {
+                            done(.success(string))
+                        } else {
+                            done(.failure(error ?? NSError(domain: "SidebarRowDrop", code: -4)))
+                        }
+                    }
+                }
+                : nil,
+            bareData: capabilities[index].isUnidentifiedBareData
+                ? eagerLoad { done in
+                    _ = provider.loadDataRepresentation(
+                        forTypeIdentifier: UTType.data.identifier
+                    ) { data, error in
+                        if let data {
+                            done(.success(data))
+                        } else {
+                            done(.failure(error ?? NSError(domain: "SidebarRowDrop", code: -3)))
+                        }
+                    }
+                }
+                : nil
+        )
+    }
+}
+
+/// UTF-8/non-empty envelope contract shared by the eager and legacy loaders.
+private func sidebarDropDecodeEnvelope(_ data: Data?, error: Error?) -> Result<String, Error> {
+    if let data, let string = String(data: data, encoding: .utf8), !string.isEmpty {
+        return .success(string)
+    }
+    return .failure(error ?? NSError(domain: "SidebarRowDrop", code: -2))
+}
+
+/// Bridge an ISSUED-now completion into an awaitable Task. The `issue`
+/// closure runs synchronously; its `done` may fire on any queue.
+private func eagerLoad<Value: Sendable>(
+    _ issue: (@escaping @Sendable (Result<Value, Error>) -> Void) -> Void
+) -> Task<Value, Error> {
+    let stream = AsyncThrowingStream<Value, Error>.makeStream()
+    issue { result in
+        switch result {
+        case .success(let value):
+            stream.continuation.yield(value)
+            stream.continuation.finish()
+        case .failure(let error):
+            stream.continuation.finish(throwing: error)
+        }
+    }
+    return Task {
+        for try await value in stream.stream { return value }
+        throw NSError(domain: "SidebarRowDrop", code: -5)
     }
 }

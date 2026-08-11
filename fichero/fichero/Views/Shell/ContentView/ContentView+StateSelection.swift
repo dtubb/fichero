@@ -28,7 +28,13 @@ extension ContentView {
         //    folder browserSelection (e.g. left over from a previous
         //    folder, or auto-set when the grid first loaded) must NOT
         //    shadow the sidebar-selected folder. (#712)
-        if let firstId = browserSelection.first,
+        // Document-order primary, never Set.first (F3, 2026-08-09): the
+        // inspector must name the SAME member of a multi-selection as the
+        // preview and detail — a hash-order draw here is 'the inspector
+        // shows another page'.
+        if let firstId = shellPrimarySelectionId(
+               in: browserSelection, orderedBy: documentStore.currentDocuments
+           ),
            let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
            doc.parentId == currentSidebarFolder?.id {
             return doc

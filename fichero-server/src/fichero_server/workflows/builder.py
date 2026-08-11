@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -44,7 +45,35 @@ logger = logging.getLogger(__name__)
 # Concurrency cap for parallel vision fan-out (#2221).
 # Bounds the number of simultaneously in-flight LLM/image calls so a batch
 # of multi-page PDFs processes steadily instead of exhausting RAM all at once.
-VISION_FAN_OUT_CONCURRENCY: int = 4
+# Overridable via FICHERO_VISION_FAN_OUT_CONCURRENCY (same shape as
+# FICHERO_SOURCE_MAX_FILES, #2544): this cap is THE throughput ceiling for a
+# multi-page transcription run, and a machine fronting a hosted LLM can hold
+# far more in-flight calls than one running local MLX. Unset/blank/invalid or
+# < 1 falls back to the default with a loud warning — the cap must never
+# silently become unbounded.
+_DEFAULT_VISION_FAN_OUT_CONCURRENCY = 4
+
+
+def _vision_fan_out_concurrency() -> int:
+    raw = os.environ.get("FICHERO_VISION_FAN_OUT_CONCURRENCY")
+    if raw is None or raw.strip() == "":
+        return _DEFAULT_VISION_FAN_OUT_CONCURRENCY
+    try:
+        value = int(raw.strip())
+    except ValueError:
+        value = 0
+    if value < 1:
+        logger.warning(
+            "FICHERO_VISION_FAN_OUT_CONCURRENCY=%r is not a positive integer — "
+            "using default cap %d",
+            raw,
+            _DEFAULT_VISION_FAN_OUT_CONCURRENCY,
+        )
+        return _DEFAULT_VISION_FAN_OUT_CONCURRENCY
+    return value
+
+
+VISION_FAN_OUT_CONCURRENCY: int = _vision_fan_out_concurrency()
 _vision_fan_out_sem: asyncio.Semaphore | None = None
 _vision_fan_out_sem_loop: asyncio.AbstractEventLoop | None = None
 
@@ -270,8 +299,13 @@ def _resolve_node_llm_config_inner(
 # Default concurrency limit for parallel file processing
 DEFAULT_MAX_CONCURRENT = 10
 
-# Tools that support parallel file processing
-PARALLEL_TOOLS = {"transcribe", "describe", "summarize", "entities"}
+# Tools that support parallel file processing. Names must resolve via
+# registry.get_tool (directly or through TOOL_ALIASES) — a name that doesn't
+# match a registered tool silently disables fan-out for it ("entities" sat
+# here for months while the tool was registered as "extract_entities", so a
+# source→extract_entities edge ran as one batch call instead of per-file
+# Sends). test_parallel_and_source_tool_names_resolve guards this.
+PARALLEL_TOOLS = {"transcribe", "describe", "summarize", "extract_entities"}
 
 
 def _result_worth_caching(result: Any) -> bool:

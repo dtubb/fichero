@@ -37,6 +37,17 @@ struct DocumentThumbnailKindTests {
         #expect(kind == .folder)
     }
 
+    // A mirror is a `.file` with no fileType: it used to fall through to a
+    // storage fetch that returns nothing (EMPTY well) — which is why the list
+    // row grew a second inline glyph that doubled folders' icons (2026-08-09).
+    @Test("Workflow mirrors draw their symbol, never an empty storage well")
+    func workflowMirrorIsSymbol() {
+        let mirror = Document(docType: .file, name: "flow", prototypeKey: "workflow")
+        let kind = DocumentThumbnailKind.forDocument(mirror)
+        #expect(kind == .folder)
+        #expect(kind.fetchesStorageThumbnail == false)
+    }
+
     @Test("Images load from storage")
     func imageIsStorageImage() {
         let kind = DocumentThumbnailKind.forDocument(makeDoc(fileType: .image))

@@ -291,7 +291,7 @@ extension SidebarItemRow {
     /// `SidebarView.selectedItems` for row-level batch actions.
     private var resolvedSelectionItems: [SidebarItem] {
         selectedDestinations.compactMap {
-            findItemById($0.serializedID, in: allCachedItems)
+            lookupItem($0.serializedID)
         }
     }
 
@@ -341,7 +341,7 @@ extension SidebarItemRow {
 
     private func workflowRunTarget(for destination: SidebarDestination) -> WorkflowRunTarget? {
         guard case .document = destination,
-              let item = findItemById(destination.serializedID, in: allCachedItems) else {
+              let item = lookupItem(destination.serializedID) else {
             return nil
         }
         return workflowRunTarget(for: item)
@@ -395,23 +395,4 @@ extension SidebarItemRow {
             }
         }
     }
-
-    private func moveDestinationFolders(for document: Document) -> [Document]? {
-        guard let all = documentStore?.collections else { return nil }
-        // Same eligibility as the drop handler: a folder target that is neither
-        // the document itself nor one of its descendants (no circular move). The
-        // old `$0.id != document.id` filter caught self but NOT descendants, so
-        // the menu could move a folder into its own child — the drop path already
-        // rejected that. Share one decision (#3014).
-        return all
-            .filter {
-                $0.docType == .folder
-                    && SidebarMovePolicy.isValidTarget(sourceId: document.id, targetId: $0.id, documents: all)
-            }
-            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-    }
-
-    // Run Workflow submenu body lives in the shared `RunWorkflowSubmenuItems`
-    // (#722, deduped #4121) — one grouping/override implementation for the
-    // sidebar row and the library grid context menus.
 }

@@ -126,7 +126,7 @@ struct SidebarDragIDTests {
     func plainTextFlavorExists() throws {
         let source = try String(
             contentsOf: try AppSource.root()
-                .appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+                .appendingPathComponent("Views/Sidebar/ItemRow/SidebarDragID.swift"),
             encoding: .utf8
         )
         #expect(source.contains("DataRepresentation(exportedContentType: .utf8PlainText)"))
@@ -136,7 +136,7 @@ struct SidebarDragIDTests {
     func ownProcessIdFlavorSurvives() throws {
         let source = try String(
             contentsOf: try AppSource.root()
-                .appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow.swift"),
+                .appendingPathComponent("Views/Sidebar/ItemRow/SidebarDragID.swift"),
             encoding: .utf8
         )
         #expect(source.contains(".visibility(.ownProcess)"))

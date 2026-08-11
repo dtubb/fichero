@@ -2930,3 +2930,36 @@ class TestFuzzyMatch:
         terms = ["xyzzy"]
         mask = _fuzzy_contains_any_term(series, terms, cutoff=0.6)
         assert mask.tolist() == [False, False]
+
+
+class TestIngestDedupKeys:
+    """Database.ingest_dedup_keys — the folder-ingest skip-set as one
+    targeted SELECT (replaced the all(Document) full hydration that froze
+    large-library imports, 2026-08-09)."""
+
+    def test_returns_source_path_checksum_pairs_excluding_failed(self, temp_db):
+        from fichero_server.models import Status
+
+        kept = Document(
+            name="kept.pdf", path="/pkg/kept.pdf",
+            metadata={"source_path": "/src/kept.pdf", "checksum": "aaa"},
+        )
+        failed = Document(
+            name="failed.pdf", path="/pkg/failed.pdf", status=Status.failed,
+            metadata={"source_path": "/src/failed.pdf", "checksum": "bbb"},
+        )
+        # No source_path in metadata → the row's path is the fallback key.
+        fallback = Document(
+            name="fallback.jpg", path="/pkg/fallback.jpg",
+            metadata={"checksum": "ccc"},
+        )
+        no_checksum = Document(name="folder", path="/pkg/folder")
+        for doc in (kept, failed, fallback, no_checksum):
+            temp_db.save(doc)
+
+        keys = temp_db.ingest_dedup_keys()
+
+        assert ("/src/kept.pdf", "aaa") in keys
+        assert ("/pkg/fallback.jpg", "ccc") in keys
+        assert all(checksum != "bbb" for _source, checksum in keys)
+        assert len(keys) == 2

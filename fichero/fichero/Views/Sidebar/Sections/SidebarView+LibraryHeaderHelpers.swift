@@ -26,6 +26,9 @@ extension SidebarView {
             // report a refusal the item just appears to vanish (#4401).
             onDropError: { sidebarState.dropErrorMessage = $0 },
             onTap: {
+                // The header is OUTSIDE List selection (#160) — its tap is
+                // the one writer of both selection halves for this row.
+                selectionState.selectedDestinations = [.library(library.id)]
                 selectedItemId = sidebarLibrarySelectionId(library.id)
                 if windowState.libraryId != library.id { windowState.libraryId = library.id }
                 sidebarMode = .library
@@ -106,10 +109,12 @@ extension SidebarView {
                         batch.urls, mode: mode, parentId: batch.parentId
                     ))
                 }
-                // ONE trailing refresh (#4067/#4522) — see `handleImportedFiles`.
-                // The refresh+sleep+refresh that stood here redrew the whole
-                // sidebar forest a second time, half a second late.
-                await library.documentStore.refresh()
+                // ONE trailing refresh (#4067/#4522), and ONLY when live
+                // delivery is down (#24): a connected change stream has
+                // already spliced the imported rows in place.
+                await library.documentStore.refreshUnlessLiveDelivery(
+                    streamConnected: library.changeStream.isConnected
+                )
                 if let message = ImportOutcome.merged(outcomes).partialFailureMessage {
                     sidebarState.dropErrorMessage = message
                 }

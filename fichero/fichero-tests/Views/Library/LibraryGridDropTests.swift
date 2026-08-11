@@ -27,9 +27,9 @@ final class LibraryGridDropTests: XCTestCase {
 
     func testFolderCellsAreDropTargetsInEveryViewMode() throws {
         for file in [
-            "Views/Library/ViewModes/LibraryView+IconMode.swift",
-            "Views/Library/ViewModes/LibraryView+ListView.swift",
-            "Views/Library/ViewModes/LibraryView+TableColumns.swift",
+            "Views/Library/ViewModes/Icon/LibraryView+IconMode.swift",
+            "Views/Library/ViewModes/List/LibraryView+ListView.swift",
+            "Views/Library/ViewModes/Table/LibraryView+TableColumns.swift",
             "Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift"
         ] {
             let source = try Self.appSource(file)

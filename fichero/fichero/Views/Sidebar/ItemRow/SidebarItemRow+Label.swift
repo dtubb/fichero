@@ -1,18 +1,32 @@
 import SwiftUI
 
 extension SidebarItemRow {
-    /// Whether THIS row is the routed selection. Read from the same
-    /// `selectedItemId` binding the row already owns — not a second notion of
-    /// what is selected (#4371).
-    var isRowSelected: Bool {
-        selectedItemId == item.id
+    /// Mail's grammar (Daniel, 2026-08-08, #4563): EVERY member of a
+    /// multi-selection reads the same — grey row, accent name+icon. The
+    /// morning's version keyed the label on the routed PRIMARY alone, which
+    /// rendered one row of a five-row selection differently ("one selected
+    /// that is lighter green gray"). Membership drives the STYLE; the primary
+    /// gets a distinct glyph later (#4563), never a text shade.
+    var isRowInSelection: Bool {
+        selectedDestinations.contains(item.destination)
+    }
+
+    /// Finder's grammar, settled in Daniel's preview review (2026-08-08,
+    /// #4563): a selected sidebar row is the GREY platter with accent
+    /// name+icon in EVERY focus state — sidebarDropHighlight paints that
+    /// platter itself, so the native emphasized (accent) selection never
+    /// draws and no prominence switch is needed. White content appears only
+    /// over the one solid-accent fill left: the drop target (Mail).
+    var rowContentColor: Color {
+        if isDropTargeted { return .white }
+        return rowLabelStyle.color
     }
 
     /// The label treatment, from the app's one selection vocabulary (#4371).
     /// Applied explicitly so the row can never inherit the native emphasized
     /// selection's white-and-bold inversion.
     var rowLabelStyle: LibrarySelectionStyle.SidebarRowLabel {
-        LibrarySelectionStyle.sidebarLabel(isSelected: isRowSelected)
+        LibrarySelectionStyle.sidebarLabel(isSelected: isRowInSelection)
     }
 
     var itemLabel: some View {
@@ -36,12 +50,13 @@ extension SidebarItemRow {
             } else {
                 Text(item.name)
                     .lineLimit(1)
-                    // #4371: state the label's colour and weight rather than
-                    // inheriting them. The native emphasized source-list
-                    // selection forces white and bolds the text; Finder and
-                    // Mail leave the label alone and let the row's fill carry
-                    // the selection. These two modifiers ARE that difference.
-                    .foregroundStyle(rowLabelStyle.color)
+                    // Stated explicitly, never inherited (#4371's mechanism
+                    // stands): the native emphasized source-list selection
+                    // forces white-and-bold. The COLOURS follow Finder
+                    // (Daniel, 2026-08-08): accent name when selected, white
+                    // over the solid accent fill while a drop targets this
+                    // row, primary otherwise.
+                    .foregroundStyle(rowContentColor)
                     .fontWeight(rowLabelStyle.weight)
                     // Finder's alias grammar, both halves: the tiny arrow
                     // badge on the icon (ingestBadge) AND an italic name —
@@ -50,17 +65,15 @@ extension SidebarItemRow {
                     .italic(rowIsAlias)
                     .allowsHitTesting(false)
                 // `.allowsHitTesting(false)` on the Text (and Image) is
-                // critical: SwiftUI `Text` on macOS registers itself as
-                // an AppKit `NSDraggingSource` for selectable text, which
-                // intercepts press-and-drag from the name area BEFORE the
-                // row container's `.draggable` sees it — producing a
-                // text-flavored drag that bypasses our `.dropDestination`
-                // (#713). Disabling hit-testing on the Text makes presses
-                // fall through to the parent's `.contentShape(Rectangle())`
-                // so the row's `.draggable` claims them uniformly. The
-                // outer `.simultaneousGesture(TapGesture)` on the row body
-                // still fires for selection because contentShape provides
-                // the clickable surface.
+                // load-bearing for CLICKS (#713/#13; re-learned live
+                // 2026-08-10): with it, name-presses fall through to the
+                // row surface, where List selection + the UnifiedRows tap
+                // fallback commit them. The morning's experiment that
+                // removed it (chasing drag-by-name) put presses into a
+                // path where NEITHER committed — "you can't click on a
+                // name, you have to click on row". Reverted. Drag-by-name
+                // remains a separate open investigation; do not chase it
+                // by re-enabling hit-testing here.
                 //
                 // No inline double-tap-to-rename gesture: `.simultaneousGesture
                 // (TapGesture(count: 2))` causes SwiftUI to hold every single
@@ -128,10 +141,17 @@ extension SidebarItemRow {
     /// re-truncates the row name (Every-Frame-Perfect). Hidden from
     /// accessibility: VoiceOver and keyboard users reach the identical
     /// action via the row context menu's Open in New Tab / New Window.
+    /// `NSWindow.userTabbingPreference` is a PREFERENCES read (IPC) and this
+    /// getter runs per row per render — it showed up six times in Daniel's
+    /// 2026-08-09 stall log. Read once per launch; ponytail: a user changing
+    /// the System Settings tabbing preference mid-run sees the new behavior
+    /// after relaunch, which is also how most AppKit apps behave.
+    private static let cachedUserTabbingPreference = NSWindow.userTabbingPreference
+
     @ViewBuilder
     var trailingOpenAffordance: some View {
         if item.libraryId != nil {
-            let prefersTab = sidebarOpenPrefersTab(NSWindow.userTabbingPreference)
+            let prefersTab = sidebarOpenPrefersTab(Self.cachedUserTabbingPreference)
             let visible = sidebarRowShowsOpenAffordance(
                 isHovered: isRowHovered,
                 isRenaming: renameState.renamingItemId == item.id,
@@ -153,9 +173,23 @@ extension SidebarItemRow {
     }
     #endif
 
+    /// The row is expanded and its known children haven't arrived yet —
+    /// the OPENING row's icon carries the spinner (Daniel, 2026-08-09),
+    /// never a synthetic child row.
+    private var childrenLoading: Bool {
+        expandedItems.contains(item.id) && sidebarNeedsDeferredDisclosureContent(item)
+    }
+
     @ViewBuilder
     private var iconView: some View {
-        if workflowIsRunning {
+        if childrenLoading {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.8)
+                .frame(width: 16, alignment: .center)
+                .tint(.accentColor)
+                .accessibilityLabel("Loading items")
+        } else if workflowIsRunning {
             ZStack {
                 Circle()
                     .fill(Color.purple.opacity(isPulsing ? 0.4 : 0.15))
@@ -257,7 +291,11 @@ extension SidebarItemRow {
     /// Color only the glyph. Text remains `.primary`, and selected rows revert
     /// to the system foreground so SwiftUI keeps its native contrast treatment.
     private var iconTint: Color {
-        guard !selectedDestinations.contains(item.destination) else { return .primary }
+        // Drop target: white over the solid accent platter — same rule as
+        // the name (rowContentColor, #4563).
+        if isDropTargeted { return .white }
+        // Selection: accent icon on the grey row fill (Finder).
+        guard !selectedDestinations.contains(item.destination) else { return .accentColor }
         switch item.sidebarTint {
         case .accent: return .accentColor
         case .teal: return .teal

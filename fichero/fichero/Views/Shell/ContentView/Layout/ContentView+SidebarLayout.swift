@@ -22,7 +22,8 @@ extension ContentView {
     /// Returns a view that shows an accent-colored border when the given pane has keyboard focus,
     /// then fades out after a brief moment (like Tinderbox's focus highlight).
     func paneFocusIndicator(for pane: PaneFocus) -> some View {
-        FadingFocusBorder(isActive: focusedPane == pane)
+        // Reads the HINT, not FocusState — see paneFocusHint's doc comment.
+        FadingFocusBorder(isActive: paneFocusHint == pane)
             .allowsHitTesting(false)
     }
 
@@ -72,6 +73,9 @@ extension ContentView {
                 Color.clear
                     .onChange(of: geo.size.width) { _, newWidth in
                         guard newWidth > 0, abs(newWidth - sidebarWidth) > 2 else { return }
+                        // Views audit B3: no geometry write-back while a
+                        // divider drag is invalidating layout every frame.
+                        guard !dividerDragInFlight else { return }
                         sidebarWidth = newWidth
                     }
             }
@@ -132,8 +136,9 @@ extension ContentView {
             // Non-library/search modes (activity, workflows, chat, etc.) never use
             // the preview split — they own the full content area themselves.
             contentWithOptionalModeRail
-                .overlay { paneFocusIndicator(for: .content) }
                 .frame(maxWidth: .infinity)
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                .overlay { paneFocusIndicator(for: .content) }
         } else {
             // Folders now show the current layout so the WebKit/reading
             // pane remains visible for folder-level aggregate content (#1405).
@@ -147,31 +152,35 @@ extension ContentView {
                 case .none:
                     if showDocumentGrid {
                         contentWithOptionalModeRail
-                            .overlay { paneFocusIndicator(for: .content) }
                             .frame(maxWidth: .infinity)
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                            .overlay { paneFocusIndicator(for: .content) }
                     } else {
                         // Grid hidden (#616): show only the preview/editor at full width.
                         previewView
-                            .overlay { paneFocusIndicator(for: .preview) }
                             .frame(maxWidth: .infinity)
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+                            .overlay { paneFocusIndicator(for: .preview) }
                     }
 
                 case .standard:
                     if showDocumentGrid {
                         PlatformVSplitView {
                             contentWithOptionalModeRail
-                                .overlay { paneFocusIndicator(for: .content) }
                                 .frame(minHeight: 150, idealHeight: 180)
+                                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                                .overlay { paneFocusIndicator(for: .content) }
 
                             previewView
-                                .overlay { paneFocusIndicator(for: .preview) }
                                 .frame(minHeight: 400, idealHeight: 720)
+                                .overlay { paneFocusIndicator(for: .preview) }
                         }
                         .frame(maxWidth: .infinity)
                     } else {
                         previewView
-                            .overlay { paneFocusIndicator(for: .preview) }
                             .frame(maxWidth: .infinity)
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+                            .overlay { paneFocusIndicator(for: .preview) }
                     }
 
                 case .widescreen:
@@ -198,13 +207,14 @@ extension ContentView {
                             adaptiveSplittablePane(storageKey: "library") {
                                 contentWithOptionalModeRail
                             }
-                            .overlay { paneFocusIndicator(for: .content) }
                             .frame(width: widescreenContentFixedWidth)
                             .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
                             // The library pane must never paint past its own split
                             // column — otherwise list/grid rows can bleed under the
                             // shell sidebar or off the left window edge.
                             .clipped()
+                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
+                            .overlay { paneFocusIndicator(for: .content) }
                         }
 
                         if panePlan.showsLibraryDivider {
@@ -212,7 +222,8 @@ extension ContentView {
                                 width: $widescreenContentPaneWidth,
                                 minWidth: ContentView.contentListMinWidth,
                                 maxWidth: 900,
-                                edge: .leading
+                                edge: .leading,
+                                isDragging: $dividerDragInFlight
                             )
                         }
 
@@ -224,7 +235,8 @@ extension ContentView {
                                     width: $pageContentPaneWidth,
                                     minWidth: ContentView.readingPaneMinWidth,
                                     maxWidth: 900,
-                                    edge: .trailing
+                                    edge: .trailing,
+                                    isDragging: $dividerDragInFlight
                                 )
                                 widescreenReadingPane
                                     .frame(width: CGFloat(pageContentPaneWidth))

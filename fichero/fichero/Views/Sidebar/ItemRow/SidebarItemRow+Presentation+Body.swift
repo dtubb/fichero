@@ -30,15 +30,16 @@ func sidebarRowAccessibilityHint(canBeRenamed: Bool) -> String {
 extension SidebarItemRow {
     var body: some View {
         bodyContent
-            // DisclosureGroup label and the row drag both watch mouse-down
-            // and compete with List(selection:) for the tap event, causing
-            // intermittent click failures on icon/text (#645). A
-            // simultaneousGesture keeps a fallback path, but the write is
-            // deferred/idempotent so it does not mutate List selection while
-            // SwiftUI/AppKit are still resolving the row click (#1165).
-            .simultaneousGesture(TapGesture().onEnded {
-                requestSelectionFallback(for: item.id)
-            })
+            // NO per-row TapGesture fallback any more (removed 2026-08-08,
+            // #4571). The #645-era fallback predates textSelection(.disabled)
+            // and the allowsHitTesting(false) pass-throughs that now let
+            // clicks reach the List natively — and it was itself a second
+            // write path in the gesture arena: a MODIFIER click over the
+            // label was consumed there (the fallback correctly bailed on
+            // cmd/shift, but bailing is not the same as never competing), so
+            // shift/cmd-click on the NAME could not extend a selection while
+            // the same click beside the name could. One selection path:
+            // List(selection:) owns every click, plain or modified.
             // SwiftUI `Text` registers itself as an NSDraggingSource for
             // selectable text on macOS. That AppKit-level drag source
             // wins over the row container's `.draggable`, producing a
@@ -48,17 +49,6 @@ extension SidebarItemRow {
             // drag arena so the row's `.draggable` is the sole drag
             // source (#711).
             .textSelection(.disabled)
-            #if os(macOS)
-            // Copy-mode tint lifecycle: monitor lives only while targeted.
-            .onChange(of: isDropTargeted) { _, targeted in
-                updateOptionMonitor(targeted: targeted)
-            }
-            // A targeted row removed mid-drag (list rebuild) never gets the
-            // onChange(false) — tear the monitor down on disappear too.
-            .onDisappear {
-                updateOptionMonitor(targeted: false)
-            }
-            #endif
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
@@ -80,25 +70,6 @@ extension SidebarItemRow {
                     .environment(library.bookmarkService)
                 }
             }
-    }
-
-    private func requestSelectionFallback(for id: String) {
-        #if canImport(AppKit)
-        // The plain-click fallback (#645/#1165) writes a SINGLE selection. When
-        // a modifier is held the click is a multi-select gesture that native
-        // `List(selection: Set)` owns — writing here would collapse the whole
-        // cmd/shift selection back to one row. Let the List handle it.
-        let mods = NSEvent.modifierFlags
-        if mods.contains(.command) || mods.contains(.shift) { return }
-        #endif
-        guard sidebarSelectionFallback(current: selectedItemId, tapped: id) != nil else {
-            return
-        }
-        Task { @MainActor in
-            if let next = sidebarSelectionFallback(current: selectedItemId, tapped: id) {
-                selectedItemId = next
-            }
-        }
     }
 
     /// VoiceOver label — the row's displayed name plus its kind so users
@@ -144,10 +115,23 @@ extension SidebarItemRow {
         if let children = item.children, !children.isEmpty {
             childrenList(children)
         } else if sidebarNeedsDeferredDisclosureContent(item) {
-            // Keep the native disclosure chevron visible while descendants are
-            // still lazy-loaded from metadata-only childCount state (#3355).
+            // Children are known to exist (childCount) but not fetched yet.
+            // NO synthetic spinner ROW any more (Daniel, 2026-08-09: "it adds
+            // row for spinner then adds in files. the spinner should be on
+            // the icon of the row I am opening") — the row's OWN iconView
+            // shows the spinner while this state holds (see childrenLoading
+            // in SidebarItemRow+Label). The clear view keeps the chevron
+            // rendered (#3355), but must occupy NO row: the List's minimum
+            // row height turned the old 0.5pt frame into a visible blank row
+            // (green-highlighted, then replaced when pages arrived — Daniel,
+            // 2026-08-10: "don't open an empty row"). Zero height, zero
+            // insets, no separator, selection disabled = an invisible slot.
             Color.clear
-                .frame(height: 0.5)
+                .frame(height: 0)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .selectionDisabled(true)
                 .accessibilityHidden(true)
         }
     }
@@ -176,12 +160,21 @@ extension SidebarItemRow {
                 disclosureContent
             } label: {
                 fullWidthLabel
-                    .sidebarDropHighlight(
-                        isDropTargeted, stronger: isFolder, operation: targetedDropOperation
-                    )
+                    .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection, mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
             }
-            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
-            .contextMenu { rowContextMenu }
+            .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
+            // #4544: menu built at OPEN, not per render — see
+            // SidebarDeferredMenuContent.
+            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
+            // Chevron stays ACCENT on a selected row (Daniel, 2026-08-10:
+            // "the chevron turns white though. white is invisible on tahoe
+            // and golden gate. make it the same green"). The native selection
+            // still marks the row emphasized even though our grey platter
+            // covers its platter, so system chrome (the disclosure chevron)
+            // flips to white. Standard prominence + the accent tint keep it
+            // the same accent as the name and icon.
+            .environment(\.backgroundProminence, .standard)
+            .tint(Color.accentColor)
         } else if isFolder {
             folderLabel
         } else {
@@ -206,6 +199,18 @@ extension SidebarItemRow {
     /// row (`public.folder` conforms to `public.item`, not to `public.data`).
     static let dropTypes: [UTType] = [.ficheroDragItem, .utf8PlainText, .item, .fileURL, .data]
 
+    /// Only CONTAINERS are drop targets (Daniel, 2026-08-10: "if you try to
+    /// add a file or image to a pdf it should do a cursor negative or pop
+    /// back"). A document leaf — PDF, image, file — refuses the drop
+    /// natively: no .onDrop means the forbidden cursor and the snap-back,
+    /// exactly Finder's grammar. Read-only system folders refuse too
+    /// (#4514, `acceptsItemDrops`). Non-document rows (sections, workflow
+    /// containers) keep their existing drop surfaces.
+    var rowIsDropTarget: Bool {
+        if case .document(let doc) = item.itemType { return doc.acceptsItemDrops }
+        return true
+    }
+
     /// Folder row: drop target always; drag source EXCEPT for the
     /// protected Inbox folder (#621). Inbox stays anchored at the top;
     /// users can drag files INTO it but not drag Inbox itself to
@@ -213,9 +218,9 @@ extension SidebarItemRow {
     @ViewBuilder
     private var folderLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: true, operation: targetedDropOperation)
-            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
-            .contextMenu { rowContextMenu }
+            .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection, mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
+            .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
+            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
 
     /// Leaf row: no inner gestures — `.draggable` is applied one level
@@ -223,9 +228,9 @@ extension SidebarItemRow {
     /// SwiftUI's tap-vs-drag disambiguation (#711 follow-up).
     private var leafLabel: some View {
         fullWidthLabel
-            .sidebarDropHighlight(isDropTargeted, stronger: false, operation: targetedDropOperation)
-            .onDrop(of: Self.dropTypes, delegate: rowDropDelegate)
-            .contextMenu { rowContextMenu }
+            .sidebarDropHighlight(isDropTargeted, selected: isRowInSelection, mergeAbove: mergeSelectionAbove, mergeBelow: mergeSelectionBelow)
+            .modifier(SidebarRowDropGate(enabled: rowIsDropTarget, delegate: rowDropDelegate))
+            .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
     }
 
     /// One delegate for all three row shapes (#4401). `.onDrop(of:isTargeted:)`
@@ -240,5 +245,21 @@ extension SidebarItemRow {
             surface: "sidebar-row",
             onDropProviders: { handleRowDrop($0) }
         )
+    }
+}
+
+/// Attaches the row drop delegate only when the row genuinely accepts drops
+/// — a leaf gets NO drop surface, so AppKit shows the forbidden cursor and
+/// snaps the item back (Daniel's PDF ruling, 2026-08-10).
+struct SidebarRowDropGate: ViewModifier {
+    let enabled: Bool
+    let delegate: LibraryItemDropDelegate
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onDrop(of: SidebarItemRow.dropTypes, delegate: delegate)
+        } else {
+            content
+        }
     }
 }

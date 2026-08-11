@@ -61,7 +61,11 @@ extension LibraryView {
     @TableColumnBuilder<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>>
     internal var outlineColumns: some TableColumnContent<LibraryOutlineNode, KeyPathComparator<LibraryOutlineNode>> {
         TableColumn("Name", value: \.document.name) { node in
+            // Same per-cell boundary injection as documentColumnCell — the
+            // name cell hosts the activity indicator (DocumentStore) and the
+            // thumbnail well (StorageService).
             outlineNameCell(for: node)
+                .modifier(tableCellServiceInjection)
         }
         .width(min: 150, ideal: 200)
         .customizationID("name")
@@ -208,14 +212,22 @@ extension LibraryView {
             // Document rows drag out like list/icon rows (#4160 step 3):
             // real file copy + RTF via the shared LibraryItemDrag —
             // previously only CHILD rows were draggable in table mode.
-            .draggable(libraryItemDrag(for: document))
+            // Same lozenge preview as list/columns rows (#26/#133-136):
+            // the default cell snapshot read as a bare text scrap.
+            .draggable(libraryItemDrag(for: document)) {
+                RowDragPreview(
+                    name: document.name,
+                    systemImage: document.fileType?.icon ?? document.docType.icon
+                )
+            }
             .modifier(LibraryFolderCellDrop(
                 acceptsDrop: document.acceptsItemDrops,
                 onDropProviders: { providers in
                     handleFolderCellDrop(providers, into: document)
                 }
             ))
-            .modifier(LibraryRowHoverWash(enabled: !selection.contains(document.id)))
+// NO hover wash here (V4, 2026-08-09): native Table has no row-hover
+            // seam, and a NAME-CELL-only wash read as a bug beside the row modes.)
             // Same look-ahead window list/icon modes use (#4160): now that the
             // name cell renders a thumbnail, without this the table fetches one
             // image per row on scroll (#4202).
@@ -225,6 +237,32 @@ extension LibraryView {
             // VoiceOver/XCUITest parity with list rows and icon tiles.
             .accessibilityIdentifier("libraryTableRow.\(document.id)")
             .accessibilityAddTraits(selection.contains(document.id) ? .isSelected : [])
+    }
+
+    /// Artifact child-row name cell — split out of `outlineNameCell` for the
+    /// function-body-length budget.
+    @ViewBuilder
+    private func artifactNameCell(for artifact: Artifact) -> some View {
+                Label(
+                    artifact.stepName ?? artifact.artifactType,
+                    systemImage: "shippingbox"
+                )
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                // Same env-free preview contract as the group row above.
+                .draggable(LibraryItemDrag(
+                    kind: .artifact,
+                    id: artifact.id,
+                    documentId: artifact.documentId,
+                    text: artifact.content?.isEmpty == false
+                        ? artifact.content ?? artifact.artifactTypeDisplayName
+                        : artifact.artifactTypeDisplayName
+                )) {
+                    RowDragPreview(
+                        name: artifact.stepName ?? artifact.artifactType,
+                        systemImage: "shippingbox"
+                    )
+                }
     }
 
     /// Name-column cell. Documents render the existing name cell; child-group rows
@@ -238,12 +276,22 @@ extension LibraryView {
             Label(type.groupLabel(count: node.count), systemImage: type.systemImage)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                // Explicit env-free preview — the DEFAULT preview re-hosts
+                // the row with NO environment and crashes on first drag
+                // (Daniel's table-view crash, 2026-08-10: EnvironmentObjectKey
+                // force-unwrap under PasteboardUtility.File). See
+                // DragPreviewLabel's contract.
                 .draggable(LibraryItemDrag(
                     kind: .group,
                     id: node.id,
                     documentId: node.document.id,
                     text: type.groupLabel(count: node.count)
-                ))
+                )) {
+                    RowDragPreview(
+                        name: type.groupLabel(count: node.count),
+                        systemImage: type.systemImage
+                    )
+                }
         case .pageItem(let page):
             // `pageThumbnailLabel ?? name` is nil exactly for a page with no
             // sequence — the case with no page number to show — so it fell
@@ -255,22 +303,14 @@ extension LibraryView {
             )
             .font(.subheadline)
             .foregroundStyle(.primary)
-            .draggable(libraryItemDrag(for: page))
+            .draggable(libraryItemDrag(for: page)) {
+                RowDragPreview(
+                    name: DocumentTitle.displayName(for: page),
+                    systemImage: "doc.richtext"
+                )
+            }
         case .artifactItem(let artifact):
-            Label(
-                artifact.stepName ?? artifact.artifactType,
-                systemImage: "shippingbox"
-            )
-            .font(.subheadline)
-            .foregroundStyle(.primary)
-            .draggable(LibraryItemDrag(
-                kind: .artifact,
-                id: artifact.id,
-                documentId: artifact.documentId,
-                text: artifact.content?.isEmpty == false
-                    ? artifact.content ?? artifact.artifactTypeDisplayName
-                    : artifact.artifactTypeDisplayName
-            ))
+            artifactNameCell(for: artifact)
         case .entityItem(let entity):
             Label(entity.canonicalName, systemImage: "person.crop.circle")
                 .font(.subheadline)
@@ -289,16 +329,29 @@ extension LibraryView {
         switch node.kind {
         case .document:
             tableCellView(for: columnId, document: node.document)
+                .modifier(tableCellServiceInjection)
         case .childGroup, .pageItem, .artifactItem, .entityItem, .claimItem:
             EmptyView()
         }
     }
 
+    /// SwiftUI `Table` cells are their OWN hosting boundary on macOS 26 —
+    /// custom @Observable environment objects DON'T reach the cell content,
+    /// so the Output/entity cells' non-optional
+    /// `@Environment(ArtifactService.self)` read killed the process the
+    /// moment table mode rendered a document row (Daniel's live-test crash,
+    /// 2026-08-09: "Fatal error: No Observable object of type
+    /// ArtifactService found"). Re-inject the ONE service list per cell —
+    /// the same boundary treatment `.inspector`, sheets, and preview hosts
+    /// already get (LibraryServiceEnvironment).
+    var tableCellServiceInjection: TableCellServiceInjection {
+        TableCellServiceInjection(
+            library: libraryManager.getLibrary(id: windowState.libraryId)
+                ?? libraryManager.globalLibrary
+        )
+    }
 }
 
-// Canvas (2D) is now rendered by `Spatial2DCanvas` off the shared
-// canvasLayoutStore (#2667). The old `mapView` + its ephemeral, in-memory
-// `mapPositions` grid (never persisted, reset every launch) were the
-// duplicate this merge retires. `MapCard`/`MapGridBackground` in
-// LibraryMapComponents.swift are now unreferenced; manager can `git rm`
-// that file (pbxproj edits are gated to scripts, not hand-edited here).
+// Column definitions render inside the same whole-mode canvas as the table
+// view (Daniel, 2026-08-09: every view-mode file previews in place).
+#Preview("Table mode — columns") { LibraryPreviewFixtures.mode(.table, .table) }

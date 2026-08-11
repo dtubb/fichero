@@ -321,36 +321,46 @@ async def stream_activities(
 
     async def event_generator():
         tracker_stream = tracker.stream(sub_id, filter)
+        # PERSISTENT tasks across iterations (2026-08-10, the 11-second
+        # reconnect churn in Daniel's log): the previous shape re-created and
+        # then CANCELLED both tasks every iteration — including the keepalive
+        # path, whose `continue` still runs the loop's finally. Cancelling an
+        # `anext()` task FINALIZES the underlying async generator, so the very
+        # next iteration got StopAsyncIteration and returned: every idle
+        # stream died at its first 10s keepalive, and each client reconnected
+        # a second later — one spurious access-log line, one
+        # get_activity_tracker INFO, and a re-subscription every ~11s, forever.
+        # A pending task now survives quiet ticks and is only awaited when it
+        # actually completes.
+        tracker_task = None
+        change_task = None
         try:
             while True:
-                tracker_task = asyncio.create_task(anext(tracker_stream))
-                change_task = asyncio.create_task(change_subscription.queue.get())
-                try:
-                    done, pending = await asyncio.wait(
-                        {tracker_task, change_task},
-                        timeout=_KEEPALIVE_TIMEOUT,
-                        return_when=asyncio.FIRST_COMPLETED,
-                    )
-                    if not done:
-                        yield ": keepalive\n\n"
-                        continue
-                    if change_task in done:
-                        change_event = change_task.result()
-                        response = _change_event_to_activity_response(change_event)
-                        yield f"data: {response.model_dump_json()}\n\n"
-                    if tracker_task in done:
+                if tracker_task is None:
+                    tracker_task = asyncio.create_task(anext(tracker_stream))
+                if change_task is None:
+                    change_task = asyncio.create_task(change_subscription.queue.get())
+                done, _pending = await asyncio.wait(
+                    {tracker_task, change_task},
+                    timeout=_KEEPALIVE_TIMEOUT,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if not done:
+                    yield ": keepalive\n\n"
+                    continue
+                if change_task in done:
+                    change_event = change_task.result()
+                    change_task = None
+                    response = _change_event_to_activity_response(change_event)
+                    yield f"data: {response.model_dump_json()}\n\n"
+                if tracker_task in done:
+                    try:
                         activity = tracker_task.result()
-                        response = ActivityResponse.from_activity(activity)
-                        yield f"data: {response.model_dump_json()}\n\n"
-                finally:
-                    for task in (tracker_task, change_task):
-                        if not task.done():
-                            task.cancel()
-                    results = await asyncio.gather(
-                        tracker_task, change_task, return_exceptions=True
-                    )
-                    if any(isinstance(result, StopAsyncIteration) for result in results):
+                    except StopAsyncIteration:
                         return
+                    tracker_task = None
+                    response = ActivityResponse.from_activity(activity)
+                    yield f"data: {response.model_dump_json()}\n\n"
         except asyncio.CancelledError:
             logger.info("activity-stream: client cancelled cleanly lib=%s", library_path)
             raise
@@ -362,6 +372,13 @@ async def stream_activities(
             error_event = {"error": str(e)}
             yield f"data: {json.dumps(error_event)}\n\n"
         finally:
+            for task in (tracker_task, change_task):
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in (tracker_task, change_task) if task is not None),
+                return_exceptions=True,
+            )
             await tracker_stream.aclose()
             tracker.unsubscribe(sub_id)
             _change_hub.unsubscribe(library_path, change_subscription.queue)

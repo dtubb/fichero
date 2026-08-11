@@ -51,6 +51,17 @@ extension ContentView {
         return (cached + browsed).filter { seen.insert($0.id).inserted }
     }
 
+    /// Pure: page-document ids at pdfIndex ±1/±2 — the prefetch set for a
+    /// page turn (#18). Nearest neighbours first so the bounded prefetch pool
+    /// warms the likeliest next flip before the speculative ones.
+    static func adjacentPageIds(around pageIndex: Int, in candidates: [Document]) -> [String] {
+        [-1, 1, -2, 2].compactMap { offset in
+            let index = pageIndex + offset
+            guard index >= 0 else { return nil }
+            return Self.pageDocument(atPDFIndex: index, in: candidates)?.id
+        }
+    }
+
     /// Pure: the 0-based PDF page index for a page Document (1-based `sequence`),
     /// clamped to 0; non-page docs (or nil) resolve to the first page. (#3013)
     static func pdfPageIndex(for doc: Document?) -> Int {
@@ -78,13 +89,37 @@ extension ContentView {
 
     /// The one place a reader page signal is applied. `signal` decides how much
     /// of the window may move; everything else is identical between the two.
+    ///
+    /// EDITS FIRST (Daniel 2026-08-09, live: "the content window always needs
+    /// to save if I've made changes" — a swipe reseeded the Content editor
+    /// from the NEW page and the draft was replaced unsaved). The in-flight
+    /// page-content edit flushes BEFORE the page focus moves; a clean editor
+    /// makes this a guarded no-op, so ordinary swipes pay nothing.
     private func applyReaderPageSignal(_ signal: ReaderPageSignal, pageIndex: Int) {
+        Task { @MainActor in
+            await documentStore.flushActivePageEdit()
+            applyReaderPageSignalAfterFlush(signal, pageIndex: pageIndex)
+        }
+    }
+
+    private func applyReaderPageSignalAfterFlush(_ signal: ReaderPageSignal, pageIndex: Int) {
         let candidates = Self.readerPageCandidates(
             readerDocument: detailDocument ?? pageFocusDocument,
             childrenCache: documentStore.childrenCache,
             currentDocuments: documentStore.currentDocuments
         )
         guard let match = Self.pageDocument(atPDFIndex: pageIndex, in: candidates) else {
+            // The reader must PAGE even when the pages are not imported as
+            // documents (Daniel, 2026-08-09: a 21-page PDF selected from the
+            // grid — 'you ought to be able to change pages even though it
+            // can't update the position'). Returning without moving the
+            // cursor left the parent's selectedPageIndex unchanged, and the
+            // pane's keep-in-step onChange snapped the view straight back.
+            // A VIRTUAL page cursor keeps the reader's place; it is marked
+            // and never enters browserSelection.
+            if signal.movesPageFocus, let pdfId = detailPDFDocumentId {
+                pageFocusDocument = Document.virtualPageCursor(pdfParentId: pdfId, pageIndex: pageIndex)
+            }
             // Routine while scrolling — the transcript can report a page before
             // its children have loaded — but a CLICK that resolves to nothing
             // deserves a report. Which report depends on what actually
@@ -111,10 +146,42 @@ extension ContentView {
             return
         }
         if signal.movesPageFocus, pageFocusDocument?.id != match.id {
-            pageFocusDocument = match
+            NavTrace.log("readerPageActivation.pageFocus", "→ \(match.id)"); pageFocusDocument = match
         }
-        if signal.movesBrowserSelection, browserSelection != [match.id] {
-            browserSelection = [match.id]
+        // ★ EVERY FRAME PERFECT (#18): warm the display cache for the pages
+        // either side of this turn, so the NEXT flip finds its image cached
+        // and swaps in place with no fetch window. Best-effort — the prefetch
+        // pool skips cached ids and swallows errors.
+        let neighborIds = Self.adjacentPageIds(around: pageIndex, in: candidates)
+        if !neighborIds.isEmpty {
+            let storage = storageService
+            Task { await storage.prefetchDisplayImages(neighborIds) }
+        }
+        // A page-turn now HIGHLIGHTS the page in the library and the sidebar
+        // (Daniel, 2026-08-09: "swipe left and right, and then the page
+        // changes in the sidebar"). A scroll/swipe never stomps a
+        // multi-selection the user built — only a click replaces one.
+        if signal.movesBrowserSelection,
+           browserSelection != [match.id],
+           signal == .clicked || browserSelection.count <= 1 {
+            NavTrace.log("readerPageActivation.browserSelection", "→ \(match.id)"); browserSelection = [match.id]
+            // Sidebar HIGHLIGHT only — a direct destinations write, never the
+            // routing seam: routing would re-root the preview under the very
+            // swipe that was meant to move within it (#1463 class). DEBOUNCED
+            // (2026-08-09): a sidebar re-render per page-turn is a ~250ms
+            // childrenList pass — the white-flash budget on fast swipes. The
+            // highlight settles ~150ms after the last turn instead.
+            let destination = SidebarDestination.document(match.id)
+            if sidebarSelectionState.selectedDestinations != [destination] {
+                sidebarHighlightDebounce?.cancel()
+                sidebarHighlightDebounce = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(150))
+                    guard !Task.isCancelled else { return }
+                    if sidebarSelectionState.selectedDestinations != [destination] {
+                        sidebarSelectionState.selectedDestinations = [destination]
+                    }
+                }
+            }
         }
         // `detailDocument` is deliberately untouched by BOTH signals: it is the
         // reader's own input, and re-rooting it reloads the WebKit transcript

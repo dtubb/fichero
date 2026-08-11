@@ -40,7 +40,8 @@ extension LibraryView {
                 isRenaming: renamingDocumentId == doc.id
             ),
             isSelected: selection.contains(doc.id),
-            tint: selectionTint
+            tint: selectionTint,
+            focused: isPaneFocused
         ) {
             MailStyleRow(
                 document: doc,
@@ -57,9 +58,10 @@ extension LibraryView {
             }
         }
         .equatable()
-        .modifier(LibraryRowHoverWash(enabled: !selection.contains(doc.id)))
         .id(doc.id)
-        .draggable(libraryItemDrag(for: doc))
+        .draggable(libraryItemDrag(for: doc)) {
+            RowDragPreview(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
+        }
         // Folder rows accept in-app item drops (#4124) — except read-only
         // system folders, which the engine refuses anyway (#4514).
         .modifier(LibraryFolderCellDrop(
@@ -75,8 +77,9 @@ extension LibraryView {
             handleTap(doc)
             onRequestFocus()
         }
+        // Menu built at OPEN, not per render (#4544 pattern).
         .contextMenu {
-            documentContextMenu(for: doc)
+            SidebarDeferredMenuContent { documentContextMenu(for: doc) }
         }
         // Same look-ahead window icon mode uses (#4160):
         // batch-prefetch thumbnails around the appearing
@@ -93,7 +96,8 @@ extension LibraryView {
         LibrarySelectableRow(
             identity: entity,
             isSelected: selection.contains(entityId),
-            tint: selectionTint
+            tint: selectionTint,
+            focused: isPaneFocused
         ) {
             EntityRow(
                 entity: entity,
@@ -293,3 +297,7 @@ extension LibraryView {
     }
     #endif
 }
+
+// The whole-mode canvas for THIS file (Daniel, 2026-08-09: every view-mode
+// file previews in place). One shared fixture environment — LibraryModeFixtures.
+#Preview("List mode") { LibraryPreviewFixtures.mode(.list, .list) }

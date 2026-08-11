@@ -21,9 +21,10 @@ extension ContentView {
                 Divider()
             }
             centerContent
-            if horizontalSizeClass != .compact {
-                detailStatusPathBar
-            }
+            // NO window-wide status bar any more (Daniel #106-108,
+            // 2026-08-09: "we want the status bar just on the library") —
+            // the Finder-style path + status rows live in LibraryView's
+            // bottom inset, scoped to that pane. See LibraryPathStatusBar.
         }
         .background(Color(platformColor: .textBackgroundColor))
         // Keep every library/preview/reader combination inside the detail
@@ -60,25 +61,9 @@ extension ContentView {
         .background(.bar)
     }
 
-    /// Finder-style status bar: WHAT is selected (name or "N items selected"),
-    /// never the path — the path lives only in the toolbar's principal
-    /// breadcrumb. The dedicated location path bar and the pane breadcrumb
-    /// strip were two of FOUR in-window copies of the same path; retired
-    /// (#4102 dedupe).
-    private var detailStatusPathBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            HStack(spacing: 8) {
-                Text(selectionStatusText)
-                    .font(.caption)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 10)
-            .frame(height: 24)
-            .background(.bar)
-        }
-    }
+    // detailStatusPathBar is RETIRED (Daniel #106-108) — see the comment at
+    // its old mount above. selectionStatusText remains in StateDisplay for
+    // the toolbar/other readers.
 
     /// The document-canvas pane of the widescreen reading layout — a PDF page
     /// viewer when a PDF is active, otherwise the image/preview editor. Carries
@@ -94,7 +79,17 @@ extension ContentView {
 
     @ViewBuilder
     private var widescreenCanvasPaneContent: some View {
-        if let pdfDocumentId = detailPDFDocumentId {
+        let stackDocuments = previewStackDocuments(
+            selection: browserSelection, in: documentStore.currentDocuments
+        )
+        // Finder's stacked multi-selection preview (#95) — same gate as the
+        // standard-layout preview pane.
+        if stackDocuments.count > 1 {
+            MultiSelectionPreviewStack(documents: stackDocuments)
+                .overlay { paneFocusIndicator(for: .preview) }
+                .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+                .frame(maxWidth: .infinity)
+        } else if let pdfDocumentId = detailPDFDocumentId {
             PDFPageWithToolbar(
                 documentId: pdfDocumentId,
                 pageIndex: selectedPageIndex,
@@ -105,9 +100,9 @@ extension ContentView {
                 documentTitle: detailDocument?.name,
                 onClose: { setPaneVisible(.canvas, false) }
             )
-            .overlay { paneFocusIndicator(for: .preview) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
             .frame(minWidth: ContentView.pdfCanvasMinWidth, maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+            .overlay { paneFocusIndicator(for: .preview) }
         } else {
             let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
                 selectedDocumentIds: browserSelection,
@@ -126,9 +121,9 @@ extension ContentView {
                 },
                 selectedDocumentIDs: browserSelection
             )
-            .overlay { paneFocusIndicator(for: .preview) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview })
             .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+            .overlay { paneFocusIndicator(for: .preview) }
         }
     }
 
@@ -152,8 +147,13 @@ extension ContentView {
                 onClose: { setPaneVisible(.reading, false) }
             )
         }
+        // Native focus rings OFF in this pane (Daniel's screenshot, 3:56pm:
+        // a persistent blue edge above the reader toolbar — macOS 14+ makes
+        // scroll views keyboard-focusable and rings them natively). The
+        // fading paneFocusIndicator is the one focus indicator.
+        .focusEffectDisabled()
         .overlay { paneFocusIndicator(for: .reading) }
-        .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading })
+        .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading })
     }
 
     // `adaptiveSplittablePane` is internal (not private) because it is also
@@ -193,7 +193,14 @@ extension ContentView {
                     detailDocument: detailDocument,
                     inspectorDocument: inspectorDocument
                 )
-                if let pdfDocumentId = detailPDFDocumentId {
+                let stackDocuments = previewStackDocuments(
+                    selection: browserSelection, in: documentStore.currentDocuments
+                )
+                if stackDocuments.count > 1 {
+                    // Finder's stacked multi-selection preview (#95): the fan
+                    // + count, not a silent preview of only the primary.
+                    MultiSelectionPreviewStack(documents: stackDocuments)
+                } else if let pdfDocumentId = detailPDFDocumentId {
                     PDFReadingView(
                         document: pageFocusDocument ?? detailDocument,
                         pdfDocumentId: pdfDocumentId,
@@ -255,6 +262,21 @@ extension ContentView {
     var inspectorView: some View {
         switch viewMode {
         case .library:
+            // Multi-selection interim (#146/#147, Daniel: 'this will be
+            // tricky for document inspector. perhaps for now it just
+            // disables?'): a clear N-items state instead of silently
+            // inspecting only the primary. The aggregate views (all entities
+            // across the selection; artifacts grouped by source) are the
+            // designed follow-up — task #35.
+            if browserSelection.count > 1 {
+                ContentUnavailableView(
+                    "\(browserSelection.count) Items Selected",
+                    systemImage: "square.on.square",
+                    description: Text(
+                        "Select a single item to inspect it. Multi-item editing is coming."
+                    )
+                )
+            } else {
             DocumentInspector(
                 document: inspectorDocument,
                 onNavigateToSource: { sourceDocId in
@@ -271,6 +293,8 @@ extension ContentView {
             .environment(artifactStore)
             .environment(entityStore)
             .environment(claimStore)
+
+            }
 
         case .chat, .comparison:
             ChatInspector(
@@ -318,7 +342,7 @@ extension ContentView {
         inspectorView
             // Focus tracking without .focusable() — avoids swallowing first click
             .overlay { paneFocusIndicator(for: .inspector) }
-            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector })
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.bar)
     }

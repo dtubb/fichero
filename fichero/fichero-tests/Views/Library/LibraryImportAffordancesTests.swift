@@ -91,7 +91,7 @@ final class LibraryImportAffordancesTests: XCTestCase {
         XCTAssertTrue(contextMenu.contains("showingFileImporter = true"))
 
         // Both mounting surfaces call the shared builder, not their own copy.
-        let iconMode = try Self.appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
+        let iconMode = try Self.appSource("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift")
         XCTAssertTrue(iconMode.contains(".contextMenu { libraryEmptyAreaImportMenu }"))
         XCTAssertFalse(iconMode.contains("Label(\"Import Files…\""))
 
@@ -138,7 +138,7 @@ final class LibraryImportAffordancesTests: XCTestCase {
     func testAllFourAffordancesReachTheOneImportAction() throws {
         let bottomBar = try Self.appSource("Views/Library/LibraryView+BottomActionBar.swift")
         let contextMenu = try Self.appSource("Views/Library/LibraryView+ContextMenu.swift")
-        let iconMode = try Self.appSource("Views/Library/ViewModes/LibraryView+IconMode.swift")
+        let iconMode = try Self.appSource("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift")
         let emptyState = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
         let libraryView = try Self.appSource("Views/Library/LibraryView.swift")
 

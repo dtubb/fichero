@@ -47,19 +47,28 @@ extension FeatureManager {
         if let testTierOverride {
             return testTierOverride
         }
-        if let tier = Self.resolveFeatureTier(
+        return Self.resolvedLaunchTier
+    }
+
+    /// The launch-constant tier, resolved ONCE. This getter sits on hot
+    /// render paths, and re-reading `Bundle.main.infoDictionary` +
+    /// `ProcessInfo.environment` per call showed up as a 374ms main-thread
+    /// stall in Daniel's live-test log (2026-08-09). Neither input can change
+    /// mid-run; `testTierOverride` above remains the only dynamic seam.
+    private static let resolvedLaunchTier: FeatureTier = {
+        if let tier = resolveFeatureTier(
             Bundle.main.infoDictionary?["FicheroFeatureTier"] as? String
         ) {
             return tier
         }
-        if let tier = Self.resolveFeatureTier(
+        if let tier = resolveFeatureTier(
             ProcessInfo.processInfo.environment["FICHERO_FEATURE_TIER"]
         ) {
             return tier
         }
-        Self.reportUnresolvableTierOnce()
+        reportUnresolvableTierOnce()
         return .release
-    }
+    }()
 
     /// Log the unresolvable tier exactly once.
     ///

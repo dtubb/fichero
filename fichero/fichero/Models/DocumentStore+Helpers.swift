@@ -349,15 +349,26 @@ extension DocumentStore {
     /// `updateProcessingStatus`, independent of any container) plus every
     /// live container including `childrenCache`, where sidebar child rows
     /// actually live.
-    func isDocumentBusy(_ documentId: String) -> Bool {
-        if workflowStatusOverrides[documentId] == .processing { return true }
-        if currentDocuments.first(where: { $0.id == documentId })?.status == .processing { return true }
-        if collections.first(where: { $0.id == documentId })?.status == .processing { return true }
-        for kids in childrenCache.values
-        where kids.contains(where: { $0.id == documentId && $0.status == .processing }) {
-            return true
+    /// Resolve a document id against everything loaded — the grid, the
+    /// collections, and the sidebar children cache (2026-08-09, the sidebar
+    /// multi-scope's lookup). Nil = not loaded anywhere; the caller fetches.
+    func resolveDocument(_ documentId: String) -> Document? {
+        if let doc = currentDocuments.first(where: { $0.id == documentId }) { return doc }
+        if let doc = collections.first(where: { $0.id == documentId }) { return doc }
+        for kids in childrenCache.values {
+            if let doc = kids.first(where: { $0.id == documentId }) { return doc }
         }
-        return false
+        return nil
+    }
+
+    func isDocumentBusy(_ documentId: String) -> Bool {
+        // One set-membership test against the dirty-flagged processing index
+        // (2026-08-09): the previous linear scans over currentDocuments +
+        // collections + every childrenCache array ran per row per render, and
+        // the stall sampler attributed 165-188ms main-thread stalls to
+        // exactly this function. Same sources, same union semantics — the
+        // index is rebuilt once per mutation in DocumentStore.
+        processingDocumentIds.contains(documentId)
     }
 
     /// Aggregate busy state for a folder row (#4295): any direct child busy —
@@ -377,7 +388,41 @@ extension DocumentStore {
     /// Children are unioned by id across the grid and the sidebar cache: the
     /// same child can appear in both, and counting it twice would report more
     /// work in flight than exists.
+    /// Every document the sidebar knows — roots plus all cached children,
+    /// deduplicated by id.
+    ///
+    /// MEMOIZED (2026-08-09 stall log): rebuilding this union copied every
+    /// Document on EVERY access and hit 1747ms on the main thread resolving
+    /// one context menu. Keyed on (revision, cache shape) like the
+    /// childActivityCounts memo below. ponytail: a same-count in-place child
+    /// swap that skips the revision bump serves one stale read — splices and
+    /// loads bump revision, so in practice the key always moves; a structure
+    /// token on every childrenCache write is the upgrade if that ever bites.
+    var sidebarDocuments: [Document] {
+        let key = SidebarDocumentsMemoKey(
+            revision: revision,
+            roots: collections.count,
+            parents: childrenCache.count,
+            children: childrenCache.reduce(into: 0) { $0 += $1.value.count }
+        )
+        if let memo = sidebarDocumentsMemo, memo.key == key { return memo.docs }
+        var seen = Set<String>()
+        let docs = (collections + childrenCache.values.flatMap { $0 })
+            .filter { seen.insert($0.id).inserted }
+        sidebarDocumentsMemo = (key, docs)
+        return docs
+    }
+
     func childActivityCounts(of parentId: String) -> (busy: Int, total: Int) {
+        // Memoized per (revision, overrides-token) — this ran O(all documents)
+        // per FOLDER ROW per render and stalled the main thread for 231ms in
+        // Daniel's 2026-08-09 log. Same sources, same answers; just cached
+        // until either input actually changes.
+        if childActivityMemoKey != (revision, childActivityMemoToken) {
+            childActivityMemo.removeAll(keepingCapacity: true)
+            childActivityMemoKey = (revision, childActivityMemoToken)
+        }
+        if let cached = childActivityMemo[parentId] { return cached }
         var statusById: [String: Bool] = [:]
 
         for doc in currentDocuments where doc.parentId == parentId {
@@ -391,7 +436,9 @@ extension DocumentStore {
             statusById[kid.id] = (statusById[kid.id] ?? false) || busy
         }
 
-        return (busy: statusById.values.filter { $0 }.count, total: statusById.count)
+        let counts = (busy: statusById.values.filter { $0 }.count, total: statusById.count)
+        childActivityMemo[parentId] = counts
+        return counts
     }
 
     /// Apply workflowStatusOverrides to a freshly-loaded array so the UI sees

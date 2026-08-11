@@ -16,10 +16,18 @@ struct DocumentThumbnailView: View {
     var onCommitRename: () -> Void = {}
     var onCancelRename: () -> Void = {}
 
-    /// The portrait 3:4 image well, at scale 1. Every branch pins to this
-    /// size so no image's intrinsic dimensions can distort the grid.
-    static let wellWidth: CGFloat = 100
-    static let wellHeight: CGFloat = wellWidth * 4 / 3
+    /// The SQUARE image well, at scale 1 (Daniel's Finder screenshots,
+    /// 2026-08-09: 'all icons should be square (a squircle) so the icon
+    /// thumbnail is centred in the square and a bit smaller, like in
+    /// Finder'). Every branch pins to this size so no image's intrinsic
+    /// dimensions can distort the grid; the content INSETS inside the well.
+    static let wellWidth: CGFloat = 108
+    static let wellHeight: CGFloat = wellWidth
+    /// The inset that makes the thumbnail 'a bit smaller' inside the well.
+    static let wellContentInset: CGFloat = 10
+    /// Two callout lines — the #4191 uniform-tile reservation, held by an
+    /// outer frame so the name pill can hug the actual text (2026-08-09).
+    static let labelBlockHeight: CGFloat = 38
 
     #if os(macOS)
     @Environment(\.controlActiveState) private var controlActiveState
@@ -30,11 +38,11 @@ struct DocumentThumbnailView: View {
     /// keyboard input — HIG: only key-window controls carry color. macOS-only;
     /// iOS has no key-window concept, so the selection stays tinted.
     private var effectiveSelectedTint: Color {
-        #if os(macOS)
-        controlActiveState == .key ? selectedTint : .secondary
-        #else
+        // V3 (2026-08-09): NO controlActiveState re-gate — selectedTint is
+        // selectionTint from the pane-focus test every row uses; a second
+        // key-window gate made a tile grey while the equivalent list row
+        // stayed accent. One focus test everywhere.
         selectedTint
-        #endif
     }
 
     var body: some View {
@@ -44,9 +52,12 @@ struct DocumentThumbnailView: View {
                 // get a rectangle that matches typical page proportions —
                 // not a square. Square forced one-row icon list to crop
                 // photos awkwardly. (#718)
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.windowBackgroundColor))
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                // NO base card (Daniel, 2026-08-09: 'no white background') —
+                // Finder's unselected icons sit directly on the canvas; the
+                // grey squircle appears ONLY as the selection backdrop below.
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.clear)
+                    .aspectRatio(1, contentMode: .fit)
 
                 // Symbol for the nodes that HAVE no picture — folders and
                 // workflow mirrors — thumbnail for everything else.
@@ -67,8 +78,21 @@ struct DocumentThumbnailView: View {
                         // `.symbolVariant` on the shared glyph rather than a
                         // second icon ladder that can drift from the sidebar's.
                         .symbolVariant(.fill)
-                        .symbolRenderingMode(document.isLockedSystemNode ? .hierarchical : .monochrome)
-                        .foregroundColor(document.isLockedSystemNode ? .purple : .accentColor)
+                        .symbolRenderingMode(document.usesWorkflowTint ? .hierarchical : .monochrome)
+                        .foregroundColor(document.usesWorkflowTint ? .purple : .accentColor)
+                        // Folders stack like PDFs do (Daniel, 2026-08-09:
+                        // "folders should work the same way") — sheets peek
+                        // out behind a fuller folder.
+                        .background {
+                            if document.docType == .folder,
+                               stackSheetCount(forChildCount: document.childCount) > 0 {
+                                PDFStackSheets(
+                                    scale: scale * 0.7,
+                                    count: stackSheetCount(forChildCount: document.childCount)
+                                )
+                                .padding(8 * scale)
+                            }
+                        }
                 } else if document.fileType == .image {
                     // Scale-to-FIT (#4197, the user 2026-07-28): show the whole
                     // page letterboxed in the well; cropping a landscape
@@ -76,31 +100,94 @@ struct DocumentThumbnailView: View {
                     // keeps its fixed size — only the image letterboxes.
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fit)
-                        // Explicit frame, not maxWidth/maxHeight (#789 class,
-                        // the user 2026-07-27): a LANDSCAPE image's intrinsic
-                        // width wins the layout pass and blows the tile past
-                        // its portrait 3:4 cell, overlapping neighbours.
-                        // Required with .fit too — do not "simplify" it away.
+                        // Explicit frame, not maxWidth/maxHeight (#789 class):
+                        // a LANDSCAPE image's intrinsic width wins the layout
+                        // pass and blows the tile past its cell. Inset makes
+                        // the thumbnail 'a bit smaller' inside the square
+                        // well (Finder).
+                        .frame(
+                            width: (Self.wellWidth - 2 * Self.wellContentInset) * scale,
+                            height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
+                        )
+                        // Clipped INTO the squircle (#125/#128): the photo's
+                        // corners follow the jail's continuous curve instead
+                        // of poking square into it.
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        // Finder's light thumbnail edge (Daniel #119).
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                        )
+                        // Finder's grey squircle "jail" (#23, Daniel #125-128):
+                        // an image thumbnail sits centered in a light grey
+                        // rounded square filling the WHOLE well, so odd
+                        // aspect ratios read as one consistent square tile
+                        // with equal margins (wellContentInset on every side).
+                        // Images only — PDFs/folders keep their page-stack and
+                        // glyph treatments on the bare canvas.
                         .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
-                        .clipped()
+                        .background(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .fill(.quaternary.opacity(0.5))
+                        )
                 } else if document.docType != .page, document.fileType != .pdf, let preview = document.pageContent, !preview.isEmpty {
                     // Text-preview thumbnail (#625) is only for genuinely text
                     // documents (JSON/plain text) with no page image. A PDF page
                     // ALWAYS renders its page image via the storage endpoint
                     // below — never its extracted `pageContent` text. (#2052)
+                    // A mini PAGE centered in the well, like Finder's text-file
+                    // icons — not full-bleed text across the square (the
+                    // preview catalog showed it as raw floating text once the
+                    // base card went clear, 2026-08-09).
                     TextPreviewThumbnail(text: preview)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
+                        .frame(
+                            width: (Self.wellHeight - 2 * Self.wellContentInset) * scale * 0.77,
+                            height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
+                        )
                 } else {
                     // Load thumbnail from backend API with library path header.
                     // Scale-to-fit (#4197): whole page visible, letterboxed.
-                    // Explicit frame (#789): without it, the intrinsic image
-                    // size wins the layout pass and landscape pages overlap
-                    // the neighbour. Required with .fit too.
                     LibraryImageView(documentId: document.id, imageType: .thumbnail)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
-                        .clipped()
+                        // Edge + sheets attach BEFORE the framing (Daniel
+                        // #121-123: "the shape of the paper around the paper
+                        // is not the same shape as the icon"): the
+                        // aspectRatio(.fit) node sizes itself to the fitted
+                        // PAGE rect, so the hairline hugs the page and the
+                        // stack sheets behind are page-shaped — never the
+                        // square well.
+                        .overlay(
+                            // Finder's light thumbnail edge (#119).
+                            RoundedRectangle(cornerRadius: 3)
+                                .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+                        )
+                        // A multi-page PDF reads as a STACK, deeper for
+                        // bigger documents ("a 500 page pdf is larger than
+                        // a 2 page pdf").
+                        .background {
+                            if document.fileType == .pdf, document.docType != .page,
+                               stackSheetCount(forChildCount: document.childCount) > 0 {
+                                PDFStackSheets(
+                                    scale: scale,
+                                    count: stackSheetCount(forChildCount: document.childCount)
+                                )
+                            }
+                        }
+                        // Explicit frame AFTER the page-hugging chrome (#789
+                        // class): the fitted content centers in the fixed
+                        // well slot so landscape pages can't blow the tile.
+                        .frame(
+                            width: (Self.wellWidth - 2 * Self.wellContentInset) * scale,
+                            height: (Self.wellHeight - 2 * Self.wellContentInset) * scale
+                        )
+                        // Re-center the composition (Daniel #119: "not quite
+                        // centred"): the sheets fan up-right, so the cover
+                        // shifts down-left by half the deepest sheet offset
+                        // and the GROUP sits centered in the well.
+                        .offset(
+                            x: -1.5 * CGFloat(stackSheetCount(forChildCount: document.childCount)) * scale,
+                            y: 1.5 * CGFloat(stackSheetCount(forChildCount: document.childCount)) * scale
+                        )
                 }
 
                 VStack {
@@ -122,7 +209,15 @@ struct DocumentThumbnailView: View {
             // Pin the whole well, not just the image branch — the ZStack
             // otherwise grows to its largest child's intrinsic size.
             .frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            // Finder's icon-view selection, half one (Daniel's screenshot,
+            // 2026-08-08, #4563): a grey rounded backdrop behind the ICON —
+            // never a wash over the whole tile.
+            .padding(3)
+            .background(
+                RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
+                    .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
+            )
 
             // PDF page children label by page number (prefer extracted
             // page_label once #2080 lands), never their internal id/filename.
@@ -142,28 +237,47 @@ struct DocumentThumbnailView: View {
                 // `pageThumbnailLabel ?? name` still fell through to the
                 // storage name for a page with no sequence (#4416).
                 Text(DocumentTitle.displayName(for: document))
-                    .font(.caption)
-                    // Fixed two-line label (#4191 density cap): short and
-                    // long names produce identical tile heights, so the grid
-                    // never re-pitches between rows.
-                    .lineLimit(2, reservesSpace: true)
+                    // .callout, not .caption (Daniel, 2026-08-09: "name font
+                    // size for icon is too small") — Finder's icon label size.
+                    .font(.callout)
+                    // lineLimit WITHOUT reservesSpace here (Daniel,
+                    // 2026-08-09: "text should be centred with the green" —
+                    // the reserved empty second line lived INSIDE the text
+                    // frame, so the pill wrapped it and one-line names sat
+                    // high with dead pill below). The density cap moves to
+                    // the fixed-height frame OUTSIDE the pill instead.
+                    .lineLimit(2)
                     .truncationMode(.middle)
                     .multilineTextAlignment(.center)
-                    .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
+                    // Finder's icon-view selection, half two (Daniel's
+                    // screenshot, 2026-08-08, #4563): the NAME gets the
+                    // accent pill with white text when the pane is key,
+                    // grey pill when it isn't (effectiveSelectedTint
+                    // already encodes that switch).
+                    .foregroundColor(isSelected ? .white : .primary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(
+                        // ACCENT pill whenever selected (Daniel's Finder
+                        // screenshots, 2026-08-09: the label pill is the
+                        // system color — pane focus greying it read as "the
+                        // wrong color"). Finder keys this on the WINDOW, and
+                        // the window is key when the user is clicking.
+                        RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)
+                            .fill(isSelected ? Color.accentColor : Color.clear)
+                    )
+                    // The #4191 density cap, now OUTSIDE the pill: every tile
+                    // reserves the same two-line block whether the name uses
+                    // one line or two, and the pill hugs the actual text.
+                    .frame(height: Self.labelBlockHeight * scale, alignment: .top)
                     // Middle-truncated labels reveal in full on hover (#4160).
                     .help(DocumentTitle.displayName(for: document))
             }
         }
         .frame(width: 100 * scale)
         .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                // Mail-style selection (#4191): constant subtle grey fill in
-                // every pane state; focus is signalled by the accent label
-                // (effectiveSelectedTint) — replaces the #3875 accent wash
-                // and the selected-well accent stroke.
-                .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
-        )
+        // No whole-tile wash: Finder highlights the icon and the name pill,
+        // never the tile (replaces the #4191 grey tile fill).
         // VoiceOver reads one coherent tile (#4160), same shape as list rows.
         .accessibilityElement(children: .combine)
         .accessibilityLabel(tileAccessibilityLabel)
@@ -201,9 +315,11 @@ struct DocumentThumbnailView: View {
                 .background(.ultraThinMaterial)
                 .cornerRadius(4)
         case .completed:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .font(.caption)
+            // NO green done-check (Daniel, 2026-08-09): "it's not clear that
+            // it means anything… we want things are operating or there are
+            // errors." Activity and failure stay; quiet success is quiet.
+            // FUTURE: togglable per-icon workflow-metadata overlays.
+            EmptyView()
         case .failed:
             Image(systemName: "xmark.circle.fill")
                 .foregroundColor(.red)
@@ -211,147 +327,5 @@ struct DocumentThumbnailView: View {
         case .pending:
             EmptyView()
         }
-    }
-}
-
-struct EntityThumbnailKindStyle {
-    let label: String
-    let systemName: String
-    let tint: Color
-}
-
-struct EntityThumbnailView: View {
-    let entity: Components.Schemas.KnowledgeEntity
-    let isSelected: Bool
-    let secondaryText: String
-    let kindStyle: EntityThumbnailKindStyle
-    var selectedTint: Color = .accentColor
-    var scale: CGFloat = 1.0
-
-    #if os(macOS)
-    @Environment(\.controlActiveState) private var controlActiveState
-    #endif
-
-    /// #1840: de-emphasize the selection tint to gray when the window isn't key
-    /// (matching List/NSTableView). macOS-only; iOS keeps the tint.
-    private var effectiveSelectedTint: Color {
-        #if os(macOS)
-        controlActiveState == .key ? selectedTint : .secondary
-        #else
-        selectedTint
-        #endif
-    }
-
-    init(
-        entity: Components.Schemas.KnowledgeEntity,
-        isSelected: Bool,
-        secondaryText: String,
-        kindStyle: EntityThumbnailKindStyle,
-        selectedTint: Color = .accentColor,
-        scale: CGFloat = 1.0
-    ) {
-        self.entity = entity
-        self.isSelected = isSelected
-        self.secondaryText = secondaryText
-        self.kindStyle = kindStyle
-        self.selectedTint = selectedTint
-        self.scale = scale
-    }
-
-    var body: some View {
-        VStack(spacing: 6) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(.windowBackgroundColor))
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
-
-                VStack(spacing: 10) {
-                    ZStack {
-                        Circle()
-                            .fill(kindStyle.tint.opacity(0.16))
-                            .frame(width: 50 * scale, height: 50 * scale)
-
-                        Image(systemName: kindStyle.systemName)
-                            .font(.system(size: 24 * scale, weight: .semibold))
-                            .foregroundStyle(kindStyle.tint)
-                    }
-
-                    Text(kindStyle.label.uppercased())
-                        .font(.system(size: 9 * scale, weight: .semibold))
-                        .tracking(0.6)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 8)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            VStack(spacing: 2) {
-                Text(entity.canonicalName)
-                    .font(.caption)
-                    // Fixed two-line label (#4191 density cap) — see
-                    // DocumentThumbnailView.
-                    .lineLimit(2, reservesSpace: true)
-                    .truncationMode(.tail)
-                    .multilineTextAlignment(.center)
-                .foregroundColor(isSelected ? effectiveSelectedTint : .primary)
-
-                Text(secondaryText)
-                    .font(.caption2)
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(width: 100 * scale)
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                // Mail-style selection (#4191): constant subtle grey fill in
-                // every pane state; focus is signalled by the accent label
-                // (effectiveSelectedTint) — replaces the #3875 accent wash
-                // and the selected-well accent stroke.
-                .fill(isSelected ? LibrarySelectionStyle.fill : Color.clear)
-        )
-        // VoiceOver: one coherent tile, same shape as document tiles (#4160).
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(entity.canonicalName), \(kindStyle.label)")
-        .accessibilityValue(secondaryText)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityIdentifier("libraryEntityTile.\(entity.stableInspectorId)")
-    }
-}
-
-// MARK: - TextPreviewThumbnail
-
-/// Monospaced text thumbnail for JSON/text documents when no image thumbnail exists (#625).
-struct TextPreviewThumbnail: View {
-    let text: String
-
-    private static let previewLimit = 600
-
-    private var displayText: String {
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
-        if trimmed.hasPrefix("{") || trimmed.hasPrefix("["),
-           let data = trimmed.data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: data),
-           let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted]),
-           let str = String(data: pretty, encoding: .utf8) {
-            return String(str.prefix(Self.previewLimit))
-        }
-        return String(trimmed.prefix(Self.previewLimit))
-    }
-
-    var body: some View {
-        Text(displayText)
-            .font(.system(size: 6, design: .monospaced))
-            .foregroundStyle(.primary)
-            .lineSpacing(1)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(4)
-            .background(Color(.textBackgroundColor))
-            .allowsHitTesting(false)
     }
 }

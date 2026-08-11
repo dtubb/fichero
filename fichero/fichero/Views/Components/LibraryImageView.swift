@@ -18,8 +18,15 @@ struct LibraryImageView: View {
     let documentId: String
     let imageType: ImageType
 
-    // Access the shared services from the current library
-    @Environment(StorageService.self) var storageService
+    // Access the shared services from the current library. OPTIONAL on
+    // purpose (Daniel's live crash, 2026-08-08 22:44): the non-optional form
+    // is a process-killing assertion — "No Observable object of type
+    // StorageService found" took the whole app down over ONE thumbnail when
+    // a presentation context (a panel, a detached sheet, a preview host)
+    // didn't inherit the tab's injection. A missing service renders the
+    // failure placeholder and logs an error naming the document instead;
+    // every real surface still injects the service and is unaffected.
+    @Environment(StorageService.self) var storageService: StorageService?
 
     @State private var image: Image?
     @State private var loadedKey: LibraryImageLoadKey?
@@ -53,19 +60,39 @@ struct LibraryImageView: View {
         }
     }
 
+    /// The synchronous cache seed (#3870), split from loadImage for the
+    /// function-length budget. True = seeded; the load is done.
+    private func seedFromCache(_ key: LibraryImageLoadKey, _ storage: StorageService) -> Bool {
+        guard key.imageType == .thumbnail,
+              let cached = storage.cachedThumbnail(for: key.documentId) else { return false }
+        image = cached
+        loadedKey = key
+        isLoading = false
+        loadError = nil
+        return true
+    }
+
     private func loadImage(for key: LibraryImageLoadKey) async {
         guard loadedKey != key || image == nil else { return }
 
-        // Seed a cache hit synchronously so the first render shows the thumbnail with
-        // no image=nil placeholder flash before the async fetch (#3870).
-        if key.imageType == .thumbnail,
-           let cached = storageService.cachedThumbnail(for: key.documentId) {
-            image = cached
-            loadedKey = key
+        guard let storageService else {
+            // The 2026-08-08 crash class, made self-diagnosing: name the view
+            // and the document so the missing-injection surface can be found
+            // from the log, then render the failure placeholder.
+            Self.logger.error(
+                """
+                LibraryImageView: StorageService missing from the environment for \(key.documentId) \
+                — rendering placeholder. The hosting surface needs .environment(library.storageService).
+                """
+            )
+            loadError = CocoaError(.fileNoSuchFile)
             isLoading = false
-            loadError = nil
             return
         }
+
+        // Seed a cache hit synchronously so the first render shows the thumbnail with
+        // no image=nil placeholder flash before the async fetch (#3870).
+        if seedFromCache(key, storageService) { return }
 
         image = nil
         loadedKey = nil

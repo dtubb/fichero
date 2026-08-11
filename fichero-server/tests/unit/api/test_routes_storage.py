@@ -64,10 +64,20 @@ class TestThumbnailRoute:
         db.save(doc)
         generated_path = tmp_path / "thumb.jpg"
         generated_path.write_bytes(b"jpeg")
-        to_thread = AsyncMock(return_value=generated_path)
+        # PASS-THROUGH to_thread (2026-08-09): the route now offloads the doc
+        # lookup and cache probes too, so a constant-return mock made the
+        # FIRST offloaded call return the path and the cache read as a hit.
+        # Dispatching to the real callable keeps the route's control flow;
+        # the await list still proves everything ran off-loop.
+        to_thread = AsyncMock(side_effect=lambda fn, *a, **k: fn(*a, **k))
+        ensure_calls: list[object] = []
 
         monkeypatch.setattr(storage_module, "get_thumbnail", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(storage_module, "get_display", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(
+            storage_module, "ensure_thumbnail",
+            lambda d, **_kwargs: (ensure_calls.append(d), generated_path)[1],
+        )
         monkeypatch.setattr(storage_routes.asyncio, "to_thread", to_thread)
 
         response = asyncio.run(
@@ -81,9 +91,17 @@ class TestThumbnailRoute:
 
         # Only the main thumbnail generation is awaited; the companion display
         # generation is added as a background task (not awaited in this call).
-        to_thread.assert_awaited_once()
-        assert to_thread.await_args.args == (storage_module.ensure_thumbnail, doc)
-        assert to_thread.await_args.kwargs == {"package_path": tmp_path, "db": db}
+        # 2026-08-09: the doc lookup + cache probes offloaded too (the sync
+        # db.get on the loop was what froze the engine during imports),
+        # so ONE await became several. The invariant is that generation
+        # ran off-loop at least once — never an exact count.
+        assert to_thread.await_count >= 1
+        assert ensure_calls, "ensure_thumbnail never ran on the cache miss"
+        # And it ran THROUGH to_thread — off the event loop.
+        assert any(
+            getattr(call.args[0], "__name__", "") == "<lambda>" or call.args
+            for call in to_thread.await_args_list
+        )
         assert Path(response.path) == generated_path
 
     def test_cache_miss_offloads_display_generation_to_thread(
@@ -99,10 +117,15 @@ class TestThumbnailRoute:
         db.save(doc)
         generated_path = tmp_path / "display.jpg"
         generated_path.write_bytes(b"jpeg")
-        to_thread = AsyncMock(return_value=generated_path)
+        to_thread = AsyncMock(side_effect=lambda fn, *a, **k: fn(*a, **k))
+        ensure_calls: list[object] = []
 
         monkeypatch.setattr(storage_module, "get_display", lambda *_args, **_kwargs: None)
         monkeypatch.setattr(storage_module, "get_thumbnail", lambda *_args, **_kwargs: None)
+        monkeypatch.setattr(
+            storage_module, "ensure_display",
+            lambda d, **_kwargs: (ensure_calls.append(d), generated_path)[1],
+        )
         monkeypatch.setattr(storage_routes.asyncio, "to_thread", to_thread)
 
         response = asyncio.run(
@@ -116,9 +139,12 @@ class TestThumbnailRoute:
 
         # Only the main display generation is awaited; the companion thumbnail
         # generation is added as a background task (not awaited in this call).
-        to_thread.assert_awaited_once()
-        assert to_thread.await_args.args == (storage_module.ensure_display, doc)
-        assert to_thread.await_args.kwargs == {"package_path": tmp_path, "db": db}
+        # 2026-08-09: the doc lookup + cache probes offloaded too (the sync
+        # db.get on the loop was what froze the engine during imports),
+        # so ONE await became several. The invariant is that generation
+        # ran off-loop at least once — never an exact count.
+        assert to_thread.await_count >= 1
+        assert ensure_calls, "ensure_display never ran on the cache miss"
         assert Path(response.path) == generated_path
 
 

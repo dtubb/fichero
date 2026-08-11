@@ -38,8 +38,12 @@ final class SidebarWorkflowVirtualTreeTests: XCTestCase {
 
     func testSharedHierarchyMachineryStaysAvailable() throws {
         // buildWorkflowHierarchy itself stays: it is tested shared machinery
-        // and the one-line reversal point if #4186 needs revisiting.
-        let source = try builderSource()
+        // and the one-line reversal point if #4186 needs revisiting. It lives
+        // in SidebarItemBuilder+Sections.swift since the 2026-08-08 lint
+        // split (same enum, different file).
+        let url = try AppSource.root()
+            .appendingPathComponent("Models/SidebarItemBuilder+Sections.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(source.contains("static func buildWorkflowHierarchy"))
     }
 }

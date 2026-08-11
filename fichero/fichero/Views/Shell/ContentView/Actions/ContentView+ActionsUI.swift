@@ -18,6 +18,12 @@ extension ContentView {
 
     func handleWindowWidthChange(_ newWidth: Double) {
         guard newWidth > 0 else { return }
+        // Views audit B3: a divider drag changes pane geometry every frame;
+        // recomputing column visibility mid-drag rewrote columnVisibility and
+        // invalidated the whole NavigationSplitView WHILE dragging. The
+        // window itself cannot resize during a divider drag, so deferring is
+        // free; the next real window resize re-runs this.
+        guard !dividerDragInFlight else { return }
         if abs(measuredWindowWidth - newWidth) < 0.5 {
             return
         }
@@ -46,10 +52,12 @@ extension ContentView {
         }
 
         viewSettings.libraryLayout = effectiveMode.libraryLayout
-        saveDisplayMode(effectiveMode, for: sidebarSelectionState.selectedItemId)
-        // Promote to the global default so a fresh window / new folder
-        // / new launch all start in this mode. Per-folder overrides
-        // (saveDisplayMode above) still win when present. (#943)
+        // NO per-folder save at all (Daniel's final #4575 ruling, 2026-08-09:
+        // the mode never follows the folder). A pick is window-wide, promoted
+        // to the global default so a fresh window / new launch starts in this
+        // mode (#943). The per-folder map is dead — restore removed from
+        // handleSidebarSelectionChange, menu items removed, map wiped by the
+        // one-time migration.
         defaultLibraryViewDisplayMode = effectiveMode
     }
 

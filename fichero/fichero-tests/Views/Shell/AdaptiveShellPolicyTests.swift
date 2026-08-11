@@ -460,7 +460,13 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
         ].joined(separator: "\n"))
 
-        XCTAssertTrue(sidebarSource.contains(".background(.bar)"))
+        // The sidebar column carries NO background override (Daniel,
+        // 2026-08-08: "like Finder, the gray"): `.background(.bar)` painted
+        // the light bar material OVER the split view's own translucent
+        // sidebar material — which is Finder's grey. Only the scroll
+        // content's white is hidden; the column's native material shows.
+        XCTAssertFalse(sidebarSource.contains(".background(.bar)"))
+        XCTAssertTrue(sidebarSource.contains(".scrollContentBackground(.hidden)"))
         XCTAssertFalse(sidebarSource.contains(".background(Color(platformColor: .windowBackgroundColor))"))
 
         guard let detailRange = buildersSource.range(of: "var detailView: some View") else {

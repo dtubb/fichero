@@ -53,8 +53,12 @@ extension SidebarItemRow {
         // inline here, so the library pane could not reuse it without copying
         // it, and a copied classifier is how the library section header ended
         // up with a second divergent routing rule (#4401).
+        // Flavor loads ISSUE here, synchronously in the drop callback — a
+        // stalled main thread otherwise delays the Task past drag-session
+        // teardown and every load comes back 'cancelled' (drop#44).
+        let eager = eagerSidebarDropLoads(providers)
         Task {
-            switch await readSidebarDropPayload(providers, surface: "sidebar-row(\(item.name))") {
+            switch await readSidebarDropPayload(providers, surface: "sidebar-row(\(item.name))", preloaded: eager) {
             case .internalItems(let ids):
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
 
@@ -66,17 +70,40 @@ extension SidebarItemRow {
                 // Started inside the app and we could not read what it was.
                 // Re-importing would create a hollow duplicate of something
                 // already here — the #4401 data loss. Say so instead.
+                // NO alert (Daniel #136, 2026-08-09: "if drop fails don't
+                // do alert, unless its obvious. but log it properly") — the
+                // item snaps back; the log carries the diagnosis.
                 sidebarRowLogger.error(
-                    "Sidebar drop came from inside the app but carried no readable item id; refusing to import"
+                    "Sidebar drop came from inside the app but carried no readable item id; refusing to import (no-op, no alert)"
                 )
-                sidebarState.dropErrorMessage =
-                    "Couldn't read what was dragged. Nothing was moved or imported."
 
             case .unsupported:
-                break
+                // #4533 pattern: a silent no-op is indistinguishable from the
+                // drop never arriving ("I tried to drag … and nothing
+                // happened", Daniel 2026-08-08). Name the payload shape.
+                DragDropLog.refused(
+                    "sidebar-row",
+                    reason: "unsupported payload — UTIs ["
+                        + providers.flatMap(\.registeredTypeIdentifiers).joined(separator: ", ") + "]"
+                )
             }
         }
         return true
+    }
+
+    /// Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still not
+    /// working for clicking on name of item child of folder") — the
+    /// UnifiedRows fallback only wraps TOP-LEVEL rows, so a nested row's
+    /// name-press was claimed by the drag machinery and never committed.
+    /// Plain clicks only; modifier clicks stay with the List.
+    private func childPlainClickFallback(_ child: SidebarItem) -> some Gesture {
+        TapGesture().onEnded {
+            #if os(macOS)
+            guard !NSEvent.modifierFlags.contains(.shift),
+                  !NSEvent.modifierFlags.contains(.command) else { return }
+            #endif
+            selectedItemId = child.id
+        }
     }
 
     @ViewBuilder
@@ -87,10 +114,13 @@ extension SidebarItemRow {
         // capability NSTableView has, just one level up. Same-section
         // reorder via the row's native drag handle still goes through
         // `.onMove` and shows the system's row-drop indicator.
-        ForEach(Array(children.enumerated()), id: \.element.id) { _, child in
+        ForEach(Array(children.enumerated()), id: \.element.id) { index, child in
+            // Contiguous-selection merging (2026-08-09): a block selection
+            // reads as ONE squircle — merged edges square off.
+            let childSelected = selectedDestinations.contains(child.destination)
             SidebarItemRow(
                 item: child,
-                allCachedItems: allCachedItems,
+                lookupItem: lookupItem,
                 expandedItems: $expandedItems,
                 selectedItemId: $selectedItemId,
                 selectedDestinations: selectedDestinations,
@@ -98,7 +128,11 @@ extension SidebarItemRow {
                 deleteState: deleteState,
                 sidebarState: sidebarState,
                 libraryManager: libraryManager,
-                onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
+                onOpenChatWithCurrentScope: onOpenChatWithCurrentScope,
+                mergeSelectionAbove: childSelected && index > 0
+                    && selectedDestinations.contains(children[index - 1].destination),
+                mergeSelectionBelow: childSelected && index + 1 < children.count
+                    && selectedDestinations.contains(children[index + 1].destination)
             )
             .contentShape(Rectangle())
             // `.draggable` BEFORE `.tag` so NSTableView's row-drag
@@ -106,8 +140,20 @@ extension SidebarItemRow {
             // the row identity is bound. Apple's ArticleCollectionView
             // sample puts `.draggable` directly on the leaf cell view
             // with no intervening `.tag` — order matters here.
-            .draggable(child.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: child))
+            .draggable(child.icon == "tray.fill" ? SidebarDragID(id: "") : SidebarDragID(item: child)) {
+                // Explicit env-free preview — the default re-hosts the ROW
+                // without environment and crashes (see DragPreviewLabel).
+                RowDragPreview(name: child.name, systemImage: child.icon)
+            }
             .moveDisabled(child.icon == "tray.fill")
+            // Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still
+            // not working for clicking on name of item child of folder") —
+            // the UnifiedRows fallback only wraps TOP-LEVEL rows, so a
+            // nested row's name-press was claimed by the drag machinery and
+            // never committed. Same seam: write the primary selection id.
+            // Plain clicks only; modifier clicks stay with the List.
+            .simultaneousGesture(childPlainClickFallback(child))
+            .sidebarRowTypeErased()
             .tag(child.destination)
         }
         .dropDestination(for: SidebarDragID.self) { ids, offset in
@@ -220,6 +266,18 @@ extension SidebarItemRow {
             at: offset
         ) else { return }
 
+        performNestedInsertionMove(bareIds: bareIds, parentDoc: parentDoc, newOrder: newOrder, store: store)
+    }
+
+    /// The transactional move + optimistic reorder for a nested insertion —
+    /// extracted verbatim from `handleNestedInsertionDrop` (lint: function
+    /// body length).
+    private func performNestedInsertionMove(
+        bareIds: [String],
+        parentDoc: Document,
+        newOrder: [String],
+        store: DocumentStore
+    ) {
         Task {
             await MainActor.run {
                 sidebarState.dropErrorMessage = nil

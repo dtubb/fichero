@@ -213,3 +213,122 @@ class TestTheDocumentUpdatedEventLands:
         generate_derivative(ingested_image.id, test_package)
 
         assert ("document.updated", (ingested_image.id,)) in seen
+
+
+class TestDeferredEmbedding:
+    """Embedding moved off the import path (2026-08-09).
+
+    The old inline default made a first import pay the ~19s embedding-model
+    load plus per-page compute before the request finished — Daniel:
+    "shouldn't embeddings happen after it's imported?". Rows now land
+    instantly; this stage embeds and only then clears ``pending``.
+    """
+
+    def test_ingest_request_defaults_defer_embedding(self):
+        from fichero_server.api.routes.ingest.core import (
+            IngestFileRequest,
+            IngestFolderRequest,
+        )
+
+        assert IngestFileRequest(path="/x").auto_embed is False
+        assert IngestFolderRequest(path="/x").auto_embed is False
+
+    def test_text_bearing_documents_are_queued(self, test_package):
+        from fichero_server.importers.derivatives import needs_embedding
+
+        text_doc = Document(
+            name="a.md", doc_type=DocType.file,
+            file_type=FileType.text, page_content="hello",
+        )
+        assert needs_embedding(text_doc)
+        assert queue_derivatives([text_doc], library_path=test_package)
+        assert not needs_embedding(
+            Document(name="a.zip", doc_type=DocType.file, file_type=FileType.other)
+        )
+
+    def test_the_stage_embeds_the_document_and_its_pdf_pages(
+        self, db, test_package, monkeypatch
+    ):
+        parent = Document(
+            name="a.pdf", doc_type=DocType.file, file_type=FileType.pdf,
+            status=Status.pending, page_content="doc text",
+        )
+        db.save(parent)
+        page = Document(
+            name="page 1", doc_type=DocType.file, parent_id=parent.id,
+            status=Status.completed, page_content="page text",
+        )
+        db.save(page)
+        embedded: list[str] = []
+        monkeypatch.setattr(
+            type(db), "embed",
+            lambda self, doc: (embedded.append(doc.id), True)[1],
+        )
+
+        generate_derivative(parent.id, test_package)
+
+        assert parent.id in embedded
+        assert page.id in embedded
+
+    def test_pending_clears_after_deferred_embedding(
+        self, db, test_package, monkeypatch
+    ):
+        doc = Document(
+            name="a.md", doc_type=DocType.file, file_type=FileType.text,
+            status=Status.pending, page_content="hello",
+        )
+        db.save(doc)
+        monkeypatch.setattr(type(db), "embed", lambda self, d: True)
+
+        generate_derivative(doc.id, test_package)
+
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.status == Status.completed
+        assert "embedding_error" not in (refreshed.metadata or {})
+
+    def test_an_embed_failure_is_recorded_and_does_not_strand_pending(
+        self, db, test_package, monkeypatch
+    ):
+        doc = Document(
+            name="a.md", doc_type=DocType.file, file_type=FileType.text,
+            status=Status.pending, page_content="hello",
+        )
+        db.save(doc)
+
+        def exploding_embed(self, _doc):
+            raise RuntimeError("model blew up")
+
+        monkeypatch.setattr(type(db), "embed", exploding_embed)
+
+        generate_derivative(doc.id, test_package)
+
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.status == Status.completed
+        assert "embeds failed" in refreshed.metadata["embedding_error"]
+
+    def test_the_upload_import_path_defers_embedding_and_queues_the_stage(
+        self, db, test_package, monkeypatch
+    ):
+        """The 'Import…' button path (POST /import) froze on the inline
+        embed exactly like drag-in ingest did; it must queue instead."""
+        from fichero_server.api.routes.document.documents import (
+            import_uploaded_file_impl,
+        )
+        from fichero_server.importers import derivatives as derivatives_module
+
+        queued: list[str] = []
+        monkeypatch.setattr(
+            derivatives_module, "queue_derivatives",
+            lambda docs, **_kwargs: queued.extend(d.id for d in docs) or [],
+        )
+        embeds: list[str] = []
+        monkeypatch.setattr(
+            type(db), "embed", lambda self, d: embeds.append(d.id) or True
+        )
+        source = Path(test_package).parent / "upload.md"
+        source.write_text("uploaded text", encoding="utf-8")
+
+        doc = import_uploaded_file_impl(db, source, original_filename="upload.md")
+
+        assert embeds == []  # nothing embedded inline
+        assert queued == [doc.id]

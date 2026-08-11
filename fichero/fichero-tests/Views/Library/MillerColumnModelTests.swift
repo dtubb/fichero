@@ -70,7 +70,8 @@ final class MillerColumnModelTests: XCTestCase {
         // Parity bar from steps 1-3: rename, a11y, hover, diffing, deselect.
         XCTAssertTrue(columns.contains("EditableDocumentName("))
         XCTAssertTrue(columns.contains("accessibilityIdentifier(\"libraryColumnRow."))
-        XCTAssertTrue(columns.contains("LibraryRowHoverWash"))
+        // Hover is FORBIDDEN in the library (Daniel 2026-08-09: not a mac idiom).
+        XCTAssertFalse(columns.contains("LibraryRowHoverWash"))
         XCTAssertTrue(columns.contains(".equatable()"))
         // 6eea7a734 (#4436): empty-space deselect goes through the ONE shared
         // grammar — apply(clear()) — not a hand-written removeAll, which is

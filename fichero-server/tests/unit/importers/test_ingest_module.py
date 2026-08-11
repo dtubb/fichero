@@ -923,7 +923,7 @@ class TestIngestFolder:
         (tmp_path / "file1.txt").write_text("hello")
 
         mock_db = MagicMock()
-        mock_db.all.side_effect = RuntimeError("duckdb blew up")
+        mock_db.ingest_dedup_keys.side_effect = RuntimeError("duckdb blew up")
         mock_db.path = tmp_path / "Library.fichero" / "fichero.duckdb"
 
         with caplog.at_level(logging.WARNING):
@@ -1010,6 +1010,7 @@ class TestIngestFolder:
             save,
             db,
             package_path,
+            known_checksum=None,  # 2026-08-09: checksum-reuse plumbing
         ):
             return Document(
                 name=file_path.name,
@@ -1842,7 +1843,14 @@ class TestTextExtraction:
 
         fake_db = FakeDB()
         with patch("fichero_server.bookmarks.create_bookmark") as mock_bookmark, \
-             patch("kreuzberg.extract_file_sync", return_value=fake_pages_result):
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.extract_pdf_pages_subprocess",
+                 return_value=fake_pages_result.pages,
+             ), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.kreuzberg_pdf_usable",
+                 return_value=True,
+             ):
             mock_bookmark.return_value = None
             parent = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=fake_db)
 
@@ -1907,7 +1915,14 @@ class TestTextExtraction:
         ]
 
         with patch("fichero_server.bookmarks.create_bookmark") as mock_bookmark, \
-             patch("kreuzberg.extract_file_sync", return_value=fake_pages_result):
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.extract_pdf_pages_subprocess",
+                 return_value=fake_pages_result.pages,
+             ), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.kreuzberg_pdf_usable",
+                 return_value=True,
+             ):
             mock_bookmark.return_value = None
             ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=FakeDB())
 
@@ -1965,7 +1980,14 @@ class TestTextExtraction:
         ]
 
         parent = Document(name="partial.pdf", doc_type=DocType.file)
-        with patch("kreuzberg.extract_file_sync", return_value=fake_pages_result), \
+        with patch(
+                 "fichero_server.loaders.kreuzberg_cache.extract_pdf_pages_subprocess",
+                 return_value=fake_pages_result.pages,
+             ), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.kreuzberg_pdf_usable",
+                 return_value=True,
+             ), \
              patch("fitz.open", return_value=FakePDF()):
             pages = _create_pdf_page_children(parent, file_path, FakeDB())
 
@@ -2248,3 +2270,26 @@ class TestTouchAncestorDocumentsCycleGuard:
         # parent_id must terminate the walk.
         assert mock_db.get.call_count == 1
         assert mock_db.save.call_count == 1
+
+
+class TestMimetypesSandboxInit:
+    """mimetypes must be initialised from the built-in table, never system
+    files (2026-08-09): the sandbox denies /etc/apache2/mime.types, a lazy
+    init re-failed per call, and EVERY import's metadata extraction died on
+    [Errno 1] — image dimensions included."""
+
+    def test_import_initialises_mimetypes_without_file_reads(self):
+        import mimetypes
+
+        import fichero_server.importers.ingest  # noqa: F401 — import side effect
+
+        assert mimetypes.inited, "ingest import must run mimetypes.init()"
+        # knownfiles MUST be empty: init() prepends it to any files= argument
+        # (the CPython trap that made the first fix an import-time crash on
+        # the sandboxed engine), so an empty list is the only state in which
+        # init reads nothing. This assertion fails on a dev machine exactly
+        # when it would crash in the sandbox.
+        assert mimetypes.knownfiles == [], "system mime tables would be read"
+        # The built-in table answers the types this importer cares about.
+        assert mimetypes.guess_type("a.jpg")[0] == "image/jpeg"
+        assert mimetypes.guess_type("a.pdf")[0] == "application/pdf"

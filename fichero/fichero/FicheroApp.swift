@@ -28,8 +28,19 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The unit-test host must never start a real engine (#3902).
         guard !isRunningXCTests() else { return }
+        // Neither may the Xcode Previews host (2026-08-08): it launches the
+        // REAL app to render one view, and an engine spawned here fought the
+        // live ⌘R instance over the container socket while blowing the
+        // preview's 30s launch window — previews render pure SwiftUI against
+        // fixtures and need no engine. `FicheroApp.init` already skips its
+        // side effects for previews; this is the delegate half of that guard.
+        guard ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1" else { return }
         logger.info("App did finish launching — starting engine app-scoped (#3945)")
         LaunchProfile.milestone("applicationDidFinishLaunching")
+        // Self-measured main-thread stalls (#4550): FICHERO_STALL_LOG=1 in the
+        // scheme makes every ordinary ⌘R a ratchet-grade perf session — no
+        // Instruments, no minutes of "modeling data".
+        MainThreadStallSampler.startIfEnabled()
         // The engine's async startup lives here, not in a scene `.task`: `@main
         // App.init` is synchronous and `.task` is per-scene, so the delegate is the
         // one app-level hook that fires exactly once, independent of any window.
@@ -58,6 +69,17 @@ final class FicheroAppDelegate: NSObject, NSApplicationDelegate, ObservableObjec
         guard !isRunningXCTests() else { return .terminateNow }
         guard !isTerminatingWithDeferredTeardown else { return .terminateLater }
         isTerminatingWithDeferredTeardown = true
+
+        // Drop unresolved DRAG-pasteboard promises BEFORE AppKit's terminate
+        // path resolves them (Daniel's force-quit backtrace, 2026-08-10:
+        // CFPasteboardResolveAllPromisedData → SwiftUI
+        // loadDataRepresentationSynchronously → semaphore_wait ON the main
+        // thread, waiting for promise data only the main thread can produce
+        // — a guaranteed deadlock whenever a sidebar/library drag happened
+        // that session). Drag-pasteboard content is worthless after quit;
+        // clearing it removes the promises terminate would block on. The
+        // GENERAL pasteboard is untouched — user copies survive quit.
+        NSPasteboard(name: .drag).clearContents()
 
         logger.info("Quit requested — deferring termination for bounded engine teardown (#4291)")
         Task {
@@ -554,10 +576,7 @@ struct FicheroApp: App {
         .defaultSize(width: 480, height: 620)
 
         WindowGroup("Document", id: "document-detail") {
-            DocumentDetailWindow()
-                .environment(libraryManager)
-                .environment(claimFocusState)
-                .environment(kgFocusState)
+            documentDetailSceneRoot()
         }
         .defaultSize(width: 540, height: 720)
 
@@ -674,3 +693,31 @@ private struct FeatureTierLegendWindow: View {
     }
 }
 #endif
+
+extension FicheroApp {
+    /// The document-detail scene's root, with the FULL boundary re-injection
+    /// (#4513, the Mac crash class): a detached scene inherits NOTHING, and
+    /// DocumentDetailWindow's subtree reads thirteen services non-optionally.
+    /// The ONE shared list (libraryServiceEnvironment) — never a hand-copied
+    /// subset. The window still resolves its own per-document library inside;
+    /// this covers the first mount before FocusedDocument publishes.
+    @ViewBuilder
+    func documentDetailSceneRoot() -> some View {
+        if let library = libraryManager.getLibrary(
+            id: FocusedDocument.shared.libraryId ?? UUID()
+        ) ?? libraryManager.globalLibrary {
+            DocumentDetailWindow()
+                .environment(libraryManager)
+                .environment(claimFocusState)
+                .environment(kgFocusState)
+                .libraryServiceEnvironment(library)
+        } else {
+            // No library open at all — the window renders its own
+            // "select a document" empty state and reads no services.
+            DocumentDetailWindow()
+                .environment(libraryManager)
+                .environment(claimFocusState)
+                .environment(kgFocusState)
+        }
+    }
+}

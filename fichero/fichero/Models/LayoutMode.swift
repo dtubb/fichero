@@ -98,6 +98,14 @@ enum PageLayoutMode: String, CaseIterable, Identifiable {
     /// True when PDFKit renders this natively; false ⇒ the shared image grid.
     var isPDFKitNative: Bool { pdfDisplayMode != nil }
 
+    /// Swipe axis for page turns (Daniel, 2026-08-09: "swiping is left and
+    /// right to change pages. not up and down (unless we're in a continuous
+    /// PDF view)"). Paged spreads turn horizontally like a book; continuous
+    /// modes keep the vertical scroll that IS their page motion.
+    var pdfDisplayDirection: PDFDisplayDirection {
+        isContinuous ? .vertical : .horizontal
+    }
+
     /// SF Symbol for the toolbar / menu.
     var systemImage: String {
         switch self {
@@ -292,7 +300,11 @@ struct CanvasDocumentPolicy {
         detailDocument: Document?,
         inspectorDocument: Document?
     ) -> Document? {
-        if let selectedId = selectedDocumentIds.first,
+        // Document-order primary, never Set.first (F3, 2026-08-09): this
+        // feeds BOTH preview call sites, and a hash-order draw here while
+        // the shell resolves in document order meant the preview and the
+        // detail could name DIFFERENT members of one multi-selection.
+        if let selectedId = shellPrimarySelectionId(in: selectedDocumentIds, orderedBy: documents),
            let selected = documents.first(where: { $0.id == selectedId }),
            isCanvasPreviewable(selected) {
             return selected

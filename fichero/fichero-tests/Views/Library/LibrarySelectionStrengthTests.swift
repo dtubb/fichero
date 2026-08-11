@@ -22,9 +22,13 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         )
 
         let helpers = try Self.appSource("Views/Library/ViewModes/LibraryView+Helpers.swift")
+        // Daniel's 2026-08-09 ruling supersedes the flat-grey #4191 pin for
+        // LIST ROWS: the fill is the rowFill token (accent focused, grey
+        // unfocused — Mail's exact split). The grey lives on as the token's
+        // unfocused half and as the icon-tile fill below.
         XCTAssertTrue(
-            helpers.contains("LibrarySelectionStyle.fill"),
-            "List rows must draw the shared grey fill (#4191)."
+            helpers.contains("LibrarySelectionStyle.rowFill(selected: isSelected, focused: focused)"),
+            "List rows must draw the shared rowFill token (2026-08-09 ruling)."
         )
         XCTAssertTrue(
             helpers.contains("RoundedRectangle(cornerRadius: LibrarySelectionStyle.cornerRadius)"),
@@ -39,17 +43,20 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         )
     }
 
-    func testFocusSplitLivesInTheLabelTint() throws {
-        // Focused pane → accent label; unfocused pane → secondary label.
+    func testFocusSplitLivesInTheSharedContentToken() throws {
+        // Daniel's 2026-08-09 ruling supersedes the #4191 label-tint pin:
+        // the focus split lives in rowFill/rowContent (accent+white focused,
+        // grey+accent unfocused — the native Table look). The tint that feeds
+        // the == comparison still flips with focus so rows re-render.
         let displayHelpers = try Self.appSource("Views/Library/ViewModes/LibraryView+DisplayHelpers.swift")
         XCTAssertTrue(
             displayHelpers.contains("isPaneFocused ? .accentColor : .secondary"),
-            "selectionTint must keep the focused/unfocused split in the label (#4191, HIG)."
+            "selectionTint must keep the focused/unfocused split so .equatable() rows re-render on focus flips."
         )
         let components = try Self.appSource("Views/Library/LibraryViewComponents.swift")
         XCTAssertTrue(
-            components.contains("LibrarySelectionStyle.labelTint(focused: isPaneFocused)"),
-            "The list-row title must take the accent tint from the shared style (#4191)."
+            components.contains("LibrarySelectionStyle.rowContent(selected: isSelected, focused: isPaneFocused)"),
+            "The list-row title must take its color from the ONE content token (2026-08-09 ruling)."
         )
     }
 
@@ -68,16 +75,21 @@ final class LibrarySelectionStrengthTests: XCTestCase {
             source.contains(".stroke(isSelected"),
             "The selected-well accent stroke must be gone — one selection idiom, not two (#4191)."
         )
-        // The label still carries the focus/key distinction (accent when key,
-        // grey otherwise) via effectiveSelectedTint.
-        XCTAssertTrue(source.contains("controlActiveState == .key ? selectedTint : .secondary"))
+        // V3 (2026-08-09): the label tint no longer re-gates on
+        // controlActiveState — selectedTint applies directly and the focus
+        // split lives upstream in the shared tokens. The re-gate coming back
+        // is the regression this now watches for.
+        XCTAssertFalse(source.contains("controlActiveState == .key ? selectedTint"))
+        XCTAssertTrue(source.contains("selectedTint"))
     }
 
     func testThumbnailWellHasExplicitPortraitBounds() throws {
         let source = try Self.appSource("Views/Library/LibraryThumbnailViews.swift")
 
-        XCTAssertTrue(source.contains("static let wellWidth: CGFloat = 100"))
-        XCTAssertTrue(source.contains("static let wellHeight: CGFloat = wellWidth * 4 / 3"))
+        // SQUARE well (Daniel's Finder-screenshot ruling, 2026-08-09) —
+        // supersedes the portrait 3:4 pin.
+        XCTAssertTrue(source.contains("static let wellWidth: CGFloat = 108"))
+        XCTAssertTrue(source.contains("static let wellHeight: CGFloat = wellWidth"))
         XCTAssertTrue(source.contains(".frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)"))
     }
 
@@ -107,11 +119,17 @@ final class LibrarySelectionStrengthTests: XCTestCase {
         XCTAssertEqual(imageBranches.count, 2, "Expected the two icon image branches.")
         for branch in imageBranches {
             // Window covers the branch's modifier chain incl. comments; the
-            // next branch starts well past it.
-            let modifiers = branch.prefix(800)
+            // next branch starts well past it. The frame is inset now
+            // (wellContentInset, the #125-128 jail margin) but must remain
+            // EXPLICIT and wellWidth-derived — dropping it lets a landscape
+            // image's intrinsic width win the layout pass (#789).
+            // Bounded by the branch's own else-boundary, not a char count —
+            // the page-hugging chrome and its comments outgrew every window.
+            let modifiers = branch.components(separatedBy: "} else").first ?? ""
             XCTAssertTrue(
-                modifiers.contains(".frame(width: Self.wellWidth * scale, height: Self.wellHeight * scale)"),
-                "Each image branch must keep the explicit well frame (#789)."
+                modifiers.contains(".frame(")
+                    && modifiers.contains("Self.wellWidth"),
+                "Each image branch must keep an explicit wellWidth-derived frame (#789)."
             )
         }
     }

@@ -51,16 +51,34 @@ extension SidebarView {
             pinnedGlobalNavigationRows()
         }
         .listStyle(.sidebar)
-        // #4371: the system's own selection fill, tinted to the SAME
-        // unemphasized colour the library rows use, so a selected sidebar row
-        // reads like Finder's soft grey rather than a saturated accent bar.
-        // One selection vocabulary, one colour token — the sidebar is not a
-        // second selection language. Row chrome (badges, the open affordance,
-        // status dots) sets its colours explicitly, so it does not inherit
-        // this tint.
-        .tint(LibrarySelectionStyle.fill)
+        // NO .tint on this List. #4371 tinted the selection to the grey fill;
+        // on the current SDK that tint did not hold for the FOCUSED
+        // (emphasized) selection, which rendered the saturated accent platter
+        // — the "bright green background" Daniel rejected twice on
+        // 2026-08-08 (#4563). The native .sidebar source-list selection IS
+        // Finder's grey material, focused or not; the experiment is to let
+        // it be. Row content colors (accent name/icon when selected) are set
+        // explicitly in SidebarItemRow+Label via rowContentColor.
+        // NO background override either (Daniel, 2026-08-08: "get sidebar
+        // background color like Finder, the gray"): a bar-material background
+        // painted the column with the light bar material, replacing the
+        // split view's own translucent sidebar material — which IS Finder's
+        // grey. Hide the scroll content's white and let the column show.
         .scrollContentBackground(.hidden)
-        .background(.bar)
+        #if os(macOS)
+        // Silence the NATIVE selection at the TABLE level (Daniel,
+        // 2026-08-10: keep the current grey-platter look, "except that
+        // flash"). One setting on the NSTableView, applied once — no
+        // per-row probes, no row-recycling races (the failure mode of the
+        // reverted SidebarRowChromeFixer): with selectionHighlightStyle
+        // .none AppKit draws NO selection and never flips the row to the
+        // emphasized appearance, so (a) the dark-accent platter cannot
+        // flash before our grey lands, and (b) the disclosure chevron
+        // keeps its normal dark-grey template rendering instead of
+        // invisible white. Selection TRACKING is unaffected — our
+        // listRowBackground platter is the one selected look.
+        .background(SidebarNativeSelectionSilencer())
+        #endif
         #if os(macOS)
         // Finder-style double-click: open the primary selected row in a new
         // tab or window (#2496), mirroring the library table's container-level
@@ -105,60 +123,66 @@ extension SidebarView {
     private var sidebarSelectionBinding: Binding<Set<SidebarDestination>> {
         Binding(
             get: { selectionState.selectedDestinations },
-            set: { proposed in
-                // A click that triggers the lazy child load rebuilds the tree,
-                // and while the clicked row is momentarily absent from the
-                // rendered rows the List writes the selection back WITHOUT it
-                // (#4297). Keep any dropped tree row that is currently
-                // unresolvable — that drop is the rebuild talking, not the
-                // user; the row re-selects itself when it re-materialises. A
-                // deselect of a row that IS resolvable is a real user action
-                // and passes through untouched.
-                let newValue = Self.sidebarResilientSelection(
-                    current: selectionState.selectedDestinations,
-                    proposed: proposed,
-                    isMomentarilyMissing: { destination in
-                        switch destination {
-                        case .library, .browser, .run:
-                            // Pinned/static rows and activity runs are not
-                            // resolved through the cached item index (see
-                            // `handleSelectionDestination`) — a drop of these
-                            // is always the user.
-                            return false
-                        default:
-                            return cachedItem(id: destination.serializedID) == nil
-                        }
-                    }
-                )
-                if newValue == selectionState.selectedDestinations, newValue != proposed {
-                    // Pure spurious clear — nothing changed; don't open a
-                    // click-timeline interval for a write the user never made.
-                    return
-                }
-                // Start of the click timeline (#4228). The setter is the first
-                // of OUR code the click reaches; everything before it is AppKit
-                // hit-testing. Closed in `handleSelectionChange` once the routed
-                // destination has been written.
-                InteractionProfile.begin(.selectionCommit)
-                selectionState.selectedDestinations = newValue
-                let primary = sidebarPrimaryDestination(
-                    for: newValue,
-                    previous: selectionState.selectedDestination
-                )
-                // Only reroute when the primary actually changes — a >1 batch
-                // selection returns the same primary, so this is a no-op and the
-                // detail pane stays put while the selection is built.
-                if selectionState.selectedDestination != primary {
-                    selectionState.selectedDestination = primary
-                } else {
-                    // No reroute — `.onChange` will not fire, so close the
-                    // interval here rather than leaving it open until the next
-                    // click supersedes it. An extend-selection click IS a
-                    // measurable interaction; it just ends early.
-                    InteractionProfile.end(.selectionCommit, detail: "highlight only")
-                }
-            }
+            set: { proposed in applySidebarSelectionProposal(proposed) }
         )
+    }
+
+    /// The ONE selection-commit seam, callable from the List binding AND the
+    /// draggable-row tap fallback (2026-08-09): resilience filter, timeline
+    /// interval, primary derivation. Extracted from the binding setter so the
+    /// fallback cannot drift from the native path.
+    func applySidebarSelectionProposal(_ proposed: Set<SidebarDestination>) {
+            // A click that triggers the lazy child load rebuilds the tree,
+            // and while the clicked row is momentarily absent from the
+            // rendered rows the List writes the selection back WITHOUT it
+            // (#4297). Keep any dropped tree row that is currently
+            // unresolvable — that drop is the rebuild talking, not the
+            // user; the row re-selects itself when it re-materialises. A
+            // deselect of a row that IS resolvable is a real user action
+            // and passes through untouched.
+            let newValue = Self.sidebarResilientSelection(
+                current: selectionState.selectedDestinations,
+                proposed: proposed,
+                isMomentarilyMissing: { destination in
+                    switch destination {
+                    case .library, .browser, .run:
+                        // Pinned/static rows and activity runs are not
+                        // resolved through the cached item index (see
+                        // `handleSelectionDestination`) — a drop of these
+                        // is always the user.
+                        return false
+                    default:
+                        return cachedItem(id: destination.serializedID) == nil
+                    }
+                }
+            )
+            if newValue == selectionState.selectedDestinations, newValue != proposed {
+                // Pure spurious clear — nothing changed; don't open a
+                // click-timeline interval for a write the user never made.
+                return
+            }
+            // Start of the click timeline (#4228). The setter is the first
+            // of OUR code the click reaches; everything before it is AppKit
+            // hit-testing. Closed in `handleSelectionChange` once the routed
+            // destination has been written.
+            InteractionProfile.begin(.selectionCommit)
+            selectionState.selectedDestinations = newValue
+            let primary = sidebarPrimaryDestination(
+                for: newValue,
+                previous: selectionState.selectedDestination
+            )
+            // Only reroute when the primary actually changes — a >1 batch
+            // selection returns the same primary, so this is a no-op and the
+            // detail pane stays put while the selection is built.
+            if selectionState.selectedDestination != primary {
+                selectionState.selectedDestination = primary
+            } else {
+                // No reroute — `.onChange` will not fire, so close the
+                // interval here rather than leaving it open until the next
+                // click supersedes it. An extend-selection click IS a
+                // measurable interaction; it just ends early.
+                InteractionProfile.end(.selectionCommit, detail: "highlight only")
+            }
     }
 
     /// Selection survives tree rebuilds (#4297): the sanitized selection the

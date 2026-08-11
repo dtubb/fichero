@@ -119,6 +119,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "App/Menus/FocusedCommandButtons+UndoNavigation.swift": "#2713 — undo/nav buttons use macOS NSAlert via AppKit (moved here when FocusedCommandButtons was split by file_length); #2101",
     "Views/Onboarding/FirstRunWindow.swift": "#2713 — PDFKit page bridge (AppKit/UIKit via #if canImport); #2101",
     "Views/Shell/OpenAffordances.swift": "#2713 — open/import affordance bridge uses AppKit open-panel helpers; #2101",
+    "Views/Sidebar/ItemRow/SidebarDragID.swift": "#711/#4123 — the row drag Transferable split from SidebarItemRow.swift by file_length; NSAttributedString RTF export for cross-app text drops via #if canImport",
     "Views/Sidebar/ItemRow/SidebarItemRow.swift": "#711 — sidebar row drag bridges AppKit's NSTableView row-drag (which List uses under the hood) via #if canImport; #2101",
     "Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift": "#711 — sidebar row drag-source presentation split from SidebarItemRow.swift by file_length; same NSTableView row-drag bridge via #if canImport; #2101",
 }

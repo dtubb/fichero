@@ -180,16 +180,29 @@ final class ContentPaneInternalDragImportGuardTests: XCTestCase {
     /// A refusal the user cannot see is indistinguishable from the item
     /// vanishing — the OS was already told the drop was accepted.
     func testBothRoutesReportTheRefusal() throws {
-        // #4311 rewrote the message: "already in this library" claimed
-        // knowledge the refusal path cannot have (a drag from another OPEN
-        // library lands here too, and the payload carries no library). The
-        // pin follows the honest wording — and would fail if either route
-        // regressed to the old over-claiming text.
+        // Rewritten twice, each by a ruling:
+        // #4311 killed "already in this library" (claimed knowledge the path
+        // cannot have); then Daniel #133 (2026-08-09, 799d2f62c) killed the
+        // ALERT itself — a no-op internal drop logs and snaps back, it never
+        // panels. The pin now follows THAT ruling: both routes refuse
+        // LOUDLY IN THE LOG, and neither shows alert text.
         let source = try Self.importSource()
-        let occurrences = source.components(
-            separatedBy: "That item was dragged from inside Fichero, so it wasn't imported."
-        ).count - 1
-        XCTAssertEqual(occurrences, 2, "both the URL route and the provider route must say so")
+        XCTAssertEqual(
+            source.components(
+                separatedBy: "refusing to import (no-op, no alert)"
+            ).count - 1, 1,
+            "the provider route must log its internal-drop refusal"
+        )
+        XCTAssertEqual(
+            source.components(
+                separatedBy: "dragged from inside the app (no-op, no alert)"
+            ).count - 1, 1,
+            "the URL route must log its internal-export refusal"
+        )
+        XCTAssertFalse(
+            source.contains("That item was dragged from inside Fichero, so it wasn't imported."),
+            "the alert wording is back — Daniel #133: no-op drops never panel"
+        )
         XCTAssertFalse(
             source.contains("That item is already in this library."),
             "the refusal must not claim a library it cannot know (#4311)"

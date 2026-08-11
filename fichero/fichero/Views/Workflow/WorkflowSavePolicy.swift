@@ -9,5 +9,3 @@ enum WorkflowSavePolicy {
         !editorIsSystem && canonicalIsSystem != true
     }
 }
-
-

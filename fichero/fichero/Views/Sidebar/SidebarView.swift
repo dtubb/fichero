@@ -193,8 +193,23 @@ struct SidebarView: View {
                 reconcileRestoredSelection()
             }
             .onChange(of: selectionState.selectedDestination) { _, newDestination in
-                // Route the live selection change to sidebarMode / viewMode.
-                handleSelectionChange(newDestination)
+                // Route the live selection change to sidebarMode / viewMode —
+                // ONE TURN LATER (#20/#113). AppKit paints the native
+                // emphasized (accent) selection platter on mouseDown; our
+                // opaque grey platter covers it only when this SwiftUI
+                // transaction commits. Routing synchronously kept the
+                // transaction open through the whole detail-pane rebuild
+                // (137ms measured live, InteractionProfile), so the green
+                // platter stayed visible for the entire commit. Deferring the
+                // routing lets the cheap highlight frame (grey platter +
+                // accent label) paint first; the heavy reroute lands on the
+                // next main-actor turn. Rapid re-clicks are safe:
+                // handleSelectionChange is idempotent via
+                // lastHandledSelectionDestination and main-actor tasks run in
+                // enqueue order.
+                Task { @MainActor in
+                    handleSelectionChange(newDestination)
+                }
             }
             .onChange(of: libraryManager.openLibraries.count) { _, _ in
                 // Rebuild when libraries are added/removed
