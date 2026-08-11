@@ -4488,9 +4488,9 @@ class Database(DatabaseEmbeddingMixin):
             if search_type in ["fulltext", "hybrid"]:
                 try:
                     # Use DuckDB for full-text search
+                    folded_terms = expanded_terms or [_fold_for_search(query)]
                     if has_embeddings:
                         table = self.lance.open_table(EMBEDDINGS_TABLE)
-                        folded_terms = expanded_terms or [_fold_for_search(query)]
                         candidate_limit = max(limit * 4, offset + limit * 2)
                         raw_fulltext_hits: list[dict] = []
                         if not use_fuzzy_match:
@@ -4609,6 +4609,69 @@ class Database(DatabaseEmbeddingMixin):
                                 if max_bm25 > 0
                                 else 1.0
                             )
+                    else:
+                        # NO-EMBEDDINGS FALLBACK (2026-08-10, Daniel: "search
+                        # doesn't seem to work"): the whole full-text leg above
+                        # runs over the LanceDB EMBEDDINGS table, so a corpus
+                        # that has never been embedded — every fresh import —
+                        # was invisible to keyword search too, and hybrid
+                        # returned ZERO for text sitting verbatim in
+                        # page_content (probe-proven). Full text must not
+                        # depend on embeddings: scan the documents table's
+                        # page_content directly. A folded contains + BM25 over
+                        # the matching rows is honest and bounded for local
+                        # libraries; the LanceDB FTS path takes over as soon
+                        # as embeddings exist.
+                        rows = self._execute(
+                            """
+                            SELECT d.id, d.name, d.doc_type, d.file_type,
+                                   d.created_at, d.updated_at, d.page_content
+                            FROM documents d
+                            WHERE d.deleted_at IS NULL
+                              AND d.page_content IS NOT NULL
+                              AND length(d.page_content) > 0
+                            """
+                        ).fetchall()
+                        matched = []
+                        for row in rows:
+                            document_id = row[0]
+                            if not self._is_active_document_id(document_id):
+                                continue
+                            if self._has_indexed_page_children(document_id):
+                                continue
+                            folded_content = _fold_for_search(str(row[6] or ""))
+                            if not any(term and term in folded_content for term in folded_terms):
+                                continue
+                            matched.append((row, folded_content))
+                        if matched:
+                            bm25_scores = _bm25_scores(
+                                [folded for _, folded in matched],
+                                [t for t in folded_terms if t],
+                            )
+                            max_bm25 = max(bm25_scores, default=0.0)
+                            for (row, _), raw_score in zip(matched, bm25_scores):
+                                score = (
+                                    max(0.0, min(1.0, raw_score / max_bm25))
+                                    if max_bm25 > 0
+                                    else 1.0
+                                )
+                                fulltext_results.append(
+                                    {
+                                        "document_id": row[0],
+                                        "score": score,
+                                        "content": str(row[6] or ""),
+                                        "metadata": {
+                                            "name": row[1],
+                                            "doc_type": row[2],
+                                            "file_type": row[3],
+                                            "created_at": row[4],
+                                            "updated_at": row[5],
+                                            "bm25_score": score,
+                                            "match_source": "content-scan",
+                                        },
+                                    }
+                                )
+                            fulltext_results.sort(key=lambda r: r["score"], reverse=True)
                 except Exception as e:
                     logger.warning("Full-text search failed: %s", e)
 
