@@ -208,6 +208,10 @@ enum NavTrace {
         navTraceLogger.notice(
             "NAVTRACE #\(seq) \(site, privacy: .public): \(detail, privacy: .public)"
         )
+        // The Dev schemes run with OS_ACTIVITY_MODE=disable, which silences
+        // os_log entirely (only print() reaches the Xcode console) — the
+        // reason two days of swipe repros produced zero trace lines.
+        print("NAVTRACE #\(seq) \(site): \(detail)")
         #endif
     }
 }
