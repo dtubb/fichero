@@ -161,7 +161,22 @@ extension ContentView {
             // guarantee, and the failure mode is a crash rather than a
             // degradation. Re-injecting a value that was already in scope is a
             // no-op; omitting one is a trap.
+            //
+            // ALL of them, not a hand-picked one (2026-08-11: the horizontal
+            // library split's second pane died on WorkflowExecutionObserver —
+            // artifactService alone was exactly the hand-picked-list mistake
+            // the inspector boundary comment already warns about). This is the
+            // same set inspectorContainerView re-injects.
             .environment(artifactService)
+            .environment(windowState)
+            .environment(executionObserver)
+            .environment(kgFocusState)
+            .environment(claimFocusState)
+            .environment(viewSettings)
+            .environment(appState)
+            .environment(errorService)
+            .environment(featureManager)
+            .environment(libraryManager)
             // Keep the library surface inside the content column across every
             // preview/sidebar layout variant; without this, list/table rows can
             // paint under the shell sidebar or off the left window edge (#3336).
