@@ -683,7 +683,9 @@ extension LibraryView {
         libraryManager.getLibrary(id: windowState.libraryId)
     }
 
-    private var libraryReference: LibraryManager.LibraryReference? {
+    // Internal, not private: the columns extension (seedColumnsPathFromSelection)
+    // resolves ancestry through the same reference.
+    var libraryReference: LibraryManager.LibraryReference? {
         libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
     }
 

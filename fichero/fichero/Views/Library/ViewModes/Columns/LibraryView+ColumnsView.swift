@@ -36,16 +36,21 @@ extension LibraryView {
     /// The documents of column `depth`: 0 = the browsed set, deeper = the
     /// cached children of the path segment above it.
     func columnsDocuments(atDepth depth: Int) -> [Document] {
-        guard depth > 0 else { return filteredDocuments }
+        // Depth 0 is the library's TOP LEVEL (Daniel, 2026-08-10 #222: "the
+        // column view should begin at the current top level, and not with
+        // the selection") — selecting a page in the sidebar used to make
+        // column one that PDF's pages with no path context to browse left
+        // through. `collections` is the store's root listing; the current
+        // listing remains the fallback until roots have loaded.
+        guard depth > 0 else {
+            let roots = documentStore.collections
+            return roots.isEmpty ? filteredDocuments : roots
+        }
         let path = columnsLivePath
         guard depth <= path.count else { return [] }
         return columnsChildren[path[depth - 1]] ?? []
     }
 
-    /// The trailing preview column's document: a SINGLE selected non-folder,
-    /// wherever it lives in the open columns. Multi-select or a folder
-    /// selection shows no preview column (Finder behavior — folders disclose
-    /// their children instead).
     var columnsPreviewDocument: Document? {
         // orderedPrimarySelectionId, not `selection.first` (rule 2 of the
         // selection-grammar guardrail, 2026-08-09): the count==1 guard made
@@ -67,6 +72,7 @@ extension LibraryView {
     }
 
     var columnsView: some View {
+        GeometryReader { outer in
         ScrollViewReader { proxy in
             ScrollView(.horizontal) {
                 HStack(spacing: 0) {
@@ -82,9 +88,15 @@ extension LibraryView {
                     // no editing; Reader/Inspector stay separate surfaces).
                     // Stable id keeps the mount across doc flips (#788).
                     if let previewDoc = columnsPreviewDocument {
+                        // Full remaining width (Daniel #222: "it should be
+                        // able to have a wider preview so we can use the
+                        // full preview width") — the preview column fills
+                        // whatever the open columns leave, never less than
+                        // a readable floor.
+                        let columnsWidth = CGFloat(columnsLivePath.count + 1) * 241
                         EditorView(document: previewDoc)
                             .id("columns.preview")
-                            .frame(width: 320)
+                            .frame(width: max(360, outer.size.width - columnsWidth))
                             .accessibilityIdentifier("libraryColumnPreview")
                         Divider()
                     }
@@ -113,6 +125,10 @@ extension LibraryView {
                 proxy.scrollTo(id, anchor: nil)
                 listScrollTarget = nil
             }
+            // Seed root→…→parent from the current selection so entering
+            // columns mode shows the selected item IN CONTEXT (#222).
+            .task { await seedColumnsPathFromSelection() }
+        }
         }
     }
 
