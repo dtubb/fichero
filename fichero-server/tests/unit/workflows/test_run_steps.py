@@ -84,6 +84,27 @@ def test_run_with_n_steps_yields_n_records():
     assert [s.node_id for s in steps] == ["node-1", "node-2", "node-3"]
 
 
+def test_timeline_recorded_under_display_names_folds_onto_planned_ids():
+    """LangGraph events carry the graph's DISPLAY names, not snapshot ids.
+
+    Without the name→id fold, every step of a completed run read "did not
+    run" and its real execution appeared as an extra unplanned row
+    (2026-08-12 trace screenshot).
+    """
+    steps = build_run_steps(
+        planned_nodes=[
+            {"node_id": "uuid-1", "node_name": "Transcribe", "tool": "transcribe"}
+        ],
+        progress_timeline={"steps": [_node_entry("Transcribe", "success")]},
+        artifacts=[_artifact(step_name="Transcribe")],
+        node_name_map={"uuid-1": "Transcribe"},
+    )
+    assert len(steps) == 1, "the executed step must fold onto its planned row"
+    assert steps[0].node_id == "uuid-1"
+    assert steps[0].status == STEP_COMPLETED
+    assert steps[0].artifact_count == 1
+
+
 def test_step_that_never_ran_is_not_run_not_absent():
     steps = build_run_steps(
         planned_nodes=_planned("node-1", "node-2"),

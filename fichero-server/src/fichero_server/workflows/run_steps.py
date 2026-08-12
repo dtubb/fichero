@@ -241,7 +241,9 @@ def _artifact_record(
         run_id=getattr(artifact, "run_id", None),
         workflow_id=getattr(artifact, "workflow_id", None),
         step_name=step_name,
-        node_name=node_name_map.get(step_name) if step_name else None,
+        # step_name may be a node ID (map to its display name) or already
+        # the display name the graph ran under (stands as-is).
+        node_name=node_name_map.get(step_name, step_name) if step_name else None,
         provider=getattr(artifact, "provider", None),
         model=getattr(artifact, "model", None),
         sequence=getattr(artifact, "sequence", None),
@@ -280,6 +282,17 @@ def build_run_steps(
     names = dict(node_name_map or {})
     doc_names = dict(document_names or {})
 
+    # The graph registers nodes under their DISPLAY names, and LangGraph
+    # events (and artifact step_names) are recorded in that name space —
+    # while ``planned_nodes`` carry the snapshot's node IDS. Without mapping
+    # names back to ids, no planned step ever matched its timeline entry:
+    # every step of a completed run read "did not run" and its real
+    # execution appeared as a duplicate unplanned row (2026-08-12).
+    id_by_name = {name: node_id for node_id, name in names.items()}
+
+    def _canonical(key: Any) -> str:
+        return id_by_name.get(str(key), str(key))
+
     node_entries: dict[str, dict[str, Any]] = {}
     file_entries: dict[str, list[dict[str, Any]]] = {}
     for entry in _timeline_steps(progress_timeline):
@@ -287,18 +300,18 @@ def build_run_steps(
         if not node_id:
             continue
         if _is_file_entry(entry):
-            file_entries.setdefault(str(node_id), []).append(entry)
+            file_entries.setdefault(_canonical(node_id), []).append(entry)
         elif _is_node_entry(entry):
             # Last entry wins: a retried node writes a second entry and the
             # later one is the outcome that stands.
-            node_entries[str(node_id)] = entry
+            node_entries[_canonical(node_id)] = entry
 
     artifacts_by_step: dict[str, list[Any]] = {}
     unattributed: list[Any] = []
     for artifact in artifacts:
         step_name = getattr(artifact, "step_name", None)
         if step_name:
-            artifacts_by_step.setdefault(str(step_name), []).append(artifact)
+            artifacts_by_step.setdefault(_canonical(step_name), []).append(artifact)
         else:
             unattributed.append(artifact)
 
