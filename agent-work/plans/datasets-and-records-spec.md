@@ -427,3 +427,35 @@ below without giving up the feature that motivates the whole idea.
 12. What does Preview show for an entity, which has no page image?
 13. Does a generated node's child list mean containment or reference? The
     delete-parent class of bug lives in exactly that ambiguity
+
+---
+
+## 12. Rulings — 2026-08-12
+
+**Preview for a generated node = a generated summary, whose parts are
+clickable and take you to the source.** This is the answer for every generated
+node type, not only entities: a quote, an event, a timeline row all get a
+summary with working links back to the page and span they came from. It keeps
+the anchor promise (§2.2) at the pane level — a generated thing always shows its
+way back to the evidence.
+
+Note the summary is itself generated content and must not masquerade as source.
+Whatever treatment marks an extracted cell (Q7) should mark this too.
+
+**Prototypes are per-library, with global ones like global workflows.** A
+`DiaryEntry` defined in one library stays there; a set of shared prototypes
+lives globally and is available everywhere.
+
+The mechanism for this already exists and needs no new concept:
+`resolve_prototype_attributes` walks a `parent_key` chain merging root → leaf.
+A library-local prototype can name a global prototype as its parent and override
+selected attributes — exactly the Tinderbox inheritance the module was built
+for. So "global with local overrides" is the existing resolver pointed at the
+global library, not a second storage path.
+
+**[worker] Confirm where global prototypes live** — the global library
+(`global.fichero`) already holds cross-library state and is the obvious home,
+but verify rather than assume, and check what happens to a library whose parent
+prototype is missing because the global library is unavailable. The resolver
+prefers raising over partial attributes, which is right, but a library that
+cannot open because a global parent is absent would be a bad failure mode.
