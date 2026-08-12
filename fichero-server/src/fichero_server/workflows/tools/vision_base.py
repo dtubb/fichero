@@ -3325,6 +3325,20 @@ async def process_vision(
         # transcription fan-out or side-effect-create a library.
         try:
             activity_db_path = str(db_manager.get_database(library_path).path)
+            # A path that does not exist on disk is not a library db —
+            # get_database() CREATES real ones, so the only way here is a
+            # test double (a MagicMock db_manager stringifies its .path repr,
+            # and the activity tracker then CREATED a junk file literally
+            # named "<MagicMock name='db_manager.get_database().path' …>" in
+            # the CWD — the repo-root polluter, task #14). Degrade to
+            # unscoped, same contract as the OSError arm.
+            if not Path(activity_db_path).exists():
+                logger.error(
+                    "activity scoping: resolved db path %s does not exist — "
+                    "files will log unscoped",
+                    activity_db_path,
+                )
+                activity_db_path = None
         except OSError as exc:
             logger.error(
                 "activity scoping: library db unavailable at %s (%s) — "
