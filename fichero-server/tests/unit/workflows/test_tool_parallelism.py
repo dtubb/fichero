@@ -13,6 +13,7 @@ import fichero_server.workflows.tools  # noqa: F401 — populate the registry
 from fichero_server.workflows.registry import get_tool_def, list_tools
 
 ELEMENTWISE = {
+    "interpret",
     "transcribe",
     "describe",
     "summarize_file",

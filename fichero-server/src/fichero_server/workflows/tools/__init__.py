@@ -63,6 +63,7 @@ from fichero_server.workflows.tools import split_images  # noqa: F401  (#1394)
 # LLM tools
 from fichero_server.workflows.tools import summarize
 from fichero_server.workflows.tools import entities
+from fichero_server.workflows.tools import interpret  # noqa: F401  (hermeneutic layer first writer, 2026-08-12)
 from fichero_server.workflows.tools import geo_extract  # noqa: F401  (#2266 registers extract_geo)
 from fichero_server.workflows.tools import timeline
 from fichero_server.workflows.tools import key_people

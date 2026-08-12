@@ -26,7 +26,9 @@ from fichero_server.workflows.types import ToolDef
 # The four tools the HTR two-pass preset (transcribe_htr.json) is built from.
 # detect_regions joined 2026-08-11 (9ec754f57): registered tested=True
 # with real coverage in tests/unit/workflows/test_detect_regions_tool.py.
-HTR_TOOLS = {"files", "transcribe", "transcribe_review", "search", "detect_regions"}
+# interpret joined 2026-08-12: hermeneutic layer first writer, covered
+# by tests/unit/workflows/test_interpret_tool.py.
+HTR_TOOLS = {"files", "transcribe", "transcribe_review", "search", "detect_regions", "interpret"}
 
 _PRESETS_DIR = (
     Path(__file__).resolve().parents[3]
