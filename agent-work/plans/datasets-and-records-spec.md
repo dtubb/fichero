@@ -307,7 +307,102 @@ of §5.1. The care goes into re-runs and protecting hand edits.
 **Stage 6 — export.** CSV, then 11ty front-matter, then IIIF annotation lists,
 then templates.
 
+**Stage 7 — the same machinery pointed at entities, and panes side by side.**
+See §11. Not a follow-on afterthought: it is where this stops being a datasets
+feature and becomes the shape of the app.
+
 Each stage is useful alone and shippable without the next.
+
+---
+
+## 11. Stage 7 — entities through the same lens, and multiple views at once
+
+### 11.1 Multiple library views side by side
+
+A grid without its source beside it is just a spreadsheet. The value is the
+diary row and the page image visible together, or the timeline beside the grid
+it summarises. That needs the content area to hold more than one library view.
+
+This is already on the board as task #31, the multi-pane column design review;
+this spec is a requirement feeding it, not a competing design.
+
+**The danger is specific and known.** The views audit (2026-08-11) ranks
+`centerContentRouting` (`ContentView+SidebarLayout.swift:122-247`) as the
+deepest uncapped generic in the app — a three-way branch × three-case layout
+switch × nested grid conditionals × four-way widescreen composition, every leaf
+carrying `.frame + .simultaneousGesture + .overlay`, with no `AnyView`. Both
+launch crashes this week were type-depth failures, and splitting the content
+pane into N adds branches at exactly that point.
+
+So: cap it in `AnyView` and add a declared depth bound in the first commit, not
+after the first crash. `check_view_type_depth_bounds.py` already exists and
+passes; extend it rather than discovering the ceiling at runtime.
+
+### 11.2 Entities rendered through the same views
+
+If entities are nodes with a prototype, "browse entities in a grid" is not a new
+feature — it is the library view pointed at a different set of nodes. Columns,
+filter, sort, group, summarize and export all come for free.
+
+This **removes** a surface rather than adding one. The views audit found
+`OntologyBrowser` — today's knowledge-graph surface — has no click path from any
+sidebar row; it is reachable only by ⌘9 or the View menu, because
+`pinnedGlobalNavigationRows()` was gutted and no `SidebarBrowserDestination`
+case constructs it. It is already an orphan. Replacing it with a library view
+over entity nodes gives entities the filtering, sorting and export they have
+never had, and closes part of the semantic audit's "stored but never retrieved".
+
+**Project engine-side, not in the client.** `KnowledgeEntity` is not a
+`Document`, so entities appearing as nodes is a projection. #4186 — workflows
+rendering twice in the sidebar — was caused by a client-built virtual hierarchy
+diverging from the real one, and `buildWorkflowHierarchy` still exists as a
+dormant re-entry point for exactly that bug. One source of truth, in the engine.
+
+### 11.3 Generated things as nodes — and the reason is composition
+
+Not only entities. Anything the pipeline generates — a person, a place, a quote,
+an event, a timeline row, a claim — should be a node.
+
+**The payoff is not browsing. It is dragging.** Drag a person into a workspace
+because you want to pay attention to them. Drag three quotes, a place and a
+date range into a workspace and that is the working set for a chapter. That is
+the gesture the node model exists to make possible, and it is worth more than
+any grid: it is how a scattered corpus becomes an argument.
+
+Workspaces already exist. Aliases already exist. Multi-select and drag already
+work on every node. So the cost is making generated things addressable, not
+building a new mechanism.
+
+Browsing benefits follow for free: an entity's children are the pages that
+mention it, and entity attributes come from a prototype — `Person` with birth,
+death, aliases — inherited like any other. Merging is already modelled
+(`EntityMergeAudit`).
+
+It is the honest conclusion of EPIC #2081's "everything is a node".
+
+**A route that gets the drag without the ambiguity.** A projection with a
+*stable id* is draggable: a workspace stores the reference (`entity:abc`), not a
+copy, exactly as an alias does. So generated things can be composable before
+they are resolved into real tree nodes — which defers the containment question
+below without giving up the feature that motivates the whole idea.
+
+**Open questions, and they are not small:**
+
+- **Scale.** A corpus can hold hundreds of thousands of entities. A sidebar tree
+  cannot show them, so top-level entity containers need the same treatment as
+  the timeline: aggregate first, drill down. Possibly they are only ever reached
+  through a view, never expanded in the sidebar.
+- **What does Preview show for an entity?** Every other node type answers this.
+  An entity has no page image. Its mentions? A generated summary? Nothing?
+  **[DANIEL]**
+- **Does an entity node's child list mean containment or reference?** A folder
+  contains its children. A person does not contain the pages mentioning them.
+  If both render as children, the tree's meaning becomes ambiguous — and the
+  delete-parent class of bug lives exactly in that ambiguity.
+- **Is an entity a node, or does a node project an entity?** The cheap version
+  is a virtual projection for viewing; the deep version makes entities real
+  nodes with real ids in the tree. The first is reversible, the second is not.
+  Recommend starting with the projection and only promoting if it earns it.
 
 ---
 
@@ -323,3 +418,12 @@ Each stage is useful alone and shippable without the next.
 8. Can a workflow propose a schema? (recommend draft-only)
 9. Ship starter prototypes — diary entry, event, quote, person — as examples the
    way workflow presets ship? (recommend yes)
+
+10. Multiple library views side by side — feeds task #31; requires the AnyView
+    cap and a declared depth bound in the FIRST commit
+11. Entities (and other generated things) via projection with stable ids, or
+    promoted to real tree nodes? (recommend projection first — it is reversible
+    and still draggable into a workspace)
+12. What does Preview show for an entity, which has no page image?
+13. Does a generated node's child list mean containment or reference? The
+    delete-parent class of bug lives in exactly that ambiguity
