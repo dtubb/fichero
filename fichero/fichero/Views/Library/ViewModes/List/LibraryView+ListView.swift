@@ -37,6 +37,7 @@ extension LibraryView {
             identity: DocRowIdentity(
                 document: doc,
                 visibleEntityTypes: listVisibleEntityTypes,
+                visibleAttributes: LibraryRowAttribute.set(from: rowAttributesRaw),
                 isRenaming: renamingDocumentId == doc.id
             ),
             isSelected: selection.contains(doc.id),
@@ -51,7 +52,8 @@ extension LibraryView {
                 editingName: $editingName,
                 onCommitRename: commitRename,
                 onCancelRename: cancelRename,
-                visibleEntityTypes: listVisibleEntityTypes
+                visibleEntityTypes: listVisibleEntityTypes,
+                visibleAttributes: LibraryRowAttribute.set(from: rowAttributesRaw)
             ) { tag in
                 searchText = tag
                 showFilterBar = true

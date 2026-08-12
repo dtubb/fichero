@@ -88,6 +88,9 @@ struct LibraryView: View {
     /// contextual-menu affordances always want `.link` and set this
     /// explicitly rather than relying on the default.
     @State var fileImportMode: IngestMode = .link
+    /// Metadata-popover choice (#18): which optional attributes list rows
+    /// display. App-wide preference, comma-joined raw values.
+    @AppStorage("library.rowAttributes") var rowAttributesRaw: String = LibraryRowAttribute.defaultRaw
     @FocusState var filterFieldFocused: Bool
     /// The summoned engine-search field (#4521). Tracked so the row keyboard
     /// grammar can stand down while the user is TYPING — ancestor `.onKeyPress`

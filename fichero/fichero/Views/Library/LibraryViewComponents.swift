@@ -120,6 +120,9 @@ struct MailStyleRow: View {
     /// computed set so the top-right filter menu drives this. (#519
     /// follow-up — list view filter.)
     var visibleEntityTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
+    /// The metadata-popover choice (#18): date/type/status/entities are
+    /// OPT-IN; title + transcript are the row, not metadata.
+    var visibleAttributes: Set<LibraryRowAttribute> = [.entities]
     var onTagTap: (String) -> Void = { _ in }
 
     // Compact leading thumbnail so the title/text gets the row's width
@@ -207,15 +210,37 @@ struct MailStyleRow: View {
                     }
 
                     Spacer()
+
+                    if visibleAttributes.contains(.date) {
+                        Text(document.createdAt, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
-                // NO badge row (Daniel 2026-08-11, supersedes #519's
-                // display-only badges): "completed is useless, image is
-                // useless, and August 11, 2026 is useless" — the status dot
-                // already carries state, the thumbnail carries type, and the
-                // date belongs in the coming Xcode-style metadata popover
-                // (task #18) with the rest of the optional attributes. What
-                // the row is FOR is the title and the transcript below.
+                // The badge row is OPT-IN via the metadata popover (#18,
+                // Daniel 2026-08-11: "completed is useless, image is
+                // useless, and August 11, 2026 is useless" — as defaults).
+                // The status dot always carries state and the thumbnail
+                // carries type; these are for users who want the words too.
+                if visibleAttributes.contains(.status) || visibleAttributes.contains(.type) {
+                    HStack(spacing: 8) {
+                        if visibleAttributes.contains(.status) {
+                            StatusBadge(status: document.status)
+                        }
+                        if visibleAttributes.contains(.type) {
+                            if document.docType == .folder {
+                                Text("Folder")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if let fileType = document.fileType {
+                                Text(fileType.rawValue.capitalized)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
 
                 // Summary/Output preview — ALWAYS two reserved lines
                 // (#4191 density cap): docs without body text keep the same
@@ -236,13 +261,15 @@ struct MailStyleRow: View {
                 // doc has zero or twenty entities, before AND after the
                 // async fetch lands. ponytail: rows past the window are
                 // clipped; the Inspector shows the full set.
-                ArtifactEntitiesView(
-                    documentId: document.id,
-                    style: .multiLine,
-                    visibleTypes: visibleEntityTypes
-                )
-                .frame(height: Self.entityBlockHeight, alignment: .topLeading)
-                .clipped()
+                if visibleAttributes.contains(.entities) {
+                    ArtifactEntitiesView(
+                        documentId: document.id,
+                        style: .multiLine,
+                        visibleTypes: visibleEntityTypes
+                    )
+                    .frame(height: Self.entityBlockHeight, alignment: .topLeading)
+                    .clipped()
+                }
             }
         }
         .padding(.vertical, 4)

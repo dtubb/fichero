@@ -15,6 +15,9 @@ import SwiftUI
 struct DocRowIdentity: Equatable, Sendable {
     let document: Document
     let visibleEntityTypes: Set<String>
+    /// The metadata-popover choice (#18): rows render date/type/status/
+    /// entities from it, so a toggle must re-render them past .equatable().
+    var visibleAttributes: Set<LibraryRowAttribute> = [.entities]
     /// Inline rename toggles the title between Text and TextField (#4160) —
     /// without this in `==`, `.equatable()` suppresses the redraw and the
     /// rename field never appears.

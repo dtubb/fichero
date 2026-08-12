@@ -45,6 +45,11 @@ extension LibraryView {
 
         Spacer(minLength: 8)
 
+        // Xcode-console-style metadata popover (#18): which optional
+        // attributes list rows display. Sits with sort/filter because it,
+        // too, acts on the library list.
+        LibraryRowAttributesButton(raw: $rowAttributesRaw)
+
         librarySortMenu
 
         libraryFilterToggleButton
