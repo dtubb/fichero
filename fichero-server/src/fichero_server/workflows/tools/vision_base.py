@@ -1588,6 +1588,7 @@ async def _propagate_to_page_children(
     page_geometries: list[OCRGeometryResult | None] | None = None,
     artifact_data: dict | None = None,
     page_thinking: list[str | None] | None = None,
+    page_episode_ids: list[str | None] | None = None,
 ) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
 
@@ -1669,6 +1670,17 @@ async def _propagate_to_page_children(
                         page_data = {
                             **(artifact_data or {}),
                             "thinking": page_thinking[page_idx],
+                        }
+                    # Provenance join (2026-08-12): each page's artifact
+                    # carries ITS OWN episode id — never a sibling's.
+                    if (
+                        page_episode_ids
+                        and page_idx < len(page_episode_ids)
+                        and page_episode_ids[page_idx]
+                    ):
+                        page_data = {
+                            **(page_data or {}),
+                            "episode_id": page_episode_ids[page_idx],
                         }
                     if matched:
                         art = matched[0]
@@ -3023,6 +3035,8 @@ async def process_vision(
             # run identity ride the contextvars the builder set; recording
             # is auxiliary by contract, so a failure here is loud but never
             # fails the file.
+            _ep_single_id: str | None = None
+            _ep_page_ids: list[str | None] = []
             try:
                 from fichero_server.observability import episodes
 
@@ -3035,7 +3049,7 @@ async def process_vision(
                 }
                 if per_page_texts and requested_page_index is None:
                     for _ep_idx, _ep_text in enumerate(per_page_texts):
-                        episodes.record(
+                        _ep_page_ids.append(episodes.record(
                             subject={
                                 "document_id": _ep_doc_id,
                                 "file": file_path,
@@ -3052,9 +3066,9 @@ async def process_vision(
                                     else None
                                 ),
                             },
-                        )
+                        ))
                 else:
-                    episodes.record(
+                    _ep_single_id = episodes.record(
                         subject={
                             "document_id": _ep_doc_id,
                             "file": file_path,
@@ -3084,6 +3098,15 @@ async def process_vision(
                     effective_artifact_data = {
                         **(artifact_data or {}),
                         "thinking": page_thinking_single,
+                    }
+                # Provenance join (2026-08-12, Daniel: "can we click on an
+                # artifact and see how it was produced?"): the artifact
+                # carries its episode's id, so the inspector resolves the
+                # exact model call — prompt, thinking, timing — in one hop.
+                if _ep_single_id:
+                    effective_artifact_data = {
+                        **(effective_artifact_data or {}),
+                        "episode_id": _ep_single_id,
                     }
                 # Set proper provider/model labels for local processing
                 save_config = effective_config
@@ -3154,6 +3177,7 @@ async def process_vision(
                         page_geometries=per_page_geometries,
                         artifact_data=effective_artifact_data,
                         page_thinking=per_page_thinking,
+                        page_episode_ids=_ep_page_ids,
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
@@ -3190,6 +3214,7 @@ async def process_vision(
                             page_geometries=per_page_geometries,
                             artifact_data=effective_artifact_data,
                             page_thinking=per_page_thinking,
+                            page_episode_ids=_ep_page_ids,
                         )
                         if page_artifact_ids is None:
                             # Still unsplittable. FAIL LOUD rather than write a

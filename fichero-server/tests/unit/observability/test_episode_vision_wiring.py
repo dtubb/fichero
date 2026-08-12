@@ -230,3 +230,50 @@ class TestTrainingExport:
             json={"output_path": str(out), "use_case": "transcription"},
         )
         assert r2.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_artifact_carries_its_episode_id(tmp_path: Path, db, test_package) -> None:
+    """Provenance join (2026-08-12, Daniel: "can we click on an artifact and
+    see how it was produced?"): the saved artifact's data carries the
+    episode_id of the model call that produced it."""
+    from fichero_server.models import Artifact, Document, DocType, FileType
+
+    image = tmp_path / "scan.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\nfakebytes")
+    doc = Document(
+        name="scan.png",
+        path=str(image),
+        doc_type=DocType.file,
+        file_type=FileType.image,
+        metadata={"source_path": str(image)},
+    )
+    db.save(doc)
+
+    lib_token = episodes.set_library(str(test_package))
+    try:
+        with patch(
+            "fichero_server.llm.vision",
+            new=AsyncMock(return_value="transcribed words"),
+        ):
+            await process_vision(
+                files=[str(image)],
+                documents=[doc.model_dump(mode="json")],
+                prompt="Transcribe this page.",
+                llm_config=LLMConfig(provider="mock", model="mock-vl"),
+                library_path=str(test_package),
+                task_id=None,
+                tool_config=_tool_config(),
+                vision_mode="llm",
+            )
+    finally:
+        episodes.set_library(None)
+        _ = lib_token
+
+    ledger = _ledger(Path(str(test_package)))
+    assert len(ledger) == 1
+    episode_id = ledger[0]["episode_id"]
+
+    artifacts = db.query(Artifact, document_id=doc.id)
+    assert artifacts, "no artifact saved"
+    assert (artifacts[0].data or {}).get("episode_id") == episode_id
