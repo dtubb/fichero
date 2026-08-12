@@ -17,6 +17,9 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     @Binding var cursorPosition: CGPoint  // Normalized 0-1 position in image
     @Binding var imageSize: CGSize
     @Binding var visibleRect: CGRect  // Normalized 0-1 visible area
+    /// The image's on-screen rect within the pane (top-left coords) — what
+    /// the box overlays must be framed to, NOT the whole pane (2026-08-12).
+    @Binding var drawnImageFrame: CGRect
     let minScale: CGFloat
     let maxScale: CGFloat
     let loupeEnabled: Bool
@@ -143,6 +146,13 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         context.coordinator.onVisibleRectChanged = { rect in
             Task { @MainActor in
                 self.visibleRect = rect
+            }
+        }
+        context.coordinator.onDrawnImageFrameChanged = { rect in
+            Task { @MainActor in
+                if self.drawnImageFrame != rect {
+                    self.drawnImageFrame = rect
+                }
             }
         }
         // #596 (2nd attempt): fires once at gesture end with the final

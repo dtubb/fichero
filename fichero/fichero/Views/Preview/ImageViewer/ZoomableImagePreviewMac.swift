@@ -143,6 +143,11 @@ struct ZoomableImagePreview: View {
     @State var imageSize: CGSize = .zero
     @State var image: NSImage?
     @State var visibleRect: CGRect = .zero  // Normalized 0-1
+    /// The image's on-screen rect within the pane (top-left coords), from the
+    /// scroll coordinator. Overlays are framed to THIS, never the whole pane —
+    /// at fit-with-letterbox, pane-spanning overlays drew normalized boxes
+    /// into the gray margins below the image (2026-08-12 bbox repro).
+    @State var drawnImageFrame: CGRect = .zero
     @State var imageCoordinator: ImageWithCursorTracking.Coordinator?
     // Full-resolution source image fetched lazily when zoom exceeds 1.5× (#2427).
     @State var highResImage: NSImage?
@@ -184,6 +189,7 @@ struct ZoomableImagePreview: View {
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,
                             visibleRect: $visibleRect,
+                            drawnImageFrame: $drawnImageFrame,
                             minScale: minScale,
                             maxScale: maxScale,
                             loupeEnabled: loupeEnabled,
@@ -199,29 +205,8 @@ struct ZoomableImagePreview: View {
                             coordinator: $imageCoordinator
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                        .overlay {
-                            // Saved bounding boxes + the region-draw layer (#2458).
-                            // Shown whenever there are boxes or the tool is armed.
-                            if !regionBoxes.isEmpty || isDrawingRegion {
-                                BoundingBoxOverlay(
-                                    boxes: regionBoxes,
-                                    visible: visibleRect == .zero
-                                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
-                                        : visibleRect,
-                                    isDrawing: isDrawingRegion,
-                                    onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
-                                )
-                            }
-                            // OCR text boxes from the transcription pass (#4309),
-                            // toggled from the reader toolbar.
-                            if ocrBoxesEnabled, let ocrGeometry {
-                                OCRGeometryOverlay(
-                                    geometry: ocrGeometry,
-                                    visible: visibleRect == .zero
-                                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
-                                        : visibleRect
-                                )
-                            }
+                        .overlay(alignment: .topLeading) {
+                            boxOverlays
                         }
                     } else {
                         ProgressView()
@@ -348,6 +333,45 @@ struct ZoomableImagePreview: View {
             isEditing: isEditing,
             onAnnotate: requestAnnotation
         )
+    }
+}
+
+extension ZoomableImagePreview {
+    /// Both box overlays, framed to the DRAWN image rect — never the pane.
+    /// Pane-spanning overlays put boxes in the letterbox (2026-08-12 bbox
+    /// repro). `visibleRect` and `drawnImageFrame` describe the same crop,
+    /// so the mapping stays consistent while panning.
+    @ViewBuilder
+    var boxOverlays: some View {
+        ZStack(alignment: .topLeading) {
+            // Saved bounding boxes + the region-draw layer (#2458).
+            // Shown whenever there are boxes or the tool is armed.
+            if !regionBoxes.isEmpty || isDrawingRegion {
+                BoundingBoxOverlay(
+                    boxes: regionBoxes,
+                    visible: visibleRect == .zero
+                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
+                        : visibleRect,
+                    isDrawing: isDrawingRegion,
+                    onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
+                )
+            }
+            // OCR text boxes from the transcription pass (#4309),
+            // toggled from the reader toolbar.
+            if ocrBoxesEnabled, let ocrGeometry {
+                OCRGeometryOverlay(
+                    geometry: ocrGeometry,
+                    visible: visibleRect == .zero
+                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
+                        : visibleRect
+                )
+            }
+        }
+        .frame(
+            width: drawnImageFrame == .zero ? nil : drawnImageFrame.width,
+            height: drawnImageFrame == .zero ? nil : drawnImageFrame.height
+        )
+        .offset(x: drawnImageFrame.minX, y: drawnImageFrame.minY)
     }
 }
 

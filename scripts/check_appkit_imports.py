@@ -89,6 +89,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/ImageEditor/ImageEditorView+Canvas.swift": "#2713 — canvas rendering uses PlatformImage/NS* via #if canImport (moved here when ImageEditorView was split by file_length); #2101",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift": "#2713 — macOS NSView cursor/zoom bridge #if canImport (split from ImageWithCursorTracking by file_length); #2101",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMacCoordinator.swift": "#2713 — macOS NSView coordinator #if canImport (split); #2101",
+    "Views/Preview/ImageViewer/CursorTracking/DrawnImageFrame.swift": "2026-08-12 — pure NSScrollView geometry helper (drawn-image rect for box overlays), extracted from the Mac coordinator for file_length",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingIOS.swift": "#2713 — iOS UIView cursor/zoom bridge #if canImport (split); #2101",
     "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingIOSCoordinator.swift": "#2713 — iOS UIScrollView coordinator #if canImport (split); #2101",
     "Views/Preview/ImageViewer/CursorTracking/ImageSDRDecodingHelper.swift": "#2713 — macOS ImageIO/NSImage SDR decode #if canImport (split); #2101",

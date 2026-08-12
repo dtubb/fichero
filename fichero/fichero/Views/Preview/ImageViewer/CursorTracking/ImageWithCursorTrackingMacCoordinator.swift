@@ -23,6 +23,11 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
     /// Tracks the last override image set so we detect changes by identity (#1402).
     weak var currentOverrideImage: NSImage?
     var onVisibleRectChanged: ((CGRect) -> Void)?
+    /// Where the image is actually DRAWN inside the scroll view's bounds
+    /// (SwiftUI top-left coords, 2026-08-12 bbox repro): the box overlays must
+    /// frame to THIS, not the pane, or fit-with-letterbox puts boxes in the
+    /// gray margins. Fires alongside `onVisibleRectChanged` — same crop.
+    var onDrawnImageFrameChanged: ((CGRect) -> Void)?
     /// #596 (2nd attempt): fires once at gesture `.ended` with the final
     /// magnification. The owning `ImageWithCursorTracking` writes it
     /// back to its `@Binding var scale` so `updateNSView`'s sync-check
@@ -254,6 +259,10 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
         )
 
         onVisibleRectChanged?(rect)
+
+        if let drawn = DrawnImageFrame.compute(scrollView: scrollView, imageView: imageView) {
+            onDrawnImageFrameChanged?(drawn)
+        }
     }
 
     /// Calculate the scale needed to fit the image in the scroll view.
