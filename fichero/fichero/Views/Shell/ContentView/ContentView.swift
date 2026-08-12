@@ -14,7 +14,7 @@ var textEditingHasKeyboard: Bool {
 }
 
 enum PaneFocus: Hashable {
-    case sidebar, content, preview, reading, inspector
+    case sidebar, content, preview, reading, chat, inspector
 
     /// Human name for the pane — VoiceOver announcements on pane moves.
     var paneTitle: String {
@@ -23,6 +23,7 @@ enum PaneFocus: Hashable {
         case .content: return "Library"
         case .preview: return "Preview"
         case .reading: return "Reader"
+        case .chat: return "Chat"
         case .inspector: return "Inspector"
         }
     }
@@ -75,6 +76,10 @@ struct ContentView: View {
     /// has no floor. (#1454)
     nonisolated static let pdfCanvasMinWidth: Double = 360
     nonisolated static let readingPaneMinWidth: Double = 220
+    /// Chat is the NARROW always-available pane right of the reader
+    /// (pane rulings 2026-08-11) — wide enough for a composer, never
+    /// the takeover it used to be.
+    nonisolated static let chatPaneMinWidth: Double = 280
 
     // MARK: - Environment
 
@@ -199,6 +204,10 @@ struct ContentView: View {
     // keeps its own choice via @SceneStorage (same pattern as the
     // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
+    /// Chat pane visibility — DEFAULT ON (Daniel's pane ruling: a fresh
+    /// window shows library+preview+reader+chat).
+    @SceneStorage("showChatPane") var showChatPane: Bool = true
+    @SceneStorage("chatPaneWidth") var chatPaneWidth: Double = 320
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search

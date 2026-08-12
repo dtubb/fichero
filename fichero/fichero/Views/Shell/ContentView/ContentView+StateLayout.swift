@@ -125,6 +125,7 @@ extension ContentView {
             showDocumentGrid: showDocumentGrid,
             showDocumentCanvas: showDocumentCanvas,
             showReadingPane: showReadingPane,
+            showChatPane: showChatPane,
             availableWidth: availableDetailWidth
         )
     }

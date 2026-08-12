@@ -9,7 +9,7 @@ extension ContentView {
         switch focusedPane {
         case .preview, .reading:
             pageFocusDocument ?? detailDocument ?? inspectorDocument
-        case .sidebar, .content, .inspector, .none:
+        case .sidebar, .content, .chat, .inspector, .none:
             inspectorDocument
         }
     }

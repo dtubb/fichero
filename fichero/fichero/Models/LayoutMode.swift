@@ -129,6 +129,10 @@ struct WidescreenPanePlan: Equatable {
     let showsLibraryPane: Bool
     let showsCanvasPane: Bool
     let showsReadingPane: Bool
+    /// Chat as a ROW pane (pane rulings 2026-08-11: "the chat view itself is
+    /// to the right of the reader view by default" — narrow, always
+    /// available, toggleable like every other pane; never a takeover).
+    var showsChatPane: Bool = false
 
     var showsLibraryDivider: Bool {
         showsLibraryPane && (showsCanvasPane || showsReadingPane)
@@ -149,18 +153,26 @@ struct WidescreenPanePlan: Equatable {
         if showsReadingPane {
             minimumWidth += ContentView.readingPaneMinWidth
         }
+        if showsChatPane {
+            minimumWidth += ContentView.chatPaneMinWidth
+        }
         return showsLibraryPane ? max(minimumWidth, ContentView.contentListMinWidth) : minimumWidth
+    }
+
+    private func shedding(chat: Bool = false, reading: Bool = false, canvas: Bool = false) -> WidescreenPanePlan {
+        WidescreenPanePlan(
+            showsLibraryPane: showsLibraryPane,
+            showsCanvasPane: canvas ? false : showsCanvasPane,
+            showsReadingPane: (reading || canvas) ? false : showsReadingPane,
+            showsChatPane: chat ? false : showsChatPane
+        )
     }
 
     func collapsed(toFit availableWidth: Double) -> WidescreenPanePlan {
         if !showsLibraryPane {
             if showsCanvasPane {
                 return showsReadingPane && availableWidth < minimumWidth
-                    ? WidescreenPanePlan(
-                        showsLibraryPane: false,
-                        showsCanvasPane: true,
-                        showsReadingPane: false
-                    )
+                    ? shedding(chat: true, reading: true)
                     : self
             }
 
@@ -172,22 +184,21 @@ struct WidescreenPanePlan: Equatable {
         }
 
         var plan = self
+        // Shed order: chat first (auxiliary), then reading, then canvas —
+        // the library list is the always-present spine.
         while plan.minimumWidth > availableWidth {
+            if plan.showsChatPane {
+                plan = plan.shedding(chat: true)
+                continue
+            }
+
             if plan.showsReadingPane {
-                plan = WidescreenPanePlan(
-                    showsLibraryPane: plan.showsLibraryPane,
-                    showsCanvasPane: plan.showsCanvasPane,
-                    showsReadingPane: false
-                )
+                plan = plan.shedding(reading: true)
                 continue
             }
 
             if plan.showsCanvasPane {
-                plan = WidescreenPanePlan(
-                    showsLibraryPane: plan.showsLibraryPane,
-                    showsCanvasPane: false,
-                    showsReadingPane: false
-                )
+                plan = plan.shedding(canvas: true)
                 continue
             }
 
@@ -200,6 +211,7 @@ struct WidescreenPanePlan: Equatable {
         showDocumentGrid: Bool,
         showDocumentCanvas: Bool,
         showReadingPane: Bool,
+        showChatPane: Bool = false,
         availableWidth: Double? = nil
     ) -> WidescreenPanePlan {
         // Zero is a real collapse input here; it must still flow through the
@@ -207,7 +219,8 @@ struct WidescreenPanePlan: Equatable {
         let plan = WidescreenPanePlan(
             showsLibraryPane: showDocumentGrid,
             showsCanvasPane: showDocumentCanvas,
-            showsReadingPane: showReadingPane
+            showsReadingPane: showReadingPane,
+            showsChatPane: showChatPane
         )
         guard let availableWidth else {
             return plan

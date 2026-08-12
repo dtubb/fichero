@@ -21,6 +21,130 @@ extension ContentView {
         )
     }
 
+    /// The library column — the centre content for BOTH .library and .chat
+    /// modes (2026-08-12: chat no longer takes over; its conversation lives
+    /// in the row's chat pane while this column keeps the workspace).
+    @ViewBuilder
+    var libraryContentColumn: some View {
+        // #2960: @Observable via @Environment has no projected binding —
+        // @Bindable gives `$viewSettings.libraryLayout`.
+        @Bindable var viewSettings = viewSettings
+        // Space (3D) has no renderer yet (#3081) — .space normalizes to an
+        // available mode upstream, so the library path renders LibraryView.
+        // AnyView is load-bearing (#4331): the fully composed library-case
+        // generic, nested inside the shell's getter chain, produced a mangled
+        // type whose runtime metadata instantiation recursed past the 1MB
+        // iOS main-thread stack (fine on macOS's 8MB) — instant launch crash.
+        // Erasing at the case boundary bounds the type depth on every layout.
+        AnyView(LibraryView(
+            // Transient search (#4106/S2): while a toolbar query is
+            // active the library column shows its resolved hits in
+            // relevance order; every Library view mode presents them.
+            documents: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments,
+            contentCollection: isEntityLibrarySelection ? .entities : .documents,
+            isLoading: documentStore.isLoading,
+            isConnected: documentStore.isConnected,
+            errorMessage: documentStore.error?.localizedDescription,
+            onRetry: {
+                Task { @MainActor in
+                    await documentStore.refresh()
+                }
+            },
+            libraryToolbar: libraryToolbarState,
+            selection: $browserSelection,
+            detailDocument: $detailDocument,
+            viewMode: $viewSettings.libraryLayout,
+            // The HINT is part of "focused" (2026-08-11, Daniel's Mail
+            // comparison): focusedPane is FocusState and stays nil unless
+            // a view carries a matching .focused binding — only the
+            // sidebar does — so a clicked library row rendered the
+            // UNFOCUSED grey+accent selection instead of Mail's
+            // accent-bar-with-white. Every pane tap already writes the
+            // hint, so hint==.content is "the library is the active pane".
+            isPaneFocused: focusedPane == .content || paneFocusHint == .content,
+            displayMode: viewDisplayMode,
+            folderId: sidebarSelectionState.selectedItemId,
+            onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
+            onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
+            onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
+            onNavigateInto: { doc in navigateToDocument(doc) },
+            onPageFocus: { doc in
+                if pageFocusDocument?.id != doc.id {
+                    pageFocusDocument = doc
+                }
+            },
+            sidebarHidden: !showSidebar,
+            onToolbarSearchSubmit: { query in
+                runToolbarSearch(query)
+            },
+            onAddToChat: {
+                openChatWithCurrentScope()
+            },
+            // Argument order follows LibraryView's DECLARATION order —
+            // Swift requires it for labelled parameters, and these two
+            // pairs were added by different changes (#4407 then #4403), so
+            // the call site had drifted out of order.
+            //
+            // #4407: the search field lives in the library's mini toolbar
+            // now, so its text and mode are handed to the pane that owns it.
+            searchFieldText: $toolbarSearchText,
+            searchFieldMode: Binding(
+                get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
+                set: { searchFieldModeRaw = $0.rawValue }
+            ),
+            // #4521: the field is summoned by the toolbar search toggle;
+            // a Binding so in-pane dismissal can flip the same state.
+            searchFieldVisible: Binding(
+                get: { showSearchField },
+                set: { setSearchFieldVisible($0) }
+            ),
+            // #4403: the grid renders only the document leg, so it must be
+            // told what the search actually found — otherwise its empty
+            // state contradicts the header counting every kind.
+            activeSearchQuery: activeSearchQuery,
+            searchHitCounts: transientSearchHitCounts,
+            searchRowHits: transientSearchRowHits
+        )
+        // #4513: LibraryView reads @Environment(ArtifactService.self), and a
+        // missing @Environment object is a FATAL ERROR rather than a nil —
+        // the library column trapped on open. ContentView holds the service
+        // and the value should inherit, but the AnyView erasure above is a
+        // hosting boundary, and #4448 established that this shell re-hosts
+        // content outside the inheriting tree at exactly such boundaries.
+        //
+        // Injected explicitly here for the same reason the activity stores
+        // ride an explicit host: inheritance that works today is not a
+        // guarantee, and the failure mode is a crash rather than a
+        // degradation. Re-injecting a value that was already in scope is a
+        // no-op; omitting one is a trap.
+        //
+        // ALL of them, not a hand-picked one (2026-08-11: the horizontal
+        // library split's second pane died on WorkflowExecutionObserver —
+        // artifactService alone was exactly the hand-picked-list mistake
+        // the inspector boundary comment already warns about). This is the
+        // same set inspectorContainerView re-injects.
+        .environment(artifactService)
+        .environment(windowState)
+        .environment(executionObserver)
+        .environment(kgFocusState)
+        .environment(claimFocusState)
+        .environment(viewSettings)
+        .environment(appState)
+        .environment(errorService)
+        .environment(featureManager)
+        .environment(libraryManager)
+        // Keep the library surface inside the content column across every
+        // preview/sidebar layout variant; without this, list/table rows can
+        // paint under the shell sidebar or off the left window edge (#3336).
+        .clipped()
+        // Transient-search chrome (#4106 S2/S9/S5): honest result count,
+        // Load More, explicit Save Search, and the engine's error detail —
+        // mounted only while a toolbar query is active.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            AnyView(transientSearchResultsBar)
+        })
+    }
+
     @ViewBuilder
     var contentView: some View {
         // #2960: ViewSettings is @Observable via @Environment, which has no
@@ -81,128 +205,14 @@ extension ContentView {
         } else {
         switch viewMode {
         case .library:
-            // Space (3D) has no renderer yet (#3081) — .space normalizes to an
-            // available mode upstream, so the library path renders LibraryView.
-            // AnyView is load-bearing (#4331): the fully composed library-case
-            // generic, nested inside the shell's getter chain, produced a mangled
-            // type whose runtime metadata instantiation recursed past the 1MB
-            // iOS main-thread stack (fine on macOS's 8MB) — instant launch crash.
-            // Erasing at the case boundary bounds the type depth on every layout.
-            AnyView(LibraryView(
-                // Transient search (#4106/S2): while a toolbar query is
-                // active the library column shows its resolved hits in
-                // relevance order; every Library view mode presents them.
-                documents: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments,
-                contentCollection: isEntityLibrarySelection ? .entities : .documents,
-                isLoading: documentStore.isLoading,
-                isConnected: documentStore.isConnected,
-                errorMessage: documentStore.error?.localizedDescription,
-                onRetry: {
-                    Task { @MainActor in
-                        await documentStore.refresh()
-                    }
-                },
-                libraryToolbar: libraryToolbarState,
-                selection: $browserSelection,
-                detailDocument: $detailDocument,
-                viewMode: $viewSettings.libraryLayout,
-                // The HINT is part of "focused" (2026-08-11, Daniel's Mail
-                // comparison): focusedPane is FocusState and stays nil unless
-                // a view carries a matching .focused binding — only the
-                // sidebar does — so a clicked library row rendered the
-                // UNFOCUSED grey+accent selection instead of Mail's
-                // accent-bar-with-white. Every pane tap already writes the
-                // hint, so hint==.content is "the library is the active pane".
-                isPaneFocused: focusedPane == .content || paneFocusHint == .content,
-                displayMode: viewDisplayMode,
-                folderId: sidebarSelectionState.selectedItemId,
-                onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
-                onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
-                onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },
-                onNavigateInto: { doc in navigateToDocument(doc) },
-                onPageFocus: { doc in
-                    if pageFocusDocument?.id != doc.id {
-                        pageFocusDocument = doc
-                    }
-                },
-                sidebarHidden: !showSidebar,
-                onToolbarSearchSubmit: { query in
-                    runToolbarSearch(query)
-                },
-                onAddToChat: {
-                    openChatWithCurrentScope()
-                },
-                // Argument order follows LibraryView's DECLARATION order —
-                // Swift requires it for labelled parameters, and these two
-                // pairs were added by different changes (#4407 then #4403), so
-                // the call site had drifted out of order.
-                //
-                // #4407: the search field lives in the library's mini toolbar
-                // now, so its text and mode are handed to the pane that owns it.
-                searchFieldText: $toolbarSearchText,
-                searchFieldMode: Binding(
-                    get: { SearchFieldMode(rawValue: searchFieldModeRaw) ?? .ask },
-                    set: { searchFieldModeRaw = $0.rawValue }
-                ),
-                // #4521: the field is summoned by the toolbar search toggle;
-                // a Binding so in-pane dismissal can flip the same state.
-                searchFieldVisible: Binding(
-                    get: { showSearchField },
-                    set: { setSearchFieldVisible($0) }
-                ),
-                // #4403: the grid renders only the document leg, so it must be
-                // told what the search actually found — otherwise its empty
-                // state contradicts the header counting every kind.
-                activeSearchQuery: activeSearchQuery,
-                searchHitCounts: transientSearchHitCounts,
-                searchRowHits: transientSearchRowHits
-            )
-            // #4513: LibraryView reads @Environment(ArtifactService.self), and a
-            // missing @Environment object is a FATAL ERROR rather than a nil —
-            // the library column trapped on open. ContentView holds the service
-            // and the value should inherit, but the AnyView erasure above is a
-            // hosting boundary, and #4448 established that this shell re-hosts
-            // content outside the inheriting tree at exactly such boundaries.
-            //
-            // Injected explicitly here for the same reason the activity stores
-            // ride an explicit host: inheritance that works today is not a
-            // guarantee, and the failure mode is a crash rather than a
-            // degradation. Re-injecting a value that was already in scope is a
-            // no-op; omitting one is a trap.
-            //
-            // ALL of them, not a hand-picked one (2026-08-11: the horizontal
-            // library split's second pane died on WorkflowExecutionObserver —
-            // artifactService alone was exactly the hand-picked-list mistake
-            // the inspector boundary comment already warns about). This is the
-            // same set inspectorContainerView re-injects.
-            .environment(artifactService)
-            .environment(windowState)
-            .environment(executionObserver)
-            .environment(kgFocusState)
-            .environment(claimFocusState)
-            .environment(viewSettings)
-            .environment(appState)
-            .environment(errorService)
-            .environment(featureManager)
-            .environment(libraryManager)
-            // Keep the library surface inside the content column across every
-            // preview/sidebar layout variant; without this, list/table rows can
-            // paint under the shell sidebar or off the left window edge (#3336).
-            .clipped()
-            // Transient-search chrome (#4106 S2/S9/S5): honest result count,
-            // Load More, explicit Save Search, and the engine's error detail —
-            // mounted only while a toolbar query is active.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                AnyView(transientSearchResultsBar)
-            })
+            libraryContentColumn
 
-        case .chat(let conversation):
-            ChatView(
-                conversation: conversation,
-                selectedDocuments: $chatSelectedDocuments,
-                attachContext: chatAttachContext,
-                onConversationUpdated: { refreshConversations() }
-            )
+        case .chat:
+            // NO takeover (Daniel 2026-08-12): selecting a chat keeps the
+            // library column; the conversation renders in the row's CHAT
+            // PANE (PaneSpec .chat reads viewMode for it). The library shows
+            // the last-browsed listing, so the workspace never collapses.
+            libraryContentColumn
 
         case .comparison(let comparison):
             if let comp = comparison {

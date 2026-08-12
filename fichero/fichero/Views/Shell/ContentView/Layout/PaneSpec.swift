@@ -17,6 +17,7 @@ struct PaneSpec: Identifiable, Equatable {
         case library
         case preview
         case reading
+        case chat
     }
 
     let kind: Kind
@@ -46,6 +47,11 @@ extension ContentView {
             }
         } else if plan.showsReadingPane {
             specs.append(PaneSpec(kind: .reading, fixedWidth: nil))
+        }
+        if plan.showsChatPane {
+            // Chat is the NARROW pane right of the reader (2026-08-11 pane
+            // rulings) — a fixed column its divider drags, never a takeover.
+            specs.append(PaneSpec(kind: .chat, fixedWidth: CGFloat(chatPaneWidth)))
         }
         return specs
     }
@@ -87,6 +93,14 @@ extension ContentView {
                 edge: .trailing,
                 isDragging: $dividerDragInFlight
             )
+        case (_, .chat):
+            ResizableDivider(
+                width: $chatPaneWidth,
+                minWidth: ContentView.chatPaneMinWidth,
+                maxWidth: 700,
+                edge: .trailing,
+                isDragging: $dividerDragInFlight
+            )
         default:
             EmptyView()
         }
@@ -118,6 +132,30 @@ extension ContentView {
                 return AnyView(widescreenReadingPane.frame(width: width))
             }
             return AnyView(widescreenReadingPane.frame(maxWidth: .infinity))
+        case .chat:
+            return AnyView(
+                chatPaneContent
+                    .frame(width: spec.fixedWidth ?? CGFloat(ContentView.chatPaneMinWidth))
+                    .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .chat; paneFocusHint = .chat })
+                    .overlay { paneFocusIndicator(for: .chat) }
+            )
         }
+    }
+
+    /// The row's chat pane — the SAME ChatView the old takeover mode
+    /// rendered, scoped by the same attach context, just living beside the
+    /// reader instead of over everything. While the sidebar has a chat
+    /// selected, the pane follows it; otherwise it is a fresh conversation.
+    @ViewBuilder
+    private var chatPaneContent: some View {
+        ChatView(
+            conversation: {
+                if case .chat(let conversation) = viewMode { return conversation }
+                return nil
+            }(),
+            selectedDocuments: $chatSelectedDocuments,
+            attachContext: chatAttachContext,
+            onConversationUpdated: { refreshConversations() }
+        )
     }
 }

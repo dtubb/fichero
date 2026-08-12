@@ -78,6 +78,13 @@ extension ContentView {
             // preview, #712) was deleted with #4525 (V6): a toggle whose only
             // purpose was to violate the stable-panes policy.
             return true
+        case .chat:
+            // Chat KEEPS the library/preview/reader panes (Daniel 2026-08-12:
+            // "chat/terminal is supposed to be one narrow view that is always
+            // visible … instead it still takes over everything"). The chat
+            // pane in the row follows the selected conversation; selecting a
+            // chat must never collapse the workspace.
+            return true
         default:
             return false
         }

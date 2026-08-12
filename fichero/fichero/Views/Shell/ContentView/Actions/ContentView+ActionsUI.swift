@@ -99,6 +99,16 @@ extension ContentView {
         setPaneVisible(.reading, isVisible)
     }
 
+    /// Chat is auxiliary (never the last content pane), so unlike
+    /// preview/reading it toggles directly — no #1696 invariant to guard.
+    func setChatPaneVisible(_ isVisible: Bool) {
+        if isVisible {
+            currentLayoutMode = .widescreen
+            viewSettings.previewMode = .widescreen
+        }
+        showChatPane = isVisible
+    }
+
     /// Show/hide the library list pane beside the reader (#4288). Unlike the
     /// preview/reading toggles this does NOT force widescreen: collapsing the
     /// list is a "focus on reading" gesture, so the current layout mode stays as

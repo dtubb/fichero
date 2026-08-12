@@ -146,6 +146,17 @@ extension ContentView {
                     Label("Reading Pane", systemImage: ToolbarSymbols.readingPane)
                 }
                 .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
+
+                // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
+                // to turn it on and off") — fourth member of the pane group,
+                // same grammar as preview/reading.
+                Toggle(isOn: Binding(
+                    get: { showChatPane },
+                    set: { setChatPaneVisible($0) }
+                )) {
+                    Label("Chat Pane", systemImage: ToolbarSymbols.chatPane)
+                }
+                .help(showChatPane ? "Hide chat pane" : "Show chat pane")
             }
 
             // Summoned search (#4521, Finder-shaped): the engine-search field

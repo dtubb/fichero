@@ -58,6 +58,9 @@ extension ContentView {
         if currentLayoutMode == .widescreen && showReadingPane {
             panes.append(.reading)
         }
+        if currentLayoutMode == .widescreen && showChatPane {
+            panes.append(.chat)
+        }
         if showInspectorSidebar {
             panes.append(.inspector)
         }
