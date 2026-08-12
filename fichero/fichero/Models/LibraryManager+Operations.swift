@@ -110,6 +110,19 @@ extension LibraryManager {
         )
         FolderAccessManager.shared.requestFolderAccess(suggestedPath: url.path) { granted in
             libraryManagerLogger.info("Folder access prompt result: \(granted)")
+            guard granted else { return }
+            // The load that ran alongside this prompt failed without access
+            // and was left unloaded — approval must re-trigger it, or the
+            // user stares at the library they just granted until they reopen
+            // it by hand (2026-08-12: "when I approved it, it didn't reload").
+            Task { @MainActor in
+                let manager = LibraryManager.shared
+                guard let library = manager.openLibraries.first(
+                    where: { $0.url.path == url.path }
+                ) else { return }
+                manager.libraryLoadRetryAttempts.removeValue(forKey: library.id)
+                await manager.loadLibraryDataIfNeeded(for: library)
+            }
         }
         #endif
     }

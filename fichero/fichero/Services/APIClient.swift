@@ -100,6 +100,28 @@ class APIClient {
         }
     }
 
+    /// Create-or-open a library package via `POST /api/library` (idempotent
+    /// server-side). This call is where FIRST-open engine init — migrations,
+    /// workflow/Inbox seeding — gets paid, explicitly, instead of landing on
+    /// whichever data fetch happens to arrive first and blowing its deadline
+    /// (2026-08-12: a fresh library only opened on the SECOND attempt).
+    func initializeLibrary(path: String) async throws {
+        let response = try await client.api.createLibraryApiLibraryPost(
+            .init(body: .json(.init(path: path)))
+        )
+        switch response {
+        case .ok:
+            return
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(
+                statusCode: statusCode,
+                message: "Unexpected create-library response"
+            )
+        default:
+            throw APIError.invalidResponse
+        }
+    }
+
     // MARK: - Storage resource URLs
 
     /// A transport-agnostic `fichero-res://` URL for a storage resource served by
