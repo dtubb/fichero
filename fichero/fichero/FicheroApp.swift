@@ -557,41 +557,7 @@ struct FicheroApp: App {
         .defaultPosition(.center)
         #endif
 
-        WindowGroup("Artifact", id: "artifact-detail") {
-            ArtifactDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 620)
-
-        // Track B (#2004): detachable citation detail scene, torn off from the
-        // Citations inspector tab and following FocusedCitation.shared by default.
-        // Read-only — no library-service environment plumbing needed.
-        WindowGroup("Citation", id: "citation-detail") {
-            CitationDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 560)
-
-        // Track B (#2010 / #2011): detachable annotation + note detail scenes,
-        // each torn off from its inspector tab and following the matching shared
-        // focus holder by default. Read-only in the detached scene, so they
-        // need no library-service environment plumbing.
-        WindowGroup("Annotation", id: "annotation-detail") {
-            AnnotationDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 620)
-
-        WindowGroup("Note", id: "note-detail") {
-            NoteDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 620)
-
-        WindowGroup("Document", id: "document-detail") {
-            documentDetailSceneRoot()
-        }
-        .defaultSize(width: 540, height: 720)
+        detailScenes
 
         // Activity monitor (#2546 / B2): the poppable live workflow monitor —
         // the window's root IS the hierarchical outline table. Resolves the
@@ -705,6 +671,65 @@ private struct FeatureTierLegendWindow: View {
         }
     }
 }
+
+// MARK: - Detail scenes
+
+extension FicheroApp {
+    /// The five detachable detail scenes (artifact/citation/annotation/note/
+    /// document). In an extension so `FicheroApp`'s struct body stays inside
+    /// the type-body budget — the #4331 launch-crash fix added
+    /// `.commandsRemoved()` to each (see the note on the Artifact scene).
+    @SceneBuilder
+    var detailScenes: some Scene {
+        WindowGroup("Artifact", id: "artifact-detail") {
+            ArtifactDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+        // #4331 launch crash (2026-08-12): SwiftUI builds its DEFAULT
+        // NewItemCommands for any scene that doesn't replace/remove commands,
+        // and that build walks a keypath through the app's composed scene
+        // generic — the demangle overflowed the stack under scene-restore
+        // recursion. The MAIN scene replaces .newItem; every auxiliary scene
+        // must remove its defaults so the walk never runs for them.
+        .commandsRemoved()
+
+        // Track B (#2004): detachable citation detail scene, torn off from the
+        // Citations inspector tab and following FocusedCitation.shared by default.
+        // Read-only — no library-service environment plumbing needed.
+        WindowGroup("Citation", id: "citation-detail") {
+            CitationDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 560)
+        .commandsRemoved()
+
+        // Track B (#2010 / #2011): detachable annotation + note detail scenes,
+        // each torn off from its inspector tab and following the matching shared
+        // focus holder by default. Read-only in the detached scene, so they
+        // need no library-service environment plumbing.
+        WindowGroup("Annotation", id: "annotation-detail") {
+            AnnotationDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+        .commandsRemoved()
+
+        WindowGroup("Note", id: "note-detail") {
+            NoteDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+        .commandsRemoved()
+
+        WindowGroup("Document", id: "document-detail") {
+            documentDetailSceneRoot()
+        }
+        .defaultSize(width: 540, height: 720)
+        .commandsRemoved()
+    }
+}
+
 #endif
 
 extension FicheroApp {

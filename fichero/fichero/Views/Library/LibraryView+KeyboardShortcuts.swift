@@ -168,6 +168,23 @@ extension LibraryView {
 
     @ViewBuilder
     private func applyFocusedActions(to content: some View) -> some View {
+        // ONE writer per focused key (2026-08-12): a horizontal/vertical
+        // library split mounts TWO LibraryViews, and both wrote
+        // librarySelectAll/librarySortField/… every frame — SwiftUI's
+        // "FocusedValue update tried to update multiple times per frame"
+        // fault, which re-invalidated the scene graph recursively at launch
+        // and deepened the stack under the #4331 menu-build crash. The
+        // PRIMARY pane owns the menu commands; a secondary split renders
+        // rows only.
+        if isSecondarySplitPane {
+            content
+        } else {
+            applyPrimaryFocusedActions(to: content)
+        }
+    }
+
+    @ViewBuilder
+    private func applyPrimaryFocusedActions(to content: some View) -> some View {
         content
             .focusedSceneValue(
                 \.librarySelectAll,

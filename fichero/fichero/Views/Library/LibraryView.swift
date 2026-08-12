@@ -128,6 +128,11 @@ struct LibraryView: View {
     @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    /// A split's SECOND library pane must not write the shared
+    /// focusedSceneValue keys — two live writers of the same key is the
+    /// "FocusedValue update tried to update multiple times per frame" fault
+    /// that recursed scene invalidation at launch (2026-08-12).
+    @Environment(\.isSecondarySplitPane) var isSecondarySplitPane
     let featureManager = FeatureManager.shared
     @State var workflowRunProviderCache = WorkflowRunProviderCache.shared
 
