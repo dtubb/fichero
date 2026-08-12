@@ -235,6 +235,7 @@ def build_transcribe_prompt(config: dict) -> str:
 
 @register_tool(
     name="transcribe",
+    parallelism="elementwise",
     display_name="Transcribe",
     description="Extract text from images (OCR)",
     category="vision",

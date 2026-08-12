@@ -54,6 +54,7 @@ DETECT_REGIONS_CONFIG = {
 
 @register_tool(
     name="detect_regions",
+    parallelism="elementwise",
     display_name="Detect Regions",
     description=(
         "On-device text-region detection (Apple Vision): normalized line and "

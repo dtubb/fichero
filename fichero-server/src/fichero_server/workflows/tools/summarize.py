@@ -108,6 +108,7 @@ def build_summarize_prompt(config: dict) -> str:
 
 @register_tool(
     name="summarize_file",
+    parallelism="elementwise",
     display_name="Summarize File",
     description="Generate a summary of a single document's content",
     category="llm",

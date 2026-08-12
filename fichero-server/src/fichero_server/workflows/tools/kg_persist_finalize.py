@@ -90,6 +90,7 @@ def _vector_row_count(db, table_name: str) -> int:
 
 @register_tool(
     name="kg_persist_finalize",
+    parallelism="reducing",
     display_name="KG Persist / Finalize",
     description="Finalize corroboration counts, canonical KG embeddings, and graph snapshot from existing KG rows",
     category="utility",

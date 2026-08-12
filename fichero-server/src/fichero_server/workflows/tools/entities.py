@@ -162,6 +162,7 @@ def build_entities_prompt(config: dict) -> str:
 
 @register_tool(
     name="extract_entities",
+    parallelism="elementwise",
     display_name="Extract Entities",
     description="Extract named entities (people, places, dates, organizations) from text",
     category="llm",
