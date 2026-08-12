@@ -38,26 +38,14 @@ extension LibraryView {
                 document: doc,
                 visibleEntityTypes: listVisibleEntityTypes,
                 visibleAttributes: LibraryRowAttribute.set(from: rowAttributesRaw),
+                searchHit: searchRowHits[doc.id],
                 isRenaming: renamingDocumentId == doc.id
             ),
             isSelected: selection.contains(doc.id),
             tint: selectionTint,
             focused: isPaneFocused
         ) {
-            MailStyleRow(
-                document: doc,
-                isSelected: selection.contains(doc.id),
-                isPaneFocused: isPaneFocused,
-                isRenaming: renamingDocumentId == doc.id,
-                editingName: $editingName,
-                onCommitRename: commitRename,
-                onCancelRename: cancelRename,
-                visibleEntityTypes: listVisibleEntityTypes,
-                visibleAttributes: LibraryRowAttribute.set(from: rowAttributesRaw)
-            ) { tag in
-                searchText = tag
-                showFilterBar = true
-            }
+            mailRow(for: doc)
         }
         .equatable()
         .id(doc.id)
@@ -88,6 +76,26 @@ extension LibraryView {
         // row instead of one fetch per row on scroll.
         .onAppear {
             scheduleThumbnailPrefetch(around: doc.id)
+        }
+    }
+
+    /// The row content itself, split from `documentRow` so the behavior
+    /// wrapper stays inside the function-body budget.
+    private func mailRow(for doc: Document) -> some View {
+        MailStyleRow(
+            document: doc,
+            isSelected: selection.contains(doc.id),
+            isPaneFocused: isPaneFocused,
+            isRenaming: renamingDocumentId == doc.id,
+            editingName: $editingName,
+            onCommitRename: commitRename,
+            onCancelRename: cancelRename,
+            visibleEntityTypes: listVisibleEntityTypes,
+            visibleAttributes: LibraryRowAttribute.set(from: rowAttributesRaw),
+            searchHit: searchRowHits[doc.id]
+        ) { tag in
+            searchText = tag
+            showFilterBar = true
         }
     }
 

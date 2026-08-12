@@ -123,6 +123,11 @@ struct MailStyleRow: View {
     /// The metadata-popover choice (#18): date/type/status/entities are
     /// OPT-IN; title + transcript are the row, not metadata.
     var visibleAttributes: Set<LibraryRowAttribute> = [.entities]
+    /// The active search's matched text + relevance for this row (#11):
+    /// the excerpt replaces the generic transcript preview — it answers
+    /// "why did the query get us THIS document" — and the score renders
+    /// on the right, Daniel's ruling. nil outside search.
+    var searchHit: TransientSearchRowHit?
     var onTagTap: (String) -> Void = { _ in }
 
     // Compact leading thumbnail so the title/text gets the row's width
@@ -216,6 +221,13 @@ struct MailStyleRow: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    if let hit = searchHit {
+                        Text(hit.score, format: .percent.precision(.fractionLength(0)))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .help("Search relevance")
+                    }
                 }
 
                 // The badge row is OPT-IN via the metadata popover (#18,
@@ -246,7 +258,7 @@ struct MailStyleRow: View {
                 // (#4191 density cap): docs without body text keep the same
                 // row height as docs with it, so nothing re-pitches as
                 // content loads and the scroll position never jumps.
-                Text(document.pageContent ?? "")
+                Text(searchHit?.excerpt ?? document.pageContent ?? "")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2, reservesSpace: true)

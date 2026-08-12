@@ -18,6 +18,9 @@ struct DocRowIdentity: Equatable, Sendable {
     /// The metadata-popover choice (#18): rows render date/type/status/
     /// entities from it, so a toggle must re-render them past .equatable().
     var visibleAttributes: Set<LibraryRowAttribute> = [.entities]
+    /// The active search's matched text + relevance for this row (#11) —
+    /// a new query must re-render rows past .equatable().
+    var searchHit: TransientSearchRowHit?
     /// Inline rename toggles the title between Text and TextField (#4160) —
     /// without this in `==`, `.equatable()` suppresses the redraw and the
     /// rename field never appears.

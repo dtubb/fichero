@@ -67,6 +67,10 @@ struct LibraryView: View {
     /// document leg, so these are how the body explains a header count it
     /// cannot show.
     var searchHitCounts: SearchHitCounts = SearchHitCounts()
+    /// Per-hit matched text + relevance for the active search (#11): rows
+    /// show WHY a document matched ("why does 'Colombia' get us this
+    /// image?") and its relevance on the right. Empty outside search.
+    var searchRowHits: [String: TransientSearchRowHit] = [:]
 
     @State var searchText: String = ""
     /// Precomputed lowercased ⌘F search keys per docId (#3865). Rebuilt only when

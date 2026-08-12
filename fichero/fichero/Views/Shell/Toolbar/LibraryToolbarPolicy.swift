@@ -140,6 +140,9 @@ extension LibraryToolbarState {
         if sortAscending != model.ascending {
             sortAscending = model.ascending
         }
+        // apply() is only reachable from the sort MENU — an explicit choice.
+        // While a search is showing this overrides the relevance default (#11).
+        userChoseSortDuringSearch = true
     }
 
     /// The ONE mutation path for filter-bar visibility from the toolbar. Hiding

@@ -249,6 +249,9 @@ struct ContentView: View {
     /// `searchResultDocuments` (relevance order) for this query.
     @State var activeSearchQuery: String?
     @State var searchResultDocuments: [Document] = []
+    /// Per-hit matched text + relevance for the active search (#11): the
+    /// rows show WHY a document matched and how strongly.
+    @State var transientSearchRowHits: [String: TransientSearchRowHit] = [:]
     /// Page size for the active transient search; "Load More" grows it and
     /// re-runs the query (S9 UI half). Reset to the default on every new query.
     @State var transientSearchLimit: Int = ContentView.transientSearchPageSize

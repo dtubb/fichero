@@ -145,6 +145,10 @@ extension ContentView {
         }
         guard activeSearchQuery == query else { return }
         searchResultDocuments = resolved
+        transientSearchRowHits = Dictionary(
+            store.results.map { ($0.documentId, $0.rowHit) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     /// Grow the page and re-run the active query (S9 UI half).
@@ -223,6 +227,8 @@ extension ContentView {
     func clearTransientSearch() {
         activeSearchQuery = nil
         searchResultDocuments = []
+        transientSearchRowHits = [:]
+        libraryToolbarState.userChoseSortDuringSearch = false
         transientSearchLimit = Self.transientSearchPageSize
         transientSearchContextFolder = nil
         transientSearchScopeIsFolder = false

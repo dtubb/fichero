@@ -22,6 +22,10 @@ final class LibraryToolbarState {
     var sortAscending: Bool = true
     /// Whether the inline ⌘F filter bar is shown inside the library content.
     var showFilterBar: Bool = false
+    /// True once the user picks a sort WHILE a transient search is showing
+    /// (#11): search results default to the engine's relevance order, and
+    /// only an explicit choice re-sorts them. Reset on every new search.
+    var userChoseSortDuringSearch: Bool = false
 
     /// Convenience typed accessor for the active sort field.
     var sortField: LibrarySortField {

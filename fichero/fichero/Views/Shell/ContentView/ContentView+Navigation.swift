@@ -154,7 +154,8 @@ extension ContentView {
                 // told what the search actually found — otherwise its empty
                 // state contradicts the header counting every kind.
                 activeSearchQuery: activeSearchQuery,
-                searchHitCounts: transientSearchHitCounts
+                searchHitCounts: transientSearchHitCounts,
+                searchRowHits: transientSearchRowHits
             )
             // #4513: LibraryView reads @Environment(ArtifactService.self), and a
             // missing @Environment object is a FATAL ERROR rather than a nil —

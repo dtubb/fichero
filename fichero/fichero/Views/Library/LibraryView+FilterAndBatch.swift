@@ -73,16 +73,7 @@ extension LibraryView {
                 (documentSearchKeys[doc.id] ?? Self.documentSearchKey(for: doc)).contains(query)
             }
         }
-        // NOT `docs.sorted(using: sortOrder)` (#3322). For `document_date` the
-        // engine already ordered these rows, and re-sorting them here would
-        // discard the precision tie-breaking and the undated fallback while
-        // still producing a plausible-looking list. `orderedForDisplay` is the
-        // one place that decides whether the client sorts at all.
-        filteredDocuments = LibrarySortField.orderedForDisplay(
-            docs,
-            field: LibrarySortField(rawValue: sortFieldRaw) ?? .name,
-            using: sortOrder
-        )
+        filteredDocuments = displayOrderedForCurrentContext(docs)
         // Hash the ids (Int) instead of joining every id into one giant String
         // (#3870) — it only needs to CHANGE when the visible set changes.
         var hasher = Hasher()
@@ -145,6 +136,31 @@ extension LibraryView {
     /// Rebuild the per-document search-key cache. Runs only when the document set
     /// changes (not per keystroke), so keystroke filtering stays a cheap
     /// dictionary lookup + `contains` (#3865).
+
+    /// The one ordering decision for the visible rows.
+    ///
+    /// NOT `docs.sorted(using: sortOrder)` (#3322). For `document_date` the
+    /// engine already ordered these rows, and re-sorting them here would
+    /// discard the precision tie-breaking and the undated fallback while
+    /// still producing a plausible-looking list. `orderedForDisplay` is the
+    /// one place that decides whether the client sorts at all.
+    ///
+    /// SEARCH results keep the engine's RELEVANCE order (#11, Daniel
+    /// 2026-08-11: "results relevance … and sort that way") — re-sorting
+    /// hits by the browsed folder's saved name/date sort scrambled the
+    /// ranking. The sort menu still applies if the user chooses one
+    /// mid-search; only the default stops fighting the engine.
+    private func displayOrderedForCurrentContext(_ docs: [Document]) -> [Document] {
+        if activeSearchQuery != nil, !libraryToolbar.userChoseSortDuringSearch {
+            return docs
+        }
+        return LibrarySortField.orderedForDisplay(
+            docs,
+            field: LibrarySortField(rawValue: sortFieldRaw) ?? .name,
+            using: sortOrder
+        )
+    }
+
     func rebuildDocumentSearchKeys() {
         var keys: [String: String] = [:]
         keys.reserveCapacity(documents.count)
