@@ -111,3 +111,37 @@ async def test_text_passthrough_records_no_episode(tmp_path: Path) -> None:
         episodes.set_library(None)
 
     assert not (package / "episodes").exists(), "passthrough is not a model call"
+
+
+@pytest.mark.asyncio
+async def test_thread_episodes_endpoint_returns_run_records(client, db):
+    """GET /threads/{id}/episodes — the per-node inspection surface."""
+    from pathlib import Path as _Path
+
+    library = str(_Path(str(db.path)).parent)
+    lib_token = episodes.set_library(library)
+    run_token = episodes.set_run_context(
+        {"thread_id": "t-ep-1", "workflow_id": "wf", "node": "transcribe"}
+    )
+    try:
+        episodes.record(
+            subject={"document_id": "doc-1"},
+            model={"provider": "mock", "model": "m", "use_case": "transcription"},
+            exchange={"prompt": "p", "output": "o", "thinking": "t"},
+        )
+        episodes.set_run_context(
+            {"thread_id": "OTHER", "workflow_id": "wf", "node": "transcribe"}
+        )
+        episodes.record(exchange={"prompt": "not ours"})
+    finally:
+        episodes.set_run_context(None)
+        episodes.set_library(None)
+        _ = (lib_token, run_token)
+
+    r = client.get("/api/workflow-execution/threads/t-ep-1/episodes")
+    assert r.status_code == 200
+    payload = r.json()
+    assert payload["count"] == 1
+    record = payload["episodes"][0]
+    assert record["run"]["node"] == "transcribe"
+    assert record["exchange"]["thinking"] == "t"

@@ -117,6 +117,40 @@ def record(
     return episode_id
 
 
+def read_for_thread(
+    library_path: str, thread_id: str, *, limit: int = 500
+) -> list[dict[str, Any]]:
+    """Episodes recorded under a workflow run, newest file first, in
+    write order within each file. The per-node inspection surface: each
+    record carries the node, the full exchange (prompt/output/thinking),
+    model identity, and subject — the "investigate each node" view and the
+    thesis citation resolver read exactly this."""
+    folder = Path(library_path) / "episodes"
+    if not folder.is_dir():
+        return []
+    matches: list[dict[str, Any]] = []
+    for path in sorted(folder.glob("*.jsonl"), reverse=True):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            logger.error("episode ledger read failed at %s: %s", path, exc)
+            continue
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except ValueError:
+                logger.error("episode ledger has a corrupt line in %s", path)
+                continue
+            run = record.get("run") or {}
+            if run.get("thread_id") == thread_id:
+                matches.append(record)
+                if len(matches) >= limit:
+                    return matches
+    return matches
+
+
 def record_correction(
     *,
     corrects_episode_id: str | None,

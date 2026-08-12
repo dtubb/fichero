@@ -296,3 +296,15 @@ thread ids. Artifacts pair on (document, artifact type); the
 `RunComparisonResponse` reports line-level differences for transcriptions and,
 for extraction runs, which entities or claims each side found that the other
 missed.
+
+### Workflow run episodes
+
+`GET /api/workflow-execution/threads/{thread_id}/episodes` returns the
+episode-ledger records recorded under one run — per-node model-call
+provenance: each record carries the node, the full exchange (prompt, raw
+output, thinking), model identity and use case, the subject
+(document/page/file), and timing. Optional `limit` (default 500). The
+response is `{thread_id, count, episodes}` with records in ledger order.
+This is the per-node inspection surface and the resolver behind episode
+citation keys; corrections and invalidations referencing the run's
+episodes appear by id.
