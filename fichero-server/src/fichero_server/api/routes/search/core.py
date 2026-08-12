@@ -1237,6 +1237,30 @@ async def enhanced_search(
                     )
                 )
 
+    # Daniel's unification ruling (2026-08-11, supersedes #4118's side-group
+    # presentation): "we want them in the list/library/icon whatever view" —
+    # a document whose ARTIFACT matched IS a document result. Every artifact
+    # hit whose document is not already a content-leg result is folded into
+    # `results` (snippet as the preview, a modest fixed score below the
+    # semantic tops), so the grid can never say "No Matching Documents …
+    # but 50 artifacts did". The typed artifact_hits leg still returns —
+    # chips/grouping remain possible — but the LIST is the one list.
+    if artifact_hits:
+        present_ids = {r.document_id for r in results}
+        for hit in artifact_hits:
+            if hit.document_id in present_ids:
+                continue
+            present_ids.add(hit.document_id)
+            results.append(
+                SearchResult(
+                    document_id=hit.document_id,
+                    score=0.4,
+                    content_preview=hit.snippet or "",
+                    metadata={"matched_via": f"artifact:{hit.artifact_type}"},
+                    highlights=[hit.snippet] if hit.snippet else None,
+                )
+            )
+
     # #4403: the header and the body were answering DIFFERENT QUESTIONS with
     # the same number, and the header had the wrong one.
     #
@@ -1264,11 +1288,14 @@ async def enhanced_search(
         artifact_hits=artifact_hits,
         count=len(results),
         total_results=total_count,
+        # Artifact-hit documents are folded INTO `results` now (2026-08-11
+        # unification), so counting the artifact leg again would double-count
+        # every one of them — the header counts the unified list + the two
+        # legs that still render separately.
         rendered_total=(
             len(results)
             + len(typed_entity_hits)
             + len(typed_claim_hits)
-            + len(artifact_hits)
         ),
         search_type=search_stats.get("search_type", request.search_type),
         execution_time_ms=search_stats.get("execution_time_ms", 0),

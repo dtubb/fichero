@@ -1656,6 +1656,33 @@ class TestArtifactLeg:
             for h in hits
         )
 
+    def test_artifact_hits_fold_into_the_one_result_list(self, client, db):
+        """Daniel's unification ruling (2026-08-11): a document whose
+        artifact matched IS a document result — never "No Matching
+        Documents … but 50 artifacts did" beside an empty grid."""
+        doc = self._seed(db)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "borojo",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "include": ["content", "artifacts"],
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        folded = [x for x in payload["results"] if x["document_id"] == doc.id]
+        assert folded, "artifact-matched document missing from results"
+        assert "borojo" in (folded[0]["content_preview"] or "")
+        assert folded[0]["metadata"].get("matched_via") == "artifact:transcription"
+        # The header must not double-count the folded document.
+        assert payload["rendered_total"] == len(payload["results"]) + len(
+            payload["entity_hits"]
+        ) + len(payload["claim_hits"])
+
     def test_artifacts_opt_in_only(self, client, db):
         self._seed(db)
 
