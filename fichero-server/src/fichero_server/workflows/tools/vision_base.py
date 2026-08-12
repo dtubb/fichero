@@ -3017,6 +3017,59 @@ async def process_vision(
 
             result = {"file": file_path, "text": text, "value": parsed}
 
+            # Episode ledger (2026-08-12, episode-capture program): one
+            # training-grade record per model exchange — per page on the
+            # whole-PDF path, one for a single-page/image call. Library and
+            # run identity ride the contextvars the builder set; recording
+            # is auxiliary by contract, so a failure here is loud but never
+            # fails the file.
+            try:
+                from fichero_server.observability import episodes
+
+                _ep_doc_id = resolve_path_to_doc(path_to_doc, file_path)
+                _ep_model = {
+                    "provider": ("apple" if vision_mode == "apple" else effective_config.provider),
+                    "model": ("apple-vision" if vision_mode == "apple" else effective_config.model),
+                    "temperature": getattr(effective_config, "temperature", None),
+                    "use_case": tool_config.artifact_type,
+                }
+                if per_page_texts and requested_page_index is None:
+                    for _ep_idx, _ep_text in enumerate(per_page_texts):
+                        episodes.record(
+                            subject={
+                                "document_id": _ep_doc_id,
+                                "file": file_path,
+                                "page_index": _ep_idx,
+                            },
+                            model=_ep_model,
+                            exchange={
+                                "prompt": final_prompt,
+                                "output": _ep_text,
+                                "thinking": (
+                                    per_page_thinking[_ep_idx]
+                                    if per_page_thinking
+                                    and _ep_idx < len(per_page_thinking)
+                                    else None
+                                ),
+                            },
+                        )
+                else:
+                    episodes.record(
+                        subject={
+                            "document_id": _ep_doc_id,
+                            "file": file_path,
+                            "page_index": requested_page_index,
+                        },
+                        model=_ep_model,
+                        exchange={
+                            "prompt": final_prompt,
+                            "output": text,
+                            "thinking": page_thinking_single,
+                        },
+                    )
+            except Exception as exc:
+                logger.error("episode recording failed for %s: %s", file_path, exc)
+
             # Save to database
             if save_to_db and library_path:
                 # Persist single-page thinking on the artifact's data so the

@@ -809,6 +809,20 @@ def _make_node_function(
         # reads it via workflows.node_context to fill step_name/workflow_id.
         set_current_node(node_id, node_label, workflow_id)
 
+        # Episode-ledger attribution (2026-08-12): every model call made
+        # under this node records with the run's identity. ContextVars flow
+        # into the awaited tool and its child tasks; recording itself is
+        # auxiliary and a no-op when the state has no library.
+        from fichero_server.observability import episodes
+
+        episodes.set_library(state.get("library_path") or None)
+        episodes.set_run_context({
+            "thread_id": state.get("task_id"),
+            "workflow_id": workflow_id or state.get("workflow_id"),
+            "node": node_def.tool,
+            "node_id": node_id,
+        })
+
         completed_nodes = state.get("completed_nodes") or []
         if node_id in completed_nodes:
             logger.info("Skipping already-completed node: %s", node_id)
