@@ -524,6 +524,13 @@ struct FicheroApp: App {
         .defaultSize(width: 1400, height: 900)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
+        // #4331: every scene WITHOUT this synthesizes SwiftUI's default
+        // NewItemCommands, whose keypath demangle walks the whole scene-graph
+        // generic environment on scenesDidChange (2026-08-12 main-thread
+        // trace). The menu bar is app-wide and the MAIN WindowGroup supplies
+        // every command (including the .newItem replacement), so this sibling
+        // group must not re-declare the defaults.
+        .commandsRemoved()
 
         // Track B (#2003): a detachable artifact-detail scene. Torn off from
         // the inspector's Artifacts tab, it follows the shared FocusedArtifact
@@ -583,6 +590,12 @@ struct FicheroApp: App {
         // singleton window forward (in the case of Window)"
         // (Scene.keyboardShortcut docs). ⌥⌘A is unclaimed (⌘A is Select All).
         .keyboardShortcut("a", modifiers: [.option, .command])
+        // #4331: keep the automatic Window-menu item (#4524 needs it — so no
+        // blanket commandsRemoved here), but null out the default new-item
+        // group so this scene never builds NewItemCommands' keypath demangle.
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+        }
 
         Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
             ActivityDetailWindow()
