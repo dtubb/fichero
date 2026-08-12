@@ -151,6 +151,81 @@ def read_for_thread(
     return matches
 
 
+def export_training_pairs(
+    library_path: str, *, use_case: str | None = None, gold_only: bool = False
+) -> list[dict[str, Any]]:
+    """Chat-format training samples from the ledger (the MLX loop's export).
+
+    One sample per model_call episode: system+user messages from the
+    recorded exchange, assistant = the HUMAN CORRECTION when one exists
+    (gold), otherwise the model output (accepted). Corrected samples also
+    carry `rejected` (the model's original output) so a DPO exporter can
+    pair chosen/rejected without re-reading the ledger. `use_case` filters
+    per workflow step (Daniel's per-step small models); `gold_only` keeps
+    only human-corrected pairs.
+    """
+    folder = Path(library_path) / "episodes"
+    if not folder.is_dir():
+        return []
+    calls: dict[str, dict[str, Any]] = {}
+    corrections: dict[str, dict[str, Any]] = {}
+    for path in sorted(folder.glob("*.jsonl")):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            logger.error("episode ledger read failed at %s: %s", path, exc)
+            continue
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                logger.error("episode ledger has a corrupt line in %s", path)
+                continue
+            if rec.get("kind") == "model_call":
+                calls[rec.get("episode_id", "")] = rec
+            elif rec.get("kind") == "correction":
+                target = rec.get("corrects_episode_id")
+                if target:
+                    corrections[target] = rec
+
+    samples: list[dict[str, Any]] = []
+    for episode_id, rec in calls.items():
+        exchange = rec.get("exchange") or {}
+        prompt = exchange.get("prompt")
+        output = exchange.get("output")
+        if not prompt or output is None:
+            continue
+        model = rec.get("model") or {}
+        if use_case and model.get("use_case") != use_case:
+            continue
+        correction = corrections.get(episode_id)
+        if gold_only and correction is None:
+            continue
+        assistant = (
+            (correction.get("exchange") or {}).get("corrected_text")
+            if correction
+            else output
+        )
+        messages: list[dict[str, str]] = []
+        if exchange.get("system"):
+            messages.append({"role": "system", "content": exchange["system"]})
+        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "assistant", "content": assistant or ""})
+        sample: dict[str, Any] = {
+            "messages": messages,
+            "episode_id": episode_id,
+            "use_case": model.get("use_case"),
+            "gold": correction is not None,
+            "subject": rec.get("subject") or {},
+        }
+        if correction is not None:
+            sample["rejected"] = output
+        samples.append(sample)
+    return samples
+
+
 def record_correction(
     *,
     corrects_episode_id: str | None,

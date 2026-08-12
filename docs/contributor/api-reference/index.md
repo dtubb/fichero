@@ -317,3 +317,15 @@ predicate — folds its SOURCE document into `results` with
 `metadata.matched_via = "interpretation"`, the interpretation text as the
 preview, and `interpretation_id`/`framework_id` in metadata so the client
 can open the interpretive context alongside the document.
+
+### Training export
+
+`POST /api/export/training` writes chat-format training samples from the
+episode ledger to a `.jsonl` destination. One sample per recorded model
+call: system+user messages from the recorded exchange; the assistant turn
+is the human correction when one exists (`gold: true`, with the model's
+original output in `rejected` for DPO pairing), otherwise the model
+output. Optional `use_case` filters to one workflow step's calls;
+`gold_only` keeps only corrected pairs. Engine-local destination path — a
+CLI/backend surface like the record-bundle exports, with the same
+conflict rule (`409` unless `overwrite`).

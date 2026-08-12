@@ -116,6 +116,27 @@ class JsonlExportResponse(BaseModel):
     bytes_written: int
 
 
+class TrainingExportRequest(BaseModel):
+    """Request body for an episode-ledger training export (MLX loop)."""
+
+    output_path: str = Field(..., description="Destination .jsonl path")
+    use_case: str | None = Field(
+        default=None,
+        description="Filter to one workflow step's calls (e.g. 'transcription')",
+    )
+    gold_only: bool = Field(
+        default=False, description="Only human-corrected (gold) pairs"
+    )
+    overwrite: bool = Field(default=False, description="Overwrite existing .jsonl")
+
+
+class TrainingExportResponse(BaseModel):
+    output_path: str
+    sample_count: int
+    gold_count: int
+    bytes_written: int
+
+
 class ParquetExportRequest(BaseModel):
     """Request body for a Parquet bundle export."""
 
@@ -189,6 +210,49 @@ async def export_jsonl_route(
         raise HTTPException(status_code=400, detail=str(e))
 
     return JsonlExportResponse(**result.__dict__)
+
+
+@router.post("/training", response_model=TrainingExportResponse)
+async def export_training_route(
+    request: TrainingExportRequest,
+    db: Database = Depends(get_library_database_for_write),
+) -> TrainingExportResponse:
+    """Export chat-format training samples from the episode ledger.
+
+    One sample per recorded model call; the assistant turn is the human
+    correction when one exists (gold), otherwise the model output.
+    Corrected samples carry `rejected` for DPO pairing. Engine-local
+    destination path — a CLI/backend surface like the record-bundle
+    exports; same conflict rule (409 unless `overwrite`).
+    """
+    import json as _json
+
+    from fichero_server.observability import episodes
+
+    library_path = str(Path(str(db.path)).parent)
+    samples = episodes.export_training_pairs(
+        library_path, use_case=request.use_case, gold_only=request.gold_only
+    )
+    destination = Path(request.output_path)
+    if destination.exists() and not request.overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Destination exists: {destination} (set overwrite to replace)",
+        )
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        body = "".join(
+            _json.dumps(sample, ensure_ascii=False) + "\n" for sample in samples
+        )
+        destination.write_text(body, encoding="utf-8")
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return TrainingExportResponse(
+        output_path=str(destination),
+        sample_count=len(samples),
+        gold_count=sum(1 for sample in samples if sample.get("gold")),
+        bytes_written=len(body.encode("utf-8")),
+    )
 
 
 @router.post("/parquet", response_model=ParquetExportResponse)

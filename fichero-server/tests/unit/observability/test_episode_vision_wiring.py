@@ -145,3 +145,88 @@ async def test_thread_episodes_endpoint_returns_run_records(client, db):
     record = payload["episodes"][0]
     assert record["run"]["node"] == "transcribe"
     assert record["exchange"]["thinking"] == "t"
+
+
+class TestTrainingExport:
+    """The MLX loop's export: corrections are gold, the rest accepted."""
+
+    def _seed_ledger(self, package):
+        episodes.set_library(str(package))
+        episodes.set_run_context(
+            {"thread_id": "t-x", "workflow_id": "wf", "node": "transcribe"}
+        )
+        try:
+            first = episodes.record(
+                model={"provider": "m", "model": "m1", "use_case": "transcription"},
+                exchange={"prompt": "Transcribe page 1.", "output": "modle text"},
+            )
+            episodes.record(
+                model={"provider": "m", "model": "m1", "use_case": "transcription"},
+                exchange={"prompt": "Transcribe page 2.", "output": "clean text"},
+            )
+            episodes.record(
+                model={"provider": "m", "model": "m1", "use_case": "summary"},
+                exchange={"prompt": "Summarize.", "output": "a summary"},
+            )
+            episodes.record_correction(
+                corrects_episode_id=first,
+                artifact_id="art-1",
+                corrected_text="model text",
+                actor="daniel",
+            )
+        finally:
+            episodes.set_run_context(None)
+            episodes.set_library(None)
+        return first
+
+    def test_corrections_become_gold_pairs_with_rejected(self, tmp_path):
+        package = tmp_path / "lib.fichero"
+        package.mkdir()
+        self._seed_ledger(package)
+
+        samples = episodes.export_training_pairs(
+            str(package), use_case="transcription"
+        )
+        assert len(samples) == 2
+        by_gold = {s["gold"]: s for s in samples}
+        gold = by_gold[True]
+        assert gold["messages"][-1] == {"role": "assistant", "content": "model text"}
+        assert gold["rejected"] == "modle text"
+        accepted = by_gold[False]
+        assert accepted["messages"][-1]["content"] == "clean text"
+        assert "rejected" not in accepted
+
+    def test_gold_only_and_use_case_filters(self, tmp_path):
+        package = tmp_path / "lib.fichero"
+        package.mkdir()
+        self._seed_ledger(package)
+
+        gold = episodes.export_training_pairs(
+            str(package), use_case="transcription", gold_only=True
+        )
+        assert len(gold) == 1 and gold[0]["gold"]
+        summaries = episodes.export_training_pairs(str(package), use_case="summary")
+        assert len(summaries) == 1
+
+    def test_endpoint_writes_jsonl_with_conflict_rule(self, client, db, tmp_path):
+        from pathlib import Path as _Path
+
+        package = _Path(str(db.path)).parent
+        self._seed_ledger(package)
+        out = tmp_path / "train.jsonl"
+
+        r = client.post(
+            "/api/export/training",
+            json={"output_path": str(out), "use_case": "transcription"},
+        )
+        assert r.status_code == 200, r.text
+        payload = r.json()
+        assert payload["sample_count"] == 2
+        assert payload["gold_count"] == 1
+        assert out.exists()
+
+        r2 = client.post(
+            "/api/export/training",
+            json={"output_path": str(out), "use_case": "transcription"},
+        )
+        assert r2.status_code == 409
