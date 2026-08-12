@@ -308,3 +308,12 @@ response is `{thread_id, count, episodes}` with records in ledger order.
 This is the per-node inspection surface and the resolver behind episode
 citation keys; corrections and invalidations referencing the run's
 episodes appear by id.
+
+### Interpretation search leg
+
+`POST /api/search` accepts `"interpretations"` in `include` (opt-in, like
+`"artifacts"`). A matching interpretation — its text, key insights, or
+predicate — folds its SOURCE document into `results` with
+`metadata.matched_via = "interpretation"`, the interpretation text as the
+preview, and `interpretation_id`/`framework_id` in metadata so the client
+can open the interpretive context alongside the document.

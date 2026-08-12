@@ -1693,3 +1693,70 @@ class TestArtifactLeg:
 
         assert r.status_code == 200
         assert r.json()["artifact_hits"] == []
+
+class TestInterpretationLeg:
+    """Hermeneutic retrieve (2026-08-12): an interpretation that matches the
+    query resolves to its SOURCE document in the one result list."""
+
+    def _seed(self, db):
+        from fichero_server.models.hermeneutics import (
+            Interpretation,
+            InterpretiveFramework,
+        )
+
+        doc = Document(
+            name="Folio 30",
+            page_content="unrelated body",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+        )
+        db.save(doc)
+        fw = InterpretiveFramework(
+            name="Subaltern reading",
+            framework_type="theoretical",
+            description="Against the grain.",
+        )
+        db.save(fw)
+        db.save(
+            Interpretation(
+                framework_id=fw.id,
+                document_id=doc.id,
+                interpretation_text="The record centers the notary's silences.",
+                act="critiquing",
+                predicate="contests reading",
+            )
+        )
+        return doc
+
+    def test_interpretation_match_folds_to_source_document(self, client, db):
+        doc = self._seed(db)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "silences",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "include": ["content", "interpretations"],
+            },
+        )
+        assert r.status_code == 200
+        folded = [
+            x for x in r.json()["results"] if x["document_id"] == doc.id
+        ]
+        assert folded, "interpretation-matched document missing from results"
+        assert folded[0]["metadata"]["matched_via"] == "interpretation"
+        assert "silences" in folded[0]["content_preview"]
+
+    def test_interpretations_are_opt_in(self, client, db):
+        self._seed(db)
+        r = client.post(
+            "/api/search",
+            json={"query": "silences", "search_type": "fulltext", "min_score": 0.0},
+        )
+        assert r.status_code == 200
+        assert all(
+            x["metadata"].get("matched_via") != "interpretation"
+            for x in r.json()["results"]
+        )
+

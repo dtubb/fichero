@@ -157,6 +157,9 @@ class SearchInclude(str, Enum):
     # Unified-object search (#4118): workflow outputs — transcriptions,
     # summaries, translations, catalogues — as first-class hits.
     artifacts = "artifacts"
+    # Hermeneutic layer (2026-08-12): interpretations resolve to their
+    # SOURCE documents in the one result list, like artifact hits.
+    interpretations = "interpretations"
 
 
 def _artifact_snippet(body: str, query: str, radius: int = 80) -> str:
@@ -1233,6 +1236,64 @@ async def enhanced_search(
                         artifact_type=artifact_type,
                         snippet=_artifact_snippet(
                             body or "", retrieval_query or request.query
+                        ),
+                    )
+                )
+
+    # Hermeneutic retrieve (2026-08-12): interpretations are searchable and
+    # resolve to their SOURCE documents — an interpretive move that matched
+    # is a reason to open the document it interprets. Same fold shape as
+    # artifacts; best-effort auxiliary leg (loud log, never a 500).
+    if SearchInclude.interpretations in include_set and request.query.strip():
+        try:
+            from fichero_server.models.hermeneutics import Interpretation  # noqa: PLC0415
+
+            folded_query = _fold_for_search(retrieval_query or request.query)
+            interpretation_rows = [
+                row
+                for row in db.all(Interpretation)
+                if row.document_id
+                and folded_query
+                and folded_query
+                in _fold_for_search(
+                    " ".join(
+                        [row.interpretation_text or ""]
+                        + list(row.key_insights or [])
+                        + [row.predicate or ""]
+                    )
+                )
+            ]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("interpretation search leg failed: %s", exc)
+            interpretation_rows = []
+        if interpretation_rows:
+            visible_interp_docs = _readable_document_ids(
+                actor=getattr(getattr(http_request, "state", None), "user", None),
+                library_path=x_fichero_library_path,
+                document_ids={row.document_id for row in interpretation_rows},
+                is_bootstrap=_request_is_bootstrap(http_request),
+            )
+            present_ids = {r.document_id for r in results}
+            for row in interpretation_rows:
+                if row.document_id not in visible_interp_docs:
+                    continue
+                if row.document_id in present_ids:
+                    continue
+                present_ids.add(row.document_id)
+                results.append(
+                    SearchResult(
+                        document_id=row.document_id,
+                        score=0.4,
+                        content_preview=row.interpretation_text or "",
+                        metadata={
+                            "matched_via": "interpretation",
+                            "interpretation_id": row.id,
+                            "framework_id": row.framework_id,
+                        },
+                        highlights=(
+                            [row.interpretation_text]
+                            if row.interpretation_text
+                            else None
                         ),
                     )
                 )
