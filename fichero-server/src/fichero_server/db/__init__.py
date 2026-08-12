@@ -2213,10 +2213,16 @@ class Database(DatabaseEmbeddingMixin):
                     row = cur.fetchone()
                     columns = [d[0] for d in cur.description]
                     break
-                except duckdb.Error:
+                except duckdb.Error as exc:
                     # Stale cursor (parent connection was reopened after
                     # invalidation) — drop it and retry once on a fresh one.
+                    # When the PARENT connection itself is the invalidated
+                    # one, reopen it the way every gated entry point does,
+                    # or the retry mints its cursor from the same dead
+                    # connection and this path fails where `get` survives.
                     self._read_conn = None
+                    if self._is_invalidated_error(exc):
+                        self._reconnect_after_invalidated()
                     if attempt == 1:
                         raise
         if row is None:

@@ -25,8 +25,20 @@ def ensure_inbox_folder(db) -> Document:
             doc_type=DocType.folder,
         )
     )
+    live = [doc for doc in existing if getattr(doc, "deleted_at", None) is None]
+    if live:
+        return live[0]
     if existing:
-        return existing[0]
+        # A soft-deleted Inbox tombstone otherwise satisfies this lookup
+        # forever, so a library whose Inbox was deleted never got it back
+        # (2026-08-12). Resurrect the row rather than seeding a same-shape
+        # twin the Trash could later restore into a name collision.
+        inbox = existing[0]
+        inbox.deleted_at = None
+        inbox.deleted_by = None
+        db.save(inbox)
+        logger.info("Resurrected soft-deleted Inbox folder: %s", inbox.id)
+        return inbox
 
     inbox = Document(
         name=INBOX_NAME,
