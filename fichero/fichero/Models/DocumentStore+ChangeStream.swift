@@ -78,10 +78,23 @@ extension DocumentStore: ObservableDomainStore {
         // rebuilt the sidebar 500 times over a list that was itself growing.
         var fetched: [Document] = []
         fetched.reserveCapacity(ids.count)
+        var remaining = ids
         for id in ids {
+            remaining.remove(id)
             let fresh: Document
             do {
                 fresh = try await documentService.getDocument(id)
+            } catch is CancellationError {
+                // A newer burst rescheduled the debouncer and cancelled THIS
+                // flush mid-loop. The ids were already popped, so dropping
+                // them here silently lost every one of these updates until
+                // the next resync (2026-08-12 bulk-import repro: hundreds of
+                // 'granular patch fetch failed … CancellationError' lines,
+                // each a lost patch). Hand the whole unfetched tail back —
+                // the rescheduled flush owns it.
+                pendingPatchIds.insert(id)
+                pendingPatchIds.formUnion(remaining)
+                break
             } catch {
                 logger.debug(
                     "granular patch fetch failed for \(id, privacy: .public): \(error.localizedDescription, privacy: .public)"

@@ -60,6 +60,12 @@ struct SidebarDropProviderCapabilities: Equatable {
     let canLoadURL: Bool
     let canLoadString: Bool
     let registeredTypeIdentifiers: [String]
+    /// The provider's suggested filename, when the drag source supplied one.
+    /// A Finder FILE drag names its file ("codes.txt"); a dragged text
+    /// SELECTION does not — the remaining honest file-vs-prose signal when
+    /// macOS delivers a .txt drag registering ONLY plain-text (live-repro
+    /// 2026-08-12, codes.txt bounced back to the Desktop).
+    var suggestedName: String?
 
     /// This provider carries OUR OWN drag flavor: the NAMED custom type, and
     /// only that. Registration-based on purpose — the `canLoadObject` probes
@@ -76,6 +82,13 @@ struct SidebarDropProviderCapabilities: Equatable {
     /// no `doc:`, and the user got "Couldn't read what was dragged" for an
     /// ordinary .txt (live-repro 2026-08-08, empty.txt — #4569). Ours is
     /// identified by NAME; text is just text.
+    /// True when the drag source named a FILE ("codes.txt") rather than
+    /// nothing or a bare word — the extension is the discriminator.
+    var suggestedNameLooksLikeFile: Bool {
+        guard let name = suggestedName, !name.isEmpty else { return false }
+        return !(name as NSString).pathExtension.isEmpty
+    }
+
     var registersInternalFlavor: Bool {
         registeredTypeIdentifiers.contains(UTType.ficheroDragItem.identifier)
     }
@@ -110,10 +123,16 @@ struct SidebarDropProviderCapabilities: Equatable {
             // Prose is CONTENT, not a file: a text SELECTION dragged from
             // another app registers only plain text (which still conforms to
             // public.item), and importing it produced the #4569 second half —
-            // "unsupported" is the verdict for bare prose, not an ingest. A
-            // Finder drag of a .txt FILE keeps its file-url registration
-            // beside the text, so real text files still classify external.
-            if type.conforms(to: .plainText) { return false }
+            // "unsupported" is the verdict for bare prose, not an ingest.
+            //
+            // But "a Finder .txt drag keeps its file-url beside the text"
+            // turned out to be an assumption, not a law: a Finder drag can
+            // deliver ONLY the plain-text registration (live-repro
+            // 2026-08-12, codes.txt), and refusing it bounced a real file
+            // back to the Desktop. The remaining honest signal is the
+            // suggested NAME: a file drag names its file with an extension;
+            // a prose selection does not.
+            if type.conforms(to: .plainText) { return suggestedNameLooksLikeFile }
             return type.conforms(to: .item) || type.conforms(to: .url)
         }
     }
