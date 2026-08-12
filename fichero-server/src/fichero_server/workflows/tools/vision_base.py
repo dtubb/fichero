@@ -616,18 +616,31 @@ def _normalize_for_vision(
     needs_resize = False
 
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
         with Image.open(image_path) as img:
+            # EXIF-orient BEFORE OCR (2026-08-12 bbox repro): the display
+            # path (db/storage.py) exif-transposes, so geometry computed on
+            # the RAW pixels of a camera scan lands rotated 90° over the
+            # displayed page — text at the top, boxes down the right edge.
+            needs_orient = (img.getexif().get(0x0112, 1) or 1) != 1
             longest = max(img.width, img.height)
             needs_resize = longest > _VISION_MAX_DIMENSION
-            if not needs_format_convert and not needs_resize and not force:
+            if (
+                not needs_format_convert
+                and not needs_resize
+                and not needs_orient
+                and not force
+            ):
                 return (image_path, None)
 
-            converted = img
+            converted = ImageOps.exif_transpose(img) or img
             if needs_resize:
                 ratio = _VISION_MAX_DIMENSION / longest
-                new_size = (int(img.width * ratio), int(img.height * ratio))
-                converted = img.resize(new_size, Image.LANCZOS)
+                new_size = (
+                    int(converted.width * ratio),
+                    int(converted.height * ratio),
+                )
+                converted = converted.resize(new_size, Image.LANCZOS)
                 logger.info(
                     f"Apple Vision: downscaled {img.width}x{img.height} "
                     f"-> {new_size[0]}x{new_size[1]}"
@@ -1766,18 +1779,28 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
             format) but cannot be decoded — sending the raw bytes would
             only defer the failure to the provider, so fail loudly here.
     """
-    from PIL import Image
+    from PIL import Image, ImageOps
 
     path = Path(file_path)
     suffix = path.suffix.lower()
     source_mime = _PROVIDER_SAFE_MIME.get(suffix)
     needs_conversion = source_mime is None
 
-    if max_dimension > 0 or needs_conversion:
+    def _has_exif_rotation() -> bool:
+        # Providers do not apply EXIF orientation, but the app's display
+        # path does — raw camera-scan bytes would get boxes computed 90°
+        # off the displayed page (2026-08-12). Header read only.
+        try:
+            with Image.open(path) as probe:
+                return (probe.getexif().get(0x0112, 1) or 1) != 1
+        except Exception:
+            return False
+
+    if max_dimension > 0 or needs_conversion or _has_exif_rotation():
         try:
             with Image.open(path) as opened:
                 opened.load()  # force decode of frame 0 (multi-frame TIFF safe)
-                img = opened
+                img = ImageOps.exif_transpose(opened) or opened
                 original_size = img.size
                 if max_dimension > 0 and (
                     img.width > max_dimension or img.height > max_dimension
