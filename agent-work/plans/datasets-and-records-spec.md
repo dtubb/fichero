@@ -459,3 +459,31 @@ but verify rather than assume, and check what happens to a library whose parent
 prototype is missing because the global library is unavailable. The resolver
 prefers raising over partial attributes, which is right, but a library that
 cannot open because a global parent is absent would be a bad failure mode.
+
+**Confirmation is cheap.** Marking an extracted value correct must not require
+editing it. Most extractions are right, so if the only way to record "I checked
+this" is to retype the value, nobody will, and the extracted/confirmed
+distinction becomes worthless — every cell stays unconfirmed forever and the
+corpus has no trust gradient.
+
+So: a one-keystroke confirm while reading down a column, and confirm-selection
+for a multi-selection. Editing a cell also confirms it. The summarize row gains
+a third figure — `Empty 12 · Filled 353 · Confirmed 41` — which turns extraction
+QA into progress tracking: how much of this diary has actually been verified.
+
+**Generated nodes look different.** A node the pipeline produced is visibly
+distinguishable from one that came from a file, wherever it appears — sidebar,
+grid, cards, workspace. This resolves the containment ambiguity by making it
+legible rather than by restricting the tree: a person's children are pages that
+MENTION them, a folder's children are files it CONTAINS, and the two must never
+read as the same relationship.
+
+That distinction is load-bearing beyond looks. Delete, move and drag semantics
+differ: deleting a folder deletes what it contains; deleting a person must not
+delete the pages that mention them. The delete-by-focused-surface work already
+requires a confirmation that NAMES its targets — for generated nodes it must
+also name the RELATIONSHIP, or a user will eventually delete a corpus while
+believing they removed an index entry.
+
+**[worker] Treatment is Daniel's to rule on**; the requirement is that it is
+unmistakable at a glance and consistent across every surface.
