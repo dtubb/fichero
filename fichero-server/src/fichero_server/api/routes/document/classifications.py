@@ -104,6 +104,26 @@ class ClassificationCreateRequest(BaseModel):
     color: str | None = None
     icon: str | None = None
     sort_order: int = 0
+    # Prototype attributes (dimension=document_prototype): typed declarations
+    # or legacy plain defaults — validated by prototype_schema on save.
+    attributes: dict = {}
+
+
+def _validate_prototype_schema(dimension: ClassificationDimension, attributes: dict | None) -> None:
+    """422 on an unknown attribute type/role in a prototype declaration.
+
+    Loud at SAVE time (datasets Stage 1): a silently dropped or mistyped
+    column is how extraction QA lies. Non-prototype dimensions carry free-form
+    attributes and are left alone.
+    """
+    if dimension != ClassificationDimension.document_prototype or not attributes:
+        return
+    from fichero_server.models.prototype_schema import validate_prototype_attributes
+
+    try:
+        validate_prototype_attributes(attributes)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 def create_value_impl(
@@ -121,6 +141,7 @@ def create_value_impl(
                 409,
                 f"{request.dimension.value}={request.key} already exists",
             )
+    _validate_prototype_schema(request.dimension, request.attributes)
     value = ClassificationValue(**request.model_dump(), is_builtin=False)
     db.save(value)
     return value
@@ -152,6 +173,7 @@ class ClassificationPatchRequest(BaseModel):
     color: str | None = None
     icon: str | None = None
     sort_order: int | None = None
+    attributes: dict | None = None
 
 
 def patch_value_impl(
@@ -165,6 +187,8 @@ def patch_value_impl(
     value = db.get(ClassificationValue, value_id)
     if value is None:
         raise HTTPException(404, f"Value not found: {value_id}")
+    if request.attributes is not None:
+        _validate_prototype_schema(value.dimension, request.attributes)
     for field, val in request.model_dump(exclude_unset=True).items():
         setattr(value, field, val)
     value.updated_at = utc_now()
