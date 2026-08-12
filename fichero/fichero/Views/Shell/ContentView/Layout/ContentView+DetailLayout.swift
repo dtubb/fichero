@@ -146,21 +146,29 @@ extension ContentView {
         )
         // Each SplittablePane instance renders ReadingPaneView independently,
         // giving left and right split panes their own @State (including pin).
+        //
+        // AnyView — LOAD-BEARING (#4331 family, Daniel's crash 2026-08-11
+        // evening): EXC_BAD_ACCESS in objc_retain while initializeWithCopy
+        // COPIED the composed reading-pane value through three
+        // ExclusiveGesture wrappers (SidebarLayout:242). The multi-select
+        // _ConditionalContent grew the value past what the copy machinery
+        // survives; erasure at the case boundary caps it, same as the root
+        // layout and window root.
         adaptiveSplittablePane(storageKey: "reading") {
             if readerStack.count > 1 {
-                PaneEmptyStateView(
+                AnyView(PaneEmptyStateView(
                     reason: "\(readerStack.count) Items Selected",
                     systemImage: "square.on.square"
-                )
+                ))
             } else {
-                ReadingPaneView(
+                AnyView(ReadingPaneView(
                     liveDocument: detailDocument,
                     liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
                     livePageCount: pageCount == 0 ? nil : pageCount,
                     scrollSync: documentScrollSync,
                     onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
                     onClose: { setPaneVisible(.reading, false) }
-                )
+                ))
             }
         }
         // Native focus rings OFF in this pane (Daniel's screenshot, 3:56pm:
