@@ -44,7 +44,12 @@ struct ChatViewToolbar: View {
 
             // Center: the conversation title IS a menu that jumps to earlier
             // conversations (#2449) — also the history affordance.
-            conversationTitleMenu
+            ChatConversationMenu(
+                conversationTitle: conversationTitle,
+                conversations: conversations,
+                onSelectConversation: onSelectConversation
+            )
+            .equatable()
 
             Spacer(minLength: 8)
 
@@ -53,40 +58,13 @@ struct ChatViewToolbar: View {
             if implicitScopeLabel != nil || selectedDocumentsCount > 0 {
                 scopeIndicator
             }
-            modelPicker
+            ChatModelPicker(
+                providers: providers,
+                selectedProvider: $selectedProvider,
+                selectedModel: $selectedModel
+            )
+            .equatable()
         })
-    }
-
-    private var conversationTitleMenu: some View {
-        Menu {
-            if conversations.isEmpty {
-                Text("No earlier conversations")
-            } else {
-                Section("Earlier Conversations") {
-                    ForEach(conversations) { conv in
-                        Button {
-                            onSelectConversation(conv)
-                        } label: {
-                            Text(conv.title.isEmpty ? "Untitled" : conv.title)
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Text(conversationTitle.isEmpty ? "New Chat" : conversationTitle)
-                    .font(.headline)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .help("Switch conversation")
-        .accessibilityLabel("Conversation history")
     }
 
     /// The active chat grounding (#2449 hybrid): the implicit current-view scope
@@ -117,8 +95,75 @@ struct ChatViewToolbar: View {
             }
         }
     }
+}
 
-    private var modelPicker: some View {
+// MARK: - Equatable menu subtrees (#23)
+
+// Both menus are AppKit-backed popups (NSPopUpButton); re-syncing an NSMenu
+// costs real main-thread time. Every PAGE FLIP changes only the toolbar's
+// implicit scope label, but that re-evaluated the whole toolbar body and
+// re-synced both menus — a 738ms NSPopUpButtonCell stall per flip
+// (2026-08-12). Each menu is its own Equatable view so SwiftUI skips its
+// body unless the data it actually renders changed. `.equatable()` is
+// load-bearing: the @Binding/closure fields defeat SwiftUI's reflective
+// comparison, so without it the views compare unequal every time.
+
+private struct ChatConversationMenu: View, Equatable {
+    let conversationTitle: String
+    let conversations: [Conversation]
+    let onSelectConversation: (Conversation) -> Void
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.conversationTitle == rhs.conversationTitle
+            && lhs.conversations.map(\.id) == rhs.conversations.map(\.id)
+            && lhs.conversations.map(\.title) == rhs.conversations.map(\.title)
+    }
+
+    var body: some View {
+        Menu {
+            if conversations.isEmpty {
+                Text("No earlier conversations")
+            } else {
+                Section("Earlier Conversations") {
+                    ForEach(conversations) { conv in
+                        Button {
+                            onSelectConversation(conv)
+                        } label: {
+                            Text(conv.title.isEmpty ? "Untitled" : conv.title)
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(conversationTitle.isEmpty ? "New Chat" : conversationTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Switch conversation")
+        .accessibilityLabel("Conversation history")
+    }
+}
+
+private struct ChatModelPicker: View, Equatable {
+    let providers: [LLMProvider]
+    @Binding var selectedProvider: String
+    @Binding var selectedModel: String
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.selectedProvider == rhs.selectedProvider
+            && lhs.selectedModel == rhs.selectedModel
+            && lhs.providers == rhs.providers
+    }
+
+    var body: some View {
         Menu {
             ForEach(providers) { provider in
                 if provider.available {
