@@ -167,6 +167,7 @@
   "POST /api/export/jsonl": "CLI/backend-only: writes an engine-local filesystem path, not SwiftUI-managed library state",
   "POST /api/export/markdown-folder": "no undo registration in current tree",
   "POST /api/export/parquet": "CLI/backend-only: writes an engine-local filesystem path, not SwiftUI-managed library state",
+  "POST /api/export/training": "2026-08-12 \u2014 export to disk (overwrite is 409-guarded); no library mutation to invert",
   "POST /api/export/word": "no undo registration in current tree",
   "POST /api/folders/{entity_type}/folders": "no undo registration in current tree",
   "POST /api/hermeneutics/circle-state": "no undo registration in current tree",

@@ -2368,6 +2368,18 @@
         "response_model": "ClassificationValue"
       },
       {
+        "method": "GET",
+        "path": "/classifications/resolved/{key}",
+        "operation_id": "resolved_prototype_api_classifications_resolved__key__get",
+        "summary": "A prototype's effective attributes (inheritance resolved)",
+        "path_params": [
+          "key"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "ResolvedPrototypeResponse"
+      },
+      {
         "method": "DELETE",
         "path": "/classifications/{value_id}",
         "operation_id": "delete_value_api_classifications__value_id__delete",
@@ -2743,6 +2755,18 @@
         ],
         "request_model": null,
         "response_model": "Document"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{doc_id}/effective-attributes",
+        "operation_id": "get_effective_attributes_api_documents__doc_id__effective_attributes_get",
+        "summary": "Get Effective Attributes",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EffectiveAttributesResponse"
       },
       {
         "method": "GET",
@@ -3359,6 +3383,16 @@
         "query_params": [],
         "request_model": "ParquetExportRequest",
         "response_model": "ParquetExportResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/export/training",
+        "operation_id": "export_training_route_api_export_training_post",
+        "summary": "Export Training Route",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TrainingExportRequest",
+        "response_model": "TrainingExportResponse"
       },
       {
         "method": "POST",
@@ -8975,6 +9009,24 @@
           "thread_id"
         ],
         "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
+        "path": "/workflow-execution/threads/{thread_id}/episodes",
+        "operation_id": "get_thread_episodes_api_workflow_execution_threads__thread_id__episodes_get",
+        "summary": "Get Thread Episodes",
+        "path_params": [
+          "thread_id"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          }
+        ],
         "request_model": null,
         "response_model": null
       },
