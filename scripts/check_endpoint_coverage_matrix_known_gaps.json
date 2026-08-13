@@ -230,7 +230,7 @@
   "GET /api/workflow-execution/threads": "store missing",
   "GET /api/workflow-execution/threads/{thread_id}/diagram.png": "store missing",
   "GET /api/workflow-execution/threads/{thread_id}/diagram.svg": "store missing",
-  "GET /api/workflow-execution/threads/{thread_id}/episodes": "2026-08-12 episode ledger — per-run inspection UI queued (workflows-done-right)",
+  "GET /api/workflow-execution/threads/{thread_id}/episodes": "2026-08-13 episode ledger — SwiftUI trace wired; CLI wiring queued",
   "GET /api/workflow-execution/threads/{thread_id}/history": "store missing",
   "GET /api/workflow-execution/threads/{thread_id}/run": "store missing",
   "GET /api/workflow-execution/threads/{thread_id}/status": "store missing",

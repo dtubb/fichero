@@ -131,7 +131,6 @@
     "/api/workflow-execution/cache/stats": "baseline: not yet wired",
     "/api/workflow-execution/threads/{thread_id}/diagram.png": "baseline: not yet wired",
     "/api/workflow-execution/threads/{thread_id}/diagram.svg": "#2628 thread graph SVG is returned for backend/CLI/export flows; Activity has no SwiftUI SVG viewer yet (#2638/#2640)",
-    "/api/workflow-execution/threads/{thread_id}/episodes": "baseline: not yet wired",
     "/api/workflow-execution/workflows/{workflow_id}/cache": "baseline: not yet wired",
     "/api/workflow-execution/workflows/{workflow_id}/cache/stats": "baseline: not yet wired",
     "/api/workflows/{workflow_id}/estimate-cost": "baseline: not yet wired"

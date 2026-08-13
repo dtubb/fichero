@@ -24,6 +24,9 @@ struct RunTraceView: View {
     @State private var loadError: String?
     @State private var isLoading = false
     @State private var selectedNodeId: String?
+    /// Per-node model-call provenance from the episode ledger (#22). Loaded
+    /// beside the run; an empty list is honest for pre-ledger runs.
+    @State private var episodes: [WorkflowEpisode] = []
 
     private static let nodeSize = CGSize(width: 160, height: 88)
 
@@ -104,7 +107,8 @@ struct RunTraceView: View {
                         ) {
                             RunTraceNodeDetail(
                                 node: node,
-                                artifacts: run.runArtifacts.filter { $0.stepName == node.id }
+                                artifacts: run.runArtifacts.filter { $0.stepName == node.id },
+                                episodes: episodes.filter { $0.nodeId == node.id }
                             )
                         }
                 }
@@ -133,8 +137,13 @@ struct RunTraceView: View {
         // Sendable; the fetch result is consumed where it lands.
         let fetch = Task { @MainActor in
             do {
-                run = try await ActivityService(apiClient: apiClient).getWorkflowRun(threadId: threadId)
+                let service = ActivityService(apiClient: apiClient)
+                run = try await service.getWorkflowRun(threadId: threadId)
                 loadError = nil
+                // Episode provenance is auxiliary: a run whose ledger is
+                // absent (pre-ledger runs, remote engines) still shows its
+                // trace — the node detail states the absence instead.
+                episodes = (try? await service.getThreadEpisodes(threadId: threadId)) ?? []
             } catch {
                 guard let message = RunTraceLoadFailure.message(for: error) else {
                     // Cancellation is teardown, not failure: stay quiet, keep
