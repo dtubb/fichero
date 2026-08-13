@@ -19,14 +19,20 @@ struct DocumentPrototypePicker: View {
     @State private var selectedKey: String?
     @State private var prototypes: [Components.Schemas.ClassificationValue] = []
     @State private var isAssigning = false
+    @State private var showTypeEditor = false
 
     var body: some View {
         LabeledContent("Prototype") {
             if prototypes.isEmpty && !isAssigning {
-                Text("No types defined")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .help("Define document prototypes in Settings → Classification to classify documents here")
+                // The old empty state pointed at "Settings → Classification",
+                // which never existed — the editor opens right here instead.
+                Button("Define Types…") {
+                    showTypeEditor = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+                .font(.caption)
+                .help("Create document types (prototypes) with typed attributes")
             } else {
                 Menu {
                     Button("None") {
@@ -45,6 +51,10 @@ struct DocumentPrototypePicker: View {
                                 }
                             }
                         }
+                    }
+                    Divider()
+                    Button("Edit Types…") {
+                        showTypeEditor = true
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -70,9 +80,18 @@ struct DocumentPrototypePicker: View {
         }
         .task {
             selectedKey = initialKey
-            if let svc = entityService {
-                prototypes = (try? await svc.listDocumentPrototypes()) ?? []
+            await reloadPrototypes()
+        }
+        .sheet(isPresented: $showTypeEditor) {
+            PrototypeEditorSheet(entityService: entityService) {
+                Task { await reloadPrototypes() }
             }
+        }
+    }
+
+    private func reloadPrototypes() async {
+        if let svc = entityService {
+            prototypes = (try? await svc.listDocumentPrototypes()) ?? []
         }
     }
 

@@ -1,6 +1,6 @@
 {
   "GET /api/activity/stream": "#1921 baseline - streaming endpoint intentionally not generated into CLI command surface",
-  "GET /api/classifications/resolved/{key}": "2026-08-12 datasets Stage 1 — Swift inspector/prototype-editor wiring is the next commit",
+  "GET /api/classifications/resolved/{key}": "2026-08-13 datasets Stage 1 — SwiftUI prototype editor wired; CLI wiring queued",
   "GET /api/documents/{doc_id}/effective-attributes": "2026-08-13 datasets Stage 1 — SwiftUI inspector wired; CLI wiring queued",
   "GET /api/health": "#1921 baseline - health is handled outside generated CLI command surface",
   "GET /api/storage/debug/{doc_id}": "#1921 baseline - debug endpoint intentionally not generated into CLI command surface",

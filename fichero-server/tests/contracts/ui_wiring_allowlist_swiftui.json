@@ -17,7 +17,6 @@
     "/api/canvas/folders/{folder_id}/arrange": "canvas arrange route remains app-wide backlog surface; SwiftUI canvas move/persist caller follow-up still pending on the Canvas & Space lane",
     "/api/chains/presets/paleography": "baseline: not yet wired",
     "/api/claims/assign-time-period-from-metadata": "backend timeline dating (#1373); SwiftUI wiring tracked in Timeline backlog",
-    "/api/classifications/resolved/{key}": "baseline: not yet wired",
     "/api/documents/cleanup-orphans": "baseline: not yet wired",
     "/api/documents/pdfs/backfill-pages": "baseline: not yet wired",
     "/api/documents/trash": "#2075 backend; UI tracked in #2077",

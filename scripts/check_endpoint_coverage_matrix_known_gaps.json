@@ -84,7 +84,7 @@
   "GET /api/claims/queues/rejected": "store missing",
   "GET /api/claims/queues/shortlisted": "store missing",
   "GET /api/claims/queues/unreviewed": "store missing",
-  "GET /api/classifications/resolved/{key}": "2026-08-12 datasets Stage 1 — Swift inspector/prototype-editor wiring is the next commit",
+  "GET /api/classifications/resolved/{key}": "2026-08-13 datasets Stage 1 — SwiftUI prototype editor wired; CLI wiring queued",
   "GET /api/documents/collections": "store missing",
   "GET /api/documents/trash": "#2075 backend; UI tracked in #2077",
   "GET /api/documents/workspaces": "store missing",
