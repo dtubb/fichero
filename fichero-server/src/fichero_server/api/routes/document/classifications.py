@@ -95,6 +95,46 @@ async def list_values(
     return ClassificationListResponse(items=rows, count=len(rows))
 
 
+class ResolvedPrototypeResponse(BaseModel):
+    """A prototype's EFFECTIVE attributes — parent chain merged root→leaf."""
+
+    key: str
+    declarations: dict
+    defaults: dict
+
+
+@router.get(
+    "/resolved/{key}",
+    response_model=ResolvedPrototypeResponse,
+    summary="A prototype's effective attributes (inheritance resolved)",
+)
+async def resolved_prototype(
+    key: str,
+    db: Database = Depends(get_library_database),
+) -> ResolvedPrototypeResponse:
+    """Resolve a document prototype's inherited attributes for the editor UI.
+
+    422 on an unknown key or a cyclic parent chain — the resolver prefers
+    raising over partial attributes, and so does this surface.
+    """
+    from fichero_server.models.node_prototypes import (
+        PrototypeResolutionError,
+        resolve_prototype_attributes,
+    )
+    from fichero_server.models.prototype_schema import attribute_declarations
+
+    try:
+        effective = resolve_prototype_attributes(db, key)
+        decls = attribute_declarations(effective)
+    except (PrototypeResolutionError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ResolvedPrototypeResponse(
+        key=key,
+        declarations={n: d.model_dump(mode="json") for n, d in decls.items()},
+        defaults={n: d.default for n, d in decls.items()},
+    )
+
+
 class ClassificationCreateRequest(BaseModel):
     dimension: ClassificationDimension
     key: str

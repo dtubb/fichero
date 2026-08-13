@@ -210,6 +210,9 @@ class DocumentUpdate(BaseModel):
     exclude_from_processing: Optional[bool] = None
     metadata: Optional[dict] = None
     prototype_key: Optional[str] = None
+    # Prototype-scoped node attribute VALUES (datasets Stage 1). Wholesale
+    # replace, like metadata; a per-key patch arrives with the Stage 2 grid.
+    attributes: Optional[dict] = None
     position_x: Optional[float] = None
     position_y: Optional[float] = None
     position_z: Optional[float] = None
@@ -1036,6 +1039,59 @@ async def get_ancestors(
             break
 
     return DocumentListResponse(items=ancestors, count=len(ancestors))
+
+
+class EffectiveAttributesResponse(BaseModel):
+    """A node's structured data, resolved (datasets Stage 1).
+
+    ``declarations`` come from the prototype chain (typed, with renderer
+    roles); ``values`` are the declarations' defaults overlaid with the
+    node's OWN ``attributes`` — what a grid cell or inspector row shows.
+    """
+
+    prototype_key: str | None
+    declarations: dict[str, Any]
+    values: dict[str, Any]
+
+
+@router.get("/{doc_id}/effective-attributes")
+async def get_effective_attributes(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> EffectiveAttributesResponse:
+    """Resolve a node's prototype attributes and overlay its own values.
+
+    422 (not partial data) when the prototype chain cannot be resolved —
+    the resolver prefers raising, and this endpoint keeps that promise at
+    the API surface.
+    """
+    from fichero_server.models.node_prototypes import (
+        PrototypeResolutionError,
+        resolve_prototype_attributes,
+    )
+    from fichero_server.models.prototype_schema import attribute_declarations
+
+    doc = _document_or_404(db, doc_id)
+
+    declarations: dict[str, Any] = {}
+    values: dict[str, Any] = {}
+    if doc.prototype_key:
+        try:
+            effective = resolve_prototype_attributes(db, doc.prototype_key)
+            decls = attribute_declarations(effective)
+        except (PrototypeResolutionError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        declarations = {
+            name: decl.model_dump(mode="json") for name, decl in decls.items()
+        }
+        values = {name: decl.default for name, decl in decls.items()}
+
+    own = doc.attributes if isinstance(doc.attributes, dict) else {}
+    values.update(own)
+    return EffectiveAttributesResponse(
+        prototype_key=doc.prototype_key,
+        declarations=declarations,
+        values=values,
+    )
 
 
 @router.get("/{doc_id}/parent")
