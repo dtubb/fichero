@@ -67,7 +67,10 @@ struct WorkflowListView: View {
                 if workflowsToDelete.count == 1, let workflow = workflowsToDelete.first {
                     Text("Are you sure you want to delete \"\(workflow.name)\"? This action cannot be undone.")
                 } else if !workflowsToDelete.isEmpty {
-                    Text("Are you sure you want to delete \(workflowsToDelete.count) workflows? This action cannot be undone.")
+                    Text(
+                        "Are you sure you want to delete \(workflowsToDelete.count) workflows? "
+                            + "This action cannot be undone."
+                    )
                 }
             }
             .alert(

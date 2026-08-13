@@ -33,7 +33,11 @@ struct ToolBlockView: View {
         .onTapGesture {
             onTap?()
         }
-        .help(tool.tested ? tool.description : "\(tool.description)\n\nUntested — this tool has not been validated end-to-end.")
+        .help(
+            tool.tested
+                ? tool.description
+                : "\(tool.description)\n\nUntested — this tool has not been validated end-to-end."
+        )
     }
 
     /// Small "Untested" tag shown on tools that haven't been validated end-to-end.
