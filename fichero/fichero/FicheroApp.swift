@@ -527,10 +527,21 @@ struct FicheroApp: App {
         // #4331: every scene WITHOUT this synthesizes SwiftUI's default
         // NewItemCommands, whose keypath demangle walks the whole scene-graph
         // generic environment on scenesDidChange (2026-08-12 main-thread
-        // trace). The menu bar is app-wide and the MAIN WindowGroup supplies
-        // every command (including the .newItem replacement), so this sibling
-        // group must not re-declare the defaults.
-        .commandsRemoved()
+        // trace). The first fix here was `.commandsRemoved()`, on the belief
+        // that "the menu bar is app-wide and the MAIN WindowGroup supplies
+        // every command". FALSIFIED LIVE (Daniel 2026-08-13 morning, "no
+        // file menu?"): with a seed-group window key — which is what session
+        // restore brings back — the menu bar drops the app's custom menus,
+        // File first among them. So this scene replaces the crash-prone
+        // default new-item group with the SAME File menu the main group
+        // declares: a seed window IS a library window, and an empty
+        // replacement would hide File again whenever one is key.
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                FileMenuCommands()
+                    .environment(libraryManager)
+            }
+        }
 
         // Track B (#2003): a detachable artifact-detail scene. Torn off from
         // the inspector's Artifacts tab, it follows the shared FocusedArtifact

@@ -86,6 +86,10 @@ struct RunTraceNodeDetail: View {
     /// Model-call episodes recorded under THIS node (#22): the full
     /// prompt/output/thinking exchange. Empty for pre-ledger runs.
     var episodes: [WorkflowEpisode] = []
+    /// Episodes recorded under the whole RUN — distinguishes "this node made
+    /// no model call" from "this run has no ledger at all", which need
+    /// different responses from the reader.
+    var runEpisodeCount: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -166,6 +170,22 @@ struct RunTraceNodeDetail: View {
                 ForEach(episodes) { episode in
                     RunEpisodeRow(episode: episode)
                 }
+            } else if node.providerModelText != nil {
+                // A node that used a model but shows no exchange is a GAP,
+                // and it must say which kind (Daniel 2026-08-13: "doesn't
+                // tell us the prompt that ran"): a run with no ledger at all
+                // is a pre-ledger or remote run; a run WITH a ledger where
+                // this node matched nothing is a recording/attribution bug
+                // worth reporting.
+                Divider()
+                Label(
+                    runEpisodeCount == 0
+                        ? "No model-call ledger for this run"
+                        : "Ledger has \(runEpisodeCount) call(s), none attributed to this node",
+                    systemImage: "brain"
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(12)

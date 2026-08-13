@@ -108,7 +108,8 @@ struct RunTraceView: View {
                             RunTraceNodeDetail(
                                 node: node,
                                 artifacts: run.runArtifacts.filter { $0.stepName == node.id },
-                                episodes: episodes.filter { $0.nodeId == node.id }
+                                episodes: episodes.filter { $0.nodeId == node.id },
+                                runEpisodeCount: episodes.count
                             )
                         }
                 }

@@ -305,7 +305,8 @@ final class LibraryDropPairingTests: XCTestCase {
             cell.contains("struct LibraryDropAlertModifier"),
             "the message must have a presenter"
         )
-        let libraryView = try source("Views/Library/LibraryView.swift")
+        let libraryView = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try source("Views/Library/LibraryView.swift")) + (try source("Views/Library/LibraryView+Body.swift")) + (try source("Views/Library/LibraryView+ContentBranches.swift")) + (try source("Views/Library/LibraryView+Insets.swift")))
         XCTAssertTrue(
             libraryView.contains("LibraryDropAlertModifier(windowState:"),
             "the presenter must actually be applied to the library body"

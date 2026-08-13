@@ -232,7 +232,8 @@ struct LibraryEmptyReasonTests {
     /// The grid has to be TOLD what the search found; it cannot see the store.
     @Test("the search context reaches the library grid")
     func searchContextReachesTheGrid() throws {
-        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         #expect(library.contains("var activeSearchQuery: String?"))
         #expect(library.contains("var searchHitCounts: SearchHitCounts"))
 

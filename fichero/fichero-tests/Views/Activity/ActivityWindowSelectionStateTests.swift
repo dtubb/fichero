@@ -68,13 +68,16 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
             ".keyboardShortcut(\"a\", modifiers: [.option, .command])"
         ))
         // Windows-menu + command hygiene, tightened by #4331: EVERY scene
-        // except the main WindowGroup and the Activity monitor suppresses its
-        // automatic commands wholesale — SwiftUI synthesizes NewItemCommands
-        // for each scene without it, and demangling that keypath crashed on
-        // scenesDidChange. The two exceptions replace only `.newItem` (nulled)
-        // so the main window keeps its menus and Activity keeps its automatic
-        // Windows-menu item + ⌥⌘A shortcut (#4524). Counted on TRIMMED lines
-        // so a comment mentioning the modifier can never satisfy the pin.
+        // except the main WindowGroup, the SEED WindowGroup and the Activity
+        // monitor suppresses its automatic commands wholesale — SwiftUI
+        // synthesizes NewItemCommands for each scene without it, and
+        // demangling that keypath crashed on scenesDidChange. The exceptions
+        // replace only `.newItem`: the two library groups with the real File
+        // menu (a `.commandsRemoved()` seed scene dropped the whole File menu
+        // whenever a restored window was key — Daniel 2026-08-13, "no file
+        // menu?"), Activity with an empty group so it keeps its automatic
+        // Windows-menu item + ⌥⌘A (#4524). Counted on TRIMMED lines so a
+        // comment mentioning the modifier can never satisfy the pin.
         let sceneCount = appSource.components(separatedBy: "\n").filter {
             let line = $0.trimmingCharacters(in: .whitespaces)
             return line.hasPrefix("Window(\"") || line.hasPrefix("WindowGroup(\"")
@@ -82,15 +85,15 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         let removedCount = appSource.components(separatedBy: "\n").filter {
             $0.trimmingCharacters(in: .whitespaces) == ".commandsRemoved()"
         }.count
-        let newItemNulled = appSource
+        let newItemReplaced = appSource
             .components(separatedBy: "CommandGroup(replacing: .newItem)").count - 1
         XCTAssertEqual(
-            removedCount, sceneCount - 2,
-            "every scene but the main WindowGroup and the Activity monitor removes its commands (#4331)"
+            removedCount, sceneCount - 3,
+            "every scene but main, seed and Activity monitor removes its commands (#4331)"
         )
         XCTAssertEqual(
-            newItemNulled, 2,
-            "the two surviving scenes null the default new-item commands instead (#4331/#4524)"
+            newItemReplaced, 3,
+            "the three surviving scenes replace the default new-item commands instead (#4331/#4524)"
         )
         // `Window`, not `WindowGroup` — see testActivityScenesAreSingletonWindowsNotGroups.
         XCTAssertTrue(appSource.contains(

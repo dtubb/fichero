@@ -29,7 +29,8 @@ final class LibraryImportFocusedValueTests: XCTestCase {
     }
 
     func testLibraryViewPublishesItsOwnImportActionWhenFocused() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let source = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         XCTAssertTrue(source.contains(".focusedValue(\\.libraryImportAction)"))
         // States mode + target before presenting — same discipline as the
         // other three surfaces (#4449).
