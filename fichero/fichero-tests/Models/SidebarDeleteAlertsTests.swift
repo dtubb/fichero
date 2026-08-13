@@ -34,8 +34,10 @@ struct SidebarDeleteAlertsTests {
 
     // MARK: - Batch (multi-selection) delete
 
-    private func makeItem(_ id: String, _ name: String) -> SidebarItem {
-        SidebarItem.fromDocument(Document(id: id, docType: .folder, name: name), libraryId: UUID())
+    private func makeItem(
+        _ id: String, _ name: String, docType: DocType = .folder
+    ) -> SidebarItem {
+        SidebarItem.fromDocument(Document(id: id, docType: docType, name: name), libraryId: UUID())
     }
 
     @Test("batch delete title counts items; single names it")
@@ -50,11 +52,30 @@ struct SidebarDeleteAlertsTests {
 
     @Test("batch delete message counts items; single reuses per-item copy")
     func batchMessageUsesCount() {
-        let batch = sidebarDeleteConfirmationMessage(for: [makeItem("a", "A"), makeItem("b", "B")])
+        // Files-only batches keep the count line.
+        let batch = sidebarDeleteConfirmationMessage(for: [
+            makeItem("a", "A", docType: .file), makeItem("b", "B", docType: .file),
+        ])
         #expect(batch == "Move 2 items to Trash? You can put them back later.")
         // One item falls back to the existing per-item message.
         let single = sidebarDeleteConfirmationMessage(for: [makeItem("a", "Alpha")])
         #expect(single.contains("\"Alpha\""))
+    }
+
+    /// Daniel live, 2026-08-10: a context-menu delete acted on a
+    /// multi-selection that also held the Inbox, and the generic "2 items"
+    /// line let two subtree deletes through unnoticed. A batch holding a
+    /// folder must NAME it and say its contents go too — the count alone is
+    /// not informed consent.
+    @Test("a batch that includes folders names them and their contents")
+    func batchWithFoldersNamesThem() {
+        let mixed = sidebarDeleteConfirmationMessage(for: [
+            makeItem("a", "A"), makeItem("b", "B", docType: .file),
+        ])
+        #expect(mixed.contains("including the folder “A”"))
+        #expect(mixed.contains("everything inside"))
+        let two = sidebarDeleteConfirmationMessage(for: [makeItem("a", "A"), makeItem("b", "B")])
+        #expect(two.contains("folders “A”, “B”"))
     }
 
     @Test("deletable filter drops non-deletable rows (library headers)")

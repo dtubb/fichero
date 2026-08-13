@@ -443,6 +443,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+DetailLayout.swift"),
             Self.appSource("Views/Shell/ContentView/Layout/ContentView+CompactReader.swift"),
+            // The library pane construction moved into the PaneSpec table
+            // (pane-system build) — same invariant, new home.
+            Self.appSource("Views/Shell/ContentView/Layout/PaneSpec.swift"),
         ].joined(separator: "\n"))
 
         XCTAssertTrue(buildersSource.contains("adaptiveSplittablePane(storageKey: \"library\")"))

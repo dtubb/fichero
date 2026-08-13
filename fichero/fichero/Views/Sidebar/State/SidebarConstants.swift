@@ -86,4 +86,10 @@ enum SidebarRowMetrics {
             trailing: trailing
         )
     }
+
+    /// All-zero insets for an INVISIBLE zero-height slot (the deferred
+    /// disclosure placeholder that keeps a chevron rendered, #3355) — not a
+    /// row style. Named here so no row site spells `EdgeInsets()` itself and
+    /// the #4096 no-literal sweep stays enforceable.
+    static let hiddenSlot = EdgeInsets()
 }

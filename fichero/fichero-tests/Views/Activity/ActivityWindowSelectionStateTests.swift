@@ -67,15 +67,30 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             ".keyboardShortcut(\"a\", modifiers: [.option, .command])"
         ))
-        // Windows-menu hygiene: every auxiliary `Window` scene whose entry
-        // point lives elsewhere suppresses its AUTOMATIC menu item — Activity
-        // Detail (opened from the monitor's selection), About and Feature
-        // Tier Legend (both App-menu buttons; a second "About Fichero" showed
-        // up in the Windows menu, live-repro 2026-08-04). Three scenes,
-        // three suppressions; only "Activity" keeps its automatic entry.
+        // Windows-menu + command hygiene, tightened by #4331: EVERY scene
+        // except the main WindowGroup and the Activity monitor suppresses its
+        // automatic commands wholesale — SwiftUI synthesizes NewItemCommands
+        // for each scene without it, and demangling that keypath crashed on
+        // scenesDidChange. The two exceptions replace only `.newItem` (nulled)
+        // so the main window keeps its menus and Activity keeps its automatic
+        // Windows-menu item + ⌥⌘A shortcut (#4524). Counted on TRIMMED lines
+        // so a comment mentioning the modifier can never satisfy the pin.
+        let sceneCount = appSource.components(separatedBy: "\n").filter {
+            let line = $0.trimmingCharacters(in: .whitespaces)
+            return line.hasPrefix("Window(\"") || line.hasPrefix("WindowGroup(\"")
+        }.count
+        let removedCount = appSource.components(separatedBy: "\n").filter {
+            $0.trimmingCharacters(in: .whitespaces) == ".commandsRemoved()"
+        }.count
+        let newItemNulled = appSource
+            .components(separatedBy: "CommandGroup(replacing: .newItem)").count - 1
         XCTAssertEqual(
-            appSource.components(separatedBy: ".commandsRemoved()").count - 1, 3,
-            "each auxiliary Window scene suppresses its automatic Windows-menu item"
+            removedCount, sceneCount - 2,
+            "every scene but the main WindowGroup and the Activity monitor removes its commands (#4331)"
+        )
+        XCTAssertEqual(
+            newItemNulled, 2,
+            "the two surviving scenes null the default new-item commands instead (#4331/#4524)"
         )
         // `Window`, not `WindowGroup` — see testActivityScenesAreSingletonWindowsNotGroups.
         XCTAssertTrue(appSource.contains(

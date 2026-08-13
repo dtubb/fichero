@@ -36,15 +36,23 @@ final class SidebarWorkflowVirtualTreeTests: XCTestCase {
         )
     }
 
-    func testSharedHierarchyMachineryStaysAvailable() throws {
-        // buildWorkflowHierarchy itself stays: it is tested shared machinery
-        // and the one-line reversal point if #4186 needs revisiting. It lives
-        // in SidebarItemBuilder+Sections.swift since the 2026-08-08 lint
-        // split (same enum, different file).
+    func testVirtualHierarchyMachineryStaysDeleted() throws {
+        // Supersedes the "stays available as a reversal point" pin: the views
+        // audit (2026-08-10) deleted buildWorkflowHierarchy outright — a
+        // dormant re-entry point for the #4186 duplicate client-side workflow
+        // hierarchy is exactly how the duplicate would grow back. Workflows
+        // reach the tree as engine-mirrored document nodes, and nothing else.
         let url = try AppSource.root()
             .appendingPathComponent("Models/SidebarItemBuilder+Sections.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(source.contains("static func buildWorkflowHierarchy"))
+        XCTAssertFalse(
+            source.contains("static func buildWorkflowHierarchy"),
+            "the dormant virtual-hierarchy builder came back (#4186)"
+        )
+        XCTAssertTrue(
+            source.contains("buildWorkflowHierarchy deleted"),
+            "the deletion must stay documented at the site"
+        )
     }
 }
 

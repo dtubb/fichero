@@ -52,7 +52,9 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
         XCTAssertEqual(route, .storageDisplay(documentId: "pdf-page-1"))
     }
 
-    func testPlainFolderRoutesToNoSelectionState() {
+    func testPlainFolderRoutesToItsContents() {
+        // 096354bd8 (#25): a selected folder previews like a PDF — its items
+        // are its pages. Supersedes the old .noSelection expectation.
         let doc = Document(
             id: "folder-1",
             docType: .folder,
@@ -62,7 +64,7 @@ final class EditorViewDisplayRoutingTests: XCTestCase {
 
         let route = EditorView.previewRoute(for: doc, isEditing: false)
 
-        XCTAssertEqual(route, .noSelection)
+        XCTAssertEqual(route, .folderContents(folderId: "folder-1"))
     }
 
     func testMediaBackedFolderCanPreviewItsRepresentativeImage() {

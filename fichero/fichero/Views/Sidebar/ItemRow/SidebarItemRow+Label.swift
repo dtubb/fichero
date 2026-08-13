@@ -353,4 +353,22 @@ extension SidebarItemRow {
             }
     }
 
+    /// Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still not
+    /// working for clicking on name of item child of folder") — the
+    /// UnifiedRows fallback only wraps TOP-LEVEL rows, so a nested row's
+    /// name-press was claimed by the drag machinery and never committed.
+    /// Plain clicks only; modifier clicks stay with the List.
+    ///
+    /// Lives HERE, not in `+Drop.swift`, although its only caller is
+    /// `childrenList`: it is a CLICK gesture, and the drop-path files are
+    /// scanned by SidebarDropHighlightScopeTests for selection writes (#4229).
+    func childPlainClickFallback(_ child: SidebarItem) -> some Gesture {
+        TapGesture().onEnded {
+            #if os(macOS)
+            guard !NSEvent.modifierFlags.contains(.shift),
+                  !NSEvent.modifierFlags.contains(.command) else { return }
+            #endif
+            selectedItemId = child.id
+        }
+    }
 }

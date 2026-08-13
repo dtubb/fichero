@@ -61,16 +61,23 @@ struct DocumentReadOnlyPresentationTests {
 
     // MARK: - isLockedSystemNode (the shared predicate)
 
-    @Test("Read-only folders and workflow mirrors are both locked system nodes")
-    func lockedSystemNodeCoversBothShapes() {
+    @Test("The lock keys on read_only alone; the workflow tint is a separate fact")
+    func lockedSystemNodeKeysOnReadOnlyAlone() {
+        // Ruling 1f2edfc4c (Daniel 2026-08-10): a NEW user workflow must be
+        // editable — `isReadOnly || isWorkflowNode` put a lock on every
+        // workflow node. The lock now follows the engine's read_only flag
+        // alone; the purple family cue (usesWorkflowTint) still covers every
+        // workflow node, locked or not.
         #expect(folder(readOnly: true).isLockedSystemNode)
-        // A mirror row is locked because it IS a workflow, independent of the
-        // flag — that is what keeps the sidebar badge honest on old engines.
+        #expect(folder().isLockedSystemNode == false)
+
         var mirror = workflowMirror(readOnly: false)
         mirror.prototypeKey = "workflow"
         #expect(mirror.isWorkflowNode)
-        #expect(mirror.isLockedSystemNode)
-        #expect(folder().isLockedSystemNode == false)
+        #expect(mirror.isLockedSystemNode == false, "a user workflow is not locked")
+        #expect(mirror.usesWorkflowTint, "the visual family cue survives without the lock")
+
+        #expect(workflowMirror(readOnly: true).isLockedSystemNode, "shipped defaults stay locked")
     }
 
     // MARK: - Drop refusal (the behaviour, not the glyph)

@@ -171,13 +171,13 @@ struct ToolbarSymbolsTests {
 
     // MARK: - #4362 mini-toolbar placement
 
-    @Test("reader bars sit at the top on the Mac, bottom on touch")
-    func readerPlacementIsOnePlatformDecision() {
-        #if os(macOS)
-        #expect(MiniToolbarPlacement.preferredForReader == .top)
-        #else
+    @Test("reader bars sit at the bottom on every platform")
+    func readerPlacementIsOneDecision() {
+        // Daniel 2026-08-11 (supersedes the Mac-top choice): "bottom of
+        // library and reader is where we can filter, and where we can show
+        // which metadata or columns to show" — the Xcode console model.
+        // Touch already wanted bottom for reachability; the fork is gone.
         #expect(MiniToolbarPlacement.preferredForReader == .bottom)
-        #endif
     }
 
     /// The reader hosts the find bar through the shared component's placement

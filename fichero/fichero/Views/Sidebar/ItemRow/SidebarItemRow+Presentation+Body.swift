@@ -128,7 +128,7 @@ extension SidebarItemRow {
             // insets, no separator, selection disabled = an invisible slot.
             Color.clear
                 .frame(height: 0)
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(SidebarRowMetrics.hiddenSlot)
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .selectionDisabled(true)
