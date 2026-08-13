@@ -187,13 +187,17 @@ func isInternalSidebarItemID(_ candidate: String) -> Bool {
     return trimmed.count > "doc:".count
 }
 
-/// The inspector entities list's drag shape, `entity:<id>`
-/// (`InspectorEntityDragID.transferRepresentation`). Returns the BARE entity
-/// id, nil when the candidate is anything else.
-func internalEntityID(_ candidate: String) -> String? {
+/// The inspector entities list's drag shape, `entity:<id>[,<id>…]`
+/// (`InspectorEntityDragID.transferRepresentation`) — ids comma-joined in ONE
+/// envelope because a multi-selection drag delivers a single provider.
+/// Returns the BARE entity ids, empty when the candidate is anything else.
+func internalEntityIDs(_ candidate: String) -> [String] {
     let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard trimmed.hasPrefix("entity:"), trimmed.count > "entity:".count else { return nil }
-    return String(trimmed.dropFirst("entity:".count))
+    guard trimmed.hasPrefix("entity:"), trimmed.count > "entity:".count else { return [] }
+    return trimmed.dropFirst("entity:".count)
+        .split(separator: ",")
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
 }
 
 /// The LIBRARY pane's drag payload, recognised on the sidebar side.
@@ -275,7 +279,7 @@ func classifySidebarDropPayload(
     }
     // Entity drags are just as positively ours; checked after documents so a
     // hypothetical mixed session still routes as a document move.
-    let entityIDs = loadedIDs.compactMap(internalEntityID)
+    let entityIDs = loadedIDs.flatMap(internalEntityIDs)
     if !entityIDs.isEmpty {
         return .internalEntities(entityIDs)
     }

@@ -233,13 +233,16 @@ struct SidebarDropPayloadTests {
 
     // MARK: - Entity drags (Daniel 2026-08-12: inspector entities → workspace)
 
-    @Test("the entity id shape is recognised and stripped to the bare id")
+    @Test("the entity id shape is recognised and stripped to the bare ids")
     func entityIDShapeIsRecognised() {
-        #expect(internalEntityID("entity:abc-123") == "abc-123")
-        #expect(internalEntityID("  entity:abc  ") == "abc", "pasteboard whitespace tolerated")
-        #expect(internalEntityID("entity:") == nil, "a bare prefix carries no entity")
-        #expect(internalEntityID("doc:abc") == nil)
-        #expect(internalEntityID("Some prose mentioning entity: things") == nil)
+        #expect(internalEntityIDs("entity:abc-123") == ["abc-123"])
+        #expect(internalEntityIDs("  entity:abc  ") == ["abc"], "pasteboard whitespace tolerated")
+        // Multi-selection rides one envelope, comma-joined (Daniel 2026-08-13).
+        #expect(internalEntityIDs("entity:e1,e2,e3") == ["e1", "e2", "e3"])
+        #expect(internalEntityIDs("entity:e1, ,e2") == ["e1", "e2"], "empty segments dropped")
+        #expect(internalEntityIDs("entity:").isEmpty, "a bare prefix carries no entity")
+        #expect(internalEntityIDs("doc:abc").isEmpty)
+        #expect(internalEntityIDs("Some prose mentioning entity: things").isEmpty)
     }
 
     @Test("an entity drag routes to internalEntities, never to an import")
@@ -279,8 +282,8 @@ struct SidebarDropPayloadTests {
             "InspectorEntityDragID must export the named in-app flavor"
         )
         #expect(
-            source.contains(#"Data("entity:\(item.id)".utf8)"#),
-            "the envelope must be the entity:-prefixed id the classifier strips"
+            source.contains(#"Data("entity:\(item.allIds.joined(separator: ","))".utf8)"#),
+            "the envelope must be the entity:-prefixed, comma-joined ids the classifier splits"
         )
     }
 }

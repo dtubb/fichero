@@ -217,7 +217,7 @@ extension DocumentInspectorEntitiesTab {
         // (a document that used to show "0 entities" over the broken transport).
         .accessibilityIdentifier("inspector.entity.row")
         .tag(entity.stableInspectorId)
-        .draggable(InspectorEntityDragID(id: entity.stableInspectorId, text: entity.canonicalName))
+        .draggable(entityDragPayload(for: entity))
         .dropDestination(
             for: InspectorEntityDragID.self,
             action: { payloads, _ in
@@ -237,6 +237,22 @@ extension DocumentInspectorEntitiesTab {
         .simultaneousGesture(plainClickSelectFallback(entity))
         .contextMenu { entityContextMenu(for: entity) }
         .help("Inspect \(entity.canonicalName)")
+    }
+
+    // `private`: only `entityRow` (same file) reads this.
+    /// Dragging a row that belongs to the current multi-selection carries the
+    /// WHOLE selection (Daniel 2026-08-13); a row outside it drags alone,
+    /// matching Finder.
+    private func entityDragPayload(
+        for entity: Components.Schemas.KnowledgeEntity
+    ) -> InspectorEntityDragID {
+        InspectorEntityDragID(
+            id: entity.stableInspectorId,
+            text: entity.canonicalName,
+            selectedIds: entitySelection.contains(entity.stableInspectorId)
+                ? Array(entitySelection)
+                : []
+        )
     }
 
     // `private`: only `entityRow` (same file) reads this.

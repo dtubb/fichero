@@ -25,6 +25,20 @@ extension Components.Schemas.KnowledgeEntity {
 struct InspectorEntityDragID: Codable, Transferable {
     let id: String
     var text: String = ""
+    /// When the grabbed row is part of a multi-selection, the WHOLE selection
+    /// rides along (Daniel 2026-08-13: "entity multi drag is good") — SwiftUI
+    /// List drags only deliver the grabbed row's Transferable, so the payload
+    /// itself has to carry its companions. Empty = just `id`.
+    var selectedIds: [String] = []
+
+    /// Every entity this drag carries, grabbed row first, de-duplicated.
+    var allIds: [String] {
+        var ids = [id]
+        for other in selectedIds where !ids.contains(other) {
+            ids.append(other)
+        }
+        return ids
+    }
 
     static var transferRepresentation: some TransferRepresentation {
         CodableRepresentation(contentType: .json)
@@ -33,9 +47,11 @@ struct InspectorEntityDragID: Codable, Transferable {
         // EXISTING `ficheroDragItem` flavor — declared in Info.plist, read by
         // `readSidebarDropPayload`, degraded-envelope recovery included —
         // instead of a new UTType; the classifier tells the shapes apart by
-        // prefix, exactly as it does `doc:` vs LibraryItemDrag JSON.
+        // prefix, exactly as it does `doc:` vs LibraryItemDrag JSON. Ids are
+        // comma-joined inside ONE envelope so a multi-selection survives the
+        // single-provider drag session.
         DataRepresentation(exportedContentType: .ficheroDragItem) { item in
-            Data("entity:\(item.id)".utf8)
+            Data("entity:\(item.allIds.joined(separator: ","))".utf8)
         }
         ProxyRepresentation(exporting: \.text)
     }

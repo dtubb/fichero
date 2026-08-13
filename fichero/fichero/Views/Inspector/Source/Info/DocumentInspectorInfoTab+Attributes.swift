@@ -17,26 +17,44 @@ struct DocumentAttributesSection: View {
     @State private var drafts: [String: String] = [:]
     @State private var errorText: String?
     @State private var isSaving = false
+    @State private var showTypeEditor = false
 
     var body: some View {
-        if let resolved, !resolved.declarations.isEmpty || hasLooseValues || errorText != nil {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Attributes")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
+        // Always render the section (Daniel 2026-08-13 ruling on the empty
+        // state): a node with nothing declared says so, with the editor one
+        // click away — hiding the section made the whole feature
+        // undiscoverable on exactly the nodes that need types defined.
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Attributes")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            if let resolved, !resolved.declarations.isEmpty || hasLooseValues {
                 rows(resolved)
-                if let errorText {
-                    Text(errorText)
+            } else if errorText == nil {
+                HStack(spacing: 6) {
+                    Text("None declared")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.tertiary)
+                    Button("Define…") {
+                        showTypeEditor = true
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
+                    .font(.caption)
+                    .help("Declare typed attributes on this node's document type")
                 }
             }
-            .task(id: documentId) { await load() }
-        } else {
-            // Zero-height anchor so `.task` still runs for every document.
-            Color.clear
-                .frame(height: 0)
-                .task(id: documentId) { await load() }
+            if let errorText {
+                Text(errorText)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        }
+        .task(id: documentId) { await load() }
+        .sheet(isPresented: $showTypeEditor) {
+            PrototypeEditorSheet(entityService: entityService) {
+                Task { await load() }
+            }
         }
     }
 
