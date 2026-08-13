@@ -166,6 +166,9 @@ struct ActivityBrowserView: View {
     // Run list + per-library failures now live on ActivityStore (#3231 p2); the
     // view observes them and calls rebuildRuns with its @Environment deps.
     @State private var listSelection: String?
+    /// A row-level Pause/Stop/Delete failure (#19) — shown in the same pill
+    /// rail as the store's load failures, dismissed on the next success.
+    @State private var controlError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -219,6 +222,20 @@ struct ActivityBrowserView: View {
                                 guard opensDetailWindow && supportsMultipleWindows else { return }
                                 openDetails(for: run)
                             }
+                            // Deletable entries (#19): the SAME transactional
+                            // RunControls the detail window mounts — pause/stop
+                            // for live runs, Delete for settled ones — on the
+                            // row itself, so clearing history never requires
+                            // opening each run's detail first.
+                            .contextMenu {
+                                RunControls(
+                                    threadId: run.threadId ?? run.runId,
+                                    status: ActivityViewHelpers.workflowStatus(
+                                        for: run.status.toStatusType()
+                                    ),
+                                    onError: { controlError = $0 }
+                                )
+                            }
                     }
                 }
                 .listStyle(.plain)
@@ -256,6 +273,22 @@ struct ActivityBrowserView: View {
                 // the engine or CLI kicked off out of band show here.
                 if let work = activityStore.backendWork {
                     BackendWorkPill(status: work)
+                }
+                // A run-control action that failed (#19) — named, dismissible,
+                // in the same rail as the load failures.
+                if let controlError {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(controlError)
+                            .font(.caption)
+                        Button("Dismiss") { self.controlError = nil }
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
                 }
                 // Per-library history read failures (#3231): honest warning +
                 // Retry instead of silently dropping that library's runs.
@@ -318,74 +351,3 @@ struct ActivityWindowLauncherView: View {
 }
 
 // MARK: - Activity Browser Row
-
-private struct ActivityBrowserRow: View {
-    let run: ActivityRun
-    var showsDetailButton: Bool = false
-    var onOpenDetails: (() -> Void)?
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: run.status.icon)
-                .font(.body)
-                .foregroundStyle(run.status.color)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(run.workflowName)
-                    .font(.subheadline)
-                    .lineLimit(1)
-
-                if let libraryName = run.libraryName {
-                    Text(libraryName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                HStack(spacing: 4) {
-                    if run.isLive {
-                        Text(run.timestamp, style: .relative)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text(coarseTimeAgo(run.timestamp))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if run.isLive, let progress = run.progress, progress > 0 {
-                        ProgressView(value: progress)
-                            .frame(maxWidth: 60)
-                            .scaleEffect(y: 0.7)
-                    }
-                }
-            }
-
-            Spacer()
-
-            if showsDetailButton, let onOpenDetails {
-                Button(action: onOpenDetails) {
-                    Image(systemName: "info.circle")
-                        .font(.body)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Open activity details")
-                .help("Open activity details in a separate window")
-            }
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-    }
-
-    /// Stable coarse timestamp — does not update every second like Text(.relative).
-    private func coarseTimeAgo(_ date: Date) -> String {
-        let seconds = Int(-date.timeIntervalSinceNow)
-        switch seconds {
-        case ..<60:      return "just now"
-        case ..<3600:    return "\(seconds / 60) min ago"
-        case ..<86400:   return "\(seconds / 3600) hr ago"
-        default:         return "\(seconds / 86400) days ago"
-        }
-    }
-}
