@@ -62,6 +62,9 @@ extension SidebarItemRow {
             case .internalItems(let ids):
                 _ = handleDropIntoFolder(itemIDs: ids, targetFolder: item)
 
+            case .internalEntities(let entityIds):
+                await addEntitiesToWorkspace(entityIds)
+
             case .externalFiles:
                 let targetFolder = item.isFolder ? item : parentFolderItem(of: item)
                 _ = handleProvidersDrop(providers, targetFolder: targetFolder)
@@ -89,6 +92,49 @@ extension SidebarItemRow {
             }
         }
         return true
+    }
+
+    /// Entities dragged from the inspector entities list land as workspace
+    /// curated items (Daniel 2026-08-12: "we ought to be able to drag and
+    /// drop from the document inspector entities list to a library or
+    /// library workspace"). Only a WORKSPACE row accepts them — a plain
+    /// folder has no curated-items surface to show the entity on, so the
+    /// drop refuses loudly rather than writing something invisible.
+    @MainActor
+    func addEntitiesToWorkspace(_ entityIds: [String]) async {
+        guard case .document(let doc) = item.itemType, doc.isWorkspace else {
+            DragDropLog.refused(
+                "sidebar-row",
+                reason: "\(entityIds.count) entity id(s) dropped on '\(item.name)', "
+                    + "which is not a workspace — entities curate into workspaces only"
+            )
+            return
+        }
+        guard let service = (item.libraryId.flatMap { libraryManager.getLibrary(id: $0) }
+            ?? libraryManager.globalLibrary)?.documentService else {
+            DragDropLog.refused(
+                "sidebar-row",
+                reason: "no document service for the library of workspace '\(item.name)'"
+            )
+            return
+        }
+        do {
+            _ = try await service.patchWorkspaceItems(
+                folderId: doc.id,
+                itemsToAdd: entityIds.map {
+                    .init(id: UUID().uuidString, targetType: "entity", targetId: $0)
+                }
+            )
+            DragDropLog.performed(
+                "sidebar-row",
+                outcome: "added \(entityIds.count) entity item(s) to workspace '\(item.name)'"
+            )
+        } catch {
+            DragDropLog.refused(
+                "sidebar-row",
+                reason: "workspace entity add failed: \(error.localizedDescription)"
+            )
+        }
     }
 
     /// Plain-click fallback for CHILD rows (Daniel, 2026-08-10: "still not

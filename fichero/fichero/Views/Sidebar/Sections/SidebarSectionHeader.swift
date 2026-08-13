@@ -181,6 +181,16 @@ struct LibrarySectionHeader: View {
     /// POSITIVELY by the `doc:` id it carries rather than by the absence of
     /// anything file-shaped (#4401).
     ///
+    /// Entities curate into a WORKSPACE row, not a library header — there is
+    /// no curated-items surface at the library root.
+    private func refuseHeaderEntityDrop(_ entityIds: [String]) {
+        DragDropLog.refused(
+            "sidebar-library-header",
+            reason: "\(entityIds.count) entity id(s) — entities can only be "
+                + "dropped onto a workspace folder"
+        )
+    }
+
     /// Shares `classifySidebarDropPayload` with the row path deliberately: two
     /// copies of this decision is exactly what produced the bug, and the
     /// classifier is pure, so both paths are pinned by the same tests.
@@ -238,6 +248,9 @@ struct LibrarySectionHeader: View {
                     return
                 }
                 await MainActor.run { onSidebarItemDrop(ids, modifiersAtDrop) }
+
+            case .internalEntities(let entityIds):
+                refuseHeaderEntityDrop(entityIds)
 
             case .externalFiles:
                 await importExternalDrop(providers)

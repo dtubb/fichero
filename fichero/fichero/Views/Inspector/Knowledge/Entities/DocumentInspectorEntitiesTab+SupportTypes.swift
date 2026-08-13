@@ -28,6 +28,15 @@ struct InspectorEntityDragID: Codable, Transferable {
 
     static var transferRepresentation: some TransferRepresentation {
         CodableRepresentation(contentType: .json)
+        // The sidebar pipeline's named envelope, `entity:`-prefixed (Daniel
+        // 2026-08-12: drag entities onto a library workspace). Riding the
+        // EXISTING `ficheroDragItem` flavor — declared in Info.plist, read by
+        // `readSidebarDropPayload`, degraded-envelope recovery included —
+        // instead of a new UTType; the classifier tells the shapes apart by
+        // prefix, exactly as it does `doc:` vs LibraryItemDrag JSON.
+        DataRepresentation(exportedContentType: .ficheroDragItem) { item in
+            Data("entity:\(item.id)".utf8)
+        }
         ProxyRepresentation(exporting: \.text)
     }
 }

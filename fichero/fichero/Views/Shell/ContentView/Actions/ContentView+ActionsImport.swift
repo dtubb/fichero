@@ -98,7 +98,7 @@ extension ContentView {
             // second, hollow copy of it. Positive identification first is the
             // same rule the sidebar row and the folder cell already follow.
             switch await readSidebarDropPayload(providers, surface: "content-pane", preloaded: eager) {
-            case .internalItems, .unreadableInternal:
+            case .internalItems, .internalEntities, .unreadableInternal:
                 // NO alert for a no-op internal drop (Daniel #133, 2026-08-09:
                 // "nothing should happen, don't do an alert") — the drag
                 // simply doesn't land; macOS snaps the item back. The refusal

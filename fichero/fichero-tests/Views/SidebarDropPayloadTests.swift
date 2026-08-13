@@ -230,4 +230,57 @@ struct SidebarDropPayloadTests {
             "total load failure must set the same user-visible banner import failures use"
         )
     }
+
+    // MARK: - Entity drags (Daniel 2026-08-12: inspector entities → workspace)
+
+    @Test("the entity id shape is recognised and stripped to the bare id")
+    func entityIDShapeIsRecognised() {
+        #expect(internalEntityID("entity:abc-123") == "abc-123")
+        #expect(internalEntityID("  entity:abc  ") == "abc", "pasteboard whitespace tolerated")
+        #expect(internalEntityID("entity:") == nil, "a bare prefix carries no entity")
+        #expect(internalEntityID("doc:abc") == nil)
+        #expect(internalEntityID("Some prose mentioning entity: things") == nil)
+    }
+
+    @Test("an entity drag routes to internalEntities, never to an import")
+    func entityDragRoutesToEntities() {
+        for hasExternalPayload in [true, false] {
+            let payload = classifySidebarDropPayload(
+                loadedIDs: ["entity:e1", "entity:e2"],
+                hasExternalPayload: hasExternalPayload,
+                carriesOwnProcessFlavor: true
+            )
+            #expect(payload == .internalEntities(["e1", "e2"]))
+        }
+    }
+
+    /// A hypothetical mixed session (documents + entities in one drag) still
+    /// routes as a document move — documents win, same as before this case
+    /// existed, so no existing drag behaviour changed.
+    @Test("documents win over entities in a mixed session")
+    func documentsWinOverEntities() {
+        let payload = classifySidebarDropPayload(
+            loadedIDs: ["entity:e1", "doc:d1"],
+            hasExternalPayload: false,
+            carriesOwnProcessFlavor: true
+        )
+        #expect(payload == .internalItems(["doc:d1"]))
+    }
+
+    /// The inspector's drag payload writes the envelope the classifier reads —
+    /// the two sides of the `entity:` contract, pinned together.
+    @Test("the inspector entity drag exports the classifier's entity shape")
+    func inspectorEntityDragExportsEntityShape() throws {
+        let source = try Self.appSource(
+            "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab+SupportTypes.swift"
+        )
+        #expect(
+            source.contains("exportedContentType: .ficheroDragItem"),
+            "InspectorEntityDragID must export the named in-app flavor"
+        )
+        #expect(
+            source.contains(#"Data("entity:\(item.id)".utf8)"#),
+            "the envelope must be the entity:-prefixed id the classifier strips"
+        )
+    }
 }

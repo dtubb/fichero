@@ -102,7 +102,7 @@ final class DropLogVisibilityTests: XCTestCase {
             "the insertion refusal is silent again (#4533)"
         )
         XCTAssertEqual(
-            source.components(separatedBy: "DragDropLog.refused(").count - 1, 5,
+            source.components(separatedBy: "DragDropLog.refused(").count - 1, 8,
             "expected every wired refusal in this file to report through the shared seam"
         )
     }
@@ -146,10 +146,10 @@ final class DropLogVisibilityTests: XCTestCase {
     /// not just present: a file can lose one refusal and still contain others.
     func testEverySidebarDropSurfaceReportsRefusals() throws {
         let expected = [
-            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": 5,
+            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": 8,
             "Views/Sidebar/ItemRow/SidebarDropOperation.swift": 2,
             "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift": 3,
-            "Views/Sidebar/Sections/SidebarSectionHeader.swift": 7
+            "Views/Sidebar/Sections/SidebarSectionHeader.swift": 8
         ]
         for (path, count) in expected {
             let source = try Self.appSource(path)

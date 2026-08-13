@@ -228,8 +228,28 @@ extension DocumentInspectorEntitiesTab {
         .simultaneousGesture(
             TapGesture(count: 2).onEnded { openEntity(entity) }
         )
+        // Plain-click fallback (Daniel 2026-08-12: "you can't click on a list
+        // item for an entity, you have to click on the left of the name") —
+        // same seam as the sidebar's childPlainClickFallback: `.draggable`
+        // claims the press over most of the row, so List(selection:) never
+        // commits. Plain clicks select directly; shift/command clicks stay
+        // with the List for range/toggle selection.
+        .simultaneousGesture(plainClickSelectFallback(entity))
         .contextMenu { entityContextMenu(for: entity) }
         .help("Inspect \(entity.canonicalName)")
+    }
+
+    // `private`: only `entityRow` (same file) reads this.
+    private func plainClickSelectFallback(
+        _ entity: Components.Schemas.KnowledgeEntity
+    ) -> some Gesture {
+        TapGesture().onEnded {
+            #if os(macOS)
+            guard !NSEvent.modifierFlags.contains(.shift),
+                  !NSEvent.modifierFlags.contains(.command) else { return }
+            #endif
+            entitySelection = [entity.stableInspectorId]
+        }
     }
 
     // `private`: only `entityRow` (same file) reads this.

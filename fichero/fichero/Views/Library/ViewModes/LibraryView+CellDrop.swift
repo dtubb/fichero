@@ -106,6 +106,9 @@ extension LibraryView {
             case .internalItems(let prefixedIDs):
                 await applyCellDrop(prefixedIDs, operation: operation, into: folder)
 
+            case .internalEntities(let entityIds):
+                await addEntitiesToWorkspaceCell(entityIds, folder: folder)
+
             case .unreadableInternal:
                 // Started inside the app and we could not read what it was.
                 // Re-importing would create a hollow duplicate of something
@@ -134,6 +137,42 @@ extension LibraryView {
             }
         }
         return true
+    }
+
+    /// Entities dropped from the inspector curate into a WORKSPACE cell
+    /// (Daniel 2026-08-12) — same rule as the sidebar row: a plain folder has
+    /// no curated-items surface, so it refuses loudly instead of writing
+    /// something invisible.
+    private func addEntitiesToWorkspaceCell(_ entityIds: [String], folder: Document) async {
+        guard folder.isWorkspace else {
+            DragDropLog.refused(
+                "library-cell(\(folder.id))",
+                reason: "\(entityIds.count) entity id(s) dropped on a non-workspace folder — "
+                    + "entities curate into workspaces only"
+            )
+            return
+        }
+        guard let library = activeLibraryReference else {
+            DragDropLog.refused("library-cell(\(folder.id))", reason: "no active library reference")
+            return
+        }
+        do {
+            _ = try await library.documentService.patchWorkspaceItems(
+                folderId: folder.id,
+                itemsToAdd: entityIds.map {
+                    .init(id: UUID().uuidString, targetType: "entity", targetId: $0)
+                }
+            )
+            DragDropLog.performed(
+                "library-cell(\(folder.id))",
+                outcome: "added \(entityIds.count) entity item(s) to workspace '\(folder.name)'"
+            )
+        } catch {
+            DragDropLog.refused(
+                "library-cell(\(folder.id))",
+                reason: "workspace entity add failed: \(error.localizedDescription)"
+            )
+        }
     }
 
     /// Import a Finder-style drop into the hovered folder cell — the same
