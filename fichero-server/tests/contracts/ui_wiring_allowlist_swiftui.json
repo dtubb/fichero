@@ -1,5 +1,5 @@
 {
-  "_doc": "Backend endpoints intentionally not (yet) wired into the swiftui surface. Each key is an openapi path; value is the reason. This file IS the swiftui wiring backlog \u2014 drop an entry once it's called. CI-enforced.",
+  "_doc": "Backend endpoints intentionally not (yet) wired into the swiftui surface. Each key is an openapi path; value is the reason. This file IS the swiftui wiring backlog — drop an entry once it's called. CI-enforced.",
   "paths": {
     "/api/actions/registry": "#1848 action layer - cli-only, store/UI deferred",
     "/api/activity/metrics/summary": "baseline: not yet wired",
@@ -22,8 +22,7 @@
     "/api/documents/pdfs/backfill-pages": "baseline: not yet wired",
     "/api/documents/trash": "#2075 backend; UI tracked in #2077",
     "/api/documents/{doc_id}/annotations.jsonld": "backend/CLI annotation export; SwiftUI wiring tracked as annotation export UI backlog",
-    "/api/documents/{doc_id}/duplicate": "audited document.duplicate action (#4102): SwiftUI drives it through POST /api/actions/invoke (SidebarDropOperation / row Duplicate), never the raw REST path \u2014 the action layer is the one audited entry point",
-    "/api/documents/{doc_id}/effective-attributes": "baseline: not yet wired",
+    "/api/documents/{doc_id}/duplicate": "audited document.duplicate action (#4102): SwiftUI drives it through POST /api/actions/invoke (SidebarDropOperation / row Duplicate), never the raw REST path — the action layer is the one audited entry point",
     "/api/documents/{doc_id}/notes": "baseline: not yet wired",
     "/api/documents/{doc_id}/page-ranges": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
     "/api/documents/{doc_id}/page-ranges/at/{page}": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
@@ -105,8 +104,8 @@
     "/api/registry/update-access": "baseline: not yet wired",
     "/api/research/tools/browser-navigate": "agent-internal: executed server-side by the research agent toolchain (mcp_research_tools.py / workflows/tools/research.py), not a user-facing SwiftUI action (#1431)",
     "/api/research/tools/document-fetch": "agent-internal: executed server-side by the research agent toolchain (mcp_research_tools.py / workflows/tools/research.py), not a user-facing SwiftUI action (#1431)",
-    "/api/search/explain": "developer/debug utility \u2014 wire into Search settings panel when needed",
-    "/api/search/explain/{query}": "developer/debug utility \u2014 wire into Search settings panel when needed",
+    "/api/search/explain": "developer/debug utility — wire into Search settings panel when needed",
+    "/api/search/explain/{query}": "developer/debug utility — wire into Search settings panel when needed",
     "/api/search/metrics": "wire into Search statistics view when needed (stats() calls /api/search/stats, a different endpoint)",
     "/api/search/modes": "wire into search toolbar RAG mode picker when needed",
     "/api/settings/ai-defaults/repair": "baseline: not yet wired",
