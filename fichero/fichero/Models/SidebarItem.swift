@@ -86,7 +86,15 @@ struct SidebarItem: Identifiable, Hashable {
     /// store without a per-row lookup on every render.
     var isDefaultWorkflowFolder: Bool = false
 
-    enum ItemType: Hashable {
+    /// `indirect` is LOAD-BEARING perf, not style (Daniel's 2026-08-12 stall
+    /// traces: "SidebarItemVwcp" 654ms of value-witness copies). The
+    /// `.document` payload is a full `Document` — metadata dictionary,
+    /// curated items, structure, and possibly the whole `pageContent`
+    /// transcript — stored INLINE in every SidebarItem, so each tree copy,
+    /// List diff, and `children` array CoW paid a deep value-witness copy of
+    /// all of it, per row. Boxing the payloads turns those copies into a
+    /// retain/release; the tree builder allocates each box once per rebuild.
+    indirect enum ItemType: Hashable {
         case document(Document)
         case savedSearch(SavedSearch)
         case conversation(Conversation)
@@ -99,6 +107,15 @@ struct SidebarItem: Identifiable, Hashable {
         case activityRun(ActivityItem)
         case folder(folderPath: String)  // Folder item (no data, just structure)
         case libraryHeader  // For library group headers
+    }
+
+    /// Hash by id alone — the synthesized hash walked every field, including
+    /// the boxed `Document` payload and the whole `children` subtree, on
+    /// every Set/selection operation. Equality stays synthesized (deep), so
+    /// the a == b ⇒ hash(a) == hash(b) contract holds: equal items always
+    /// share an id; unequal items sharing one merely collide.
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 
     var isExpandable: Bool {
