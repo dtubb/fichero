@@ -129,6 +129,7 @@ from fichero_server.workflows.tools import sub_workflow  # noqa: F401  (#2201)
 from fichero_server.workflows.tools import ocr_cleanup  # noqa: F401  (#925)
 from fichero_server.workflows.tools import text_reflow  # noqa: F401  (#1260)
 from fichero_server.workflows.tools import book_index  # noqa: F401  (#1278)
+from fichero_server.workflows.tools import diary_entries  # noqa: F401  per-day entry nodes (2026-08-14)
 from fichero_server.workflows.tools import split_chapters  # noqa: F401  (#1315)
 from fichero_server.workflows.tools import consistency_check  # noqa: F401  (#3910)
 
@@ -200,6 +201,7 @@ __all__ = [
     "detect_structure",
     "citations_extract",
     "date_extract",
+    "diary_entries",
     "cleanup",
     "import_artifacts",
     "extract_entities_only",

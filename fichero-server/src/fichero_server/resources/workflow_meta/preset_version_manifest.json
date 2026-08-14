@@ -55,6 +55,10 @@
   "preset_version": 1,
   "sha256": "a9ea3e63262e6bcd234af33e3025f22216b3ecbc8b470061fbe7677632b2f8c0"
  },
+ "diary_entries.json": {
+  "preset_version": 1,
+  "sha256": "7513e35bb0a930796ac3d5551c005d04d4f4c7509403c7c6d52903425e20a97d"
+ },
  "enhance_images.json": {
   "preset_version": 1,
   "sha256": "5841fe4c6dd973335e08d7094927de34ea3f135ccb586f841e11ba880d6ac774"
