@@ -32,6 +32,30 @@ mind-palace routes, renamed to `/api/canvas`), and more.
 - Response: `200` with the JSON-LD AnnotationPage object; missing documents
   return `404`.
 
+## Prototype attributes and the dataset query (datasets Stages 1–2)
+
+`GET /api/documents/{doc_id}/effective-attributes`
+
+- Purpose: a node's structured data, resolved — attribute declarations from
+  its prototype chain (typed, with renderer roles) plus effective values
+  (chain defaults overlaid with the node's own `attributes`). Unresolvable
+  prototypes return `422`, never partial data.
+
+`GET /api/classifications/resolved/{key}`
+
+- Purpose: one prototype's chain-merged declarations and defaults — the
+  editor's inheritance preview. Unknown key or cycle returns `422`.
+
+`POST /api/documents/dataset/query`
+
+- Purpose: the one renderer query over a folder's attribute-bearing rows —
+  server-side sort (typed, nulls last), typed filters, paging, date binning
+  (year/month/day, for timeline and calendar), and facet counts, all via
+  DuckDB `json_extract` per the Stage 2 measurement. The response carries
+  each involved prototype's chain-merged defaults so clients overlay a page
+  cheaply; a prototype that no longer resolves reports its error string
+  under `_unresolved`.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API

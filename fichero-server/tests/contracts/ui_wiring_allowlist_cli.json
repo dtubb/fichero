@@ -2,6 +2,7 @@
   "_doc": "Backend endpoints intentionally not (yet) wired into the cli surface. Each key is an openapi path; value is the reason. This file IS the cli wiring backlog \u2014 drop an entry once it's called. CI-enforced.",
   "paths": {
     "/api/classifications/resolved/{key}": "2026-08-12 datasets Stage 1 - prototype editor is app-side; CLI wiring queued",
+    "/api/documents/dataset/query": "2026-08-14 datasets Stage 2 - renderer program wiring queued",
     "/api/documents/{doc_id}/effective-attributes": "2026-08-12 datasets Stage 1 - inspector is app-side; CLI wiring queued",
     "/api/export/training": "2026-08-12 training export - on-demand; CLI wiring queued",
     "/api/storage/debug/{doc_id}": "debug-only endpoint; intentionally omitted from the default generated CLI surface",

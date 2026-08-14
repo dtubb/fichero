@@ -231,15 +231,15 @@
     },
     {
       "domain": "classifications",
-      "total": 2,
-      "swiftui_wired": 2,
+      "total": 3,
+      "swiftui_wired": 3,
       "swiftui_unwired": 0,
       "swiftui_allowlisted": 0,
       "swiftui_coverage": 1.0,
       "cli_wired": 2,
-      "cli_untested": 0,
-      "cli_allowlisted": 0,
-      "cli_coverage": 1.0
+      "cli_untested": 1,
+      "cli_allowlisted": 1,
+      "cli_coverage": 0.6667
     },
     {
       "domain": "content-representations",
@@ -255,15 +255,15 @@
     },
     {
       "domain": "documents",
-      "total": 35,
-      "swiftui_wired": 26,
-      "swiftui_unwired": 9,
-      "swiftui_allowlisted": 9,
-      "swiftui_coverage": 0.7429,
+      "total": 37,
+      "swiftui_wired": 27,
+      "swiftui_unwired": 10,
+      "swiftui_allowlisted": 10,
+      "swiftui_coverage": 0.7297,
       "cli_wired": 35,
-      "cli_untested": 0,
-      "cli_allowlisted": 0,
-      "cli_coverage": 1.0
+      "cli_untested": 2,
+      "cli_allowlisted": 2,
+      "cli_coverage": 0.9459
     },
     {
       "domain": "entities",
@@ -279,15 +279,15 @@
     },
     {
       "domain": "export",
-      "total": 6,
+      "total": 7,
       "swiftui_wired": 1,
-      "swiftui_unwired": 5,
-      "swiftui_allowlisted": 5,
-      "swiftui_coverage": 0.1667,
+      "swiftui_unwired": 6,
+      "swiftui_allowlisted": 6,
+      "swiftui_coverage": 0.1429,
       "cli_wired": 6,
-      "cli_untested": 0,
-      "cli_allowlisted": 0,
-      "cli_coverage": 1.0
+      "cli_untested": 1,
+      "cli_allowlisted": 1,
+      "cli_coverage": 0.8571
     },
     {
       "domain": "folders",
@@ -400,10 +400,10 @@
     {
       "domain": "library",
       "total": 3,
-      "swiftui_wired": 0,
-      "swiftui_unwired": 3,
-      "swiftui_allowlisted": 3,
-      "swiftui_coverage": 0.0,
+      "swiftui_wired": 1,
+      "swiftui_unwired": 2,
+      "swiftui_allowlisted": 2,
+      "swiftui_coverage": 0.3333,
       "cli_wired": 3,
       "cli_untested": 0,
       "cli_allowlisted": 0,
@@ -771,15 +771,15 @@
     },
     {
       "domain": "workflow-execution",
-      "total": 19,
-      "swiftui_wired": 13,
+      "total": 20,
+      "swiftui_wired": 14,
       "swiftui_unwired": 6,
       "swiftui_allowlisted": 6,
-      "swiftui_coverage": 0.6842,
+      "swiftui_coverage": 0.7,
       "cli_wired": 19,
-      "cli_untested": 0,
-      "cli_allowlisted": 0,
-      "cli_coverage": 1.0
+      "cli_untested": 1,
+      "cli_allowlisted": 1,
+      "cli_coverage": 0.95
     },
     {
       "domain": "workflows",

@@ -9980,6 +9980,50 @@
         }
       }
     },
+    "/api/documents/dataset/query": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Dataset Query",
+        "description": "The renderer query: rows page + optional bins + optional facets.",
+        "operationId": "dataset_query_api_documents_dataset_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Dataset Query Api Documents Dataset Query Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/references": {
       "get": {
         "tags": [
@@ -41991,6 +42035,149 @@
           "databases"
         ],
         "title": "DatabaseListResponse"
+      },
+      "DatasetBins": {
+        "properties": {
+          "attr": {
+            "type": "string",
+            "title": "Attr"
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "year",
+              "month",
+              "day"
+            ],
+            "title": "Granularity",
+            "default": "month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attr"
+        ],
+        "title": "DatasetBins"
+      },
+      "DatasetFilter": {
+        "properties": {
+          "attr": {
+            "type": "string",
+            "title": "Attr"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "eq",
+              "ne",
+              "contains",
+              "gte",
+              "lte",
+              "between",
+              "is_set",
+              "not_set"
+            ],
+            "title": "Op"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "value2": {
+            "title": "Value2"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attr",
+          "op"
+        ],
+        "title": "DatasetFilter"
+      },
+      "DatasetQuery": {
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "default": false
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
+          },
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetFilter"
+            },
+            "type": "array",
+            "title": "Filters"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/DatasetSort",
+            "nullable": true
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 100
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset",
+            "default": 0
+          },
+          "bins": {
+            "$ref": "#/components/schemas/DatasetBins",
+            "nullable": true
+          },
+          "facets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Facets"
+          }
+        },
+        "type": "object",
+        "title": "DatasetQuery",
+        "description": "Scope + shapes. Every shape is optional; one request serves a grid\npage, a timeline, a calendar month and facet rails in one round trip."
+      },
+      "DatasetSort": {
+        "properties": {
+          "attr": {
+            "type": "string",
+            "title": "Attr"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Direction",
+            "default": "asc"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attr"
+        ],
+        "title": "DatasetSort"
       },
       "DeletedWithIdResponse": {
         "properties": {

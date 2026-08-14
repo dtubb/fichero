@@ -2536,6 +2536,16 @@
       },
       {
         "method": "POST",
+        "path": "/documents/dataset/query",
+        "operation_id": "dataset_query_api_documents_dataset_query_post",
+        "summary": "Dataset Query",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DatasetQuery",
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/documents/groups",
         "operation_id": "create_document_group_api_documents_groups_post",
         "summary": "Create Document Group",

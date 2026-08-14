@@ -301,6 +301,7 @@
   "POST /api/claims/batch/transition": "store missing",
   "POST /api/claims/resolve-source": "store missing",
   "POST /api/documents/cleanup-orphans": "store missing",
+  "POST /api/documents/dataset/query": "2026-08-14 datasets Stage 2 — dataset query endpoint; SwiftUI renderers + CLI wiring queued (renderer program)",
   "POST /api/documents/pdfs/backfill-pages": "store missing",
   "POST /api/documents/{doc_id}/duplicate": "SwiftUI drives it via POST /api/actions/invoke (#4102); CLI hits the raw path",
   "POST /api/documents/{doc_id}/restore": "#2075 backend; UI tracked in #2077",

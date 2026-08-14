@@ -7,5 +7,6 @@
   "GET /api/tasks/health": "#1921 baseline - task health is handled outside generated CLI command surface",
   "GET /api/workflow-execution/stream/{thread_id}": "#1921 baseline - streaming endpoint intentionally not generated into CLI command surface",
   "GET /api/workflow-execution/threads/{thread_id}/episodes": "2026-08-13 episode ledger — SwiftUI trace wired; CLI wiring queued",
+  "POST /api/documents/dataset/query": "2026-08-14 datasets Stage 2 — dataset query endpoint; SwiftUI renderers + CLI wiring queued (renderer program)",
   "POST /api/export/training": "2026-08-12 training export — invoked on demand, UI/CLI wiring queued"
 }

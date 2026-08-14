@@ -6408,6 +6408,49 @@
         }
       }
     },
+    "/api/classifications/resolved/{key}": {
+      "get": {
+        "tags": [
+          "classifications"
+        ],
+        "summary": "A prototype's effective attributes (inheritance resolved)",
+        "description": "Resolve a document prototype's inherited attributes for the editor UI.\n\n422 on an unknown key or a cyclic parent chain \u2014 the resolver prefers\nraising over partial attributes, and so does this surface.",
+        "operationId": "resolved_prototype_api_classifications_resolved__key__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedPrototypeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/classifications/{value_id}": {
       "patch": {
         "tags": [
@@ -8848,6 +8891,49 @@
         }
       }
     },
+    "/api/documents/{doc_id}/effective-attributes": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Effective Attributes",
+        "description": "Resolve a node's prototype attributes and overlay its own values.\n\n422 (not partial data) when the prototype chain cannot be resolved \u2014\nthe resolver prefers raising, and this endpoint keeps that promise at\nthe API surface.",
+        "operationId": "get_effective_attributes_api_documents__doc_id__effective_attributes_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EffectiveAttributesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/parent": {
       "get": {
         "tags": [
@@ -9877,6 +9963,50 @@
                     "$ref": "#/components/schemas/Document"
                   },
                   "title": "Response Ungroup Document Api Documents Groups  Group Id  Ungroup Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/dataset/query": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Dataset Query",
+        "description": "The renderer query: rows page + optional bins + optional facets.",
+        "operationId": "dataset_query_api_documents_dataset_query_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Dataset Query Api Documents Dataset Query Post"
                 }
               }
             }
@@ -11478,6 +11608,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonlExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/export/training": {
+      "post": {
+        "tags": [
+          "export",
+          "export"
+        ],
+        "summary": "Export Training Route",
+        "description": "Export chat-format training samples from the episode ledger.\n\nOne sample per recorded model call; the assistant turn is the human\ncorrection when one exists (gold), otherwise the model output.\nCorrected samples carry `rejected` for DPO pairing. Engine-local\ndestination path \u2014 a CLI/backend surface like the record-bundle\nexports; same conflict rule (409 unless `overwrite`).",
+        "operationId": "export_training_route_api_export_training_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingExportResponse"
                 }
               }
             }
@@ -20079,6 +20252,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ThreadListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflow-execution/threads/{thread_id}/episodes": {
+      "get": {
+        "tags": [
+          "workflow-execution"
+        ],
+        "summary": "Get Thread Episodes",
+        "description": "Episodes recorded under this run \u2014 per-node model-call provenance.\n\nEach record carries the node, the FULL exchange (prompt, raw output,\nthinking), model identity + use_case, subject (document/page/file),\nand timing: the \"investigate each node\" surface (workflows-done-right,\n2026-08-12) and the resolver behind thesis citation keys. Corrections\nand invalidations referencing this run's episodes ride along by id.",
+        "operationId": "get_thread_episodes_api_workflow_execution_threads__thread_id__episodes_get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 500,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Thread Episodes Api Workflow Execution Threads  Thread Id  Episodes Get"
                 }
               }
             }
@@ -39917,6 +40145,12 @@
             "type": "integer",
             "title": "Sort Order",
             "default": 0
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes",
+            "default": {}
           }
         },
         "type": "object",
@@ -39990,6 +40224,12 @@
             "type": "integer",
             "nullable": true,
             "title": "Sort Order"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Attributes"
           }
         },
         "type": "object",
@@ -41796,6 +42036,149 @@
         ],
         "title": "DatabaseListResponse"
       },
+      "DatasetBins": {
+        "properties": {
+          "attr": {
+            "type": "string",
+            "title": "Attr"
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "year",
+              "month",
+              "day"
+            ],
+            "title": "Granularity",
+            "default": "month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attr"
+        ],
+        "title": "DatasetBins"
+      },
+      "DatasetFilter": {
+        "properties": {
+          "attr": {
+            "type": "string",
+            "title": "Attr"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "eq",
+              "ne",
+              "contains",
+              "gte",
+              "lte",
+              "between",
+              "is_set",
+              "not_set"
+            ],
+            "title": "Op"
+          },
+          "value": {
+            "title": "Value"
+          },
+          "value2": {
+            "title": "Value2"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attr",
+          "op"
+        ],
+        "title": "DatasetFilter"
+      },
+      "DatasetQuery": {
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Id"
+          },
+          "recursive": {
+            "type": "boolean",
+            "title": "Recursive",
+            "default": false
+          },
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
+          },
+          "filters": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetFilter"
+            },
+            "type": "array",
+            "title": "Filters"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/DatasetSort",
+            "nullable": true
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 100
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset",
+            "default": 0
+          },
+          "bins": {
+            "$ref": "#/components/schemas/DatasetBins",
+            "nullable": true
+          },
+          "facets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Facets"
+          }
+        },
+        "type": "object",
+        "title": "DatasetQuery",
+        "description": "Scope + shapes. Every shape is optional; one request serves a grid\npage, a timeline, a calendar month and facet rails in one round trip."
+      },
+      "DatasetSort": {
+        "properties": {
+          "attr": {
+            "type": "string",
+            "title": "Attr"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Direction",
+            "default": "asc"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attr"
+        ],
+        "title": "DatasetSort"
+      },
       "DeletedWithIdResponse": {
         "properties": {
           "status": {
@@ -43138,6 +43521,12 @@
             "nullable": true,
             "title": "Prototype Key"
           },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Attributes"
+          },
           "position_x": {
             "type": "number",
             "nullable": true,
@@ -43273,6 +43662,33 @@
         ],
         "title": "EdgeDef",
         "description": "Definition of an edge connecting two nodes via their ports.\n\nEdges define data flow between nodes. Each edge connects\nan output port on the source node to an input port on the target node."
+      },
+      "EffectiveAttributesResponse": {
+        "properties": {
+          "prototype_key": {
+            "type": "string",
+            "nullable": true,
+            "title": "Prototype Key"
+          },
+          "declarations": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Declarations"
+          },
+          "values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "prototype_key",
+          "declarations",
+          "values"
+        ],
+        "title": "EffectiveAttributesResponse",
+        "description": "A node's structured data, resolved (datasets Stage 1).\n\n``declarations`` come from the prototype chain (typed, with renderer\nroles); ``values`` are the declarations' defaults overlaid with the\nnode's OWN ``attributes`` \u2014 what a grid cell or inspector row shows."
       },
       "EleventySiteExportRequest": {
         "properties": {
@@ -46287,7 +46703,7 @@
           "auto_embed": {
             "type": "boolean",
             "title": "Auto Embed",
-            "default": true
+            "default": false
           }
         },
         "type": "object",
@@ -46336,7 +46752,7 @@
           "auto_embed": {
             "type": "boolean",
             "title": "Auto Embed",
-            "default": true
+            "default": false
           }
         },
         "type": "object",
@@ -57005,6 +57421,32 @@
         ],
         "title": "ResolvedLocation"
       },
+      "ResolvedPrototypeResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "declarations": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Declarations"
+          },
+          "defaults": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Defaults"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "declarations",
+          "defaults"
+        ],
+        "title": "ResolvedPrototypeResponse",
+        "description": "A prototype's EFFECTIVE attributes \u2014 parent chain merged root\u2192leaf."
+      },
       "ResumeWorkflowRequest": {
         "properties": {
           "inputs": {
@@ -58537,7 +58979,8 @@
           "content",
           "entities",
           "claims",
-          "artifacts"
+          "artifacts",
+          "interpretations"
         ],
         "title": "SearchInclude"
       },
@@ -61035,6 +61478,67 @@
           "trained"
         ],
         "title": "TrainResponse"
+      },
+      "TrainingExportRequest": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path",
+            "description": "Destination .jsonl path"
+          },
+          "use_case": {
+            "type": "string",
+            "nullable": true,
+            "title": "Use Case",
+            "description": "Filter to one workflow step's calls (e.g. 'transcription')"
+          },
+          "gold_only": {
+            "type": "boolean",
+            "title": "Gold Only",
+            "description": "Only human-corrected (gold) pairs",
+            "default": false
+          },
+          "overwrite": {
+            "type": "boolean",
+            "title": "Overwrite",
+            "description": "Overwrite existing .jsonl",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path"
+        ],
+        "title": "TrainingExportRequest",
+        "description": "Request body for an episode-ledger training export (MLX loop)."
+      },
+      "TrainingExportResponse": {
+        "properties": {
+          "output_path": {
+            "type": "string",
+            "title": "Output Path"
+          },
+          "sample_count": {
+            "type": "integer",
+            "title": "Sample Count"
+          },
+          "gold_count": {
+            "type": "integer",
+            "title": "Gold Count"
+          },
+          "bytes_written": {
+            "type": "integer",
+            "title": "Bytes Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "output_path",
+          "sample_count",
+          "gold_count",
+          "bytes_written"
+        ],
+        "title": "TrainingExportResponse"
       },
       "TrainingResult": {
         "properties": {

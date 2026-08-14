@@ -36,6 +36,15 @@ _CLI_INTENTIONAL_ALLOWLIST = {
     "/api/storage/debug/{doc_id}",
     "/api/tasks/health",
     "/api/workflow-execution/stream/{thread_id}",
+    # Datasets Stages 1–2 + episode ledger (2026-08-13/14): the SwiftUI
+    # surfaces are wired or queued in the renderer program; the CLI halves
+    # are dated debt in the allowlist file, intentional until the CLI grows
+    # dataset/prototype/episode verbs.
+    "/api/classifications/resolved/{key}",
+    "/api/documents/dataset/query",
+    "/api/documents/{doc_id}/effective-attributes",
+    "/api/export/training",
+    "/api/workflow-execution/threads/{thread_id}/episodes",
 }
 
 

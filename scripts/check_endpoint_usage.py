@@ -37,6 +37,7 @@ HTTP_METHODS = {"get", "put", "post", "delete", "patch", "head", "options", "tra
 # Current baseline. The script exits 0 while every unused/asymmetric endpoint is
 # listed here and exits 1 when a new gap appears.
 KNOWN_GAPS: dict[str, str] = {
+    'POST /api/documents/dataset/query': "2026-08-14 datasets Stage 2 - renderers + CLI wiring queued",
     'GET /api/documents/{doc_id}/effective-attributes': "2026-08-13 datasets Stage 1 - SwiftUI inspector wired; CLI wiring queued",
     'GET /api/classifications/resolved/{key}': "2026-08-13 datasets Stage 1 - SwiftUI prototype editor wired; CLI wiring queued",
     'GET /api/workflow-execution/threads/{thread_id}/episodes': "2026-08-13 episode ledger - SwiftUI trace wired; CLI wiring queued",
