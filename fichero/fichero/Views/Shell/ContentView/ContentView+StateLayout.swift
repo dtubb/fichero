@@ -27,12 +27,12 @@ extension ContentView {
                 // library view; Space (.space → SpaceSceneView) is the RealityKit
                 // 3D renderer on the SAME shared stores (#3088). Both offered for
                 // every folder/pdf/node (#2667/#3081/#3088).
-                return [.icon, .list, .table, .columns, .canvas, .space]
+                return [.icon, .list, .table, .columns, .dataset, .canvas, .space]
             }
             if !featureManager.isLibraryAdvancedViewsEnabled {
                 return [.icon]
             }
-            return [.icon, .list, .table, .columns, .canvas, .space]
+            return [.icon, .list, .table, .columns, .dataset, .canvas, .space]
         case .workflows:
             // Keep workflow editor simple by default; only expose table mode
             // when advanced views are explicitly enabled.
