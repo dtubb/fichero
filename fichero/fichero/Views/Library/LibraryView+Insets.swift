@@ -186,7 +186,8 @@ extension LibraryView {
     static func usesSpatialProjection(_ mode: ViewDisplayMode) -> Bool {
         switch mode {
         case .canvas, .space, .workspace: return true
-        case .icon, .list, .table, .columns: return false
+        // The Data mode reads the dataset query, not the spatial projection.
+        case .icon, .list, .table, .columns, .dataset: return false
         }
     }
 

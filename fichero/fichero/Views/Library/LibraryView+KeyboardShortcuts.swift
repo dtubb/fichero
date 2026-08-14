@@ -28,7 +28,10 @@ extension LibraryView {
     static func servicesRowKeyboardGrammar(_ mode: ViewDisplayMode) -> Bool {
         switch mode {
         case .icon, .list, .table, .columns: return true
-        case .canvas, .space: return false
+        // The Data mode's renderers own their interactions (calendar day
+        // cells, map pins); inheriting row semantics by accident is the
+        // regression class this switch exists to prevent.
+        case .canvas, .space, .dataset: return false
         // Not changed here: `.workspace` keeps today's behaviour because I could
         // not establish what it renders without running it, and removing a key
         // that DOES work is its own regression (#4412).

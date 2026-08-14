@@ -41,13 +41,21 @@ final class ViewDisplayModeTests: XCTestCase {
         // icon/list/table/columns/canvas/space — workspace is offered
         // separately behind its feature gate, so it is not in the base
         // selectable set (#3081; columns added by #4160 step 4).
-        XCTAssertEqual(ViewDisplayMode.selectableCases, [.icon, .list, .table, .columns, .canvas, .space])
+        // .dataset joined 2026-08-14 (datasets Stage 2: the Data mode hosts
+        // cards/timeline/calendar/map behind one top-level mode).
+        XCTAssertEqual(
+            ViewDisplayMode.selectableCases,
+            [.icon, .list, .table, .columns, .dataset, .canvas, .space]
+        )
         XCTAssertFalse(ViewDisplayMode.selectableCases.contains(.workspace))
     }
 
     func testAllCasesNoLongerIncludeRetiredAliases() {
         // The dead decode-only aliases are gone from the case list entirely.
-        XCTAssertEqual(ViewDisplayMode.allCases, [.icon, .list, .table, .canvas, .space, .columns, .workspace])
+        XCTAssertEqual(
+            ViewDisplayMode.allCases,
+            [.icon, .list, .table, .canvas, .space, .columns, .dataset, .workspace]
+        )
     }
 
     func testLabels() {

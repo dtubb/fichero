@@ -297,6 +297,7 @@ extension ContentView {
         case .list: return .list
         case .table: return .table
         case .columns: return .columns
+        case .dataset: return .dataset
         case .canvas, .space, .workspace: return .canvas
         }
     }

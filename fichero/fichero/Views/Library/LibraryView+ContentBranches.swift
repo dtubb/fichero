@@ -95,6 +95,8 @@ extension LibraryView {
                 tableView
             case .columns:
                 columnsView
+            case .dataset:
+                datasetModeView
             case .canvas, .workspace:
                 canvasModeView
             case .space:
@@ -143,4 +145,29 @@ extension LibraryView {
         }
     }
 
+    /// The Data mode (datasets Stage 2): cards / timeline / calendar / map
+    /// over the dataset query, scoped to the browsed folder (recursive).
+    /// Double-click resolves the row to its live Document and opens it.
+    @ViewBuilder
+    var datasetModeView: some View {
+        if let service = scopedLibraryReference?.documentService {
+            DatasetModeView(
+                folderId: folderId,
+                documentService: service,
+                onOpen: { row in
+                    Task { @MainActor in
+                        if let document = try? await service.getDocument(row.id) {
+                            openDocument(document)
+                        }
+                    }
+                }
+            )
+        } else {
+            ContentUnavailableView(
+                "No Library",
+                systemImage: "tray",
+                description: Text("The Data view needs an open library.")
+            )
+        }
+    }
 }

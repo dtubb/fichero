@@ -22,13 +22,19 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     /// Finder-style Miller column browser (#4160 step 4) — an ADDITIONAL
     /// mode; `.table` keeps its 3-level outline (the user's decision).
     case columns = "MillerColumns"
+    /// Datasets renderer surface (Stage 2, Daniel "build them all"): ONE
+    /// mode hosting cards / timeline / calendar / map over the dataset
+    /// query — an internal switcher, not four top-level modes (dead-simple
+    /// UX; the mode bar stays sane). rawValue is NOT "Map": that legacy
+    /// alias normalizes to `.canvas` in `persisted(_:)`.
+    case dataset = "Dataset"
     /// Legacy persisted alias: decode/normalize to `.canvas`, never present as
     /// a live selectable mode (#3199).
     case workspace = "Workspace"
 
     /// User-selectable cases: the coherent live view-mode set (#3081/#3199).
     static var selectableCases: [ViewDisplayMode] {
-        [.icon, .list, .table, .columns, .canvas, .space]
+        [.icon, .list, .table, .columns, .dataset, .canvas, .space]
     }
 
     var id: String { rawValue }
@@ -41,6 +47,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case Self.canvas.rawValue, "Map", "Spatial", Self.workspace.rawValue: .canvas
         case Self.space.rawValue, "RealityKit": .space
         case Self.columns.rawValue: .columns
+        case Self.dataset.rawValue: .dataset
         default: nil
         }
     }
@@ -55,6 +62,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: .list
         case .table: .table
         case .columns: .columns
+        case .dataset: .dataset
         case .space: .space
         case .canvas, .workspace: .canvas
         }
@@ -69,6 +77,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         // would be actively misleading (supersedes the #1613 rename).
         case .table: "Table"
         case .columns: "Columns"
+        case .dataset: "Data"
         default: rawValue
         }
     }
@@ -79,6 +88,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "list.bullet"
         case .table: "tablecells"
         case .columns: "rectangle.split.3x1"
+        case .dataset: "chart.bar.horizontal.page"
         case .canvas: "map"
         case .space: "cube.transparent"
         case .workspace: "square.stack.3d.up"
@@ -91,6 +101,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "Linear list"
         case .table: "Multi-column table"
         case .columns: "Finder-style column browser"
+        case .dataset: "Cards, timeline, calendar and map over typed attributes"
         case .canvas: "Canvas / node map"
         case .space: "3D space view"
         case .workspace: "Workspace collection view"

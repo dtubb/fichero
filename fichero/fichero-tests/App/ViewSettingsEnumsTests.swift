@@ -11,7 +11,8 @@ final class ViewSettingsEnumsTests: XCTestCase {
     // MARK: - LibraryLayout
 
     func testLibraryLayoutCasesRawValuesAndIcons() {
-        XCTAssertEqual(LibraryLayout.allCases.count, 6)
+        XCTAssertEqual(LibraryLayout.allCases.count, 7)
+        XCTAssertEqual(LibraryLayout.dataset.rawValue, "Dataset")
         XCTAssertEqual(LibraryLayout.icons.rawValue, "Icons")
         XCTAssertEqual(LibraryLayout.list.rawValue, "List")
         XCTAssertEqual(LibraryLayout.table.rawValue, "Table")
