@@ -68,6 +68,37 @@ def dataset_db(tmp_path):
 
 class TestDatasetQuery:
     @pytest.mark.asyncio
+    async def test_recursive_scope_reaches_grandchildren(self, dataset_db):
+        # The REAL diary shape (Daniel 2026-08-14 live): entries hang under
+        # IMAGE pages, which hang under the browsed folder — two levels down.
+        # The store always queries recursive=True; a CTE that only reaches
+        # direct children renders "No Items" over 204 pages of entries.
+        dataset_db.save(
+            Document(id="img1", name="page img", parent_id="folder", doc_type=DocType.file)
+        )
+        dataset_db.save(
+            Document(
+                id="entry1",
+                name="1942-01-04",
+                parent_id="img1",
+                doc_type=DocType.file,
+                prototype_key="entry",
+                attributes={"date": "1942-01-04", "weather": "fair"},
+            )
+        )
+        flat = await dataset_query(
+            DatasetQuery(parent_id="folder", recursive=False, limit=500), db=dataset_db
+        )
+        assert all(r["id"] != "entry1" for r in flat["rows"])
+        deep = await dataset_query(
+            DatasetQuery(parent_id="folder", recursive=True, limit=500), db=dataset_db
+        )
+        ids = {r["id"] for r in deep["rows"]}
+        assert "entry1" in ids, "recursive scope must reach grandchildren"
+        assert "img1" in ids
+
+
+    @pytest.mark.asyncio
     async def test_paged_sort_by_date_nulls_last(self, dataset_db):
         result = await dataset_query(
             DatasetQuery(

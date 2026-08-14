@@ -241,7 +241,25 @@ final class EntityService {
         switch response {
         case .ok(let okResponse):
             let data = try JSONEncoder().encode(try okResponse.body.json.items)
-            return try JSONDecoder().decode([Components.Schemas.ClassificationValue].self, from: data)
+            // NOT a bare JSONDecoder (live failure, Daniel 2026-08-14: the
+            // type editor and every renderer role binding died with "data
+            // couldn't be read"): ClassificationValue carries created_at/
+            // updated_at as Dates, and the default strategy cannot parse the
+            // engine's ISO strings. Same engine-date custom strategy the
+            // chain mapper uses.
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .custom { decoder in
+                let container = try decoder.singleValueContainer()
+                let raw = try container.decode(String.self)
+                guard let date = parseEngineDate(raw) else {
+                    throw DecodingError.dataCorruptedError(
+                        in: container,
+                        debugDescription: "Unrecognized classification timestamp: \(raw)"
+                    )
+                }
+                return date
+            }
+            return try decoder.decode([Components.Schemas.ClassificationValue].self, from: data)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ServiceError.validationError(detail?.detail?.description ?? "Validation error")

@@ -131,6 +131,19 @@ extension DocumentService {
         }
     }
 
+    /// A container number regardless of how OpenAPIRuntime decoded it —
+    /// JSON integers can surface as Int, Int64 or Double, and a bare
+    /// `as? Int` silently drops them (live failure shape: "0 items" over a
+    /// folder of entries).
+    static func containerInt(_ value: (any Sendable)?) -> Int? {
+        switch value {
+        case let int as Int: return int
+        case let int64 as Int64: return Int(int64)
+        case let double as Double: return Int(double)
+        default: return nil
+        }
+    }
+
     /// Lenient open-schema decode — pinned by shape, loud only through the
     /// totals (a malformed row drops; the count mismatch is the signal).
     static func datasetPage(from payload: [String: (any Sendable)?]) -> DatasetPage {
@@ -156,7 +169,7 @@ extension DocumentService {
             .compactMap { entry in
                 guard let dict = entry as? [String: (any Sendable)?],
                       let bin = dict["bin"] as? String,
-                      let count = dict["count"] as? Int else { return nil }
+                      let count = containerInt(dict["count"]) else { return nil }
                 return DatasetPage.Bin(bin: bin, count: count)
             }
         var facets: [String: [DatasetPage.FacetValue]] = [:]
@@ -165,14 +178,14 @@ extension DocumentService {
                 facets[attr] = (entries as? [(any Sendable)?] ?? []).compactMap { entry in
                     guard let dict = entry as? [String: (any Sendable)?],
                           let value = dict["value"] as? String,
-                          let count = dict["count"] as? Int else { return nil }
+                          let count = containerInt(dict["count"]) else { return nil }
                     return DatasetPage.FacetValue(value: value, count: count)
                 }
             }
         }
         return DatasetPage(
-            total: payload["total"] as? Int ?? rows.count,
-            offset: payload["offset"] as? Int ?? 0,
+            total: containerInt(payload["total"]) ?? rows.count,
+            offset: containerInt(payload["offset"]) ?? 0,
             rows: rows,
             defaultsByPrototype: defaults,
             bins: bins,
