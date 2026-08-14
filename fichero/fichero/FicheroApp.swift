@@ -602,10 +602,20 @@ struct FicheroApp: App {
         // (Scene.keyboardShortcut docs). ⌥⌘A is unclaimed (⌘A is Select All).
         .keyboardShortcut("a", modifiers: [.option, .command])
         // #4331: keep the automatic Window-menu item (#4524 needs it — so no
-        // blanket commandsRemoved here), but null out the default new-item
+        // blanket commandsRemoved here), but replace the default new-item
         // group so this scene never builds NewItemCommands' keypath demangle.
+        //
+        // Replace WITH THE FILE MENU, never with `{}` (Daniel 2026-08-13/14,
+        // "still no file menu"): scenes' `.newItem` replacements merge with
+        // one winner app-wide, and this scene's EMPTY replacement was the
+        // winner — the File menu held no items and macOS hid it entirely.
+        // Every scene that replaces `.newItem` supplies the SAME
+        // FileMenuCommands, so there is no losing order.
         .commands {
-            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .newItem) {
+                FileMenuCommands()
+                    .environment(libraryManager)
+            }
         }
 
         Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {

@@ -95,6 +95,16 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
             newItemReplaced, 3,
             "the three surviving scenes replace the default new-item commands instead (#4331/#4524)"
         )
+        // The replacements MERGE with one winner app-wide, so every one of
+        // them must supply the SAME File menu — an empty `{}` replacement won
+        // the merge and hid the File menu entirely (Daniel 2026-08-13/14,
+        // "still no file menu"; regression source: the first #4331 fix).
+        let fileMenuMounts = appSource
+            .components(separatedBy: "FileMenuCommands()").count - 1
+        XCTAssertEqual(
+            fileMenuMounts, newItemReplaced,
+            "every .newItem replacement supplies FileMenuCommands — an empty one hides the File menu app-wide"
+        )
         // `Window`, not `WindowGroup` — see testActivityScenesAreSingletonWindowsNotGroups.
         XCTAssertTrue(appSource.contains(
             "Window(\"Activity\", id: ActivityWindowSelectionState.monitorWindowID)"
