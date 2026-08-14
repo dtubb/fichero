@@ -50,6 +50,14 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Chat/Research/ResearchTasksPane+Tabs.swift#1d731da4e7": "#1912 baseline (moved from +Views.swift by the #4484 split; hash unchanged)",
     "Chat/Research/ResearchTasksPane+Tabs.swift#f50acbd404": "#1912 baseline (moved from +Views.swift by the #4484 split; hash unchanged)",
     "Workflow/Library/WorkflowChainListViewParts/ChainDetailContent.swift#c804133262": "#1912 baseline",
+    # Data-mode reading surfaces (2026-08-14): NO selection model (open is
+    # double-click/context menu only), and SwiftUI's NSTableView-backed List
+    # SIGTRAPed in ViewListTree.visitItem on this exact content under the
+    # preview host (Fichero-2026-08-14-0933xx.ips ×3). Reason also recorded
+    # in-file and in native_row_containers_allowlist.json. Revisit List if a
+    # selection model arrives.
+    "Library/ViewModes/Dataset/DatasetTimelineView.swift#63c6bf857b": "2026-08-14 List SIGTRAP; pure reading surface",
+    "Library/ViewModes/Dataset/DatasetCalendarView.swift#26e78c2f31": "2026-08-14 List SIGTRAP; pure reading surface (day list)",
 }
 
 ALLOWLIST_FILES = {

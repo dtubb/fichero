@@ -61,4 +61,24 @@ final class DatasetPageDecodeTests: XCTestCase {
             page.effectiveValue("date", of: entry) as? String, "1942-01-04"
         )
     }
+
+    /// Update-in-place (project rule: no wholesale re-render): editing one
+    /// row's date replaces THAT row and re-derives the day bins locally, so
+    /// the calendar moves the entry without a reload.
+    func testApplyLocalEditMovesTheRowAndRebins() throws {
+        let store = DatasetModeStore()
+        store.page = DocumentService.datasetPage(from: try decodeContainer())
+        store.attributeForRole = ["date": "date"]
+
+        store.applyLocalEdit(rowId: "e1", attr: "date", value: "1942-02-09")
+
+        let page = try XCTUnwrap(store.page)
+        XCTAssertEqual(page.rows.map(\.id), ["e1", "img1"], "only the row changed, in place")
+        XCTAssertEqual(page.rows[0].attributes["date"] as? String, "1942-02-09")
+        XCTAssertEqual(page.bins.map(\.bin), ["1942-02-09"], "bins re-derive from the new date")
+        XCTAssertEqual(page.total, 2, "totals and untouched rows survive")
+        // An edit to a row that is not on the page is a no-op, never a crash.
+        store.applyLocalEdit(rowId: "ghost", attr: "date", value: "1942-03-01")
+        XCTAssertEqual(store.page?.rows.count, 2)
+    }
 }

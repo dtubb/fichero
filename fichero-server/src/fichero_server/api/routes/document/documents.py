@@ -233,7 +233,9 @@ class DocumentBatchExcludeResponse(BaseModel):
 
 
 class PrototypeAssignRequest(BaseModel):
-    prototype_key: str
+    # None CLEARS the assignment — the picker's "None" must reach the
+    # database, not stop at the UI (it silently no-opped before 2026-08-14).
+    prototype_key: str | None = None
     include_descendants: bool = False
     page_start: int | None = None
     page_end: int | None = None
@@ -241,7 +243,7 @@ class PrototypeAssignRequest(BaseModel):
 
 class PrototypeAssignResponse(BaseModel):
     source_document_id: str
-    prototype_key: str
+    prototype_key: str | None = None
     updated_count: int
 
 
@@ -1204,7 +1206,11 @@ def assign_document_prototype_impl(
             ClassificationDimension.node_class,
         }
     }
-    if known_values and request.prototype_key not in known_values:
+    if (
+        request.prototype_key is not None
+        and known_values
+        and request.prototype_key not in known_values
+    ):
         raise HTTPException(
             status_code=404,
             detail=f"Unknown prototype key: {request.prototype_key}",

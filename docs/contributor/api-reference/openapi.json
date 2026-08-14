@@ -55149,6 +55149,7 @@
         "properties": {
           "prototype_key": {
             "type": "string",
+            "nullable": true,
             "title": "Prototype Key"
           },
           "include_descendants": {
@@ -55168,9 +55169,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "prototype_key"
-        ],
         "title": "PrototypeAssignRequest"
       },
       "PrototypeAssignResponse": {
@@ -55181,6 +55179,7 @@
           },
           "prototype_key": {
             "type": "string",
+            "nullable": true,
             "title": "Prototype Key"
           },
           "updated_count": {
@@ -55191,7 +55190,6 @@
         "type": "object",
         "required": [
           "source_document_id",
-          "prototype_key",
           "updated_count"
         ],
         "title": "PrototypeAssignResponse"

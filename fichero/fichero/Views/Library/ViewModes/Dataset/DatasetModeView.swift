@@ -12,6 +12,9 @@ struct DatasetModeView: View {
     let renderer: DatasetRenderer
     let folderId: String?
     let documentService: DocumentService
+    /// Nil disables editing (previews, closed library) — read-only is an
+    /// honest state, not an error.
+    var entityService: EntityService?
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
 
     @State private var store = DatasetModeStore()
@@ -20,6 +23,12 @@ struct DatasetModeView: View {
         VStack(spacing: 0) {
             HStack {
                 if store.isLoading { ProgressView().controlSize(.small) }
+                if let editError = store.editErrorText {
+                    Label(editError, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .lineLimit(1)
+                }
                 Spacer(minLength: 0)
                 if let page = store.page {
                     Text("\(page.total) item\(page.total == 1 ? "" : "s")")
@@ -63,7 +72,7 @@ struct DatasetModeView: View {
             case .timeline:
                 DatasetTimelineView(store: store, onOpen: onOpen)
             case .calendar:
-                DatasetCalendarView(store: store, onOpen: onOpen)
+                DatasetCalendarView(store: store, entityService: entityService, onOpen: onOpen)
             case .map:
                 DatasetMapView(store: store, onOpen: onOpen)
             }

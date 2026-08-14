@@ -161,6 +161,7 @@ extension LibraryView {
                 renderer: renderer,
                 folderId: folderId,
                 documentService: service,
+                entityService: scopedLibraryReference?.entityService,
                 onOpen: { row in
                     Task { @MainActor in
                         if let document = try? await service.getDocument(row.id) {

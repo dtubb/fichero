@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
 
 // MARK: - Document prototype / class picker (#1377)
@@ -99,10 +100,17 @@ struct DocumentPrototypePicker: View {
         guard let svc = entityService else { return }
         isAssigning = true
         defer { isAssigning = false }
-        if let key {
-            _ = try? await svc.assignDocumentPrototype(documentId: documentId, prototypeKey: key)
+        do {
+            // nil clears the assignment server-side — "None" used to stop at
+            // the UI while the engine kept the old prototype.
+            try await svc.assignDocumentPrototype(documentId: documentId, prototypeKey: key)
+            selectedKey = key
+        } catch {
+            // Keep the UI honest: the selection only moves when the engine
+            // accepted it.
+            Logger(subsystem: "app.fichero", category: "PrototypePicker")
+                .error("Prototype assign failed: \(error.localizedDescription)")
         }
-        selectedKey = key
     }
 }
 

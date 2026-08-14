@@ -1491,6 +1491,38 @@ class TestDocumentPrototypes:
         assert response.json()["updated_count"] == 1
         assert db.get(Document, doc.id).prototype_key == prototype_key
 
+    def test_null_prototype_key_clears_the_assignment(self, client, db):
+        # The inspector's "None" choice must reach the database — before
+        # 2026-08-14 the client silently skipped the call and the server
+        # could not have expressed it anyway (prototype_key was non-nullable).
+        doc = _make_doc(db, "Was a letter")
+        assert (
+            client.put(
+                f"/api/documents/{doc.id}/prototype",
+                json={"prototype_key": "letter"},
+            ).status_code
+            == 200
+        )
+
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": None},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["updated_count"] == 1
+        assert response.json()["prototype_key"] is None
+        assert db.get(Document, doc.id).prototype_key is None
+
+    def test_unknown_prototype_key_still_404s(self, client, db):
+        # Nullability must not have loosened the guard for real keys.
+        doc = _make_doc(db, "Guarded")
+        response = client.put(
+            f"/api/documents/{doc.id}/prototype",
+            json={"prototype_key": "no_such_prototype"},
+        )
+        assert response.status_code == 404
+
     def test_assigns_builtin_prototype_against_fresh_db_fixture(self, client, db):
         doc = _make_doc(db, "Fresh Fixture Letter")
 

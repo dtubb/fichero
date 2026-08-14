@@ -6,11 +6,16 @@ import SwiftUI
 /// engine's day-granularity bins; selecting a day lists its rows below.
 struct DatasetCalendarView: View {
     let store: DatasetModeStore
+    /// Nil = read-only (previews, closed library); "Edit Date…" only
+    /// appears when there is an engine to persist through.
+    var entityService: EntityService?
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
 
     /// "YYYY-MM" currently shown; seeded from the first binned month.
     @State private var month: String = ""
     @State private var selectedDay: String?
+    @State private var editingRow: DatasetPage.Row?
+    @State private var draftDate: String = ""
 
     var body: some View {
         if store.attributeForRole["date"] == nil {
@@ -25,6 +30,28 @@ struct DatasetCalendarView: View {
             }
             .onAppear { seedMonth() }
             .onChange(of: store.page?.bins.first?.bin) { _, _ in seedMonth() }
+            // "a nice calendar … that can be updated in place" (Daniel
+            // 2026-08-14): the edit persists through the engine FIRST, then
+            // the store moves just this row and re-bins locally.
+            .alert(
+                "Edit Date",
+                isPresented: Binding(
+                    get: { editingRow != nil },
+                    set: { if !$0 { editingRow = nil } }
+                ),
+                presenting: editingRow
+            ) { row in
+                TextField("YYYY-MM-DD", text: $draftDate)
+                Button("Save") {
+                    let value = draftDate.trimmingCharacters(in: .whitespaces)
+                    guard let entityService, let dateAttr = store.attributeForRole["date"],
+                          !value.isEmpty else { return }
+                    Task { await store.saveAttribute(dateAttr, value: value, on: row, entityService: entityService) }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { row in
+                Text("The “date” attribute of \(row.name).")
+            }
         }
     }
 
@@ -199,7 +226,15 @@ struct DatasetCalendarView: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture(count: 2) { onOpen(row) }
                                 // Touch parity: iPad has no double-click.
-                                .contextMenu { Button("Open") { onOpen(row) } }
+                                .contextMenu {
+                                    Button("Open") { onOpen(row) }
+                                    if entityService != nil, let dateAttr = store.attributeForRole["date"] {
+                                        Button("Edit Date…") {
+                                            draftDate = store.text(dateAttr, of: row) ?? ""
+                                            editingRow = row
+                                        }
+                                    }
+                                }
                             Divider().padding(.leading, 16)
                         }
                     }

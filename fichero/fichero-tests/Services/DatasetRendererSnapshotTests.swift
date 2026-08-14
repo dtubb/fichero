@@ -15,7 +15,11 @@ final class DatasetRendererSnapshotTests: XCTestCase {
         renderer.scale = 2
         let image = try XCTUnwrap(renderer.nsImage, "\(name) rendered nothing")
         XCTAssertGreaterThan(image.size.width, 0)
-        let dir = URL(fileURLWithPath: "/tmp/dataset-previews", isDirectory: true)
+        // The sandboxed test host cannot write /tmp — the container's temp
+        // dir is the writable place; the path prints so the PNGs are findable.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dataset-previews", isDirectory: true)
+        print("dataset-preview snapshots → \(dir.path)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let tiff = try XCTUnwrap(image.tiffRepresentation)
         let rep = try XCTUnwrap(NSBitmapImageRep(data: tiff))

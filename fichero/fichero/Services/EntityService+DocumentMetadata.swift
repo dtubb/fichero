@@ -7,10 +7,12 @@ import OSLog
 extension EntityService {
     // MARK: - Document prototype assignment (#1377)
 
+    /// `nil` CLEARS the assignment — the picker's "None" must reach the
+    /// engine, not stop at the UI (it silently no-opped before 2026-08-14).
     @discardableResult
     func assignDocumentPrototype(
         documentId: String,
-        prototypeKey: String
+        prototypeKey: String?
     ) async throws -> Components.Schemas.PrototypeAssignResponse {
         let response = try await client.api.assignDocumentPrototypeApiDocumentsDocIdPrototypePut(
             path: .init(docId: documentId),

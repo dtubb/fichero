@@ -60,3 +60,8 @@ struct DatasetMapView: View {
         }
     }
 }
+
+#Preview("Map — diary") {
+    DatasetMapView(store: .previewDiary())
+        .frame(width: 720, height: 560)
+}

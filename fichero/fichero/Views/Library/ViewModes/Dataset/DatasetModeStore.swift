@@ -33,6 +33,9 @@ final class DatasetModeStore {
     var page: DatasetPage?
     var isLoading = false
     var errorText: String?
+    /// A failed EDIT, shown transiently in the header — never the full-pane
+    /// error state, which would blank rows that are still perfectly valid.
+    var editErrorText: String?
 
     /// role → attribute name, from the page's prototype declarations. When
     /// prototypes disagree, the first (sorted-key) declaration wins — a page
@@ -124,6 +127,68 @@ final class DatasetModeStore {
                 ($0.month == Self.undatedMonthKey ? undatedLast : $0.month)
                     < ($1.month == Self.undatedMonthKey ? undatedLast : $1.month)
             }
+    }
+
+    /// Persist one attribute edit through the engine, then apply it in
+    /// place. The row only moves when the engine accepted the value.
+    func saveAttribute(
+        _ attr: String,
+        value: (any Sendable)?,
+        on row: DatasetPage.Row,
+        entityService: EntityService
+    ) async {
+        editErrorText = nil
+        var own = row.attributes
+        own[attr] = value
+        do {
+            try await entityService.updateDocumentAttributes(documentId: row.id, attributes: own)
+            applyLocalEdit(rowId: row.id, attr: attr, value: value)
+        } catch {
+            editErrorText = error.localizedDescription
+        }
+    }
+
+    /// Apply one row's attribute edit IN PLACE: replace that row, and when
+    /// the edited attribute carries the date role, re-derive the day bins
+    /// locally so the calendar/timeline move the entry without a reload
+    /// (project rule: no wholesale list re-render).
+    ///
+    /// Pure local mutation — callers persist through
+    /// `EntityService.updateDocumentAttributes` FIRST and only apply on
+    /// success, so the UI never shows a value the engine rejected.
+    func applyLocalEdit(rowId: String, attr: String, value: (any Sendable)?) {
+        guard let page, let index = page.rows.firstIndex(where: { $0.id == rowId }) else {
+            return
+        }
+        var attributes = page.rows[index].attributes
+        attributes[attr] = value
+        var rows = page.rows
+        let old = rows[index]
+        rows[index] = DatasetPage.Row(
+            id: old.id,
+            name: old.name,
+            prototypeKey: old.prototypeKey,
+            attributes: attributes
+        )
+        var bins = page.bins
+        if attr == attributeForRole["date"] {
+            // Same shape the engine's day-granularity bins produce.
+            var counts: [String: Int] = [:]
+            for row in rows {
+                if let date = text(attr, of: row), date.count >= 10 {
+                    counts[String(date.prefix(10)), default: 0] += 1
+                }
+            }
+            bins = counts.keys.sorted().map { .init(bin: $0, count: counts[$0] ?? 0) }
+        }
+        self.page = DatasetPage(
+            total: page.total,
+            offset: page.offset,
+            rows: rows,
+            defaultsByPrototype: page.defaultsByPrototype,
+            bins: bins,
+            facets: page.facets
+        )
     }
 
     /// "January 4, 1942" from a "YYYY-MM-DD" (or longer ISO) string —

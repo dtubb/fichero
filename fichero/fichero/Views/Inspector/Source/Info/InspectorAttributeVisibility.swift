@@ -59,8 +59,16 @@ enum InspectorAttribute: String, CaseIterable, Hashable {
 /// rather than a rewrite of the strip. No prototypes are built here — the point
 /// is only not to foreclose them.
 enum InspectorAttributeVisibility {
-    /// Shown when nobody has chosen otherwise: nothing at all.
-    static let defaultVisible: [InspectorAttribute] = []
+    /// Shown when nobody has chosen otherwise.
+    ///
+    /// #4422 defaulted this to NOTHING, and for bookkeeping rows that stands.
+    /// But `Class` is not bookkeeping: it is the entry to the whole datasets
+    /// system — the prototype picker, its typed attributes, and the type
+    /// editor ("Edit Types…") live behind it, and with the row hidden Daniel
+    /// could not find the type editor three separate times (2026-08-14).
+    /// A user can still untick it per prototype; it just cannot default to
+    /// undiscoverable.
+    static let defaultVisible: [InspectorAttribute] = [.documentClass]
 
     /// Everything a user may choose to show. Storage internals are not in this
     /// list because they are not cases of `InspectorAttribute` at all.
