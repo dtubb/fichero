@@ -29,6 +29,17 @@ struct DatasetCardsView: View {
             Text(titleText(row))
                 .font(.headline)
                 .lineLimit(2)
+            // The date role is a diary entry's identity — a formatted line
+            // right under the headline, not a raw attribute row. Skipped
+            // when the headline IS the date (a "1942-02-03"-named entry
+            // with no title role would read the same date twice).
+            if let dateAttr = store.attributeForRole["date"],
+               let rawDate = store.text(dateAttr, of: row),
+               dateLine(rawDate) != titleText(row) {
+                Text(dateLine(rawDate))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             if let subtitleAttr = store.attributeForRole["subtitle"],
                let subtitle = store.text(subtitleAttr, of: row) {
                 Text(subtitle)
@@ -45,20 +56,28 @@ struct DatasetCardsView: View {
         .contentShape(Rectangle())
     }
 
-    /// The title role names the card; the node NAME is the fallback, and when
-    /// the title role duplicated the name it is not repeated.
+    /// The title role names the card; the node NAME is the fallback — shown
+    /// as the FORMATTED date when the name is itself a bare date (the diary
+    /// workflow names entries by their date).
     private func titleText(_ row: DatasetPage.Row) -> String {
         guard let titleAttr = store.attributeForRole["title"],
-              let title = store.text(titleAttr, of: row) else { return row.name }
+              let title = store.text(titleAttr, of: row) else {
+            return DatasetModeStore.longDate(row.name) ?? row.name
+        }
         return title
+    }
+
+    private func dateLine(_ raw: String) -> String {
+        DatasetModeStore.longDate(raw) ?? raw
     }
 
     @ViewBuilder
     private func attributeLines(_ row: DatasetPage.Row) -> some View {
         let titleAttr = store.attributeForRole["title"]
         let subtitleAttr = store.attributeForRole["subtitle"]
+        let dateAttr = store.attributeForRole["date"]
         let names = store.declaredAttributes
-            .filter { $0 != titleAttr && $0 != subtitleAttr }
+            .filter { $0 != titleAttr && $0 != subtitleAttr && $0 != dateAttr }
             .prefix(5)
         ForEach(Array(names), id: \.self) { name in
             if let value = store.text(name, of: row) {
@@ -73,4 +92,9 @@ struct DatasetCardsView: View {
             }
         }
     }
+}
+
+#Preview("Cards — diary") {
+    DatasetCardsView(store: .previewDiary())
+        .frame(width: 780, height: 640)
 }

@@ -95,19 +95,45 @@ final class DatasetModeStore {
         }
     }
 
-    /// Rows grouped by the date-role attribute's month ("1890-01"), sorted.
-    /// Undated rows group under nil.
-    func rowsByMonth() -> [(month: String?, rows: [DatasetPage.Row])] {
+    /// The sentinel month key for rows with no date value — non-optional so
+    /// List section ids stay plain Strings (an Optional section id crashed
+    /// SwiftUI's outline bookkeeping in the timeline preview, 2026-08-14).
+    static let undatedMonthKey = "undated"
+
+    /// Rows grouped by the date-role attribute's month ("1890-01"), sorted,
+    /// undated rows last under `undatedMonthKey`.
+    func rowsByMonth() -> [(month: String, rows: [DatasetPage.Row])] {
         guard let page, let dateAttr = attributeForRole["date"] else { return [] }
-        var grouped: [String?: [DatasetPage.Row]] = [:]
+        var grouped: [String: [DatasetPage.Row]] = [:]
         for row in page.rows {
-            let date = text(dateAttr, of: row)
-            let month = date.map { String($0.prefix(7)) }
+            let month = text(dateAttr, of: row).map { String($0.prefix(7)) }
+                ?? Self.undatedMonthKey
             grouped[month, default: []].append(row)
         }
+        let undatedLast = "\u{10FFFF}"
         return grouped
-            .map { (month: $0.key, rows: $0.value) }
-            .sorted { ($0.month ?? "\u{10FFFF}") < ($1.month ?? "\u{10FFFF}") }
+            .map { group in
+                // Within a month, entries run chronologically regardless of
+                // the feed's order (ISO dates sort lexically).
+                (month: group.key, rows: group.value.sorted {
+                    (text(dateAttr, of: $0) ?? "", $0.name)
+                        < (text(dateAttr, of: $1) ?? "", $1.name)
+                })
+            }
+            .sorted {
+                ($0.month == Self.undatedMonthKey ? undatedLast : $0.month)
+                    < ($1.month == Self.undatedMonthKey ? undatedLast : $1.month)
+            }
+    }
+
+    /// "January 4, 1942" from a "YYYY-MM-DD" (or longer ISO) string —
+    /// the renderers' shared date presentation. Nil when unparseable so
+    /// callers fall back to the raw text, never hide it.
+    nonisolated static func longDate(_ raw: String) -> String? {
+        let pieces = raw.prefix(10).split(separator: "-")
+        guard pieces.count == 3, let month = Int(pieces[1]),
+              (1...12).contains(month), let day = Int(pieces[2]) else { return nil }
+        return "\(Calendar.current.monthSymbols[month - 1]) \(day), \(pieces[0])"
     }
 
     /// "lat,lon" (or "lat, lon") parse of the geo-role attribute.

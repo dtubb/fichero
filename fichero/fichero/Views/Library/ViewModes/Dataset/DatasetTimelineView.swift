@@ -12,39 +12,54 @@ struct DatasetTimelineView: View {
         if store.attributeForRole["date"] == nil {
             DatasetMissingRoleView(role: "date", renderer: "timeline")
         } else {
-            List {
-                ForEach(store.rowsByMonth(), id: \.month) { group in
-                    Section {
-                        ForEach(group.rows) { row in
-                            timelineRow(row)
-                                .contentShape(Rectangle())
-                                .onTapGesture(count: 2) { onOpen(row) }
-                                // Touch parity: iPad has no double-click.
-                                .contextMenu { Button("Open") { onOpen(row) } }
+            // ScrollView, not List: this is a pure reading surface (no
+            // selection model), and SwiftUI's NSTableView-backed List
+            // asserted inside its outline bookkeeping under the preview
+            // host (ViewListTree.visitItem, 2026-08-14). LazyVStack with
+            // pinned headers gives the same grouped look without the
+            // machinery.
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
+                    ForEach(store.rowsByMonth(), id: \.month) { group in
+                        Section {
+                            ForEach(group.rows) { row in
+                                timelineRow(row)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 5)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture(count: 2) { onOpen(row) }
+                                    // Touch parity: iPad has no double-click.
+                                    .contextMenu { Button("Open") { onOpen(row) } }
+                                Divider().padding(.leading, 16)
+                            }
+                        } header: {
+                            Text(monthLabel(group.month))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 6)
+                                .background(.bar)
                         }
-                    } header: {
-                        Text(monthLabel(group.month))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
                     }
                 }
             }
-            .listStyle(.inset)
         }
     }
 
+    /// "January 4, 1942 — Istmina": the formatted date leads (a diary
+    /// entry's identity), the title role follows, then any subtitle. A row
+    /// whose name is NOT its date (an image, a report) keeps its name first.
     private func timelineRow(_ row: DatasetPage.Row) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            if let dateAttr = store.attributeForRole["date"],
-               let date = store.text(dateAttr, of: row) {
-                Text(date)
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 84, alignment: .leading)
-            }
-            Text(row.name)
+            Text(primaryText(row))
                 .lineLimit(1)
+            if let titleAttr = store.attributeForRole["title"],
+               let title = store.text(titleAttr, of: row), title != primaryText(row) {
+                Text(title)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
             if let subtitleAttr = store.attributeForRole["subtitle"],
                let subtitle = store.text(subtitleAttr, of: row) {
                 Text(subtitle)
@@ -56,11 +71,22 @@ struct DatasetTimelineView: View {
         }
     }
 
-    private func monthLabel(_ month: String?) -> String {
-        guard let month else { return "Undated" }
+    private func primaryText(_ row: DatasetPage.Row) -> String {
+        let dateValue = store.attributeForRole["date"].flatMap { store.text($0, of: row) }
+        guard let dateValue, row.name.hasPrefix(dateValue) else { return row.name }
+        return DatasetModeStore.longDate(dateValue) ?? row.name
+    }
+
+    private func monthLabel(_ month: String) -> String {
+        guard month != DatasetModeStore.undatedMonthKey else { return "Undated" }
         let pieces = month.split(separator: "-")
         guard pieces.count == 2, let monthNumber = Int(pieces[1]),
               (1...12).contains(monthNumber) else { return month }
         return "\(Calendar.current.monthSymbols[monthNumber - 1]) \(pieces[0])"
     }
+}
+
+#Preview("Timeline — diary") {
+    DatasetTimelineView(store: .previewDiary())
+        .frame(width: 640, height: 640)
 }

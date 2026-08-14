@@ -95,11 +95,28 @@ struct DatasetCalendarView: View {
             columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7),
             spacing: 4
         ) {
-            ForEach(days, id: \.self) { day in
+            // id by POSITION here too: "S" and "T" each appear twice in the
+            // week, and duplicate \.self ids DROP the repeats (the rendered
+            // header read "S M T W · F ·" until the preview caught it).
+            ForEach(Array(weekdayHeaders.enumerated()), id: \.offset) { _, symbol in
+                Text(symbol)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            // id by POSITION: the leading blanks are all "" and duplicate
+            // \.self ids corrupt ForEach diffing.
+            ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                 dayCell(day, count: counts[day] ?? 0)
             }
         }
         .padding(10)
+    }
+
+    /// Weekday column headers, rotated to the user's first weekday.
+    private var weekdayHeaders: [String] {
+        let symbols = Calendar.current.veryShortWeekdaySymbols
+        let first = Calendar.current.firstWeekday - 1
+        return Array(symbols[first...] + symbols[..<first])
     }
 
     /// "YYYY-MM-DD" for every day of the shown month, padded so day 1 lands
@@ -127,16 +144,25 @@ struct DatasetCalendarView: View {
             Button {
                 selectedDay = (selectedDay == day) ? nil : day
             } label: {
-                VStack(spacing: 2) {
+                VStack(spacing: 3) {
                     Text(String(Int(day.suffix(2)) ?? 0))
                         .font(.caption)
                         .monospacedDigit()
-                    if count > 0 {
+                        .foregroundStyle(count > 0 ? .primary : .secondary)
+                    // One entry = a quiet dot; several = the count. A diary
+                    // is mostly one entry per day, and a wall of "1" chips
+                    // reads as noise (preview-driven, 2026-08-14).
+                    if count > 1 {
                         Text("\(count)")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(Color.accentColor.opacity(0.2), in: Capsule())
+                    } else if count == 1 {
+                        Circle()
+                            .fill(Color.accentColor)
+                            .frame(width: 5, height: 5)
+                            .padding(.vertical, 3)
                     } else {
                         Text(" ").font(.caption2)
                     }
@@ -155,14 +181,30 @@ struct DatasetCalendarView: View {
     @ViewBuilder
     private var dayList: some View {
         if let selectedDay {
-            List(rowsOn(day: selectedDay)) { row in
-                Text(row.name)
-                    .contentShape(Rectangle())
-                    .onTapGesture(count: 2) { onOpen(row) }
-                    // Touch parity: iPad has no double-click.
-                    .contextMenu { Button("Open") { onOpen(row) } }
+            let rows = rowsOn(day: selectedDay)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(dayTitle(selectedDay)) — \(rows.count) \(rows.count == 1 ? "entry" : "entries")")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                // ScrollView, not List — same reasoning as the timeline
+                // (no selection model; List asserted under the preview
+                // host).
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows) { row in
+                            dayListRow(row)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 5)
+                                .contentShape(Rectangle())
+                                .onTapGesture(count: 2) { onOpen(row) }
+                                // Touch parity: iPad has no double-click.
+                                .contextMenu { Button("Open") { onOpen(row) } }
+                            Divider().padding(.leading, 16)
+                        }
+                    }
+                }
             }
-            .listStyle(.inset)
         } else {
             Text("Select a day with entries to list them here.")
                 .font(.caption)
@@ -171,10 +213,41 @@ struct DatasetCalendarView: View {
         }
     }
 
+    /// Name plus the title role (the place, for a diary) when it adds
+    /// something beyond the name.
+    private func dayListRow(_ row: DatasetPage.Row) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(row.name)
+                .lineLimit(1)
+            if let titleAttr = store.attributeForRole["title"],
+               let title = store.text(titleAttr, of: row), title != row.name {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// "January 4, 1942" from "1942-01-04"; falls back to the raw string.
+    private func dayTitle(_ day: String) -> String {
+        let pieces = day.split(separator: "-")
+        guard pieces.count == 3, let monthNumber = Int(pieces[1]),
+              (1...12).contains(monthNumber), let dayNumber = Int(pieces[2])
+        else { return day }
+        return "\(Calendar.current.monthSymbols[monthNumber - 1]) \(dayNumber), \(pieces[0])"
+    }
+
     private func rowsOn(day: String) -> [DatasetPage.Row] {
         guard let page = store.page, let dateAttr = store.attributeForRole["date"] else {
             return []
         }
         return page.rows.filter { store.text(dateAttr, of: $0)?.hasPrefix(day) == true }
     }
+}
+
+#Preview("Calendar — diary") {
+    DatasetCalendarView(store: .previewDiary())
+        .frame(width: 720, height: 640)
 }

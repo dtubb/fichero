@@ -89,3 +89,8 @@ struct DatasetMissingRoleView: View {
         )
     }
 }
+
+#Preview("Missing role") {
+    DatasetMissingRoleView(role: "date", renderer: "calendar")
+        .frame(width: 560, height: 400)
+}
