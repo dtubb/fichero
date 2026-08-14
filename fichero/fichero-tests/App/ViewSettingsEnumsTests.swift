@@ -11,7 +11,10 @@ final class ViewSettingsEnumsTests: XCTestCase {
     // MARK: - LibraryLayout
 
     func testLibraryLayoutCasesRawValuesAndIcons() {
-        XCTAssertEqual(LibraryLayout.allCases.count, 10)
+        XCTAssertEqual(LibraryLayout.allCases.count, 11)
+        // The spreadsheet (Daniel 2026-08-14). Raw value avoids the word
+        // "Grid" (icon-grid ambiguity).
+        XCTAssertEqual(LibraryLayout.grid.rawValue, "DataGrid")
         XCTAssertEqual(LibraryLayout.cards.rawValue, "Cards")
         XCTAssertEqual(LibraryLayout.timeline.rawValue, "Timeline")
         XCTAssertEqual(LibraryLayout.calendar.rawValue, "CalendarGrid")

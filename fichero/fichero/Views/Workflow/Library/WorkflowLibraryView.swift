@@ -141,7 +141,7 @@ struct WorkflowListView: View {
                     listView
                 case .table:
                     tableView
-                case .columns, .cards, .timeline, .calendar, .geoMap, .canvas, .space, .workspace:
+                case .columns, .grid, .cards, .timeline, .calendar, .geoMap, .canvas, .space, .workspace:
                     // Columns/Canvas/Space fall back to the same list view for
                     // workflows — the Miller browser is a library-content
                     // affordance (#4160 step 4), not a workflow one.

@@ -297,6 +297,7 @@ extension ContentView {
         case .list: return .list
         case .table: return .table
         case .columns: return .columns
+        case .grid: return .grid
         case .cards: return .cards
         case .timeline: return .timeline
         case .calendar: return .calendar

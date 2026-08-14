@@ -27,6 +27,10 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     /// an independent view … the independent views are timeline, card,
     /// grid, map"). The geo mode's rawValue is NOT "Map": that legacy alias
     /// normalizes to `.canvas` in `persisted(_:)`.
+    /// The spreadsheet over typed attributes ("grid is more like
+    /// spreadsheet", Daniel 2026-08-14). rawValue avoids the icon-grid
+    /// word "Grid" for persistence clarity.
+    case grid = "DataGrid"
     case cards = "Cards"
     case timeline = "Timeline"
     case calendar = "CalendarGrid"
@@ -37,7 +41,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
 
     /// User-selectable cases: the coherent live view-mode set (#3081/#3199).
     static var selectableCases: [ViewDisplayMode] {
-        [.icon, .list, .table, .columns, .cards, .timeline, .calendar, .geoMap, .canvas, .space]
+        [.icon, .list, .table, .columns, .grid, .cards, .timeline, .calendar, .geoMap, .canvas, .space]
     }
 
     var id: String { rawValue }
@@ -53,7 +57,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     var group: Group {
         switch self {
         case .icon, .list, .table, .columns: .browse
-        case .cards, .timeline, .calendar, .geoMap: .dataset
+        case .grid, .cards, .timeline, .calendar, .geoMap: .dataset
         case .canvas, .space, .workspace: .canvas
         }
     }
@@ -66,6 +70,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case Self.canvas.rawValue, "Map", "Spatial", Self.workspace.rawValue: .canvas
         case Self.space.rawValue, "RealityKit": .space
         case Self.columns.rawValue: .columns
+        case Self.grid.rawValue: .grid
         case Self.cards.rawValue: .cards
         case Self.timeline.rawValue: .timeline
         case Self.calendar.rawValue: .calendar
@@ -86,6 +91,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: .list
         case .table: .table
         case .columns: .columns
+        case .grid: .grid
         case .cards: .cards
         case .timeline: .timeline
         case .calendar: .calendar
@@ -104,6 +110,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         // would be actively misleading (supersedes the #1613 rename).
         case .table: "Table"
         case .columns: "Columns"
+        case .grid: "Grid"
         case .calendar: "Calendar"
         case .geoMap: "Map"
         default: rawValue
@@ -116,6 +123,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "list.bullet"
         case .table: "tablecells"
         case .columns: "rectangle.split.3x1"
+        case .grid: "tablecells.badge.ellipsis"
         case .cards: "rectangle.grid.2x2"
         case .timeline: "chart.bar.xaxis"
         case .calendar: "calendar"
@@ -132,6 +140,7 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "Linear list"
         case .table: "Multi-column table"
         case .columns: "Finder-style column browser"
+        case .grid: "Spreadsheet of typed attributes"
         case .cards: "Cards over typed attributes"
         case .timeline: "Entries by their date attribute"
         case .calendar: "Month grid over the date attribute"

@@ -187,7 +187,7 @@ extension LibraryView {
         switch mode {
         case .canvas, .space, .workspace: return true
         // The Data mode reads the dataset query, not the spatial projection.
-        case .icon, .list, .table, .columns, .cards, .timeline, .calendar, .geoMap: return false
+        case .icon, .list, .table, .columns, .grid, .cards, .timeline, .calendar, .geoMap: return false
         }
     }
 

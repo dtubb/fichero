@@ -45,7 +45,7 @@ final class ViewDisplayModeTests: XCTestCase {
         // superseding the combined "Data" mode of 29090f32f).
         XCTAssertEqual(
             ViewDisplayMode.selectableCases,
-            [.icon, .list, .table, .columns, .cards, .timeline, .calendar, .geoMap, .canvas, .space]
+            [.icon, .list, .table, .columns, .grid, .cards, .timeline, .calendar, .geoMap, .canvas, .space]
         )
         XCTAssertFalse(ViewDisplayMode.selectableCases.contains(.workspace))
     }
@@ -55,7 +55,7 @@ final class ViewDisplayModeTests: XCTestCase {
         XCTAssertEqual(
             ViewDisplayMode.allCases,
             [.icon, .list, .table, .canvas, .space, .columns,
-             .cards, .timeline, .calendar, .geoMap, .workspace]
+             .grid, .cards, .timeline, .calendar, .geoMap, .workspace]
         )
     }
 

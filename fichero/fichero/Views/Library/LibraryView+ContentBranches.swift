@@ -95,6 +95,8 @@ extension LibraryView {
                 tableView
             case .columns:
                 columnsView
+            case .grid:
+                datasetModeView(.grid)
             case .cards:
                 datasetModeView(.cards)
             case .timeline:

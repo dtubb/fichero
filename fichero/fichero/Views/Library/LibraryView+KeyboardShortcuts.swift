@@ -31,7 +31,7 @@ extension LibraryView {
         // The Data mode's renderers own their interactions (calendar day
         // cells, map pins); inheriting row semantics by accident is the
         // regression class this switch exists to prevent.
-        case .canvas, .space, .cards, .timeline, .calendar, .geoMap: return false
+        case .canvas, .space, .grid, .cards, .timeline, .calendar, .geoMap: return false
         // Not changed here: `.workspace` keeps today's behaviour because I could
         // not establish what it renders without running it, and removing a key
         // that DOES work is its own regression (#4412).

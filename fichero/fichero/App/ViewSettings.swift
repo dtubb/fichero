@@ -265,6 +265,7 @@ enum LibraryLayout: String, CaseIterable, Codable {
     /// its 3-level outline — this is an additional mode, not a replacement.
     case columns = "MillerColumns"
     /// Dataset renderers (Stage 2) — twins of the ViewDisplayMode cases.
+    case grid = "DataGrid"
     case cards = "Cards"
     case timeline = "Timeline"
     case calendar = "CalendarGrid"
@@ -281,6 +282,7 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .list: "list.bullet"
         case .table: "tablecells"
         case .columns: "rectangle.split.3x1"
+        case .grid: "tablecells.badge.ellipsis"
         case .cards: "rectangle.grid.2x2"
         case .timeline: "chart.bar.xaxis"
         case .calendar: "calendar"
@@ -299,6 +301,7 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .list: .list
         case .table: .table
         case .columns: .columns
+        case .grid: .grid
         case .cards: .cards
         case .timeline: .timeline
         case .calendar: .calendar

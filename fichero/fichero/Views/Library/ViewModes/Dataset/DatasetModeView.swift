@@ -67,6 +67,8 @@ struct DatasetModeView: View {
             )
         } else {
             switch renderer {
+            case .grid:
+                DatasetGridView(store: store, entityService: entityService, onOpen: onOpen)
             case .cards:
                 DatasetCardsView(store: store, onOpen: onOpen)
             case .timeline:
