@@ -224,11 +224,21 @@ extension ContentView {
             // (#4544) — one cheap struct init per render, the real work at
             // open time.
             SidebarDeferredMenuContent {
-                ForEach(availableViewDisplayModes) { mode in
-                    Button {
-                        updateViewDisplayMode(mode)
-                    } label: {
-                        Label(mode.label, systemImage: mode.icon)
+                // Three sections (Daniel 2026-08-14): Finder-style browsing,
+                // the dataset renderers, and the canvases — sectioned from
+                // the enum's own grouping so the menu can't drift from it.
+                ForEach(ViewDisplayMode.Group.allCases, id: \.rawValue) { group in
+                    let modes = availableViewDisplayModes.filter { $0.group == group }
+                    if !modes.isEmpty {
+                        Section(group.rawValue) {
+                            ForEach(modes) { mode in
+                                Button {
+                                    updateViewDisplayMode(mode)
+                                } label: {
+                                    Label(mode.label, systemImage: mode.icon)
+                                }
+                            }
+                        }
                     }
                 }
                 // NO per-folder items (Daniel's final #4575 ruling,

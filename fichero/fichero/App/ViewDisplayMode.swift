@@ -42,6 +42,22 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Picker grouping (Daniel 2026-08-14: "two groups, like Finder style,
+    /// Canvas style, and then the dataset style").
+    enum Group: String, CaseIterable {
+        case browse = "Browse"
+        case dataset = "Dataset"
+        case canvas = "Canvas"
+    }
+
+    var group: Group {
+        switch self {
+        case .icon, .list, .table, .columns: .browse
+        case .cards, .timeline, .calendar, .geoMap: .dataset
+        case .canvas, .space, .workspace: .canvas
+        }
+    }
+
     static func persisted(_ rawValue: String) -> ViewDisplayMode? {
         switch rawValue {
         case Self.icon.rawValue: .icon
