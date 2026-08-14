@@ -95,8 +95,14 @@ extension LibraryView {
                 tableView
             case .columns:
                 columnsView
-            case .dataset:
-                datasetModeView
+            case .cards:
+                datasetModeView(.cards)
+            case .timeline:
+                datasetModeView(.timeline)
+            case .calendar:
+                datasetModeView(.calendar)
+            case .geoMap:
+                datasetModeView(.map)
             case .canvas, .workspace:
                 canvasModeView
             case .space:
@@ -145,13 +151,14 @@ extension LibraryView {
         }
     }
 
-    /// The Data mode (datasets Stage 2): cards / timeline / calendar / map
-    /// over the dataset query, scoped to the browsed folder (recursive).
+    /// One dataset renderer as a FULL view mode (Daniel 2026-08-14), over
+    /// the dataset query scoped to the browsed folder (recursive).
     /// Double-click resolves the row to its live Document and opens it.
     @ViewBuilder
-    var datasetModeView: some View {
+    func datasetModeView(_ renderer: DatasetRenderer) -> some View {
         if let service = scopedLibraryReference?.documentService {
             DatasetModeView(
+                renderer: renderer,
                 folderId: folderId,
                 documentService: service,
                 onOpen: { row in

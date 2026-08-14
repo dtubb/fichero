@@ -22,19 +22,22 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     /// Finder-style Miller column browser (#4160 step 4) — an ADDITIONAL
     /// mode; `.table` keeps its 3-level outline (the user's decision).
     case columns = "MillerColumns"
-    /// Datasets renderer surface (Stage 2, Daniel "build them all"): ONE
-    /// mode hosting cards / timeline / calendar / map over the dataset
-    /// query — an internal switcher, not four top-level modes (dead-simple
-    /// UX; the mode bar stays sane). rawValue is NOT "Map": that legacy
-    /// alias normalizes to `.canvas` in `persisted(_:)`.
-    case dataset = "Dataset"
+    /// Dataset renderers (Stage 2), each a FULL top-level view mode taking
+    /// over the library like icon/canvas (Daniel 2026-08-14: "data is not
+    /// an independent view … the independent views are timeline, card,
+    /// grid, map"). The geo mode's rawValue is NOT "Map": that legacy alias
+    /// normalizes to `.canvas` in `persisted(_:)`.
+    case cards = "Cards"
+    case timeline = "Timeline"
+    case calendar = "CalendarGrid"
+    case geoMap = "GeoMap"
     /// Legacy persisted alias: decode/normalize to `.canvas`, never present as
     /// a live selectable mode (#3199).
     case workspace = "Workspace"
 
     /// User-selectable cases: the coherent live view-mode set (#3081/#3199).
     static var selectableCases: [ViewDisplayMode] {
-        [.icon, .list, .table, .columns, .dataset, .canvas, .space]
+        [.icon, .list, .table, .columns, .cards, .timeline, .calendar, .geoMap, .canvas, .space]
     }
 
     var id: String { rawValue }
@@ -47,7 +50,12 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case Self.canvas.rawValue, "Map", "Spatial", Self.workspace.rawValue: .canvas
         case Self.space.rawValue, "RealityKit": .space
         case Self.columns.rawValue: .columns
-        case Self.dataset.rawValue: .dataset
+        case Self.cards.rawValue: .cards
+        case Self.timeline.rawValue: .timeline
+        case Self.calendar.rawValue: .calendar
+        case Self.geoMap.rawValue: .geoMap
+        // The short-lived combined "Data" mode (29090f32f) decodes to cards.
+        case "Dataset": .cards
         default: nil
         }
     }
@@ -62,7 +70,10 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: .list
         case .table: .table
         case .columns: .columns
-        case .dataset: .dataset
+        case .cards: .cards
+        case .timeline: .timeline
+        case .calendar: .calendar
+        case .geoMap: .geoMap
         case .space: .space
         case .canvas, .workspace: .canvas
         }
@@ -77,7 +88,8 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         // would be actively misleading (supersedes the #1613 rename).
         case .table: "Table"
         case .columns: "Columns"
-        case .dataset: "Data"
+        case .calendar: "Calendar"
+        case .geoMap: "Map"
         default: rawValue
         }
     }
@@ -88,7 +100,10 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "list.bullet"
         case .table: "tablecells"
         case .columns: "rectangle.split.3x1"
-        case .dataset: "chart.bar.horizontal.page"
+        case .cards: "rectangle.grid.2x2"
+        case .timeline: "chart.bar.xaxis"
+        case .calendar: "calendar"
+        case .geoMap: "mappin.and.ellipse"
         case .canvas: "map"
         case .space: "cube.transparent"
         case .workspace: "square.stack.3d.up"
@@ -101,7 +116,10 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         case .list: "Linear list"
         case .table: "Multi-column table"
         case .columns: "Finder-style column browser"
-        case .dataset: "Cards, timeline, calendar and map over typed attributes"
+        case .cards: "Cards over typed attributes"
+        case .timeline: "Entries by their date attribute"
+        case .calendar: "Month grid over the date attribute"
+        case .geoMap: "Pins from the geo attribute"
         case .canvas: "Canvas / node map"
         case .space: "3D space view"
         case .workspace: "Workspace collection view"

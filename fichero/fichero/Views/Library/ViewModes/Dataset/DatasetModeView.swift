@@ -2,37 +2,25 @@ import SwiftUI
 
 // MARK: - The Data view mode's shell (datasets Stage 2)
 
-/// Hosts the four renderers behind ONE view mode — an internal switcher, not
-/// four top-level modes. Renderers read ROLES (title/date/geo/media/subtitle)
+/// The shared shell for the dataset renderers — each mounted as its OWN
+/// top-level view mode. Renderers read ROLES (title/date/geo/media/subtitle)
 /// derived from the page's prototype declarations; a renderer whose role has
 /// no declared attribute says so instead of rendering blank.
 struct DatasetModeView: View {
+    /// Which renderer this mode shows — each is its own top-level view mode
+    /// (Daniel 2026-08-14); this shell only hosts the shared load + status.
+    let renderer: DatasetRenderer
     let folderId: String?
     let documentService: DocumentService
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
 
     @State private var store = DatasetModeStore()
-    @SceneStorage("library.datasetRenderer") private var rendererRaw: String
-        = DatasetRenderer.cards.rawValue
-
-    private var renderer: DatasetRenderer {
-        DatasetRenderer(rawValue: rendererRaw) ?? .cards
-    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Picker("Renderer", selection: $rendererRaw) {
-                    ForEach(DatasetRenderer.allCases) { option in
-                        Label(option.rawValue, systemImage: option.icon)
-                            .tag(option.rawValue)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 380)
-                Spacer(minLength: 0)
                 if store.isLoading { ProgressView().controlSize(.small) }
+                Spacer(minLength: 0)
                 if let page = store.page {
                     Text("\(page.total) item\(page.total == 1 ? "" : "s")")
                         .font(.caption)
@@ -41,10 +29,14 @@ struct DatasetModeView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
             Divider()
             content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        // Fill the pane like every other library view mode (Daniel: "not
+        // the right height like the other library views").
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: folderId) {
             await store.load(folderId: folderId, service: documentService)
         }

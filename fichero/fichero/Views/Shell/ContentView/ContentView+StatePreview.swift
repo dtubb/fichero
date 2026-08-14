@@ -297,7 +297,10 @@ extension ContentView {
         case .list: return .list
         case .table: return .table
         case .columns: return .columns
-        case .dataset: return .dataset
+        case .cards: return .cards
+        case .timeline: return .timeline
+        case .calendar: return .calendar
+        case .geoMap: return .geoMap
         case .canvas, .space, .workspace: return .canvas
         }
     }

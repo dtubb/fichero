@@ -264,8 +264,11 @@ enum LibraryLayout: String, CaseIterable, Codable {
     /// Finder-style Miller column browser (#4160 step 4); the table keeps
     /// its 3-level outline — this is an additional mode, not a replacement.
     case columns = "MillerColumns"
-    /// Datasets renderer surface (Stage 2) — twin of ViewDisplayMode.dataset.
-    case dataset = "Dataset"
+    /// Dataset renderers (Stage 2) — twins of the ViewDisplayMode cases.
+    case cards = "Cards"
+    case timeline = "Timeline"
+    case calendar = "CalendarGrid"
+    case geoMap = "GeoMap"
     case canvas = "Canvas"
     /// The RealityKit 3D "Space" view (#3088). Mirrors `ViewDisplayMode.space`
     /// so the View-menu ⌘5 ↔ toolbar picker bridge stays bijective — without
@@ -278,7 +281,10 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .list: "list.bullet"
         case .table: "tablecells"
         case .columns: "rectangle.split.3x1"
-        case .dataset: "chart.bar.horizontal.page"
+        case .cards: "rectangle.grid.2x2"
+        case .timeline: "chart.bar.xaxis"
+        case .calendar: "calendar"
+        case .geoMap: "mappin.and.ellipse"
         case .canvas: "rectangle.3.group"
         case .space: "cube.transparent"
         }
@@ -293,7 +299,10 @@ enum LibraryLayout: String, CaseIterable, Codable {
         case .list: .list
         case .table: .table
         case .columns: .columns
-        case .dataset: .dataset
+        case .cards: .cards
+        case .timeline: .timeline
+        case .calendar: .calendar
+        case .geoMap: .geoMap
         case .canvas: .canvas
         case .space: .space
         }

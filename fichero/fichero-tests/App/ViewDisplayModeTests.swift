@@ -41,11 +41,11 @@ final class ViewDisplayModeTests: XCTestCase {
         // icon/list/table/columns/canvas/space — workspace is offered
         // separately behind its feature gate, so it is not in the base
         // selectable set (#3081; columns added by #4160 step 4).
-        // .dataset joined 2026-08-14 (datasets Stage 2: the Data mode hosts
-        // cards/timeline/calendar/map behind one top-level mode).
+        // The dataset renderers are each a top-level mode (Daniel 2026-08-14,
+        // superseding the combined "Data" mode of 29090f32f).
         XCTAssertEqual(
             ViewDisplayMode.selectableCases,
-            [.icon, .list, .table, .columns, .dataset, .canvas, .space]
+            [.icon, .list, .table, .columns, .cards, .timeline, .calendar, .geoMap, .canvas, .space]
         )
         XCTAssertFalse(ViewDisplayMode.selectableCases.contains(.workspace))
     }
@@ -54,7 +54,8 @@ final class ViewDisplayModeTests: XCTestCase {
         // The dead decode-only aliases are gone from the case list entirely.
         XCTAssertEqual(
             ViewDisplayMode.allCases,
-            [.icon, .list, .table, .canvas, .space, .columns, .dataset, .workspace]
+            [.icon, .list, .table, .canvas, .space, .columns,
+             .cards, .timeline, .calendar, .geoMap, .workspace]
         )
     }
 
