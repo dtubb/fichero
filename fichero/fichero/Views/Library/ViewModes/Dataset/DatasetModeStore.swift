@@ -140,7 +140,12 @@ final class DatasetModeStore {
         entityService: EntityService
     ) async {
         editErrorText = nil
-        var own = row.attributes
+        // Re-resolve the row by id: the caller's copy may predate an edit
+        // already applied (two grid cells committed back-to-back), and the
+        // PUT replaces the WHOLE own-attributes dict — a stale base would
+        // silently revert the earlier edit.
+        let current = page?.rows.first { $0.id == row.id } ?? row
+        var own = current.attributes
         own[attr] = value
         do {
             try await entityService.updateDocumentAttributes(documentId: row.id, attributes: own)

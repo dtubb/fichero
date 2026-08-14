@@ -54,6 +54,10 @@ ALLOWLIST: frozenset[str] = frozenset(
     {
         # Core DB layer
         "db/__init__.py",
+        # Dataset renderer query (#1876 compliance, 2026-08-14): the SQL
+        # moved here FROM api/routes/document/dataset.py — this IS the typed
+        # persistence entry point the rule asks for.
+        "db/dataset_query.py",
         "db/embeddings.py",
         "db/migrations/schema.py",
         "db/manager.py",
