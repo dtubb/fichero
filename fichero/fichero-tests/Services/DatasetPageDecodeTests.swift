@@ -81,4 +81,23 @@ final class DatasetPageDecodeTests: XCTestCase {
         store.applyLocalEdit(rowId: "ghost", attr: "date", value: "1942-03-01")
         XCTAssertEqual(store.page?.rows.count, 2)
     }
+
+    /// The grid's header sort: numeric when both sides parse, lexical
+    /// otherwise, and missing values last in BOTH directions.
+    func testGridComparatorNumericLexicalAndNilLast() {
+        func row(_ id: String, _ value: (any Sendable)?) -> DatasetPage.Row {
+            .init(id: id, name: id, prototypeKey: nil, attributes: ["n": value])
+        }
+        var comparator = DatasetAttributeComparator(attr: "n")
+        // Numeric: "9" < "10" (lexical would invert it).
+        XCTAssertEqual(comparator.compare(row("a", "9"), row("b", "10")), .orderedAscending)
+        // Lexical fallback when either side is not a number.
+        XCTAssertEqual(comparator.compare(row("a", "fog"), row("b", "rain")), .orderedAscending)
+        // Missing values last, forward…
+        XCTAssertEqual(comparator.compare(row("a", nil), row("b", "1")), .orderedDescending)
+        comparator.order = .reverse
+        // …and still last when the column is flipped.
+        XCTAssertEqual(comparator.compare(row("a", nil), row("b", "1")), .orderedDescending)
+        XCTAssertEqual(comparator.compare(row("a", "9"), row("b", "10")), .orderedDescending)
+    }
 }
