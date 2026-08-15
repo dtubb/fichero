@@ -238,6 +238,19 @@ def test_notarize_references_keychain_profile() -> None:
     assert "FICHERO_NOTARIZE_PROFILE" in text
 
 
+def test_release_all_preflight_falls_back_to_direct_notary_key() -> None:
+    """The preflight must accept the SAME direct-key fallback notarize.sh
+    uses at submit time (2026-08-15: a non-interactive session validated
+    store-credentials and still could not read the item back — an unreadable
+    keychain profile must not block a release the submit step can finish)."""
+    text = _script_text(RELEASE_ALL)
+    profile_check = text.index('notarytool history --keychain-profile')
+    fallback = text.index('notarytool history --key "$APP_STORE_CONNECT_KEY_PATH"')
+    assert profile_check < fallback
+    # The fallback validates against Apple, not just file existence.
+    assert '--issuer "$APP_STORE_CONNECT_ISSUER_ID"' in text
+
+
 def test_create_release_references_sparkle_tools() -> None:
     text = _script_text(CREATE_RELEASE)
     assert "sign_update" in text

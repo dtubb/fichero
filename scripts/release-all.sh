@@ -273,6 +273,17 @@ preflight_failed=0
 if [ "$SKIP_DMG" = false ] && [ "$SKIP_NOTARIZE" = false ]; then
   if xcrun notarytool history --keychain-profile "${FICHERO_NOTARIZE_PROFILE:-notarytool}" >/dev/null 2>&1; then
     echo "  notarytool OK: profile '${FICHERO_NOTARIZE_PROFILE:-notarytool}'"
+  elif [ -f "$APP_STORE_CONNECT_KEY_PATH" ] \
+    && xcrun notarytool history --key "$APP_STORE_CONNECT_KEY_PATH" \
+         --key-id "$APP_STORE_CONNECT_KEY_ID" \
+         --issuer "$APP_STORE_CONNECT_ISSUER_ID" >/dev/null 2>&1; then
+    # The SAME fallback notarize.sh already performs at submit time
+    # (2026-08-15: a background session validated store-credentials
+    # successfully and STILL could not read the item back — non-interactive
+    # keychain access, fifth credential bitten). The direct-key path is
+    # validated here end-to-end against Apple, so passing preflight means
+    # the submit step's fallback will work, not might.
+    echo "  notarytool OK: keychain profile unreadable; direct App Store Connect key validated ($APP_STORE_CONNECT_KEY_ID)"
   else
     # notarytool says "No Keychain password item found" for BOTH an absent
     # profile and one that exists but this process may not read — and it does
