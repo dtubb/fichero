@@ -2237,13 +2237,38 @@ async def process_vision(
                 # Page content can be overwritten by later narrative/catalogue
                 # tools. For transcribe passthrough, prefer the raw extracted
                 # PDF/OCR text stored in metadata so Extract All Entities sees
-                # the source page, not a previous summary.
-                existing = (
-                    raw_transcription
-                    if isinstance(raw_transcription, str) and raw_transcription.strip()
-                    else pc if isinstance(pc, str) and pc.strip()
-                    else ""
-                )
+                # the source page, not a previous summary — UNLESS the user
+                # edited page_content: a hand correction outranks the stored
+                # machine OCR everywhere, exactly as save_artifact already
+                # refuses to promote over it (Daniel 2026-08-15: "why did it
+                # not use the correct content").
+                # Check the LIVE row, not the workflow-state snapshot: the
+                # edit stamp and the corrected text may postdate the dict.
+                user_edited_pc: str | None = None
+                if library_path and doc_id:
+                    try:
+                        from fichero_server.db import db_manager as _dbm  # noqa: PLC0415
+                        from fichero_server.models import Document as _Doc  # noqa: PLC0415
+                        from fichero_server.workflows.curation_guard import (  # noqa: PLC0415
+                            page_content_is_user_edited,
+                        )
+
+                        _live = _dbm.get_database(library_path).get(_Doc, str(doc_id))
+                        if _live is not None and page_content_is_user_edited(_live)                                 and isinstance(_live.page_content, str) and _live.page_content.strip():
+                            user_edited_pc = _live.page_content
+                    except Exception:  # noqa: BLE001 — stale-dict fallback below
+                        user_edited_pc = None
+                if user_edited_pc is None and isinstance(metadata, dict)                         and metadata.get("page_content_user_edited_at")                         and isinstance(pc, str) and pc.strip():
+                    user_edited_pc = pc
+                if user_edited_pc is not None:
+                    existing = user_edited_pc
+                else:
+                    existing = (
+                        raw_transcription
+                        if isinstance(raw_transcription, str) and raw_transcription.strip()
+                        else pc if isinstance(pc, str) and pc.strip()
+                        else ""
+                    )
                 existing_text_by_index.append(existing)
                 page_doc_id_by_index.append(doc_id)
                 page_doc_dict_by_index.append(doc if doc_id else None)

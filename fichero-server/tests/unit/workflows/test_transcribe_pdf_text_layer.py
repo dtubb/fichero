@@ -430,3 +430,43 @@ async def test_llm_vision_multipage_pdf_processes_all_pages(tmp_path: Path) -> N
     assert propagated_parent_id == "parent-pdf"
     assert propagated_texts == page_transcripts
     assert result["artifacts"] == ["artifact-page-1", "artifact-page-2"]
+
+
+@pytest.mark.asyncio
+async def test_user_edited_page_content_outranks_stored_raw_ocr(tmp_path: Path) -> None:
+    """Daniel 2026-08-15 ("why did it not use the correct content"): the
+    passthrough preferred metadata.transcription (old machine OCR) over a
+    HAND-CORRECTED page_content. A user edit outranks stored machine text —
+    the same precedence save_artifact already enforces on the write side."""
+    img = tmp_path / "scan.png"
+    img.write_bytes(b"\x89PNG\r\n\x1a\n")  # never decoded: passthrough short-circuits
+
+    vision_mock = AsyncMock(side_effect=AssertionError("must not re-OCR"))
+    with (
+        patch(
+            "fichero_server.workflows.tools.vision_base.save_artifact",
+            new=AsyncMock(return_value=None),
+        ),
+        patch("fichero_server.llm.vision", new=vision_mock),
+    ):
+        result = await process_vision(
+            files=[str(img)],
+            documents=[{
+                "id": "doc-1",
+                "path": str(img),
+                "page_content": "CORRECTED by hand",
+                "metadata": {
+                    "transcription": "OLD raw OCR garbage",
+                    "page_content_user_edited_at": "2026-08-15T12:00:00+00:00",
+                },
+            }],
+            prompt="Transcribe.",
+            llm_config=_llm_config(),
+            library_path="",
+            task_id=None,
+            tool_config=_tool_config(),
+            vision_mode="llm",
+        )
+
+    assert result["text"] == "CORRECTED by hand"
+    vision_mock.assert_not_awaited()

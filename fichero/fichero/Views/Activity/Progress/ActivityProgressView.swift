@@ -19,10 +19,19 @@ struct ActivityProgressView: View {
     @State var progressTimeline: ProgressTimeline?
     @State var isLoadingTimeline = false
 
+    /// A reopened FINISHED run still resolves a liveExecution with cleared
+    /// state — the live branch then renders a bare "Overall Progress" header
+    /// (Daniel 2026-08-15). Live means running, or state worth showing;
+    /// otherwise the HISTORICAL loader owns this tab.
+    private var showsLive: Bool {
+        guard let execution = liveExecution else { return false }
+        return execution.isRunning || !execution.orderedDocumentProgress.isEmpty
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if let execution = liveExecution {
+                if showsLive, let execution = liveExecution {
                     liveProgressView(execution)
                 } else {
                     historicalProgressView
@@ -31,12 +40,12 @@ struct ActivityProgressView: View {
             .padding()
         }
         .task {
-            if liveExecution == nil {
+            if !showsLive {
                 await loadProgressTimeline()
             }
         }
         .onChange(of: selectedRun.threadId) { _, _ in
-            if liveExecution == nil {
+            if !showsLive {
                 Task { await loadProgressTimeline() }
             }
         }

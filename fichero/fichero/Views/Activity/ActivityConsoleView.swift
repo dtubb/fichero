@@ -10,9 +10,19 @@ struct ActivityConsoleView: View {
         liveExecution?.nodeStates.values.sorted(by: { $0.nodeId < $1.nodeId }) ?? []
     }
 
+    /// A reopened FINISHED run still resolves a liveExecution whose node
+    /// state was cleared — rendering the live branch then shows a blank
+    /// console while the historical items sit unused (Daniel 2026-08-15:
+    /// "the console is blank when I reload"). Live means running, or an
+    /// execution that still carries state worth showing.
+    private var showsLive: Bool {
+        guard let execution = liveExecution else { return false }
+        return execution.isRunning || !execution.nodeStates.isEmpty
+    }
+
     var body: some View {
         List {
-            if let execution = liveExecution {
+            if showsLive, let execution = liveExecution {
                 // Live execution - show node progress
                 ForEach(sortedNodeStates, id: \.nodeId) { state in
                     nodeLogEntry(state)

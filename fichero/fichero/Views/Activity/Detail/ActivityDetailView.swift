@@ -198,6 +198,17 @@ extension ActivityDetailView {
         }
     }
 
+    /// "Stopped" reads as "the user stopped it" (Daniel 2026-08-15) — a run
+    /// that reached its own end says Finished; only cancelled says Stopped.
+    private var stopVerb: String {
+        switch effectiveStatus {
+        case .completed: return "Finished"
+        case .failed: return "Failed"
+        case .cancelled: return "Stopped"
+        default: return "Stopped"
+        }
+    }
+
     private var timingSummary: some View {
         VStack(alignment: .trailing, spacing: 2) {
             Text(ActivityViewHelpers.statusText(for: effectiveStatus))
@@ -209,7 +220,7 @@ extension ActivityDetailView {
                 .foregroundStyle(.secondary)
 
             if let stoppedAt {
-                Text("Stopped \(stoppedAt, format: .dateTime)")
+                Text("\(stopVerb) \(stoppedAt, format: .dateTime)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
