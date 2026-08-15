@@ -52,15 +52,16 @@ extension DatasetPage {
             ))
             binCounts[date, default: 0] += 1
         }
-        // The honesty rows every renderer must survive: an entry whose date
-        // never parsed (kept, never guessed) and the page image itself.
+        // The honesty row every renderer must survive: an entry whose date
+        // never parsed (kept, never guessed). No bare page-image row — the
+        // engine's attributed_only scope excludes those from data views, so
+        // the fixture matches the live feed.
         rows.append(Row(
             id: "undated",
             name: "primero de enero (unreadable)",
             prototypeKey: "diary_entry",
             attributes: ["weather": "fair"]
         ))
-        rows.append(Row(id: "page-img", name: "IMG_0042.png", prototypeKey: nil, attributes: [:]))
         var facetCounts: [String: Int] = [:]
         for row in rows {
             if let value = row.attributes["weather"] as? String {

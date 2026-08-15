@@ -58,14 +58,24 @@ final class SidebarHeaderGrammarAndAliasStyleTests: XCTestCase {
     /// italic name (Daniel, 2026-08-04 — the badge alone is invisible at
     /// sidebar sizes). Pin both.
     func testAliasRowsRenderItalicWithTheArrowBadge() throws {
-        let label = try source("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
+        // The italic + badge render in the Equatable SidebarRowLabelCore
+        // (2026-08-15 selection-stall fix); the +Label file computes the
+        // isAlias input it renders from.
+        let label = try source("Views/Sidebar/ItemRow/SidebarRowLabelCore.swift")
         XCTAssertTrue(
-            label.contains(".italic(rowIsAlias)"),
+            label.contains(".italic(isAlias)"),
             "the alias name lost its italic"
         )
+        // The badge SYMBOL is chosen by ingestBadge(for:) in +Label and
+        // rendered by the core through its badgeSymbol input.
+        let feeder = try source("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
         XCTAssertTrue(
-            label.contains("arrowshape.turn.up.right.fill"),
+            feeder.contains("arrowshape.turn.up.right.fill"),
             "the alias arrow badge is gone"
+        )
+        XCTAssertTrue(
+            label.contains("badgeSymbol.isEmpty ? \"questionmark.circle\" : badgeSymbol"),
+            "the core no longer renders the ingest badge"
         )
     }
 
