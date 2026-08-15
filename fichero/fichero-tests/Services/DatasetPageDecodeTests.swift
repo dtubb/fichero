@@ -18,7 +18,8 @@ final class DatasetPageDecodeTests: XCTestCase {
       "rows": [
         {"id": "e1", "name": "1942-01-04", "prototype_key": "diary_entry",
          "node_kind": "entry", "doc_type": "file",
-         "attributes": {"date": "1942-01-04"}},
+         "attributes": {"date": "1942-01-04"},
+         "excerpt": "Rained all day."},
         {"id": "img1", "name": "page.png", "prototype_key": null,
          "node_kind": null, "doc_type": "file", "attributes": {}}
       ],
@@ -45,6 +46,8 @@ final class DatasetPageDecodeTests: XCTestCase {
         XCTAssertEqual(page.rows.map(\.id), ["e1", "img1"])
         XCTAssertEqual(page.rows[0].prototypeKey, "diary_entry")
         XCTAssertEqual(page.rows[0].attributes["date"] as? String, "1942-01-04")
+        XCTAssertEqual(page.rows[0].excerpt, "Rained all day.")
+        XCTAssertNil(page.rows[1].excerpt, "absent excerpt decodes to nil, not empty text")
         XCTAssertEqual(page.bins.first?.count, 1)
         XCTAssertEqual(page.facets["weather"]?.first?.count, 1)
         // The defaults sidecar carries the typed declaration the renderers

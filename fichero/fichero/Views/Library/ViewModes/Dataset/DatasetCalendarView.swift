@@ -251,17 +251,26 @@ struct DatasetCalendarView: View {
     /// Name plus the title role (the place, for a diary) when it adds
     /// something beyond the name.
     private func dayListRow(_ row: DatasetPage.Row) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(row.name)
-                .lineLimit(1)
-            if let titleAttr = store.attributeForRole["title"],
-               let title = store.text(titleAttr, of: row), title != row.name {
-                Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(row.name)
                     .lineLimit(1)
+                if let titleAttr = store.attributeForRole["title"],
+                   let title = store.text(titleAttr, of: row), title != row.name {
+                    Text(title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            // The day's words, right where the day was picked.
+            if let excerpt = row.excerpt {
+                Text(excerpt)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
     }
 

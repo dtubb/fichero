@@ -47,6 +47,15 @@ struct DatasetCardsView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
+            // The entry's own words — the reason the card exists (Daniel
+            // 2026-08-14 night: "just dates, no transcript").
+            if let excerpt = row.excerpt {
+                Text(excerpt)
+                    .font(.callout)
+                    .lineLimit(4)
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .padding(.top, 2)
+            }
             attributeLines(row)
             Spacer(minLength: 0)
         }

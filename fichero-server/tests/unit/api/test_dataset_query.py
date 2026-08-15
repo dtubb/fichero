@@ -99,6 +99,38 @@ class TestDatasetQuery:
 
 
     @pytest.mark.asyncio
+    async def test_attributed_only_excludes_bare_images_and_excerpt_carries_text(
+        self, dataset_db
+    ):
+        # The live confusion (Daniel 2026-08-14 night): entry rows AND their
+        # source page images interleaved in the data views, and entries showed
+        # "just dates, no transcript".
+        dataset_db.save(
+            Document(id="img1", name="page.png", parent_id="folder", doc_type=DocType.file)
+        )
+        dataset_db.save(
+            Document(
+                id="entry1",
+                name="1942-01-04",
+                parent_id="img1",
+                doc_type=DocType.file,
+                prototype_key="entry",
+                attributes={"date": "1942-01-04"},
+                page_content="Rained all day. Went to Istmina by canoe.",
+            )
+        )
+        result = await dataset_query(
+            DatasetQuery(parent_id="folder", recursive=True, attributed_only=True, limit=500),
+            db=dataset_db,
+        )
+        ids = {r["id"] for r in result["rows"]}
+        assert "entry1" in ids
+        assert "img1" not in ids, "a bare image carries no data; it is not a dataset row"
+        assert result["total"] == 42  # 40 + undated + entry1, image excluded
+        entry = next(r for r in result["rows"] if r["id"] == "entry1")
+        assert entry["excerpt"].startswith("Rained all day.")
+
+    @pytest.mark.asyncio
     async def test_paged_sort_by_date_nulls_last(self, dataset_db):
         result = await dataset_query(
             DatasetQuery(

@@ -42115,6 +42115,11 @@
             "nullable": true,
             "title": "Prototype Key"
           },
+          "attributed_only": {
+            "type": "boolean",
+            "title": "Attributed Only",
+            "default": false
+          },
           "filters": {
             "items": {
               "$ref": "#/components/schemas/DatasetFilter"

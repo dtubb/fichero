@@ -54,6 +54,10 @@ class DatasetQuery(BaseModel):
     parent_id: Optional[str] = None
     recursive: bool = False
     prototype_key: Optional[str] = None
+    # Entries-only scope (Daniel 2026-08-14 night: "it was weird we have the
+    # list with the dates, and then below that the images"): rows must CARRY
+    # data to appear in a data view — a prototype, or any attributes.
+    attributed_only: bool = False
     filters: list[DatasetFilter] = Field(default_factory=list)
     sort: Optional[DatasetSort] = None
     limit: int = 100
@@ -94,6 +98,11 @@ def _scope_sql(query: DatasetQuery, params: list[Any]) -> str:
     if query.prototype_key:
         clauses.append("prototype_key = ?")
         params.append(query.prototype_key)
+    if query.attributed_only:
+        clauses.append(
+            "(prototype_key IS NOT NULL"
+            " OR (attributes IS NOT NULL AND CAST(attributes AS VARCHAR) NOT IN ('{}', 'null')))"
+        )
     return " AND ".join(clauses)
 
 
@@ -150,7 +159,8 @@ def run_dataset_query(db: "Database", query: DatasetQuery) -> dict[str, Any]:
     rows = db.execute_fetchall(
         f"""
         SELECT id, name, prototype_key, node_kind, doc_type,
-               CAST(attributes AS VARCHAR) AS attributes_json
+               CAST(attributes AS VARCHAR) AS attributes_json,
+               substr(page_content, 1, 280) AS excerpt
         FROM documents WHERE {where}{order}
         LIMIT ? OFFSET ?
         """,
@@ -168,6 +178,9 @@ def run_dataset_query(db: "Database", query: DatasetQuery) -> dict[str, Any]:
                 "node_kind": r[3],
                 "doc_type": r[4],
                 "attributes": _json.loads(r[5]) if r[5] else {},
+                # The row's own text, page-sized: cards/grid show the entry's
+                # transcript, not just its date attributes.
+                "excerpt": r[6],
             }
             for r in rows
         ],

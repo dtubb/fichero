@@ -55,7 +55,8 @@ final class DatasetModeStore {
         do {
             // First pass without bins: the date attribute is only known after
             // the declarations arrive.
-            var request = DatasetRequest(parentId: folderId, recursive: true, limit: 500)
+            var request = DatasetRequest(parentId: folderId, recursive: true,
+                                         attributedOnly: true, limit: 500)
             var loaded = try await service.datasetQuery(request)
             deriveRoles(from: loaded)
             if let dateAttr = attributeForRole["date"] {
@@ -175,7 +176,8 @@ final class DatasetModeStore {
             id: old.id,
             name: old.name,
             prototypeKey: old.prototypeKey,
-            attributes: attributes
+            attributes: attributes,
+            excerpt: old.excerpt
         )
         var bins = page.bins
         if attr == attributeForRole["date"] {

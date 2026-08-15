@@ -13,6 +13,9 @@ struct DatasetPage {
         let name: String
         let prototypeKey: String?
         let attributes: [String: (any Sendable)?]
+        /// The row's own text, page-sized by the engine (280 chars) — the
+        /// entry's transcript, so data views never show "just dates".
+        var excerpt: String?
     }
 
     struct Bin: Identifiable {
@@ -63,6 +66,9 @@ struct DatasetRequest {
     var parentId: String?
     var recursive = false
     var prototypeKey: String?
+    /// Only rows that CARRY data (a prototype or attributes) — the data
+    /// views' scope; bare page images stay in the Browse modes.
+    var attributedOnly = false
     var filters: [DatasetFilterSpec] = []
     var sortAttr: String?
     var sortDescending = false
@@ -78,20 +84,25 @@ extension DocumentService {
     /// POST /api/documents/dataset/query — server-side sort/filter/paging,
     /// date bins and facet counts over attribute JSON (Stage 2 ruling: plain
     /// json_extract, no promotion).
-    func datasetQuery(_ request: DatasetRequest) async throws -> DatasetPage {
-        let filters: [Components.Schemas.DatasetFilter]? = request.filters.isEmpty
-            ? nil
-            : try request.filters.map { spec in
-                guard let operation = Components.Schemas.DatasetFilter.OpPayload(rawValue: spec.operation) else {
-                    throw DocumentServiceError.serverError("Unknown filter op: \(spec.operation)")
-                }
-                return Components.Schemas.DatasetFilter(
-                    attr: spec.attr,
-                    op: operation,
-                    value: try spec.value.map { try OpenAPIValueContainer(unvalidatedValue: $0) },
-                    _type: spec.type
-                )
+    private static func wireFilters(
+        _ specs: [DatasetFilterSpec]
+    ) throws -> [Components.Schemas.DatasetFilter]? {
+        guard !specs.isEmpty else { return nil }
+        return try specs.map { spec in
+            guard let operation = Components.Schemas.DatasetFilter.OpPayload(rawValue: spec.operation) else {
+                throw DocumentServiceError.serverError("Unknown filter op: \(spec.operation)")
             }
+            return Components.Schemas.DatasetFilter(
+                attr: spec.attr,
+                op: operation,
+                value: try spec.value.map { try OpenAPIValueContainer(unvalidatedValue: $0) },
+                _type: spec.type
+            )
+        }
+    }
+
+    func datasetQuery(_ request: DatasetRequest) async throws -> DatasetPage {
+        let filters = try Self.wireFilters(request.filters)
         let sort: Components.Schemas.DatasetSort? = request.sortAttr.map { attr in
             .init(
                 attr: attr,
@@ -110,6 +121,7 @@ extension DocumentService {
                 parentId: request.parentId,
                 recursive: request.recursive,
                 prototypeKey: request.prototypeKey,
+                attributedOnly: request.attributedOnly,
                 filters: filters,
                 sort: sort,
                 limit: request.limit,
@@ -156,7 +168,8 @@ extension DocumentService {
                 id: id,
                 name: name,
                 prototypeKey: dict["prototype_key"] as? String,
-                attributes: dict["attributes"] as? [String: (any Sendable)?] ?? [:]
+                attributes: dict["attributes"] as? [String: (any Sendable)?] ?? [:],
+                excerpt: (dict["excerpt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             )
         }
         var defaults: [String: [String: (any Sendable)?]] = [:]

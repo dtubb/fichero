@@ -35,6 +35,14 @@ struct DatasetGridView: View {
                     Text(row.name)
                         .lineLimit(1)
                 }
+                // The entry's transcript, first-class beside the name
+                // (Daniel 2026-08-14 night: "just dates, no transcript").
+                TableColumn("Text") { row in
+                    Text(row.excerpt ?? "")
+                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                        .help(row.excerpt ?? "")
+                }
                 TableColumnForEach(store.declaredAttributes, id: \.self) { attr in
                     TableColumn(attr, sortUsing: DatasetAttributeComparator(attr: attr)) { row in
                         if let entityService {

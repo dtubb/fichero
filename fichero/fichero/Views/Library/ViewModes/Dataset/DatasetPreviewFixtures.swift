@@ -26,7 +26,9 @@ extension DatasetPage {
                     "temperature": Double(28 + index),
                     "place": index % 3 == 0 ? "Quibdó" : "Istmina",
                     "geo": index % 3 == 0 ? "5.69,-76.66" : "5.16,-76.68"
-                ]
+                ],
+                excerpt: "Rained in the morning, cleared by noon. Took the canoe "
+                    + "downriver with Don Pedro and traded for plantains."
             ))
             binCounts[date, default: 0] += 1
         }
@@ -36,7 +38,8 @@ extension DatasetPage {
             id: "jan4-second",
             name: "1942-01-04 (later)",
             prototypeKey: "diary_entry",
-            attributes: ["date": "1942-01-04", "weather": "rain", "place": "Andagoya"]
+            attributes: ["date": "1942-01-04", "weather": "rain", "place": "Andagoya"],
+            excerpt: "Evening: reached Andagoya after dark; the launch was late."
         ))
         binCounts["1942-01-04", default: 0] += 1
         for day in [3, 6, 9, 12, 18, 23] {
