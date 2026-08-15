@@ -17,7 +17,7 @@ struct DatasetMapView: View {
     }
 
     private var pins: [Pin] {
-        (store.page?.rows ?? []).compactMap { row in
+        store.visibleRows.compactMap { row in
             store.coordinate(of: row).map {
                 Pin(
                     row: row,
@@ -32,7 +32,7 @@ struct DatasetMapView: View {
             DatasetMissingRoleView(role: "geo", renderer: "map")
         } else {
             let located = pins
-            let unlocated = (store.page?.rows.count ?? 0) - located.count
+            let unlocated = store.visibleRows.count - located.count
             VStack(spacing: 0) {
                 Map {
                     ForEach(located) { pin in

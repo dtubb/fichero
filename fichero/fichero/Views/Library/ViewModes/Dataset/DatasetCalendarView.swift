@@ -288,10 +288,10 @@ struct DatasetCalendarView: View {
     }
 
     private func rowsOn(day: String) -> [DatasetPage.Row] {
-        guard let page = store.page, store.hasDateSource else {
+        guard store.page != nil, store.hasDateSource else {
             return []
         }
-        return page.rows.filter { store.dateValue(of: $0)?.hasPrefix(day) == true }
+        return store.visibleRows.filter { store.dateValue(of: $0)?.hasPrefix(day) == true }
     }
 }
 

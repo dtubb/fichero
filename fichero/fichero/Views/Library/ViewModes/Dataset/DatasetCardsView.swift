@@ -14,7 +14,7 @@ struct DatasetCardsView: View {
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(store.page?.rows ?? []) { row in
+                ForEach(store.visibleRows) { row in
                     card(row)
                         .onTapGesture(count: 2) { onOpen(row) }
                         // Touch parity: iPad has no double-click.

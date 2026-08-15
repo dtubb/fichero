@@ -26,6 +26,17 @@ enum DatasetRenderer: String, CaseIterable, Identifiable {
     }
 }
 
+/// The date facet over loaded rows (Daniel 2026-08-15: "can we easily
+/// filter undated"). Client-side over the page in memory — the engine's
+/// typed-filter shape stays available when paging outgrows this.
+enum DatasetDateFilter: String, CaseIterable, Identifiable {
+    case all = "All"
+    case dated = "Dated"
+    case undated = "Undated"
+
+    var id: String { rawValue }
+}
+
 /// Loads one folder's dataset page + aggregates and derives the ROLE
 /// bindings the renderers key on (spec §3.1: renderers read roles, never
 /// prototype names).
@@ -33,6 +44,13 @@ enum DatasetRenderer: String, CaseIterable, Identifiable {
 @Observable
 final class DatasetModeStore {
     var page: DatasetPage?
+
+    /// Row facets every renderer shares (via `visibleRows`), so a filter
+    /// choice follows the user between cards, timeline and calendar.
+    var dateFilter: DatasetDateFilter = .all
+    /// nil = every prototype; "pull quotes in a folder" is this facet set
+    /// to `pull_quote` — no special casing per prototype.
+    var prototypeFilter: String?
     var isLoading = false
     var errorText: String?
     /// A failed EDIT, shown transiently in the header — never the full-pane
@@ -86,6 +104,29 @@ final class DatasetModeStore {
         } catch {
             errorText = error.localizedDescription
         }
+    }
+
+    /// The rows the renderers draw: the loaded page through the active
+    /// facets. Filtering here (not per-renderer) keeps the five renderers
+    /// answering the same question the same way.
+    var visibleRows: [DatasetPage.Row] {
+        guard let page else { return [] }
+        return page.rows.filter { row in
+            switch dateFilter {
+            case .all: break
+            case .dated: guard dateValue(of: row) != nil else { return false }
+            case .undated: guard dateValue(of: row) == nil else { return false }
+            }
+            if let prototypeFilter, row.prototypeKey != prototypeFilter {
+                return false
+            }
+            return true
+        }
+    }
+
+    /// Distinct prototypes on this page, sorted — the Type facet's options.
+    var availablePrototypes: [String] {
+        Set((page?.rows ?? []).compactMap(\.prototypeKey)).sorted()
     }
 
     /// The renderers have a date to work with: a date-role attribute, or
@@ -166,9 +207,9 @@ final class DatasetModeStore {
     /// Rows grouped by the date-role attribute's month ("1890-01"), sorted,
     /// undated rows last under `undatedMonthKey`.
     func rowsByMonth() -> [(month: String, rows: [DatasetPage.Row])] {
-        guard let page, hasDateSource else { return [] }
+        guard page != nil, hasDateSource else { return [] }
         var grouped: [String: [DatasetPage.Row]] = [:]
-        for row in page.rows {
+        for row in visibleRows {
             let month = dateValue(of: row).map { String($0.prefix(7)) }
                 ?? Self.undatedMonthKey
             grouped[month, default: []].append(row)
@@ -236,7 +277,11 @@ final class DatasetModeStore {
             attributes: attributes,
             excerpt: old.excerpt,
             dateOriginal: old.dateOriginal,
-            dateIso: old.dateIso
+            dateIso: old.dateIso,
+            // Optional vars default to nil in the memberwise init — omitting
+            // this silently severed an edited row's source reference
+            // (found in the 2026-08-15 filter review).
+            parentId: old.parentId
         )
         let updated = DatasetPage(
             total: page.total,

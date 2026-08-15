@@ -92,7 +92,7 @@ struct DatasetGridView: View {
     }
 
     private var sortedRows: [DatasetPage.Row] {
-        let rows = store.page?.rows ?? []
+        let rows = store.visibleRows
         guard !sortOrder.isEmpty else { return rows }
         return rows.sorted { lhs, rhs in
             for comparator in sortOrder {

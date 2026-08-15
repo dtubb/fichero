@@ -46,12 +46,91 @@ struct DatasetModeView: View {
             Divider()
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if store.page?.rows.isEmpty == false {
+                datasetFilterBar
+            }
         }
         // Fill the pane like every other library view mode (Daniel: "not
         // the right height like the other library views").
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: folderId) {
             await store.load(folderId: folderId, service: documentService)
+        }
+    }
+
+    /// The facet strip for the rows THIS pane renders — the control lives
+    /// with the surface it acts on (#4407 rule; the library mini toolbar's
+    /// sort/filter act on the list view, not on these renderers). Dates +
+    /// Type today; the entity facet joins here once entries carry entity
+    /// links (task #31 spec).
+    @ViewBuilder
+    private var datasetFilterBar: some View {
+        PaneFilterBar(placement: .bottom) {
+            Menu {
+                ForEach(DatasetDateFilter.allCases) { choice in
+                    Button {
+                        store.dateFilter = choice
+                    } label: {
+                        Text(choice.rawValue)
+                        if store.dateFilter == choice {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            } label: {
+                Label(
+                    store.dateFilter == .all ? "Dates" : store.dateFilter.rawValue,
+                    systemImage: "calendar.badge.checkmark"
+                )
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Show all rows, only dated rows, or only undated rows")
+
+            if store.availablePrototypes.count > 1 {
+                Menu {
+                    Button {
+                        store.prototypeFilter = nil
+                    } label: {
+                        Text("All Types")
+                        if store.prototypeFilter == nil {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                    Divider()
+                    ForEach(store.availablePrototypes, id: \.self) { key in
+                        Button {
+                            store.prototypeFilter = key
+                        } label: {
+                            Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
+                            if store.prototypeFilter == key {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                } label: {
+                    Label("Type", systemImage: "tag")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Show only rows of one document type")
+            }
+
+            Spacer(minLength: 8)
+
+            if store.dateFilter != .all || store.prototypeFilter != nil {
+                Text("\(store.visibleRows.count) of \(store.page?.rows.count ?? 0)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                Button("Clear") {
+                    store.dateFilter = .all
+                    store.prototypeFilter = nil
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Clear dataset filters")
+            }
         }
     }
 
@@ -74,6 +153,14 @@ struct DatasetModeView: View {
                         + "Extract Dates, or Diary Entries on it — transcripts, "
                         + "dates and typed attributes all appear here."
                 )
+            )
+        } else if store.page != nil, store.visibleRows.isEmpty, !store.isLoading {
+            // Filtered to nothing is a different answer than "no data" —
+            // name the cause and the way back.
+            ContentUnavailableView(
+                "No Matching Rows",
+                systemImage: "line.3.horizontal.decrease.circle",
+                description: Text("No rows match the active filters. Clear them below to see everything again.")
             )
         } else {
             switch renderer {
