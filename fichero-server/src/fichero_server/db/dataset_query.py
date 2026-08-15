@@ -80,9 +80,20 @@ def _json_path(attr: str) -> str:
     return f'$."{attr}"'
 
 
+def _normalized_parent_id(raw: str | None) -> str | None:
+    """Sidebar ids arrive prefixed ("doc:UUID") — the /children endpoint has
+    always normalized this, and the dataset query matched the RAW string
+    against bare ids, returning zero rows for every sidebar-driven scope
+    (Daniel 2026-08-15: "data is there, it's not rendering")."""
+    if not raw:
+        return raw
+    return raw[4:] if raw.startswith("doc:") else raw
+
+
 def _scope_sql(query: DatasetQuery, params: list[Any]) -> str:
     clauses = ["deleted_at IS NULL"]
-    if query.parent_id and query.recursive:
+    parent_id = _normalized_parent_id(query.parent_id)
+    if parent_id and query.recursive:
         clauses.append(
             "id IN (WITH RECURSIVE sub(id) AS ("
             " SELECT id FROM documents WHERE parent_id = ? AND deleted_at IS NULL"
@@ -91,10 +102,10 @@ def _scope_sql(query: DatasetQuery, params: list[Any]) -> str:
             "  WHERE d.deleted_at IS NULL"
             ") SELECT id FROM sub)"
         )
-        params.append(query.parent_id)
-    elif query.parent_id:
+        params.append(parent_id)
+    elif parent_id:
         clauses.append("parent_id = ?")
-        params.append(query.parent_id)
+        params.append(parent_id)
     if query.prototype_key:
         clauses.append("prototype_key = ?")
         params.append(query.prototype_key)

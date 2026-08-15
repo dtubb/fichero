@@ -58,6 +58,19 @@ final class DatasetModeStore {
             var request = DatasetRequest(parentId: folderId, recursive: true,
                                          attributedOnly: true, limit: 500)
             var loaded = try await service.datasetQuery(request)
+            if loaded.rows.isEmpty, let folderId {
+                // A LEAF selection (a diary entry, a single page) scopes to
+                // its own children — none. The dataset it BELONGS to is its
+                // parent's: re-scope one level up so selecting an entry shows
+                // the day's siblings instead of a blank pane
+                // (Daniel 2026-08-15: "library is blank").
+                let bareId = folderId.hasPrefix("doc:") ? String(folderId.dropFirst(4)) : folderId
+                if let selected = try? await service.getDocument(bareId),
+                   let parentId = selected.parentId {
+                    request.parentId = parentId
+                    loaded = try await service.datasetQuery(request)
+                }
+            }
             deriveRoles(from: loaded)
             if let dateAttr = attributeForRole["date"] {
                 request.bins = (attr: dateAttr, granularity: "day")

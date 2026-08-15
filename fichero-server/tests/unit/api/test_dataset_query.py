@@ -174,6 +174,16 @@ class TestDatasetQuery:
         assert row["date_original"] == "Jan. 8th 1942"
 
     @pytest.mark.asyncio
+    async def test_sidebar_prefixed_parent_id_is_normalized(self, dataset_db):
+        # The sidebar passes "doc:UUID" ids; matched raw, every sidebar-driven
+        # data view rendered zero rows while the data sat there (2026-08-15).
+        result = await dataset_query(
+            DatasetQuery(parent_id="doc:folder", recursive=True, limit=500),
+            db=dataset_db,
+        )
+        assert result["total"] > 0, "a doc:-prefixed scope must match its bare id"
+
+    @pytest.mark.asyncio
     async def test_paged_sort_by_date_nulls_last(self, dataset_db):
         result = await dataset_query(
             DatasetQuery(

@@ -168,6 +168,27 @@ class TestDiaryEntries:
             assert stale.id not in live_ids, "previous run's entries are replaced"
 
     @pytest.mark.asyncio
+    async def test_entry_body_drops_its_date_heading(self, diary_db):
+        # The heading is STRUCTURED data (node name + date_text metadata);
+        # repeating it as the body's first line reads the date twice in
+        # every renderer (Daniel 2026-08-15).
+        from fichero_server.workflows.tools.diary_entries import (
+            _body_without_date_heading,
+        )
+
+        assert _body_without_date_heading(
+            "FRIDAY, JANUARY 3, 1919\nHigh river.\nSan Jose arrived.",
+            "FRIDAY, JANUARY 3, 1919",
+        ) == "High river.\nSan Jose arrived."
+        # A body whose first line is NOT the heading is untouched.
+        assert _body_without_date_heading(
+            "High river.\nSan Jose arrived.", "FRIDAY, JANUARY 3, 1919"
+        ) == "High river.\nSan Jose arrived."
+        # Punctuation/case wobble still matches.
+        assert _body_without_date_heading(
+            "Friday, January 3, 1919:\nHigh river.", "FRIDAY. JANUARY 3, 1919"
+        ) != ""
+
     async def test_empty_transcript_raises(self, diary_db):
         db, _ = diary_db
         blank = Document(id="page-2", name="blank", doc_type=DocType.file)

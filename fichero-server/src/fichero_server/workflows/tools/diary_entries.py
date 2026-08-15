@@ -130,6 +130,26 @@ def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any]]:
     )
 
 
+def _body_without_date_heading(text: str, date_text: str) -> str:
+    """The entry's prose without its date heading repeated as line one.
+
+    The heading is STRUCTURED data — it is the node's name and the
+    ``date_text`` metadata — so echoing it in page_content reads the same
+    date twice everywhere the entry renders (Daniel 2026-08-15). Extraction
+    stays verbatim (the heading is needed to locate the char span for the
+    bbox); only the stored body drops it, and only when the FIRST line is
+    recognizably the heading — never a guess deeper in the text.
+    """
+    lines = text.splitlines()
+    if not lines:
+        return text.strip()
+    first = " ".join(lines[0].split()).strip().rstrip(".,:;").lower()
+    heading = " ".join(date_text.split()).strip().rstrip(".,:;").lower()
+    if heading and (first == heading or first.startswith(heading) or heading.startswith(first)):
+        return "\n".join(lines[1:]).strip()
+    return text.strip()
+
+
 def _entry_spans(content: str, entries: list[DiaryEntry]) -> list[tuple[int, int] | None]:
     """Locate each entry's character span in the geometry content by its
     leading words, in order. ponytail: prefix search with normalized
@@ -257,6 +277,7 @@ async def split_page_into_entries(
     for index, entry in enumerate(entries, start=1):
         iso = _normalized_iso(entry)
         bbox = _bbox_union(boxes, spans[index - 1], pixel_size)
+        body = _body_without_date_heading(entry.text, entry.date_text)
         node = Document(
             parent_id=page.id,
             doc_type=DocType.file,
@@ -266,7 +287,7 @@ async def split_page_into_entries(
             path=None,
             sequence=index,
             status=Status.completed,
-            page_content=entry.text,
+            page_content=body,
             bbox=bbox,
             prototype_key=prototype_key,
             attributes={"date": iso} if iso else {},
