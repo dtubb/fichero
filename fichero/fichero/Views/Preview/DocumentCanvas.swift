@@ -22,6 +22,10 @@ struct DocumentCanvas: View {
     /// viewer so the edit control lives in the bottom reader toolbar instead of
     /// floating over the split control (#2421).
     var isEditing: Binding<Bool>?
+    /// Extra normalized `[x,y,w,h]` boxes drawn over an image canvas — the
+    /// entry-source highlight (preview-layers M1, #27). Display-only; the
+    /// annotation region layer is unaffected.
+    var highlightBoxes: [[Double]] = []
 
     enum Content {
         /// A backend storage display image, resolved by document id.
@@ -69,14 +73,16 @@ struct DocumentCanvas: View {
             StorageDisplayImageCanvas(
                 documentId: docId,
                 onNavigateToDocument: onNavigateToDocument,
-                isEditing: isEditing
+                isEditing: isEditing,
+                highlightBoxes: highlightBoxes
             )
         case .imageRendered(let nsImage, let docId):
             ZoomableImagePreview(
                 documentId: docId,
                 renderedImage: nsImage,
                 onNavigateToDocument: onNavigateToDocument,
-                isEditing: isEditing
+                isEditing: isEditing,
+                highlightBoxes: highlightBoxes
             )
         case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
@@ -125,6 +131,7 @@ private struct StorageDisplayImageCanvas: View {
     let documentId: String
     var onNavigateToDocument: ((String) -> Void)?
     var isEditing: Binding<Bool>?
+    var highlightBoxes: [[Double]] = []
 
     @Environment(StorageService.self) private var storageService
     @State private var image: PlatformImage?
@@ -140,7 +147,8 @@ private struct StorageDisplayImageCanvas: View {
                 DocumentCanvas(
                     content: .imageRendered(image: image, documentId: documentId),
                     onNavigateToDocument: onNavigateToDocument,
-                    isEditing: isEditing
+                    isEditing: isEditing,
+                    highlightBoxes: highlightBoxes
                 )
             } else if let loadError {
                 // Surface the failure with a message + Retry instead of a mute

@@ -182,7 +182,10 @@ extension LibraryView {
                             openDocument(page)
                         }
                     }
-                }
+                },
+                // Live change stream: entries pop in while a workflow runs
+                // (debounced inside DatasetModeView).
+                refreshToken: documentStore.revision
             )
         } else {
             ContentUnavailableView(

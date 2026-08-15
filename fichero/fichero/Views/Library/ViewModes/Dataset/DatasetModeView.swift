@@ -20,6 +20,11 @@ struct DatasetModeView: View {
     /// extracted node carries (Daniel 2026-08-15: "we always want the
     /// reference. a click to it, so that it takes us to the page").
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
+    /// Bumps with the library's live change stream (DocumentStore.revision)
+    /// so entries POP IN while a workflow runs (Daniel 2026-08-15: "they
+    /// should be popping in on the library as they're added"). Debounced
+    /// below — an event storm coalesces into one reload.
+    var refreshToken: Int = 0
 
     @State private var store = DatasetModeStore()
 
@@ -54,6 +59,16 @@ struct DatasetModeView: View {
         // the right height like the other library views").
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: folderId) {
+            await store.load(folderId: folderId, service: documentService)
+        }
+        .task(id: refreshToken) {
+            // Skip the mount tick — the folderId task above owns first load.
+            guard store.page != nil else { return }
+            // task(id:) cancels the pending sleep on every new tick, so a
+            // burst of change events settles into ONE reload ~0.6s after the
+            // last event.
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
             await store.load(folderId: folderId, service: documentService)
         }
     }

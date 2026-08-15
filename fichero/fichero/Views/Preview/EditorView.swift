@@ -151,6 +151,10 @@ struct EditorView: View {
         /// A calm large-symbol placeholder for nodes that have nothing to
         /// preview by design (workflow mirrors) — never an error state.
         case glyph(systemImage: String, title: String)
+        /// An EXTRACTED node (`node_kind == "entry"`): preview its SOURCE
+        /// page with the entry's bbox highlighted — the reader shows the
+        /// entry's text; the preview answers "where on the page" (#27 M1).
+        case entrySource
 
         var usesImageEditingPreviewForViewing: Bool {
             if case .imageEditor = self {
@@ -176,6 +180,13 @@ struct EditorView: View {
             // than that, or just do the folder icon"). A calm glyph is the
             // honest preview: workflows are edited, not previewed.
             return .glyph(systemImage: doc.displaySymbol(), title: doc.name)
+        }
+        if doc.nodeKind == "entry" {
+            // Before the docType branches: an entry node has no source FILE
+            // of its own, so every other route would either repeat its text
+            // (the 2026-08-15 complaint: "preview shows us diary entry") or
+            // dead-end in Quick Look.
+            return .entrySource
         }
         if doc.docType == .folder {
             return folderPreviewRoute(for: doc, isEditing: isEditing)
@@ -269,6 +280,8 @@ struct EditorView: View {
             )
         case .glyph(let systemImage, let title):
             GlyphPreviewPlaceholder(systemImage: systemImage, title: title)
+        case .entrySource:
+            EntrySourcePreview(entry: doc, onNavigateToDocument: onNavigateToDocument)
         }
     }
 

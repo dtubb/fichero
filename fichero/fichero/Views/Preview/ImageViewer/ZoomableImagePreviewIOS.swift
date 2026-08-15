@@ -14,19 +14,24 @@ struct ZoomableImagePreview: View {
     /// site compiles on every platform. The image editor is macOS-only, so this
     /// is unused here. (#2421)
     var isEditing: Binding<Bool>?
+    /// Entry-source highlight boxes (preview-layers M1, #27). API parity with
+    /// the macOS variant; drawn over the image below.
+    var highlightBoxes: [[Double]] = []
 
     init(
         url: URL? = nil,
         documentId: String? = nil,
         renderedImage: PlatformImage? = nil,
         onNavigateToDocument: ((String) -> Void)? = nil,
-        isEditing: Binding<Bool>? = nil
+        isEditing: Binding<Bool>? = nil,
+        highlightBoxes: [[Double]] = []
     ) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
         self.onNavigateToDocument = onNavigateToDocument
         self.isEditing = isEditing
+        self.highlightBoxes = highlightBoxes
     }
 
     @Environment(DocumentStore.self) var documentStore

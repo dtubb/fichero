@@ -27,19 +27,24 @@ struct ZoomableImagePreview: View {
     /// Threading it here removes the floating edit toggle that used to overlap
     /// the split control (#2421).
     var isEditing: Binding<Bool>?
+    /// Entry-source highlight: normalized `[x,y,w,h]` boxes drawn with the
+    /// saved-region layer (preview-layers M1, #27). Display-only.
+    var highlightBoxes: [[Double]] = []
 
     init(
         url: URL? = nil,
         documentId: String? = nil,
         renderedImage: NSImage? = nil,
         onNavigateToDocument: ((String) -> Void)? = nil,
-        isEditing: Binding<Bool>? = nil
+        isEditing: Binding<Bool>? = nil,
+        highlightBoxes: [[Double]] = []
     ) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
         self.onNavigateToDocument = onNavigateToDocument
         self.isEditing = isEditing
+        self.highlightBoxes = highlightBoxes
     }
 
     /// Annotation tools from the reader toolbar (#2458). Highlight/Note arm a
@@ -346,9 +351,9 @@ extension ZoomableImagePreview {
         ZStack(alignment: .topLeading) {
             // Saved bounding boxes + the region-draw layer (#2458).
             // Shown whenever there are boxes or the tool is armed.
-            if !regionBoxes.isEmpty || isDrawingRegion {
+            if !regionBoxes.isEmpty || !highlightBoxes.isEmpty || isDrawingRegion {
                 BoundingBoxOverlay(
-                    boxes: regionBoxes,
+                    boxes: regionBoxes + highlightBoxes,
                     visible: visibleRect == .zero
                         ? CGRect(x: 0, y: 0, width: 1, height: 1)
                         : visibleRect,
