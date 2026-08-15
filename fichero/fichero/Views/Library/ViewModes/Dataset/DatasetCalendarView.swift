@@ -10,6 +10,7 @@ struct DatasetCalendarView: View {
     /// appears when there is an engine to persist through.
     var entityService: EntityService?
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
+    var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
     /// "YYYY-MM" currently shown; seeded from the first binned month.
     @State private var month: String = ""
@@ -228,6 +229,9 @@ struct DatasetCalendarView: View {
                                 // Touch parity: iPad has no double-click.
                                 .contextMenu {
                                     Button("Open") { onOpen(row) }
+                                    if row.parentId != nil {
+                                        Button("Show Source Page") { onOpenSource(row) }
+                                    }
                                     if entityService != nil, let dateAttr = store.attributeForRole["date"] {
                                         Button("Edit Date…") {
                                             draftDate = store.text(dateAttr, of: row) ?? ""

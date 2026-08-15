@@ -56,8 +56,8 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # preview host (Fichero-2026-08-14-0933xx.ips ×3). Reason also recorded
     # in-file and in native_row_containers_allowlist.json. Revisit List if a
     # selection model arrives.
-    "Library/ViewModes/Dataset/DatasetTimelineView.swift#63c6bf857b": "2026-08-14 List SIGTRAP; pure reading surface",
-    "Library/ViewModes/Dataset/DatasetCalendarView.swift#26e78c2f31": "2026-08-14 List SIGTRAP; pure reading surface (day list)",
+    "Library/ViewModes/Dataset/DatasetTimelineView.swift#178981511f": "2026-08-14 List SIGTRAP; pure reading surface",
+    "Library/ViewModes/Dataset/DatasetCalendarView.swift#c9b423ba8f": "2026-08-14 List SIGTRAP; pure reading surface (day list)",
 }
 
 ALLOWLIST_FILES = {

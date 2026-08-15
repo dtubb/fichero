@@ -28,7 +28,8 @@ extension DatasetPage {
                     "geo": index % 3 == 0 ? "5.69,-76.66" : "5.16,-76.68"
                 ],
                 excerpt: "Rained in the morning, cleared by noon. Took the canoe "
-                    + "downriver with Don Pedro and traded for plantains."
+                    + "downriver with Don Pedro and traded for plantains.",
+                parentId: "page-img-\(day)"
             ))
             binCounts[date, default: 0] += 1
         }

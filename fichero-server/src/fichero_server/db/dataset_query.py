@@ -163,7 +163,7 @@ def run_dataset_query(db: "Database", query: DatasetQuery) -> dict[str, Any]:
 
     rows = db.execute_fetchall(
         f"""
-        SELECT id, name, prototype_key, node_kind, doc_type,
+        SELECT id, name, prototype_key, node_kind, doc_type, parent_id,
                CAST(attributes AS VARCHAR) AS attributes_json,
                substr(page_content, 1, 280) AS excerpt,
                date_original,
@@ -184,15 +184,19 @@ def run_dataset_query(db: "Database", query: DatasetQuery) -> dict[str, Any]:
                 "prototype_key": r[2],
                 "node_kind": r[3],
                 "doc_type": r[4],
-                "attributes": _json.loads(r[5]) if r[5] else {},
+                # The REFERENCE (Daniel 2026-08-15 ruling): an extracted
+                # node always points back at its source — parent_id is how
+                # the renderers offer "show the page this came from".
+                "parent_id": r[5],
+                "attributes": _json.loads(r[6]) if r[6] else {},
                 # The row's own text, page-sized: cards/grid show the entry's
                 # transcript, not just its date attributes.
-                "excerpt": r[6],
+                "excerpt": r[7],
                 # The document's OWN date (Extract Dates / user assertion):
                 # the original text and the converted Gregorian ISO the
                 # renderers can bin on when no date-role attribute exists.
-                "date_original": r[7],
-                "date_iso": r[8],
+                "date_original": r[8],
+                "date_iso": r[9],
             }
             for r in rows
         ],

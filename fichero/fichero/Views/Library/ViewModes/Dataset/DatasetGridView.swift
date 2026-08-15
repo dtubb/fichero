@@ -11,6 +11,7 @@ struct DatasetGridView: View {
     /// Nil = read-only cells (previews, closed library).
     var entityService: EntityService?
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
+    var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
     @State private var selection: DatasetPage.Row.ID?
     @State private var sortOrder: [DatasetAttributeComparator] = []
@@ -78,6 +79,11 @@ struct DatasetGridView: View {
             .contextMenu(forSelectionType: DatasetPage.Row.ID.self) { ids in
                 Button("Open") {
                     if let id = ids.first, let row = row(id) { onOpen(row) }
+                }
+                Button("Show Source Page") {
+                    if let id = ids.first, let row = row(id), row.parentId != nil {
+                        onOpenSource(row)
+                    }
                 }
             } primaryAction: { ids in
                 if let id = ids.first, let row = row(id) { onOpen(row) }

@@ -7,6 +7,7 @@ import SwiftUI
 struct DatasetCardsView: View {
     let store: DatasetModeStore
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
+    var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 12)]
 
@@ -17,7 +18,12 @@ struct DatasetCardsView: View {
                     card(row)
                         .onTapGesture(count: 2) { onOpen(row) }
                         // Touch parity: iPad has no double-click.
-                        .contextMenu { Button("Open") { onOpen(row) } }
+                        .contextMenu {
+                            Button("Open") { onOpen(row) }
+                            if row.parentId != nil {
+                                Button("Show Source Page") { onOpenSource(row) }
+                            }
+                        }
                 }
             }
             .padding(12)
@@ -57,6 +63,19 @@ struct DatasetCardsView: View {
             }
             attributeLines(row)
             Spacer(minLength: 0)
+            // The REFERENCE, visible and one click away (Daniel 2026-08-15):
+            // every extracted card points back at the page it came from.
+            if row.parentId != nil {
+                Button {
+                    onOpenSource(row)
+                } label: {
+                    Label("Source page", systemImage: "photo")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Open the page this entry came from")
+            }
         }
         .padding(10)
         .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)

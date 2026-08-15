@@ -21,6 +21,9 @@ struct DatasetPage {
         /// bin on when no date-role attribute exists.
         var dateOriginal: String?
         var dateIso: String?
+        /// The REFERENCE (Daniel 2026-08-15 ruling): an extracted node
+        /// always points back at its source page — one click away.
+        var parentId: String?
     }
 
     struct Bin: Identifiable {
@@ -176,7 +179,8 @@ extension DocumentService {
                 attributes: dict["attributes"] as? [String: (any Sendable)?] ?? [:],
                 excerpt: (dict["excerpt"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                 dateOriginal: dict["date_original"] as? String,
-                dateIso: dict["date_iso"] as? String
+                dateIso: dict["date_iso"] as? String,
+                parentId: dict["parent_id"] as? String
             )
         }
         var defaults: [String: [String: (any Sendable)?]] = [:]

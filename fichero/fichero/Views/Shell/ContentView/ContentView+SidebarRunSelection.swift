@@ -48,7 +48,7 @@ extension ContentView {
     /// mirror updates unconditionally (empty means empty): sidebar-row runs
     /// read it so a stale snapshot can never widen a one-file run
     /// (2026-08-15).
-    private func rememberRunSelection(_ newSelection: Set<String>) {
+    func rememberRunSelection(_ newSelection: Set<String>) {
         if !newSelection.isEmpty {
             windowState.preservedDocumentSelection = Array(newSelection)
         }

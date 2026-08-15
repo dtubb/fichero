@@ -170,6 +170,18 @@ extension LibraryView {
                             openDocument(document)
                         }
                     }
+                },
+                // The REFERENCE (Daniel 2026-08-15): an extracted row is one
+                // click from the page it came from — resolve the parent and
+                // open IT in preview. Bbox highlighting on that page is the
+                // preview-layers program (#27).
+                onOpenSource: { row in
+                    guard let parentId = row.parentId else { return }
+                    Task { @MainActor in
+                        if let page = try? await service.getDocument(parentId) {
+                            openDocument(page)
+                        }
+                    }
                 }
             )
         } else {

@@ -7,6 +7,7 @@ import SwiftUI
 struct DatasetTimelineView: View {
     let store: DatasetModeStore
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
+    var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
     var body: some View {
         if !store.hasDateSource {
@@ -29,7 +30,12 @@ struct DatasetTimelineView: View {
                                     .contentShape(Rectangle())
                                     .onTapGesture(count: 2) { onOpen(row) }
                                     // Touch parity: iPad has no double-click.
-                                    .contextMenu { Button("Open") { onOpen(row) } }
+                                    .contextMenu {
+                                        Button("Open") { onOpen(row) }
+                                        if row.parentId != nil {
+                                            Button("Show Source Page") { onOpenSource(row) }
+                                        }
+                                    }
                                 Divider().padding(.leading, 16)
                             }
                         } header: {

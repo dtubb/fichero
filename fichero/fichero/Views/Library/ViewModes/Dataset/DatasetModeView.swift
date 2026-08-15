@@ -16,6 +16,10 @@ struct DatasetModeView: View {
     /// honest state, not an error.
     var entityService: EntityService?
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
+    /// Open the row's SOURCE page in preview — the reference every
+    /// extracted node carries (Daniel 2026-08-15: "we always want the
+    /// reference. a click to it, so that it takes us to the page").
+    var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
     @State private var store = DatasetModeStore()
 
@@ -68,13 +72,15 @@ struct DatasetModeView: View {
         } else {
             switch renderer {
             case .grid:
-                DatasetGridView(store: store, entityService: entityService, onOpen: onOpen)
+                DatasetGridView(store: store, entityService: entityService,
+                                onOpen: onOpen, onOpenSource: onOpenSource)
             case .cards:
-                DatasetCardsView(store: store, onOpen: onOpen)
+                DatasetCardsView(store: store, onOpen: onOpen, onOpenSource: onOpenSource)
             case .timeline:
-                DatasetTimelineView(store: store, onOpen: onOpen)
+                DatasetTimelineView(store: store, onOpen: onOpen, onOpenSource: onOpenSource)
             case .calendar:
-                DatasetCalendarView(store: store, entityService: entityService, onOpen: onOpen)
+                DatasetCalendarView(store: store, entityService: entityService,
+                                    onOpen: onOpen, onOpenSource: onOpenSource)
             case .map:
                 DatasetMapView(store: store, onOpen: onOpen)
             }
