@@ -84,7 +84,9 @@ struct LibraryRowAttributesButton: View {
                     Toggle(isOn: binding(for: attribute)) {
                         Label(attribute.title, systemImage: attribute.systemImage)
                     }
+                    #if os(macOS)
                     .toggleStyle(.checkbox)
+                    #endif
                 }
             }
             .padding(12)

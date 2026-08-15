@@ -764,8 +764,6 @@ extension FicheroApp {
     }
 }
 
-#endif
-
 extension FicheroApp {
     /// The document-detail scene's root, with the FULL boundary re-injection
     /// (#4513, the Mac crash class): a detached scene inherits NOTHING, and
@@ -793,3 +791,5 @@ extension FicheroApp {
         }
     }
 }
+
+#endif

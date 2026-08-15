@@ -1,3 +1,4 @@
+#if canImport(AppKit)
 import Foundation
 import OSLog
 
@@ -64,3 +65,4 @@ extension EngineLifecycleController {
         logger.info("Supplied \(supplied) provider key(s) to the engine on connect (#4534)")
     }
 }
+#endif

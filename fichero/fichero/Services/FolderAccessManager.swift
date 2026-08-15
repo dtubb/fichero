@@ -10,8 +10,6 @@ import SwiftUI
 /// This class handles macOS security-scoped bookmarks to persist folder access permissions
 /// across app launches. Required for accessing files outside the app's sandbox.
 
-#if os(macOS)
-
 extension Notification.Name {
     /// Posted whenever the live engine ACCEPTS a security-scoped grant — the
     /// signal that "terminal" 403 stream denials are no longer terminal
@@ -19,6 +17,8 @@ extension Notification.Name {
     /// post-ready sweep then granted access and nothing told them).
     static let ficheroEngineAccessChanged = Notification.Name("ficheroEngineAccessChanged")
 }
+
+#if os(macOS)
 
 @MainActor
 @Observable

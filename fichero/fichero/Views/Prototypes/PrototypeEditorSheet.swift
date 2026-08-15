@@ -216,7 +216,9 @@ struct PrototypeAttributeRow: View {
                     .textFieldStyle(.roundedBorder)
             }
             Toggle("req", isOn: $draft.required)
+                #if os(macOS)
                 .toggleStyle(.checkbox)
+                #endif
                 .help("Required")
             Button {
                 onDelete()
