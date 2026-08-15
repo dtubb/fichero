@@ -2,7 +2,49 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.08.05
+## 2026.08.15
+
+### Dev build
+
+The datasets release. A folder of scanned diary pages now turns into data
+you can actually read: run Diary Entries on a page and each day becomes its
+own node, dated, carrying the text and the exact region of the scan it came
+from.
+
+**The Data view modes land.** Grid (a spreadsheet with in-place cell
+editing), Cards, Timeline, Calendar, and Map are each a top-level view mode
+over whatever the selected folder contains. Clicking the folder shows the
+whole folder's data, recursively; clicking a single page scopes to that
+page, and selecting an extracted entry shows the dataset it belongs to
+instead of a blank pane.
+
+**An entry always points home.** Every extracted row carries its source
+reference: selecting a diary entry previews the ORIGINAL page image with
+that entry's bounding box highlighted, while the reader shows the entry's
+text — where it came from and what it says, side by side. "Show Source
+Page" does the same from any renderer's context menu.
+
+**Filters that are facts, not text.** The data views get their own facet
+strip: All/Dated/Undated, and a Type facet when a folder mixes document
+types. Filters follow you between cards, timeline, and calendar, and a
+filtered-to-nothing pane says so and names the way back.
+
+**Entries pop in live.** While a workflow runs over a folder, new entries
+and transcripts appear in the data views as they land, instead of waiting
+for you to click away and back.
+
+**Workflow runs state their scope before they start.** A right-click run
+that reaches beyond the clicked row — a folder's descendants, or a live
+multi-selection — now says "Runs on N documents" in the menu itself, and
+records why it was that wide. A one-file run stays a one-file run.
+
+**Honesty fixes from live testing.** Finished runs read "Finished," not
+"Stopped." Reopened runs keep their console and progress. Text you edited
+by hand outranks machine OCR when a workflow re-reads a page. Diary entry
+bodies stop repeating the date their title already states. Deleting a
+folder names the folder and counts its children first.
+
+## 2026.08.06
 
 ### Dev build
 
