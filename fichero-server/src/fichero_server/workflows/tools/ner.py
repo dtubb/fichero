@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fichero_server.kg.ner import ExtractedEntity
+from fichero_server.knowledge.ner import ExtractedEntity
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.ner.providers import get_ner_provider
 from fichero_server.llm.language_policy import describe, resolve_language

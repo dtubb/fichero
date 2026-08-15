@@ -1,0 +1,56 @@
+{
+    "name": "Detect Regions",
+    "description": "Use this when: you want text bounding boxes on pages before (or without) transcription. On-device Apple Vision detects line and word regions and saves them per page — the preview overlay can show them, and later transcription can attribute text to them. Fast, local, no LLM.",
+    "format": "nodes",
+    "is_template": true,
+    "is_system": true,
+    "folder_path": "/Transcribe",
+    "tags": [
+        "preset",
+        "regions",
+        "bboxes",
+        "ocr",
+        "layout"
+    ],
+    "config": {
+        "preset_version": 1
+    },
+    "nodes": [
+        {
+            "id": "files-source",
+            "tool": "files",
+            "label": "Files",
+            "position_x": 80,
+            "position_y": 200,
+            "inputs": {},
+            "config": {}
+        },
+        {
+            "id": "detect-regions",
+            "tool": "detect_regions",
+            "label": "Detect Regions",
+            "position_x": 280,
+            "position_y": 200,
+            "inputs": {},
+            "config": {
+                "language": "en"
+            }
+        }
+    ],
+    "edges": [
+        {
+            "id": "edge-files-detect-regions",
+            "source": "files-source",
+            "target": "detect-regions",
+            "source_port": "files",
+            "target_port": "files"
+        },
+        {
+            "id": "edge-files-detect-regions-documents",
+            "source": "files-source",
+            "target": "detect-regions",
+            "source_port": "documents",
+            "target_port": "documents"
+        }
+    ]
+}

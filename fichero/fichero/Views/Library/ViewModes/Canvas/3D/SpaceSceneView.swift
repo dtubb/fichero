@@ -1020,6 +1020,22 @@ actor SpaceTextureCache {
     )
 
     private var cache: [String: TextureResource] = [:]
+    /// In-flight fetches deduped by cache key: the 2D and 3D renderers (and
+    /// a reskin) may ask for the same page in the same frame.
+    private var inFlight: [String: Task<TextureResource, Error>] = [:]
+    /// Negative cache with a cooldown: when a page has no thumbnail yet
+    /// (storage 404), every folder visit used to re-fire the SAME ~200
+    /// failing requests — Daniel's 2026-08-14 night log shows the engine's
+    /// request pool at 48/64 held entirely by get_thumbnail. Thumbnails DO
+    /// appear later, so failures retry after the cooldown, never never.
+    private var failedAt: [String: Date] = [:]
+    private static let failureCooldown: TimeInterval = 120
+
+    /// At most this many thumbnail fetches on the wire at once — a folder of
+    /// 204 pages trickles instead of stampeding the engine's pool.
+    private static let maxConcurrentFetches = 4
+    private var activeFetches = 0
+    private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
 
     static func logTextureFailure(sourceId: String, error: Error) {
         logger.error(
@@ -1043,18 +1059,55 @@ actor SpaceTextureCache {
         // singleton, and the same sourceId in two libraries is two images.
         let cacheKey = "\(await storage?.libraryScopeKey ?? "")|\(sourceId)"
         if let cached = cache[cacheKey] { return cached }
+        if let failed = failedAt[cacheKey],
+           Date().timeIntervalSince(failed) < Self.failureCooldown {
+            throw URLError(.resourceUnavailable)
+        }
+        if let running = inFlight[cacheKey] {
+            return try await running.value
+        }
 
-        let data = try await fetchImageData(forSourceId: sourceId, using: storage)
-        let fileExtension = Self.fileExtension(for: data)
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension(fileExtension)
-        try data.write(to: tempURL, options: [.atomic])
-        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let task = Task<TextureResource, Error> {
+            await self.acquireFetchSlot()
+            defer { self.releaseFetchSlot() }
+            let data = try await self.fetchImageData(forSourceId: sourceId, using: storage)
+            let fileExtension = Self.fileExtension(for: data)
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(fileExtension)
+            try data.write(to: tempURL, options: [.atomic])
+            defer { try? FileManager.default.removeItem(at: tempURL) }
+            return try await TextureResource(contentsOf: tempURL)
+        }
+        inFlight[cacheKey] = task
+        defer { inFlight[cacheKey] = nil }
+        do {
+            let texture = try await task.value
+            cache[cacheKey] = texture
+            failedAt[cacheKey] = nil
+            return texture
+        } catch {
+            failedAt[cacheKey] = Date()
+            throw error
+        }
+    }
 
-        let texture = try await TextureResource(contentsOf: tempURL)
-        cache[cacheKey] = texture
-        return texture
+    private func acquireFetchSlot() async {
+        if activeFetches < Self.maxConcurrentFetches {
+            activeFetches += 1
+            return
+        }
+        await withCheckedContinuation { fetchWaiters.append($0) }
+        // Resumed by releaseFetchSlot(), which hands the slot over — the
+        // active count is unchanged across the handoff.
+    }
+
+    private func releaseFetchSlot() {
+        if fetchWaiters.isEmpty {
+            activeFetches -= 1
+        } else {
+            fetchWaiters.removeFirst().resume()
+        }
     }
 
     private func fetchImageData(

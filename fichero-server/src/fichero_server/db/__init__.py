@@ -91,6 +91,20 @@ _VALID_IDENTIFIER = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 _DUCKDB_WRITE_CONFLICT_RETRIES = 3
 _DUCKDB_WRITE_CONFLICT_BACKOFF_SECONDS = 0.01
 
+# Models get() folds onto Document rows with special-case handling; the
+# gate-free read path (get_committed) routes these to plain get() rather
+# than reimplementing the fold.
+_FOLDED_GET_MODEL_NAMES = frozenset(
+    {
+        "SavedSearch",
+        "SpatialRoom",
+        "ResearchProject",
+        "ResearchPlan",
+        "ResearchTask",
+        "ResearchStep",
+    }
+)
+
 
 def transient_field_names(model_cls: type) -> set[str]:
     """Fields a model declares for the WIRE but never for the database (#3355).
@@ -693,6 +707,14 @@ class Database(DatabaseEmbeddingMixin):
         self._lock = threading.RLock()
         self._transaction_gate = threading.RLock()
         self._tx_state = threading.local()
+        # Dedicated READ connection for latency-critical GET paths (#4523).
+        # conn.cursor() is a second DuckDB connection over the same database
+        # instance: it reads last-COMMITTED state under MVCC and never queues
+        # on _transaction_gate, so a thumbnail lookup answers in milliseconds
+        # while an ingest writer holds the gate for a long transaction.
+        # Lazily created (and recreated after invalidation) in get_committed.
+        self._read_conn = None
+        self._read_lock = threading.RLock()
         # Per-table count of LanceDB appends since the last compaction. Drives
         # the bounded auto-compaction trigger in save_vectors (#2542).
         self._vector_append_counts: dict[str, int] = {}
@@ -1007,7 +1029,21 @@ class Database(DatabaseEmbeddingMixin):
         """Execute + ``fetchone`` atomically under the lock (#2508)."""
         return self._execute(sql, params, fetch="one")
 
-    def ingest_dedup_source_sizes(self) -> dict[str, int]:
+    # Restricts a dedup query to the destination subtree (2026-08-11): the
+    # skip-set used to be library-GLOBAL, so importing a folder that already
+    # existed elsewhere — or re-importing after an interrupted import — skipped
+    # every file that existed ANYWHERE, leaving the new tree Swiss-cheese.
+    # Scoped to the import root, a same-destination re-import stays idempotent
+    # (and REPAIRS a partial import), while a new destination gets a full copy.
+    _SUBTREE_CTE = """
+        WITH RECURSIVE subtree(id) AS (
+            SELECT id FROM documents WHERE id = ?
+            UNION ALL
+            SELECT d.id FROM documents d JOIN subtree s ON d.parent_id = s.id
+        )
+    """
+
+    def ingest_dedup_source_sizes(self, root_id: str | None = None) -> dict[str, int]:
         """source_path → stored file_size for every non-failed document.
 
         Companion to ``ingest_dedup_keys`` for the DATALESS fast-skip
@@ -1016,9 +1052,9 @@ class Database(DatabaseEmbeddingMixin):
         cloud folder downloaded everything just to prove it was already
         there. A path+size match lets the skip happen without touching the
         bytes; any mismatch falls through to the exact checksum path.
+        ``root_id`` restricts the map to that document's subtree.
         """
-        rows = self.execute_fetchall(
-            """
+        body = """
             SELECT COALESCE(
                        json_extract_string(metadata, '$.source_path'), path),
                    TRY_CAST(json_extract_string(metadata, '$.file_size') AS BIGINT)
@@ -1026,10 +1062,16 @@ class Database(DatabaseEmbeddingMixin):
             WHERE status != 'failed'
               AND json_extract_string(metadata, '$.file_size') IS NOT NULL
             """
-        )
+        if root_id is None:
+            rows = self.execute_fetchall(body)
+        else:
+            rows = self.execute_fetchall(
+                self._SUBTREE_CTE + body + " AND id IN (SELECT id FROM subtree)",
+                [root_id],
+            )
         return {row[0]: int(row[1]) for row in rows if row[0] and row[1] is not None}
 
-    def ingest_dedup_keys(self) -> set[tuple[str, str]]:
+    def ingest_dedup_keys(self, root_id: str | None = None) -> set[tuple[str, str]]:
         """(source_path, checksum) pairs for every non-failed document.
 
         The folder-ingest skip-set. Previously built by ``all(Document)``,
@@ -1039,9 +1081,9 @@ class Database(DatabaseEmbeddingMixin):
         Semantics match the old loop exactly: failed docs excluded (so a
         failed import retries), soft-deleted rows still included, source
         path falls back to ``path`` when metadata lacks ``source_path``.
+        ``root_id`` restricts the set to that document's subtree.
         """
-        rows = self.execute_fetchall(
-            """
+        body = """
             SELECT COALESCE(
                        json_extract_string(metadata, '$.source_path'), path),
                    json_extract_string(metadata, '$.checksum')
@@ -1049,7 +1091,13 @@ class Database(DatabaseEmbeddingMixin):
             WHERE status != 'failed'
               AND json_extract_string(metadata, '$.checksum') IS NOT NULL
             """
-        )
+        if root_id is None:
+            rows = self.execute_fetchall(body)
+        else:
+            rows = self.execute_fetchall(
+                self._SUBTREE_CTE + body + " AND id IN (SELECT id FROM subtree)",
+                [root_id],
+            )
         return {
             (source, checksum)
             for source, checksum in rows
@@ -2132,6 +2180,54 @@ class Database(DatabaseEmbeddingMixin):
             return None
 
         return self._hydrate_row(model, columns, result)
+
+    def get_committed(self, model: Type[T], id: str) -> T | None:
+        """Get a single object by ID through the dedicated READ connection.
+
+        Unlike ``get``, this never queues on the transaction gate: it reads
+        last-COMMITTED state under DuckDB MVCC from a second connection over
+        the same database instance (#4523). Built for latency-critical GET
+        paths (thumbnails, display images) that must answer while an ingest
+        writer holds the gate for seconds at a time. Rows written inside a
+        still-open transaction are invisible — exactly right for a cache
+        lookup, wrong for read-your-own-write flows, which should use ``get``.
+
+        Models folded onto Document with special-case handling in ``get``
+        (SavedSearch, SpatialRoom, Research*) are routed to ``get`` — same
+        result, gated latency — rather than half-reimplementing the fold.
+        """
+        if model.__name__ in _FOLDED_GET_MODEL_NAMES:
+            return self.get(model, id)
+        sql_table = self._sql_table_name(model)
+        # No _ensure_table here: every schema table is created in __init__'s
+        # migrate loop, and DDL would need the write gate this path exists
+        # to avoid.
+        with self._read_lock:
+            for attempt in (0, 1):
+                try:
+                    if self._read_conn is None:
+                        self._read_conn = self.conn.cursor()
+                    cur = self._read_conn.execute(
+                        f"SELECT * FROM {sql_table} WHERE id = $id", {"id": id}
+                    )
+                    row = cur.fetchone()
+                    columns = [d[0] for d in cur.description]
+                    break
+                except duckdb.Error as exc:
+                    # Stale cursor (parent connection was reopened after
+                    # invalidation) — drop it and retry once on a fresh one.
+                    # When the PARENT connection itself is the invalidated
+                    # one, reopen it the way every gated entry point does,
+                    # or the retry mints its cursor from the same dead
+                    # connection and this path fails where `get` survives.
+                    self._read_conn = None
+                    if self._is_invalidated_error(exc):
+                        self._reconnect_after_invalidated()
+                    if attempt == 1:
+                        raise
+        if row is None:
+            return None
+        return self._hydrate_row(model, columns, row)
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""

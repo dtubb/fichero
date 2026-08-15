@@ -629,6 +629,10 @@ class FicheroClient:
             self.request("GET", f"/api/documents/{doc_id}")
         )
 
+    def restore_document(self, doc_id: str) -> None:
+        """Restore a soft-deleted document subtree (POST …/restore, 204)."""
+        self.request("POST", f"/api/documents/{doc_id}/restore")
+
     def document_inspector(self, doc_id: str) -> DocumentInspectorResponse:
         """Aggregate view of a document's entities, claims, and artifacts."""
         return DocumentInspectorResponse.model_validate(

@@ -45,6 +45,11 @@ extension LibraryView {
 
         Spacer(minLength: 8)
 
+        // Xcode-console-style metadata popover (#18): which optional
+        // attributes list rows display. Sits with sort/filter because it,
+        // too, acts on the library list.
+        LibraryRowAttributesButton(raw: $rowAttributesRaw)
+
         librarySortMenu
 
         libraryFilterToggleButton
@@ -67,6 +72,13 @@ extension LibraryView {
             TextField("Search", text: searchFieldText)
                 .textFieldStyle(.plain)
                 .font(.callout)
+                // While focused, the row keyboard grammar stands down —
+                // ancestor `.onKeyPress` handlers otherwise swallow every
+                // character before the field sees it (2026-08-11).
+                .focused($searchFieldFocused)
+                // Summoned means ready to type: the toolbar toggle reveals
+                // this field, so it takes focus on arrival.
+                .onAppear { searchFieldFocused = true }
                 .onSubmit { onToolbarSearchSubmit(searchFieldText.wrappedValue) }
 
             if !searchFieldText.wrappedValue.isEmpty {

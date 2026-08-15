@@ -64,6 +64,8 @@ extension ContentView {
         viewMode = route.viewMode
         activeSearchQuery = route.query
         transientSearchLimit = Self.transientSearchPageSize
+        // New query → relevance order until the user explicitly re-sorts (#11).
+        libraryToolbarState.userChoseSortDuringSearch = false
         Task { @MainActor in
             // Explicit submit → in Ask mode (#4117) the LLM may compile a
             // sentence-like query into a structured search (#4116); Keyword
@@ -96,7 +98,7 @@ extension ContentView {
             // second, hollow copy of it. Positive identification first is the
             // same rule the sidebar row and the folder cell already follow.
             switch await readSidebarDropPayload(providers, surface: "content-pane", preloaded: eager) {
-            case .internalItems, .unreadableInternal:
+            case .internalItems, .internalEntities, .unreadableInternal:
                 // NO alert for a no-op internal drop (Daniel #133, 2026-08-09:
                 // "nothing should happen, don't do an alert") — the drag
                 // simply doesn't land; macOS snaps the item back. The refusal

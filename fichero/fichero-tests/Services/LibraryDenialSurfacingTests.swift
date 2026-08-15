@@ -105,7 +105,8 @@ final class LibraryDenialSurfacingTests: XCTestCase {
         XCTAssertTrue(view.contains("var libraryPath: String?"), "the pane must accept the path")
         XCTAssertTrue(view.contains("if let libraryPath {"), "the pane must render it")
 
-        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         XCTAssertTrue(
             library.contains("libraryPath: libraryReference?.url.path"),
             "LibraryView must pass the failing library's path into the denial pane"

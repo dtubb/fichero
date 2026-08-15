@@ -81,6 +81,7 @@ clearly no handwriting. Do not add any text outside the JSON object."""
 
 @register_tool(
     name="classify_script",
+    parallelism="elementwise",
     display_name="Classify Script Type",
     description="Detect whether a document is typescript, manuscript, HTR, or paleography",
     category="vision",

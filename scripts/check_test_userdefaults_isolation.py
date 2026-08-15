@@ -51,6 +51,11 @@ UI_TESTS = ROOT / "fichero" / "fichero-ui-tests"
 ALLOWLIST: dict[str, str] = {
     # Documents the hazard in prose; the string appears only in comments.
     "TestDefaults.swift": "defines the isolation seam and explains it in comments",
+    # READ-ONLY on purpose: this test asserts the app's real bookmark
+    # domain is UNTOUCHED by a test-host saveBookmark (the 2026-08-14
+    # pollution). It must read the domain the production code writes;
+    # a throwaway suite would assert nothing.
+    "FolderAccessBookmarkHygieneTests.swift": "reads .standard to prove tests never write it",
 }
 
 PATTERN = re.compile(r"UserDefaults\s*\.\s*standard")

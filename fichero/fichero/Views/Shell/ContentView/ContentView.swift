@@ -14,7 +14,7 @@ var textEditingHasKeyboard: Bool {
 }
 
 enum PaneFocus: Hashable {
-    case sidebar, content, preview, reading, inspector
+    case sidebar, content, preview, reading, chat, inspector
 
     /// Human name for the pane — VoiceOver announcements on pane moves.
     var paneTitle: String {
@@ -23,6 +23,7 @@ enum PaneFocus: Hashable {
         case .content: return "Library"
         case .preview: return "Preview"
         case .reading: return "Reader"
+        case .chat: return "Chat"
         case .inspector: return "Inspector"
         }
     }
@@ -75,6 +76,10 @@ struct ContentView: View {
     /// has no floor. (#1454)
     nonisolated static let pdfCanvasMinWidth: Double = 360
     nonisolated static let readingPaneMinWidth: Double = 220
+    /// Chat is the NARROW always-available pane right of the reader
+    /// (pane rulings 2026-08-11) — wide enough for a composer, never
+    /// the takeover it used to be.
+    nonisolated static let chatPaneMinWidth: Double = 280
 
     // MARK: - Environment
 
@@ -199,6 +204,10 @@ struct ContentView: View {
     // keeps its own choice via @SceneStorage (same pattern as the
     // sidebar/inspector toggles), so selection never remounts or hides panes.
     @SceneStorage("showDocumentCanvas") var showDocumentCanvas: Bool = true
+    /// Chat pane visibility — DEFAULT ON (Daniel's pane ruling: a fresh
+    /// window shows library+preview+reader+chat).
+    @SceneStorage("showChatPane") var showChatPane: Bool = true
+    @SceneStorage("chatPaneWidth") var chatPaneWidth: Double = 320
     @SceneStorage("showReadingPane") var showReadingPane: Bool = true
     // Summoned search (#4521): the engine-search field in the library's mini
     // toolbar appears only while this is on — toggled by the toolbar's search
@@ -226,6 +235,14 @@ struct ContentView: View {
     // Per-folder view mode persistence (JSON-encoded [folderId: displayMode.rawValue], per-window)
     @SceneStorage("folderViewDisplayModes") var folderViewDisplayModesJSON: String = "{}"
 
+    // SAME keys as LibraryView's per-folder sort persistence (@SceneStorage is
+    // per-scene, so these read the values the library writes). Sibling
+    // swipe/arrow stepping must walk the order the library DISPLAYS, not the
+    // raw server order (2026-08-11: swipes went 61 → 60 → 6 → 59 —
+    // lexicographic — where the list showed Finder-style numeric names).
+    @SceneStorage("library.sortFieldsByFolder") var navSortFieldsByFolderJSON: String = "{}"
+    @SceneStorage("library.sortAscendingByFolder") var navSortAscendingByFolderJSON: String = "{}"
+
     @State var itemRegistry = ItemTypeRegistry()
     @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()
@@ -241,6 +258,9 @@ struct ContentView: View {
     /// `searchResultDocuments` (relevance order) for this query.
     @State var activeSearchQuery: String?
     @State var searchResultDocuments: [Document] = []
+    /// Per-hit matched text + relevance for the active search (#11): the
+    /// rows show WHY a document matched and how strongly.
+    @State var transientSearchRowHits: [String: TransientSearchRowHit] = [:]
     /// Page size for the active transient search; "Load More" grows it and
     /// re-runs the query (S9 UI half). Reset to the default on every new query.
     @State var transientSearchLimit: Int = ContentView.transientSearchPageSize

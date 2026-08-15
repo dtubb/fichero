@@ -33,9 +33,12 @@ struct RunArtifactRow: View {
             provenance
             if let text = displayedText, !text.isEmpty {
                 Text(text)
+                    // Fetched-full content shows WHOLE (#22, no-truncation
+                    // mandate): capping "Show Full" at 12 lines re-clipped
+                    // the very text the user just asked to see in full.
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(isStillTruncated ? 4 : 12)
+                    .lineLimit(isStillTruncated ? 4 : (fullContent != nil ? nil : 12))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

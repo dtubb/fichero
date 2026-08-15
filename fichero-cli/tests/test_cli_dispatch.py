@@ -68,10 +68,14 @@ class _RecordingClient:
     def health(self):
         return {"status": "ok"}
 
+    def restore_document(self, doc_id):
+        type(self).restored_ids = getattr(type(self), "restored_ids", []) + [doc_id]
+
 
 @pytest.fixture
 def recording_client(monkeypatch):
     _RecordingClient.last_kwargs = None
+    _RecordingClient.restored_ids = []
     monkeypatch.setattr(cli_main, "FicheroClient", _RecordingClient)
     return _RecordingClient
 
@@ -156,3 +160,13 @@ def test_json_flag_switches_rendering(recording_client):
     assert human.exit_code == 0 and as_json.exit_code == 0
     assert '"status": "ok"' in as_json.output
     assert as_json.output != human.output
+
+
+def test_docs_restore_dispatches_to_the_restore_endpoint(recording_client):
+    """`docs restore` is the app's missing "put it back later" (2026-08-15:
+    a folder of 63 pages went to Trash with no surface to un-trash it —
+    the confirmation promises restorability, so the CLI must deliver it)."""
+    result = runner.invoke(cli_main.app, ["docs", "restore", "doc-123"])
+
+    assert result.exit_code == 0, result.output
+    assert getattr(recording_client, "restored_ids", []) == ["doc-123"]

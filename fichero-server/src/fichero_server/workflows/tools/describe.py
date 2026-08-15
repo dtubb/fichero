@@ -98,6 +98,7 @@ def build_describe_prompt(config: dict) -> str:
 
 @register_tool(
     name="describe",
+    parallelism="elementwise",
     display_name="Describe",
     description="Generate image descriptions",
     category="vision",

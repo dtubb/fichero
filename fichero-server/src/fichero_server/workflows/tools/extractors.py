@@ -38,7 +38,7 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from fichero_server.db import db_manager
-from fichero_server.kg._common import parse_kwarg_repr
+from fichero_server.knowledge._common import parse_kwarg_repr
 from fichero_server.llm import (
     LLMConfig,
     ProviderQuotaError,
@@ -1896,7 +1896,7 @@ def _write_citation_usage_rows(
     model: str | None = None,
 ) -> None:
     """Persist body citation usages as DocumentCitation + KnowledgeClaim."""
-    from fichero_server.kg._common import canonical_hermeneutic_predicate, slug_verb
+    from fichero_server.knowledge._common import canonical_hermeneutic_predicate, slug_verb
     from fichero_server.models.knowledge import ClaimType, DocumentCitation, KnowledgeClaim
     from fichero_server.models import Document as DocumentModel
     from fichero_server.workflows.tools._entity_writer import save_claim
@@ -2065,7 +2065,7 @@ def _write_kg_rows(
         KnowledgeClaim,
     )
     from fichero_server.workflows.tools._entity_writer import upsert_entity, save_claim
-    from fichero_server.kg._common import slug_verb
+    from fichero_server.knowledge._common import slug_verb
 
     entity_type = section.get("entity_type")
     page_excerpt = source_excerpt  # rename for clarity below

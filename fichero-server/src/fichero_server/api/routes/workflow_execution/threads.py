@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -648,6 +649,31 @@ async def list_threads(
     except Exception:
         logger.exception("Failed to list threads")
         raise workflow_internal_error("Failed to list workflow threads")
+
+
+@router.get("/threads/{thread_id}/episodes")
+async def get_thread_episodes(
+    thread_id: str,
+    db: Database = Depends(get_library_database),
+    limit: int = 500,
+) -> dict:
+    """Episodes recorded under this run — per-node model-call provenance.
+
+    Each record carries the node, the FULL exchange (prompt, raw output,
+    thinking), model identity + use_case, subject (document/page/file),
+    and timing: the "investigate each node" surface (workflows-done-right,
+    2026-08-12) and the resolver behind thesis citation keys. Corrections
+    and invalidations referencing this run's episodes ride along by id.
+    """
+    from fichero_server.observability import episodes  # noqa: PLC0415
+
+    library_path = str(Path(str(db.path)).parent)
+    records = episodes.read_for_thread(library_path, thread_id, limit=limit)
+    return {
+        "thread_id": thread_id,
+        "count": len(records),
+        "episodes": records,
+    }
 
 
 @router.delete("/threads/{thread_id}")

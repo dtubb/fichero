@@ -86,6 +86,7 @@ def build_caption_prompt(config: dict) -> str:
 
 @register_tool(
     name="caption",
+    parallelism="elementwise",
     display_name="Caption",
     description="Generate short image caption",
     category="vision",

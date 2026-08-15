@@ -298,7 +298,7 @@ class TestEmbeddingMatch:
     """
 
     def test_new_entity_gets_indexed_in_lancedb(self, db):
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
         description = "The heirs filed the original mining petition."
@@ -377,7 +377,7 @@ class TestEmbeddingMatch:
         entity, the LanceDB vector should refresh so future matches
         see the latest description. Locks the contract that the
         merge path calls index_entity again."""
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
         entity_id = upsert_entity(
@@ -1596,7 +1596,7 @@ class TestAccentDedupIntegration:
 
     @staticmethod
     def _disable_embeddings(monkeypatch):
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
 
         monkeypatch.setattr(entity_vectors, "find_similar", lambda **_: [])
         monkeypatch.setattr(entity_vectors, "index_entity", lambda **_: None)
@@ -1764,7 +1764,7 @@ class TestMergeVectorFailureIsLoud:
     ):
         import logging
 
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
         from fichero_server.workflows.tools._entity_writer import upsert_entity
 
         # Force the SequenceMatcher (Stage 3) fuzzy-merge path: no embedding

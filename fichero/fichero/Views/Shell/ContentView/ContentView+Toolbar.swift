@@ -146,6 +146,17 @@ extension ContentView {
                     Label("Reading Pane", systemImage: ToolbarSymbols.readingPane)
                 }
                 .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
+
+                // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
+                // to turn it on and off") — fourth member of the pane group,
+                // same grammar as preview/reading.
+                Toggle(isOn: Binding(
+                    get: { showChatPane },
+                    set: { setChatPaneVisible($0) }
+                )) {
+                    Label("Chat Pane", systemImage: ToolbarSymbols.chatPane)
+                }
+                .help(showChatPane ? "Hide chat pane" : "Show chat pane")
             }
 
             // Summoned search (#4521, Finder-shaped): the engine-search field
@@ -213,11 +224,21 @@ extension ContentView {
             // (#4544) — one cheap struct init per render, the real work at
             // open time.
             SidebarDeferredMenuContent {
-                ForEach(availableViewDisplayModes) { mode in
-                    Button {
-                        updateViewDisplayMode(mode)
-                    } label: {
-                        Label(mode.label, systemImage: mode.icon)
+                // Three sections (Daniel 2026-08-14): Finder-style browsing,
+                // the dataset renderers, and the canvases — sectioned from
+                // the enum's own grouping so the menu can't drift from it.
+                ForEach(ViewDisplayMode.Group.allCases, id: \.rawValue) { group in
+                    let modes = availableViewDisplayModes.filter { $0.group == group }
+                    if !modes.isEmpty {
+                        Section(group.rawValue) {
+                            ForEach(modes) { mode in
+                                Button {
+                                    updateViewDisplayMode(mode)
+                                } label: {
+                                    Label(mode.label, systemImage: mode.icon)
+                                }
+                            }
+                        }
                     }
                 }
                 // NO per-folder items (Daniel's final #4575 ruling,

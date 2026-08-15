@@ -92,10 +92,10 @@ def _stub_entity_model(monkeypatch, impl) -> None:
     )
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.find_similar", lambda *a, **k: []
+        "fichero_server.knowledge.entity_vectors.find_similar", lambda *a, **k: []
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity", lambda *a, **k: None
+        "fichero_server.knowledge.entity_vectors.index_entity", lambda *a, **k: None
     )
 
 

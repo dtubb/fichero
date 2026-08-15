@@ -135,17 +135,41 @@ extension ContentView {
         // (isEmpty + count) recomputed a filter+sort per read — 2x O(n log n) per
         // render. The pane needs only the count, so use the sort-free accessor.
         let pageCount = pdfDocPageCount
+        // Multi-selection is stated honestly (Daniel 2026-08-11: three items
+        // selected, the preview showed the 3-item stack, the inspector said
+        // "3 Items Selected" — and the reader silently showed ONE page's
+        // transcript). Same gate as both of those panes. Rendering content
+        // for ALL selected items is the pane-rebuild enhancement; until then
+        // the reader must not present one item's text as the selection's.
+        let readerStack = previewStackDocuments(
+            selection: browserSelection, in: documentStore.currentDocuments
+        )
         // Each SplittablePane instance renders ReadingPaneView independently,
         // giving left and right split panes their own @State (including pin).
+        //
+        // AnyView — LOAD-BEARING (#4331 family, Daniel's crash 2026-08-11
+        // evening): EXC_BAD_ACCESS in objc_retain while initializeWithCopy
+        // COPIED the composed reading-pane value through three
+        // ExclusiveGesture wrappers (SidebarLayout:242). The multi-select
+        // _ConditionalContent grew the value past what the copy machinery
+        // survives; erasure at the case boundary caps it, same as the root
+        // layout and window root.
         adaptiveSplittablePane(storageKey: "reading") {
-            ReadingPaneView(
-                liveDocument: detailDocument,
-                liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
-                livePageCount: pageCount == 0 ? nil : pageCount,
-                scrollSync: documentScrollSync,
-                onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
-                onClose: { setPaneVisible(.reading, false) }
-            )
+            if readerStack.count > 1 {
+                AnyView(PaneEmptyStateView(
+                    reason: "\(readerStack.count) Items Selected",
+                    systemImage: "square.on.square"
+                ))
+            } else {
+                AnyView(ReadingPaneView(
+                    liveDocument: detailDocument,
+                    liveActivePageNumber: detailPDFDocumentId == nil ? nil : selectedPageIndex + 1,
+                    livePageCount: pageCount == 0 ? nil : pageCount,
+                    scrollSync: documentScrollSync,
+                    onPageSelected: { index in syncGridSelectionToPDFPage(index: index) },
+                    onClose: { setPaneVisible(.reading, false) }
+                ))
+            }
         }
         // Native focus rings OFF in this pane (Daniel's screenshot, 3:56pm:
         // a persistent blue edge above the reader toolbar — macOS 14+ makes

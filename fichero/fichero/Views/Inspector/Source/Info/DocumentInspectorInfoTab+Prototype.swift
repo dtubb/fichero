@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import OSLog
 import SwiftUI
 
 // MARK: - Document prototype / class picker (#1377)
@@ -19,14 +20,20 @@ struct DocumentPrototypePicker: View {
     @State private var selectedKey: String?
     @State private var prototypes: [Components.Schemas.ClassificationValue] = []
     @State private var isAssigning = false
+    @State private var showTypeEditor = false
 
     var body: some View {
         LabeledContent("Prototype") {
             if prototypes.isEmpty && !isAssigning {
-                Text("No types defined")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .help("Define document prototypes in Settings → Classification to classify documents here")
+                // The old empty state pointed at "Settings → Classification",
+                // which never existed — the editor opens right here instead.
+                Button("Define Types…") {
+                    showTypeEditor = true
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+                .font(.caption)
+                .help("Create document types (prototypes) with typed attributes")
             } else {
                 Menu {
                     Button("None") {
@@ -45,6 +52,10 @@ struct DocumentPrototypePicker: View {
                                 }
                             }
                         }
+                    }
+                    Divider()
+                    Button("Edit Types…") {
+                        showTypeEditor = true
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -70,9 +81,18 @@ struct DocumentPrototypePicker: View {
         }
         .task {
             selectedKey = initialKey
-            if let svc = entityService {
-                prototypes = (try? await svc.listDocumentPrototypes()) ?? []
+            await reloadPrototypes()
+        }
+        .sheet(isPresented: $showTypeEditor) {
+            PrototypeEditorSheet(entityService: entityService) {
+                Task { await reloadPrototypes() }
             }
+        }
+    }
+
+    private func reloadPrototypes() async {
+        if let svc = entityService {
+            prototypes = (try? await svc.listDocumentPrototypes()) ?? []
         }
     }
 
@@ -80,10 +100,17 @@ struct DocumentPrototypePicker: View {
         guard let svc = entityService else { return }
         isAssigning = true
         defer { isAssigning = false }
-        if let key {
-            _ = try? await svc.assignDocumentPrototype(documentId: documentId, prototypeKey: key)
+        do {
+            // nil clears the assignment server-side — "None" used to stop at
+            // the UI while the engine kept the old prototype.
+            try await svc.assignDocumentPrototype(documentId: documentId, prototypeKey: key)
+            selectedKey = key
+        } catch {
+            // Keep the UI honest: the selection only moves when the engine
+            // accepted it.
+            Logger(subsystem: "app.fichero", category: "PrototypePicker")
+                .error("Prototype assign failed: \(error.localizedDescription)")
         }
-        selectedKey = key
     }
 }
 

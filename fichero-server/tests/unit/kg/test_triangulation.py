@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero_server.kg import triangulation
+from fichero_server.knowledge import triangulation
 from fichero_server.models import DocType, Document, SourceAuthority
 from fichero_server.models.knowledge import (
     EntityType,

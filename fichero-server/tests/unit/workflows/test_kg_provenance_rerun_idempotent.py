@@ -17,7 +17,7 @@ from fichero_server.models import DocType, Document, FileType
 @pytest.fixture
 def _no_embeddings(monkeypatch):
     """Deterministic exact/fuzzy matching without the embedding model."""
-    from fichero_server.kg import entity_vectors
+    from fichero_server.knowledge import entity_vectors
 
     monkeypatch.setattr(entity_vectors, "find_similar", lambda **_: [])
     monkeypatch.setattr(entity_vectors, "index_entity", lambda **_: None)

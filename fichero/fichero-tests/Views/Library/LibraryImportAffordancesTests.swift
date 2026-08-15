@@ -107,7 +107,8 @@ final class LibraryImportAffordancesTests: XCTestCase {
     /// `displayMode` switch — assert that ordering, because it is what makes
     /// the gutter menu insufficient on its own.
     func testEmptyLibraryShowsEmptyStateBeforeAnyViewMode() throws {
-        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         XCTAssertTrue(library.contains("if isCollectionEmpty {"))
         XCTAssertTrue(library.contains("emptyState"))
         guard let emptyBranch = library.range(of: "if isCollectionEmpty {"),
@@ -140,7 +141,8 @@ final class LibraryImportAffordancesTests: XCTestCase {
         let contextMenu = try Self.appSource("Views/Library/LibraryView+ContextMenu.swift")
         let iconMode = try Self.appSource("Views/Library/ViewModes/Icon/LibraryView+IconMode.swift")
         let emptyState = try Self.appSource("Views/Library/LibraryView+FilterAndBatch.swift")
-        let libraryView = try Self.appSource("Views/Library/LibraryView.swift")
+        let libraryView = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
 
         // (a) Data menu → Import, via the narrow focused value (#4452).
         XCTAssertTrue(libraryView.contains(".focusedValue(\\.libraryImportAction)"))
@@ -172,7 +174,9 @@ final class LibraryImportAffordancesTests: XCTestCase {
         for path in [
             "Views/Library/LibraryView+BottomActionBar.swift",
             "Views/Library/LibraryView+ContextMenu.swift",
-            "Views/Library/LibraryView.swift"
+            // The focusedValue import affordance moved with `body` out of
+            // LibraryView.swift in the 2026-08-13 file-length split.
+            "Views/Library/LibraryView+Body.swift"
         ] {
             // Comment lines dropped first: these files DOCUMENT the
             // state-then-present sequence in prose, and counting those

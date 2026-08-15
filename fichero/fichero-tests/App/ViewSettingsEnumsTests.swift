@@ -11,7 +11,15 @@ final class ViewSettingsEnumsTests: XCTestCase {
     // MARK: - LibraryLayout
 
     func testLibraryLayoutCasesRawValuesAndIcons() {
-        XCTAssertEqual(LibraryLayout.allCases.count, 6)
+        XCTAssertEqual(LibraryLayout.allCases.count, 11)
+        // The spreadsheet (Daniel 2026-08-14). Raw value avoids the word
+        // "Grid" (icon-grid ambiguity).
+        XCTAssertEqual(LibraryLayout.grid.rawValue, "DataGrid")
+        XCTAssertEqual(LibraryLayout.cards.rawValue, "Cards")
+        XCTAssertEqual(LibraryLayout.timeline.rawValue, "Timeline")
+        XCTAssertEqual(LibraryLayout.calendar.rawValue, "CalendarGrid")
+        // NOT "Map": that legacy rawValue normalizes to .canvas.
+        XCTAssertEqual(LibraryLayout.geoMap.rawValue, "GeoMap")
         XCTAssertEqual(LibraryLayout.icons.rawValue, "Icons")
         XCTAssertEqual(LibraryLayout.list.rawValue, "List")
         XCTAssertEqual(LibraryLayout.table.rawValue, "Table")

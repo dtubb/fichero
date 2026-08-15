@@ -118,7 +118,7 @@ class TestIngestDefaultExtractText:
         fake_db.all.side_effect = lambda model: list(saved_docs.values())
         # Prescan seam (2026-08-09): the skip-set now comes from one targeted
         # SELECT, Database.ingest_dedup_keys(); mirror its contract here.
-        fake_db.ingest_dedup_keys.side_effect = lambda: {
+        fake_db.ingest_dedup_keys.side_effect = lambda root_id=None: {
             (
                 (doc.metadata or {}).get("source_path") or doc.path,
                 (doc.metadata or {}).get("checksum"),

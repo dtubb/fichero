@@ -837,8 +837,13 @@ class TestDocumentHierarchy:
         parent = Document(id="parent1", name="Parent", doc_type=DocType.folder)
         child = Document(id="child1", name="Child", parent_id="parent1", doc_type=DocType.file)
 
-        # First call returns child, second returns parent, third returns None (root)
-        mock_db.get.side_effect = [child, parent, None]
+        # Every hop rides the committed-read path (2026-08-12,
+        # deadlineExceeded fix) — the walk calls get_committed per ancestor,
+        # so the mock MUST route by id. A fixed return_value here fed the
+        # walk `child` forever: an infinite loop and an unbounded ancestors
+        # list (the multi-GB pytest balloon).
+        rows = {"child1": child, "parent1": parent}
+        mock_db.get_committed.side_effect = lambda _cls, doc_id: rows.get(doc_id)
 
         response = client.get("/api/documents/child1/ancestors")
         assert response.status_code == 200
@@ -847,10 +852,22 @@ class TestDocumentHierarchy:
 
     def test_get_ancestors_not_found(self, client, mock_db):
         """Get ancestors of nonexistent doc returns 404."""
+        mock_db.get_committed.return_value = None
         mock_db.get.return_value = None
 
         response = client.get("/api/documents/nonexistent/ancestors")
         assert response.status_code == 404
+
+    def test_get_ancestors_survives_parent_cycle(self, client, mock_db):
+        """A malformed parent CYCLE must return, not walk forever."""
+        doc_a = Document(id="a", name="A", parent_id="b", doc_type=DocType.folder)
+        doc_b = Document(id="b", name="B", parent_id="a", doc_type=DocType.folder)
+        rows = {"a": doc_a, "b": doc_b}
+        mock_db.get_committed.side_effect = lambda _cls, doc_id: rows.get(doc_id)
+
+        response = client.get("/api/documents/a/ancestors")
+        assert response.status_code == 200
+        assert response.json()["count"] == 1
 
     def test_move_document_success(self, client, mock_db, sample_doc, sample_collection):
         """Move document to new parent successfully."""
@@ -865,6 +882,7 @@ class TestDocumentHierarchy:
             return None
         
         mock_db.get.side_effect = get_side_effect
+        mock_db.get_committed.side_effect = get_side_effect
         mock_db.save.return_value = None
 
         response = client.put(f"/api/documents/{sample_doc.id}/move?parent_id={sample_collection.id}")
@@ -884,6 +902,7 @@ class TestDocumentHierarchy:
             return None
         
         mock_db.get.side_effect = get_side_effect
+        mock_db.get_committed.side_effect = get_side_effect
         mock_db.save.return_value = None
 
         response = client.put(f"/api/documents/{sample_doc.id}/move")
@@ -895,6 +914,7 @@ class TestDocumentHierarchy:
     def test_move_document_not_found(self, client, mock_db):
         """Move nonexistent document returns 404."""
         mock_db.get.return_value = None
+        mock_db.get_committed.return_value = None
 
         response = client.put("/api/documents/nonexistent/move?parent_id=parent123")
         assert response.status_code == 404
@@ -907,6 +927,7 @@ class TestDocumentHierarchy:
             return None  # Parent doesn't exist
         
         mock_db.get.side_effect = get_side_effect
+        mock_db.get_committed.side_effect = get_side_effect
 
         response = client.put(f"/api/documents/{sample_doc.id}/move?parent_id=nonexistent")
         assert response.status_code == 400
@@ -924,6 +945,7 @@ class TestDocumentHierarchy:
             return None
         
         mock_db.get.side_effect = get_side_effect
+        mock_db.get_committed.side_effect = get_side_effect
         mock_db.save.return_value = None
 
         response = client.put(f"/api/documents/{sample_doc.id}/move?parent_id={sample_collection.id}")

@@ -32,6 +32,30 @@ mind-palace routes, renamed to `/api/canvas`), and more.
 - Response: `200` with the JSON-LD AnnotationPage object; missing documents
   return `404`.
 
+## Prototype attributes and the dataset query (datasets Stages 1–2)
+
+`GET /api/documents/{doc_id}/effective-attributes`
+
+- Purpose: a node's structured data, resolved — attribute declarations from
+  its prototype chain (typed, with renderer roles) plus effective values
+  (chain defaults overlaid with the node's own `attributes`). Unresolvable
+  prototypes return `422`, never partial data.
+
+`GET /api/classifications/resolved/{key}`
+
+- Purpose: one prototype's chain-merged declarations and defaults — the
+  editor's inheritance preview. Unknown key or cycle returns `422`.
+
+`POST /api/documents/dataset/query`
+
+- Purpose: the one renderer query over a folder's attribute-bearing rows —
+  server-side sort (typed, nulls last), typed filters, paging, date binning
+  (year/month/day, for timeline and calendar), and facet counts, all via
+  DuckDB `json_extract` per the Stage 2 measurement. The response carries
+  each involved prototype's chain-merged defaults so clients overlay a page
+  cheaply; a prototype that no longer resolves reports its error string
+  under `_unresolved`.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API
@@ -276,3 +300,56 @@ See `docs/superpowers/specs/2026-07-13-mac-app-store-sandbox-research.md` (#3747
 
 <redoc spec-url="openapi.json" hide-download-button></redoc>
 <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+
+### Artifact span → page region
+
+`GET /api/artifacts/{artifact_id}/region` resolves a line or character span of
+a transcription artifact to its normalized page region — the single addressing
+scheme (#4418) behind sentence-level highlight provenance. Optional query
+parameters `char_start`/`char_end` (offsets into the artifact's content) or
+`line` (zero-based) choose the span. The response is `ArtifactRegionResponse`:
+a `geometry_status` (so "this engine cannot point at the page" is
+distinguishable from "this page is blank"), an optional `geometry_reason`, and
+the resolved `region` when geometry exists. Unknown artifact ids return `404`.
+
+### Workflow run comparison
+
+`GET /api/workflow-execution/comparisons` diffs what two runs produced from
+the same input. Required query parameters `left` and `right` are the two
+thread ids. Artifacts pair on (document, artifact type); the
+`RunComparisonResponse` reports line-level differences for transcriptions and,
+for extraction runs, which entities or claims each side found that the other
+missed.
+
+### Workflow run episodes
+
+`GET /api/workflow-execution/threads/{thread_id}/episodes` returns the
+episode-ledger records recorded under one run — per-node model-call
+provenance: each record carries the node, the full exchange (prompt, raw
+output, thinking), model identity and use case, the subject
+(document/page/file), and timing. Optional `limit` (default 500). The
+response is `{thread_id, count, episodes}` with records in ledger order.
+This is the per-node inspection surface and the resolver behind episode
+citation keys; corrections and invalidations referencing the run's
+episodes appear by id.
+
+### Interpretation search leg
+
+`POST /api/search` accepts `"interpretations"` in `include` (opt-in, like
+`"artifacts"`). A matching interpretation — its text, key insights, or
+predicate — folds its SOURCE document into `results` with
+`metadata.matched_via = "interpretation"`, the interpretation text as the
+preview, and `interpretation_id`/`framework_id` in metadata so the client
+can open the interpretive context alongside the document.
+
+### Training export
+
+`POST /api/export/training` writes chat-format training samples from the
+episode ledger to a `.jsonl` destination. One sample per recorded model
+call: system+user messages from the recorded exchange; the assistant turn
+is the human correction when one exists (`gold: true`, with the model's
+original output in `rejected` for DPO pairing), otherwise the model
+output. Optional `use_case` filters to one workflow step's calls;
+`gold_only` keeps only corrected pairs. Engine-local destination path — a
+CLI/backend surface like the record-bundle exports, with the same
+conflict rule (`409` unless `overwrite`).

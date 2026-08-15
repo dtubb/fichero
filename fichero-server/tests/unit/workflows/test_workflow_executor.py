@@ -684,23 +684,33 @@ class TestParallelExecution:
             assert send.node == "transcribe_process"
 
     def test_fan_out_empty_files(self):
-        """Test fan-out with no files returns empty list."""
+        """Zero files FAILS the run (Daniel, 2026-08-11) — except search.
+
+        The old contract (return [] and complete green) read absence as
+        success. Full policy coverage lives in
+        test_zero_file_fan_out_policy.py.
+        """
+        import pytest
         from fichero_server.workflows.builder import _make_fan_out_function
+
+        state = {"outputs": {"source": {"files": [], "documents": []}}}
 
         fan_out = _make_fan_out_function(
             "source",
             ["transcribe"],
             {"transcribe": "transcribe"},
+            source_tool="folder",
         )
+        with pytest.raises(ValueError, match="0 files"):
+            fan_out(state)
 
-        state = {
-            "outputs": {
-                "source": {"files": [], "documents": []}
-            }
-        }
-
-        sends = fan_out(state)
-        assert len(sends) == 0, "Should return empty list for no files"
+        search_fan_out = _make_fan_out_function(
+            "source",
+            ["transcribe"],
+            {"transcribe": "transcribe"},
+            source_tool="search",
+        )
+        assert search_fan_out(state) == []
 
     def test_aggregation_function_creation(self):
         """Test creating an aggregation function."""

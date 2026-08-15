@@ -64,6 +64,11 @@ enum ToolbarSymbols {
     static let libraryPane = "rectangle.leadinghalf.inset.filled"
     static let previewPane = "rectangle.center.inset.filled"
     static let readingPane = "text.book.closed"
+    /// Chat pane toggle (2026-08-12): chat is a ROW pane like preview and
+    /// reading, so its toggle joins theirs in the pane group.
+    /// Sparkles, not a chat bubble (Daniel 2026-08-12): the bubble read as
+    /// "chat app"; sparkles says AI.
+    static let chatPane = "sparkles"
     static let inspector = "sidebar.right"
 
     // MARK: Library list controls
@@ -100,6 +105,7 @@ enum ToolbarSymbols {
         ("library pane toggle", libraryPane),
         ("preview pane toggle", previewPane),
         ("reading pane toggle", readingPane),
+        ("chat pane toggle", chatPane),
         ("inspector toggle", inspector),
         ("sort menu", sortMenu),
         ("filter toggle", filter),

@@ -195,8 +195,14 @@ struct ContainerActivityTests {
     @Test("the container renders a determinate indicator, not the leaf spinner")
     func containerRendersADeterminateIndicator() throws {
         let label = try Self.codeOnly(
-            Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift"))
-        #expect(label.contains("containerActivity.progress"))
+            // Rendered in the Equatable SidebarRowLabelCore since the
+            // 2026-08-15 selection-stall fix.
+            Self.appSource("Views/Sidebar/ItemRow/SidebarRowLabelCore.swift"))
+        // The core renders from its containerProgress input; +Label feeds
+        // it from containerActivity — both halves checked.
         #expect(label.contains("ProgressView(value: progress)"))
+        let feeder = try Self.codeOnly(
+            Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift"))
+        #expect(feeder.contains("containerProgress: activity.progress"))
     }
 }

@@ -12,15 +12,16 @@ enum MiniToolbarPlacement {
     case top
     case bottom
 
-    /// The ONE platform decision for reader-style control bars (#4362): on the
-    /// Mac, controls belong near the head of the content, under the window
-    /// toolbar; touch platforms keep them at the bottom for reachability.
+    /// The ONE placement decision for reader-style control bars (#4362).
+    ///
+    /// BOTTOM everywhere now (Daniel, 2026-08-11, supersedes the Mac-top
+    /// choice): "bottom of library and reader is where we can filter, and
+    /// where we can show which metadata or columns to show" — the Xcode
+    /// console model. The TOP mini toolbar's future job is close/split
+    /// controls, not filtering. Touch platforms already wanted bottom for
+    /// reachability, so the platform fork is gone.
     static var preferredForReader: MiniToolbarPlacement {
-        #if os(macOS)
-        .top
-        #else
         .bottom
-        #endif
     }
 }
 

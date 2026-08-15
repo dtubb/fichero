@@ -15,7 +15,7 @@ from fichero_server.db import Database
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 # NOTE: fichero_server.llm is imported inside the one handler that uses it (#3950).
 # It pulls langchain_core (~600 modules) onto the engine startup path.
-from fichero_server.kg.paragraph import (
+from fichero_server.knowledge.paragraph import (
     ParagraphRenderRequest,
     ParagraphRenderResponse,
     render_paragraph_claims,

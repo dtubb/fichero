@@ -49,3 +49,26 @@ struct SearchResult: Identifiable, Codable {
         ) ?? []
     }
 }
+
+/// What a library row needs from a search hit (#11, Daniel 2026-08-11:
+/// "it'd be good to show in the list of the library the relevant text in
+/// search … and the results relevance on the right hand side"): the matched
+/// text — the answer to "why did 'Colombia' get us this image?" — and its
+/// score. The full excerpt (char span + anchor) stays on SearchResult for
+/// the coming sentence-level highlight provenance.
+struct TransientSearchRowHit: Equatable, Sendable {
+    let excerpt: String?
+    let score: Double
+}
+
+extension SearchResult {
+    /// The best row-sized explanation of the match: a transcript excerpt
+    /// (verbatim, span-anchored) first, then an FTS highlight, then the
+    /// generic content preview.
+    var rowHit: TransientSearchRowHit {
+        TransientSearchRowHit(
+            excerpt: transcriptExcerpts.first?.text ?? highlights?.first ?? contentPreview,
+            score: score
+        )
+    }
+}

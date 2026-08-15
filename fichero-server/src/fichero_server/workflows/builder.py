@@ -305,7 +305,13 @@ DEFAULT_MAX_CONCURRENT = 10
 # here for months while the tool was registered as "extract_entities", so a
 # source→extract_entities edge ran as one batch call instead of per-file
 # Sends). test_parallel_and_source_tool_names_resolve guards this.
-PARALLEL_TOOLS = {"transcribe", "describe", "summarize", "extract_entities"}
+PARALLEL_TOOLS = {
+    "transcribe",
+    "describe",
+    "summarize",
+    "extract_entities",
+    "detect_regions",
+}
 
 
 def _result_worth_caching(result: Any) -> bool:
@@ -339,6 +345,19 @@ def _result_worth_caching(result: Any) -> bool:
 
 # Source tools that output files (triggers parallel processing when connected to PARALLEL_TOOLS)
 SOURCE_TOOLS = {"files", "collection", "folder", "search"}
+
+
+def _stream_elementwise_enabled() -> bool:
+    """Per-page pipelining bring-up gate (lane step 2, 2026-08-12): when on,
+    consecutive ELEMENTWISE stages chain Sends so items stream node-to-node
+    instead of re-batching at every hop. Semantics proven in
+    test_send_chaining_semantics.py; default OFF until a live large-folder
+    soak passes, then the flag flips and dies (dead-simple-UX rule)."""
+    import os
+
+    return os.environ.get("FICHERO_STREAM_ELEMENTWISE", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 # =============================================================================
 # Error Detection Configuration
@@ -568,6 +587,52 @@ def build_graph(
                         )
                         break
 
+    # Per-page pipelining (lane step 2): chain Sends through consecutive
+    # ELEMENTWISE stages. A chain edge A→B replaces B's batch call with a
+    # per-item _process/_aggregate pair fed by Command(goto=Send) from A's
+    # branches — the item payload (upstream text/value) travels WITH the
+    # Send, so B consumes A's per-item output without an aggregation hop.
+    chain_successors: dict[str, list[str]] = {}
+    chained_targets: set[str] = set()
+    chain_edges: set[tuple[str, str]] = set()
+    if enable_parallel and _stream_elementwise_enabled():
+        from fichero_server.workflows.registry import get_tool_def  # noqa: PLC0415
+
+        def _parallelism_of(node_id_: str) -> str:
+            node_ = workflow.get_node(node_id_)
+            tool_def_ = get_tool_def(node_.tool) if node_ else None
+            return tool_def_.parallelism if tool_def_ else "batch"
+
+        stage_frontier = {t for (_, t) in parallel_edges} | set(route_map_parallel)
+        staged = set(stage_frontier)
+        while stage_frontier:
+            next_frontier: set[str] = set()
+            for edge in workflow.edges:
+                if edge.route_map or edge.condition:
+                    continue
+                if edge.source not in stage_frontier:
+                    continue
+                if (edge.source, edge.target) in parallel_edges:
+                    continue
+                if _parallelism_of(edge.source) != "elementwise":
+                    continue
+                if _parallelism_of(edge.target) != "elementwise":
+                    continue
+                targets = chain_successors.setdefault(edge.source, [])
+                if edge.target not in targets:
+                    targets.append(edge.target)
+                chain_edges.add((edge.source, edge.target))
+                if edge.target not in staged:
+                    staged.add(edge.target)
+                    chained_targets.add(edge.target)
+                    next_frontier.add(edge.target)
+            stage_frontier = next_frontier
+        if chain_edges:
+            logger.info(
+                "Elementwise Send-chaining active for edges: %s",
+                sorted(chain_edges),
+            )
+
     # Add nodes using human-readable names
     for node_def in workflow.nodes:
         tool_fn = get_tool(node_def.tool)
@@ -581,12 +646,17 @@ def build_graph(
         is_parallel_target = (
             any((e["source"], node_def.id) in parallel_edges for e in incoming_edges)
             or node_def.id in route_map_parallel
+            or node_def.id in chained_targets
         )
 
         if is_parallel_target:
             # Create single-file processing node for parallel execution
             node_fn = _make_parallel_node_function(
-                node_def, tool_fn, llm_config, workflow_config, event_callback
+                node_def, tool_fn, llm_config, workflow_config, event_callback,
+                chain_process_names=[
+                    f"{node_names[t]}_process"
+                    for t in chain_successors.get(node_def.id, [])
+                ],
             )
             # Add aggregation node
             agg_fn = _make_aggregation_function(node_def.id)
@@ -621,13 +691,25 @@ def build_graph(
     # Add fan-out conditional edges (one per source node)
     for source_id, target_ids in parallel_by_source.items():
         source_name = node_names[source_id]
-        fan_out_fn = _make_fan_out_function(source_id, target_ids, node_names)
+        source_node = workflow.get_node(source_id)
+        fan_out_fn = _make_fan_out_function(
+            source_id,
+            target_ids,
+            node_names,
+            source_tool=source_node.tool if source_node else None,
+        )
         target_process_names = [f"{node_names[t]}_process" for t in target_ids]
         graph.add_conditional_edges(source_name, fan_out_fn, target_process_names)
         # Connect each process node to its aggregate
         for target_id in target_ids:
             target_name = node_names[target_id]
             graph.add_edge(f"{target_name}_process", f"{target_name}_aggregate")
+
+    # Chained stages get the same process→aggregate pairing; their _process
+    # is fed by Command(goto=Send) from the upstream stage's branches.
+    for chained_id in chained_targets:
+        chained_name = node_names[chained_id]
+        graph.add_edge(f"{chained_name}_process", f"{chained_name}_aggregate")
 
     def _source_graph_name(source_id: str) -> str:
         source_name = node_names[source_id]
@@ -637,6 +719,7 @@ def build_graph(
                 for e in workflow.edges
             )
             or source_id in route_map_parallel
+            or source_id in chained_targets
         )
         if source_is_parallel:
             return f"{source_name}_aggregate"
@@ -646,12 +729,16 @@ def build_graph(
     for edge in workflow.edges:
         if edge.route_map or edge.condition or (edge.source, edge.target) in parallel_edges:
             continue
+        if (edge.source, edge.target) in chain_edges:
+            continue  # wired by Command(goto=Send) from the upstream branch
         unconditional_by_target.setdefault(edge.target, []).append(edge)
 
     # Node ids that were registered as _process + _aggregate (not bare name).
     # Any edge whose TARGET is in this set must route to "{name}_process".
     parallel_target_node_ids: set[str] = (
-        {target for (_, target) in parallel_edges} | set(route_map_parallel.keys())
+        {target for (_, target) in parallel_edges}
+        | set(route_map_parallel.keys())
+        | chained_targets
     )
 
     def _target_graph_name(target_id: str) -> str:
@@ -681,6 +768,7 @@ def build_graph(
             if has_parallel_targets and enable_parallel:
                 fan_out_fn = _make_route_map_fan_out_function(
                     edge.route_key, edge.route_map, node_names, route_map_parallel,
+                    source_tool_by_id={n.id: n.tool for n in workflow.nodes},
                 )
                 path_map = {}
                 for tid in edge.route_map.values():
@@ -709,6 +797,8 @@ def build_graph(
 
         if (edge.source, edge.target) in parallel_edges:
             continue  # Already handled above
+        elif (edge.source, edge.target) in chain_edges:
+            continue  # Wired by Command(goto=Send) from the upstream branch
         elif edge.target in waiting_edge_targets and not edge.condition:
             continue  # Already handled as a fan-in waiting edge above
         elif edge.condition:
@@ -745,6 +835,7 @@ def build_graph(
                 for e in workflow.edges
             )
             or exit_id in route_map_parallel
+            or exit_id in chained_targets
         )
         if is_parallel:
             graph.add_edge(f"{exit_name}_aggregate", END)
@@ -795,6 +886,20 @@ def _make_node_function(
         # Stamp node identity for artifact provenance (#4313): save_artifact
         # reads it via workflows.node_context to fill step_name/workflow_id.
         set_current_node(node_id, node_label, workflow_id)
+
+        # Episode-ledger attribution (2026-08-12): every model call made
+        # under this node records with the run's identity. ContextVars flow
+        # into the awaited tool and its child tasks; recording itself is
+        # auxiliary and a no-op when the state has no library.
+        from fichero_server.observability import episodes
+
+        episodes.set_library(state.get("library_path") or None)
+        episodes.set_run_context({
+            "thread_id": state.get("task_id"),
+            "workflow_id": workflow_id or state.get("workflow_id"),
+            "node": node_def.tool,
+            "node_id": node_id,
+        })
 
         completed_nodes = state.get("completed_nodes") or []
         if node_id in completed_nodes:
@@ -1180,7 +1285,10 @@ def _make_node_function(
 
 
 def _make_fan_out_function(
-    source_node_id: str, target_node_ids: list[str], node_names: dict[str, str]
+    source_node_id: str,
+    target_node_ids: list[str],
+    node_names: dict[str, str],
+    source_tool: str | None = None,
 ):
     """Create a function that fans out to parallel processing using Send API.
 
@@ -1209,8 +1317,26 @@ def _make_fan_out_function(
         documents = source_output.get("documents", [])
 
         if not files:
-            logger.warning(f"No files from {source_node_id} to fan out")
-            return []
+            # Daniel's ruling (2026-08-11): a run over ZERO files FAILS
+            # loudly instead of completing green — absence read as success
+            # hid dead runs. The one deliberate exception is a search
+            # source: an index-backed query legitimately finding nothing is
+            # a result, not a failure (sources.py returns empty for it by
+            # design). Every other source RAISES on an empty selection
+            # (#4467), so reaching here without files means the run state
+            # is broken — refuse to pretend the work happened.
+            if source_tool == "search":
+                logger.warning(
+                    "Search source %s matched no files; workflow completes "
+                    "with zero fan-out by design",
+                    source_node_id,
+                )
+                return []
+            raise ValueError(
+                f"Fan-out from {node_names.get(source_node_id, source_node_id)} "
+                f"received 0 files — refusing to complete a run that would do "
+                f"nothing (source tool: {source_tool!r})"
+            )
 
         total = len(files)
         logger.info(f"Fanning out {total} files to {len(target_node_ids)} targets")
@@ -1297,6 +1423,7 @@ def _make_route_map_fan_out_function(
     route_map: dict[str, str],
     node_names: dict[str, str],
     route_map_parallel: dict[str, str],
+    source_tool_by_id: dict[str, str] | None = None,
 ):
     """Create a combined route + fan-out conditional edge function (#2236).
 
@@ -1365,11 +1492,25 @@ def _make_route_map_fan_out_function(
         documents = source_output.get("documents", [])
 
         if not files:
-            logger.warning(
-                "route_map_fan_out: no files from %s to fan out to %s",
-                files_source_id, target_id,
+            # Same zero-file ruling as fan_out (2026-08-11): fail loudly
+            # rather than routing to a _process node with no parallel_file —
+            # that Send-less hop either errored downstream or no-opped into
+            # a green run. Search sources keep the deliberate empty pass.
+            files_source_tool = (source_tool_by_id or {}).get(files_source_id)
+            if files_source_tool == "search":
+                logger.warning(
+                    "route_map_fan_out: search source %s matched no files "
+                    "for %s; completing with zero fan-out by design",
+                    files_source_id,
+                    target_id,
+                )
+                return f"{target_name}_process"
+            raise ValueError(
+                f"route_map fan-out to {target_name} received 0 files from "
+                f"{node_names.get(files_source_id, files_source_id)} — "
+                f"refusing to complete a run that would do nothing "
+                f"(source tool: {files_source_tool!r})"
             )
-            return f"{target_name}_process"
 
         total = len(files)
         sends = []
@@ -1410,6 +1551,7 @@ def _make_parallel_node_function(
     llm_config: LLMConfig,
     workflow_config: dict[str, Any] | None = None,
     event_callback: Any | None = None,
+    chain_process_names: list[str] | None = None,
 ):
     """Create a node function that processes a single file in parallel.
 
@@ -1440,6 +1582,90 @@ def _make_parallel_node_function(
         document = state.get("parallel_document")
         index = state.get("parallel_index", 0)
         total = state.get("parallel_total", 1)
+
+        # Per-page pipelining (lane step 2): when this stage has chained
+        # elementwise successors, EVERY branch outcome — success, cache hit,
+        # error, cancel — must Send exactly one packet onward, or the next
+        # stage's deferred-emission barrier (#837) waits for a count that
+        # never arrives. Failures travel as markers the next stage
+        # short-circuits on.
+        from langgraph.types import Command, Send  # noqa: PLC0415
+
+        def _with_chaining(update: dict, *, failed: bool = False, error: str | None = None):
+            if not chain_process_names:
+                return update
+            if failed:
+                payload_upstream: dict[str, Any] = {
+                    "tool": node_def.tool,
+                    "error": error or "upstream failed",
+                }
+            else:
+                results_for_node = update.get("parallel_results", {}).get(node_id, [])
+                branch_result = (
+                    results_for_node[0].get("result") if results_for_node else None
+                )
+                payload_upstream = {
+                    "tool": node_def.tool,
+                    "text": (
+                        branch_result.get("text", "")
+                        if isinstance(branch_result, dict)
+                        else ""
+                    ),
+                    "value": (
+                        branch_result.get("value")
+                        if isinstance(branch_result, dict)
+                        else None
+                    ),
+                }
+            sends = [
+                Send(
+                    name,
+                    {
+                        "parallel_file": file_path,
+                        "parallel_document": document,
+                        "parallel_index": index,
+                        "parallel_total": total,
+                        "parallel_upstream": payload_upstream,
+                        "task_id": state.get("task_id", ""),
+                        "workflow_id": state.get("workflow_id", ""),
+                        "library_path": state.get("library_path", ""),
+                    },
+                )
+                for name in chain_process_names
+            ]
+            return Command(update=update, goto=sends)
+
+        upstream = state.get("parallel_upstream")
+        if isinstance(upstream, dict) and upstream.get("error"):
+            # An upstream chained stage failed for THIS item — propagate the
+            # marker so every later stage's aggregate still reaches `total`.
+            logger.info(
+                "Chained branch %s [%s/%s] skipped: upstream %s failed (%s)",
+                node_id, index + 1, total,
+                upstream.get("tool", "?"), upstream["error"],
+            )
+            return _with_chaining(
+                {
+                    "parallel_results": {
+                        node_id: [
+                            {
+                                "file": file_path,
+                                "index": index,
+                                "total": total,
+                                "success": False,
+                                "upstream_failed": True,
+                                "error": (
+                                    f"upstream {upstream.get('tool', '?')}: "
+                                    f"{upstream['error']}"
+                                ),
+                            }
+                        ]
+                    }
+                },
+                failed=True,
+                error=str(upstream["error"]),
+            )
+        chained_input = isinstance(upstream, dict) and not upstream.get("error")
 
         # #4317: per-file cancellation boundary. The Send fan-out materialises
         # one branch per file up front; without this check a cancel only lands
@@ -1479,7 +1705,7 @@ def _make_parallel_node_function(
             }
 
         if _run_cancelled():
-            return _cancelled_result()
+            return _with_chaining(_cancelled_result(), failed=True, error="cancelled")
 
         event_document_meta: dict[str, Any] = {}
         if isinstance(document, dict):
@@ -1503,7 +1729,7 @@ def _make_parallel_node_function(
         # --- Cache Check ---
         cache = None
         cache_key = None
-        if is_cacheable and library_path and not skip_cache:
+        if is_cacheable and library_path and not skip_cache and not chained_input:
             try:
                 db_path = Path(library_path) / "fichero.duckdb"
                 if db_path.exists():
@@ -1566,8 +1792,9 @@ def _make_parallel_node_function(
                                     f"Failed to emit cached file_complete event: {cb_err}"
                                 )
 
-                        # Return cached result
-                        return {
+                        # Return cached result — chained successors still
+                        # receive this item's Send (a cache hit is a success).
+                        return _with_chaining({
                             "parallel_results": {
                                 node_id: [
                                     {
@@ -1580,7 +1807,7 @@ def _make_parallel_node_function(
                                     }
                                 ]
                             },
-                        }
+                        })
             except Exception as cache_err:
                 logger.warning(f"Cache check failed: {cache_err}")
 
@@ -1611,6 +1838,14 @@ def _make_parallel_node_function(
                 "documents": [document] if document else [],
                 **node_def.config,  # Static config
             }
+            # Chained stage: the item's payload is the upstream branch's
+            # OUTPUT — a text-consuming tool (extract_entities, summarize)
+            # reads it as its `text` input instead of erroring on a bare file.
+            if chained_input:
+                if isinstance(upstream.get("text"), str) and upstream["text"]:
+                    tool_inputs.setdefault("text", upstream["text"])
+                if upstream.get("value") is not None:
+                    tool_inputs.setdefault("upstream_value", upstream["value"])
             if event_callback:
                 async def emit_tool_progress(
                     event_type: str,
@@ -1637,7 +1872,9 @@ def _make_parallel_node_function(
                 # acquiring it, so a cancel stops the queue within one file
                 # boundary instead of draining every waiting branch.
                 if _run_cancelled():
-                    return _cancelled_result()
+                    return _with_chaining(
+                        _cancelled_result(), failed=True, error="cancelled"
+                    )
                 result = await tool_fn(
                     inputs=tool_inputs,
                     state=state,
@@ -1676,7 +1913,7 @@ def _make_parallel_node_function(
                         )
                     except Exception as cb_err:
                         logger.warning(f"Failed to emit file_error event: {cb_err}")
-                return {
+                return _with_chaining({
                     "parallel_results": {
                         node_id: [
                             {
@@ -1688,7 +1925,7 @@ def _make_parallel_node_function(
                             }
                         ]
                     },
-                }
+                }, failed=True, error=error_msg)
 
             print(f"[PARALLEL] [{index + 1}/{total}] Completed: {file_path}")
 
@@ -1732,8 +1969,9 @@ def _make_parallel_node_function(
                 except Exception as cb_err:
                     logger.warning(f"Failed to emit file_complete event: {cb_err}")
 
-            # Return result for aggregation
-            return {
+            # Return result for aggregation; chained successors get this
+            # item's Send with the branch OUTPUT as their payload.
+            return _with_chaining({
                 "parallel_results": {
                     node_id: [
                         {
@@ -1745,7 +1983,7 @@ def _make_parallel_node_function(
                         }
                     ]
                 },
-            }
+            })
 
         except Exception as e:
             error_msg = str(e)
@@ -1778,7 +2016,7 @@ def _make_parallel_node_function(
                     )
                 except Exception as cb_err:
                     logger.warning(f"Failed to emit file_error event: {cb_err}")
-            return {
+            return _with_chaining({
                 "parallel_results": {
                     node_id: [
                         {
@@ -1790,7 +2028,7 @@ def _make_parallel_node_function(
                         }
                     ]
                 },
-            }
+            }, failed=True, error=error_msg)
 
     return parallel_node_function
 

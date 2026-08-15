@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, Optional
 
 from fichero_server.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
-from fichero_server.kg._common import enum_value
+from fichero_server.knowledge._common import enum_value
 
 if TYPE_CHECKING:  # pragma: no cover
     from fichero_server.db import Database

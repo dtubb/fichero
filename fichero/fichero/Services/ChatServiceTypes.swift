@@ -84,7 +84,9 @@ struct LLMProviderModelDetail: Codable, Hashable {
     }
 }
 
-struct LLMProvider: Codable, Identifiable {
+// Equatable so the chat toolbar's model picker can skip re-syncing its
+// AppKit NSMenu when nothing pickable changed (#23, 2026-08-12 stall).
+struct LLMProvider: Codable, Identifiable, Equatable {
     let id: String
     let name: String
     let models: [String]

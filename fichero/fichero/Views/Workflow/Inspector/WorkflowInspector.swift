@@ -303,7 +303,10 @@ extension WorkflowInspector {
                         Image(systemName: "eye.slash")
                             .foregroundColor(.secondary)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("\(hiddenBuiltinToolCount) tool\(hiddenBuiltinToolCount == 1 ? "" : "s") hidden by feature flags")
+                            Text(
+                                "\(hiddenBuiltinToolCount) tool"
+                                    + "\(hiddenBuiltinToolCount == 1 ? "" : "s") hidden by feature flags"
+                            )
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                             Text("Only separately gated external workflow categories are hidden.")

@@ -120,6 +120,14 @@ struct MailStyleRow: View {
     /// computed set so the top-right filter menu drives this. (#519
     /// follow-up — list view filter.)
     var visibleEntityTypes: Set<String> = ["people", "places", "organizations", "dates", "events", "keywords"]
+    /// The metadata-popover choice (#18): date/type/status/entities are
+    /// OPT-IN; title + transcript are the row, not metadata.
+    var visibleAttributes: Set<LibraryRowAttribute> = [.entities]
+    /// The active search's matched text + relevance for this row (#11):
+    /// the excerpt replaces the generic transcript preview — it answers
+    /// "why did the query get us THIS document" — and the score renders
+    /// on the right, Daniel's ruling. nil outside search.
+    var searchHit: TransientSearchRowHit?
     var onTagTap: (String) -> Void = { _ in }
 
     // Compact leading thumbnail so the title/text gets the row's width
@@ -176,14 +184,14 @@ struct MailStyleRow: View {
                         )
                     } else {
                         // Same fall-through as the thumbnail grid (#4416).
+                        // ONE line (Daniel 2026-08-11, supersedes the #4191
+                        // two-line reservation): "title is in one line (with
+                        // truncation)" — rows stay uniform because one line
+                        // reserves exactly as predictably as two did.
                         Text(DocumentTitle.displayName(for: document))
                             .font(.headline)
                             .foregroundStyle(titleColor)
-                            // Uniform rows (#4191 density cap): the title
-                            // always occupies exactly two lines so every row
-                            // is the same height — scroll position is stable
-                            // and PageUp/Down's row step stays honest.
-                            .lineLimit(2, reservesSpace: true)
+                            .lineLimit(1)
                             .truncationMode(.middle)
                             // Middle-truncated titles reveal in full on hover.
                             .help(DocumentTitle.displayName(for: document))
@@ -208,28 +216,41 @@ struct MailStyleRow: View {
 
                     Spacer()
 
-                    Text(document.createdAt, style: .date)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if visibleAttributes.contains(.date) {
+                        Text(document.createdAt, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let hit = searchHit {
+                        Text(hit.score, format: .percent.precision(.fractionLength(0)))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .help("Search relevance")
+                    }
                 }
 
-                // Status + Type row. Display only — earlier these were
-                // tappable to filter, but a single click on the badge
-                // hijacked row selection and the user could end up with
-                // a stuck filter ('No results for "Image"') with no
-                // visible escape. ⌘F opens the filter bar for explicit
-                // filtering. (#519 follow-up — the maintainer: 'right now its
-                // single clicking and changing'.)
-                HStack(spacing: 8) {
-                    StatusBadge(status: document.status)
-                    if document.docType == .folder {
-                        Text("Folder")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if let fileType = document.fileType {
-                        Text(fileType.rawValue.capitalized)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                // The badge row is OPT-IN via the metadata popover (#18,
+                // Daniel 2026-08-11: "completed is useless, image is
+                // useless, and August 11, 2026 is useless" — as defaults).
+                // The status dot always carries state and the thumbnail
+                // carries type; these are for users who want the words too.
+                if visibleAttributes.contains(.status) || visibleAttributes.contains(.type) {
+                    HStack(spacing: 8) {
+                        if visibleAttributes.contains(.status) {
+                            StatusBadge(status: document.status)
+                        }
+                        if visibleAttributes.contains(.type) {
+                            if document.docType == .folder {
+                                Text("Folder")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if let fileType = document.fileType {
+                                Text(fileType.rawValue.capitalized)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                 }
 
@@ -237,7 +258,7 @@ struct MailStyleRow: View {
                 // (#4191 density cap): docs without body text keep the same
                 // row height as docs with it, so nothing re-pitches as
                 // content loads and the scroll position never jumps.
-                Text(document.pageContent ?? "")
+                Text(searchHit?.excerpt ?? document.pageContent ?? "")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2, reservesSpace: true)
@@ -252,13 +273,15 @@ struct MailStyleRow: View {
                 // doc has zero or twenty entities, before AND after the
                 // async fetch lands. ponytail: rows past the window are
                 // clipped; the Inspector shows the full set.
-                ArtifactEntitiesView(
-                    documentId: document.id,
-                    style: .multiLine,
-                    visibleTypes: visibleEntityTypes
-                )
-                .frame(height: Self.entityBlockHeight, alignment: .topLeading)
-                .clipped()
+                if visibleAttributes.contains(.entities) {
+                    ArtifactEntitiesView(
+                        documentId: document.id,
+                        style: .multiLine,
+                        visibleTypes: visibleEntityTypes
+                    )
+                    .frame(height: Self.entityBlockHeight, alignment: .topLeading)
+                    .clipped()
+                }
             }
         }
         .padding(.vertical, 4)

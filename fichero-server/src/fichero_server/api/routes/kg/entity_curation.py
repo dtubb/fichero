@@ -860,7 +860,7 @@ async def candidate_pairs(
     but bounded by the shared networkx graph cache (#990).
     """
     import networkx as nx
-    from fichero_server.kg.graph import build_full_cooccurrence
+    from fichero_server.knowledge.graph import build_full_cooccurrence
 
     if scope == "cross-library":
         rows = _cross_library_candidate_pairs(

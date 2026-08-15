@@ -60,6 +60,12 @@ struct SidebarDropProviderCapabilities: Equatable {
     let canLoadURL: Bool
     let canLoadString: Bool
     let registeredTypeIdentifiers: [String]
+    /// The provider's suggested filename, when the drag source supplied one.
+    /// A Finder FILE drag names its file ("codes.txt"); a dragged text
+    /// SELECTION does not — the remaining honest file-vs-prose signal when
+    /// macOS delivers a .txt drag registering ONLY plain-text (live-repro
+    /// 2026-08-12, codes.txt bounced back to the Desktop).
+    var suggestedName: String?
 
     /// This provider carries OUR OWN drag flavor: the NAMED custom type, and
     /// only that. Registration-based on purpose — the `canLoadObject` probes
@@ -76,6 +82,13 @@ struct SidebarDropProviderCapabilities: Equatable {
     /// no `doc:`, and the user got "Couldn't read what was dragged" for an
     /// ordinary .txt (live-repro 2026-08-08, empty.txt — #4569). Ours is
     /// identified by NAME; text is just text.
+    /// True when the drag source named a FILE ("codes.txt") rather than
+    /// nothing or a bare word — the extension is the discriminator.
+    var suggestedNameLooksLikeFile: Bool {
+        guard let name = suggestedName, !name.isEmpty else { return false }
+        return !(name as NSString).pathExtension.isEmpty
+    }
+
     var registersInternalFlavor: Bool {
         registeredTypeIdentifiers.contains(UTType.ficheroDragItem.identifier)
     }
@@ -110,10 +123,16 @@ struct SidebarDropProviderCapabilities: Equatable {
             // Prose is CONTENT, not a file: a text SELECTION dragged from
             // another app registers only plain text (which still conforms to
             // public.item), and importing it produced the #4569 second half —
-            // "unsupported" is the verdict for bare prose, not an ingest. A
-            // Finder drag of a .txt FILE keeps its file-url registration
-            // beside the text, so real text files still classify external.
-            if type.conforms(to: .plainText) { return false }
+            // "unsupported" is the verdict for bare prose, not an ingest.
+            //
+            // But "a Finder .txt drag keeps its file-url beside the text"
+            // turned out to be an assumption, not a law: a Finder drag can
+            // deliver ONLY the plain-text registration (live-repro
+            // 2026-08-12, codes.txt), and refusing it bounced a real file
+            // back to the Desktop. The remaining honest signal is the
+            // suggested NAME: a file drag names its file with an extension;
+            // a prose selection does not.
+            if type.conforms(to: .plainText) { return suggestedNameLooksLikeFile }
             return type.conforms(to: .item) || type.conforms(to: .url)
         }
     }
@@ -146,6 +165,11 @@ enum SidebarDropPayload: Equatable {
     /// Our own ids — a MOVE. Never an import, whatever else the drag also
     /// advertises for the benefit of other applications.
     case internalItems([String])
+    /// Knowledge-graph entity ids dragged from the inspector entities list
+    /// (Daniel 2026-08-12). BARE ids, `entity:` prefix already stripped. Only
+    /// a workspace can receive one — every other surface refuses loudly,
+    /// and nothing on this path may ever reach the importer.
+    case internalEntities([String])
     /// No internal id anywhere: a genuine drop from outside the app.
     case externalFiles
     /// The drag carries an internal flavour but no id could be read from it.
@@ -161,6 +185,19 @@ func isInternalSidebarItemID(_ candidate: String) -> Bool {
     let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
     guard trimmed.hasPrefix("doc:") else { return false }
     return trimmed.count > "doc:".count
+}
+
+/// The inspector entities list's drag shape, `entity:<id>[,<id>…]`
+/// (`InspectorEntityDragID.transferRepresentation`) — ids comma-joined in ONE
+/// envelope because a multi-selection drag delivers a single provider.
+/// Returns the BARE entity ids, empty when the candidate is anything else.
+func internalEntityIDs(_ candidate: String) -> [String] {
+    let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.hasPrefix("entity:"), trimmed.count > "entity:".count else { return [] }
+    return trimmed.dropFirst("entity:".count)
+        .split(separator: ",")
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+        .filter { !$0.isEmpty }
 }
 
 /// The LIBRARY pane's drag payload, recognised on the sidebar side.
@@ -210,54 +247,6 @@ func decodeLibraryDragJSON(_ candidate: String) -> LibraryItemDrag? {
     return try? JSONDecoder().decode(LibraryItemDrag.self, from: data)
 }
 
-// MARK: - Recognising OUR OWN export by its file URL alone (#4401)
-
-/// The temp-directory prefix `SidebarDragID.exportSourceFile` writes into when
-/// a document row is dragged. Distinct from `fichero-drop-`, which is where an
-/// INBOUND external drop's bytes are staged — the two must not be confused.
-let ficheroInternalDragExportPrefix = "fichero-drag-"
-
-/// Is this URL a copy THIS APP just made of a document already in the library?
-///
-/// The provider-reading classifier above is the primary defence and identifies
-/// an internal drag positively, by the id it carries. This predicate exists for
-/// the one route that cannot ask: a `.dropDestination(for: URL.self)`, which is
-/// handed resolved URLs and never sees the providers behind them.
-///
-/// That route is not hypothetical. `DropTargetModifiers` mounts such a
-/// destination on the WHOLE `NavigationSplitView` — sidebar column and detail
-/// column both — and since #4123 a document row exports a real file. So an
-/// internal drag released anywhere the nested per-row handlers do not claim
-/// (sidebar whitespace, the gaps between sections, the content pane) resolved
-/// to that exported file and was IMPORTED: a second, hollow copy of a document
-/// already in the library. That is #4401's exact shape, in the widest-scope
-/// drop target in the app, and it is why the symptom outlived the fixes to the
-/// row-level paths — those only cover drops that land on a row.
-///
-/// A URL under this prefix is by construction a copy of something already
-/// stored. Re-ingesting it can never be right.
-func isFicheroInternalDragExport(_ url: URL) -> Bool {
-    url.pathComponents.contains { $0.hasPrefix(ficheroInternalDragExportPrefix) }
-}
-
-/// Split dropped URLs into the ones that are genuinely external and the ones
-/// this app exported for its own drag. Pure, so the rule is testable without a
-/// live drag — the gap that let this survive three rounds of fixes.
-func partitionFicheroInternalDragExports(
-    _ urls: [URL]
-) -> (external: [URL], internalExports: [URL]) {
-    var external: [URL] = []
-    var internalExports: [URL] = []
-    for url in urls {
-        if isFicheroInternalDragExport(url) {
-            internalExports.append(url)
-        } else {
-            external.append(url)
-        }
-    }
-    return (external, internalExports)
-}
-
 /// Route a drop from what its providers actually yielded.
 ///
 /// - Parameters:
@@ -287,6 +276,12 @@ func classifySidebarDropPayload(
     }
     if !internalIDs.isEmpty {
         return .internalItems(internalIDs)
+    }
+    // Entity drags are just as positively ours; checked after documents so a
+    // hypothetical mixed session still routes as a document move.
+    let entityIDs = loadedIDs.flatMap(internalEntityIDs)
+    if !entityIDs.isEmpty {
+        return .internalEntities(entityIDs)
     }
     // A payload that PARSES as our own drag JSON but yielded no reparentable
     // id (an annotation, a note, an artifact) is provably ours — refuse it

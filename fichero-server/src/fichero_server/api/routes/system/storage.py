@@ -88,7 +88,13 @@ def _normalize_document_id(doc_id: str) -> str:
 
 def _document_or_404(db: Database, doc_id: str) -> Document:
     normalized_id = _normalize_document_id(doc_id)
-    doc = db.get(Document, normalized_id)
+    # get_committed, not get (#4523): these GET paths must answer while an
+    # ingest writer holds the transaction gate — to_thread moved the 2026-08-09
+    # block off the event loop, but the thread still QUEUED on the gate, and a
+    # long import turned cached-thumbnail requests into deadlineExceeded. The
+    # committed snapshot is exactly what a visual-asset lookup wants; a doc
+    # mid-ingest (uncommitted) 404s now and loads on the client's retry.
+    doc = db.get_committed(Document, normalized_id)
     if not doc:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
     return doc

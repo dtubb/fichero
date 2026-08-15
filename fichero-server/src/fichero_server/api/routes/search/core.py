@@ -157,6 +157,9 @@ class SearchInclude(str, Enum):
     # Unified-object search (#4118): workflow outputs — transcriptions,
     # summaries, translations, catalogues — as first-class hits.
     artifacts = "artifacts"
+    # Hermeneutic layer (2026-08-12): interpretations resolve to their
+    # SOURCE documents in the one result list, like artifact hits.
+    interpretations = "interpretations"
 
 
 def _artifact_snippet(body: str, query: str, radius: int = 80) -> str:
@@ -1237,6 +1240,88 @@ async def enhanced_search(
                     )
                 )
 
+    # Hermeneutic retrieve (2026-08-12): interpretations are searchable and
+    # resolve to their SOURCE documents — an interpretive move that matched
+    # is a reason to open the document it interprets. Same fold shape as
+    # artifacts; best-effort auxiliary leg (loud log, never a 500).
+    if SearchInclude.interpretations in include_set and request.query.strip():
+        try:
+            from fichero_server.models.hermeneutics import Interpretation  # noqa: PLC0415
+
+            folded_query = _fold_for_search(retrieval_query or request.query)
+            interpretation_rows = [
+                row
+                for row in db.all(Interpretation)
+                if row.document_id
+                and folded_query
+                and folded_query
+                in _fold_for_search(
+                    " ".join(
+                        [row.interpretation_text or ""]
+                        + list(row.key_insights or [])
+                        + [row.predicate or ""]
+                    )
+                )
+            ]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("interpretation search leg failed: %s", exc)
+            interpretation_rows = []
+        if interpretation_rows:
+            visible_interp_docs = _readable_document_ids(
+                actor=getattr(getattr(http_request, "state", None), "user", None),
+                library_path=x_fichero_library_path,
+                document_ids={row.document_id for row in interpretation_rows},
+                is_bootstrap=_request_is_bootstrap(http_request),
+            )
+            present_ids = {r.document_id for r in results}
+            for row in interpretation_rows:
+                if row.document_id not in visible_interp_docs:
+                    continue
+                if row.document_id in present_ids:
+                    continue
+                present_ids.add(row.document_id)
+                results.append(
+                    SearchResult(
+                        document_id=row.document_id,
+                        score=0.4,
+                        content_preview=row.interpretation_text or "",
+                        metadata={
+                            "matched_via": "interpretation",
+                            "interpretation_id": row.id,
+                            "framework_id": row.framework_id,
+                        },
+                        highlights=(
+                            [row.interpretation_text]
+                            if row.interpretation_text
+                            else None
+                        ),
+                    )
+                )
+
+    # Daniel's unification ruling (2026-08-11, supersedes #4118's side-group
+    # presentation): "we want them in the list/library/icon whatever view" —
+    # a document whose ARTIFACT matched IS a document result. Every artifact
+    # hit whose document is not already a content-leg result is folded into
+    # `results` (snippet as the preview, a modest fixed score below the
+    # semantic tops), so the grid can never say "No Matching Documents …
+    # but 50 artifacts did". The typed artifact_hits leg still returns —
+    # chips/grouping remain possible — but the LIST is the one list.
+    if artifact_hits:
+        present_ids = {r.document_id for r in results}
+        for hit in artifact_hits:
+            if hit.document_id in present_ids:
+                continue
+            present_ids.add(hit.document_id)
+            results.append(
+                SearchResult(
+                    document_id=hit.document_id,
+                    score=0.4,
+                    content_preview=hit.snippet or "",
+                    metadata={"matched_via": f"artifact:{hit.artifact_type}"},
+                    highlights=[hit.snippet] if hit.snippet else None,
+                )
+            )
+
     # #4403: the header and the body were answering DIFFERENT QUESTIONS with
     # the same number, and the header had the wrong one.
     #
@@ -1264,11 +1349,14 @@ async def enhanced_search(
         artifact_hits=artifact_hits,
         count=len(results),
         total_results=total_count,
+        # Artifact-hit documents are folded INTO `results` now (2026-08-11
+        # unification), so counting the artifact leg again would double-count
+        # every one of them — the header counts the unified list + the two
+        # legs that still render separately.
         rendered_total=(
             len(results)
             + len(typed_entity_hits)
             + len(typed_claim_hits)
-            + len(artifact_hits)
         ),
         search_type=search_stats.get("search_type", request.search_type),
         execution_time_ms=search_stats.get("execution_time_ms", 0),

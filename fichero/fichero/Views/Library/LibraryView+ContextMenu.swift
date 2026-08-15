@@ -336,9 +336,24 @@ extension LibraryView {
                     if resolution.ignoredSelection {
                         Text("Runs on this item only — it is outside your selection")
                         Divider()
+                    } else if resolution.targetIds.count > 1 {
+                        // Same honesty as the sidebar menu (2026-08-15): a run
+                        // wider than the clicked row states its width BEFORE
+                        // the click — a select-all can silently scope a
+                        // one-row right-click to the whole folder.
+                        Text("Runs on \(resolution.targetIds.count) documents")
+                        Divider()
                     }
                     RunWorkflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
                         Task { @MainActor in
+                            contextMenuLogger.info(
+                                """
+                                contextMenu run: clicked=\(clickedDocument.id, privacy: .public) \
+                                targets=\(resolution.targetIds.count) \
+                                gridSel=\(selection.count) \
+                                ignoredSelection=\(resolution.ignoredSelection)
+                                """
+                            )
                             selectedDocumentIdsForBatch = resolution.targetIds
                             await runBatchWorkflow(
                                 workflowId: workflowId,

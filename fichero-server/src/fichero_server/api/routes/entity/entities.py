@@ -586,7 +586,7 @@ def delete_entity_impl(
             db.save(claim)
 
     try:
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
 
         entity_vectors.remove(db=db, entity_id=entity_id)
     except Exception as exc:

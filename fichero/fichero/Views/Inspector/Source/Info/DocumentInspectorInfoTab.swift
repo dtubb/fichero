@@ -76,6 +76,15 @@ struct DocumentInspectorInfoTab: View {
 
         statusSection
         classSection
+
+        // Prototype-declared attributes (datasets Stage 1). Not gated by the
+        // chooser: these rows ARE the assigned prototype's declared set, and
+        // the section hides itself when there is nothing to show.
+        DocumentAttributesSection(
+            documentId: document.id,
+            entityService: currentLibrary?.entityService
+        )
+
         sharingSection
 
         // Workspace curated items + per-item node class (#1570 Phase 1).

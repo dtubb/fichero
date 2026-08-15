@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fichero_server.kg import rebuild
+from fichero_server.knowledge import rebuild
 from fichero_server.models.knowledge import (
     EntityType,
     KnowledgeClaim,
@@ -33,7 +33,7 @@ class TestRebuildKg:
         assert stats["entity_vectors_indexed"] == 1
         assert stats["claim_vectors_indexed"] == 0
         # Confirm it's findable.
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
         hits = entity_vectors.find_similar(
             db=db,
             canonical_name="Test Person",
@@ -78,7 +78,7 @@ class TestRebuildKg:
         rebuild.rebuild_kg(db, vectors=True, triples=False)
         stats2 = rebuild.rebuild_kg(db, vectors=True, triples=False)
         # Vector table contains exactly one row for this id (delete+add).
-        from fichero_server.kg import entity_vectors
+        from fichero_server.knowledge import entity_vectors
         hits = entity_vectors.find_similar(
             db=db,
             canonical_name="Eugenio Córdoba",

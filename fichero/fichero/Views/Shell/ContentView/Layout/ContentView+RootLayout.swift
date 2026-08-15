@@ -358,7 +358,13 @@ extension ContentView {
     /// a compile-time bound, not a stylistic one — do not recombine them.
     @ViewBuilder
     private var requestBusesAndAppleScript: some View {
-        decoratedNavigationSplitColumn
+        // AnyView is LOAD-BEARING (#4331 class, crash 2026-08-11): the
+        // three-way property split bounds the TYPE-CHECKER, but the concrete
+        // generic still composes across all three segments, and its
+        // value-witness copy overflowed the stack (EXC_BAD_ACCESS code=2 in
+        // ___chkstk_darwin inside this getter). Erasing here restarts the
+        // generic depth for the outer chain. Do not remove.
+        AnyView(decoratedNavigationSplitColumn)
             .onChange(of: entitySearchState.requestID) { _, _ in
                 handleEntitySearchRequested()
             }

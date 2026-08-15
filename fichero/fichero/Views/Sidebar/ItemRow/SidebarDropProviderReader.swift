@@ -104,7 +104,8 @@ func sidebarDropCapabilities(of providers: [NSItemProvider]) -> [SidebarDropProv
         SidebarDropProviderCapabilities(
             canLoadURL: $0.canLoadObject(ofClass: URL.self),
             canLoadString: $0.canLoadObject(ofClass: NSString.self),
-            registeredTypeIdentifiers: $0.registeredTypeIdentifiers
+            registeredTypeIdentifiers: $0.registeredTypeIdentifiers,
+            suggestedName: $0.suggestedName
         )
     }
 }

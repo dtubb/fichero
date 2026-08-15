@@ -1,7 +1,7 @@
 """Test hermeneutic predicate vocabulary and Interpretation model."""
 
 import pytest
-from fichero_server.kg._common import (
+from fichero_server.knowledge._common import (
     HERMENEUTIC_PREDICATES,
     canonical_hermeneutic_predicate,
 )

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from fichero_server.kg.entity_vectors import find_similar
+from fichero_server.knowledge.entity_vectors import find_similar
 
 
 # ---------------------------------------------------------------------------

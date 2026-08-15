@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fichero_server.kg._common import parse_kwarg_repr
+from fichero_server.knowledge._common import parse_kwarg_repr
 from fichero_server.workflows.tools.extractors import (
     _normalize_kwarg_repr_fields,
     _SectionDate,

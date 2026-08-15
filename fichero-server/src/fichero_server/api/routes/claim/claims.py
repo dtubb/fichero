@@ -340,7 +340,7 @@ def _validate_claim_references(db: Database, data: dict[str, Any]) -> None:
 
 def _apply_claim_patch(claim: KnowledgeClaim, data: dict[str, Any]) -> None:
     """Apply patch fields and keep canonical SVO fields consistent."""
-    from fichero_server.kg._common import canonical_verb
+    from fichero_server.knowledge._common import canonical_verb
 
     if "text" in data and isinstance(data["text"], str):
         data["text"] = data["text"].strip()
@@ -410,7 +410,7 @@ def create_claim_impl(db: Database, request: ClaimCreateRequest) -> KnowledgeCla
     # created claims get for free, and the inspector / SPARQL views
     # would treat the two writers' output differently. We import the
     # helpers from `_entity_writer` so there's one source of truth.
-    from fichero_server.kg._common import canonical_verb as _canonical_verb
+    from fichero_server.knowledge._common import canonical_verb as _canonical_verb
     from fichero_server.workflows.tools._entity_writer import (
         _detect_audience,
         _detect_quotation_kind,

@@ -1399,6 +1399,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     artifacts,
     classifications,
     content_representations,
+    dataset,
     documents,
     folders,
     inspector as document_inspector,
@@ -1493,6 +1494,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (library_items.router, "/api", ["library-items"]),
     (claims.router, "/api", ["claims"]),
     (documents.router, "/api/documents", ["documents"]),
+    # Datasets Stage 2 (spec §3/§4): the one renderer query — grid paging,
+    # typed filters, date bins, facet counts — over attribute JSON.
+    (dataset.router, "/api/documents", ["documents"]),
     (references.router, "/api", ["references"]),
     # Inspectors mount under /documents/* and /entities/* — tag with the
     # owning resource so the OpenAPI generator groups operations under

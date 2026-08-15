@@ -898,7 +898,7 @@ async def catalogue(
     # worth taking down a successful catalogue.
     if library_path and saved_artifact_ids:
         try:
-            from fichero_server.kg.rebuild import rebuild_kg
+            from fichero_server.knowledge.rebuild import rebuild_kg
 
             db = db_manager.get_database(library_path)
             stats = rebuild_kg(db, vectors=False, triples=True)

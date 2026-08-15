@@ -1486,11 +1486,17 @@ class TestQueryCompilation:
         # Regression (reported live): the resolver imported
         # `ModelModel`/`ProviderModel` — chat.py's local ALIASES, not real
         # names in fichero_server.models — so every live compile raised
-        # ImportError while the mocked tests stayed green. Call it for
-        # real: no providers configured → None, and the imports execute.
+        # ImportError while the mocked tests stayed green. Call it for real.
+        #
+        # 2026-08-11 (Daniel: "why does it say we can't use llm to construct
+        # search. that's terrible"): a library with NO configured providers
+        # now falls back to on-device Apple Intelligence instead of refusing.
         from fichero_server.retrieval.query_compiler import _resolve_compiler_config
 
-        assert _resolve_compiler_config(db) is None
+        config = _resolve_compiler_config(db)
+        assert config is not None
+        assert config.provider == "apple"
+        assert config.model == "apple-intelligence"
 
     def test_natural_language_gate(self):
         from fichero_server.retrieval.query_compiler import looks_like_natural_language as nl
@@ -1650,6 +1656,33 @@ class TestArtifactLeg:
             for h in hits
         )
 
+    def test_artifact_hits_fold_into_the_one_result_list(self, client, db):
+        """Daniel's unification ruling (2026-08-11): a document whose
+        artifact matched IS a document result — never "No Matching
+        Documents … but 50 artifacts did" beside an empty grid."""
+        doc = self._seed(db)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "borojo",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "include": ["content", "artifacts"],
+            },
+        )
+
+        assert r.status_code == 200
+        payload = r.json()
+        folded = [x for x in payload["results"] if x["document_id"] == doc.id]
+        assert folded, "artifact-matched document missing from results"
+        assert "borojo" in (folded[0]["content_preview"] or "")
+        assert folded[0]["metadata"].get("matched_via") == "artifact:transcription"
+        # The header must not double-count the folded document.
+        assert payload["rendered_total"] == len(payload["results"]) + len(
+            payload["entity_hits"]
+        ) + len(payload["claim_hits"])
+
     def test_artifacts_opt_in_only(self, client, db):
         self._seed(db)
 
@@ -1660,3 +1693,70 @@ class TestArtifactLeg:
 
         assert r.status_code == 200
         assert r.json()["artifact_hits"] == []
+
+class TestInterpretationLeg:
+    """Hermeneutic retrieve (2026-08-12): an interpretation that matches the
+    query resolves to its SOURCE document in the one result list."""
+
+    def _seed(self, db):
+        from fichero_server.models.hermeneutics import (
+            Interpretation,
+            InterpretiveFramework,
+        )
+
+        doc = Document(
+            name="Folio 30",
+            page_content="unrelated body",
+            doc_type=DocType.file,
+            file_type=FileType.image,
+        )
+        db.save(doc)
+        fw = InterpretiveFramework(
+            name="Subaltern reading",
+            framework_type="theoretical",
+            description="Against the grain.",
+        )
+        db.save(fw)
+        db.save(
+            Interpretation(
+                framework_id=fw.id,
+                document_id=doc.id,
+                interpretation_text="The record centers the notary's silences.",
+                act="critiquing",
+                predicate="contests reading",
+            )
+        )
+        return doc
+
+    def test_interpretation_match_folds_to_source_document(self, client, db):
+        doc = self._seed(db)
+
+        r = client.post(
+            "/api/search",
+            json={
+                "query": "silences",
+                "search_type": "fulltext",
+                "min_score": 0.0,
+                "include": ["content", "interpretations"],
+            },
+        )
+        assert r.status_code == 200
+        folded = [
+            x for x in r.json()["results"] if x["document_id"] == doc.id
+        ]
+        assert folded, "interpretation-matched document missing from results"
+        assert folded[0]["metadata"]["matched_via"] == "interpretation"
+        assert "silences" in folded[0]["content_preview"]
+
+    def test_interpretations_are_opt_in(self, client, db):
+        self._seed(db)
+        r = client.post(
+            "/api/search",
+            json={"query": "silences", "search_type": "fulltext", "min_score": 0.0},
+        )
+        assert r.status_code == 200
+        assert all(
+            x["metadata"].get("matched_via") != "interpretation"
+            for x in r.json()["results"]
+        )
+

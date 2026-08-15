@@ -210,6 +210,9 @@ class DocumentUpdate(BaseModel):
     exclude_from_processing: Optional[bool] = None
     metadata: Optional[dict] = None
     prototype_key: Optional[str] = None
+    # Prototype-scoped node attribute VALUES (datasets Stage 1). Wholesale
+    # replace, like metadata; a per-key patch arrives with the Stage 2 grid.
+    attributes: Optional[dict] = None
     position_x: Optional[float] = None
     position_y: Optional[float] = None
     position_z: Optional[float] = None
@@ -230,7 +233,9 @@ class DocumentBatchExcludeResponse(BaseModel):
 
 
 class PrototypeAssignRequest(BaseModel):
-    prototype_key: str
+    # None CLEARS the assignment — the picker's "None" must reach the
+    # database, not stop at the UI (it silently no-opped before 2026-08-14).
+    prototype_key: str | None = None
     include_descendants: bool = False
     page_start: int | None = None
     page_end: int | None = None
@@ -238,7 +243,7 @@ class PrototypeAssignRequest(BaseModel):
 
 class PrototypeAssignResponse(BaseModel):
     source_document_id: str
-    prototype_key: str
+    prototype_key: str | None = None
     updated_count: int
 
 
@@ -358,7 +363,13 @@ def _get_document_row(
     db: Database, doc_id: str, *, include_deleted: bool = False
 ) -> Document | None:
     normalized_id = _normalize_document_id(doc_id)
-    doc = db.get(Document, normalized_id)
+    # Committed-read path (2026-08-12, same medicine as #4523's thumbnail
+    # fix): the gated db.get queued behind a bulk import's write
+    # transactions, so every change-stream hydration fetch during a
+    # 400-file import rode to deadlineExceeded — the client's
+    # 'granular patch fetch failed … deadlineExceeded' storm and the
+    # engine looking wedged. MVCC last-committed reads answer immediately.
+    doc = db.get_committed(Document, normalized_id)
     if doc is None:
         return None
     if not include_deleted and _is_document_deleted(doc):
@@ -1012,15 +1023,77 @@ async def get_ancestors(
     if not current:
         raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
 
-    while current and current.parent_id:
+    # A malformed parent cycle would walk forever and grow `ancestors`
+    # without bound — the move endpoint guards against creating cycles,
+    # but this read path must survive data that already has one. Record
+    # the REQUESTED id before fetching: guarding on returned rows' ids is
+    # not enough when a lookup answers with a row other than the one asked
+    # for (exactly what a careless test mock does).
+    seen = {current.id}
+    while current and current.parent_id and current.parent_id not in seen:
+        seen.add(current.parent_id)
         parent = _get_document_row(db, current.parent_id)
         if parent:
             ancestors.append(parent)
+            seen.add(parent.id)
             current = parent
         else:
             break
 
     return DocumentListResponse(items=ancestors, count=len(ancestors))
+
+
+class EffectiveAttributesResponse(BaseModel):
+    """A node's structured data, resolved (datasets Stage 1).
+
+    ``declarations`` come from the prototype chain (typed, with renderer
+    roles); ``values`` are the declarations' defaults overlaid with the
+    node's OWN ``attributes`` — what a grid cell or inspector row shows.
+    """
+
+    prototype_key: str | None
+    declarations: dict[str, Any]
+    values: dict[str, Any]
+
+
+@router.get("/{doc_id}/effective-attributes")
+async def get_effective_attributes(
+    doc_id: str, db: Database = Depends(get_library_database)
+) -> EffectiveAttributesResponse:
+    """Resolve a node's prototype attributes and overlay its own values.
+
+    422 (not partial data) when the prototype chain cannot be resolved —
+    the resolver prefers raising, and this endpoint keeps that promise at
+    the API surface.
+    """
+    from fichero_server.models.node_prototypes import (
+        PrototypeResolutionError,
+        resolve_prototype_attributes,
+    )
+    from fichero_server.models.prototype_schema import attribute_declarations
+
+    doc = _document_or_404(db, doc_id)
+
+    declarations: dict[str, Any] = {}
+    values: dict[str, Any] = {}
+    if doc.prototype_key:
+        try:
+            effective = resolve_prototype_attributes(db, doc.prototype_key)
+            decls = attribute_declarations(effective)
+        except (PrototypeResolutionError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        declarations = {
+            name: decl.model_dump(mode="json") for name, decl in decls.items()
+        }
+        values = {name: decl.default for name, decl in decls.items()}
+
+    own = doc.attributes if isinstance(doc.attributes, dict) else {}
+    values.update(own)
+    return EffectiveAttributesResponse(
+        prototype_key=doc.prototype_key,
+        declarations=declarations,
+        values=values,
+    )
 
 
 @router.get("/{doc_id}/parent")
@@ -1133,7 +1206,11 @@ def assign_document_prototype_impl(
             ClassificationDimension.node_class,
         }
     }
-    if known_values and request.prototype_key not in known_values:
+    if (
+        request.prototype_key is not None
+        and known_values
+        and request.prototype_key not in known_values
+    ):
         raise HTTPException(
             status_code=404,
             detail=f"Unknown prototype key: {request.prototype_key}",
@@ -1945,6 +2022,8 @@ def update_document_impl(
     # the only fields that mutate are ones the client explicitly set to a
     # non-null value. (#774 + audit on 2026-05-03.)
     update_data = update.model_dump(exclude_unset=True, exclude_none=True)
+    if update_data.get("name") not in (None, doc.name):
+        _reject_if_root_inbox(doc, "renamed")
     if "path" in update_data:
         try:
             validate_stored_document_path(
@@ -2015,6 +2094,29 @@ def _reject_if_document_read_only(doc: Document, operation: str) -> None:
         )
 
 
+def _reject_if_root_inbox(doc: Document, operation: str) -> None:
+    """Raise 403 when ``doc`` is the root Inbox system folder.
+
+    Identified by the same shape the seeder and Swift root-drop routing use:
+    ``name == "Inbox" && parent_id is None && doc_type == folder``. Not the
+    ``read_only`` attribute — that would also reject filing INTO the Inbox
+    (``_reject_if_document_read_only(parent, "added to")``), and the Inbox
+    exists to be dropped on. Delete/move/rename are refused; contents stay
+    fully mutable (2026-08-12: a sidebar delete removed the Inbox itself).
+    """
+    from fichero_server.db.library_bootstrap import INBOX_NAME
+
+    if (
+        doc.doc_type == DocType.folder
+        and doc.parent_id is None
+        and doc.name == INBOX_NAME
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Inbox is a system folder and cannot be {operation}",
+        )
+
+
 def _move_would_create_cycle(db: Database, doc_id: str, parent_id: str) -> bool:
     """True when re-parenting ``doc_id`` under ``parent_id`` forms a cycle.
 
@@ -2040,6 +2142,7 @@ def move_document_impl(
     """Re-parent a document. Returns ``(doc, before_snapshot)``."""
     doc = _document_or_404(db, doc_id)
     _reject_if_document_read_only(doc, "moved")
+    _reject_if_root_inbox(doc, "moved")
 
     # Verify new parent exists if specified
     if parent_id:
@@ -2276,6 +2379,7 @@ def delete_document_impl(
     # Workflows container or a preset mirror — must fail loudly. Deleting the
     # container would soft-delete every mirror inside it in one call.
     _reject_if_document_read_only(doc, "deleted")
+    _reject_if_root_inbox(doc, "deleted")
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     deleted_at = utc_now()
@@ -2307,6 +2411,10 @@ def purge_document_impl(
     two undo mechanisms never double-restore.
     """
     doc = _document_or_404(db, doc_id, include_deleted=True)
+    # A LIVE Inbox may not be purged; a pre-fix tombstone may — Empty Trash
+    # clears it and the next open reseeds.
+    if getattr(doc, "deleted_at", None) is None:
+        _reject_if_root_inbox(doc, "deleted")
     to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
 
     if library_path:

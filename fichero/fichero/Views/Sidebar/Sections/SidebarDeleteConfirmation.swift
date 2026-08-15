@@ -14,6 +14,16 @@ func sidebarDeleteConfirmationMessage(for item: SidebarItem?) -> String {
             "Move the Fichero reference to \"\(item.name)\" to Trash? "
             + "The original file at \(path) stays on disk, and you can put this back later."
     }
+    // A FOLDER names its size (Daniel live, 2026-08-15: a folder of 63
+    // pages went to Trash on a right-click aimed at one entry — the count
+    // is what makes a mis-aimed click visible before Confirm).
+    if case .document(let doc) = item.itemType, doc.docType == .folder {
+        let count = doc.childCount
+        let contents = count > 0
+            ? " and the \(count) item\(count == 1 ? "" : "s") inside"
+            : " and everything inside"
+        return "Move the folder \"\(item.name)\"\(contents) to Trash? You can put it back later."
+    }
     return "Move \"\(item.name)\" to Trash? You can put it back later."
 }
 

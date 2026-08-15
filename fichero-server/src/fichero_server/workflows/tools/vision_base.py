@@ -616,18 +616,31 @@ def _normalize_for_vision(
     needs_resize = False
 
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
         with Image.open(image_path) as img:
+            # EXIF-orient BEFORE OCR (2026-08-12 bbox repro): the display
+            # path (db/storage.py) exif-transposes, so geometry computed on
+            # the RAW pixels of a camera scan lands rotated 90° over the
+            # displayed page — text at the top, boxes down the right edge.
+            needs_orient = (img.getexif().get(0x0112, 1) or 1) != 1
             longest = max(img.width, img.height)
             needs_resize = longest > _VISION_MAX_DIMENSION
-            if not needs_format_convert and not needs_resize and not force:
+            if (
+                not needs_format_convert
+                and not needs_resize
+                and not needs_orient
+                and not force
+            ):
                 return (image_path, None)
 
-            converted = img
+            converted = ImageOps.exif_transpose(img) or img
             if needs_resize:
                 ratio = _VISION_MAX_DIMENSION / longest
-                new_size = (int(img.width * ratio), int(img.height * ratio))
-                converted = img.resize(new_size, Image.LANCZOS)
+                new_size = (
+                    int(converted.width * ratio),
+                    int(converted.height * ratio),
+                )
+                converted = converted.resize(new_size, Image.LANCZOS)
                 logger.info(
                     f"Apple Vision: downscaled {img.width}x{img.height} "
                     f"-> {new_size[0]}x{new_size[1]}"
@@ -1587,6 +1600,8 @@ async def _propagate_to_page_children(
     llm_config: LLMConfig | None = None,
     page_geometries: list[OCRGeometryResult | None] | None = None,
     artifact_data: dict | None = None,
+    page_thinking: list[str | None] | None = None,
+    page_episode_ids: list[str | None] | None = None,
 ) -> list[str] | None:
     """Write per-page OCR text to page child documents and re-embed each one.
 
@@ -1657,6 +1672,29 @@ async def _propagate_to_page_children(
                     # Save even for blank pages so the inspector can
                     # distinguish "blank page" from "tool didn't run" (#1082).
                     artifact_content = page_text if not is_blank else ""
+                    # Per-node thinking capture (2026-08-11): each page's
+                    # reasoning rides its own artifact's data.
+                    page_data = artifact_data
+                    if (
+                        page_thinking
+                        and page_idx < len(page_thinking)
+                        and page_thinking[page_idx]
+                    ):
+                        page_data = {
+                            **(artifact_data or {}),
+                            "thinking": page_thinking[page_idx],
+                        }
+                    # Provenance join (2026-08-12): each page's artifact
+                    # carries ITS OWN episode id — never a sibling's.
+                    if (
+                        page_episode_ids
+                        and page_idx < len(page_episode_ids)
+                        and page_episode_ids[page_idx]
+                    ):
+                        page_data = {
+                            **(page_data or {}),
+                            "episode_id": page_episode_ids[page_idx],
+                        }
                     if matched:
                         art = matched[0]
                         art.content = artifact_content
@@ -1665,14 +1703,14 @@ async def _propagate_to_page_children(
                             if page_geometries and page_idx < len(page_geometries)
                             else None
                         )
-                        if artifact_data is not None:
-                            art.data = artifact_data
+                        if page_data is not None:
+                            art.data = page_data
                     else:
                         art = Artifact(
                             document_id=page_doc.id,
                             artifact_type=artifact_type,
                             content=artifact_content,
-                            data=artifact_data,
+                            data=page_data,
                             ocr_geometry=(
                                 page_geometries[page_idx]
                                 if page_geometries and page_idx < len(page_geometries)
@@ -1741,18 +1779,28 @@ def file_to_data_uri(file_path: str, max_dimension: int = 2048) -> str:
             format) but cannot be decoded — sending the raw bytes would
             only defer the failure to the provider, so fail loudly here.
     """
-    from PIL import Image
+    from PIL import Image, ImageOps
 
     path = Path(file_path)
     suffix = path.suffix.lower()
     source_mime = _PROVIDER_SAFE_MIME.get(suffix)
     needs_conversion = source_mime is None
 
-    if max_dimension > 0 or needs_conversion:
+    def _has_exif_rotation() -> bool:
+        # Providers do not apply EXIF orientation, but the app's display
+        # path does — raw camera-scan bytes would get boxes computed 90°
+        # off the displayed page (2026-08-12). Header read only.
+        try:
+            with Image.open(path) as probe:
+                return (probe.getexif().get(0x0112, 1) or 1) != 1
+        except Exception:
+            return False
+
+    if max_dimension > 0 or needs_conversion or _has_exif_rotation():
         try:
             with Image.open(path) as opened:
                 opened.load()  # force decode of frame 0 (multi-frame TIFF safe)
-                img = opened
+                img = ImageOps.exif_transpose(opened) or opened
                 original_size = img.size
                 if max_dimension > 0 and (
                     img.width > max_dimension or img.height > max_dimension
@@ -2206,13 +2254,38 @@ async def process_vision(
                 # Page content can be overwritten by later narrative/catalogue
                 # tools. For transcribe passthrough, prefer the raw extracted
                 # PDF/OCR text stored in metadata so Extract All Entities sees
-                # the source page, not a previous summary.
-                existing = (
-                    raw_transcription
-                    if isinstance(raw_transcription, str) and raw_transcription.strip()
-                    else pc if isinstance(pc, str) and pc.strip()
-                    else ""
-                )
+                # the source page, not a previous summary — UNLESS the user
+                # edited page_content: a hand correction outranks the stored
+                # machine OCR everywhere, exactly as save_artifact already
+                # refuses to promote over it (Daniel 2026-08-15: "why did it
+                # not use the correct content").
+                # Check the LIVE row, not the workflow-state snapshot: the
+                # edit stamp and the corrected text may postdate the dict.
+                user_edited_pc: str | None = None
+                if library_path and doc_id:
+                    try:
+                        from fichero_server.db import db_manager as _dbm  # noqa: PLC0415
+                        from fichero_server.models import Document as _Doc  # noqa: PLC0415
+                        from fichero_server.workflows.curation_guard import (  # noqa: PLC0415
+                            page_content_is_user_edited,
+                        )
+
+                        _live = _dbm.get_database(library_path).get(_Doc, str(doc_id))
+                        if _live is not None and page_content_is_user_edited(_live)                                 and isinstance(_live.page_content, str) and _live.page_content.strip():
+                            user_edited_pc = _live.page_content
+                    except Exception:  # noqa: BLE001 — stale-dict fallback below
+                        user_edited_pc = None
+                if user_edited_pc is None and isinstance(metadata, dict)                         and metadata.get("page_content_user_edited_at")                         and isinstance(pc, str) and pc.strip():
+                    user_edited_pc = pc
+                if user_edited_pc is not None:
+                    existing = user_edited_pc
+                else:
+                    existing = (
+                        raw_transcription
+                        if isinstance(raw_transcription, str) and raw_transcription.strip()
+                        else pc if isinstance(pc, str) and pc.strip()
+                        else ""
+                    )
                 existing_text_by_index.append(existing)
                 page_doc_id_by_index.append(doc_id)
                 page_doc_dict_by_index.append(doc if doc_id else None)
@@ -2543,6 +2616,12 @@ async def process_vision(
             per_page_texts: list[str] | None = None
             per_page_geometries: list[OCRGeometryResult | None] | None = None
             page_geometry: OCRGeometryResult | None = None
+            # Per-node thinking capture (Daniel, 2026-08-11): a thinking
+            # model's reasoning was parsed, logged truncated, and DISCARDED —
+            # uninvestigable after the run. Captured per page and persisted
+            # on the artifact's data ("thinking") so a run can be audited.
+            per_page_thinking: list[str | None] | None = None
+            page_thinking_single: str | None = None
 
             # PDF text-layer short-circuit (#957, #1033, #1064). A born-digital
             # PDF (InDesign export, LaTeX, Word→PDF) already carries a
@@ -2750,6 +2829,7 @@ async def process_vision(
                     )
                     _llm_page_texts: list[str] = []
                     _llm_page_geometries: list[OCRGeometryResult | None] = []
+                    _llm_page_thinking: list[str | None] = []
                     for _page_idx in range(_llm_num_pages):
                         try:
                             _page_uri = _pdf_page_to_data_uri(
@@ -2772,6 +2852,21 @@ async def process_vision(
                                 if _thk:
                                     logger.info("Thinking (page %d): %s...", _page_idx, _thk[:100])
                                 _llm_page_texts.append(str(_ans or ""))
+                                _llm_page_thinking.append(_thk or None)
+                                # Keep geometries index-aligned with texts:
+                                # this branch never captured any (latent
+                                # misalignment before thinking capture forced
+                                # per-branch appends).
+                                _llm_page_geometries.append(
+                                    _llm_geometry_unavailable(
+                                        effective_config,
+                                        return_boxes=_boxes_requested,
+                                        reason=(
+                                            "thinking-model inference path "
+                                            "captures no geometry"
+                                        ),
+                                    )
+                                )
                             else:
                                 _pt = await _vision_resilient(
                                     lambda: vision(
@@ -2792,6 +2887,7 @@ async def process_vision(
                                     )
                                     _llm_page_geometries.append(_geometry)
                                     _llm_page_texts.append(_page_text)
+                                    _llm_page_thinking.append(None)
                                 else:
                                     _llm_page_geometries.append(
                                         _llm_geometry_unavailable(
@@ -2801,6 +2897,7 @@ async def process_vision(
                                         )
                                     )
                                     _llm_page_texts.append(_payload)
+                                    _llm_page_thinking.append(None)
                         except ProviderRateLimitedError:
                             # #2543: breaker is OPEN for this provider — abort
                             # the per-page loop and fail this file fast rather
@@ -2813,6 +2910,7 @@ async def process_vision(
                                 _page_idx, Path(file_path).name, _pe,
                             )
                             _llm_page_texts.append("")
+                            _llm_page_thinking.append(None)
                             _llm_page_geometries.append(
                                 _llm_geometry_unavailable(
                                     effective_config,
@@ -2833,6 +2931,7 @@ async def process_vision(
                         ]
                     per_page_texts = _llm_page_texts
                     per_page_geometries = _llm_page_geometries
+                    per_page_thinking = _llm_page_thinking
                     _parts: list[str] = []
                     for _i, _t in enumerate(per_page_texts):
                         if _t:
@@ -2887,6 +2986,7 @@ async def process_vision(
                             # Log thinking process if present
                             if thinking:
                                 logger.info(f"Model thinking process: {thinking[:200]}...")
+                                page_thinking_single = thinking
 
                             # Use answer for further processing
                             parsed = parse_output(answer, output_format, output_options)
@@ -2994,8 +3094,85 @@ async def process_vision(
 
             result = {"file": file_path, "text": text, "value": parsed}
 
+            # Episode ledger (2026-08-12, episode-capture program): one
+            # training-grade record per model exchange — per page on the
+            # whole-PDF path, one for a single-page/image call. Library and
+            # run identity ride the contextvars the builder set; recording
+            # is auxiliary by contract, so a failure here is loud but never
+            # fails the file.
+            _ep_single_id: str | None = None
+            _ep_page_ids: list[str | None] = []
+            try:
+                from fichero_server.observability import episodes
+
+                _ep_doc_id = resolve_path_to_doc(path_to_doc, file_path)
+                _ep_model = {
+                    "provider": ("apple" if vision_mode == "apple" else effective_config.provider),
+                    "model": ("apple-vision" if vision_mode == "apple" else effective_config.model),
+                    "temperature": getattr(effective_config, "temperature", None),
+                    "use_case": tool_config.artifact_type,
+                }
+                if per_page_texts and requested_page_index is None:
+                    for _ep_idx, _ep_text in enumerate(per_page_texts):
+                        _ep_page_ids.append(episodes.record(
+                            subject={
+                                "document_id": _ep_doc_id,
+                                "file": file_path,
+                                "page_index": _ep_idx,
+                            },
+                            model=_ep_model,
+                            exchange={
+                                "prompt": final_prompt,
+                                "output": _ep_text,
+                                "thinking": (
+                                    per_page_thinking[_ep_idx]
+                                    if per_page_thinking
+                                    and _ep_idx < len(per_page_thinking)
+                                    else None
+                                ),
+                            },
+                        ))
+                else:
+                    _ep_single_id = episodes.record(
+                        subject={
+                            "document_id": _ep_doc_id,
+                            "file": file_path,
+                            "page_index": requested_page_index,
+                        },
+                        model=_ep_model,
+                        exchange={
+                            "prompt": final_prompt,
+                            "output": text,
+                            "thinking": page_thinking_single,
+                        },
+                    )
+            except Exception as exc:
+                logger.error("episode recording failed for %s: %s", file_path, exc)
+
             # Save to database
             if save_to_db and library_path:
+                # Persist single-page thinking on the artifact's data so the
+                # run is investigable after the fact (per-node capture,
+                # 2026-08-11). The multipage path threads per_page_thinking
+                # into _propagate_to_page_children instead.
+                # Distinct name: assigning to `artifact_data` here would make
+                # it local to this closure and UnboundLocalError every read
+                # above (the parameter lives in the enclosing scope).
+                effective_artifact_data = artifact_data
+                if page_thinking_single:
+                    effective_artifact_data = {
+                        **(artifact_data or {}),
+                        "thinking": page_thinking_single,
+                    }
+                # Provenance join (2026-08-12, Daniel: "can we click on an
+                # artifact and see how it was produced?"): the artifact
+                # carries its episode's id, so the inspector resolves the
+                # exact model call — prompt, thinking, timing — in one hop.
+                if _ep_single_id:
+                    effective_artifact_data = {
+                        **(effective_artifact_data or {}),
+                        "episode_id": _ep_single_id,
+                    }
                 # Set proper provider/model labels for local processing
                 save_config = effective_config
                 if pdf_layer_used:
@@ -3063,7 +3240,9 @@ async def process_vision(
                         artifact_type=tool_config.artifact_type,
                         llm_config=save_config,
                         page_geometries=per_page_geometries,
-                        artifact_data=artifact_data,
+                        artifact_data=effective_artifact_data,
+                        page_thinking=per_page_thinking,
+                        page_episode_ids=_ep_page_ids,
                     )
                     if page_artifact_ids is None and len(per_page_texts) > 1:
                         # Multi-page PDF with NO page children. Per #2430 /
@@ -3098,7 +3277,9 @@ async def process_vision(
                             artifact_type=tool_config.artifact_type,
                             llm_config=save_config,
                             page_geometries=per_page_geometries,
-                            artifact_data=artifact_data,
+                            artifact_data=effective_artifact_data,
+                            page_thinking=per_page_thinking,
+                            page_episode_ids=_ep_page_ids,
                         )
                         if page_artifact_ids is None:
                             # Still unsplittable. FAIL LOUD rather than write a
@@ -3130,7 +3311,7 @@ async def process_vision(
                                 if per_page_geometries
                                 else None
                             ),
-                            data=artifact_data,
+                            data=effective_artifact_data,
                             metadata_field=metadata_field,
                             custom_metadata=custom_metadata,
                             document=_preloaded_doc,
@@ -3152,7 +3333,7 @@ async def process_vision(
                         task_id=task_id,
                         tool_config=tool_config,
                         ocr_geometry=page_geometry,
-                        data=artifact_data,
+                        data=effective_artifact_data,
                         metadata_field=metadata_field,
                         custom_metadata=custom_metadata,
                         document=_preloaded_doc,
@@ -3287,6 +3468,20 @@ async def process_vision(
         # transcription fan-out or side-effect-create a library.
         try:
             activity_db_path = str(db_manager.get_database(library_path).path)
+            # A path that does not exist on disk is not a library db —
+            # get_database() CREATES real ones, so the only way here is a
+            # test double (a MagicMock db_manager stringifies its .path repr,
+            # and the activity tracker then CREATED a junk file literally
+            # named "<MagicMock name='db_manager.get_database().path' …>" in
+            # the CWD — the repo-root polluter, task #14). Degrade to
+            # unscoped, same contract as the OSError arm.
+            if not Path(activity_db_path).exists():
+                logger.error(
+                    "activity scoping: resolved db path %s does not exist — "
+                    "files will log unscoped",
+                    activity_db_path,
+                )
+                activity_db_path = None
         except OSError as exc:
             logger.error(
                 "activity scoping: library db unavailable at %s (%s) — "

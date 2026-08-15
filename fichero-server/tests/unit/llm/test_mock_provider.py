@@ -133,7 +133,7 @@ async def test_extract_all_mock_emits_workflow_change_events(
         lambda _db: [],
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity",
+        "fichero_server.knowledge.entity_vectors.index_entity",
         lambda **_kwargs: None,
         raising=False,
     )

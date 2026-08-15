@@ -385,15 +385,15 @@ def _install_deterministic_workflow_stubs(
     )
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.find_similar",
+        "fichero_server.knowledge.entity_vectors.find_similar",
         lambda *args, **kwargs: [],
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity",
+        "fichero_server.knowledge.entity_vectors.index_entity",
         lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
-        "fichero_server.kg.rebuild.rebuild_kg",
+        "fichero_server.knowledge.rebuild.rebuild_kg",
         lambda *args, **kwargs: {
             "entities": 0,
             "claims": 0,
@@ -884,15 +884,15 @@ def _install_twostage_stubs(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.find_similar",
+        "fichero_server.knowledge.entity_vectors.find_similar",
         lambda *args, **kwargs: [],
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity",
+        "fichero_server.knowledge.entity_vectors.index_entity",
         lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(
-        "fichero_server.kg.rebuild.rebuild_kg",
+        "fichero_server.knowledge.rebuild.rebuild_kg",
         lambda *args, **kwargs: {
             "entities": 0,
             "claims": 0,
@@ -1039,11 +1039,11 @@ def test_catalogue_twostage_folder_uses_page_records_for_page_scoped_kg(
     monkeypatch.setattr("fichero_server.llm.resolve_model_alias", lambda p, m: ("fake", "fake-model"))
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.find_similar",
+        "fichero_server.knowledge.entity_vectors.find_similar",
         lambda *args, **kwargs: [],
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity",
+        "fichero_server.knowledge.entity_vectors.index_entity",
         lambda *args, **kwargs: None,
     )
     monkeypatch.setattr(

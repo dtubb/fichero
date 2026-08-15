@@ -283,8 +283,21 @@ struct FicheroApp: App {
     /// primary `id: "main"` window and the value-seeded Duplicate Window group
     /// (#2262), so there is exactly one LibraryWindow scene definition — the
     /// duplicate path reuses it rather than introducing a parallel one.
+    ///
+    /// AnyView return — LOAD-BEARING (#4331 class, 2026-08-11): the composed
+    /// scene generic overflowed the stack while SwiftUI's NewItemCommands
+    /// resolved a KEYPATH into it (swift_getTypeByMangledName →
+    /// buildEnvironmentPath, EXC_BAD_ACCESS code=2 building the File menu).
+    /// Property splits bound the type-checker, not runtime type depth; only
+    /// erasure truncates the generic the keypath walk must demangle. Same fix
+    /// as requestBusesAndAppleScript (401d08ecd), applied at the widest
+    /// boundary: the window root every scene shares.
+    private func libraryWindowRoot(seed: WindowSeed?) -> AnyView {
+        AnyView(libraryWindowRootContent(seed: seed))
+    }
+
     @ViewBuilder
-    private func libraryWindowRoot(seed: WindowSeed?) -> some View {
+    private func libraryWindowRootContent(seed: WindowSeed?) -> some View {
         // #2864/#3107: the root switches on the single `engine.phase` sum
         // type — one authoritative "is the backend usable" decision, not
         // ANDed booleans. `.setupNeeded` (iOS first-run pairing; never on
@@ -511,6 +524,24 @@ struct FicheroApp: App {
         .defaultSize(width: 1400, height: 900)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
+        // #4331: every scene WITHOUT this synthesizes SwiftUI's default
+        // NewItemCommands, whose keypath demangle walks the whole scene-graph
+        // generic environment on scenesDidChange (2026-08-12 main-thread
+        // trace). The first fix here was `.commandsRemoved()`, on the belief
+        // that "the menu bar is app-wide and the MAIN WindowGroup supplies
+        // every command". FALSIFIED LIVE (Daniel 2026-08-13 morning, "no
+        // file menu?"): with a seed-group window key — which is what session
+        // restore brings back — the menu bar drops the app's custom menus,
+        // File first among them. So this scene replaces the crash-prone
+        // default new-item group with the SAME File menu the main group
+        // declares: a seed window IS a library window, and an empty
+        // replacement would hide File again whenever one is key.
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                FileMenuCommands()
+                    .environment(libraryManager)
+            }
+        }
 
         // Track B (#2003): a detachable artifact-detail scene. Torn off from
         // the inspector's Artifacts tab, it follows the shared FocusedArtifact
@@ -544,41 +575,7 @@ struct FicheroApp: App {
         .defaultPosition(.center)
         #endif
 
-        WindowGroup("Artifact", id: "artifact-detail") {
-            ArtifactDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 620)
-
-        // Track B (#2004): detachable citation detail scene, torn off from the
-        // Citations inspector tab and following FocusedCitation.shared by default.
-        // Read-only — no library-service environment plumbing needed.
-        WindowGroup("Citation", id: "citation-detail") {
-            CitationDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 560)
-
-        // Track B (#2010 / #2011): detachable annotation + note detail scenes,
-        // each torn off from its inspector tab and following the matching shared
-        // focus holder by default. Read-only in the detached scene, so they
-        // need no library-service environment plumbing.
-        WindowGroup("Annotation", id: "annotation-detail") {
-            AnnotationDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 620)
-
-        WindowGroup("Note", id: "note-detail") {
-            NoteDetailWindow()
-                .environment(appExecutionObserver)
-        }
-        .defaultSize(width: 480, height: 620)
-
-        WindowGroup("Document", id: "document-detail") {
-            documentDetailSceneRoot()
-        }
-        .defaultSize(width: 540, height: 720)
+        detailScenes
 
         // Activity monitor (#2546 / B2): the poppable live workflow monitor —
         // the window's root IS the hierarchical outline table. Resolves the
@@ -604,6 +601,22 @@ struct FicheroApp: App {
         // singleton window forward (in the case of Window)"
         // (Scene.keyboardShortcut docs). ⌥⌘A is unclaimed (⌘A is Select All).
         .keyboardShortcut("a", modifiers: [.option, .command])
+        // #4331: keep the automatic Window-menu item (#4524 needs it — so no
+        // blanket commandsRemoved here), but replace the default new-item
+        // group so this scene never builds NewItemCommands' keypath demangle.
+        //
+        // Replace WITH THE FILE MENU, never with `{}` (Daniel 2026-08-13/14,
+        // "still no file menu"): scenes' `.newItem` replacements merge with
+        // one winner app-wide, and this scene's EMPTY replacement was the
+        // winner — the File menu held no items and macOS hid it entirely.
+        // Every scene that replaces `.newItem` supplies the SAME
+        // FileMenuCommands, so there is no losing order.
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                FileMenuCommands()
+                    .environment(libraryManager)
+            }
+        }
 
         Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
             ActivityDetailWindow()
@@ -692,6 +705,65 @@ private struct FeatureTierLegendWindow: View {
         }
     }
 }
+
+// MARK: - Detail scenes
+
+extension FicheroApp {
+    /// The five detachable detail scenes (artifact/citation/annotation/note/
+    /// document). In an extension so `FicheroApp`'s struct body stays inside
+    /// the type-body budget — the #4331 launch-crash fix added
+    /// `.commandsRemoved()` to each (see the note on the Artifact scene).
+    @SceneBuilder
+    var detailScenes: some Scene {
+        WindowGroup("Artifact", id: "artifact-detail") {
+            ArtifactDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+        // #4331 launch crash (2026-08-12): SwiftUI builds its DEFAULT
+        // NewItemCommands for any scene that doesn't replace/remove commands,
+        // and that build walks a keypath through the app's composed scene
+        // generic — the demangle overflowed the stack under scene-restore
+        // recursion. The MAIN scene replaces .newItem; every auxiliary scene
+        // must remove its defaults so the walk never runs for them.
+        .commandsRemoved()
+
+        // Track B (#2004): detachable citation detail scene, torn off from the
+        // Citations inspector tab and following FocusedCitation.shared by default.
+        // Read-only — no library-service environment plumbing needed.
+        WindowGroup("Citation", id: "citation-detail") {
+            CitationDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 560)
+        .commandsRemoved()
+
+        // Track B (#2010 / #2011): detachable annotation + note detail scenes,
+        // each torn off from its inspector tab and following the matching shared
+        // focus holder by default. Read-only in the detached scene, so they
+        // need no library-service environment plumbing.
+        WindowGroup("Annotation", id: "annotation-detail") {
+            AnnotationDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+        .commandsRemoved()
+
+        WindowGroup("Note", id: "note-detail") {
+            NoteDetailWindow()
+                .environment(appExecutionObserver)
+        }
+        .defaultSize(width: 480, height: 620)
+        .commandsRemoved()
+
+        WindowGroup("Document", id: "document-detail") {
+            documentDetailSceneRoot()
+        }
+        .defaultSize(width: 540, height: 720)
+        .commandsRemoved()
+    }
+}
+
 #endif
 
 extension FicheroApp {

@@ -83,6 +83,13 @@ enum RunTraceStatusStyle {
 struct RunTraceNodeDetail: View {
     let node: RunTraceNode
     let artifacts: [WorkflowRunArtifact]
+    /// Model-call episodes recorded under THIS node (#22): the full
+    /// prompt/output/thinking exchange. Empty for pre-ledger runs.
+    var episodes: [WorkflowEpisode] = []
+    /// Episodes recorded under the whole RUN — distinguishes "this node made
+    /// no model call" from "this run has no ledger at all", which need
+    /// different responses from the reader.
+    var runEpisodeCount: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -154,8 +161,91 @@ struct RunTraceNodeDetail: View {
                     RunArtifactRow(artifact: artifact)
                 }
             }
+
+            if !episodes.isEmpty {
+                Divider()
+                Text("Model Calls")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(episodes) { episode in
+                    RunEpisodeRow(episode: episode)
+                }
+            } else if node.providerModelText != nil {
+                // A node that used a model but shows no exchange is a GAP,
+                // and it must say which kind (Daniel 2026-08-13: "doesn't
+                // tell us the prompt that ran"): a run with no ledger at all
+                // is a pre-ledger or remote run; a run WITH a ledger where
+                // this node matched nothing is a recording/attribution bug
+                // worth reporting.
+                Divider()
+                Label(
+                    runEpisodeCount == 0
+                        ? "No model-call ledger for this run"
+                        : "Ledger has \(runEpisodeCount) call(s), none attributed to this node",
+                    systemImage: "brain"
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
         }
         .padding(12)
         .frame(minWidth: 240, maxWidth: 340, alignment: .leading)
+    }
+}
+
+/// One recorded model call: identity line, then the FULL exchange behind a
+/// disclosure — prompt, output, thinking, verbatim and selectable (#22: what
+/// the model actually saw and said, never a paraphrase).
+struct RunEpisodeRow: View {
+    let episode: WorkflowEpisode
+
+    var body: some View {
+        DisclosureGroup {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    exchangeSection("System", text: episode.system)
+                    exchangeSection("Prompt", text: episode.prompt)
+                    exchangeSection("Thinking", text: episode.thinking)
+                    exchangeSection("Output", text: episode.output)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 260)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "brain")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(episode.modelText ?? "model not recorded")
+                    .font(.caption)
+                if let useCase = episode.useCase {
+                    Text(useCase)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                if let millis = episode.durationMs {
+                    Text(RunTraceFormat.duration(ms: Double(millis)))
+                        .font(.caption2)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func exchangeSection(_ title: String, text: String?) -> some View {
+        if let text, !text.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(text)
+                    .font(.caption)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 }

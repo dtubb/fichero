@@ -376,7 +376,9 @@ final class KnowledgeGraphInspectorSectionTests: XCTestCase {
             Self.appSource("Models/EntityStore+Mutations.swift")
         ].joined(separator: "\n")
 
-        XCTAssertTrue(source.contains(".draggable(InspectorEntityDragID(id: entity.stableInspectorId, text: entity.canonicalName))"))
+        // The drag payload carries the multi-selection via a helper (2026-08-13).
+        XCTAssertTrue(source.contains(".draggable(entityDragPayload(for: entity))"))
+        XCTAssertTrue(source.contains("id: entity.stableInspectorId,"))
         XCTAssertTrue(source.contains(".dropDestination("))
         XCTAssertTrue(source.contains("pendingMergePlan = plan"))
         XCTAssertTrue(source.contains("pendingReclassifyPlan = PendingEntityReclassifyPlan("))

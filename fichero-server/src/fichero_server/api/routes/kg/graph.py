@@ -1,6 +1,6 @@
 """NetworkX-backed KG analytics routes (#376).
 
-Exposes the ``fichero_server.kg.graph`` module as HTTP endpoints:
+Exposes the ``fichero_server.knowledge.graph`` module as HTTP endpoints:
 
 - ``GET /api/kg/graph/centrality`` — top-k most central entities,
   optionally filtered by entity type.
@@ -53,7 +53,7 @@ async def centrality(
     ),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
-    from fichero_server.kg.graph import build_full_cooccurrence, centrality as compute_centrality
+    from fichero_server.knowledge.graph import build_full_cooccurrence, centrality as compute_centrality
 
     g = build_full_cooccurrence(db)
     scores = compute_centrality(g, top_k=top_k, only_type=entity_type)
@@ -93,7 +93,7 @@ async def cooccurrence_neighbours(
     entity_id: str,
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
-    from fichero_server.kg.graph import build_full_cooccurrence, NODE_NAME, NODE_TYPE
+    from fichero_server.knowledge.graph import build_full_cooccurrence, NODE_NAME, NODE_TYPE
 
     g = build_full_cooccurrence(db)
     if entity_id not in g:
@@ -325,7 +325,7 @@ async def shortest_path(
     target: str = Query(..., description="Target entity ID"),
     db: Database = Depends(get_library_database),
 ) -> PathResponse:
-    from fichero_server.kg.graph import build_full_graph, shortest_path_entities
+    from fichero_server.knowledge.graph import build_full_graph, shortest_path_entities
 
     g = build_full_graph(db)
     path = shortest_path_entities(g, source, target)
@@ -649,7 +649,7 @@ async def pagerank(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     import networkx as nx
-    from fichero_server.kg.graph import build_full_graph
+    from fichero_server.knowledge.graph import build_full_graph
     from fichero_server.models.knowledge import KnowledgeEntity
 
     g = build_full_graph(db)
@@ -706,7 +706,7 @@ async def communities(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     import networkx as nx
-    from fichero_server.kg.graph import build_full_cooccurrence
+    from fichero_server.knowledge.graph import build_full_cooccurrence
     from fichero_server.models.knowledge import KnowledgeEntity
 
     # Use the undirected co-occurrence graph — community detection
@@ -773,7 +773,7 @@ async def similar(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     import networkx as nx
-    from fichero_server.kg.graph import build_full_cooccurrence
+    from fichero_server.knowledge.graph import build_full_cooccurrence
     from fichero_server.models.knowledge import KnowledgeEntity
 
     focus = db.get(KnowledgeEntity, entity_id)
@@ -835,7 +835,7 @@ async def components(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     import networkx as nx
-    from fichero_server.kg.graph import build_full_cooccurrence
+    from fichero_server.knowledge.graph import build_full_cooccurrence
 
     g = build_full_cooccurrence(db)
     if g.number_of_nodes() == 0:
@@ -873,7 +873,7 @@ async def triangles(
     db: Database = Depends(get_library_database),
 ) -> TriangleRow:
     import networkx as nx
-    from fichero_server.kg.graph import build_full_cooccurrence
+    from fichero_server.knowledge.graph import build_full_cooccurrence
     from fichero_server.models.knowledge import KnowledgeEntity
 
     focus = db.get(KnowledgeEntity, entity_id)
@@ -916,7 +916,7 @@ async def clustering(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     import networkx as nx
-    from fichero_server.kg.graph import build_full_cooccurrence
+    from fichero_server.knowledge.graph import build_full_cooccurrence
     from fichero_server.models.knowledge import KnowledgeEntity
 
     g = build_full_cooccurrence(db)

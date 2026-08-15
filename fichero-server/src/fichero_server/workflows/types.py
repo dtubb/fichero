@@ -701,6 +701,15 @@ class ToolDef(BaseModel):
     # Capabilities
     uses_llm: bool = False  # Requires LLM provider/model selection
     supports_batch: bool = False  # Can process multiple files in parallel
+    # Per-page pipelining lane (workflows-done-right, 2026-08-12): how this
+    # tool relates to the ITEM STREAM. "elementwise" tools map one item at a
+    # time (transcribe a page, describe an image) — the builder may chain
+    # Sends through consecutive elementwise nodes so pages STREAM instead of
+    # re-batching at every hop. "reducing" tools need the whole set at once
+    # (merge/dedup, kg persist) — an aggregation barrier belongs before
+    # them. "batch" (the default) is today's behavior: unclassified tools
+    # keep the aggregate-then-call shape until someone classifies them.
+    parallelism: str = "batch"  # elementwise | reducing | batch
     supports_streaming: bool = False  # Can stream progress updates
     supports_structured_output: bool = False  # Can use JSON Schema output
 

@@ -283,13 +283,50 @@ extension LibraryManager {
                 \(Self.loadFailureReason(error: store.error, isConnected: store.isConnected), privacy: .public)
                 """
             )
+            scheduleLoadRetry(for: library)
             return
         }
 
+        libraryLoadRetryAttempts.removeValue(forKey: library.id)
         await ensureInboxFolder(for: library)
         loadedLibraryIds.insert(library.id)
         librariesLoadVersion += 1
     }
+
+    /// "Leaving unloaded for retry" needs a retryer (2026-08-12: "the library
+    /// isn't properly opened until the second time I open it"). The triggers
+    /// the #3986-B comment counted on — backend-ready, window `.task` — all
+    /// fire BEFORE or AT load time, so a load that failed once had nothing
+    /// left to re-enter it short of the user reopening the library. Retry a
+    /// bounded burst with backoff; on exhaustion the counter resets so a
+    /// later manual reopen gets a fresh burst.
+    func scheduleLoadRetry(for library: LibraryReference) {
+        let attempt = (libraryLoadRetryAttempts[library.id] ?? 0) + 1
+        guard attempt <= Self.maxLibraryLoadRetries else {
+            libraryLoadRetryAttempts.removeValue(forKey: library.id)
+            libraryManagerLogger.error(
+                "Library load retries exhausted for \(library.displayName, privacy: .public) — waiting for reopen"
+            )
+            return
+        }
+        libraryLoadRetryAttempts[library.id] = attempt
+        let delay = Double(attempt) * 2.0
+        libraryManagerLogger.info(
+            """
+            Retrying library load in \(Int(delay))s \
+            (attempt \(attempt)/\(Self.maxLibraryLoadRetries)): \
+            \(library.displayName, privacy: .public)
+            """
+        )
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            // The library may have been closed while we slept.
+            guard openLibraries.contains(where: { $0.id == library.id }) else { return }
+            await loadLibraryDataIfNeeded(for: library)
+        }
+    }
+
+    static let maxLibraryLoadRetries = 3
 
     /// Pure success test for a library's data load (#3986-B). `DocumentStore`
     /// signals a failed `loadCollections()` by leaving `error` non-nil and
@@ -362,6 +399,15 @@ extension LibraryManager {
     func initializeBackendDatabase(for library: LibraryReference) async {
         do {
             _ = try await library.apiClient.healthCheck()  // generated health_check op (#3030)
+            // Actually initialize: POST /api/library (idempotent) runs the
+            // engine's first-open work — migrations, workflow + Inbox seeding —
+            // HERE, in a call named for it. Before this, the name was a lie
+            // (health ping only) and init landed on the first data fetch,
+            // whose deadline it blew: a fresh library recorded
+            // deadlineExceeded and only opened on the second attempt
+            // (2026-08-12). Failures fall through to loadLibraryData, whose
+            // failure handling owns the retry.
+            try await library.apiClient.initializeLibrary(path: library.url.path)
             libraryManagerLogger.info("Initialized backend database for: \(library.displayName)")
         } catch {
             libraryManagerLogger.error("Failed to initialize backend database: \(error.localizedDescription)")

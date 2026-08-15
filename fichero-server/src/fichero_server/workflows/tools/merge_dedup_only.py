@@ -18,7 +18,7 @@ from fichero_server.core.timeutil import utc_now
 from typing import Any
 
 from fichero_server.db import db_manager
-from fichero_server.kg._common import is_trivial_claim
+from fichero_server.knowledge._common import is_trivial_claim
 from fichero_server.models.knowledge import (
     ClaimCurationState,
     ClaimSuppressionRuleAction,
@@ -107,6 +107,7 @@ def _claim_target_state(
 
 @register_tool(
     name="merge_dedup_only",
+    parallelism="reducing",
     display_name="Merge / Dedup",
     description="Apply existing entity-resolution rules, claim suppression, and trivial-claim pruning to existing KG rows",
     category="utility",

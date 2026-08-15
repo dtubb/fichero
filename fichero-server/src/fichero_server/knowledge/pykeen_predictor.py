@@ -2,7 +2,7 @@
 
 Trains a knowledge-graph embedding model (TransE by default — fast,
 small, well-understood) on the SPO triples we already store via
-``fichero_server.kg.triples`` and exposes prediction endpoints that surface
+``fichero_server.knowledge.triples`` and exposes prediction endpoints that surface
 plausible-but-missing links for the human reviewer queue.
 
 Why this matters:
@@ -78,7 +78,7 @@ def _gather_triples(db: "Database") -> list[tuple[str, str, str]]:
     node. Future improvement: resolve object text to entity URIs
     where possible so the model learns over entities, not literals.
     """
-    from fichero_server.kg._common import extract_svo, slug_verb
+    from fichero_server.knowledge._common import extract_svo, slug_verb
     from fichero_server.models.knowledge import KnowledgeClaim
 
     triples: list[tuple[str, str, str]] = []

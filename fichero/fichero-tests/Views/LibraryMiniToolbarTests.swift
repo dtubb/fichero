@@ -66,7 +66,8 @@ struct LibraryMiniToolbarTests {
     /// One container, mounted once per edge — not one per control.
     @Test("the container is mounted exactly once per edge")
     func containerIsMountedOncePerEdge() throws {
-        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         #expect(
             library.components(separatedBy: "PaneFilterBar(placement: .top) { libraryMiniToolbar }")
                 .count - 1 == 1
@@ -85,7 +86,8 @@ struct LibraryMiniToolbarTests {
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
 
-        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         #expect(library.contains("PaneFilterBar("))
 
         // The reader still owns its own find bar — unchanged, and still the model.
@@ -98,7 +100,8 @@ struct LibraryMiniToolbarTests {
     /// lives where that state does.
     @Test("the search field's state reaches the pane that now owns the field")
     func searchStateReachesThePane() throws {
-        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         #expect(library.contains("var searchFieldText: Binding<String>"))
         #expect(library.contains("var searchFieldMode: Binding<SearchFieldMode>"))
 
@@ -116,7 +119,8 @@ struct LibraryMiniToolbarTests {
     /// orderings competing; one with a stated order cannot drift.
     @Test("the library has exactly one bottom safe-area inset")
     func oneBottomInset() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
+        let source = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         let code = source
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
@@ -129,9 +133,14 @@ struct LibraryMiniToolbarTests {
     /// acts on; the status row belongs to the window and must be outermost.
     @Test("the bottom stack runs pane-scoped first, window-scoped last")
     func bottomStackOrderFollowsScope() throws {
-        let source = try Self.appSource("Views/Library/LibraryView.swift")
-        let body = source
-            .components(separatedBy: "private var bottomInsetContent: some View {")[1]
+        let source = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
+        // Promoted private -> internal in the 2026-08-13 LibraryView file
+        // split. Guarded: a force-[1] on a missed anchor crashes the whole
+        // test PROCESS, taking unrelated suites down with it.
+        let pieces = source.components(separatedBy: "var bottomInsetContent: some View {")
+        try #require(pieces.count > 1, "bottomInsetContent declaration not found")
+        let body = pieces[1]
             .components(separatedBy: "\n    }")[0]
         let mini = body.range(of: "libraryMiniToolbar")
         let filter = body.range(of: "filterBarView")
@@ -152,7 +161,8 @@ struct LibraryMiniToolbarTests {
     func placementDecisionIsUntouched() throws {
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
-        let library = try Self.appSource("Views/Library/LibraryView.swift")
+        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
+            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
         #expect(library.contains("if Self.miniToolbarPlacement == .top"))
         #expect(library.contains("if Self.miniToolbarPlacement == .bottom"))
     }

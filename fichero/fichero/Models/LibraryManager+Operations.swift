@@ -110,6 +110,19 @@ extension LibraryManager {
         )
         FolderAccessManager.shared.requestFolderAccess(suggestedPath: url.path) { granted in
             libraryManagerLogger.info("Folder access prompt result: \(granted)")
+            guard granted else { return }
+            // The load that ran alongside this prompt failed without access
+            // and was left unloaded — approval must re-trigger it, or the
+            // user stares at the library they just granted until they reopen
+            // it by hand (2026-08-12: "when I approved it, it didn't reload").
+            Task { @MainActor in
+                let manager = LibraryManager.shared
+                guard let library = manager.openLibraries.first(
+                    where: { $0.url.path == url.path }
+                ) else { return }
+                manager.libraryLoadRetryAttempts.removeValue(forKey: library.id)
+                await manager.loadLibraryDataIfNeeded(for: library)
+            }
         }
         #endif
     }
@@ -412,20 +425,27 @@ extension LibraryManager {
             // only one of them maintained. Routed through the same
             // `grantThenEngineWork` so there is ONE grant-then-load ordering in
             // the app, not two that can drift.
-            let alreadyLoadable = isTempLibrary
+            // ALWAYS grant the FINAL path — including for temp libraries.
+            // The old temp-library shortcut assumed a
+            // temp package needed no grant, which was true at its container-
+            // tmp path but false the moment `moveItem` put it at the user's
+            // chosen location: the engine kept only the tmp registration and
+            // every request against the saved path 403'd with
+            // failed_check=roots — for EVERY newly created library, forever
+            // (Daniel, 2026-08-15: two fresh libraries in ~/Documents both
+            // unopenable, while the error text suggested "move it into
+            // Documents").
             Task { @MainActor in
-                if !alreadyLoadable {
-                    // try?: a refused grant already surfaces on
-                    // `engineAccessFailure`; it must stop the load rather than
-                    // crash the save the user just completed.
-                    try? await FolderAccessManager.grantThenEngineWork(
-                        grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
-                        engineWork: {
-                            loadedLibraryIds.remove(library.id)
-                            scheduleLoadWhenBackendReady(for: library)
-                        }
-                    )
-                }
+                // try?: a refused grant already surfaces on
+                // `engineAccessFailure`; it must stop the load rather than
+                // crash the save the user just completed.
+                try? await FolderAccessManager.grantThenEngineWork(
+                    grant: { try await FolderAccessManager.shared.saveBookmarkIfDirectory(url) },
+                    engineWork: {
+                        loadedLibraryIds.remove(library.id)
+                        scheduleLoadWhenBackendReady(for: library)
+                    }
+                )
                 await KnownLibraryRegistryStore.shared.noteOpenedLibrary(
                     url: url,
                     displayName: displayName

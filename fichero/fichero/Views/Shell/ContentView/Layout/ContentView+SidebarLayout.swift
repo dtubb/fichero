@@ -6,7 +6,9 @@ import SwiftUI
 // ContentView+ViewBuilders.swift to keep each file under the file_length limit.
 
 extension ContentView {
-    private var clampedWidescreenContentPaneWidth: CGFloat {
+    // internal (not private): PaneSpec.swift derives the library pane's
+    // fixed width from it — `private` in Swift is FILE-scoped.
+    var clampedWidescreenContentPaneWidth: CGFloat {
         CGFloat(min(max(widescreenContentPaneWidth, ContentView.contentListMinWidth), 900))
     }
 
@@ -185,68 +187,14 @@ extension ContentView {
 
                 case .widescreen:
                     // Library/list, document canvas, and reading/WebKit are
-                    // independently toggleable per-window (#1448). Hiding the
-                    // Library pane must not collapse the reading workspace into
-                    // a different single-preview layout.
-                    let panePlan = adaptiveWidescreenPanePlan
-                    HStack(spacing: 0) {
-                        if panePlan.showsLibraryPane {
-                            // When both reading panes are hidden the list takes the
-                            // whole width instead of staying a fixed column with a
-                            // blank grey area beside it (#1516). list-only is a valid
-                            // state — the library list is the always-present spine.
-                            // list-only is full-width. `width: .infinity` is an invalid
-                            // frame dimension (SwiftUI logs "Invalid frame dimension
-                            // (negative or non-finite)" #2006) — flex with maxWidth
-                            // instead, and pin a fixed width only when a reading pane
-                            // shares the row.
-                            let widescreenContentFixedWidth: CGFloat? =
-                                (panePlan.showsCanvasPane || panePlan.showsReadingPane)
-                                    ? clampedWidescreenContentPaneWidth : nil
-                            // Splittable (h/v) Library list pane — #2276.
-                            adaptiveSplittablePane(storageKey: "library") {
-                                contentWithOptionalModeRail
-                            }
-                            .frame(width: widescreenContentFixedWidth)
-                            .frame(maxWidth: widescreenContentFixedWidth == nil ? .infinity : nil)
-                            // The library pane must never paint past its own split
-                            // column — otherwise list/grid rows can bleed under the
-                            // shell sidebar or off the left window edge.
-                            .clipped()
-                            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .content; paneFocusHint = .content })
-                            .overlay { paneFocusIndicator(for: .content) }
-                        }
-
-                        if panePlan.showsLibraryDivider {
-                            ResizableDivider(
-                                width: $widescreenContentPaneWidth,
-                                minWidth: ContentView.contentListMinWidth,
-                                maxWidth: 900,
-                                edge: .leading,
-                                isDragging: $dividerDragInFlight
-                            )
-                        }
-
-                        if panePlan.showsCanvasPane {
-                            widescreenCanvasPane
-
-                            if panePlan.showsCanvasReadingDivider {
-                                ResizableDivider(
-                                    width: $pageContentPaneWidth,
-                                    minWidth: ContentView.readingPaneMinWidth,
-                                    maxWidth: 900,
-                                    edge: .trailing,
-                                    isDragging: $dividerDragInFlight
-                                )
-                                widescreenReadingPane
-                                    .frame(width: CGFloat(pageContentPaneWidth))
-                            }
-                        } else if panePlan.showsReadingPane {
-                            widescreenReadingPane
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
+                    // independently toggleable per-window (#1448). The row is
+                    // rendered from a PANE LIST now (pane system step 1, #13):
+                    // same panes, same sizing, same dividers — see PaneSpec —
+                    // but each pane is erased at its own boundary instead of
+                    // multiplying into one composed generic (the #4331 class),
+                    // and chat/terminal later arrive by adding specs, not
+                    // branches.
+                    widescreenPaneRow
                 }
             }
             .animation(.easeInOut(duration: 0.18), value: layout)

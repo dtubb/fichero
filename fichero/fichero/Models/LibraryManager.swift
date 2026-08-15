@@ -46,6 +46,11 @@ class LibraryManager {
     var loadedLibraryIds: Set<UUID> = []
     var loadingLibraryIds: Set<UUID> = []
 
+    /// Failed-load retry counter per library (`scheduleLoadRetry`). A load
+    /// left "unloaded for retry" (#3986-B) previously had no retryer — the
+    /// library only opened on the user's second attempt (2026-08-12).
+    var libraryLoadRetryAttempts: [UUID: Int] = [:]
+
     /// Security-scoped libraries whose sandbox grant is still in flight (#3986-A).
     /// A user-picked package on the MAS/sandbox build must NOT be loaded until its
     /// grant's network round-trip completes — otherwise the restore / backend-ready

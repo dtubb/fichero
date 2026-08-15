@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
-from fichero_server.kg.pykeen_inference import (
+from fichero_server.knowledge.pykeen_inference import (
     StoredPrediction,
     TrainingResult,
     get_inference,
@@ -54,7 +54,7 @@ async def train(
     small library; minutes on larger). Use the response to learn
     whether the corpus had enough triples."""
     try:
-        from fichero_server.kg.pykeen_predictor import train_model
+        from fichero_server.knowledge.pykeen_predictor import train_model
     except ImportError as exc:
         raise _pykeen_unavailable(exc) from exc
 
@@ -92,7 +92,7 @@ async def predict(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     try:
-        from fichero_server.kg.pykeen_predictor import predict_for_subject
+        from fichero_server.knowledge.pykeen_predictor import predict_for_subject
     except ImportError as exc:
         raise _pykeen_unavailable(exc) from exc
 

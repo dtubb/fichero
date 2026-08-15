@@ -189,6 +189,12 @@ extension PDFPageView {
         private var loadTask: Task<Void, Never>?
         // Accumulated horizontal translation for the current pan gesture.
         private var panAccumulated: CGFloat = 0
+        /// One page turn per gesture (2026-08-11, Daniel: "it moves the page
+        /// to the next, and then it still moves the next page … as my swipe is
+        /// still going"): the threshold used to re-arm mid-gesture, so a long
+        /// swipe flipped repeatedly. Set on the first flip, cleared when the
+        /// gesture ends.
+        private var panDidTurnPage = false
         /// Start point (in view coords) of an in-progress region-draw drag (#2458).
         private var regionDragStartView: CGPoint?
 
@@ -709,6 +715,9 @@ struct PDFPageView: UIViewRepresentable {
         private var requestedDocumentId: String?
         private var loadTask: Task<Void, Never>?
         private var panAccumulated: CGFloat = 0
+        /// One page turn per gesture (2026-08-11) — mirrors the AppKit
+        /// coordinator; a long swipe used to flip repeatedly mid-gesture.
+        private var panDidTurnPage = false
 
         init(owner: PDFPageView) {
             self.owner = owner
@@ -861,18 +870,23 @@ struct PDFPageView: UIViewRepresentable {
             switch recognizer.state {
             case .began:
                 panAccumulated = 0
+                panDidTurnPage = false
             case .changed:
                 panAccumulated += translation.x
                 recognizer.setTranslation(.zero, in: view)
+                guard !panDidTurnPage else { break }
                 if panAccumulated < -60 {
                     panAccumulated = 0
+                    panDidTurnPage = true
                     view.goToNextPage(nil)
                 } else if panAccumulated > 60 {
                     panAccumulated = 0
+                    panDidTurnPage = true
                     view.goToPreviousPage(nil)
                 }
             default:
                 panAccumulated = 0
+                panDidTurnPage = false
             }
         }
 

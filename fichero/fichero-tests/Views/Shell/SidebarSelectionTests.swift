@@ -147,7 +147,12 @@ struct SidebarSelectionTests {
         #expect(stateSource.contains("switch focusedPane"))
         #expect(stateSource.contains("pageFocusDocument ?? detailDocument ?? inspectorDocument"))
         #expect(stateSource.contains("if let page = activeLocationDocument, page.docType == .page"))
-        #expect(buildersSource.contains(".simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector })"))
+        // The inspector claim gesture now ALSO writes paneFocusHint — the
+        // Mail-selection seam (Daniel 2026-08-11 pane rulings) rides the same
+        // tap that moves keyboard focus.
+        #expect(buildersSource.contains(
+            ".simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .inspector; paneFocusHint = .inspector })"
+        ))
     }
 
     @Test("#2547 compact inspector sheet defaults to full-height .large")

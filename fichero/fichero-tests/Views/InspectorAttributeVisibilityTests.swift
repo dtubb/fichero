@@ -14,13 +14,17 @@ import Testing
 struct InspectorAttributeVisibilityTests {
     private let document = Document(id: "d1", name: "18590129.pdf")
 
-    // MARK: - Default: nothing
+    // MARK: - Default: Class only
 
-    @Test("no attributes are shown by default")
-    func noAttributesByDefault() {
-        #expect(InspectorAttributeVisibility.visibleAttributes(for: document).isEmpty)
-        #expect(!InspectorAttributeVisibility.showsAnyAttributes(for: document))
-        #expect(InspectorAttributeVisibility.defaultVisible.isEmpty)
+    /// #4422 defaulted to nothing; 2026-08-14 promoted `Class` back in — it is
+    /// the datasets system's front door (prototype picker + "Edit Types…"),
+    /// and with it hidden Daniel could not find the type editor three times.
+    /// Everything ELSE stays off by default.
+    @Test("only the Class row is shown by default")
+    func onlyClassByDefault() {
+        #expect(InspectorAttributeVisibility.visibleAttributes(for: document) == [.documentClass])
+        #expect(InspectorAttributeVisibility.showsAnyAttributes(for: document))
+        #expect(InspectorAttributeVisibility.defaultVisible == [.documentClass])
     }
 
     /// Every one of the six rows Daniel called out is absent by default.
@@ -245,7 +249,7 @@ struct InspectorAttributeChoiceStoreTests {
         #expect(
             InspectorAttributeVisibility.visibleAttributes(
                 for: document, chosen: store.chosen(forPrototype: "diary")
-            ).isEmpty)
+            ) == InspectorAttributeVisibility.defaultVisible)
     }
 
     /// The bug in one test: choosing makes an attribute visible. Before #4481
@@ -256,7 +260,8 @@ struct InspectorAttributeChoiceStoreTests {
         store.toggle(.pageCount, forPrototype: "diary")
         let visible = InspectorAttributeVisibility.visibleAttributes(
             for: document, chosen: store.chosen(forPrototype: "diary"))
-        #expect(visible == [.pageCount])
+        // The default (`Class`) rides along: toggling ADDS to what is shown.
+        #expect(visible == [.documentClass, .pageCount])
     }
 
     @Test("every attribute can be turned on through the chooser")
@@ -279,7 +284,7 @@ struct InspectorAttributeChoiceStoreTests {
         #expect(!store.isChosen(.state, forPrototype: "diary"))
         // Still a CHOICE, though — "I chose nothing" is not "I chose nothing yet".
         #expect(store.hasChoice(forPrototype: "diary"))
-        #expect(store.chosen(forPrototype: "diary") == [])
+        #expect(store.chosen(forPrototype: "diary") == InspectorAttributeVisibility.defaultVisible)
     }
 
     /// The point of keying by prototype: a diary page and a legal record show

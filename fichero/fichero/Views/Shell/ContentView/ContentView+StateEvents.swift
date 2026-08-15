@@ -130,14 +130,7 @@ extension ContentView {
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
         }
-        // #4523: remember every NON-empty selection so the run surfaces can
-        // honor it even after #712's clear-on-navigate empties
-        // `browserSelection` on the way to the workflow the user is about to
-        // run. An empty set does not overwrite — emptiness here is usually
-        // the navigation clear, not the user deselecting.
-        if !newSelection.isEmpty {
-            windowState.preservedDocumentSelection = Array(newSelection)
-        }
+        rememberRunSelection(newSelection)
         let primaryId = shellPrimarySelectionId(
             in: newSelection, orderedBy: documentStore.currentDocuments
         )
@@ -148,6 +141,7 @@ extension ContentView {
                 return
             }
             kgFocusState.focusEntity(entityId: firstId)
+            NavTrace.log("selChange.entityClear", "nil")
             detailDocument = nil
             return
         }
@@ -161,11 +155,13 @@ extension ContentView {
                 currentDetailDocumentId: detailDocument?.id
               ) else {
             if newSelection.isEmpty {
+                NavTrace.log("selChange.emptyClear", "nil")
                 detailDocument = nil
             }
             return
         }
         if let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
+            NavTrace.log("selChange.promote", "\(firstId) (rewrite; had \(detailDocument?.id ?? "nil"))")
             detailDocument = doc
             return
         }
@@ -180,6 +176,7 @@ extension ContentView {
                shellPrimarySelectionId(
                    in: browserSelection, orderedBy: documentStore.currentDocuments
                ) == firstId {
+                NavTrace.log("selChange.asyncFetch", "\(firstId)")
                 detailDocument = fetched
             }
         }

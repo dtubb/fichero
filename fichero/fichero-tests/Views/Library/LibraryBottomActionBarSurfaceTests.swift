@@ -138,7 +138,8 @@ final class LibraryBottomActionBarSurfaceTests: XCTestCase {
     func testLiveUpdatesPillUsesTopInsetInsteadOfOverlayingRows() throws {
         let source = try Self.appSources(inDirectory: "Views/Library")
 
-        XCTAssertTrue(source.contains("private var liveUpdatesPausedInset: some View"))
+        // Promoted private -> internal in the 2026-08-13 LibraryView file split.
+        XCTAssertTrue(source.contains("var liveUpdatesPausedInset: some View"))
         XCTAssertTrue(source.contains(".safeAreaInset(edge: .top, spacing: 0)"))
         XCTAssertTrue(source.contains("first row from peeking"))
         XCTAssertFalse(source.contains(".overlay(alignment: .top) { liveUpdatesPausedOverlay }"))

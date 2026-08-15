@@ -234,6 +234,8 @@ struct LibraryHeaderRow: View {
     // LibrarySharingBadge in the header already makes — two cheap authz reads
     // per visible header. Collapse into one shared load if it shows in profiling.
     @State private var snapshot: Components.Schemas.LibraryAuthzSnapshot?
+    /// Presents the prototype (document type) editor for THIS library.
+    @State private var showTypeEditor = false
 
     private static let readOnlyHelp =
         "You have view-only access to this library. Ask an owner for edit access to rename or add files."
@@ -273,6 +275,13 @@ struct LibraryHeaderRow: View {
     private var libraryContextMenu: some View {
         Button("Rename Library…", action: onRename)
             .disabled(!canWrite)
+        // The prototype (document type) editor from the library itself
+        // (Daniel 2026-08-13: "yes to contextual menu" — prototypes are just
+        // nodes of this library). Same sheet the inspector's picker opens.
+        Button("Edit Document Types…") {
+            showTypeEditor = true
+        }
+        .disabled(!canWrite)
         // Owners share from here — same sheet as the sidebar sharing badge
         // (#3149). Gated on multi-user mode + write access.
         if EngineConfig.multiuserEnabled {
@@ -301,6 +310,9 @@ struct LibraryHeaderRow: View {
             onTap: onTap
         )
         .help(canWrite ? "" : Self.readOnlyHelp)
+        .sheet(isPresented: $showTypeEditor) {
+            PrototypeEditorSheet(entityService: library.entityService)
+        }
         .task(id: library.id) {
             guard EngineConfig.multiuserEnabled, !isGlobal else {
                 snapshot = nil

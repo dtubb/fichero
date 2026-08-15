@@ -147,8 +147,10 @@ final class LibraryContextMenuParityTests: XCTestCase {
     /// a private copy of the grouping logic.
     func testRunWorkflowSubmenuIsShared() throws {
         let root = try AppSource.root()
+        // The sidebar submenu moved to +WorkflowMenu.swift at the 400-line
+        // split (2026-08-15) — the parity contract follows the code.
         let sidebar = try String(
-            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift"),
+            contentsOf: root.appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+WorkflowMenu.swift"),
             encoding: .utf8
         )
         let grid = try String(

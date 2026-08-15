@@ -161,17 +161,24 @@ struct SidebarSelectionStyleTests {
     /// inversion, and it must read it from the shared vocabulary.
     @Test("the sidebar row applies the shared label style explicitly")
     func sidebarRowAppliesTheSharedStyle() throws {
-        let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
-        #expect(source.contains("LibrarySelectionStyle.sidebarLabel(isSelected:"))
+        // The label's icon+name moved into the Equatable
+        // SidebarRowLabelCore (2026-08-15 selection-stall fix); the style
+        // is COMPUTED in +Label and RENDERED in the core, so both files
+        // carry half of the contract.
+        let label = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Label.swift")
+        let core = try Self.appSource("Views/Sidebar/ItemRow/SidebarRowLabelCore.swift")
+        #expect(label.contains("LibrarySelectionStyle.sidebarLabel(isSelected:"))
         // The one content-colour rule (rowContentColor, Daniel's preview
         // review 2026-08-08): white ONLY while a drop targets the row (the
         // one solid-accent platter left), otherwise the shared style's
         // colour. No prominence switch — the selected platter is the grey
         // fill sidebarDropHighlight paints itself, never the native
         // emphasized accent, so the content never needs to invert.
-        #expect(source.contains(".foregroundStyle(rowContentColor)"))
-        #expect(!source.contains("backgroundProminence"))
-        #expect(source.contains(".fontWeight(rowLabelStyle.weight)"))
+        #expect(label.contains("contentColor: rowContentColor"))
+        #expect(core.contains(".foregroundStyle(contentColor)"))
+        #expect(!label.contains("backgroundProminence") && !core.contains("backgroundProminence"))
+        #expect(label.contains("weight: rowLabelStyle.weight"))
+        #expect(core.contains(".fontWeight(weight)"))
     }
 
     /// The system's own selection fill is tinted to the shared colour, so the

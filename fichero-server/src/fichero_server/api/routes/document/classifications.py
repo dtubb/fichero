@@ -95,6 +95,46 @@ async def list_values(
     return ClassificationListResponse(items=rows, count=len(rows))
 
 
+class ResolvedPrototypeResponse(BaseModel):
+    """A prototype's EFFECTIVE attributes — parent chain merged root→leaf."""
+
+    key: str
+    declarations: dict
+    defaults: dict
+
+
+@router.get(
+    "/resolved/{key}",
+    response_model=ResolvedPrototypeResponse,
+    summary="A prototype's effective attributes (inheritance resolved)",
+)
+async def resolved_prototype(
+    key: str,
+    db: Database = Depends(get_library_database),
+) -> ResolvedPrototypeResponse:
+    """Resolve a document prototype's inherited attributes for the editor UI.
+
+    422 on an unknown key or a cyclic parent chain — the resolver prefers
+    raising over partial attributes, and so does this surface.
+    """
+    from fichero_server.models.node_prototypes import (
+        PrototypeResolutionError,
+        resolve_prototype_attributes,
+    )
+    from fichero_server.models.prototype_schema import attribute_declarations
+
+    try:
+        effective = resolve_prototype_attributes(db, key)
+        decls = attribute_declarations(effective)
+    except (PrototypeResolutionError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ResolvedPrototypeResponse(
+        key=key,
+        declarations={n: d.model_dump(mode="json") for n, d in decls.items()},
+        defaults={n: d.default for n, d in decls.items()},
+    )
+
+
 class ClassificationCreateRequest(BaseModel):
     dimension: ClassificationDimension
     key: str
@@ -104,6 +144,26 @@ class ClassificationCreateRequest(BaseModel):
     color: str | None = None
     icon: str | None = None
     sort_order: int = 0
+    # Prototype attributes (dimension=document_prototype): typed declarations
+    # or legacy plain defaults — validated by prototype_schema on save.
+    attributes: dict = {}
+
+
+def _validate_prototype_schema(dimension: ClassificationDimension, attributes: dict | None) -> None:
+    """422 on an unknown attribute type/role in a prototype declaration.
+
+    Loud at SAVE time (datasets Stage 1): a silently dropped or mistyped
+    column is how extraction QA lies. Non-prototype dimensions carry free-form
+    attributes and are left alone.
+    """
+    if dimension != ClassificationDimension.document_prototype or not attributes:
+        return
+    from fichero_server.models.prototype_schema import validate_prototype_attributes
+
+    try:
+        validate_prototype_attributes(attributes)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
 
 
 def create_value_impl(
@@ -121,6 +181,7 @@ def create_value_impl(
                 409,
                 f"{request.dimension.value}={request.key} already exists",
             )
+    _validate_prototype_schema(request.dimension, request.attributes)
     value = ClassificationValue(**request.model_dump(), is_builtin=False)
     db.save(value)
     return value
@@ -152,6 +213,7 @@ class ClassificationPatchRequest(BaseModel):
     color: str | None = None
     icon: str | None = None
     sort_order: int | None = None
+    attributes: dict | None = None
 
 
 def patch_value_impl(
@@ -165,6 +227,8 @@ def patch_value_impl(
     value = db.get(ClassificationValue, value_id)
     if value is None:
         raise HTTPException(404, f"Value not found: {value_id}")
+    if request.attributes is not None:
+        _validate_prototype_schema(value.dimension, request.attributes)
     for field, val in request.model_dump(exclude_unset=True).items():
         setattr(value, field, val)
     value.updated_at = utc_now()

@@ -24,6 +24,7 @@ from fichero_server.workflows.tools import annotations_source  # noqa: F401  (#9
 # Vision tools (use shared vision_base)
 from fichero_server.workflows.tools import transcribe
 from fichero_server.workflows.tools import transcribe_review  # noqa: F401  (registers the tool via @register_tool)
+from fichero_server.workflows.tools import detect_regions  # noqa: F401  (bboxes-first pre-pass, 2026-08-11)
 from fichero_server.workflows.tools import describe
 from fichero_server.workflows.tools import classify
 from fichero_server.workflows.tools import classify_script  # noqa: F401  (registers classify_script tool)
@@ -62,6 +63,7 @@ from fichero_server.workflows.tools import split_images  # noqa: F401  (#1394)
 # LLM tools
 from fichero_server.workflows.tools import summarize
 from fichero_server.workflows.tools import entities
+from fichero_server.workflows.tools import interpret  # noqa: F401  (hermeneutic layer first writer, 2026-08-12)
 from fichero_server.workflows.tools import geo_extract  # noqa: F401  (#2266 registers extract_geo)
 from fichero_server.workflows.tools import timeline
 from fichero_server.workflows.tools import key_people
@@ -127,6 +129,7 @@ from fichero_server.workflows.tools import sub_workflow  # noqa: F401  (#2201)
 from fichero_server.workflows.tools import ocr_cleanup  # noqa: F401  (#925)
 from fichero_server.workflows.tools import text_reflow  # noqa: F401  (#1260)
 from fichero_server.workflows.tools import book_index  # noqa: F401  (#1278)
+from fichero_server.workflows.tools import diary_entries  # noqa: F401  per-day entry nodes (2026-08-14)
 from fichero_server.workflows.tools import split_chapters  # noqa: F401  (#1315)
 from fichero_server.workflows.tools import consistency_check  # noqa: F401  (#3910)
 
@@ -142,6 +145,7 @@ __all__ = [
     "sources",
     # Vision
     "transcribe",
+    "detect_regions",
     "describe",
     "classify",
     "classify_script",
@@ -197,6 +201,7 @@ __all__ = [
     "detect_structure",
     "citations_extract",
     "date_extract",
+    "diary_entries",
     "cleanup",
     "import_artifacts",
     "extract_entities_only",

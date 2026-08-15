@@ -106,6 +106,7 @@ def build_classify_prompt(config: dict) -> str:
 
 @register_tool(
     name="classify",
+    parallelism="elementwise",
     display_name="Classify",
     description="Categorize document type",
     category="vision",

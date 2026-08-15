@@ -67,15 +67,43 @@ final class ActivityWindowSelectionStateTests: XCTestCase {
         XCTAssertTrue(appSource.contains(
             ".keyboardShortcut(\"a\", modifiers: [.option, .command])"
         ))
-        // Windows-menu hygiene: every auxiliary `Window` scene whose entry
-        // point lives elsewhere suppresses its AUTOMATIC menu item — Activity
-        // Detail (opened from the monitor's selection), About and Feature
-        // Tier Legend (both App-menu buttons; a second "About Fichero" showed
-        // up in the Windows menu, live-repro 2026-08-04). Three scenes,
-        // three suppressions; only "Activity" keeps its automatic entry.
+        // Windows-menu + command hygiene, tightened by #4331: EVERY scene
+        // except the main WindowGroup, the SEED WindowGroup and the Activity
+        // monitor suppresses its automatic commands wholesale — SwiftUI
+        // synthesizes NewItemCommands for each scene without it, and
+        // demangling that keypath crashed on scenesDidChange. The exceptions
+        // replace only `.newItem`: the two library groups with the real File
+        // menu (a `.commandsRemoved()` seed scene dropped the whole File menu
+        // whenever a restored window was key — Daniel 2026-08-13, "no file
+        // menu?"), Activity with an empty group so it keeps its automatic
+        // Windows-menu item + ⌥⌘A (#4524). Counted on TRIMMED lines so a
+        // comment mentioning the modifier can never satisfy the pin.
+        let sceneCount = appSource.components(separatedBy: "\n").filter {
+            let line = $0.trimmingCharacters(in: .whitespaces)
+            return line.hasPrefix("Window(\"") || line.hasPrefix("WindowGroup(\"")
+        }.count
+        let removedCount = appSource.components(separatedBy: "\n").filter {
+            $0.trimmingCharacters(in: .whitespaces) == ".commandsRemoved()"
+        }.count
+        let newItemReplaced = appSource
+            .components(separatedBy: "CommandGroup(replacing: .newItem)").count - 1
         XCTAssertEqual(
-            appSource.components(separatedBy: ".commandsRemoved()").count - 1, 3,
-            "each auxiliary Window scene suppresses its automatic Windows-menu item"
+            removedCount, sceneCount - 3,
+            "every scene but main, seed and Activity monitor removes its commands (#4331)"
+        )
+        XCTAssertEqual(
+            newItemReplaced, 3,
+            "the three surviving scenes replace the default new-item commands instead (#4331/#4524)"
+        )
+        // The replacements MERGE with one winner app-wide, so every one of
+        // them must supply the SAME File menu — an empty `{}` replacement won
+        // the merge and hid the File menu entirely (Daniel 2026-08-13/14,
+        // "still no file menu"; regression source: the first #4331 fix).
+        let fileMenuMounts = appSource
+            .components(separatedBy: "FileMenuCommands()").count - 1
+        XCTAssertEqual(
+            fileMenuMounts, newItemReplaced,
+            "every .newItem replacement supplies FileMenuCommands — an empty one hides the File menu app-wide"
         )
         // `Window`, not `WindowGroup` — see testActivityScenesAreSingletonWindowsNotGroups.
         XCTAssertTrue(appSource.contains(

@@ -233,10 +233,10 @@ def test_catalogue_stage_2_extract_entities_persists_entities_through_the_graph(
     )
     monkeypatch.setattr(Database, "embed", lambda *args, **kwargs: False)
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.find_similar", lambda *a, **k: []
+        "fichero_server.knowledge.entity_vectors.find_similar", lambda *a, **k: []
     )
     monkeypatch.setattr(
-        "fichero_server.kg.entity_vectors.index_entity", lambda *a, **k: None
+        "fichero_server.knowledge.entity_vectors.index_entity", lambda *a, **k: None
     )
 
     library_path, folder_id, doc_ids = _seed_text_corpus(tmp_path, "ner-stage2")

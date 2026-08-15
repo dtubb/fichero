@@ -54,6 +54,7 @@ extension ContentView {
                 in: browserSelection, orderedBy: documentStore.currentDocuments
             )
             if let firstSelectedId {
+                NavTrace.log("statePreview.restore", "\(firstSelectedId)")
                 detailDocument = documentStore.currentDocuments.first(where: { $0.id == firstSelectedId })
             }
         }
@@ -296,6 +297,11 @@ extension ContentView {
         case .list: return .list
         case .table: return .table
         case .columns: return .columns
+        case .grid: return .grid
+        case .cards: return .cards
+        case .timeline: return .timeline
+        case .calendar: return .calendar
+        case .geoMap: return .geoMap
         case .canvas, .space, .workspace: return .canvas
         }
     }

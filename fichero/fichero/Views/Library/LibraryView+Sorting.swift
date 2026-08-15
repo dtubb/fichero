@@ -101,6 +101,30 @@ enum LibrarySortField: String, CaseIterable, Identifiable {
         return dated + documents.filter { $0.dateJdn == nil }
     }
 
+    /// Decode the per-folder saved sort from the @SceneStorage JSON blobs.
+    /// ONE decoder for the two readers (2026-08-11): LibraryView's
+    /// `loadSortSettings` and ContentView's sibling-swipe ordering — sibling
+    /// stepping must walk the SAME order the library displays, and a second
+    /// hand-rolled decode is how the two would drift.
+    static func savedSort(
+        forFolder id: String?, fieldsJSON: String, ascendingJSON: String
+    ) -> (field: LibrarySortField, ascending: Bool) {
+        let key = id ?? "__root__"
+        var field = LibrarySortField.name
+        if let data = fieldsJSON.data(using: .utf8),
+           let fields = try? JSONDecoder().decode([String: String].self, from: data),
+           let saved = fields[key].flatMap(LibrarySortField.init(rawValue:)) {
+            field = saved
+        }
+        var ascending = true
+        if let data = ascendingJSON.data(using: .utf8),
+           let values = try? JSONDecoder().decode([String: Bool].self, from: data),
+           let saved = values[key] {
+            ascending = saved
+        }
+        return (field, ascending)
+    }
+
     func comparator(ascending: Bool) -> [KeyPathComparator<Document>] {
         let order: SortOrder = ascending ? .forward : .reverse
         switch self {
@@ -244,23 +268,13 @@ extension LibraryView {
     }
 
     func loadSortSettings(for id: String?) {
-        let key = sortKey(for: id)
-
-        if let fieldsData = sortFieldsByFolderJSON.data(using: .utf8),
-           let fields = try? JSONDecoder().decode([String: String].self, from: fieldsData),
-           let savedField = fields[key] {
-            sortFieldRaw = savedField
-        } else {
-            sortFieldRaw = LibrarySortField.name.rawValue
-        }
-
-        if let ascendingData = sortAscendingByFolderJSON.data(using: .utf8),
-           let ascendingValues = try? JSONDecoder().decode([String: Bool].self, from: ascendingData),
-           let savedAscending = ascendingValues[key] {
-            sortAscending = savedAscending
-        } else {
-            sortAscending = true
-        }
+        let saved = LibrarySortField.savedSort(
+            forFolder: id,
+            fieldsJSON: sortFieldsByFolderJSON,
+            ascendingJSON: sortAscendingByFolderJSON
+        )
+        sortFieldRaw = saved.field.rawValue
+        sortAscending = saved.ascending
     }
 
     func saveSortSettings(for id: String?) {

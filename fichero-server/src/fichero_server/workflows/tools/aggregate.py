@@ -162,6 +162,7 @@ def _aggregate(
 
 @register_tool(
     name="aggregate",
+    parallelism="reducing",
     display_name="Aggregate",
     description="Combine upstream fan-out results into a single payload.",
     category="transform",

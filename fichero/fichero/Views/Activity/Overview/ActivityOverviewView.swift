@@ -49,7 +49,7 @@ struct ActivityOverviewView: View {
             VStack(spacing: 2) {
                 Text("Started \(startedAt, format: .dateTime)")
                 if let stoppedAt {
-                    Text("Stopped \(stoppedAt, format: .dateTime)")
+                    Text("\(stopVerb) \(stoppedAt, format: .dateTime)")
                 }
             }
             .font(.caption)
@@ -146,7 +146,10 @@ struct ActivityOverviewView: View {
             Text("Recent Activity")
                 .font(.headline)
 
-            ForEach(activityItems.prefix(5)) { item in
+            // ALL events, not the first five — the Summary card says
+            // "10 Events" and showing half of them under it reads as loss
+            // (Daniel 2026-08-15). The overview scrolls; no cap needed.
+            ForEach(activityItems) { item in
                 HStack(spacing: 8) {
                     Image(systemName: item.typeIcon)
                         .foregroundStyle(ActivityViewHelpers.levelColor(item.level))
@@ -168,6 +171,17 @@ struct ActivityOverviewView: View {
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// "Stopped" reads as "the user stopped it" (Daniel 2026-08-15) — a run
+    /// that reached its own end says Finished; only cancelled says Stopped.
+    private var stopVerb: String {
+        switch effectiveStatus {
+        case .completed: return "Finished"
+        case .failed: return "Failed"
+        case .cancelled: return "Stopped"
+        default: return "Stopped"
+        }
     }
 
     private var statusIcon: String {

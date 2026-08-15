@@ -1,7 +1,7 @@
 """Knowledge graph triangulation routes (#900).
 
 Surfaces the cross-source support counts computed by
-``fichero_server.kg.triangulation`` so the inspector UI can display
+``fichero_server.knowledge.triangulation`` so the inspector UI can display
 "triangulated (6 sources)" badges next to claims.
 """
 
@@ -48,7 +48,7 @@ async def entity_triangulation(
     db: Database = Depends(get_library_database),
 ) -> MutationListResponse:
     """Triples for a single entity, sorted by corroboration strength."""
-    from fichero_server.kg.triangulation import triples_for_entity
+    from fichero_server.knowledge.triangulation import triples_for_entity
 
     items = [
         TripleSupportResponse(
@@ -87,7 +87,7 @@ async def library_triangulation(
     db: Database = Depends(get_library_database),
 ) -> MutationListResponse:
     """Corpus-wide triangulated facts."""
-    from fichero_server.kg.triangulation import triangulated_facts
+    from fichero_server.knowledge.triangulation import triangulated_facts
 
     items = [
         TripleSupportResponse(
@@ -128,7 +128,7 @@ async def recompute_triangulation(
     db: Database = Depends(get_library_database_for_write),
 ) -> RecomputeResponse:
     """Persist corpus-wide support counts back onto claim rows."""
-    from fichero_server.kg.triangulation import persist_support_counts
+    from fichero_server.knowledge.triangulation import persist_support_counts
 
     updated = persist_support_counts(db)
     return RecomputeResponse(

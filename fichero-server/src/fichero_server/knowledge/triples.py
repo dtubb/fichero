@@ -46,7 +46,7 @@ from urllib.parse import quote
 from rdflib import Graph, Literal, Namespace, URIRef
 from rdflib.namespace import FOAF, RDF, RDFS, SKOS, XSD
 
-from fichero_server.kg._common import enum_value, extract_svo, slug_verb
+from fichero_server.knowledge._common import enum_value, extract_svo, slug_verb
 
 if TYPE_CHECKING:  # pragma: no cover
     from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
@@ -145,7 +145,7 @@ def _predicate_uri(verb: str) -> URIRef:
     Slug rules: lowercase, alphanumerics + dashes, no leading digits.
     Empty verbs map to a generic ``fichero:assertedAbout`` so we never
     drop a claim from the graph. Slug rules live in
-    ``fichero_server.kg._common.slug_verb`` so SPARQL queries over this graph
+    ``fichero_server.knowledge._common.slug_verb`` so SPARQL queries over this graph
     agree with the in-Python aggregation in ``triangulation``.
     """
     return URIRef(str(FICHERO) + slug_verb(verb))

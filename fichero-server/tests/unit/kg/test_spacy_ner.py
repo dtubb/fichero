@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero_server.kg import spacy_ner
+from fichero_server.knowledge import spacy_ner
 
 
 # Reset the module-level pipeline cache between tests so a load
