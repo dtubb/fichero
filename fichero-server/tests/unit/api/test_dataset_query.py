@@ -126,6 +126,23 @@ class TestDatasetQuery:
         ids = {r["id"] for r in result["rows"]}
         assert "entry1" in ids
         assert "img1" not in ids, "a bare image carries no data; it is not a dataset row"
+        # A TRANSCRIBED image carries data (its text) and joins the views.
+        dataset_db.save(
+            Document(
+                id="img2",
+                name="page2.png",
+                parent_id="folder",
+                doc_type=DocType.file,
+                page_content="Went up to dredge for clean-up.",
+            )
+        )
+        again = await dataset_query(
+            DatasetQuery(parent_id="folder", recursive=True, attributed_only=True, limit=500),
+            db=dataset_db,
+        )
+        again_ids = {r["id"] for r in again["rows"]}
+        assert "img2" in again_ids, "a transcribed page IS a dataset row"
+        assert "img1" not in again_ids
         assert result["total"] == 42  # 40 + undated + entry1, image excluded
         entry = next(r for r in result["rows"] if r["id"] == "entry1")
         assert entry["excerpt"].startswith("Rained all day.")

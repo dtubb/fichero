@@ -64,10 +64,16 @@ struct DatasetModeView: View {
                 description: Text(errorText)
             )
         } else if let page = store.page, page.rows.isEmpty, !store.isLoading {
+            // ACTIONABLE, not just honest (Daniel 2026-08-15: an empty pane
+            // over a folder of scans is a dead end): say what produces data.
             ContentUnavailableView(
-                "No Items",
+                "No Data Yet",
                 systemImage: "tray",
-                description: Text("Nothing in this folder carries attributes yet.")
+                description: Text(
+                    "Nothing in this folder carries data yet. Run Transcribe, "
+                        + "Extract Dates, or Diary Entries on it — transcripts, "
+                        + "dates and typed attributes all appear here."
+                )
             )
         } else {
             switch renderer {

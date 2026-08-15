@@ -99,14 +99,18 @@ def _scope_sql(query: DatasetQuery, params: list[Any]) -> str:
         clauses.append("prototype_key = ?")
         params.append(query.prototype_key)
     if query.attributed_only:
-        # A row CARRIES data when it has a prototype, any attributes, or an
-        # extracted/asserted date (Extract Dates writes date columns, not
-        # attributes — those documents must appear in the data views too,
-        # Daniel 2026-08-15: "I run extract dates … I don't see it").
+        # A row CARRIES data when it has a prototype, any attributes, an
+        # extracted/asserted date, OR its own text — Extract Dates writes
+        # date columns, Transcribe writes page_content, and both must light
+        # up the data views (Daniel 2026-08-15 twice: "I run extract dates
+        # … I don't see it"; "why can't I see cards even if it's of the
+        # images?"). What stays out: files with nothing but bytes — those
+        # belong to the Browse modes.
         clauses.append(
             "(prototype_key IS NOT NULL"
             " OR (attributes IS NOT NULL AND CAST(attributes AS VARCHAR) NOT IN ('{}', 'null'))"
-            " OR date_jdn IS NOT NULL)"
+            " OR date_jdn IS NOT NULL"
+            " OR (page_content IS NOT NULL AND length(page_content) > 0))"
         )
     return " AND ".join(clauses)
 
