@@ -238,12 +238,20 @@ struct WorkflowRunScopeTests {
 
         let events = try Self.appSource("Views/Shell/ContentView/ContentView+StateEvents.swift")
         #expect(events.contains("var effectiveWorkflowRunSelection: [String]"))
-        #expect(events.contains("windowState.preservedDocumentSelection = Array(newSelection)"))
+        // The preserve-write moved into `rememberRunSelection`
+        // (ContentView+SidebarRunSelection.swift, 2026-08-15): StateEvents
+        // routes through it, and the write itself lives with the #4523 rule.
+        #expect(events.contains("rememberRunSelection(newSelection)"))
+        let runSelection = try Self.appSource("Views/Shell/ContentView/ContentView+SidebarRunSelection.swift")
+        #expect(runSelection.contains("windowState.preservedDocumentSelection = Array(newSelection)"))
 
         // The sidebar's run resolver joins the window selection too, so
         // right-clicking the selected file's row runs that file, not peers.
-        let sidebar = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
-        #expect(sidebar.contains("windowState.preservedDocumentSelection"))
+        // LIVE selection only (2026-08-15): a stale preserved snapshot once
+        // ran a one-file job on 200 siblings. Resolver members live in
+        // SidebarItemRow+WorkflowMenu.swift since the 400-line split.
+        let sidebar = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+WorkflowMenu.swift")
+        #expect(sidebar.contains("windowState.liveDocumentSelection"))
 
         // And the other ContentView launch surface reads the same accessor.
         let actions = try Self.appSource("Views/Shell/ContentView/ContentView+WorkflowActions.swift")
