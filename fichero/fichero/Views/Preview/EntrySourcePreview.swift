@@ -78,13 +78,13 @@ struct EntrySourcePreview: View {
               let width = intValue(sourceMetadata["width"]?.value),
               let height = intValue(sourceMetadata["height"]?.value),
               width > 0, height > 0 else { return [] }
-        let w = Double(width)
-        let h = Double(height)
+        let pageWidth = Double(width)
+        let pageHeight = Double(height)
         return [[
-            Double(bbox[0]) / w,
-            Double(bbox[1]) / h,
-            Double(bbox[2]) / w,
-            Double(bbox[3]) / h
+            Double(bbox[0]) / pageWidth,
+            Double(bbox[1]) / pageHeight,
+            Double(bbox[2]) / pageWidth,
+            Double(bbox[3]) / pageHeight
         ]]
     }
 
