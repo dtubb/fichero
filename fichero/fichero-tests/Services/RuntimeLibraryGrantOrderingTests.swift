@@ -104,3 +104,23 @@ final class RuntimeLibraryGrantOrderingTests: XCTestCase {
     }
 }
 #endif
+
+extension RuntimeLibraryGrantOrderingTests {
+    /// 2026-08-15: every newly created library 403'd (failed_check=roots) at
+    /// its saved location — `alreadyLoadable = isTempLibrary` skipped the
+    /// grant for exactly the New Library → Save flow: the temp package moved
+    /// to the user's chosen folder, and the engine kept only the container-
+    /// tmp registration. The grant must be unconditional in saveLibrary.
+    func testSaveLibraryGrantIsUnconditional() throws {
+        let source = try String(
+            contentsOf: AppSource.root()
+                .appendingPathComponent("Models/LibraryManager+Operations.swift"),
+            encoding: .utf8
+        )
+        XCTAssertFalse(
+            source.contains("alreadyLoadable"),
+            "the temp-library grant skip is back — every created library will 403 at its saved path"
+        )
+        XCTAssertTrue(source.contains("grantThenEngineWork"), "saveLibrary lost its grant ordering")
+    }
+}

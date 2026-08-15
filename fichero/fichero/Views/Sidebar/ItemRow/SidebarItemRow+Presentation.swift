@@ -320,8 +320,12 @@ extension SidebarItemRow {
         // cannot tell apart from a real multi-selection. That ran a workflow
         // on a PDF the user had not touched in an hour.
         let sidebarSelection = Set(selectedDestinations.compactMap(workflowRunTarget(for:)))
+        // LIVE pane selection only (2026-08-15): the preserved snapshot can
+        // be arbitrarily stale, and one that happened to contain the clicked
+        // file expanded a one-file sidebar run onto all 200 siblings. A
+        // context menu on a specific row honors what is selected NOW.
         let windowSelection = Set(
-            windowState.preservedDocumentSelection.map { WorkflowRunTarget.file($0) }
+            windowState.liveDocumentSelection.map { WorkflowRunTarget.file($0) }
         )
         return WorkflowRunTargetResolver.resolve(
             clicked: clickedTarget,

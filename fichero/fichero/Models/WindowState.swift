@@ -26,6 +26,16 @@ class WindowState {
     /// Every run surface reads its effective selection through this.
     var preservedDocumentSelection: [String] = []
 
+    /// The LIVE library-pane selection, mirrored from `browserSelection` on
+    /// every change — INCLUDING to empty. A sidebar row's context-menu run
+    /// reads THIS, never the preserved snapshot: the snapshot can be
+    /// arbitrarily old, and a stale multi-selection that happened to contain
+    /// the clicked file expanded a one-file run onto every sibling
+    /// (Daniel, 2026-08-15). Preservation keeps serving the workflow-editor
+    /// surface it was built for (#4523); the live mirror serves surfaces
+    /// where the user is pointing at a specific row RIGHT NOW.
+    var liveDocumentSelection: [String] = []
+
     /// Why the last drop onto a library folder cell failed, or nil (#4474).
     /// Rendered by `LibraryView`'s drop alert. The sidebar has the same surface
     /// in `SidebarState.dropErrorMessage`; the library pane had none at all, so

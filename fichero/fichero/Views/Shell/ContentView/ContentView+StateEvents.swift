@@ -138,6 +138,8 @@ extension ContentView {
         if !newSelection.isEmpty {
             windowState.preservedDocumentSelection = Array(newSelection)
         }
+        // The LIVE mirror updates unconditionally — empty means empty.
+        windowState.liveDocumentSelection = Array(newSelection)
         let primaryId = shellPrimarySelectionId(
             in: newSelection, orderedBy: documentStore.currentDocuments
         )

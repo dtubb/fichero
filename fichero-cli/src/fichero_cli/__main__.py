@@ -1845,6 +1845,25 @@ def docs_list(
         typer.echo(render_document(documents))
 
 
+@docs_app.command("restore")
+def docs_restore(
+    ctx: typer.Context, doc_id: str = typer.Argument(..., help="Soft-deleted document ID.")
+) -> None:
+    """Restore a soft-deleted document and its subtree from Trash.
+
+    The app promises "You can put it back later" but has no Trash surface
+    yet (2026-08-15) — this is the put-back, through the same audited
+    engine endpoint the in-session undo uses.
+    """
+    try:
+        with _client(ctx) as client:
+            client.restore_document(doc_id)
+    except FicheroError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.secho(f"Restored {doc_id} (and its subtree).", fg=typer.colors.GREEN)
+
+
 @docs_app.command("get")
 def docs_get(
     ctx: typer.Context, doc_id: str = typer.Argument(..., help="Document ID.")
