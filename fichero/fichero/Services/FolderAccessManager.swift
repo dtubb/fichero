@@ -209,6 +209,13 @@ class FolderAccessManager {
         url.path.contains("/fichero-drop-")
             || url.path.hasPrefix("/var/folders/")
             || url.path.hasPrefix("/tmp/")
+            // The app container's OWN tmp (…/Data/tmp/…): unit-test libraries
+            // live there, and in the test host `.standard` IS the app's
+            // defaults domain — Daniel's 2026-08-14 launch log carried four
+            // dead "tmp/FicheroTests/…" bookmarks that failed to restore on
+            // every real launch.
+            || url.path.hasPrefix(FileManager.default.temporaryDirectory.path)
+            || isRunningXCTests()
     }
 
     /// Save a security-scoped bookmark, handing it to the RUNNING engine
@@ -347,7 +354,9 @@ class FolderAccessManager {
         var changed = false
         for (path, bookmarkData) in bookmarks {
             // Prune any transient paths that slipped in from prior versions.
-            if path.contains("/fichero-drop-") || path.hasPrefix("/var/folders/") || path.hasPrefix("/tmp/") {
+            if path.contains("/fichero-drop-") || path.hasPrefix("/var/folders/")
+                || path.hasPrefix("/tmp/")
+                || path.hasPrefix(FileManager.default.temporaryDirectory.path) {
                 logger.debug("Removing stale transient bookmark: \(path)")
                 bookmarks.removeValue(forKey: path)
                 changed = true

@@ -82,11 +82,12 @@ struct DatasetCardsView: View {
 
     @ViewBuilder
     private func attributeLines(_ row: DatasetPage.Row) -> some View {
-        let titleAttr = store.attributeForRole["title"]
-        let subtitleAttr = store.attributeForRole["subtitle"]
-        let dateAttr = store.attributeForRole["date"]
+        // Role-bound attributes render through their surfaces (headline,
+        // date line, the map) — repeating them as raw caption rows is noise
+        // (the geo "5.69,-76.66" line, preview review 2026-08-15).
+        let roleBound = Set(store.attributeForRole.values)
         let names = store.declaredAttributes
-            .filter { $0 != titleAttr && $0 != subtitleAttr && $0 != dateAttr }
+            .filter { !roleBound.contains($0) }
             .prefix(5)
         ForEach(Array(names), id: \.self) { name in
             if let value = store.text(name, of: row) {
