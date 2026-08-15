@@ -18,7 +18,7 @@ struct DatasetCalendarView: View {
     @State private var draftDate: String = ""
 
     var body: some View {
-        if store.attributeForRole["date"] == nil {
+        if !store.hasDateSource {
             DatasetMissingRoleView(role: "date", renderer: "calendar")
         } else {
             VStack(spacing: 0) {
@@ -284,10 +284,10 @@ struct DatasetCalendarView: View {
     }
 
     private func rowsOn(day: String) -> [DatasetPage.Row] {
-        guard let page = store.page, let dateAttr = store.attributeForRole["date"] else {
+        guard let page = store.page, store.hasDateSource else {
             return []
         }
-        return page.rows.filter { store.text(dateAttr, of: $0)?.hasPrefix(day) == true }
+        return page.rows.filter { store.dateValue(of: $0)?.hasPrefix(day) == true }
     }
 }
 

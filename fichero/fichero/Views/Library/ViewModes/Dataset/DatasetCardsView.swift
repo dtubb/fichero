@@ -33,8 +33,7 @@ struct DatasetCardsView: View {
             // right under the headline, not a raw attribute row. Skipped
             // when the headline IS the date (a "1942-02-03"-named entry
             // with no title role would read the same date twice).
-            if let dateAttr = store.attributeForRole["date"],
-               let rawDate = store.text(dateAttr, of: row),
+            if let rawDate = store.dateValue(of: row),
                dateLine(rawDate) != titleText(row) {
                 Text(dateLine(rawDate))
                     .font(.subheadline)

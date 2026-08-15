@@ -9,7 +9,7 @@ struct DatasetTimelineView: View {
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
 
     var body: some View {
-        if store.attributeForRole["date"] == nil {
+        if !store.hasDateSource {
             DatasetMissingRoleView(role: "date", renderer: "timeline")
         } else {
             // ScrollView, not List: this is a pure reading surface (no
@@ -80,8 +80,12 @@ struct DatasetTimelineView: View {
     }
 
     private func primaryText(_ row: DatasetPage.Row) -> String {
-        let dateValue = store.attributeForRole["date"].flatMap { store.text($0, of: row) }
-        guard let dateValue, row.name.hasPrefix(dateValue) else { return row.name }
+        guard let dateValue = store.dateValue(of: row) else { return row.name }
+        // A row NAMED by its date (the diary workflow) reads as the
+        // formatted date; a row with its OWN extracted date keeps its name
+        // first — "scan_007.png" is still the identity, the date column
+        // groups it.
+        guard row.name.hasPrefix(dateValue) else { return row.name }
         return DatasetModeStore.longDate(dateValue) ?? row.name
     }
 

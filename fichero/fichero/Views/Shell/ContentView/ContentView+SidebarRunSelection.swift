@@ -38,3 +38,20 @@ extension ContentView {
         }
     }
 }
+
+extension ContentView {
+    /// #4523: remember every NON-empty selection so the run surfaces can
+    /// honor it even after #712's clear-on-navigate empties
+    /// `browserSelection` on the way to the workflow the user is about to
+    /// run. An empty set does not overwrite the SNAPSHOT — emptiness here is
+    /// usually the navigation clear, not the user deselecting. The LIVE
+    /// mirror updates unconditionally (empty means empty): sidebar-row runs
+    /// read it so a stale snapshot can never widen a one-file run
+    /// (2026-08-15).
+    private func rememberRunSelection(_ newSelection: Set<String>) {
+        if !newSelection.isEmpty {
+            windowState.preservedDocumentSelection = Array(newSelection)
+        }
+        windowState.liveDocumentSelection = Array(newSelection)
+    }
+}

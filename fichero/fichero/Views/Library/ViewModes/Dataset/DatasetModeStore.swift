@@ -62,11 +62,55 @@ final class DatasetModeStore {
             if let dateAttr = attributeForRole["date"] {
                 request.bins = (attr: dateAttr, granularity: "day")
                 loaded = try await service.datasetQuery(request)
+            } else if loaded.rows.contains(where: { $0.dateIso != nil }) {
+                // Extract Dates writes date COLUMNS, not attributes — the
+                // engine's bins are attribute-keyed, so derive day bins
+                // locally from the rows' own ISO dates (Daniel 2026-08-15:
+                // "I run extract dates … I don't see it").
+                loaded = Self.withLocalDayBins(loaded, dateOf: { $0.dateIso })
             }
             page = loaded
         } catch {
             errorText = error.localizedDescription
         }
+    }
+
+    /// The renderers have a date to work with: a date-role attribute, or
+    /// any row carrying its document's own extracted/asserted date.
+    var hasDateSource: Bool {
+        attributeForRole["date"] != nil
+            || page?.rows.contains(where: { $0.dateIso != nil }) == true
+    }
+
+    /// A row's date for grouping/binning: the date-role attribute when
+    /// declared, else the document's own converted ISO date.
+    func dateValue(of row: DatasetPage.Row) -> String? {
+        if let dateAttr = attributeForRole["date"], let value = text(dateAttr, of: row) {
+            return value
+        }
+        return row.dateIso
+    }
+
+    /// A page with day-granularity bins recomputed from `dateOf` — the same
+    /// shape the engine's attribute-keyed bins produce.
+    static func withLocalDayBins(
+        _ page: DatasetPage,
+        dateOf: (DatasetPage.Row) -> String?
+    ) -> DatasetPage {
+        var counts: [String: Int] = [:]
+        for row in page.rows {
+            if let date = dateOf(row), date.count >= 10 {
+                counts[String(date.prefix(10)), default: 0] += 1
+            }
+        }
+        return DatasetPage(
+            total: page.total,
+            offset: page.offset,
+            rows: page.rows,
+            defaultsByPrototype: page.defaultsByPrototype,
+            bins: counts.keys.sorted().map { .init(bin: $0, count: counts[$0] ?? 0) },
+            facets: page.facets
+        )
     }
 
     private func deriveRoles(from page: DatasetPage) {
@@ -109,10 +153,10 @@ final class DatasetModeStore {
     /// Rows grouped by the date-role attribute's month ("1890-01"), sorted,
     /// undated rows last under `undatedMonthKey`.
     func rowsByMonth() -> [(month: String, rows: [DatasetPage.Row])] {
-        guard let page, let dateAttr = attributeForRole["date"] else { return [] }
+        guard let page, hasDateSource else { return [] }
         var grouped: [String: [DatasetPage.Row]] = [:]
         for row in page.rows {
-            let month = text(dateAttr, of: row).map { String($0.prefix(7)) }
+            let month = dateValue(of: row).map { String($0.prefix(7)) }
                 ?? Self.undatedMonthKey
             grouped[month, default: []].append(row)
         }
@@ -122,8 +166,8 @@ final class DatasetModeStore {
                 // Within a month, entries run chronologically regardless of
                 // the feed's order (ISO dates sort lexically).
                 (month: group.key, rows: group.value.sorted {
-                    (text(dateAttr, of: $0) ?? "", $0.name)
-                        < (text(dateAttr, of: $1) ?? "", $1.name)
+                    (dateValue(of: $0) ?? "", $0.name)
+                        < (dateValue(of: $1) ?? "", $1.name)
                 })
             }
             .sorted {
@@ -177,27 +221,29 @@ final class DatasetModeStore {
             name: old.name,
             prototypeKey: old.prototypeKey,
             attributes: attributes,
-            excerpt: old.excerpt
+            excerpt: old.excerpt,
+            dateOriginal: old.dateOriginal,
+            dateIso: old.dateIso
         )
-        var bins = page.bins
-        if attr == attributeForRole["date"] {
-            // Same shape the engine's day-granularity bins produce.
-            var counts: [String: Int] = [:]
-            for row in rows {
-                if let date = text(attr, of: row), date.count >= 10 {
-                    counts[String(date.prefix(10)), default: 0] += 1
-                }
-            }
-            bins = counts.keys.sorted().map { .init(bin: $0, count: counts[$0] ?? 0) }
-        }
-        self.page = DatasetPage(
+        let updated = DatasetPage(
             total: page.total,
             offset: page.offset,
             rows: rows,
             defaultsByPrototype: page.defaultsByPrototype,
-            bins: bins,
+            bins: page.bins,
             facets: page.facets
         )
+        if attr == attributeForRole["date"] {
+            // Re-derive day bins from EVERY date source — the edited
+            // attribute AND rows carrying their document's own ISO date
+            // (dropping the latter would empty their calendar days).
+            self.page = Self.withLocalDayBins(updated) { row in
+                if let value = self.text(attr, of: row) { return value }
+                return row.dateIso
+            }
+        } else {
+            self.page = updated
+        }
     }
 
     /// "January 4, 1942" from a "YYYY-MM-DD" (or longer ISO) string —

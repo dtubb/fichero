@@ -99,9 +99,14 @@ def _scope_sql(query: DatasetQuery, params: list[Any]) -> str:
         clauses.append("prototype_key = ?")
         params.append(query.prototype_key)
     if query.attributed_only:
+        # A row CARRIES data when it has a prototype, any attributes, or an
+        # extracted/asserted date (Extract Dates writes date columns, not
+        # attributes — those documents must appear in the data views too,
+        # Daniel 2026-08-15: "I run extract dates … I don't see it").
         clauses.append(
             "(prototype_key IS NOT NULL"
-            " OR (attributes IS NOT NULL AND CAST(attributes AS VARCHAR) NOT IN ('{}', 'null')))"
+            " OR (attributes IS NOT NULL AND CAST(attributes AS VARCHAR) NOT IN ('{}', 'null'))"
+            " OR date_jdn IS NOT NULL)"
         )
     return " AND ".join(clauses)
 
@@ -160,7 +165,9 @@ def run_dataset_query(db: "Database", query: DatasetQuery) -> dict[str, Any]:
         f"""
         SELECT id, name, prototype_key, node_kind, doc_type,
                CAST(attributes AS VARCHAR) AS attributes_json,
-               substr(page_content, 1, 280) AS excerpt
+               substr(page_content, 1, 280) AS excerpt,
+               date_original,
+               json_extract_string(date_meta, '$."converted_gregorian_iso"') AS date_iso
         FROM documents WHERE {where}{order}
         LIMIT ? OFFSET ?
         """,
@@ -181,6 +188,11 @@ def run_dataset_query(db: "Database", query: DatasetQuery) -> dict[str, Any]:
                 # The row's own text, page-sized: cards/grid show the entry's
                 # transcript, not just its date attributes.
                 "excerpt": r[6],
+                # The document's OWN date (Extract Dates / user assertion):
+                # the original text and the converted Gregorian ISO the
+                # renderers can bin on when no date-role attribute exists.
+                "date_original": r[7],
+                "date_iso": r[8],
             }
             for r in rows
         ],

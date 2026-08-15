@@ -130,16 +130,7 @@ extension ContentView {
         if let encoded = try? JSONEncoder().encode(newSelection) {
             browserSelectionData = encoded
         }
-        // #4523: remember every NON-empty selection so the run surfaces can
-        // honor it even after #712's clear-on-navigate empties
-        // `browserSelection` on the way to the workflow the user is about to
-        // run. An empty set does not overwrite — emptiness here is usually
-        // the navigation clear, not the user deselecting.
-        if !newSelection.isEmpty {
-            windowState.preservedDocumentSelection = Array(newSelection)
-        }
-        // The LIVE mirror updates unconditionally — empty means empty.
-        windowState.liveDocumentSelection = Array(newSelection)
+        rememberRunSelection(newSelection)
         let primaryId = shellPrimarySelectionId(
             in: newSelection, orderedBy: documentStore.currentDocuments
         )

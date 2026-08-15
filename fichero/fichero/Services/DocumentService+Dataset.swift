@@ -16,6 +16,11 @@ struct DatasetPage {
         /// The row's own text, page-sized by the engine (280 chars) — the
         /// entry's transcript, so data views never show "just dates".
         var excerpt: String?
+        /// The document's OWN date (Extract Dates / user assertion): the
+        /// text as written, and the converted Gregorian ISO the renderers
+        /// bin on when no date-role attribute exists.
+        var dateOriginal: String?
+        var dateIso: String?
     }
 
     struct Bin: Identifiable {
@@ -169,7 +174,9 @@ extension DocumentService {
                 name: name,
                 prototypeKey: dict["prototype_key"] as? String,
                 attributes: dict["attributes"] as? [String: (any Sendable)?] ?? [:],
-                excerpt: (dict["excerpt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                excerpt: (dict["excerpt"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                dateOriginal: dict["date_original"] as? String,
+                dateIso: dict["date_iso"] as? String
             )
         }
         var defaults: [String: [String: (any Sendable)?]] = [:]

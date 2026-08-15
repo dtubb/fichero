@@ -131,6 +131,32 @@ class TestDatasetQuery:
         assert entry["excerpt"].startswith("Rained all day.")
 
     @pytest.mark.asyncio
+    async def test_extract_dates_documents_appear_with_their_iso_date(self, dataset_db):
+        # Extract Dates writes date COLUMNS, not attributes (Daniel
+        # 2026-08-15: "I run extract dates … I don't see it") — a dated
+        # document with no attributes/prototype must still be a data-view
+        # row, carrying the converted ISO the renderers bin on.
+        dataset_db.save(
+            Document(
+                id="dated-scan",
+                name="scan_007.png",
+                parent_id="folder",
+                doc_type=DocType.file,
+                date_original="Jan. 8th 1942",
+                date_jdn=2430368,
+                date_meta={"status": "dated", "converted_gregorian_iso": "1942-01-08"},
+            )
+        )
+        result = await dataset_query(
+            DatasetQuery(parent_id="folder", recursive=True, attributed_only=True, limit=500),
+            db=dataset_db,
+        )
+        row = next((r for r in result["rows"] if r["id"] == "dated-scan"), None)
+        assert row is not None, "a dated document carries data; attributed_only must keep it"
+        assert row["date_iso"] == "1942-01-08"
+        assert row["date_original"] == "Jan. 8th 1942"
+
+    @pytest.mark.asyncio
     async def test_paged_sort_by_date_nulls_last(self, dataset_db):
         result = await dataset_query(
             DatasetQuery(

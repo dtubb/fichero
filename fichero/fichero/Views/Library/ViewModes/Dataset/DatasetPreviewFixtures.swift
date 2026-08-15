@@ -56,6 +56,17 @@ extension DatasetPage {
         // never parsed (kept, never guessed). No bare page-image row — the
         // engine's attributed_only scope excludes those from data views, so
         // the fixture matches the live feed.
+        // An Extract-Dates document: no attributes, no prototype — its date
+        // lives on the document's own date columns.
+        rows.append(Row(
+            id: "dated-scan",
+            name: "scan_007.png",
+            prototypeKey: nil,
+            attributes: [:],
+            dateOriginal: "Jan. 30th 1942",
+            dateIso: "1942-01-30"
+        ))
+        binCounts["1942-01-30", default: 0] += 1
         rows.append(Row(
             id: "undated",
             name: "primero de enero (unreadable)",

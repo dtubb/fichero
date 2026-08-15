@@ -16,7 +16,7 @@ struct DatasetGridView: View {
     @State private var sortOrder: [DatasetAttributeComparator] = []
 
     var body: some View {
-        if store.declaredAttributes.isEmpty {
+        if store.declaredAttributes.isEmpty && !store.hasDateSource {
             ContentUnavailableView(
                 "No Attributes Declared",
                 systemImage: "tablecells",
@@ -34,6 +34,15 @@ struct DatasetGridView: View {
                 TableColumn("Name", sortUsing: DatasetAttributeComparator(attr: nil)) { row in
                     Text(row.name)
                         .lineLimit(1)
+                }
+                // The document's OWN extracted date — only when no date
+                // attribute column will already carry it.
+                if store.hasDateSource && store.attributeForRole["date"] == nil {
+                    TableColumn("Date") { row in
+                        Text(row.dateOriginal ?? row.dateIso ?? "")
+                            .lineLimit(1)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 // The entry's transcript, first-class beside the name
                 // (Daniel 2026-08-14 night: "just dates, no transcript").
