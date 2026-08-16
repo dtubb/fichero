@@ -4993,14 +4993,14 @@ class Database(DatabaseEmbeddingMixin):
                 from fichero_server.histdate import document_date_sort_key
                 from fichero_server.models import Document as _DateDoc
 
-                date_keys: dict[str, tuple[int, int]] = {}
+                date_keys: dict[str, tuple[int, int, str]] = {}
                 for item in combined_results:
                     doc = self.get(_DateDoc, item["document_id"])
                     date_keys[item["document_id"]] = (
-                        document_date_sort_key(doc) if doc is not None else (0, 9)
+                        document_date_sort_key(doc) if doc is not None else (0, 9, "")
                     )
                 combined_results.sort(
-                    key=lambda x: date_keys.get(x["document_id"], (0, 9)),
+                    key=lambda x: date_keys.get(x["document_id"], (0, 9, "")),
                     reverse=(sort_order == "desc"),
                 )
             elif sort_by == "name":

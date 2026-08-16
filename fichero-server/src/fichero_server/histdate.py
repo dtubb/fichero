@@ -91,16 +91,23 @@ def islamic_to_jdn(year: int, month: int, day: int) -> int:
 _PRECISION_RANK = {"day": 0, "month": 1, "year": 2, "circa": 3}
 
 
-def document_date_sort_key(doc: Any) -> tuple[int, int]:
-    """(jdn, precision_rank) for any object with date_jdn/date_meta/created_at."""
+def document_date_sort_key(doc: Any) -> tuple[int, int, str]:
+    """(jdn, precision_rank, name) for any object with date_jdn/date_meta/created_at.
+
+    Name is the FINAL tiebreak (Daniel 2026-08-15: "document date then
+    name") — same-day documents used to keep arbitrary insertion order, so
+    the pages of one day shuffled between loads. Case-folded so scanner
+    exports mixing IMG_/img_ interleave the way Finder shows them.
+    """
+    name = (getattr(doc, "name", "") or "").casefold()
     date_jdn = getattr(doc, "date_jdn", None)
     if date_jdn is not None:
         meta = getattr(doc, "date_meta", None) or {}
-        return (int(date_jdn), _PRECISION_RANK.get(meta.get("precision", ""), 4))
+        return (int(date_jdn), _PRECISION_RANK.get(meta.get("precision", ""), 4), name)
     created = getattr(doc, "created_at", None)
     if created is not None:
-        return (gregorian_to_jdn(created.year, created.month, created.day), 5)
-    return (0, 9)
+        return (gregorian_to_jdn(created.year, created.month, created.day), 5, name)
+    return (0, 9, name)
 
 
 def _gregorian_iso(jdn: int) -> str:

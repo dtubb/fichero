@@ -347,6 +347,23 @@ class TestOneOrderingEverywhere:
         )
         assert document_date_sort_key(undated)[0] == gregorian_to_jdn(1998, 1, 1)
 
+    def test_same_day_documents_order_by_name(self):
+        """Daniel 2026-08-15: "document date then name" — same-JDN,
+        same-precision documents must not keep arbitrary insertion order."""
+        from fichero_server.histdate import document_date_sort_key
+
+        def dated(doc_id, name):
+            return Document(
+                id=doc_id, name=name, date_jdn=2375283, date_jdn_end=2375283,
+                date_meta={"status": "dated", "precision": "day"},
+            )
+
+        docs = [dated("b", "IMG_002.png"), dated("c", "img_003.png"), dated("a", "IMG_001.png")]
+        ordered = sorted(docs, key=document_date_sort_key)
+        assert [d.id for d in ordered] == ["a", "b", "c"], (
+            "name is the final tiebreak, case-folded (IMG_/img_ interleave)"
+        )
+
     def test_listing_sort_uses_the_shared_key(self):
         from fichero_server.api.routes.document.documents import _apply_listing_sort
 
