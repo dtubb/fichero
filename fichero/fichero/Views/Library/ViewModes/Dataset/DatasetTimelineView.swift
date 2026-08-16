@@ -76,7 +76,7 @@ struct DatasetTimelineView: View {
                 }
                 Spacer(minLength: 0)
             }
-            if let excerpt = row.excerpt {
+            if let excerpt = store.displayExcerpt(of: row) {
                 Text(excerpt)
                     .font(.callout)
                     .foregroundStyle(.secondary)

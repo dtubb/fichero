@@ -269,7 +269,7 @@ struct DatasetCalendarView: View {
                 Spacer(minLength: 0)
             }
             // The day's words, right where the day was picked.
-            if let excerpt = row.excerpt {
+            if let excerpt = store.displayExcerpt(of: row) {
                 Text(excerpt)
                     .font(.callout)
                     .foregroundStyle(.secondary)

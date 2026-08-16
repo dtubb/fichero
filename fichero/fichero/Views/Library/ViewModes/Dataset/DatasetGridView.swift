@@ -48,10 +48,10 @@ struct DatasetGridView: View {
                 // The entry's transcript, first-class beside the name
                 // (Daniel 2026-08-14 night: "just dates, no transcript").
                 TableColumn("Text") { row in
-                    Text(row.excerpt ?? "")
+                    Text(store.displayExcerpt(of: row) ?? "")
                         .lineLimit(1)
                         .foregroundStyle(.secondary)
-                        .help(row.excerpt ?? "")
+                        .help(store.displayExcerpt(of: row) ?? "")
                 }
                 TableColumnForEach(store.declaredAttributes, id: \.self) { attr in
                     TableColumn(attr, sortUsing: DatasetAttributeComparator(attr: attr)) { row in
@@ -92,7 +92,9 @@ struct DatasetGridView: View {
     }
 
     private var sortedRows: [DatasetPage.Row] {
-        let rows = store.visibleRows
+        // Chronological until the user sorts a column — the same default
+        // feed as cards (2026-08-15 night: "its not in order though").
+        let rows = store.orderedVisibleRows
         guard !sortOrder.isEmpty else { return rows }
         return rows.sorted { lhs, rhs in
             for comparator in sortOrder {
