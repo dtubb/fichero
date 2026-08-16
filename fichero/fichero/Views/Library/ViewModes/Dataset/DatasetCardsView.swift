@@ -21,6 +21,8 @@ struct DatasetCardsView: View {
 
     @State private var dateEditRow: DatasetPage.Row?
     @State private var dateDraft = ""
+    /// ⇧-click range anchor — SelectionGrammar owns the semantics (#4436).
+    @State private var selectionAnchor: String?
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 12)]
 
@@ -51,20 +53,26 @@ struct DatasetCardsView: View {
     }
 
     /// Plain click selects (and routes preview/reader to the row); ⌘-click
-    /// grows the batch — the Finder grammar, same as the library list.
+    /// toggles, ⇧-click extends a chronological range — the ONE click
+    /// grammar, through SelectionGrammar (#4436), never hand-rolled.
     private func handleTap(_ row: DatasetPage.Row) {
+        var modifiers: SelectionGrammar.Modifiers = []
         #if os(macOS)
-        if NSEvent.modifierFlags.contains(.command) {
-            if selection.contains(row.id) {
-                selection.remove(row.id)
-            } else {
-                selection.insert(row.id)
-            }
-            return
-        }
+        if NSEvent.modifierFlags.contains(.command) { modifiers.insert(.command) }
+        if NSEvent.modifierFlags.contains(.shift) { modifiers.insert(.shift) }
         #endif
-        selection = [row.id]
-        onOpen(row)
+        let result = SelectionGrammar.click(
+            id: row.id,
+            in: store.orderedVisibleRows.map(\.id),
+            selection: selection,
+            anchor: selectionAnchor,
+            modifiers: modifiers
+        )
+        selection = result.selection
+        selectionAnchor = result.anchor
+        if modifiers.isEmpty {
+            onOpen(row)
+        }
     }
 
     /// The Finder rule, as everywhere else: the batch applies only when it
