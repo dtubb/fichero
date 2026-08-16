@@ -1639,12 +1639,21 @@ def ingest_folder(
 
 
 def _is_sidecar_file(path: Path) -> bool:
-    """Return True when ``path`` is a metadata sidecar, not a primary document."""
+    """Return True when ``path`` is a metadata sidecar, not a primary document.
+
+    The transcript/entities/renditions suffixes are the Marshall staging
+    convention (2026-08-16, _import/README.md): the engine does not READ
+    them yet, but a folder ingest must not turn ~450 of them per diary into
+    junk text/JSON documents beside the pages they describe.
+    """
     suffix = path.suffix.lower()
     name = path.name.lower()
     return (
         suffix == ".xmp"
         or name.endswith(".iffy.json")
+        or name.endswith(".transcript.txt")
+        or name.endswith(".entities.json")
+        or name.endswith(".renditions.json")
         or (suffix == ".json" and path.with_suffix("").is_file())
     )
 
