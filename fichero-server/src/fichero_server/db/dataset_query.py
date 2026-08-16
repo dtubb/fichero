@@ -180,7 +180,7 @@ def run_dataset_query(db: "Database", query: DatasetQuery) -> dict[str, Any]:
         f"""
         SELECT id, name, prototype_key, node_kind, doc_type, parent_id,
                CAST(attributes AS VARCHAR) AS attributes_json,
-               substr(page_content, 1, 280) AS excerpt,
+               substr(page_content, 1, 800) AS excerpt,
                date_original,
                json_extract_string(date_meta, '$."converted_gregorian_iso"') AS date_iso
         FROM documents WHERE {where}{order}

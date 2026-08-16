@@ -188,6 +188,19 @@ class TestDiaryEntries:
         assert _body_without_date_heading(
             "Friday, January 3, 1919:\nHigh river.", "FRIDAY. JANUARY 3, 1919"
         ) != ""
+        # A PRINTED heading with OCR noise rarely equals date_text — the
+        # structural rule catches it: caps, month, day-or-weekday
+        # (2026-08-15 night: "we've got the date repeated in text").
+        assert _body_without_date_heading(
+            "TUESDAY, JANUARY § 7\nSan José left.", "Jan. 8"
+        ) == "San José left."
+        assert _body_without_date_heading(
+            "MONDAY. JANUARY F. 19186 3\nWillian Hilton infured.", "Jan. 7"
+        ) == "Willian Hilton infured."
+        # Mixed-case prose naming the month and a day is NOT a heading.
+        assert _body_without_date_heading(
+            "We spent February 15 at the dredge.\nMore.", "Feb. 15"
+        ) == "We spent February 15 at the dredge.\nMore."
 
     async def test_empty_transcript_raises(self, diary_db):
         db, _ = diary_db

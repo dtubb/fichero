@@ -25,8 +25,14 @@ struct DatasetModeView: View {
     /// should be popping in on the library as they're added"). Debounced
     /// below — an event storm coalesces into one reload.
     var refreshToken: Int = 0
+    /// The Run Workflow offering for card selections (Daniel 2026-08-15
+    /// night: "select them, and then run svo on them"). Empty hides the menu.
+    var workflows: [WorkflowSidebarItem] = []
+    var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
     @State private var store = DatasetModeStore()
+    /// Card selection — the batch a context-menu run targets.
+    @State private var selection: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -101,6 +107,24 @@ struct DatasetModeView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             .help("Show all rows, only dated rows, or only undated rows")
+
+            Menu {
+                ForEach(DatasetModeStore.TextDetail.allCases) { choice in
+                    Button {
+                        store.textDetail = choice
+                    } label: {
+                        Text(choice.rawValue)
+                        if store.textDetail == choice {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            } label: {
+                Label("Text", systemImage: "text.alignleft")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Show the excerpt or the full entry text on cards")
 
             if store.availablePrototypes.count > 1 {
                 Menu {
@@ -183,7 +207,12 @@ struct DatasetModeView: View {
                 DatasetGridView(store: store, entityService: entityService,
                                 onOpen: onOpen, onOpenSource: onOpenSource)
             case .cards:
-                DatasetCardsView(store: store, onOpen: onOpen, onOpenSource: onOpenSource)
+                DatasetCardsView(
+                    store: store, entityService: entityService,
+                    selection: $selection, workflows: workflows,
+                    onOpen: onOpen, onOpenSource: onOpenSource,
+                    onRunWorkflow: onRunWorkflow
+                )
             case .timeline:
                 DatasetTimelineView(store: store, onOpen: onOpen, onOpenSource: onOpenSource)
             case .calendar:

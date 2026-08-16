@@ -185,7 +185,21 @@ extension LibraryView {
                 },
                 // Live change stream: entries pop in while a workflow runs
                 // (debounced inside DatasetModeView).
-                refreshToken: documentStore.revision
+                refreshToken: documentStore.revision,
+                // Card selections run workflows through the SAME batch seam
+                // as the grid context menu (#3820 library binding), which is
+                // how "select entries, run SVO" works (2026-08-15 night).
+                workflows: libraryWorkflows,
+                onRunWorkflow: { workflowId, docIds, provider, model in
+                    Task { @MainActor in
+                        selectedDocumentIdsForBatch = docIds
+                        await runBatchWorkflow(
+                            workflowId: workflowId,
+                            providerOverride: provider,
+                            modelOverride: model
+                        )
+                    }
+                }
             )
         } else {
             ContentUnavailableView(

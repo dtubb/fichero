@@ -4,34 +4,122 @@ import SwiftUI
 
 /// A grid of cards: title role (or node name) as headline, subtitle role as
 /// caption, then every declared attribute with a value as a labeled line.
+///
+/// Cards are chronological (date then name, undated last), selectable
+/// (click selects and routes the three panes; ⌘-click toggles a batch), and
+/// actionable in place: Edit Date…, and Run Workflow over the selection —
+/// which is how "select entries, run SVO on them" works (Daniel 2026-08-15
+/// night).
 struct DatasetCardsView: View {
     let store: DatasetModeStore
+    var entityService: EntityService?
+    @Binding var selection: Set<String>
+    var workflows: [WorkflowSidebarItem] = []
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
+    var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
+
+    @State private var dateEditRow: DatasetPage.Row?
+    @State private var dateDraft = ""
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 12)]
 
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(store.visibleRows) { row in
+                ForEach(store.orderedVisibleRows) { row in
                     card(row)
-                        .onTapGesture(count: 2) { onOpen(row) }
-                        // Touch parity: iPad has no double-click.
-                        .contextMenu {
-                            Button("Open") { onOpen(row) }
-                            if row.parentId != nil {
-                                Button("Show Source Page") { onOpenSource(row) }
-                            }
-                        }
+                        .onTapGesture { handleTap(row) }
+                        .contextMenu { cardMenu(row) }
                 }
             }
             .padding(12)
         }
+        .alert(
+            "Edit Date",
+            isPresented: Binding(
+                get: { dateEditRow != nil },
+                set: { if !$0 { dateEditRow = nil } }
+            )
+        ) {
+            TextField("YYYY-MM-DD", text: $dateDraft)
+            Button("Save") { commitDateEdit() }
+            Button("Cancel", role: .cancel) { dateEditRow = nil }
+        } message: {
+            Text("The entry moves to its new day everywhere — timeline, calendar and cards.")
+        }
+    }
+
+    /// Plain click selects (and routes preview/reader to the row); ⌘-click
+    /// grows the batch — the Finder grammar, same as the library list.
+    private func handleTap(_ row: DatasetPage.Row) {
+        #if os(macOS)
+        if NSEvent.modifierFlags.contains(.command) {
+            if selection.contains(row.id) {
+                selection.remove(row.id)
+            } else {
+                selection.insert(row.id)
+            }
+            return
+        }
+        #endif
+        selection = [row.id]
+        onOpen(row)
+    }
+
+    /// The Finder rule, as everywhere else: the batch applies only when it
+    /// INCLUDES the clicked card; right-clicking outside it acts on the
+    /// clicked card alone.
+    private func workflowTargets(for row: DatasetPage.Row) -> [String] {
+        selection.contains(row.id) ? Array(selection) : [row.id]
+    }
+
+    @ViewBuilder
+    private func cardMenu(_ row: DatasetPage.Row) -> some View {
+        Button("Open") { onOpen(row) }
+        if row.parentId != nil {
+            Button("Show Source Page") { onOpenSource(row) }
+        }
+        if store.attributeForRole["date"] != nil, entityService != nil {
+            Button("Edit Date…") {
+                dateDraft = store.dateValue(of: row) ?? ""
+                dateEditRow = row
+            }
+        }
+        if !workflows.isEmpty {
+            Divider()
+            let targets = workflowTargets(for: row)
+            Menu("Run Workflow") {
+                if targets.count > 1 {
+                    // Scope stated BEFORE the click, same as the sidebar and
+                    // library menus (2026-08-15).
+                    Text("Runs on \(targets.count) entries")
+                    Divider()
+                }
+                RunWorkflowSubmenuItems(workflows: workflows) { workflowId, provider, model in
+                    onRunWorkflow(workflowId, targets, provider, model)
+                }
+            }
+        }
+    }
+
+    private func commitDateEdit() {
+        guard let row = dateEditRow,
+              let dateAttr = store.attributeForRole["date"],
+              let entityService else { return }
+        let value = dateDraft.trimmingCharacters(in: .whitespaces)
+        dateEditRow = nil
+        Task { @MainActor in
+            await store.saveAttribute(
+                dateAttr, value: value.isEmpty ? nil : value,
+                on: row, entityService: entityService
+            )
+        }
     }
 
     private func card(_ row: DatasetPage.Row) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let isSelected = selection.contains(row.id)
+        return VStack(alignment: .leading, spacing: 6) {
             Text(titleText(row))
                 .font(.headline)
                 .lineLimit(2)
@@ -53,11 +141,13 @@ struct DatasetCardsView: View {
                     .lineLimit(2)
             }
             // The entry's own words — the reason the card exists (Daniel
-            // 2026-08-14 night: "just dates, no transcript").
-            if let excerpt = row.excerpt {
+            // 2026-08-14 night: "just dates, no transcript"). A leading
+            // date-heading line is dropped at display time (the date is
+            // the headline already); Full Text lifts the line cap.
+            if let excerpt = store.displayExcerpt(of: row) {
                 Text(excerpt)
                     .font(.callout)
-                    .lineLimit(4)
+                    .lineLimit(store.textDetail == .full ? nil : 4)
                     .foregroundStyle(.primary.opacity(0.85))
                     .padding(.top, 2)
             }
@@ -80,6 +170,10 @@ struct DatasetCardsView: View {
         .padding(10)
         .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.accentColor : .clear, lineWidth: 2)
+        )
         .contentShape(Rectangle())
     }
 
@@ -123,6 +217,6 @@ struct DatasetCardsView: View {
 }
 
 #Preview("Cards — diary") {
-    DatasetCardsView(store: .previewDiary())
+    DatasetCardsView(store: .previewDiary(), selection: .constant(["jan4-second"]))
         .frame(width: 780, height: 640)
 }

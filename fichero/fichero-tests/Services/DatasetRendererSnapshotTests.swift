@@ -31,7 +31,8 @@ final class DatasetRendererSnapshotTests: XCTestCase {
         let store = DatasetModeStore.previewDiary()
         try snapshot(DatasetCalendarView(store: store), size: .init(width: 720, height: 640),
                      name: "calendar")
-        try snapshot(DatasetCardsView(store: store), size: .init(width: 780, height: 640),
+        try snapshot(DatasetCardsView(store: store, selection: .constant([])),
+                     size: .init(width: 780, height: 640),
                      name: "cards")
         try snapshot(DatasetTimelineView(store: store), size: .init(width: 640, height: 640),
                      name: "timeline")

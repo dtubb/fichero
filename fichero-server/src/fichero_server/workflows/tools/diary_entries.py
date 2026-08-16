@@ -143,10 +143,24 @@ def _body_without_date_heading(text: str, date_text: str) -> str:
     lines = text.splitlines()
     if not lines:
         return text.strip()
-    first = " ".join(lines[0].split()).strip().rstrip(".,:;").lower()
+    raw_first = lines[0]
+    first = " ".join(raw_first.split()).strip().rstrip(".,:;").lower()
     heading = " ".join(date_text.split()).strip().rstrip(".,:;").lower()
     if heading and (first == heading or first.startswith(heading) or heading.startswith(first)):
         return "\n".join(lines[1:]).strip()
+    # A PRINTED heading with OCR noise ("TUESDAY, JANUARY § 7") rarely
+    # equals date_text — recognize it structurally: short, set in caps,
+    # naming a month plus a day number or weekday (2026-08-15 night; the
+    # same rule the client applies at display time for older entries).
+    letters = [c for c in raw_first if c.isalpha()]
+    if len(raw_first) <= 60 and letters and sum(c.isupper() for c in letters) * 10 >= len(letters) * 9:
+        tokens = {tok for tok in "".join(c if c.isalnum() else " " for c in first).split()}
+        months = {m for m in ("january february march april may june july august "
+                              "september october november december").split()}
+        weekdays = {d for d in ("monday tuesday wednesday thursday friday saturday "
+                                "sunday").split()}
+        if tokens & months and (tokens & weekdays or any(tok.isdigit() and len(tok) <= 2 for tok in tokens)):
+            return "\n".join(lines[1:]).strip()
     return text.strip()
 
 
