@@ -13,8 +13,6 @@ extension DatasetModeStore {
         var id: String { rawValue }
     }
 
-    var textDetail: TextDetail = .excerpt
-
     /// `visibleRows` in DATE-then-name order — the cards/grid feed. The feed
     /// arrives in engine listing order, which is not a promise; a data view
     /// over dated rows reads as broken unless it is chronological (Daniel

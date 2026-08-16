@@ -51,6 +51,9 @@ final class DatasetModeStore {
     /// nil = every prototype; "pull quotes in a folder" is this facet set
     /// to `pull_quote` — no special casing per prototype.
     var prototypeFilter: String?
+    /// Cards' text depth — stored HERE (extensions cannot hold storage);
+    /// the TextDetail enum and display helpers live in +Display.swift.
+    var textDetail: TextDetail = .excerpt
     var isLoading = false
     var errorText: String?
     /// A failed EDIT, shown transiently in the header — never the full-pane
