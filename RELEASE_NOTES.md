@@ -2,7 +2,7 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
-## 2026.08.15
+## 2026.08.17
 
 ### Dev build
 
