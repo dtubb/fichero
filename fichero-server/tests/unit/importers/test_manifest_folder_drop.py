@@ -168,3 +168,25 @@ def test_redrop_repairs_a_pathless_earlier_import(client, db, test_package, tmp_
     assert second, "a re-drop reports the corpus it touched, not an empty no-op"
     repaired = next(d for d in second if d.name == "page_001")
     assert repaired.path and repaired.path.endswith("page_001_enhanced.jpg")
+
+
+def test_manifest_imported_corpus_deletes_cleanly(client, db, test_package, tmp_path):
+    """2026-08-17 live: right-click delete of the imported corpus errored.
+    A manifest corpus carries shapes plain folders don't (transcript
+    artifacts, entity links, claims) — deletion through the same route the
+    sidebar uses must succeed and take the children with it."""
+    manifest = _fixture_manifest(tmp_path)
+    docs = _import_manifest_folder(
+        db, manifest, IngestFolderRequest(path=str(tmp_path)), Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    root = next(d for d in docs if d.name == "Tiny Corpus")
+
+    resp = client.delete(f"/api/documents/{root.id}")
+    assert resp.status_code < 400, f"delete failed: {resp.status_code} {resp.text[:300]}"
+
+    listing = client.get("/api/documents?limit=500").json()
+    items = listing["items"] if isinstance(listing, dict) else listing
+    names = {d["name"] for d in items}
+    assert "Tiny Corpus" not in names
+    assert "page_001" not in names, "children must go with the corpus"
