@@ -6,6 +6,9 @@ import SwiftUI
 /// with per-month counts from the engine's bins where present.
 struct DatasetTimelineView: View {
     let store: DatasetModeStore
+    /// Shared with the shell (2026-08-16): a single click selects and the
+    /// shell routes preview/reader/inspector; double-click still opens.
+    @Binding var selection: Set<String>
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
@@ -28,7 +31,12 @@ struct DatasetTimelineView: View {
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 5)
                                     .contentShape(Rectangle())
+                                    .background(
+                                        selection.contains(row.id)
+                                            ? Color.accentColor.opacity(0.12) : .clear
+                                    )
                                     .onTapGesture(count: 2) { onOpen(row) }
+                                    .onTapGesture { selection = SelectionGrammar.select(row.id).selection }
                                     // Touch parity: iPad has no double-click.
                                     .contextMenu {
                                         Button("Open") { onOpen(row) }
@@ -105,6 +113,6 @@ struct DatasetTimelineView: View {
 }
 
 #Preview("Timeline — diary") {
-    DatasetTimelineView(store: .previewDiary())
+    DatasetTimelineView(store: .previewDiary(), selection: .constant([]))
         .frame(width: 640, height: 640)
 }

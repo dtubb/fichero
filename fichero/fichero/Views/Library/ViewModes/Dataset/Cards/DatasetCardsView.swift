@@ -70,9 +70,8 @@ struct DatasetCardsView: View {
         )
         selection = result.selection
         selectionAnchor = result.anchor
-        if modifiers.isEmpty {
-            onOpen(row)
-        }
+        // No direct onOpen: the shell's selection router opens single
+        // selections for EVERY renderer, so cards cannot double-route.
     }
 
     /// The Finder rule, as everywhere else: the batch applies only when it

@@ -56,8 +56,8 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # preview host (Fichero-2026-08-14-0933xx.ips ×3). Reason also recorded
     # in-file and in native_row_containers_allowlist.json. Revisit List if a
     # selection model arrives.
-    "Library/ViewModes/Dataset/DatasetTimelineView.swift#178981511f": "2026-08-14 List SIGTRAP; pure reading surface",
-    "Library/ViewModes/Dataset/DatasetCalendarView.swift#c9b423ba8f": "2026-08-14 List SIGTRAP; pure reading surface (day list)",
+    "Library/ViewModes/Dataset/Timeline/DatasetTimelineView.swift#29943d4d41": "2026-08-14 List SIGTRAP; re-hashed 2026-08-16/17 by the shared-selection highlight/tap rows and displayExcerpt — same sanctioned block. NOTE: rows now SELECT, so the List constraint deserves a revisit next preview session",
+    "Library/ViewModes/Dataset/Calendar/DatasetCalendarView.swift#da804b2e0d": "2026-08-14 List SIGTRAP; re-hashed 2026-08-17 by the shared-selection day-list rows and displayExcerpt — same sanctioned block; rows now SELECT, so the List constraint deserves the same revisit as the timeline",
 }
 
 ALLOWLIST_FILES = {

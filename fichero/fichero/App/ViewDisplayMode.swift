@@ -50,7 +50,9 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
     /// Canvas style, and then the dataset style").
     enum Group: String, CaseIterable {
         case browse = "Browse"
-        case dataset = "Dataset"
+        // "Data", not "Dataset" (Daniel 2026-08-16): the toolbar names what
+        // the user sees — data — not the internal feature name.
+        case dataset = "Data"
         case canvas = "Canvas"
     }
 

@@ -10,10 +10,12 @@ struct DatasetGridView: View {
     let store: DatasetModeStore
     /// Nil = read-only cells (previews, closed library).
     var entityService: EntityService?
+    /// Shared with the shell (2026-08-16): sheet row selection routes
+    /// preview/reader/inspector, same as every other data renderer. A Set
+    /// binding also gives the Table native ⌘/⇧ multi-select.
+    @Binding var selection: Set<String>
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
-
-    @State private var selection: DatasetPage.Row.ID?
     @State private var sortOrder: [DatasetAttributeComparator] = []
 
     var body: some View {
@@ -191,6 +193,6 @@ private struct DatasetGridCell: View {
 }
 
 #Preview("Grid — diary") {
-    DatasetGridView(store: .previewDiary())
+    DatasetGridView(store: .previewDiary(), selection: .constant([]))
         .frame(width: 860, height: 600)
 }

@@ -3511,6 +3511,7 @@ def register_generated_openapi_commands(
     @target_app.command("add-a-custom-value")
     def classifications_add_a_custom_value_post(
         ctx: typer.Context,
+        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
         description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
         dimension: str = typer.Option(..., "--dimension", help="Request field: dimension."),
@@ -3525,6 +3526,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/classifications"
             params = None
             payload = _build_json_payload({
+                "attributes": attributes,
                 "color": color,
                 "description": description,
                 "dimension": dimension,
@@ -3534,6 +3536,7 @@ def register_generated_openapi_commands(
                 "parent_key": parent_key,
                 "sort_order": sort_order,
             }, {
+                "attributes": {'additionalProperties': True, 'type': 'object', 'title': 'Attributes', 'default': {}, 'x-cli-required': False},
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
                 "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
                 "dimension": {'type': 'string', 'enum': ['epistemic_status', 'claim_type', 'entity_type', 'document_prototype', 'node_class'], 'title': 'ClassificationDimension', 'description': 'Which classification axis a registry value belongs to (#915).\n\n``node_class`` (#1570) is the Tinderbox-style prototype/class axis for\nworkspace curated items; values key off ``ClassificationValue.key``.', 'x-cli-required': True},
@@ -3544,6 +3547,18 @@ def register_generated_openapi_commands(
                 "sort_order": {'type': 'integer', 'title': 'Sort Order', 'default': 0, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("a-prototype-s-effective-attributes-inheritance-resolved")
+    def classifications_a_prototype_s_effective_attributes_inheritance_resolved_get(
+        ctx: typer.Context,
+        key: str = typer.Argument(..., help="Path parameter: key."),
+    ) -> None:
+        """A prototype's effective attributes (inheritance resolved) (GET /api/classifications/resolved/{key})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/classifications/resolved/{key}"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("delete-value")
@@ -3565,6 +3580,7 @@ def register_generated_openapi_commands(
     def classifications_edit_a_value_s_label_color_order_patch(
         ctx: typer.Context,
         value_id: str = typer.Argument(..., help="Path parameter: value_id."),
+        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
         description: Optional[str] = typer.Option(None, "--description", help="Request field: description."),
         icon: Optional[str] = typer.Option(None, "--icon", help="Request field: icon."),
@@ -3577,6 +3593,7 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/classifications/{value_id}"
             params = None
             payload = _build_json_payload({
+                "attributes": attributes,
                 "color": color,
                 "description": description,
                 "icon": icon,
@@ -3584,6 +3601,7 @@ def register_generated_openapi_commands(
                 "parent_key": parent_key,
                 "sort_order": sort_order,
             }, {
+                "attributes": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Attributes', 'x-cli-required': False},
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
                 "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
                 "icon": {'type': 'string', 'nullable': True, 'title': 'Icon', 'x-cli-required': False},
@@ -3786,6 +3804,50 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("dataset-query")
+    def documents_dataset_query_post(
+        ctx: typer.Context,
+        attributed_only: Optional[bool] = typer.Option(None, "--attributed-only/--no-attributed-only", help="Request field: attributed_only."),
+        bins: Optional[str] = typer.Option(None, "--bins", help="Request field: bins."),
+        facets: Optional[str] = typer.Option(None, "--facets", help="Request field: facets."),
+        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
+        parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
+        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
+        recursive: Optional[bool] = typer.Option(None, "--recursive/--no-recursive", help="Request field: recursive."),
+        sort: Optional[str] = typer.Option(None, "--sort", help="Request field: sort."),
+    ) -> None:
+        """Dataset Query (POST /api/documents/dataset/query)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/dataset/query"
+            params = None
+            payload = _build_json_payload({
+                "attributed_only": attributed_only,
+                "bins": bins,
+                "facets": facets,
+                "filters": filters,
+                "limit": limit,
+                "offset": offset,
+                "parent_id": parent_id,
+                "prototype_key": prototype_key,
+                "recursive": recursive,
+                "sort": sort,
+            }, {
+                "attributed_only": {'type': 'boolean', 'title': 'Attributed Only', 'default': False, 'x-cli-required': False},
+                "bins": {'properties': {'attr': {'type': 'string', 'title': 'Attr'}, 'granularity': {'type': 'string', 'enum': ['year', 'month', 'day'], 'title': 'Granularity', 'default': 'month'}}, 'type': 'object', 'required': ['attr'], 'title': 'DatasetBins', 'x-cli-required': False},
+                "facets": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Facets', 'x-cli-required': False},
+                "filters": {'items': {'$ref': '#/components/schemas/DatasetFilter'}, 'type': 'array', 'title': 'Filters', 'x-cli-required': False},
+                "limit": {'type': 'integer', 'title': 'Limit', 'default': 100, 'x-cli-required': False},
+                "offset": {'type': 'integer', 'title': 'Offset', 'default': 0, 'x-cli-required': False},
+                "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'x-cli-required': False},
+                "recursive": {'type': 'boolean', 'title': 'Recursive', 'default': False, 'x-cli-required': False},
+                "sort": {'properties': {'attr': {'type': 'string', 'title': 'Attr'}, 'direction': {'type': 'string', 'enum': ['asc', 'desc'], 'title': 'Direction', 'default': 'asc'}, 'type': {'type': 'string', 'title': 'Type', 'default': 'text'}}, 'type': 'object', 'required': ['attr'], 'title': 'DatasetSort', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("create-group")
     def documents_create_group_post(
         ctx: typer.Context,
@@ -3939,6 +4001,7 @@ def register_generated_openapi_commands(
     def documents_update_put(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
         doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Request field: doc_type."),
         exclude_from_processing: Optional[bool] = typer.Option(None, "--exclude-from-processing/--no-exclude-from-processing", help="Request field: exclude_from_processing."),
         file_type: Optional[str] = typer.Option(None, "--file-type", help="Request field: file_type."),
@@ -3965,6 +4028,7 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/documents/{doc_id}"
             params = None
             payload = _build_json_payload({
+                "attributes": attributes,
                 "doc_type": doc_type,
                 "exclude_from_processing": exclude_from_processing,
                 "file_type": file_type,
@@ -3986,6 +4050,7 @@ def register_generated_openapi_commands(
                 "status": status,
                 "z_index": z_index,
             }, {
+                "attributes": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Attributes', 'x-cli-required': False},
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
                 "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
@@ -4066,6 +4131,18 @@ def register_generated_openapi_commands(
                 "parent_id": parent_id,
             }
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-effective-attributes")
+    def documents_get_effective_attributes_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+    ) -> None:
+        """Get Effective Attributes (GET /api/documents/{doc_id}/effective-attributes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/effective-attributes"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-geocoded-points-for-a")
@@ -4202,7 +4279,7 @@ def register_generated_openapi_commands(
         include_descendants: Optional[bool] = typer.Option(None, "--include-descendants/--no-include-descendants", help="Request field: include_descendants."),
         page_end: Optional[int] = typer.Option(None, "--page-end", help="Request field: page_end."),
         page_start: Optional[int] = typer.Option(None, "--page-start", help="Request field: page_start."),
-        prototype_key: str = typer.Option(..., "--prototype-key", help="Request field: prototype_key."),
+        prototype_key: Optional[str] = typer.Option(None, "--prototype-key", help="Request field: prototype_key."),
     ) -> None:
         """Assign Document Prototype (PUT /api/documents/{doc_id}/prototype)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4217,7 +4294,7 @@ def register_generated_openapi_commands(
                 "include_descendants": {'type': 'boolean', 'title': 'Include Descendants', 'default': False, 'x-cli-required': False},
                 "page_end": {'type': 'integer', 'nullable': True, 'title': 'Page End', 'x-cli-required': False},
                 "page_start": {'type': 'integer', 'nullable': True, 'title': 'Page Start', 'x-cli-required': False},
-                "prototype_key": {'type': 'string', 'title': 'Prototype Key', 'x-cli-required': True},
+                "prototype_key": {'type': 'string', 'nullable': True, 'title': 'Prototype Key', 'x-cli-required': False},
             }, required=True)
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -4819,6 +4896,32 @@ def register_generated_openapi_commands(
                 "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Allow writing into a non-empty folder', 'default': False, 'x-cli-required': False},
                 "recursive": {'type': 'boolean', 'title': 'Recursive', 'description': 'Include descendants of folders', 'default': True, 'x-cli-required': False},
                 "target_id": {'type': 'string', 'nullable': True, 'title': 'Target Id', 'description': 'Optional document/folder id to export; omitted exports library', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("training-route")
+    def export_training_route_post(
+        ctx: typer.Context,
+        gold_only: Optional[bool] = typer.Option(None, "--gold-only/--no-gold-only", help="Request field: gold_only."),
+        output_path: str = typer.Option(..., "--output-path", help="Request field: output_path."),
+        overwrite: Optional[bool] = typer.Option(None, "--overwrite/--no-overwrite", help="Request field: overwrite."),
+        use_case: Optional[str] = typer.Option(None, "--use-case", help="Request field: use_case."),
+    ) -> None:
+        """Export Training Route (POST /api/export/training)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/export/training"
+            params = None
+            payload = _build_json_payload({
+                "gold_only": gold_only,
+                "output_path": output_path,
+                "overwrite": overwrite,
+                "use_case": use_case,
+            }, {
+                "gold_only": {'type': 'boolean', 'title': 'Gold Only', 'description': 'Only human-corrected (gold) pairs', 'default': False, 'x-cli-required': False},
+                "output_path": {'type': 'string', 'title': 'Output Path', 'description': 'Destination .jsonl path', 'x-cli-required': True},
+                "overwrite": {'type': 'boolean', 'title': 'Overwrite', 'description': 'Overwrite existing .jsonl', 'default': False, 'x-cli-required': False},
+                "use_case": {'type': 'string', 'nullable': True, 'title': 'Use Case', 'description': "Filter to one workflow step's calls (e.g. 'transcription')", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -5936,7 +6039,7 @@ def register_generated_openapi_commands(
                 "parent_id": parent_id,
                 "path": path,
             }, {
-                "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': True, 'x-cli-required': False},
+                "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': False, 'x-cli-required': False},
                 "copy_mode": {'type': 'boolean', 'title': 'Copy Mode', 'default': False, 'x-cli-required': False},
                 "extract_text": {'type': 'boolean', 'title': 'Extract Text', 'default': True, 'x-cli-required': False},
                 "mode": {'type': 'string', 'enum': ['link', 'copy', 'move'], 'nullable': True, 'title': 'Mode', 'x-cli-required': False},
@@ -5970,7 +6073,7 @@ def register_generated_openapi_commands(
                 "path": path,
                 "recursive": recursive,
             }, {
-                "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': True, 'x-cli-required': False},
+                "auto_embed": {'type': 'boolean', 'title': 'Auto Embed', 'default': False, 'x-cli-required': False},
                 "copy_mode": {'type': 'boolean', 'title': 'Copy Mode', 'default': False, 'x-cli-required': False},
                 "extract_text": {'type': 'boolean', 'title': 'Extract Text', 'default': True, 'x-cli-required': False},
                 "mode": {'type': 'string', 'enum': ['link', 'copy', 'move'], 'nullable': True, 'title': 'Mode', 'x-cli-required': False},
@@ -13034,6 +13137,21 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/workflow-execution/threads/{thread_id}/diagram.svg"
             params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-thread-episodes")
+    def workflow_execution_get_thread_episodes_get(
+        ctx: typer.Context,
+        thread_id: str = typer.Argument(..., help="Path parameter: thread_id."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+    ) -> None:
+        """Get Thread Episodes (GET /api/workflow-execution/threads/{thread_id}/episodes)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/workflow-execution/threads/{thread_id}/episodes"
+            params = {
+                "limit": limit,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

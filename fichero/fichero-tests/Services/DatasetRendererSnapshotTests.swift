@@ -29,12 +29,12 @@ final class DatasetRendererSnapshotTests: XCTestCase {
 
     func testRenderersProduceNonEmptySnapshots() throws {
         let store = DatasetModeStore.previewDiary()
-        try snapshot(DatasetCalendarView(store: store), size: .init(width: 720, height: 640),
+        try snapshot(DatasetCalendarView(store: store, selection: .constant([])), size: .init(width: 720, height: 640),
                      name: "calendar")
         try snapshot(DatasetCardsView(store: store, selection: .constant([])),
                      size: .init(width: 780, height: 640),
                      name: "cards")
-        try snapshot(DatasetTimelineView(store: store), size: .init(width: 640, height: 640),
+        try snapshot(DatasetTimelineView(store: store, selection: .constant([])), size: .init(width: 640, height: 640),
                      name: "timeline")
         try snapshot(DatasetMissingRoleView(role: "date", renderer: "calendar"),
                      size: .init(width: 560, height: 400), name: "missing-role")
