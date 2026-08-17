@@ -50,6 +50,15 @@ extension ContentView {
         if let pageDoc = detailDocument, pageDoc.docType == .page {
             return pageDoc
         }
+        // 2c. An EXTRACTED node the user opened (a diary entry from a data
+        //    view). Its parent is the PAGE, not the sidebar folder, so rung 1's
+        //    parent guard can never accept it and it used to fall through to
+        //    the folder — "the inspector should let me inspect the extracted
+        //    node. right now it seems to have it highlighted on the parent"
+        //    (Daniel 2026-08-16). Opening the entry is pointing at it.
+        if let entry = detailDocument, entry.nodeKind == "entry" {
+            return entry
+        }
         // 3. Sidebar viewMode's folder doc.
         if let folder = currentSidebarFolder {
             return folder
