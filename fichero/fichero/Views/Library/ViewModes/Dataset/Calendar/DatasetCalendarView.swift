@@ -9,6 +9,9 @@ struct DatasetCalendarView: View {
     /// Nil = read-only (previews, closed library); "Edit Date…" only
     /// appears when there is an engine to persist through.
     var entityService: EntityService?
+    /// Shared with the shell (2026-08-16): a day-list click selects and the
+    /// shell routes preview/reader/inspector; double-click still opens.
+    @Binding var selection: Set<String>
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
@@ -225,7 +228,12 @@ struct DatasetCalendarView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 5)
                                 .contentShape(Rectangle())
+                                .background(
+                                    selection.contains(row.id)
+                                        ? Color.accentColor.opacity(0.12) : .clear
+                                )
                                 .onTapGesture(count: 2) { onOpen(row) }
+                                .onTapGesture { selection = SelectionGrammar.select(row.id).selection }
                                 // Touch parity: iPad has no double-click.
                                 .contextMenu {
                                     Button("Open") { onOpen(row) }
@@ -278,8 +286,14 @@ struct DatasetCalendarView: View {
         }
     }
 
+}
+
+// Pure helpers, split from the struct body at the 250-line lint budget
+// (2026-08-16, the shared-selection rows tipped it) — same members.
+private extension DatasetCalendarView {
+
     /// "January 4, 1942" from "1942-01-04"; falls back to the raw string.
-    private func dayTitle(_ day: String) -> String {
+    func dayTitle(_ day: String) -> String {
         let pieces = day.split(separator: "-")
         guard pieces.count == 3, let monthNumber = Int(pieces[1]),
               (1...12).contains(monthNumber), let dayNumber = Int(pieces[2])
@@ -287,7 +301,7 @@ struct DatasetCalendarView: View {
         return "\(Calendar.current.monthSymbols[monthNumber - 1]) \(dayNumber), \(pieces[0])"
     }
 
-    private func rowsOn(day: String) -> [DatasetPage.Row] {
+    func rowsOn(day: String) -> [DatasetPage.Row] {
         guard store.page != nil, store.hasDateSource else {
             return []
         }
@@ -296,6 +310,6 @@ struct DatasetCalendarView: View {
 }
 
 #Preview("Calendar — diary") {
-    DatasetCalendarView(store: .previewDiary())
+    DatasetCalendarView(store: .previewDiary(), selection: .constant([]))
         .frame(width: 720, height: 640)
 }

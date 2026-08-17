@@ -67,6 +67,21 @@ struct DatasetModeView: View {
         .task(id: folderId) {
             await store.load(folderId: folderId, service: documentService)
         }
+        // ONE router from selection to the other panes (2026-08-16, Daniel:
+        // "changing selection in grid view doesn't change preview or reader
+        // or inspector"): whichever renderer wrote the selection, a single
+        // chosen row opens the document — preview shows the source page with
+        // its bbox, reader the text, inspector the entry. Multi-selections
+        // stay local (they are a batch, not a navigation).
+        .onChange(of: selection) { _, newSelection in
+            // Resolved through the store's ordered rows, never Set.first —
+            // the selection-grammar rule (2026-08-09): a primary must be a
+            // row the user acted on, not an arbitrary set element.
+            guard newSelection.count == 1,
+                  let row = store.visibleRows.first(where: { newSelection.contains($0.id) })
+            else { return }
+            onOpen(row)
+        }
         .task(id: refreshToken) {
             // Skip the mount tick — the folderId task above owns first load.
             guard store.page != nil else { return }
@@ -205,6 +220,7 @@ struct DatasetModeView: View {
             switch renderer {
             case .grid:
                 DatasetGridView(store: store, entityService: entityService,
+                                selection: $selection,
                                 onOpen: onOpen, onOpenSource: onOpenSource)
             case .cards:
                 DatasetCardsView(
@@ -214,9 +230,11 @@ struct DatasetModeView: View {
                     onRunWorkflow: onRunWorkflow
                 )
             case .timeline:
-                DatasetTimelineView(store: store, onOpen: onOpen, onOpenSource: onOpenSource)
+                DatasetTimelineView(store: store, selection: $selection,
+                                    onOpen: onOpen, onOpenSource: onOpenSource)
             case .calendar:
                 DatasetCalendarView(store: store, entityService: entityService,
+                                    selection: $selection,
                                     onOpen: onOpen, onOpenSource: onOpenSource)
             case .map:
                 DatasetMapView(store: store, onOpen: onOpen)
