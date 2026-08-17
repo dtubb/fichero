@@ -164,13 +164,37 @@ def _body_without_date_heading(text: str, date_text: str) -> str:
     return text.strip()
 
 
+def _normalized_with_offsets(content: str) -> tuple[str, list[int]]:
+    """Whitespace-collapsed copy of ``content`` plus, per normalized char,
+    its RAW offset — so a match in the normalized text maps back to the
+    geometry's own coordinates."""
+    chars: list[str] = []
+    offsets: list[int] = []
+    previous_space = True
+    for index, ch in enumerate(content):
+        if ch.isspace():
+            if previous_space:
+                continue
+            chars.append(" ")
+            offsets.append(index)
+            previous_space = True
+        else:
+            chars.append(ch)
+            offsets.append(index)
+            previous_space = False
+    return "".join(chars), offsets
+
+
 def _entry_spans(content: str, entries: list[DiaryEntry]) -> list[tuple[int, int] | None]:
     """Locate each entry's character span in the geometry content by its
-    leading words, in order. ponytail: prefix search with normalized
-    whitespace; an entry whose prefix is not found gets no span (and so no
-    bbox) — recorded, never guessed."""
+    leading words, in order. The search runs over a whitespace-NORMALIZED
+    copy mapped back to raw offsets (2026-08-17): the prefix is normalized,
+    so searching the raw content meant any entry whose opening words cross
+    a line break silently got no span — and so no bbox ("some pages have
+    word level bounding boxes, many don't"). An entry whose prefix is
+    genuinely absent still gets None — recorded, never guessed."""
     spans: list[tuple[int, int] | None] = []
-    haystack = content
+    haystack, offsets = _normalized_with_offsets(content)
     cursor = 0
     starts: list[int | None] = []
     for entry in entries:
@@ -181,7 +205,7 @@ def _entry_spans(content: str, entries: list[DiaryEntry]) -> list[tuple[int, int
             while len(probe) >= 8:
                 index = haystack.find(probe, cursor)
                 if index >= 0:
-                    found = index
+                    found = offsets[index]
                     cursor = index + 1
                     break
                 probe = probe[: len(probe) - 4]
