@@ -398,6 +398,22 @@ def ingest_file(
     # sets doc.status=Status.failed and re-raises so we can still persist
     # the document with its error metadata (#881: fail loud, not silent None).
     text_extraction_failed = False
+    # A transcript SIDECAR is the document's text (Marshall/maps staging
+    # convention, 2026-08-17): "x.jpg.transcript.txt" beside "x.jpg" lands in
+    # page_content directly, and extraction is skipped so machine OCR never
+    # competes with a curated transcript — the same rule the manifest
+    # importer applies (extract_text=False when the manifest carries text).
+    transcript_sidecar = path.parent / f"{path.name}.transcript.txt"
+    if not doc.page_content and transcript_sidecar.is_file():
+        try:
+            sidecar_text = transcript_sidecar.read_text(encoding="utf-8").strip()
+        except OSError as exc:
+            logger.warning("Unreadable transcript sidecar %s: %s", transcript_sidecar, exc)
+            sidecar_text = ""
+        if sidecar_text:
+            doc.page_content = sidecar_text
+            doc.metadata["transcript_source"] = "sidecar"
+            extract_text = False
     if extract_text and file_type in _TEXT_EXTRACTABLE:
         try:
             _extract_text_content(doc, content_path)

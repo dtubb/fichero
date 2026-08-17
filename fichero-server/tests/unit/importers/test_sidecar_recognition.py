@@ -56,3 +56,35 @@ def test_iffy_original_date_dates_the_document_on_arrival() -> None:
     fuzzy = Document(id="m3", name="y.jpg")
     _apply_iffy_to_document(fuzzy, {"iffy_original_date": "sometime colonial"})
     assert fuzzy.date_original is None and fuzzy.date_jdn is None
+
+
+def test_transcript_sidecar_lands_in_page_content(tmp_path, monkeypatch):
+    """x.jpg.transcript.txt beside x.jpg becomes the document's text on a
+    PLAIN folder/file ingest (no manifest needed), and machine extraction
+    is skipped so OCR never competes with the curated transcript."""
+    from fichero_server.importers import ingest as ingest_mod
+
+    image = tmp_path / "NCM_Diary_1923IMG_010_part_1.jpg"
+    image.write_bytes(b"not-an-image")
+    (tmp_path / "NCM_Diary_1923IMG_010_part_1.jpg.transcript.txt").write_text(
+        "SATURDAY, FEBRUARY 3, 1923\nCame Assiga here on way to Fatmina.\n"
+    )
+
+    class _Db:
+        saved = []
+
+        def save(self, doc):
+            self.saved.append(doc)
+
+        def embed(self, doc):
+            pass
+
+    called = []
+    monkeypatch.setattr(ingest_mod, "_extract_text_content", lambda *a, **k: called.append(a))
+    doc = ingest_mod.ingest_file(
+        image, db=_Db(), mode=ingest_mod.IngestMode.LINK,
+        extract_text=True, auto_embed=False, extract_metadata=False,
+    )
+    assert doc.page_content and doc.page_content.startswith("SATURDAY, FEBRUARY 3, 1923")
+    assert doc.metadata.get("transcript_source") == "sidecar"
+    assert not called, "extraction must not run over a sidecar transcript"
