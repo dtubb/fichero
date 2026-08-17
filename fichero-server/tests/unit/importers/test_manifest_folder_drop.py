@@ -78,3 +78,17 @@ def test_plain_folder_without_manifest_uses_normal_ingest(db, test_package, tmp_
     assert [d.name for d in docs] == ["note.txt"], (
         "no manifest → the pre-existing plain ingest path, byte-for-byte"
     )
+
+
+def test_in_process_client_passes_the_loopback_guard(client, db, test_package, monkeypatch):
+    """Reproduces the first live drop (2026-08-17): GET /documents -> 403
+    "loopback only". TestClient's synthetic host is trusted only under
+    pytest, so production must ride the sanctioned in-memory transport
+    stamp. Deleting PYTEST_CURRENT_TEST makes this test see what the live
+    app saw — it passes ONLY through the stamp."""
+    from fichero_server.api.routes.ingest.core import _InProcessManifestClient
+
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    in_process = _InProcessManifestClient(str(test_package))
+    result = in_process.request("GET", "/documents?limit=1")
+    assert result is not None, "the stamped in-memory transport must clear the loopback guard"

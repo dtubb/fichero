@@ -228,8 +228,20 @@ class _InProcessManifestClient:
 
         from fichero_server.api.auth import initialize_token
         from fichero_server.api.main import app
+        from fichero_server.api.uds_transport import UDS_TRANSPORT_SCOPE_KEY
 
-        self._client = TestClient(app)
+        # The scope builder auth.py's loopback rule documents: only a
+        # server-side transport may stamp `fichero.transport`, and this shim
+        # IS one — it exists solely inside this process, wrapping our own app
+        # object. Without the stamp the middleware correctly answers
+        # "loopback only" (live failure, 2026-08-17 first drop attempt):
+        # TestClient's synthetic host is trusted under pytest alone.
+        async def _inmemory_app(scope, receive, send):
+            if scope.get("type") == "http":
+                scope = {**scope, UDS_TRANSPORT_SCOPE_KEY: "inmemory"}
+            await app(scope, receive, send)
+
+        self._client = TestClient(_inmemory_app)
         self._headers = {
             "Authorization": f"Bearer {initialize_token()}",
             "X-Fichero-Library-Path": library_path,
