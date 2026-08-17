@@ -1917,6 +1917,22 @@ def _apply_iffy_to_document(
     # Mark that this document has .iffy.json sidecar
     doc.metadata["_iffy_sidecar"] = True
 
+    # A sidecar that states the ORIGINAL date makes the document dated on
+    # arrival (Daniel 2026-08-17, the maps corpus: "1715" must not read as
+    # Undated until an Extract Dates run). Same parser, same columns, same
+    # precedence as the workflow: never overwrite an existing date.
+    raw_date = iffy_data.get("iffy_original_date")
+    if raw_date and not doc.date_original and doc.date_jdn is None:
+        from fichero_server.histdate import parse_historical_date
+
+        parsed = parse_historical_date(str(raw_date))
+        if parsed is not None:
+            parsed.meta["source"] = "iffy_sidecar"
+            doc.date_original = parsed.original
+            doc.date_jdn = parsed.jdn
+            doc.date_jdn_end = parsed.jdn_end
+            doc.date_meta = parsed.as_meta()
+
     return doc
 
 

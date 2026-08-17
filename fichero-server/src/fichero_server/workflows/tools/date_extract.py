@@ -43,7 +43,7 @@ from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
 
-_METADATA_DATE_KEYS = ("date", "issued", "year", "date_original")
+_METADATA_DATE_KEYS = ("date", "issued", "year", "date_original", "iffy_original_date")
 
 
 def _from_source_metadata(doc: Document) -> HistoricalDate | None:
