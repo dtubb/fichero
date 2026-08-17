@@ -7,7 +7,7 @@ import SwiftUI
 /// Which renderer the Data mode shows. Internal to the mode (ONE top-level
 /// view mode, dead-simple UX) — cards / timeline / calendar / map.
 enum DatasetRenderer: String, CaseIterable, Identifiable {
-    case grid = "Grid"
+    case grid = "Sheet"
     case cards = "Cards"
     case timeline = "Timeline"
     case calendar = "Calendar"

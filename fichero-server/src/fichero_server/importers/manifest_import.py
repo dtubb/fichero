@@ -160,6 +160,16 @@ class ImportSummary:
     claims_created: int = 0
     claims_skipped: int = 0
     warnings: list[str] = field(default_factory=list)
+    #: Ids of documents THIS run created, in creation order — the in-process
+    #: folder-drop path (ingest/core.import_folder_impl) returns real Document
+    #: rows and queues derivatives from these. Not in to_dict(): the CLI
+    #: summary stays human-sized.
+    created_document_ids: list[str] = field(default_factory=list)
+    #: Ids of every manifest document this run TOUCHED — created or matched
+    #: as already-existing. A re-drop repairs an earlier incomplete import
+    #: through these (2026-08-17: a failed delete + idempotent skip left the
+    #: corpus pathless and the re-drop silently did nothing).
+    seen_document_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -283,6 +293,11 @@ def document_payload(
     metadata = _canonical_metadata(node)
     image_path = image.get("source_path") if image else None
     if image_path and Path(str(image_path)).expanduser().is_absolute():
+        # The routes contract (#4230, test_ingest_serving_allowlist_agreement):
+        # a CLIENT-supplied absolute path is refused — writing a path is a
+        # different grant from reading one the engine recorded. The DROP path
+        # stamps engine-recorded paths itself after this import (core.py), so
+        # linked corpora still get thumbnails.
         image_path = None
     payload: dict[str, Any] = {
         "name": node.get("name") or node.get("external_id"),
@@ -645,6 +660,8 @@ def import_manifest(
     copy_images: bool = False,
     ingest_mode: str | None = None,
     write_transcript_artifacts: bool = True,
+    root_parent_id: str | None = None,
+    on_progress: Any | None = None,
 ) -> ImportSummary:
     """Import a canonical manifest into a library through the API client.
 
@@ -680,9 +697,14 @@ def import_manifest(
         external_id = node["external_id"]
         if external_id in doc_id_by_external:
             summary.documents_skipped += 1
+            summary.seen_document_ids.append(doc_id_by_external[external_id])
             continue
         parent_external = node.get("parent_external_id")
-        parent_id = doc_id_by_external.get(parent_external) if parent_external else None
+        # Root nodes land under ``root_parent_id`` when given — the folder the
+        # user DROPPED the corpus onto (2026-08-17 UX path), not library root.
+        parent_id = (
+            doc_id_by_external.get(parent_external) if parent_external else root_parent_id
+        )
         if parent_external and not parent_id:
             raise RuntimeError(
                 f"Missing parent for {external_id}: {parent_external}"
@@ -698,6 +720,11 @@ def import_manifest(
             new_id = str(created["id"])
         doc_id_by_external[external_id] = new_id
         summary.documents_created += 1
+        summary.created_document_ids.append(new_id)
+        summary.seen_document_ids.append(new_id)
+        if on_progress:
+            # Real totals for the drop UI ("says scanning. but not total").
+            on_progress(summary.documents_created, len(nodes))
 
     # --- entities (deduped by canonical name across the whole manifest) ---
     entity_id_by_key: dict[str, str] = {}

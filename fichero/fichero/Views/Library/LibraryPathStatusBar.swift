@@ -7,13 +7,40 @@ import SwiftUI
 // detailStatusPathBar spanned library + preview + reader; these two rows
 // live in LibraryView's bottom inset so they scope to the pane exactly.
 
-/// Finder's status grammar: "5 items" / "2 of 5 selected".
+/// What a DATA view's selection looks like to the status line — reported up
+/// by DatasetModeView so the pane's bottom row speaks the dataset's language
+/// instead of the browser's ("1 of 63 selected" over a cards pane of 160
+/// dated entries, 2026-08-16).
+struct DatasetSelectionStatus: Equatable {
+    var count: Int
+    var total: Int
+    var noun: String
+    var detail: String?
+}
+
+/// Finder's status grammar: "5 items" / "2 of 5 selected" — and in the data
+/// views, the DATASET's language (Daniel 2026-08-16: "its 1 of X dates
+/// selected or something at the very bottom. make it clearer"): the noun
+/// names what the rows ARE ("1 of 160 dates selected"), and a single
+/// selection appends its identity ("… — January 14, 1918").
 /// File scope so Swift Testing calls it off-main.
-func libraryStatusText(selectionCount: Int, itemCount: Int) -> String {
+func libraryStatusText(
+    selectionCount: Int,
+    itemCount: Int,
+    noun: String? = nil,
+    detail: String? = nil
+) -> String {
+    let single = noun ?? "item"
+    let plural = single + "s"
     if selectionCount > 0 {
-        return "\(selectionCount) of \(itemCount) selected"
+        let counted = noun.map { _ in "\(selectionCount) of \(itemCount) \(plural) selected" }
+            ?? "\(selectionCount) of \(itemCount) selected"
+        if let detail, selectionCount == 1 {
+            return "\(counted) — \(detail)"
+        }
+        return counted
     }
-    return itemCount == 1 ? "1 item" : "\(itemCount) items"
+    return itemCount == 1 ? "1 \(single)" : "\(itemCount) \(plural)"
 }
 
 /// Ancestry for the path bar: the anchor document first resolved, then its

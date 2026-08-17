@@ -10,6 +10,17 @@ struct LibraryPathStatusBarTests {
         #expect(libraryStatusText(selectionCount: 0, itemCount: 1) == "1 item")
         #expect(libraryStatusText(selectionCount: 2, itemCount: 5) == "2 of 5 selected")
         #expect(libraryStatusText(selectionCount: 0, itemCount: 0) == "0 items")
+        // The data views speak the dataset's language (2026-08-16: "1 of X
+        // dates selected … make it clearer"); Finder's bare grammar above is
+        // untouched when no noun is passed.
+        #expect(libraryStatusText(selectionCount: 1, itemCount: 160, noun: "date",
+                                  detail: "January 14, 1918")
+                == "1 of 160 dates selected — January 14, 1918")
+        #expect(libraryStatusText(selectionCount: 3, itemCount: 160, noun: "date",
+                                  detail: "ignored for multi")
+                == "3 of 160 dates selected")
+        #expect(libraryStatusText(selectionCount: 0, itemCount: 160, noun: "date") == "160 dates")
+        #expect(libraryStatusText(selectionCount: 0, itemCount: 1, noun: "entry") == "1 entry")
     }
 
     private let root = Document(id: "root", docType: .folder, name: "Letters")

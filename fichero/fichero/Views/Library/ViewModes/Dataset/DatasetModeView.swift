@@ -27,6 +27,8 @@ struct DatasetModeView: View {
     var refreshToken: Int = 0
     /// The Run Workflow offering for card selections (Daniel 2026-08-15
     /// night: "select them, and then run svo on them"). Empty hides the menu.
+    /// Feeds the pane's status line the DATASET's numbers and nouns.
+    var onSelectionStatus: (DatasetSelectionStatus) -> Void = { _ in }
     var workflows: [WorkflowSidebarItem] = []
     var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
@@ -74,6 +76,7 @@ struct DatasetModeView: View {
         // its bbox, reader the text, inspector the entry. Multi-selections
         // stay local (they are a batch, not a navigation).
         .onChange(of: selection) { _, newSelection in
+            reportSelectionStatus()
             // Resolved through the store's ordered rows, never Set.first —
             // the selection-grammar rule (2026-08-09): a primary must be a
             // row the user acted on, not an arbitrary set element.
@@ -81,6 +84,11 @@ struct DatasetModeView: View {
                   let row = store.visibleRows.first(where: { newSelection.contains($0.id) })
             else { return }
             onOpen(row)
+        }
+        .onChange(of: store.dateFilter) { _, _ in reportSelectionStatus() }
+        .onChange(of: store.prototypeFilter) { _, _ in reportSelectionStatus() }
+        .onChange(of: store.isLoading) { _, loading in
+            if !loading { reportSelectionStatus() }
         }
         .task(id: refreshToken) {
             // Skip the mount tick — the folderId task above owns first load.
@@ -92,6 +100,21 @@ struct DatasetModeView: View {
             guard !Task.isCancelled else { return }
             await store.load(folderId: folderId, service: documentService)
         }
+    }
+
+    /// The dataset's numbers in the dataset's language: rows that carry
+    /// dates count as "dates"; a single selection names its day.
+    private func reportSelectionStatus() {
+        let rows = store.visibleRows
+        let selected = rows.filter { selection.contains($0.id) }
+        let dated = rows.isEmpty ? false : rows.allSatisfy { store.dateValue(of: $0) != nil }
+        let noun = dated ? "date" : "entry"
+        let detail: String? = selected.count == 1 ? selected.first.map { row in
+            store.dateValue(of: row).flatMap { DatasetModeStore.longDate($0) } ?? row.name
+        } : nil
+        onSelectionStatus(DatasetSelectionStatus(
+            count: selected.count, total: rows.count, noun: noun, detail: detail
+        ))
     }
 
     /// The facet strip for the rows THIS pane renders — the control lives

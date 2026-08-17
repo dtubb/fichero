@@ -23,6 +23,8 @@ struct DatasetCardsView: View {
     @State private var dateDraft = ""
     /// ⇧-click range anchor — SelectionGrammar owns the semantics (#4436).
     @State private var selectionAnchor: String?
+    /// The arrow-key cursor end (the anchor stays put during ⇧-extends).
+    @State private var cursorId: String?
 
     private let columns = [GridItem(.adaptive(minimum: 220, maximum: 320), spacing: 12)]
 
@@ -36,6 +38,17 @@ struct DatasetCardsView: View {
                 }
             }
             .padding(12)
+        }
+        // Arrow keys walk the chronological order (Daniel 2026-08-16: "in
+        // grid and presumably other data views, we can use arrow keys …
+        // navigate left right up down"); ⇧ extends the range through the
+        // same SelectionGrammar the list views use. The shell's selection
+        // router then moves preview/reader with the cursor.
+        // ponytail: ↑/↓ step ±1 like ←/→ — the adaptive grid's column count
+        // is layout-dependent; per-row jumps arrive with a measured layout.
+        .focusable()
+        .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow], phases: .down) { press in
+            handleArrow(press)
         }
         .alert(
             "Edit Date",
@@ -70,8 +83,33 @@ struct DatasetCardsView: View {
         )
         selection = result.selection
         selectionAnchor = result.anchor
+        cursorId = result.cursor
         // No direct onOpen: the shell's selection router opens single
         // selections for EVERY renderer, so cards cannot double-route.
+    }
+
+    private func handleArrow(_ press: KeyPress) -> KeyPress.Result {
+        let ids = store.orderedVisibleRows.map(\.id)
+        guard !ids.isEmpty else { return .ignored }
+        let step = (press.key == .leftArrow || press.key == .upArrow) ? -1 : 1
+        let currentIndex = (cursorId ?? selectionAnchor).flatMap { ids.firstIndex(of: $0) }
+        let targetIndex: Int
+        if let currentIndex {
+            targetIndex = max(0, min(ids.count - 1, currentIndex + step))
+        } else {
+            targetIndex = step > 0 ? 0 : ids.count - 1
+        }
+        let result = SelectionGrammar.extend(
+            to: ids[targetIndex],
+            in: ids,
+            selection: selection,
+            anchor: selectionAnchor,
+            extendingRange: press.modifiers.contains(.shift)
+        )
+        selection = result.selection
+        selectionAnchor = result.anchor
+        cursorId = result.cursor
+        return .handled
     }
 
     /// The Finder rule, as everywhere else: the batch applies only when it

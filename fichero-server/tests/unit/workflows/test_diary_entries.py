@@ -202,6 +202,29 @@ class TestDiaryEntries:
             "We spent February 15 at the dredge.\nMore.", "Feb. 15"
         ) == "We spent February 15 at the dredge.\nMore."
 
+    async def test_span_found_across_line_breaks(self, diary_db):
+        # The prefix is whitespace-normalized; the geometry content has real
+        # newlines. Before 2026-08-17 the raw-content search returned None
+        # for any entry whose opening words cross a line break — no span, no
+        # bbox ("some pages have word level bounding boxes, many don't").
+        from fichero_server.workflows.tools.diary_entries import (
+            DiaryEntry,
+            _entry_spans,
+        )
+
+        content = "MONDAY, JANUARY 13\nSan Jose left\nPaimado today\nTUESDAY, JANUARY 14\nPay day."
+        entries = [
+            DiaryEntry(date_text="Jan. 13", text="San Jose left Paimado today"),
+            DiaryEntry(date_text="Jan. 14", text="Pay day."),
+        ]
+        spans = _entry_spans(content, entries)
+        assert spans[0] is not None, "line-crossing prefix must still locate"
+        assert content[spans[0][0]:].startswith("San Jose left")
+        assert spans[1] is not None
+        # Spans are RAW offsets: entry 1 ends where entry 2 begins.
+        assert spans[0][1] == spans[1][0]
+        assert content[spans[1][0]:].startswith("Pay day.")
+
     async def test_empty_transcript_raises(self, diary_db):
         db, _ = diary_db
         blank = Document(id="page-2", name="blank", doc_type=DocType.file)

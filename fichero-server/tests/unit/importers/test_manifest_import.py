@@ -194,8 +194,10 @@ def test_import_creates_documents_entities_claims(client, db, tmp_path):
     page = by_name["page_001"]
     # Parent wiring: page -> group.
     assert page["parent_id"] == by_name["Tiny Corpus"]["id"]
-    # External absolute sources stay in metadata; they are not promoted into
-    # the servable Document.path field.
+    # External absolute sources stay in metadata over the ROUTES (#4230:
+    # writing a path is a different grant from reading an engine-recorded
+    # one). The DROP path stamps engine-recorded paths afterwards — pinned
+    # in test_manifest_folder_drop.
     assert page["path"] is None
     # Renditions preserved in metadata.
     assert page["metadata"]["canonical_external_id"] == "tiny_corpus__page_001"
@@ -346,7 +348,8 @@ def test_link_mode_references_source_and_warms_local_preview(tmp_path):
         c for c in rec.calls if c[1] == "/documents" and c[2]["name"] == "page_001"
     )
     # The external absolute source is metadata only; Document.path is reserved
-    # for confined, servable paths.
+    # for confined, servable paths (the drop path stamps engine-recorded
+    # paths separately).
     assert page_post[2]["path"] is None
     assert page_post[2]["metadata"]["images"][0]["source_path"] == str(
         tmp_path / "page_001_enhanced.jpg"

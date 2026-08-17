@@ -109,6 +109,9 @@ struct LibraryView: View {
     // Workflow picker state
     @State var showWorkflowPicker = false
     @State var selectedDocumentIdsForBatch: [String] = []
+    /// The data views' own selection numbers for the status line (nil in
+    /// browse modes) — reported by DatasetModeView.
+    @State var datasetSelectionStatus: DatasetSelectionStatus?
 
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.

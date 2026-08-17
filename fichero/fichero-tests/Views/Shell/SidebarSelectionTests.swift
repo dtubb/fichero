@@ -147,6 +147,12 @@ struct SidebarSelectionTests {
         #expect(stateSource.contains("switch focusedPane"))
         #expect(stateSource.contains("pageFocusDocument ?? detailDocument ?? inspectorDocument"))
         #expect(stateSource.contains("if let page = activeLocationDocument, page.docType == .page"))
+        // An opened EXTRACTED node is inspected AS ITSELF (Daniel 2026-08-16:
+        // "the inspector should let me inspect the extracted node … it seems
+        // to have it highlighted on the parent"): the entry rung sits in the
+        // precedence chain, because rung 1's parent guard can never accept a
+        // node whose parent is a page rather than the sidebar folder.
+        #expect(stateSource.contains("if let entry = detailDocument, entry.nodeKind == \"entry\""))
         // The inspector claim gesture now ALSO writes paneFocusHint — the
         // Mail-selection seam (Daniel 2026-08-11 pane rulings) rides the same
         // tap that moves keyboard focus.

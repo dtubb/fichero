@@ -157,11 +157,25 @@ extension LibraryView {
                     anchorId: pathBarAnchorId,
                     resolve: { documentStore.resolveDocument($0) }
                 ),
-                statusText: libraryStatusText(
-                    selectionCount: selection.count,
-                    itemCount: isShowingEntitiesCollection
-                        ? filteredEntities.count : filteredDocuments.count
-                ),
+                // In DATA modes the status speaks the dataset's language
+                // ("1 of 160 dates selected — January 14, 1918"), fed by the
+                // renderer's own selection — the browser's counts describe a
+                // list the user is not looking at (2026-08-16).
+                statusText: {
+                    if displayMode.group == .dataset, let dataset = datasetSelectionStatus {
+                        return libraryStatusText(
+                            selectionCount: dataset.count,
+                            itemCount: dataset.total,
+                            noun: dataset.noun,
+                            detail: dataset.detail
+                        )
+                    }
+                    return libraryStatusText(
+                        selectionCount: selection.count,
+                        itemCount: isShowingEntitiesCollection
+                            ? filteredEntities.count : filteredDocuments.count
+                    )
+                }(),
                 onNavigate: { doc in onNavigateInto(doc) }
             )
         }

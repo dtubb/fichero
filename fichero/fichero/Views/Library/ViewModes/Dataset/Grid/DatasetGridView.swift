@@ -17,6 +17,10 @@ struct DatasetGridView: View {
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
     @State private var sortOrder: [DatasetAttributeComparator] = []
+    /// Per-window column layout (visibility + order), persisted — the
+    /// metadata affordance for the sheet.
+    @SceneStorage("datasetSheetColumns")
+    private var columnCustomization: TableColumnCustomization<DatasetPage.Row>
 
     var body: some View {
         if store.declaredAttributes.isEmpty && !store.hasDateSource {
@@ -33,11 +37,14 @@ struct DatasetGridView: View {
             // ponytail: header sort is LOCAL over the loaded page (≤500
             // rows, instant). Server-side sort (DatasetRequest.sortAttr)
             // takes over when paging beyond one page arrives.
-            Table(sortedRows, selection: $selection, sortOrder: $sortOrder) {
-                TableColumn("Name", sortUsing: DatasetAttributeComparator(attr: nil)) { row in
-                    Text(row.name)
-                        .lineLimit(1)
-                }
+            // Column DEFAULTS are the sheet's reading order (Daniel
+            // 2026-08-16/17: "hide the name have date first and text
+            // second"): Date leads, Text follows, Name ships HIDDEN — an
+            // entry's name IS its date, so the column is duplication.
+            // `columnCustomization` makes every column native: show/hide
+            // from the header context menu, reorder by dragging headers.
+            Table(sortedRows, selection: $selection, sortOrder: $sortOrder,
+                  columnCustomization: $columnCustomization) {
                 // The document's OWN extracted date — only when no date
                 // attribute column will already carry it.
                 if store.hasDateSource && store.attributeForRole["date"] == nil {
@@ -46,15 +53,25 @@ struct DatasetGridView: View {
                             .lineLimit(1)
                             .foregroundStyle(.secondary)
                     }
+                    .customizationID("date")
                 }
-                // The entry's transcript, first-class beside the name
-                // (Daniel 2026-08-14 night: "just dates, no transcript").
+                // The entry's transcript, first-class (Daniel 2026-08-14
+                // night: "just dates, no transcript"). Full Text mode lifts
+                // the line cap so whole entries read in place ("can't we
+                // have multiple lines of text on one").
                 TableColumn("Text") { row in
                     Text(store.displayExcerpt(of: row) ?? "")
-                        .lineLimit(1)
+                        .lineLimit(store.textDetail == .full ? nil : 1)
                         .foregroundStyle(.secondary)
                         .help(store.displayExcerpt(of: row) ?? "")
                 }
+                .customizationID("text")
+                TableColumn("Name", sortUsing: DatasetAttributeComparator(attr: nil)) { row in
+                    Text(row.name)
+                        .lineLimit(1)
+                }
+                .customizationID("name")
+                .defaultVisibility(.hidden)
                 TableColumnForEach(store.declaredAttributes, id: \.self) { attr in
                     TableColumn(attr, sortUsing: DatasetAttributeComparator(attr: attr)) { row in
                         if let entityService {
@@ -76,6 +93,7 @@ struct DatasetGridView: View {
                                 .lineLimit(1)
                         }
                     }
+                    .customizationID(attr)
                 }
             }
             .contextMenu(forSelectionType: DatasetPage.Row.ID.self) { ids in
