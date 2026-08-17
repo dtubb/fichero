@@ -293,6 +293,7 @@ def _import_manifest_folder(
         str(package_path),
         ingest_mode=ingest_mode,
         root_parent_id=request.parent_id,
+        on_progress=on_progress,
     )
     for warning in summary.warnings:
         logger.warning("manifest import: %s", warning)
@@ -301,8 +302,23 @@ def _import_manifest_folder(
         for doc_id in summary.created_document_ids
         if (doc := db.get(Document, doc_id)) is not None
     ]
-    if on_progress:
-        on_progress(len(docs), len(docs))
+    # ENGINE-RECORDED source paths (#4230 contract): the routes rightly
+    # refuse client-supplied absolute paths, so linked pages arrive pathless
+    # — and pathless means no thumbnails (2026-08-17 first live drop). This
+    # is the engine, holding the db, recording a path it verified against
+    # the SAME ingest authority plain link-ingest uses — exactly the "path
+    # the engine itself wrote at ingest" the serving allowlist trusts.
+    from fichero_server.importers.manifest_import import preferred_image
+    from fichero_server.security.path_security import is_allowed_ingest_path
+
+    for doc in docs:
+        if doc.path:
+            continue
+        image = preferred_image({"images": (doc.metadata or {}).get("images") or []})
+        source = image.get("source_path") if image else None
+        if source and Path(str(source)).is_file() and is_allowed_ingest_path(source):
+            doc.path = str(source)
+            db.save(doc)
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(
         "Manifest folder import: %s -> %d documents, %d entities, %d skipped",

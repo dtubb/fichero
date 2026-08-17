@@ -38,6 +38,12 @@ def test_folder_with_manifest_routes_through_manifest_importer(client, db, test_
 
     names = {d.name for d in docs}
     assert "Tiny Corpus" in names and "page_001" in names
+    # ENGINE-RECORDED path stamp (2026-08-17: pathless linked pages meant no
+    # thumbnails): the drop path writes the preferred rendition's source onto
+    # the document when the ingest authority allows it (pytest tmp is an
+    # allowed ingest root, mirroring a real drop's grant).
+    page = next(d for d in docs if d.name == "page_001")
+    assert page.path and page.path.endswith("page_001_enhanced.jpg")
     # Real Document rows, not summaries — the caller queues derivatives on these.
     assert all(isinstance(d, Document) for d in docs)
     # The page's transcript landed as page_content via the live routes.
@@ -92,3 +98,48 @@ def test_in_process_client_passes_the_loopback_guard(client, db, test_package, m
     in_process = _InProcessManifestClient(str(test_package))
     result = in_process.request("GET", "/documents?limit=1")
     assert result is not None, "the stamped in-memory transport must clear the loopback guard"
+
+
+def test_drop_stamps_engine_recorded_source_paths(client, db, test_package, tmp_path, monkeypatch):
+    """With the source under the ingest authority (as a real drop's grant
+    provides), the drop path stamps the preferred rendition's path onto the
+    document — engine-recorded, which is what thumbnails and serving trust."""
+    import fichero_server.api.routes.ingest.core as core
+
+    manifest = _fixture_manifest(tmp_path)
+    monkeypatch.setattr(core, "is_allowed_ingest_path", lambda p: True, raising=False)
+    # The stamp imports the authority inside the function; patch its source.
+    import fichero_server.security.path_security as ps
+
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: True)
+
+    docs = _import_manifest_folder(
+        db,
+        manifest,
+        IngestFolderRequest(path=str(tmp_path)),
+        Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    page = next(d for d in docs if d.name == "page_001")
+    assert page.path and page.path.endswith("page_001_enhanced.jpg")
+    persisted = db.get(type(page), page.id)
+    assert persisted.path == page.path, "the stamp is engine-RECORDED, not in-memory"
+
+
+def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_package, tmp_path, monkeypatch):
+    """A source the ingest authority refuses stays pathless — recorded in
+    metadata only, never a guessed grant."""
+    import fichero_server.security.path_security as ps
+
+    manifest = _fixture_manifest(tmp_path)
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
+
+    docs = _import_manifest_folder(
+        db,
+        manifest,
+        IngestFolderRequest(path=str(tmp_path)),
+        Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    page = next(d for d in docs if d.name == "page_001")
+    assert page.path is None

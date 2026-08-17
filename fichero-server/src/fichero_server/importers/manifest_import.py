@@ -288,6 +288,11 @@ def document_payload(
     metadata = _canonical_metadata(node)
     image_path = image.get("source_path") if image else None
     if image_path and Path(str(image_path)).expanduser().is_absolute():
+        # The routes contract (#4230, test_ingest_serving_allowlist_agreement):
+        # a CLIENT-supplied absolute path is refused — writing a path is a
+        # different grant from reading one the engine recorded. The DROP path
+        # stamps engine-recorded paths itself after this import (core.py), so
+        # linked corpora still get thumbnails.
         image_path = None
     payload: dict[str, Any] = {
         "name": node.get("name") or node.get("external_id"),
@@ -651,6 +656,7 @@ def import_manifest(
     ingest_mode: str | None = None,
     write_transcript_artifacts: bool = True,
     root_parent_id: str | None = None,
+    on_progress: Any | None = None,
 ) -> ImportSummary:
     """Import a canonical manifest into a library through the API client.
 
@@ -709,6 +715,9 @@ def import_manifest(
         doc_id_by_external[external_id] = new_id
         summary.documents_created += 1
         summary.created_document_ids.append(new_id)
+        if on_progress:
+            # Real totals for the drop UI ("says scanning. but not total").
+            on_progress(summary.documents_created, len(nodes))
 
     # --- entities (deduped by canonical name across the whole manifest) ---
     entity_id_by_key: dict[str, str] = {}
