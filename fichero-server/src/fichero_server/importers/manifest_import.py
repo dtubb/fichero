@@ -160,6 +160,11 @@ class ImportSummary:
     claims_created: int = 0
     claims_skipped: int = 0
     warnings: list[str] = field(default_factory=list)
+    #: Ids of documents THIS run created, in creation order — the in-process
+    #: folder-drop path (ingest/core.import_folder_impl) returns real Document
+    #: rows and queues derivatives from these. Not in to_dict(): the CLI
+    #: summary stays human-sized.
+    created_document_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -645,6 +650,7 @@ def import_manifest(
     copy_images: bool = False,
     ingest_mode: str | None = None,
     write_transcript_artifacts: bool = True,
+    root_parent_id: str | None = None,
 ) -> ImportSummary:
     """Import a canonical manifest into a library through the API client.
 
@@ -682,7 +688,11 @@ def import_manifest(
             summary.documents_skipped += 1
             continue
         parent_external = node.get("parent_external_id")
-        parent_id = doc_id_by_external.get(parent_external) if parent_external else None
+        # Root nodes land under ``root_parent_id`` when given — the folder the
+        # user DROPPED the corpus onto (2026-08-17 UX path), not library root.
+        parent_id = (
+            doc_id_by_external.get(parent_external) if parent_external else root_parent_id
+        )
         if parent_external and not parent_id:
             raise RuntimeError(
                 f"Missing parent for {external_id}: {parent_external}"
@@ -698,6 +708,7 @@ def import_manifest(
             new_id = str(created["id"])
         doc_id_by_external[external_id] = new_id
         summary.documents_created += 1
+        summary.created_document_ids.append(new_id)
 
     # --- entities (deduped by canonical name across the whole manifest) ---
     entity_id_by_key: dict[str, str] = {}

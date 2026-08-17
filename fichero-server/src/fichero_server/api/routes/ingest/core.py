@@ -212,6 +212,96 @@ def import_file_impl(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class _InProcessManifestClient:
+    """``ManifestApiClient`` that calls THIS server's own routes in process.
+
+    The folder-drop UX path (2026-08-17): a dropped folder carrying
+    ``manifest.jsonl`` routes through the manifest importer, which speaks the
+    same FastAPI routes the app does. In process means a ``TestClient`` bound
+    to our own ``app`` object — no network, no self-connect deadlock — and the
+    server authorizes itself with its own bootstrap token
+    (``initialize_token`` is an idempotent read once the key file exists).
+    """
+
+    def __init__(self, library_path: str) -> None:
+        from fastapi.testclient import TestClient
+
+        from fichero_server.api.auth import initialize_token
+        from fichero_server.api.main import app
+
+        self._client = TestClient(app)
+        self._headers = {
+            "Authorization": f"Bearer {initialize_token()}",
+            "X-Fichero-Library-Path": library_path,
+        }
+
+    def request(self, method: str, path: str, body=None):
+        url = f"/api{path}"
+        resp = self._client.request(method, url, json=body, headers=self._headers)
+        # Preview-warm GETs are best-effort, mirroring the CLI transport: an
+        # unrenderable image is a warning, never an import failure.
+        if method == "GET" and path.startswith("/storage/") and resp.status_code >= 400:
+            return None
+        if resp.status_code >= 400:
+            raise RuntimeError(f"{method} {url} -> {resp.status_code}: {resp.text[:300]}")
+        if resp.content:
+            try:
+                return resp.json()
+            except ValueError:
+                return None
+        return None
+
+
+def _import_manifest_folder(
+    db: Database,
+    manifest_path: Path,
+    request: "IngestFolderRequest",
+    package_path: Path,
+    on_progress=None,
+    manifest_client=None,
+) -> list[Document]:
+    """A dropped folder that carries ``manifest.jsonl`` IS a corpus import.
+
+    Runs the same importer as ``fichero import-manifest`` — folders, pages,
+    transcripts into ``page_content``, entities, claims — through the app's
+    own routes, so change events fire and the sidebar populates live. The
+    drop target (``request.parent_id``) becomes the corpus root's parent, and
+    the drop's copy/link choice is honoured as the ingest mode.
+
+    ``manifest_client`` is injectable for tests; production builds the
+    in-process client above.
+    """
+    from fichero_server.importers.manifest_import import import_manifest
+
+    client = manifest_client or _InProcessManifestClient(str(package_path))
+    ingest_mode = request.mode or ("copy" if request.copy_mode else "link")
+    summary = import_manifest(
+        client,
+        manifest_path,
+        str(package_path),
+        ingest_mode=ingest_mode,
+        root_parent_id=request.parent_id,
+    )
+    for warning in summary.warnings:
+        logger.warning("manifest import: %s", warning)
+    docs = [
+        doc
+        for doc_id in summary.created_document_ids
+        if (doc := db.get(Document, doc_id)) is not None
+    ]
+    if on_progress:
+        on_progress(len(docs), len(docs))
+    queue_derivatives(docs, library_path=package_path, db=db)
+    logger.info(
+        "Manifest folder import: %s -> %d documents, %d entities, %d skipped",
+        manifest_path,
+        summary.documents_created,
+        summary.entities_created,
+        summary.documents_skipped,
+    )
+    return docs
+
+
 def import_folder_impl(
     db: Database,
     request: IngestFolderRequest,
@@ -242,6 +332,16 @@ def import_folder_impl(
         raise HTTPException(status_code=400, detail=f"Refusing to ingest symlinked folder: {request.path}")
     if not path.is_dir():
         raise HTTPException(status_code=400, detail=f"Not a directory: {request.path}")
+
+    # A folder carrying manifest.jsonl is a CORPUS, not a pile of files —
+    # route it through the manifest importer (Daniel 2026-08-17: "is there a
+    # way in UX to do it. if not, that's priority"). Same importer as the
+    # CLI's import-manifest; a plain folder is untouched by this branch.
+    manifest_path = path / "manifest.jsonl"
+    if manifest_path.is_file():
+        return _import_manifest_folder(
+            db, manifest_path, request, package_path, on_progress=on_progress
+        )
 
     mode = IngestMode(request.mode) if request.mode else (
         IngestMode.COPY if request.copy_mode else IngestMode.LINK
