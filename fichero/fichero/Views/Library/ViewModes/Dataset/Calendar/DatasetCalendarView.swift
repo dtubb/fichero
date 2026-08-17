@@ -28,9 +28,14 @@ struct DatasetCalendarView: View {
             VStack(spacing: 0) {
                 monthHeader
                 Divider()
+                // The calendar IS the display (Daniel 2026-08-16: "you can
+                // actually see it in the calendar … no need to show the
+                // actual stuff below"): planner cells carry the entries'
+                // words; clicking a day selects its entry, and the shell
+                // routes preview/reader/inspector. The old below-the-grid
+                // day list is retired with it.
                 monthGrid
-                Divider()
-                dayList
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
             .onAppear { seedMonth() }
             .onChange(of: store.page?.bins.first?.bin) { _, _ in seedMonth() }
@@ -122,7 +127,11 @@ struct DatasetCalendarView: View {
     private var monthGrid: some View {
         let days = daysInShownMonth
         let counts = countsByDay
-        return LazyVGrid(
+        // Planner geometry: the month's week-rows split the pane height, so
+        // cells GROW with the window ("why can't it be even bigger").
+        let weekRows = max(1, Int(ceil(Double(days.count) / 7)))
+        return GeometryReader { geo in
+        LazyVGrid(
             columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7),
             spacing: 4
         ) {
@@ -137,10 +146,14 @@ struct DatasetCalendarView: View {
             // id by POSITION: the leading blanks are all "" and duplicate
             // \.self ids corrupt ForEach diffing.
             ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                dayCell(day, count: counts[day] ?? 0)
+                dayCell(
+                    day, count: counts[day] ?? 0,
+                    height: max(44, (geo.size.height - 40) / CGFloat(weekRows) - 4)
+                )
             }
         }
         .padding(10)
+        }
     }
 
     /// Weekday column headers, rotated to the user's first weekday.
@@ -168,124 +181,92 @@ struct DatasetCalendarView: View {
     }
 
     @ViewBuilder
-    private func dayCell(_ day: String, count: Int) -> some View {
+    private func dayCell(_ day: String, count: Int, height: CGFloat) -> some View {
         if day.isEmpty {
-            Color.clear.frame(height: 44)
+            Color.clear.frame(height: height)
         } else {
+            let rows = count > 0 ? rowsOn(day: day) : []
+            let isSelected = rows.contains { selection.contains($0.id) }
             Button {
-                selectedDay = (selectedDay == day) ? nil : day
-            } label: {
-                VStack(spacing: 3) {
-                    Text(String(Int(day.suffix(2)) ?? 0))
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(count > 0 ? .primary : .secondary)
-                    // One entry = a quiet dot; several = the count. A diary
-                    // is mostly one entry per day, and a wall of "1" chips
-                    // reads as noise (preview-driven, 2026-08-14).
-                    if count > 1 {
-                        Text("\(count)")
-                            .font(.caption2.weight(.semibold))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Color.accentColor.opacity(0.2), in: Capsule())
-                    } else if count == 1 {
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: 5, height: 5)
-                            .padding(.vertical, 3)
-                    } else {
-                        Text(" ").font(.caption2)
-                    }
+                selectedDay = day
+                // A day click IS a selection: the first entry of the day
+                // routes preview (source page + bbox), reader and inspector
+                // through the shell's router — same grammar as every other
+                // renderer.
+                if let first = rows.first {
+                    selection = SelectionGrammar.select(first.id).selection
                 }
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(
-                    selectedDay == day ? Color.accentColor.opacity(0.15) : Color.clear,
-                    in: RoundedRectangle(cornerRadius: 6)
+            } label: {
+                dayCellLabel(
+                    day, count: count, rows: rows,
+                    height: height, highlighted: isSelected || selectedDay == day
                 )
             }
             .buttonStyle(.plain)
             .disabled(count == 0)
+            .contextMenu { dayCellMenu(rows) }
         }
+    }
+
+    private func dayCellLabel(
+        _ day: String, count: Int, rows: [DatasetPage.Row],
+        height: CGFloat, highlighted: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(Int(day.suffix(2)) ?? 0))
+                    .font(.caption.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(count > 0 ? .primary : .tertiary)
+                Spacer(minLength: 0)
+                if count > 1 {
+                    Text("\(count)")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.accentColor.opacity(0.2), in: Capsule())
+                }
+            }
+            // The day's words, in the day's square — the calendar is
+            // the reading surface, not a navigator to one.
+            if let first = rows.first,
+               let words = store.displayExcerpt(of: first) {
+                Text(words)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(store.textDetail == .full ? nil : 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(5)
+        .frame(maxWidth: .infinity, minHeight: height, alignment: .topLeading)
+        .background(
+            highlighted ? Color.accentColor.opacity(0.15) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 6)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color.primary.opacity(0.06))
+        )
     }
 
     @ViewBuilder
-    private var dayList: some View {
-        if let selectedDay {
-            let rows = rowsOn(day: selectedDay)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(dayTitle(selectedDay)) — \(rows.count) \(rows.count == 1 ? "entry" : "entries")")
-                    .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                // ScrollView, not List — same reasoning as the timeline
-                // (no selection model; List asserted under the preview
-                // host).
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(rows) { row in
-                            dayListRow(row)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 5)
-                                .contentShape(Rectangle())
-                                .background(
-                                    selection.contains(row.id)
-                                        ? Color.accentColor.opacity(0.12) : .clear
-                                )
-                                .onTapGesture(count: 2) { onOpen(row) }
-                                .onTapGesture { selection = SelectionGrammar.select(row.id).selection }
-                                // Touch parity: iPad has no double-click.
-                                .contextMenu {
-                                    Button("Open") { onOpen(row) }
-                                    if row.parentId != nil {
-                                        Button("Show Source Page") { onOpenSource(row) }
-                                    }
-                                    if entityService != nil, let dateAttr = store.attributeForRole["date"] {
-                                        Button("Edit Date…") {
-                                            draftDate = store.text(dateAttr, of: row) ?? ""
-                                            editingRow = row
-                                        }
-                                    }
-                                }
-                            Divider().padding(.leading, 16)
-                        }
-                    }
-                }
-            }
-        } else {
-            Text("Select a day with entries to list them here.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+    private func dayCellMenu(_ rows: [DatasetPage.Row]) -> some View {
+        ForEach(rows) { row in
+            Button("Open \(row.name)") { onOpen(row) }
         }
-    }
-
-    /// Name plus the title role (the place, for a diary) when it adds
-    /// something beyond the name.
-    private func dayListRow(_ row: DatasetPage.Row) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(row.name)
-                    .lineLimit(1)
-                if let titleAttr = store.attributeForRole["title"],
-                   let title = store.text(titleAttr, of: row), title != row.name {
-                    Text(title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-            }
-            // The day's words, right where the day was picked.
-            if let excerpt = store.displayExcerpt(of: row) {
-                Text(excerpt)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+        if let first = rows.first, first.parentId != nil {
+            Button("Show Source Page") { onOpenSource(first) }
+        }
+        if entityService != nil, store.attributeForRole["date"] != nil,
+           let first = rows.first {
+            Button("Edit Date…") {
+                draftDate = store.dateValue(of: first) ?? ""
+                editingRow = first
             }
         }
     }
-
 }
 
 // Pure helpers, split from the struct body at the 250-line lint budget
