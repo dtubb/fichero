@@ -6,6 +6,42 @@
 
 ### Dev build
 
+The hardening build: two days of live testing on the datasets release,
+folded back in — plus the Marshall corpus drop.
+
+**Drop a corpus, get a corpus.** Dragging a staged folder with a
+`manifest.jsonl` into a library imports everything it describes — pages,
+transcripts as each page's text, deduped entities, renditions — with real
+progress counts, thumbnails, and the corpus landing under the folder you
+dropped it on. Re-dropping an already-imported corpus repairs it instead
+of silently doing nothing. All 29 Marshall diaries are staged and ready.
+
+**Sidecars carry their own facts.** A `x.jpg.transcript.txt` beside an
+image becomes its text on any plain folder drop; an `.iffy.json` stating
+`original_date` dates the document on arrival — no Extract Dates run
+needed for corpora that already know their dates.
+
+**One selection, four views.** Clicking a row in the Sheet (né Grid), a
+day in the Calendar, an entry in the Timeline or Cards routes preview to
+the source page with its bounding box, reader to the text, and the
+inspector to the entry itself — not its parent. Arrow keys walk the
+chronology; ⇧ extends; the status line says "1 of 160 dates selected —
+January 14, 1918" instead of counting a list you aren't looking at.
+
+**The calendar is the display.** Day cells grow with the window and carry
+the day's words; the below-the-grid list is gone. The Sheet ships Date
+first, Text second, Name hidden — with native column show/hide and drag
+reordering, and multi-line text on demand.
+
+**Diary extraction honesty.** Entry spans survive line breaks (far more
+entries get boxes), printed date headings are stripped structurally for
+old and new data alike, and the prompt now forbids moving one day's
+writing under another day's heading.
+
+## 2026.08.15
+
+### Dev build
+
 The datasets release. A folder of scanned diary pages now turns into data
 you can actually read: run Diary Entries on a page and each day becomes its
 own node, dated, carrying the text and the exact region of the scan it came
