@@ -112,7 +112,9 @@ enum ViewDisplayMode: String, CaseIterable, Identifiable {
         // would be actively misleading (supersedes the #1613 rename).
         case .table: "Table"
         case .columns: "Columns"
-        case .grid: "Grid"
+        // "Sheet" (Daniel 2026-08-16: "lets call it a sheet") — it IS a
+        // spreadsheet; "Grid" collided with the icon-grid mental model.
+        case .grid: "Sheet"
         case .calendar: "Calendar"
         case .geoMap: "Map"
         default: rawValue
