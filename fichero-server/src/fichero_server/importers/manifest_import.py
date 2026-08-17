@@ -165,6 +165,11 @@ class ImportSummary:
     #: rows and queues derivatives from these. Not in to_dict(): the CLI
     #: summary stays human-sized.
     created_document_ids: list[str] = field(default_factory=list)
+    #: Ids of every manifest document this run TOUCHED — created or matched
+    #: as already-existing. A re-drop repairs an earlier incomplete import
+    #: through these (2026-08-17: a failed delete + idempotent skip left the
+    #: corpus pathless and the re-drop silently did nothing).
+    seen_document_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -692,6 +697,7 @@ def import_manifest(
         external_id = node["external_id"]
         if external_id in doc_id_by_external:
             summary.documents_skipped += 1
+            summary.seen_document_ids.append(doc_id_by_external[external_id])
             continue
         parent_external = node.get("parent_external_id")
         # Root nodes land under ``root_parent_id`` when given — the folder the
@@ -715,6 +721,7 @@ def import_manifest(
         doc_id_by_external[external_id] = new_id
         summary.documents_created += 1
         summary.created_document_ids.append(new_id)
+        summary.seen_document_ids.append(new_id)
         if on_progress:
             # Real totals for the drop UI ("says scanning. but not total").
             on_progress(summary.documents_created, len(nodes))

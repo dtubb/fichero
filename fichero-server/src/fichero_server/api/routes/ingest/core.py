@@ -297,9 +297,13 @@ def _import_manifest_folder(
     )
     for warning in summary.warnings:
         logger.warning("manifest import: %s", warning)
+    # SEEN, not just created: a re-drop of an already-imported corpus must
+    # REPAIR it (stamp pathless pages, queue their thumbnails) instead of
+    # skipping everything and returning empty (2026-08-17 live: a failed
+    # delete + idempotent skip made the second drop a silent no-op).
     docs = [
         doc
-        for doc_id in summary.created_document_ids
+        for doc_id in summary.seen_document_ids
         if (doc := db.get(Document, doc_id)) is not None
     ]
     # ENGINE-RECORDED source paths (#4230 contract): the routes rightly

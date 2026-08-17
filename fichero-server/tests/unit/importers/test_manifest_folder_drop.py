@@ -143,3 +143,28 @@ def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_packa
     )
     page = next(d for d in docs if d.name == "page_001")
     assert page.path is None
+
+
+def test_redrop_repairs_a_pathless_earlier_import(client, db, test_package, tmp_path):
+    """2026-08-17 live: a failed delete + idempotent skip made the second
+    drop a silent no-op — same pathless pages, still no thumbnails. A
+    re-drop must return the SEEN documents and stamp the pathless ones."""
+    manifest = _fixture_manifest(tmp_path)
+    request = IngestFolderRequest(path=str(tmp_path))
+
+    first = _import_manifest_folder(
+        db, manifest, request, Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    page = next(d for d in first if d.name == "page_001")
+    # Simulate the pre-fix import: strip the stamp.
+    page.path = None
+    db.save(page)
+
+    second = _import_manifest_folder(
+        db, manifest, request, Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    assert second, "a re-drop reports the corpus it touched, not an empty no-op"
+    repaired = next(d for d in second if d.name == "page_001")
+    assert repaired.path and repaired.path.endswith("page_001_enhanced.jpg")
