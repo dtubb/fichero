@@ -61,6 +61,11 @@ Rules:
 - `date_iso` is your best reading as YYYY-MM-DD, or null when the page
   gives too little to tell. The diary year context, if visible, applies.
 - `text` is the entry's VERBATIM transcript text, including its heading.
+  (The heading is stripped before storage — never repeat the date again
+  inside the body.)
+- Writing belongs to the heading ABOVE it, never the one below: when a
+  heading has no writing under it, that day's `text` is just the heading
+  line. NEVER move an earlier day's writing under a later day's heading.
 
 Transcript:
 {transcript}
