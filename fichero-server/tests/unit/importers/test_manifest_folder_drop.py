@@ -127,11 +127,17 @@ def test_drop_stamps_engine_recorded_source_paths(client, db, test_package, tmp_
 
 
 def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_package, tmp_path, monkeypatch):
-    """A source the ingest authority refuses stays pathless — recorded in
-    metadata only, never a guessed grant."""
+    """No image in the dropped folder AND the external source refused by the
+    ingest authority → the page stays pathless: recorded in metadata only,
+    never a guessed grant. (An image INSIDE the dropped folder is stamped
+    regardless — the drop grant IS the authority for its own contents,
+    which is what survived the 2026-08-18 broken-bookmark live failure.)"""
     import fichero_server.security.path_security as ps
 
     manifest = _fixture_manifest(tmp_path)
+    # Remove the drop-root image so only the manifest's external source
+    # remains, then refuse that source.
+    (tmp_path / "page_001_enhanced.jpg").unlink()
     monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
 
     docs = _import_manifest_folder(
@@ -143,6 +149,29 @@ def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_packa
     )
     page = next(d for d in docs if d.name == "page_001")
     assert page.path is None
+
+
+def test_drop_root_image_is_stamped_even_when_bookmarks_are_broken(client, db, test_package, tmp_path, monkeypatch):
+    """2026-08-18 live: every security-scoped bookmark for the source tree
+    failed to resolve in the engine process and all 153 stamps declined.
+    The dropped folder itself passed ingest validation — its own files ARE
+    granted, whatever the bookmark store thinks."""
+    import fichero_server.security.path_security as ps
+
+    manifest = _fixture_manifest(tmp_path)
+    # Name the drop-root image the way staging does: <doc name>.<ext>.
+    (tmp_path / "page_001_enhanced.jpg").rename(tmp_path / "page_001.jpg")
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
+
+    docs = _import_manifest_folder(
+        db,
+        manifest,
+        IngestFolderRequest(path=str(tmp_path)),
+        Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    page = next(d for d in docs if d.name == "page_001")
+    assert page.path and page.path.endswith("page_001.jpg")
 
 
 def test_redrop_repairs_a_pathless_earlier_import(client, db, test_package, tmp_path):

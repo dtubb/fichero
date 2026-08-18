@@ -264,6 +264,13 @@ class _InProcessManifestClient:
         return None
 
 
+def _is_sidecar_like(path: Path) -> bool:
+    """The staging sidecars share the image's stem — never stamp one as the
+    document's path."""
+    name = path.name.lower()
+    return name.endswith((".json", ".txt", ".jsonl", ".xmp"))
+
+
 def _import_manifest_folder(
     db: Database,
     manifest_path: Path,
@@ -315,13 +322,32 @@ def _import_manifest_folder(
     from fichero_server.importers.manifest_import import preferred_image
     from fichero_server.security.path_security import is_allowed_ingest_path
 
+    drop_root = Path(request.path).expanduser()
     for doc in docs:
         if doc.path:
             continue
-        image = preferred_image({"images": (doc.metadata or {}).get("images") or []})
-        source = image.get("source_path") if image else None
-        if source and Path(str(source)).is_file() and is_allowed_ingest_path(source):
-            doc.path = str(source)
+        # FIRST authority: the dropped folder itself. The request already
+        # passed _validate_ingest_path for it, and the staging convention
+        # puts each page's image (a symlink) right there — so the stamp
+        # cannot be defeated by unresolvable security-scoped bookmarks for
+        # the EXTERNAL source tree (2026-08-18 live: every bookmark for
+        # ~/code/marshall_diaries failed to resolve in the engine process
+        # and all 153 stamps declined).
+        source: str | None = None
+        in_drop = next(
+            (c for c in sorted(drop_root.glob(f"{doc.name}.*"))
+             if c.is_file() and not _is_sidecar_like(c)),
+            None,
+        )
+        if in_drop is not None:
+            source = str(in_drop)
+        else:
+            image = preferred_image({"images": (doc.metadata or {}).get("images") or []})
+            candidate = image.get("source_path") if image else None
+            if candidate and Path(str(candidate)).is_file() and is_allowed_ingest_path(candidate):
+                source = str(candidate)
+        if source:
+            doc.path = source
             db.save(doc)
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(
