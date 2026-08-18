@@ -124,3 +124,17 @@ final class DatasetModeStoreFilterTests: XCTestCase {
         XCTAssertEqual(edited.attributes["weather"] as? String, "storm")
     }
 }
+
+extension DatasetModeStoreFilterTests {
+    /// A sheet text edit swaps ONE row's excerpt in place — no wholesale
+    /// re-render, source reference intact (the applyLocalEdit rule, for text).
+    func testApplyLocalTextSwapsExcerptAndKeepsReference() throws {
+        let sut = DatasetModeStore.previewDiary()
+        let row = try XCTUnwrap(sut.page?.rows.first { $0.parentId != nil })
+        sut.applyLocalText(rowId: row.id, text: "Corrected words for this day.")
+        let edited = try XCTUnwrap(sut.page?.rows.first { $0.id == row.id })
+        XCTAssertEqual(edited.excerpt, "Corrected words for this day.")
+        XCTAssertEqual(edited.parentId, row.parentId)
+        XCTAssertEqual(sut.page?.rows.count, DatasetPage.previewDiary.rows.count)
+    }
+}

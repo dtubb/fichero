@@ -243,6 +243,7 @@ struct DatasetModeView: View {
             switch renderer {
             case .grid:
                 DatasetGridView(store: store, entityService: entityService,
+                                documentService: documentService,
                                 selection: $selection,
                                 onOpen: onOpen, onOpenSource: onOpenSource)
             case .cards:

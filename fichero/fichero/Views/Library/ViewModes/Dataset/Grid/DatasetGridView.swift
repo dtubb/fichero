@@ -10,6 +10,9 @@ struct DatasetGridView: View {
     let store: DatasetModeStore
     /// Nil = read-only cells (previews, closed library).
     var entityService: EntityService?
+    /// Nil = the Text column is read-only; set, its cells commit through
+    /// updateDocument(pageContent:), which stamps the user-edit marker.
+    var documentService: DocumentService?
     /// Shared with the shell (2026-08-16): sheet row selection routes
     /// preview/reader/inspector, same as every other data renderer. A Set
     /// binding also gives the Table native ⌘/⇧ multi-select.
@@ -60,10 +63,24 @@ struct DatasetGridView: View {
                 // the line cap so whole entries read in place ("can't we
                 // have multiple lines of text on one").
                 TableColumn("Text") { row in
-                    Text(store.displayExcerpt(of: row) ?? "")
-                        .lineLimit(store.textDetail == .full ? nil : 1)
-                        .foregroundStyle(.secondary)
-                        .help(store.displayExcerpt(of: row) ?? "")
+                    if let documentService {
+                        // Edits commit on submit/focus-out and persist with
+                        // the user-edited stamp — machine reruns can never
+                        // clobber a sheet correction (Daniel 2026-08-16:
+                        // "we can edit dates, but not text").
+                        // ponytail: single-line field over the excerpt; a
+                        // long-form editor lives in the reader.
+                        DatasetGridCell(
+                            text: store.displayExcerpt(of: row) ?? ""
+                        ) { newValue in
+                            Task { await store.saveText(newValue, on: row, service: documentService) }
+                        }
+                    } else {
+                        Text(store.displayExcerpt(of: row) ?? "")
+                            .lineLimit(store.textDetail == .full ? nil : 1)
+                            .foregroundStyle(.secondary)
+                            .help(store.displayExcerpt(of: row) ?? "")
+                    }
                 }
                 .customizationID("text")
                 TableColumn("Name", sortUsing: DatasetAttributeComparator(attr: nil)) { row in
