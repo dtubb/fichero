@@ -431,22 +431,38 @@ def claim_payload(
 # ---------------------------------------------------------------------------
 
 
+def _paginated(client: ManifestApiClient, path: str, keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    """Every page, not the first one. A single limit=500 read made the
+    idempotency check BLIND past 500 documents — a re-drop of a corpus
+    sitting on page two re-created every page as a duplicate (2026-08-18
+    live, 153 → 198 children and climbing)."""
+    out: list[dict[str, Any]] = []
+    offset = 0
+    while True:
+        response = client.request("GET", f"{path}?limit=500&offset={offset}")
+        if isinstance(response, dict):
+            batch = None
+            for key in keys:
+                if isinstance(response.get(key), list):
+                    batch = response[key]
+                    break
+            batch = batch or []
+        elif isinstance(response, list):
+            batch = response
+        else:
+            batch = []
+        out.extend(batch)
+        if len(batch) < 500:
+            return out
+        offset += 500
+
+
 def _list_documents(client: ManifestApiClient) -> list[dict[str, Any]]:
-    response = client.request("GET", "/documents?limit=500")
-    if isinstance(response, dict):
-        return list(response.get("items") or [])
-    if isinstance(response, list):
-        return response
-    return []
+    return _paginated(client, "/documents", ("items",))
 
 
 def _list_entities(client: ManifestApiClient) -> list[dict[str, Any]]:
-    response = client.request("GET", "/entities?limit=500")
-    if isinstance(response, dict):
-        return list(response.get("items") or response.get("entities") or [])
-    if isinstance(response, list):
-        return response
-    return []
+    return _paginated(client, "/entities", ("items", "entities"))
 
 
 def _list_claim_external_ids(client: ManifestApiClient) -> set[str]:
@@ -466,12 +482,7 @@ def _list_claim_external_ids(client: ManifestApiClient) -> set[str]:
 
 
 def _list_artifact_keys(client: ManifestApiClient) -> set[tuple[str, str]]:
-    response = client.request("GET", "/artifacts/?limit=500")
-    items: list[dict[str, Any]] = []
-    if isinstance(response, dict):
-        items = list(response.get("items") or [])
-    elif isinstance(response, list):
-        items = response
+    items = _paginated(client, "/artifacts/", ("items",))
     keys: set[tuple[str, str]] = set()
     for artifact in items:
         doc_id = artifact.get("document_id")
