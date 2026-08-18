@@ -301,14 +301,19 @@ def _import_manifest_folder(
 
     client = manifest_client or _InProcessManifestClient(str(package_path))
     ingest_mode = request.mode or ("copy" if request.copy_mode else "link")
-    summary = import_manifest(
-        client,
-        manifest_path,
-        str(package_path),
-        ingest_mode=ingest_mode,
-        root_parent_id=request.parent_id,
-        on_progress=on_progress,
-    )
+    # Import first, embed separately (Daniel 2026-08-18): per-write embedding
+    # made the entity phase crawl (5-30s per step) — rows must appear in the
+    # app fast, vectors follow in one background batch after the import.
+    with db.defer_embeddings():
+        summary = import_manifest(
+            client,
+            manifest_path,
+            str(package_path),
+            ingest_mode=ingest_mode,
+            root_parent_id=request.parent_id,
+            on_progress=on_progress,
+        )
+    db.flush_deferred_embeddings()
     for warning in summary.warnings:
         logger.warning("manifest import: %s", warning)
     # SEEN, not just created: a re-drop of an already-imported corpus must

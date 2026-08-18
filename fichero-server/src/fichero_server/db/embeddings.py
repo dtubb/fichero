@@ -1248,8 +1248,55 @@ class DatabaseEmbeddingMixin:
         """Best-effort background embed for a batch of written claims."""
         self._schedule_embedding_task(list(claims), label="claim")
 
+    def defer_embeddings(self):
+        """Collect entity/claim embeds instead of running them (import-first).
+
+        Daniel's ruling (2026-08-18): a corpus import must not pay embedding
+        per write — rows appear in the app first, vectors follow. Use as a
+        context manager around bulk writes, then ``flush_deferred_embeddings``
+        runs ONE batch per kind on a background thread.
+        """
+        import contextlib
+
+        @contextlib.contextmanager
+        def _ctx():
+            prev = getattr(self, "_deferred_embeds", None)
+            self._deferred_embeds = {"entity": [], "claim": []}
+            try:
+                yield self
+            finally:
+                pending = self._deferred_embeds
+                self._deferred_embeds = prev
+                self._pending_embed_flush = pending
+
+        return _ctx()
+
+    def flush_deferred_embeddings(self) -> None:
+        """Embed everything collected under ``defer_embeddings`` off-thread."""
+        import threading
+
+        pending = getattr(self, "_pending_embed_flush", None)
+        self._pending_embed_flush = None
+        if not pending:
+            return
+
+        def _flush() -> None:
+            try:
+                if pending["entity"]:
+                    self.embed_entities(pending["entity"])
+                if pending["claim"]:
+                    self.embed_claims(pending["claim"])
+            except Exception as exc:  # embeds are best-effort; reindex recovers
+                logger.warning("Deferred embed flush failed: %s", exc)
+
+        threading.Thread(target=_flush, name="fichero-embed-flush", daemon=True).start()
+
     def _schedule_embedding_task(self, records, *, label: str) -> None:
         """Run embedding work off-loop when possible; degrade to sync otherwise."""
+        deferred = getattr(self, "_deferred_embeds", None)
+        if deferred is not None:
+            deferred[label if label in deferred else "claim"].extend(records)
+            return
         def _run() -> None:
             # Reuse THIS shared instance (#2508: one connection + one RLock,
             # safe from any thread). A throwaway Database per job paid a full
