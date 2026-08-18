@@ -590,6 +590,104 @@ def _action_create_artifact(
     return _artifact_response(artifact).model_dump(mode="json"), spec
 
 
+class ArtifactBulkCreateActionParams(BaseModel):
+    artifacts: list[ArtifactCreateRequest]
+
+
+@action(
+    "artifact.bulk_create",
+    ArtifactBulkCreateActionParams,
+    domains=["artifact", "document"],
+    undoable=False,
+)
+def _action_bulk_create_artifacts(
+    db: Database, params: ArtifactBulkCreateActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Create a batch of artifacts in ONE audited action.
+
+    A corpus drop writes ~4 artifacts per page; one route call each cost
+    ~2.4s live on a large library (vs 34ms clean — per-request overhead,
+    2026-08-18), turning the artifact phase into 15+ minutes. Unknown
+    documents are per-item warnings, never a batch failure.
+    """
+    created: list[Artifact] = []
+    warnings: list[str] = []
+    for item in params.artifacts:
+        if db.get(Document, item.document_id) is None:
+            warnings.append(f"artifact skipped: document not found {item.document_id}")
+            continue
+        artifact_type = (item.artifact_type or "").strip()
+        if not artifact_type:
+            warnings.append(f"artifact skipped: missing type for {item.document_id}")
+            continue
+        artifact = Artifact(
+            document_id=item.document_id,
+            artifact_type=artifact_type,
+            content=item.content,
+            data=item.data,
+            source_artifact_id=item.source_artifact_id,
+            version=item.version,
+            source_document_id=item.source_document_id,
+            run_id=item.run_id,
+            provider=item.provider,
+            model=item.model,
+            step_name=item.step_name,
+            confidence=item.confidence,
+            reviewed=item.reviewed,
+        )
+        db.save(artifact)
+        created.append(artifact)
+    spec = ChangeSpec(
+        domains=["artifact", "document"],
+        target_ids=[a.id for a in created],
+        after={"created": len(created)},
+        emit_type="artifact.created",
+        artifact_ids=[a.id for a in created],
+        document_ids=sorted({a.document_id for a in created}),
+    )
+    result = {
+        "created_ids": [a.id for a in created],
+        "warnings": warnings,
+    }
+    return result, spec
+
+
+class ArtifactBulkCreateRequest(BaseModel):
+    artifacts: list[ArtifactCreateRequest]
+
+
+class ArtifactBulkCreateResponse(BaseModel):
+    created_ids: list[str]
+    warnings: list[str]
+
+
+@router.post("/bulk", response_model=ArtifactBulkCreateResponse)
+async def bulk_create_artifacts(
+    request: ArtifactBulkCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None,
+        alias="X-Fichero-Origin-Window",
+    ),
+    actor: str = Depends(request_actor),
+) -> ArtifactBulkCreateResponse:
+    """Create a batch of artifacts (one audited action, #1848)."""
+    ctx = _resolve_action_ctx(
+        actor=actor,
+        library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window,
+        db=db,
+    )
+    result = registry.invoke(
+        db,
+        "artifact.bulk_create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return ArtifactBulkCreateResponse.model_validate(result.result)
+
+
 @action(
     "artifact.update",
     ArtifactUpdateActionParams,

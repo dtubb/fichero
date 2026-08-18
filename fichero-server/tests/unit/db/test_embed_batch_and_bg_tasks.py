@@ -143,9 +143,11 @@ async def test_schedule_embedding_task_tracks_reference() -> None:
     and removed after completion via the done callback."""
     mixin = _FakeMixin()
 
-    # The worker reuses THIS shared instance (#2508) — a throwaway Database
-    # per job paid a full open+migrations per entity write (2026-08-18).
-    with patch.object(mixin, "embed_entities", return_value=None) as embed:
+    # Embeds run on the cached WORKER connection (a batch on the shared
+    # request lock deadlocked the API, 2026-08-18); tests point the worker
+    # at the mixin itself.
+    with patch.object(mixin, "_embed_worker", return_value=mixin), \
+         patch.object(mixin, "embed_entities", return_value=None) as embed:
         mixin._schedule_embedding_task(["rec"], label="entity")
 
         # Task reference exists immediately after create_task()
@@ -180,7 +182,8 @@ async def test_schedule_embedding_task_semaphore_limits_concurrency() -> None:
         with lock:
             active -= 1
 
-    with patch.object(mixin, "embed_entities", side_effect=slow_embed):
+    with patch.object(mixin, "_embed_worker", return_value=mixin), \
+         patch.object(mixin, "embed_entities", side_effect=slow_embed):
         for _ in range(6):
             mixin._schedule_embedding_task(["rec"], label="entity")
 
@@ -202,7 +205,8 @@ def test_schedule_embedding_task_uses_a_semaphore_per_event_loop() -> None:
             mixin._schedule_embedding_task(["rec"], label="entity")
         return await asyncio.gather(*list(mixin._bg_embedding_tasks), return_exceptions=True)
 
-    with patch.object(mixin, "embed_entities", return_value=None):
+    with patch.object(mixin, "_embed_worker", return_value=mixin), \
+         patch.object(mixin, "embed_entities", return_value=None):
         assert not any(isinstance(result, RuntimeError) for result in asyncio.run(schedule_three()))
         assert not any(isinstance(result, RuntimeError) for result in asyncio.run(schedule_three()))
 

@@ -1248,6 +1248,24 @@ class DatabaseEmbeddingMixin:
         """Best-effort background embed for a batch of written claims."""
         self._schedule_embedding_task(list(claims), label="claim")
 
+    def _embed_worker(self):
+        """The long-lived embedding worker Database for this library.
+
+        Embeds must NOT run on the shared request instance: a large batch
+        holding the one shared RLock while Lance holds its own lock
+        deadlocked the whole API (2026-08-18 live, health included). The
+        OLD per-job throwaway Database avoided that but paid a full open +
+        migration suite (~2.2s) per job. One cached worker connection per
+        instance keeps both properties.
+        """
+        worker = getattr(self, "_embed_worker_db", None)
+        if worker is None:
+            from fichero_server.db import Database
+
+            worker = Database(self.path)
+            self._embed_worker_db = worker
+        return worker
+
     def defer_embeddings(self):
         """Collect entity/claim embeds instead of running them (import-first).
 
@@ -1282,10 +1300,11 @@ class DatabaseEmbeddingMixin:
 
         def _flush() -> None:
             try:
+                worker = self._embed_worker()
                 if pending["entity"]:
-                    self.embed_entities(pending["entity"])
+                    worker.embed_entities(pending["entity"])
                 if pending["claim"]:
-                    self.embed_claims(pending["claim"])
+                    worker.embed_claims(pending["claim"])
             except Exception as exc:  # embeds are best-effort; reindex recovers
                 logger.warning("Deferred embed flush failed: %s", exc)
 
@@ -1298,15 +1317,14 @@ class DatabaseEmbeddingMixin:
             deferred[label if label in deferred else "claim"].extend(records)
             return
         def _run() -> None:
-            # Reuse THIS shared instance (#2508: one connection + one RLock,
-            # safe from any thread). A throwaway Database per job paid a full
-            # DuckDB open + every schema migration (~2.2s) per entity/claim
-            # write — a corpus import spent hours in nothing but re-boots
-            # (live, 2026-08-18).
+            # The cached worker connection: off the shared request lock (a
+            # batch holding it deadlocked the API, 2026-08-18), without the
+            # old throwaway-Database-per-job boot cost.
+            worker = self._embed_worker()
             if label == "entity":
-                self.embed_entities(records)
+                worker.embed_entities(records)
             else:
-                self.embed_claims(records)
+                worker.embed_claims(records)
 
         try:
             loop = asyncio.get_running_loop()

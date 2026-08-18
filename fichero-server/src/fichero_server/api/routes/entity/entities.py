@@ -525,6 +525,128 @@ def _action_create_entity(
     return entity.model_dump(mode="json"), spec
 
 
+class EntityBulkUpsertActionParams(BaseModel):
+    entities: list[EntityCreateActionParams]
+
+
+@action(
+    "entity.bulk_upsert",
+    EntityBulkUpsertActionParams,
+    domains=["entity"],
+    undoable=False,
+)
+def _action_bulk_upsert_entities(
+    db: Database, params: EntityBulkUpsertActionParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Create-or-merge a batch of entities in ONE audited action.
+
+    A corpus drop carries ~1,700 entities; one route call per entity took
+    10+ minutes live (2026-08-18) — the per-request registry/audit/emit
+    overhead dwarfed the writes. Merge key is canonical_name: an existing
+    entity absorbs new source_document_ids and aliases; a new one is
+    created. Garbage names are per-item warnings, never a batch failure.
+    """
+    by_name: dict[str, KnowledgeEntity] = {
+        e.canonical_name: e for e in db.all(KnowledgeEntity) if e.merged_into_id is None
+    }
+    created: list[str] = []
+    reused: list[str] = []
+    warnings: list[str] = []
+    id_by_name: dict[str, str] = {}
+    now = utc_now()
+    for item in params.entities:
+        name = (item.canonical_name or "").strip()
+        if _is_garbage_entity_name(name):
+            warnings.append(f"entity refused (no letters): {name!r}")
+            continue
+        existing = by_name.get(name)
+        if existing is not None:
+            new_sources = set(item.source_document_ids) - set(
+                existing.source_document_ids or []
+            )
+            new_aliases = set(a.strip() for a in item.aliases if a.strip()) - set(
+                existing.aliases or []
+            )
+            if new_sources or new_aliases:
+                existing.source_document_ids = sorted(
+                    set(existing.source_document_ids or []) | new_sources
+                )
+                existing.aliases = sorted(set(existing.aliases or []) | new_aliases)
+                existing.updated_at = now
+                db.save(existing)
+            reused.append(existing.id)
+            id_by_name[name] = existing.id
+            continue
+        entity = KnowledgeEntity(
+            canonical_name=name,
+            entity_type=item.entity_type,
+            aliases=sorted(set(a.strip() for a in item.aliases if a.strip())),
+            description=item.description,
+            language=item.language,
+            metadata=item.metadata,
+            source_document_ids=sorted(set(d for d in item.source_document_ids if d)),
+            created_at=now,
+            updated_at=now,
+        )
+        db.save(entity)
+        by_name[name] = entity
+        created.append(entity.id)
+        id_by_name[name] = entity.id
+    spec = ChangeSpec(
+        domains=["entity"],
+        target_ids=created + reused,
+        after={"created": len(created), "reused": len(reused)},
+        emit_type="entity.created",
+        entity_ids=created + reused,
+        emit_fn=_emit_entity_change_spec,
+    )
+    result = {
+        "created_ids": created,
+        "reused_ids": reused,
+        "warnings": warnings,
+        "id_by_name": id_by_name,
+    }
+    return result, spec
+
+
+class EntityBulkUpsertRequest(BaseModel):
+    entities: list[EntityCreateActionParams]
+
+
+class EntityBulkUpsertResponse(BaseModel):
+    created_ids: list[str]
+    reused_ids: list[str]
+    warnings: list[str]
+    id_by_name: dict[str, str]
+
+
+@router.post("/bulk", response_model=EntityBulkUpsertResponse)
+async def bulk_upsert_entities(
+    request: EntityBulkUpsertRequest,
+    db: Database = Depends(get_library_database_for_write),
+    x_fichero_library_path: str | object = Depends(require_library_path),
+    x_fichero_origin_window: str | object | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+    actor: str | object = Depends(request_actor),
+    ctx: ActionContext | object = Depends(action_context),
+) -> EntityBulkUpsertResponse:
+    """Create-or-merge a batch of entities (one audited action, #1848)."""
+    ctx = _resolve_action_ctx(
+        ctx,
+        actor=actor,
+        library_path=x_fichero_library_path,
+        origin_window=x_fichero_origin_window,
+    )
+    result = registry.invoke(
+        db,
+        "entity.bulk_upsert",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return EntityBulkUpsertResponse.model_validate(result.result)
+
+
 @action(
     "entity.update",
     EntityUpdateActionParams,
@@ -760,6 +882,7 @@ async def list_entities(
     entity_type: Annotated[EntityType | None, Query()] = None,
     document_id: Annotated[str | None, Query()] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     db: Database = Depends(get_library_database),
 ) -> EntityListResponse:
     """List knowledge entities with optional filtering.
@@ -819,7 +942,10 @@ async def list_entities(
             or any(needle in _normalize_text(alias) for alias in entity.aliases)
         ]
     entities.sort(key=lambda entity: entity.canonical_name.lower())
-    items = entities[:limit]
+    # Honest pagination (2026-08-18): this route silently ignored ``offset``,
+    # so paginated readers looped forever on page one — a corpus import's
+    # dedup read hit offset 4,170,000 live before its client grew a guard.
+    items = entities[offset : offset + limit]
     return EntityListResponse(items=items, count=len(items))
 
 

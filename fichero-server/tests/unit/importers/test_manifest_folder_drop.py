@@ -249,3 +249,38 @@ def test_a_refused_entity_warns_but_the_corpus_still_imports(client, db, test_pa
     names = {e.get("canonical_name") for e in (entities.get("items") or entities.get("entities") or entities or [])}
     assert "1923" not in names
     assert len(names) >= 2, "the legitimate entities still land"
+
+
+def test_dropped_corpus_serves_real_thumbnail_bytes(client, db, test_package, tmp_path, monkeypatch):
+    """THE bug of 2026-08-18, pinned end to end: a dropped manifest corpus must
+    end with pages whose thumbnails actually SERVE — stamped path, readable
+    file, generated derivative, 200 with real JPEG bytes. Every earlier layer
+    (loopback guard, pathless pages, symlink sandbox escape, manifest paths
+    outside the drop folder, imports dying before the stamp) broke exactly
+    this promise while the import itself looked green."""
+    from PIL import Image as PILImage
+
+    import fichero_server.security.path_security as ps
+
+    manifest = _fixture_manifest(tmp_path)
+    # A real JPEG where the fixture wrote placeholder bytes — thumbnail
+    # generation must succeed, not merely be attempted.
+    PILImage.new("RGB", (64, 64), (180, 40, 40)).save(
+        tmp_path / "page_001_enhanced.jpg", "JPEG"
+    )
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: True)
+
+    docs = _import_manifest_folder(
+        db,
+        manifest,
+        IngestFolderRequest(path=str(tmp_path)),
+        Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    page = next(d for d in docs if d.name == "page_001")
+    assert page.path and Path(page.path).is_file(), "stamp must land on a readable file"
+
+    resp = client.get(f"/api/storage/thumbnail/{page.id}")
+    assert resp.status_code == 200, f"thumbnail must serve, got {resp.status_code}"
+    assert len(resp.content) > 500, "thumbnail must be real image bytes"
+    assert resp.content[:2] == b"\xff\xd8", "thumbnail must be a JPEG"
