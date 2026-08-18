@@ -143,12 +143,9 @@ async def test_schedule_embedding_task_tracks_reference() -> None:
     and removed after completion via the done callback."""
     mixin = _FakeMixin()
 
-    # Patch the Database class that _run imports lazily inside the thread.
-    # This avoids touching asyncio.to_thread and tests the real task lifecycle.
-    with patch("fichero_server.db.Database") as MockDB:
-        MockDB.return_value.embed_entities.return_value = None
-        MockDB.return_value.close.return_value = None
-
+    # The worker reuses THIS shared instance (#2508) — a throwaway Database
+    # per job paid a full open+migrations per entity write (2026-08-18).
+    with patch.object(mixin, "embed_entities", return_value=None) as embed:
         mixin._schedule_embedding_task(["rec"], label="entity")
 
         # Task reference exists immediately after create_task()
@@ -161,7 +158,7 @@ async def test_schedule_embedding_task_tracks_reference() -> None:
         await asyncio.sleep(0)  # let done callback fire
 
     assert len(mixin._bg_embedding_tasks) == 0, "Task ref not cleaned up after completion"
-    MockDB.assert_called_once_with(mixin.path)
+    embed.assert_called_once_with(["rec"])
 
 
 @pytest.mark.anyio
@@ -183,10 +180,7 @@ async def test_schedule_embedding_task_semaphore_limits_concurrency() -> None:
         with lock:
             active -= 1
 
-    with patch("fichero_server.db.Database") as MockDB:
-        MockDB.return_value.embed_entities.side_effect = slow_embed
-        MockDB.return_value.close.return_value = None
-
+    with patch.object(mixin, "embed_entities", side_effect=slow_embed):
         for _ in range(6):
             mixin._schedule_embedding_task(["rec"], label="entity")
 
@@ -208,10 +202,7 @@ def test_schedule_embedding_task_uses_a_semaphore_per_event_loop() -> None:
             mixin._schedule_embedding_task(["rec"], label="entity")
         return await asyncio.gather(*list(mixin._bg_embedding_tasks), return_exceptions=True)
 
-    with patch("fichero_server.db.Database") as MockDB:
-        MockDB.return_value.embed_entities.return_value = None
-        MockDB.return_value.close.return_value = None
-
+    with patch.object(mixin, "embed_entities", return_value=None):
         assert not any(isinstance(result, RuntimeError) for result in asyncio.run(schedule_three()))
         assert not any(isinstance(result, RuntimeError) for result in asyncio.run(schedule_three()))
 

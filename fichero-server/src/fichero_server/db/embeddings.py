@@ -1251,16 +1251,15 @@ class DatabaseEmbeddingMixin:
     def _schedule_embedding_task(self, records, *, label: str) -> None:
         """Run embedding work off-loop when possible; degrade to sync otherwise."""
         def _run() -> None:
-            from fichero_server.db import Database
-
-            worker_db = Database(self.path)
-            try:
-                if label == "entity":
-                    worker_db.embed_entities(records)
-                else:
-                    worker_db.embed_claims(records)
-            finally:
-                worker_db.close()
+            # Reuse THIS shared instance (#2508: one connection + one RLock,
+            # safe from any thread). A throwaway Database per job paid a full
+            # DuckDB open + every schema migration (~2.2s) per entity/claim
+            # write — a corpus import spent hours in nothing but re-boots
+            # (live, 2026-08-18).
+            if label == "entity":
+                self.embed_entities(records)
+            else:
+                self.embed_claims(records)
 
         try:
             loop = asyncio.get_running_loop()
