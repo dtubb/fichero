@@ -49,7 +49,10 @@ def test_folder_with_manifest_routes_through_manifest_importer(client, db, test_
     # The page's transcript landed as page_content via the live routes.
     page = next(d for d in docs if d.name == "page_001")
     assert page.page_content
-    assert progress and progress[-1][0] == progress[-1][1] == len(docs)
+    # Progress spans ALL FOUR phases (documents, entities, artifacts, claims)
+    # so the app's stall watchdog sees movement during the post-page work —
+    # the final step count is 4x the node count, and it must end complete.
+    assert progress and progress[-1][0] == progress[-1][1] == 4 * len(docs)
 
 
 def test_drop_target_becomes_corpus_root_parent(client, db, test_package, tmp_path):

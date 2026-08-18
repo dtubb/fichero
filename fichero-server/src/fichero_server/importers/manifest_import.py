@@ -711,16 +711,28 @@ def import_manifest(
         pages_seen=sum(1 for n in nodes if n.get("node_type") == "page"),
     )
 
+    # One monotone step counter across ALL phases (documents, entities,
+    # artifacts): the drop UI's stall watchdog times out on 300s of an
+    # UNCHANGED status (live 2026-08-18: a corpus sat at 154/154 through the
+    # whole entity phase and the app declared "Import task timed out" while
+    # the engine was working fine). Four passes over the node list
+    # (documents, entities, artifacts, claims) → the honest total is 4×nodes.
+    total_steps = 4 * len(nodes)
+    steps_done = 0
+
     # --- documents (folders/groups/pages), parent-before-child ---
     existing_docs = _list_documents(client)
     doc_id_by_external = _existing_doc_id_by_external(existing_docs)
     existing_doc_by_external = _existing_doc_by_external(existing_docs)
 
     for node in nodes:
+        steps_done += 1
         external_id = node["external_id"]
         if external_id in doc_id_by_external:
             summary.documents_skipped += 1
             summary.seen_document_ids.append(doc_id_by_external[external_id])
+            if on_progress:
+                on_progress(steps_done, total_steps)
             continue
         parent_external = node.get("parent_external_id")
         # Root nodes land under ``root_parent_id`` when given — the folder the
@@ -747,7 +759,7 @@ def import_manifest(
         summary.seen_document_ids.append(new_id)
         if on_progress:
             # Real totals for the drop UI ("says scanning. but not total").
-            on_progress(summary.documents_created, len(nodes))
+            on_progress(steps_done, total_steps)
 
     # --- entities (deduped by canonical name across the whole manifest) ---
     entity_id_by_key: dict[str, str] = {}
@@ -759,6 +771,9 @@ def import_manifest(
             existing_entity_by_name[str(name)] = existing
 
     for node in nodes:
+        steps_done += 1
+        if on_progress:
+            on_progress(steps_done, total_steps)
         source_document_id = doc_id_by_external.get(node["external_id"])
         existing_doc = existing_doc_by_external.get(node["external_id"]) or {}
         if existing_doc.get("exclude_from_processing") is True:
@@ -849,6 +864,9 @@ def import_manifest(
     # --- artifacts (page-level processing outputs: transcript + entity lists) ---
     existing_artifact_keys = _list_artifact_keys(client)
     for node in nodes:
+        steps_done += 1
+        if on_progress:
+            on_progress(steps_done, total_steps)
         doc_id = doc_id_by_external.get(node["external_id"])
         if not doc_id:
             continue
@@ -951,6 +969,9 @@ def import_manifest(
     # --- claims ---
     existing_claim_externals = _list_claim_external_ids(client)
     for node in nodes:
+        steps_done += 1
+        if on_progress:
+            on_progress(steps_done, total_steps)
         source_document_id = doc_id_by_external.get(node["external_id"])
         existing_doc = existing_doc_by_external.get(node["external_id"]) or {}
         if existing_doc.get("exclude_from_processing") is True:
