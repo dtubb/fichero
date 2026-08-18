@@ -190,3 +190,30 @@ def test_manifest_imported_corpus_deletes_cleanly(client, db, test_package, tmp_
     names = {d["name"] for d in items}
     assert "Tiny Corpus" not in names
     assert "page_001" not in names, "children must go with the corpus"
+
+
+def test_a_refused_entity_warns_but_the_corpus_still_imports(client, db, test_package, tmp_path):
+    """2026-08-18 live: an entity named '1923' (a year mis-tagged as an
+    entity in staged data) 422'd and killed the whole re-drop. A refused
+    entity is a WARNING; documents and the remaining entities land."""
+    import json
+
+    manifest = _fixture_manifest(tmp_path)
+    # Poison one node with a no-letters entity name.
+    lines = [json.loads(l) for l in manifest.read_text().splitlines()]
+    for node in lines:
+        if node.get("node_type") == "page":
+            node.setdefault("entities", []).insert(
+                0, {"canonical_name": "1923", "entity_type": "Subject"}
+            )
+    manifest.write_text("\n".join(json.dumps(n) for n in lines))
+
+    docs = _import_manifest_folder(
+        db, manifest, IngestFolderRequest(path=str(tmp_path)), Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    assert any(d.name == "page_001" for d in docs), "documents still import"
+    entities = client.get("/api/entities?limit=100").json()
+    names = {e.get("canonical_name") for e in (entities.get("items") or entities.get("entities") or entities or [])}
+    assert "1923" not in names
+    assert len(names) >= 2, "the legitimate entities still land"

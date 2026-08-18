@@ -763,20 +763,34 @@ def import_manifest(
                         merged["source_document_ids"] = sorted(
                             existing_sources | {source_document_id}
                         )
-                        updated = client.request(
-                            "POST",
-                            "/entities",
-                            entity_payload(merged, node, source_document_id),
-                        )
-                        if isinstance(updated, dict):
-                            existing_entity_by_name[name] = updated
+                        try:
+                            updated = client.request(
+                                "POST",
+                                "/entities",
+                                entity_payload(merged, node, source_document_id),
+                            )
+                        except Exception as exc:
+                            summary.warnings.append(
+                                f"entity update refused for {name!r}: {exc}"
+                            )
+                        else:
+                            if isinstance(updated, dict):
+                                existing_entity_by_name[name] = updated
                 summary.entities_reused += 1
                 continue
-            created = client.request(
-                "POST",
-                "/entities",
-                entity_payload(entity, node, source_document_id),
-            )
+            # One refused entity must not kill a corpus import (2026-08-18
+            # live: canonical_name "1923" — a year mis-tagged as an entity in
+            # the staged data — 422'd and the WHOLE re-drop failed). Warn,
+            # skip, keep going; the summary carries every refusal.
+            try:
+                created = client.request(
+                    "POST",
+                    "/entities",
+                    entity_payload(entity, node, source_document_id),
+                )
+            except Exception as exc:
+                summary.warnings.append(f"entity refused for {name!r}: {exc}")
+                continue
             new_id = str(created["id"])
             entity_id_by_key[name] = new_id
             if isinstance(created, dict):
