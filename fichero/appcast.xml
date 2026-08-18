@@ -6,6 +6,48 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.08.17</title>
+            <pubDate>Tue, 18 Aug 2026 09:24:56 -0300</pubDate>
+            <sparkle:version>2026081701</sparkle:version>
+            <sparkle:shortVersionString>2026.08.17</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Dev build</h3>
+<p>The hardening build: two days of live testing on the datasets release,
+folded back in — plus the Marshall corpus drop.</p>
+<p><strong>Drop a corpus, get a corpus.</strong> Dragging a staged folder with a
+<code>manifest.jsonl</code> into a library imports everything it describes — pages,
+transcripts as each page's text, deduped entities, renditions — with real
+progress counts, thumbnails, and the corpus landing under the folder you
+dropped it on. Re-dropping an already-imported corpus repairs it instead
+of silently doing nothing. All 29 Marshall diaries are staged and ready.</p>
+<p><strong>Sidecars carry their own facts.</strong> A <code>x.jpg.transcript.txt</code> beside an
+image becomes its text on any plain folder drop; an <code>.iffy.json</code> stating
+<code>original_date</code> dates the document on arrival — no Extract Dates run
+needed for corpora that already know their dates.</p>
+<p><strong>One selection, four views.</strong> Clicking a row in the Sheet (né Grid), a
+day in the Calendar, an entry in the Timeline or Cards routes preview to
+the source page with its bounding box, reader to the text, and the
+inspector to the entry itself — not its parent. Arrow keys walk the
+chronology; ⇧ extends; the status line says "1 of 160 dates selected —
+January 14, 1918" instead of counting a list you aren't looking at.</p>
+<p><strong>The calendar is the display.</strong> Day cells grow with the window and carry
+the day's words; the below-the-grid list is gone. The Sheet ships Date
+first, Text second, Name hidden — with native column show/hide and drag
+reordering, and multi-line text on demand.</p>
+<p><strong>Diary extraction honesty.</strong> Entry spans survive line breaks (far more
+entries get boxes), printed date headings are stripped structurally for
+old and new data alike, and the prompt now forbids moving one day's
+writing under another day's heading.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.08.17/Fichero.dmg"
+                length="564305294"
+                type="application/octet-stream"
+                sparkle:edSignature="mnLlQFU2y/Q7apwXuel3pjpK7l6M/vTNwU1PrDFyuVuWkSaWZN+G1CBPzZgN/9bXuXatOWCV91i4ABOYICIIDg=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.08.02</title>
             <pubDate>Sun, 02 Aug 2026 16:09:39 -0300</pubDate>
             <sparkle:version>2026080201</sparkle:version>
