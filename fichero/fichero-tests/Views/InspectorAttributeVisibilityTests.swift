@@ -368,3 +368,23 @@ struct InspectorAttributeChoiceStoreTests {
         #expect(!titles.contains("Ingest Mode"))
     }
 }
+
+/// 2026-08-18: imports touch every ancestor's updated_at per file, and the
+/// inspector reloaded its artifact panel for each touch — visible flicker
+/// for minutes. Only MATERIAL fields justify a reload.
+@Suite("Inspector material signature")
+struct InspectorMaterialSignatureTests {
+    @Test("a timestamp-only touch keeps the signature")
+    func timestampOnlyTouchKeepsTheSignature() {
+        var doc = Document(id: "d1", name: "Folder", pageContent: "text", childCount: 3)
+        let before = DocumentInspectorContentV2.materialSignature(of: doc)
+        doc.updatedAt = Date(timeIntervalSinceNow: 60)
+        #expect(DocumentInspectorContentV2.materialSignature(of: doc) == before)
+        doc.pageContent = "text edited"
+        #expect(DocumentInspectorContentV2.materialSignature(of: doc) != before)
+        var grew = doc
+        grew.childCount = 4
+        #expect(DocumentInspectorContentV2.materialSignature(of: grew)
+                != DocumentInspectorContentV2.materialSignature(of: doc))
+    }
+}
