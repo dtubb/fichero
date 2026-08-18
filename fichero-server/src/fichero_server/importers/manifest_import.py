@@ -35,6 +35,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 from fichero_server.importers.http_client import (
@@ -438,6 +439,7 @@ def _paginated(client: ManifestApiClient, path: str, keys: tuple[str, ...]) -> l
     live, 153 → 198 children and climbing)."""
     out: list[dict[str, Any]] = []
     offset = 0
+    first_page_head: Any = None
     while True:
         response = client.request("GET", f"{path}?limit=500&offset={offset}")
         if isinstance(response, dict):
@@ -451,6 +453,16 @@ def _paginated(client: ManifestApiClient, path: str, keys: tuple[str, ...]) -> l
             batch = response
         else:
             batch = []
+        head = batch[0].get("id") if batch and isinstance(batch[0], dict) else None
+        if offset == 0:
+            first_page_head = head
+        elif batch and head == first_page_head:
+            # The endpoint IGNORES offset (live 2026-08-18: /entities is
+            # limit-only and this loop reached offset 4,170,000). One page is
+            # all it can give — return it and let the caller's per-name
+            # fallback cover the rest, rather than spinning forever.
+            logger.warning("%s ignores offset; dedup working set capped at %d", path, len(out))
+            return out
         out.extend(batch)
         if len(batch) < 500:
             return out
@@ -789,6 +801,30 @@ def import_manifest(
                                 existing_entity_by_name[name] = updated
                 summary.entities_reused += 1
                 continue
+            # The prefetched working set may be CAPPED (offset-less
+            # /entities): before creating, ask the engine for this exact
+            # name so a re-drop reuses instead of duplicating.
+            if name not in entity_id_by_key:
+                try:
+                    lookup = client.request(
+                        "GET", f"/entities?q={quote(name)}&limit=25"
+                    )
+                    rows = (
+                        lookup.get("items") or lookup.get("entities") or []
+                        if isinstance(lookup, dict) else (lookup or [])
+                    )
+                    exact = next(
+                        (r for r in rows if r.get("canonical_name") == name), None
+                    )
+                    if exact:
+                        entity_id_by_key[name] = str(exact["id"])
+                        existing_entity_by_name[name] = exact
+                        if ext:
+                            entity_id_by_key[ext] = str(exact["id"])
+                        summary.entities_reused += 1
+                        continue
+                except Exception:
+                    pass  # lookup is an optimization; creation handles the rest
             # One refused entity must not kill a corpus import (2026-08-18
             # live: canonical_name "1923" — a year mis-tagged as an entity in
             # the staged data — 422'd and the WHOLE re-drop failed). Warn,
