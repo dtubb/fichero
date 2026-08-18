@@ -241,7 +241,14 @@ class _InProcessManifestClient:
                 scope = {**scope, UDS_TRANSPORT_SCOPE_KEY: "inmemory"}
             await app(scope, receive, send)
 
-        self._client = TestClient(_inmemory_app)
+        # A truthful hostname: TestClient's default "http://testserver"
+        # read as a phantom server in the log (Daniel 2026-08-18), and httpx
+        # logging one INFO line per request buried the log during imports —
+        # these calls are internal plumbing, not traffic worth a line each.
+        import logging as _logging
+
+        _logging.getLogger("httpx").setLevel(_logging.WARNING)
+        self._client = TestClient(_inmemory_app, base_url="http://fichero-internal")
         self._headers = {
             "Authorization": f"Bearer {initialize_token()}",
             "X-Fichero-Library-Path": library_path,
