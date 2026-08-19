@@ -436,3 +436,77 @@ class TestScriptAwareFold:
     def test_mixed_script_line_folds_each_side_correctly(self) -> None:
         folded = _fold_for_search("José कि")
         assert folded == "jose कि"
+
+
+class TestKGFusionLeg:
+    """#1833 M1: KG evidence is a real RRF leg in hybrid search — claims and
+    entity links rank documents alongside text similarity, and a KG-only hit
+    survives the min_score floor (it is evidence, not a fuzzy neighbour)."""
+
+    def _wire(self, db, monkeypatch, kg_leg):
+        class FakeQuery:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def select(self, _columns):
+                return self
+
+            def limit(self, _limit):
+                return self
+
+            def to_list(self):
+                return self.rows
+
+        class FakeTable:
+            schema = SimpleNamespace(
+                names=[
+                    "document_id", "id", "text", "name", "doc_type", "file_type",
+                    "embedding_scope", "passage_id", "page_id", "char_start", "char_end",
+                ]
+            )
+
+            def search(self, _query, query_type="auto", fts_columns=None):
+                return FakeQuery([])
+
+        fake_lance = SimpleNamespace(open_table=lambda _name: FakeTable())
+        monkeypatch.setattr(type(db), "lance", property(lambda self: fake_lance))
+        monkeypatch.setattr(type(db), "_lance_tables", lambda self: [EMBEDDINGS_TABLE])
+        monkeypatch.setattr(type(db), "_embed_text", lambda self, _q: [0.0])
+        monkeypatch.setattr(type(db), "search_vectors", lambda self, _t, _v, _l: [])
+        monkeypatch.setattr(type(db), "_is_active_document_id", lambda self, _d: True)
+        monkeypatch.setattr(
+            type(db), "_has_indexed_page_children", lambda self, _d: False
+        )
+        monkeypatch.setattr(
+            type(db), "enrich_search_results_with_kg", lambda self, results, _q: results
+        )
+        monkeypatch.setattr(
+            type(db),
+            "_expand_query_with_entity_aliases",
+            lambda self, q: ([q], ["entity-1"]),
+        )
+        monkeypatch.setattr(
+            type(db), "_kg_evidence_results",
+            lambda self, _q, _ids, limit=20: kg_leg,
+        )
+
+    def test_kg_only_document_survives_default_min_score(self, db, monkeypatch) -> None:
+        kg_leg = [{
+            "document_id": "doc-kg", "score": 0.0,
+            "content": "Andagoya entity-linked page",
+            "metadata": {"name": "IMG_010", "doc_type": "page", "file_type": "image"},
+        }]
+        self._wire(db, monkeypatch, kg_leg)
+
+        results, total, _stats = Database.search(
+            db, "Andagoya", search_type="hybrid", min_score=0.55
+        )
+        assert total == 1
+        assert results[0].document_id == "doc-kg"
+
+    def test_no_matched_entities_means_no_kg_leg(self, db, monkeypatch) -> None:
+        self._wire(db, monkeypatch, [])
+        results, total, _stats = Database.search(
+            db, "nothing", search_type="hybrid", min_score=0.55
+        )
+        assert total == 0

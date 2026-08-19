@@ -4447,6 +4447,80 @@ class Database(DatabaseEmbeddingMixin):
 
         return any(self.has_embedding(page.id) for page in pages)
 
+    def _kg_evidence_results(
+        self, query: str, matched_entity_ids: list[str], limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Third RRF leg (#1833 M1): documents RANKED by knowledge-graph
+        evidence, fused into the hybrid merge instead of stapled on after.
+
+        Evidence, strongest first:
+        * claims that cite a query-matched entity, ranked by semantic
+          similarity of the CLAIM TEXT to the query (the stored
+          kg_claim_embeddings finally influence document ranking) — each
+          contributes its source document with weight by claim rank;
+        * the matched entities' own source documents, weighted by how many
+          matched entities cite each doc.
+
+        Display fields come from the Document row so a KG-only hit — a page
+        that mentions Andagoya only through its entity link — still renders.
+        [] on no matched entities; failures degrade loudly to [] (search
+        must not fail because the KG leg did).
+        """
+        if not matched_entity_ids:
+            return []
+        try:
+            from collections import Counter
+
+            from fichero_server.models import Document
+            from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+
+            weights: Counter[str] = Counter()
+            for entity_id in matched_entity_ids:
+                entity = self.get(KnowledgeEntity, entity_id)
+                for doc_id in (entity.source_document_ids or []) if entity else []:
+                    weights[doc_id] += 1
+
+            claims = [
+                claim
+                for claim in self.query_json_list_intersects(
+                    KnowledgeClaim, "entity_ids", matched_entity_ids
+                )
+                if set(matched_entity_ids).intersection(claim.entity_ids or [])
+            ]
+            claim_by_id = {c.id: c for c in claims}
+            ranked_claim_ids = self.rank_claim_ids_by_query(
+                query, set(claim_by_id), limit
+            )
+            for rank, claim_id in enumerate(ranked_claim_ids):
+                doc_id = claim_by_id[claim_id].source_document_id
+                if doc_id:
+                    weights[doc_id] += max(1, limit - rank)
+
+            leg: list[dict[str, Any]] = []
+            for doc_id, _weight in weights.most_common(limit):
+                doc = self.get(Document, doc_id)
+                if doc is None:
+                    continue
+                leg.append(
+                    {
+                        "document_id": doc_id,
+                        "score": 0.0,
+                        "content": (doc.page_content or "")[:500],
+                        "metadata": {
+                            "name": doc.name,
+                            "doc_type": doc.doc_type.value
+                            if hasattr(doc.doc_type, "value") else doc.doc_type,
+                            "file_type": doc.file_type.value
+                            if getattr(doc, "file_type", None) is not None
+                            and hasattr(doc.file_type, "value") else None,
+                        },
+                    }
+                )
+            return leg
+        except Exception as exc:  # noqa: BLE001 — degrade, loudly
+            logger.warning("KG evidence leg failed; ranking without it: %s", exc)
+            return []
+
     def _is_active_document_id(self, document_id: str | None) -> bool:
         """True when the document may appear in search results: it exists,
         is not soft-deleted, and is not excluded from search (#4580 — the
@@ -5000,11 +5074,18 @@ class Database(DatabaseEmbeddingMixin):
 
                 _rrf_add(semantic_results, "semantic")
                 _rrf_add(fulltext_results, "fulltext")
+                # KG evidence as a REAL fusion leg (#1833 M1): claims and
+                # entity links rank documents alongside text similarity,
+                # instead of the post-hoc +0.1 staple (skipped below for
+                # hybrid so the same evidence never counts twice).
+                kg_results = self._kg_evidence_results(query, matched_entity_ids)
+                _rrf_add(kg_results, "kg")
 
-                # Project the RRF score into [0, 1] for UI display:
-                # the theoretical max with both lists ranking the doc #1
-                # is 2/(k+1); divide by that for a normalised [0, 1].
-                rrf_max = 2.0 / (rrf_k + 1)
+                # Project the RRF score into [0, 1] for UI display: the
+                # theoretical max with every contributing list ranking the
+                # doc #1 is legs/(k+1); divide by that for a normalised [0, 1].
+                legs = 2 + (1 if kg_results else 0)
+                rrf_max = float(legs) / (rrf_k + 1)
                 for item in merged.values():
                     item["score"] = min(1.0, item["_rrf"] / rrf_max)
                     item.pop("_rrf", None)
@@ -5023,17 +5104,20 @@ class Database(DatabaseEmbeddingMixin):
                 # this second pass catches docs that scraped past that floor
                 # but then ranked near the bottom of the fusion list.
                 #
-                # FULLTEXT hits are EXEMPT (#4236 / SEARCH_PLAN M2): a doc the
-                # keyword leg actually matched projects to 0.5 + 0.1×BM25norm,
-                # so with the app's default min_score=0.55 every keyword-only
-                # hit except the single top-BM25 doc was dropped before the
-                # user saw it — a confident, wrong, EMPTY answer for rare
-                # terms ('jemseg'). An exact keyword match is evidence, not a
-                # fuzzy neighbour; the floor exists to cut semantic noise.
+                # FULLTEXT and KG hits are EXEMPT (#4236 / SEARCH_PLAN M2 +
+                # #1833 M1): a doc the keyword leg matched projects to
+                # ~0.5 + 0.1×BM25norm, and a KG-evidence-only doc to ~1/legs,
+                # so with the app's default min_score=0.55 both classes were
+                # dropped before the user saw them — a confident, wrong,
+                # EMPTY answer for rare terms ('jemseg') and entity-linked
+                # pages. A keyword match and a curated entity/claim link are
+                # EVIDENCE, not fuzzy neighbours; the floor exists to cut
+                # semantic-only noise.
                 if min_score > 0:
+                    evidence_sources = {"fulltext", "kg"}
                     combined_results = [
                         r for r in merged.values()
-                        if "fulltext" in r.get("match_sources", [])
+                        if evidence_sources.intersection(r.get("match_sources", []))
                         or r["score"] >= min_score
                     ]
                 else:
@@ -5043,13 +5127,15 @@ class Database(DatabaseEmbeddingMixin):
             elif search_type == "fulltext":
                 combined_results = fulltext_results
 
-            # Entity-aware rank bonus: when query aliases resolve to a
-            # canonical entity, nudge docs linked to that entity upward.
-            boosted_doc_ids = self._entity_bonus_doc_ids(matched_entity_ids)
-            if boosted_doc_ids:
-                for item in combined_results:
-                    if item["document_id"] in boosted_doc_ids:
-                        item["score"] = min(1.0, item["score"] + 0.1)
+            # Entity-aware rank bonus for the SINGLE-leg search types only:
+            # hybrid now fuses KG evidence as its own RRF leg above, and the
+            # same evidence must not count twice (#1833 M1).
+            if search_type != "hybrid":
+                boosted_doc_ids = self._entity_bonus_doc_ids(matched_entity_ids)
+                if boosted_doc_ids:
+                    for item in combined_results:
+                        if item["document_id"] in boosted_doc_ids:
+                            item["score"] = min(1.0, item["score"] + 0.1)
 
             # Apply filters
             if filters:
