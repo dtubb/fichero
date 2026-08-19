@@ -608,14 +608,16 @@ def _ingest_page_image(
         _warm_preview_cache(client, doc_id, summary)
         return doc_id
 
-    # LINK: reference the source in place; just warm the local preview cache.
+    # LINK: reference the source in place. NO preview warm here: the routes
+    # contract strips client paths, so the document is PATHLESS until the
+    # post-import stamp — every warm request could only 404, and it cost
+    # ~0.5-0.8s per page on a large library (half the page phase,
+    # 2026-08-18). queue_derivatives builds previews after the stamp.
     if ingest_mode == "link":
         created = client.request(
             "POST", "/documents", document_payload(node, parent_id)
         )
-        doc_id = str(created["id"])
-        _warm_preview_cache(client, doc_id, summary)
-        return doc_id
+        return str(created["id"])
 
     # COPY / MOVE: copy bytes into the library via the native ingest path.
     ingested = client.request(
