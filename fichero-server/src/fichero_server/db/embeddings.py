@@ -250,7 +250,15 @@ def _register_fastembed_model_for_space(space: EmbeddingSpaceSpec) -> None:
 def _configured_embedding_space() -> EmbeddingSpaceSpec:
     configured = os.getenv(EMBED_MODEL_ENV, "").strip()
     if not configured:
-        return PINNED_EMBEDDING_SPACE
+        # DEFAULT = bge-m3 (Daniel's ruling 2026-08-19, #4604 Q3): one
+        # embedding space that covers every script the archive throws at it
+        # (Sanskrit, Ge'ez, early-modern Spanish) and discriminates better on
+        # short OCR fragments than e5 did (the compressed 0.91-0.93 band the
+        # 'gold' probe measured). Existing e5-stamped libraries refuse mixed
+        # semantic search until migrated: POST /api/search/reindex with
+        # migrate_embedding_space=true rebuilds them; set
+        # FICHERO_EMBED_MODEL=intfloat/multilingual-e5-large to stay on e5.
+        return BGE_M3_EMBEDDING_SPACE
 
     space = SUPPORTED_EMBEDDING_SPACES.get(configured.lower())
     if space is None:

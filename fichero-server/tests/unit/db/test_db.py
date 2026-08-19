@@ -2859,7 +2859,10 @@ class TestEmbeddingsModelLoading:
         temp_db._ensure_embedder()
 
         assert len(calls) == 1
-        assert calls[0]["model_name"] == "fichero-pinned/multilingual-e5-large-mean-v1"
+        # Default embedding space is bge-m3 (Daniel's ruling 2026-08-19,
+        # #4604 Q3 — one space that covers every script); e5 remains
+        # reachable via FICHERO_EMBED_MODEL.
+        assert calls[0]["model_name"] == "BAAI/bge-m3"
         assert calls[0]["cache_dir"] == str(MODELS_BASE / "embeddings")
 
 
