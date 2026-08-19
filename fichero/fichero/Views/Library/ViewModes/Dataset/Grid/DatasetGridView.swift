@@ -51,7 +51,7 @@ struct DatasetGridView: View {
                 // The document's OWN extracted date — only when no date
                 // attribute column will already carry it.
                 if store.hasDateSource && store.attributeForRole["date"] == nil {
-                    TableColumn("Date") { row in
+                    TableColumn("Date", sortUsing: DatasetAttributeComparator(key: .date)) { row in
                         Text(row.dateOriginal ?? row.dateIso ?? "")
                             .lineLimit(1)
                             .foregroundStyle(.secondary)
@@ -62,7 +62,7 @@ struct DatasetGridView: View {
                 // night: "just dates, no transcript"). Full Text mode lifts
                 // the line cap so whole entries read in place ("can't we
                 // have multiple lines of text on one").
-                TableColumn("Text") { row in
+                TableColumn("Text", sortUsing: DatasetAttributeComparator(key: .text)) { row in
                     if let documentService {
                         // Edits commit on submit/focus-out and persist with
                         // the user-edited stamp — machine reruns can never
@@ -154,8 +154,28 @@ struct DatasetGridView: View {
 /// both sides parse as numbers, lexically otherwise; missing values last in
 /// either direction. `attr == nil` sorts by the node name.
 struct DatasetAttributeComparator: SortComparator, Hashable {
-    var attr: String?
+    /// What the column sorts by (#4595 — Date and Text headers must sort
+    /// like every other Mac table's).
+    enum Key: Hashable {
+        case name
+        case date
+        case text
+        case attribute(String)
+    }
+
+    var key: Key
     var order: SortOrder = .forward
+
+    init(key: Key, order: SortOrder = .forward) {
+        self.key = key
+        self.order = order
+    }
+
+    /// Legacy spelling used by the attribute columns: nil = name.
+    init(attr: String?, order: SortOrder = .forward) {
+        self.key = attr.map { .attribute($0) } ?? .name
+        self.order = order
+    }
 
     func compare(_ lhs: DatasetPage.Row, _ rhs: DatasetPage.Row) -> Foundation.ComparisonResult {
         switch (text(of: lhs), text(of: rhs)) {
@@ -172,9 +192,18 @@ struct DatasetAttributeComparator: SortComparator, Hashable {
     }
 
     private func text(of row: DatasetPage.Row) -> String? {
-        guard let attr else { return row.name }
-        guard let value = row.attributes[attr], let value else { return nil }
-        return String(describing: value)
+        switch key {
+        case .name:
+            return row.name
+        case .date:
+            // ISO sorts lexically == chronologically; raw original as backup.
+            return row.dateIso ?? row.dateOriginal
+        case .text:
+            return row.excerpt
+        case .attribute(let attr):
+            guard let value = row.attributes[attr], let value else { return nil }
+            return String(describing: value)
+        }
     }
 
     private func valueCompare(_ lhs: String, _ rhs: String) -> Foundation.ComparisonResult {
