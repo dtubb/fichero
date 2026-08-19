@@ -580,9 +580,30 @@ class DatabaseEmbeddingMixin:
         self.ensure_canonical_entity_embedding_table()
         entity_stats = self._vector_table_stats(KG_ENTITY_EMBEDDINGS_TABLE)
         claim_stats = self._vector_table_stats(KG_CLAIM_EMBEDDINGS_TABLE)
+        # COVERAGE, not just a count (2026-08-18): 799 indexed rows against
+        # 5,319 documents went unnoticed for weeks because nothing reported
+        # "of how many". distinct document_id is the honest numerator —
+        # passage embedding writes several rows per document.
+        embedded_docs = 0
+        if doc_stats["table_exists"]:
+            try:
+                table = self.lance.open_table(EMBEDDINGS_TABLE)
+                embedded_docs = len(
+                    set(table.to_arrow(columns=["document_id"])["document_id"].to_pylist())
+                )
+            except Exception:  # pragma: no cover - stats stay best-effort
+                embedded_docs = 0
+        from fichero_server.models import Document
+
+        try:
+            document_count = self.count(Document)
+        except Exception:  # pragma: no cover
+            document_count = 0
         return {
             "indexed_count": doc_stats["indexed_count"],
             "table_exists": doc_stats["table_exists"],
+            "embedded_document_count": embedded_docs,
+            "document_count": document_count,
             "entity_indexed_count": entity_stats["indexed_count"],
             "entity_table_exists": entity_stats["table_exists"],
             "claim_indexed_count": claim_stats["indexed_count"],

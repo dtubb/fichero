@@ -3891,13 +3891,36 @@ class Database(DatabaseEmbeddingMixin):
         except Exception:  # pragma: no cover - schema introspection best-effort
             null_fields = []
         for field_name in null_fields:
-            if not any(row.get(field_name) is not None for row in data):
+            sample = next(
+                (row[field_name] for row in data if row.get(field_name) is not None),
+                None,
+            )
+            if sample is None:
                 continue
+            # Type-aware target (the live table had THREE poisoned columns:
+            # file_type/str, vector_scale/float, vector_int8/list — retyping
+            # a list column to string would poison it differently).
+            if isinstance(sample, str):
+                target = pa.string()
+            elif isinstance(sample, bool):
+                target = pa.bool_()
+            elif isinstance(sample, int):
+                target = pa.int64()
+            elif isinstance(sample, float):
+                target = pa.float64()
+            elif isinstance(sample, (list, tuple)) and sample and isinstance(sample[0], int):
+                target = pa.list_(pa.int8())
+            elif isinstance(sample, (list, tuple)):
+                target = pa.list_(pa.float32())
+            else:
+                target = None
             try:
-                table.alter_columns({"path": field_name, "data_type": pa.string()})
+                if target is None:
+                    raise TypeError(f"no arrow target for {type(sample).__name__}")
+                table.alter_columns({"path": field_name, "data_type": target})
                 logger.info(
-                    "LanceDB table %s: healed Null-typed column %r to string",
-                    table_name, field_name,
+                    "LanceDB table %s: healed Null-typed column %r to %s",
+                    table_name, field_name, target,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.warning(

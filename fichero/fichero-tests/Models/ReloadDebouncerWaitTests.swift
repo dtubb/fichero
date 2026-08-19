@@ -139,3 +139,64 @@ struct ReloadDebouncerOverdueFlushTests {
         #expect(!ReloadDebouncer.yieldsToPendingFlush(wait: young, hasPending: true))
     }
 }
+
+// MARK: - Running-flush protection (2026-08-18 four-folder drop)
+
+@MainActor
+struct ReloadDebouncerRunningFlushTests {
+    /// The 2026-08-18 regression: a flush whose ACTION was already running
+    /// (slow per-document fetches during a corpus import) was cancelled by the
+    /// next event's reschedule, so during a continuous import no flush ever
+    /// completed — only the first dropped corpus reached the sidebar. The
+    /// debouncer now clears its pending slot before running the action, so a
+    /// reschedule arms the NEXT flush instead of killing the running one.
+    @Test("a reschedule never cancels a flush whose action is already running")
+    func rescheduleDoesNotCancelRunningAction() async throws {
+        let debouncer = ReloadDebouncer(
+            delay: .milliseconds(1), maxWait: .milliseconds(5)
+        )
+        let progress = SendableBox()
+
+        debouncer.schedule {
+            await progress.markStarted()
+            // A deliberately slow action, like a patch flush mid-import.
+            try? await Task.sleep(for: .milliseconds(80))
+            if Task.isCancelled {
+                await progress.markCancelled()
+            } else {
+                await progress.markCompleted()
+            }
+        }
+        // Wait for the action to actually start...
+        var spins = 0
+        var started = await progress.started
+        while !started, spins < 200 {
+            try await Task.sleep(for: .milliseconds(2))
+            started = await progress.started
+            spins += 1
+        }
+        #expect(started)
+        // ...then reschedule mid-action, exactly like the next change event.
+        debouncer.schedule { }
+        spins = 0
+        var settled = false
+        while !settled, spins < 200 {
+            try await Task.sleep(for: .milliseconds(2))
+            let completed = await progress.completed
+            let cancelled = await progress.cancelled
+            settled = completed || cancelled
+            spins += 1
+        }
+        #expect(await progress.completed, "the running flush must finish, not be cancelled")
+        #expect(await !progress.cancelled)
+    }
+}
+
+private actor SendableBox {
+    var started = false
+    var completed = false
+    var cancelled = false
+    func markStarted() { started = true }
+    func markCompleted() { completed = true }
+    func markCancelled() { cancelled = true }
+}
