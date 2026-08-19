@@ -16502,19 +16502,19 @@
         }
       }
     },
-    "/api/search/related": {
+    "/api/search/stream": {
       "post": {
         "tags": [
           "search"
         ],
-        "summary": "Related Documents",
-        "description": "Find Related Documents (#4606): neighbours ranked by passage-vector\nsimilarity fused with shared-entity evidence. Read-only.",
-        "operationId": "related_documents_api_search_related_post",
+        "summary": "Streaming Search",
+        "description": "Streaming search v1 (#4604, Daniel's ruling Q11: streaming IS in\nscope) \u2014 results appear as they are found, newline-delimited JSON:\n\n    {\"type\": \"provisional\", \"leg\": \"fulltext\", \"results\": [...]}\n    {\"type\": \"final\", \"results\": [...], \"total_count\": N, \"stats\": {...}}\n\nPhase 1 re-runs only the cheap keyword leg (~tens of ms) so exact\nmatches paint immediately; phase 2 is the full hybrid ranking, which\nREPLACES the provisional list. A failed phase streams\n{\"type\": \"error\", \"detail\": ...} \u2014 never a silently truncated stream.",
+        "operationId": "streaming_search_api_search_stream_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/RelatedDocumentsRequest"
+                "$ref": "#/components/schemas/SearchRequest"
               }
             }
           },
@@ -16525,9 +16525,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/fichero_server__api__routes__search__core__RelatedDocumentsResponse"
-                }
+                "schema": {}
               }
             }
           },
@@ -57274,42 +57272,11 @@
         ],
         "title": "RejectResponse"
       },
-      "RelatedDocumentEntry": {
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "score": {
-            "type": "number",
-            "title": "Score"
-          },
-          "shared_entities": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Shared Entities",
-            "default": []
-          }
-        },
-        "type": "object",
-        "required": [
-          "document_id",
-          "name",
-          "score"
-        ],
-        "title": "RelatedDocumentEntry"
-      },
       "RelatedDocumentListResponse": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/fichero_server__models__RelatedDocumentsResponse"
+              "$ref": "#/components/schemas/RelatedDocumentsResponse"
             },
             "type": "array",
             "title": "Items"
@@ -57327,25 +57294,52 @@
         "title": "RelatedDocumentListResponse",
         "description": "Standardized envelope for GET /api/documents/{doc_id}/related."
       },
-      "RelatedDocumentsRequest": {
+      "RelatedDocumentsResponse": {
         "properties": {
           "document_id": {
             "type": "string",
             "title": "Document Id"
           },
-          "limit": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name"
+          },
+          "doc_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "Doc Type"
+          },
+          "file_type": {
+            "type": "string",
+            "nullable": true,
+            "title": "File Type"
+          },
+          "shared_entities": {
             "type": "integer",
-            "maximum": 50.0,
-            "minimum": 1.0,
-            "title": "Limit",
-            "default": 10
+            "title": "Shared Entities"
+          },
+          "sample_entity_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sample Entity Names",
+            "default": []
+          },
+          "similarity": {
+            "type": "number",
+            "nullable": true,
+            "title": "Similarity"
           }
         },
         "type": "object",
         "required": [
-          "document_id"
+          "document_id",
+          "shared_entities"
         ],
-        "title": "RelatedDocumentsRequest"
+        "title": "RelatedDocumentsResponse",
+        "description": "One row of GET /api/documents/{doc_id}/related \u2014 another document\nrelated via shared knowledge-graph entities and/or semantic\nsimilarity (#4120). Lives here (not route-local) so the envelope is\nfully typed in the OpenAPI spec and the generated Swift client."
       },
       "RemoteBackendHealth": {
         "properties": {
@@ -65427,27 +65421,6 @@
         ],
         "title": "DeletedResponse"
       },
-      "fichero_server__api__routes__search__core__RelatedDocumentsResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/RelatedDocumentEntry"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "count": {
-            "type": "integer",
-            "title": "Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "count"
-        ],
-        "title": "RelatedDocumentsResponse"
-      },
       "fichero_server__api__routes__system__projects__ProjectCreateRequest": {
         "properties": {
           "name": {
@@ -65550,53 +65523,6 @@
         ],
         "title": "DocumentListResponse",
         "description": "Standardized envelope for document list endpoints (GET /api/documents,\n/collections, /roots, /{id}/children, /{id}/ancestors)."
-      },
-      "fichero_server__models__RelatedDocumentsResponse": {
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "name": {
-            "type": "string",
-            "nullable": true,
-            "title": "Name"
-          },
-          "doc_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "Doc Type"
-          },
-          "file_type": {
-            "type": "string",
-            "nullable": true,
-            "title": "File Type"
-          },
-          "shared_entities": {
-            "type": "integer",
-            "title": "Shared Entities"
-          },
-          "sample_entity_names": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Sample Entity Names",
-            "default": []
-          },
-          "similarity": {
-            "type": "number",
-            "nullable": true,
-            "title": "Similarity"
-          }
-        },
-        "type": "object",
-        "required": [
-          "document_id",
-          "shared_entities"
-        ],
-        "title": "RelatedDocumentsResponse",
-        "description": "One row of GET /api/documents/{doc_id}/related \u2014 another document\nrelated via shared knowledge-graph entities and/or semantic\nsimilarity (#4120). Lives here (not route-local) so the envelope is\nfully typed in the OpenAPI spec and the generated Swift client."
       },
       "fichero_server__models__knowledge__EntityType": {
         "type": "string",

@@ -11894,26 +11894,6 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("related-documents")
-    def search_related_documents_post(
-        ctx: typer.Context,
-        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
-        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
-    ) -> None:
-        """Related Documents (POST /api/search/related)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/search/related"
-            params = None
-            payload = _build_json_payload({
-                "document_id": document_id,
-                "limit": limit,
-            }, {
-                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
-                "limit": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Limit', 'default': 10, 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
     @target_app.command("list-saved-searches")
     def search_list_saved_searches_get(
         ctx: typer.Context,
@@ -12052,6 +12032,56 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/search/stats"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("streaming")
+    def search_streaming_post(
+        ctx: typer.Context,
+        compile: Optional[bool] = typer.Option(None, "--compile/--no-compile", help="Request field: compile."),
+        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
+        highlight_results: Optional[bool] = typer.Option(None, "--highlight-results/--no-highlight-results", help="Request field: highlight_results."),
+        include: Optional[str] = typer.Option(None, "--include", help="Request field: include."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        min_score: Optional[float] = typer.Option(None, "--min-score", help="Request field: min_score."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
+        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
+        use_fuzzy_match: Optional[bool] = typer.Option(None, "--use-fuzzy-match/--no-use-fuzzy-match", help="Request field: use_fuzzy_match."),
+    ) -> None:
+        """Streaming Search (POST /api/search/stream)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/stream"
+            params = None
+            payload = _build_json_payload({
+                "compile": compile,
+                "filters": filters,
+                "highlight_results": highlight_results,
+                "include": include,
+                "limit": limit,
+                "min_score": min_score,
+                "offset": offset,
+                "query": query,
+                "search_type": search_type,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
+                "use_fuzzy_match": use_fuzzy_match,
+            }, {
+                "compile": {'type': 'boolean', 'title': 'Compile', 'default': False, 'x-cli-required': False},
+                "filters": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Filters', 'x-cli-required': False},
+                "highlight_results": {'type': 'boolean', 'title': 'Highlight Results', 'default': True, 'x-cli-required': False},
+                "include": {'items': {'$ref': '#/components/schemas/SearchInclude'}, 'type': 'array', 'title': 'Include', 'x-cli-required': False},
+                "limit": {'type': 'integer', 'title': 'Limit', 'default': 10, 'x-cli-required': False},
+                "min_score": {'type': 'number', 'title': 'Min Score', 'default': 0.55, 'x-cli-required': False},
+                "offset": {'type': 'integer', 'title': 'Offset', 'default': 0, 'x-cli-required': False},
+                "query": {'type': 'string', 'title': 'Query', 'x-cli-required': True},
+                "search_type": {'type': 'string', 'title': 'Search Type', 'default': 'hybrid', 'x-cli-required': False},
+                "sort_by": {'type': 'string', 'title': 'Sort By', 'default': 'relevance', 'x-cli-required': False},
+                "sort_direction": {'type': 'string', 'title': 'Sort Direction', 'default': 'desc', 'x-cli-required': False},
+                "use_fuzzy_match": {'type': 'boolean', 'title': 'Use Fuzzy Match', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('settings')

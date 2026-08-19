@@ -1649,6 +1649,9 @@ async def related_documents(
         other = _get_document_row(db, other_id)
         if other is None:
             continue
+        # #4580: a search-excluded document must not resurface as "related".
+        if getattr(other, "exclude_from_search", False):
+            continue
         # Resolve up to 3 sample entity names per related doc.
         sample_names: list[str] = []
         for sample_eid in list(sample_per_doc.get(other_id, set()))[:3]:

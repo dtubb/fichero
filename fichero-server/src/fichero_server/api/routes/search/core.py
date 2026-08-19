@@ -1430,41 +1430,6 @@ async def streaming_search(
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
-class RelatedDocumentsRequest(BaseModel):
-    document_id: str
-    limit: int = Field(default=10, ge=1, le=50)
-
-
-class RelatedDocumentEntry(BaseModel):
-    document_id: str
-    name: str
-    score: float
-    shared_entities: list[str] = []
-
-
-class RelatedDocumentsResponse(BaseModel):
-    items: list[RelatedDocumentEntry]
-    count: int
-
-
-@router.post("/related", response_model=RelatedDocumentsResponse)
-async def related_documents(
-    request: RelatedDocumentsRequest,
-    db: Database = Depends(get_library_database),
-    x_fichero_library_path: str = Depends(require_library_path),
-) -> RelatedDocumentsResponse:
-    """Find Related Documents (#4606): neighbours ranked by passage-vector
-    similarity fused with shared-entity evidence. Read-only."""
-    try:
-        rows = await asyncio.to_thread(
-            db.related_documents, request.document_id, request.limit
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    items = [RelatedDocumentEntry(**row) for row in rows]
-    return RelatedDocumentsResponse(items=items, count=len(items))
-
-
 @router.get("/stats", response_model=EmbeddingStatsResponse)
 async def search_stats(
     db: Database = Depends(get_library_database),
