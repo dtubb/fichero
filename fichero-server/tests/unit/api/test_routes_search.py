@@ -787,6 +787,10 @@ class TestSearchStats:
         assert r.json() == {
             "indexed_count": 7,
             "table_exists": True,
+            # Coverage pair (2026-08-18): the mocked stats dict carries no
+            # coverage keys, so the response model's defaults surface.
+            "embedded_document_count": 0,
+            "document_count": 0,
             "entity_indexed_count": 2,
             "entity_table_exists": True,
             "claim_indexed_count": 3,

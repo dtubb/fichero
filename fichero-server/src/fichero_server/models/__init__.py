@@ -1597,6 +1597,11 @@ class EmbeddingStatsResponse(BaseModel):
 
     indexed_count: int
     table_exists: bool
+    #: Coverage pair (2026-08-18): distinct documents with at least one
+    #: vector vs. documents in the library — 799/5319 went unnoticed for
+    #: weeks when only the raw row count was reported.
+    embedded_document_count: int = 0
+    document_count: int = 0
     entity_indexed_count: int = 0
     entity_table_exists: bool = False
     claim_indexed_count: int = 0
