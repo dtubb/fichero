@@ -1,7 +1,8 @@
 {
   "_doc": "Intentional duplicate code paths. Keys are concern ids; values are explicit allowed handlers/writers.",
   "_reasons": {
-    "kg_write:KnowledgeEntity": "Entity creation is intentionally split between the canonical upsert route and the audited create helper so HTTP create can flow through the action registry without rewriting the legacy update-via-POST path."
+    "kg_write:KnowledgeEntity": "Entity creation is intentionally split between the canonical upsert route and the audited create helper so HTTP create can flow through the action registry without rewriting the legacy update-via-POST path.",
+    "kg_write:KnowledgeEntity#bulk": "entity.bulk_upsert is the sanctioned typed action for corpus imports (one audited batch instead of ~2,800 route calls, 2026-08-18)."
   },
   "concerns": {
     "kg_write:KnowledgeClaim": [
@@ -16,6 +17,7 @@
       "workflows/tools/extractors.py::_write_kg_rows"
     ],
     "kg_write:KnowledgeEntity": [
+      "api/routes/entity/entities.py::_action_bulk_upsert_entities",
       "api/routes/entity/entities.py::create_entity_impl",
       "api/routes/mcp/tools.py::mcp_knowledge_entity_upsert",
       "workflows/tools/_entity_writer.py::upsert_entity",

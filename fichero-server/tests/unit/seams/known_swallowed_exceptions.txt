@@ -54,6 +54,7 @@ db/__init__.py::Database.search 2
 db/__init__.py::Database.workflow_rows_for_list 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1
+db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1
 db/migrations/schema.py::migrate_activity_tables 1
 db/migrations/schema.py::migrate_canvas_layout_table 1
 db/migrations/schema.py::migrate_catalogue_chunk_artifact_type 1
@@ -90,6 +91,7 @@ importers/ingest.py::ingest_file 1
 importers/ingest.py::ingest_file.delete_original 1
 importers/ingest.py::ingest_folder 2
 importers/ingest.py::ingest_folder.notify_document 1
+importers/manifest_import.py::import_manifest 2
 integrations/base.py::AppIntegration._get_app_version 1
 integrations/bookends.py::BookendsIntegration._parse_applescript_records 1
 integrations/bookends.py::BookendsIntegration.get_item 1
@@ -186,7 +188,6 @@ workflows/tools/transcribe.py::transcribe 1
 workflows/tools/vision_base.py::_build_page_records_for_file 1
 workflows/tools/vision_base.py::_log_vision_warning 1
 workflows/tools/vision_base.py::_propagate_to_page_children 1
-workflows/tools/vision_base.py::_write_joined_page_content 1
 workflows/tools/vision_base.py::process_vision 1
 workflows/tools/vision_base.py::process_vision._process_file 4
 workflows/types.py::ToolDef.get_prompt 1

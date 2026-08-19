@@ -211,3 +211,22 @@ def test_schedule_embedding_task_uses_a_semaphore_per_event_loop() -> None:
         assert not any(isinstance(result, RuntimeError) for result in asyncio.run(schedule_three()))
 
     assert len(mixin._bg_embedding_semaphores) == 2
+
+
+def test_save_vectors_survives_a_null_typed_legacy_column(tmp_path):
+    """2026-08-18 live: a Lance table created from an all-None batch pins the
+    column to arrow Null, and every later append with a real value fails
+    'cannot cast from Utf8 to Null' — each derivative embed burned seconds
+    then failed. save_vectors must land the append regardless."""
+    from fichero_server.db import Database
+
+    pkg = tmp_path / "t.fichero"
+    pkg.mkdir()
+    db = Database(pkg / "fichero.duckdb")
+    try:
+        db.save_vectors("probe_table", [{"id": "a", "file_type": None}])
+        db.save_vectors("probe_table", [{"id": "b", "file_type": "image"}])
+        rows = db.lance.open_table("probe_table").to_pandas()
+        assert set(rows["id"]) == {"a", "b"}
+    finally:
+        db.close()

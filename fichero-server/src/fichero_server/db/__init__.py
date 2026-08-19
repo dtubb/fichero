@@ -3876,6 +3876,38 @@ class Database(DatabaseEmbeddingMixin):
         if not fields:
             return data
 
+        # Heal Null-typed columns (2026-08-18 live: a table created from an
+        # all-None batch pins e.g. ``file_type`` to arrow Null, and EVERY
+        # later append carrying a real string fails "cannot cast field from
+        # Utf8 to Null" — each derivative embed burned seconds then failed).
+        # Prefer altering the column to string; if that isn't supported,
+        # null the field in the rows so the append lands.
+        try:
+            import pyarrow as pa
+
+            null_fields = [
+                f.name for f in table.schema if pa.types.is_null(f.type)
+            ]
+        except Exception:  # pragma: no cover - schema introspection best-effort
+            null_fields = []
+        for field_name in null_fields:
+            if not any(row.get(field_name) is not None for row in data):
+                continue
+            try:
+                table.alter_columns({"path": field_name, "data_type": pa.string()})
+                logger.info(
+                    "LanceDB table %s: healed Null-typed column %r to string",
+                    table_name, field_name,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "LanceDB table %s: could not retype Null column %r (%s); "
+                    "nulling the field on this append",
+                    table_name, field_name, exc,
+                )
+                for row in data:
+                    row[field_name] = None
+
         extra_fields = set().union(*(row.keys() - fields for row in data))
         if not extra_fields:
             return data
