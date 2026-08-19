@@ -332,8 +332,12 @@ def test_copy_images_triggers_ingest_copy_and_keeps_page_content(tmp_path):
 
 
 def test_link_mode_references_source_and_warms_local_preview(tmp_path):
-    """Default (link) preserves source metadata without copying bytes and still
-    warms a local preview cache."""
+    """Default (link) preserves source metadata without copying bytes.
+
+    2026-08-18: link mode no longer warms previews inline — the page is
+    PATHLESS until the drop path's post-import stamp, so every warm was a
+    guaranteed 404 costing ~0.5-0.8s/page. Previews come from
+    queue_derivatives after the stamp; this test now pins their ABSENCE."""
     from fichero_server.importers.manifest_import import import_manifest
 
     manifest = _fixture_manifest(tmp_path)
@@ -357,10 +361,10 @@ def test_link_mode_references_source_and_warms_local_preview(tmp_path):
     assert "original_source_path" not in page_post[2]["metadata"]["images"][0]
     assert page_post[2]["page_content"] == "Marshall went to Istmina this afternoon."
 
-    # Even in link mode, a local thumbnail + display preview is warmed.
+    # No inline preview warm in link mode — a pathless page cannot render;
+    # derivatives handle previews once the drop path has stamped the path.
     storage_gets = [c for c in rec.calls if c[0] == "GET" and c[1].startswith("/storage/")]
-    assert any("/storage/thumbnail/" in c[1] for c in storage_gets)
-    assert any("/storage/display/" in c[1] for c in storage_gets)
+    assert not storage_gets
 
 
 def test_resolve_ingest_mode_and_legacy_alias():
