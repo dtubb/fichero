@@ -4124,6 +4124,60 @@
         }
       }
     },
+    "/api/artifacts/bulk": {
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Bulk Create Artifacts",
+        "description": "Create a batch of artifacts (one audited action, #1848).",
+        "operationId": "bulk_create_artifacts_api_artifacts_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactBulkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactBulkCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bookmarks": {
       "post": {
         "tags": [
@@ -10672,6 +10726,71 @@
         }
       }
     },
+    "/api/entities/bulk": {
+      "post": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Bulk Upsert Entities",
+        "description": "Create-or-merge a batch of entities (one audited action, #1848).",
+        "operationId": "bulk_upsert_entities_api_entities_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityBulkUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityBulkUpsertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/entities": {
       "post": {
         "tags": [
@@ -10785,6 +10904,17 @@
               "minimum": 1,
               "default": 50,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
             }
           }
         ],
@@ -35903,6 +36033,46 @@
         "title": "Artifact",
         "description": "Output from any processing step - versioned and chainable.\n\nArtifacts are results from AI/ML processing:\n- Transcription (OCR text)\n- Entities (people, places, dates)\n- Summary\n- Translation\n- Grouping suggestions (which pages belong together)\n- Segmentation suggestions (regions within a page)\n\nVersioning: Multiple versions can exist for the same document.\nChaining: One artifact can be derived from another (OCR \u2192 cleaned text).\n\nStructural artifacts (grouping, segmentation) suggest changes that\nbecome Document structure when user approves."
       },
+      "ArtifactBulkCreateRequest": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactCreateRequest"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifacts"
+        ],
+        "title": "ArtifactBulkCreateRequest"
+      },
+      "ArtifactBulkCreateResponse": {
+        "properties": {
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created Ids"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_ids",
+          "warnings"
+        ],
+        "title": "ArtifactBulkCreateResponse"
+      },
       "ArtifactComparisonResponse": {
         "properties": {
           "document_id": {
@@ -42629,6 +42799,12 @@
             "description": "True when import/workflow processing should skip this document. Used by curation to keep selected rows out of downstream passes.",
             "default": false
           },
+          "exclude_from_search": {
+            "type": "boolean",
+            "title": "Exclude From Search",
+            "description": "True when search must not return this document (#4580): filtered from keyword/semantic/hybrid results and skipped by embedding. Curation for structural pages \u2014 covers, front matter \u2014 that are imported for completeness but are not content.",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -42735,6 +42911,10 @@
             "type": "string",
             "nullable": true,
             "title": "Reason"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/DocumentExclusionScope",
+            "default": "processing"
           }
         },
         "type": "object",
@@ -43018,6 +43198,15 @@
           "metadata"
         ],
         "title": "DocumentDebugResponse"
+      },
+      "DocumentExclusionScope": {
+        "type": "string",
+        "enum": [
+          "processing",
+          "search"
+        ],
+        "title": "DocumentExclusionScope",
+        "description": "Which exclusion flag a batch-exclude toggles (#4580). A closed set \u2014\nan enum, never a bare str, so the generated Swift client cannot drift."
       },
       "DocumentFetchRequest": {
         "properties": {
@@ -43515,6 +43704,11 @@
             "nullable": true,
             "title": "Exclude From Processing"
           },
+          "exclude_from_search": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Exclude From Search"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -43838,6 +44032,16 @@
             "type": "boolean",
             "title": "Table Exists"
           },
+          "embedded_document_count": {
+            "type": "integer",
+            "title": "Embedded Document Count",
+            "default": 0
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count",
+            "default": 0
+          },
           "entity_indexed_count": {
             "type": "integer",
             "title": "Entity Indexed Count",
@@ -44146,6 +44350,62 @@
         "title": "EntityBiographyResponse",
         "description": "Structured biography bundle for a single entity.\n\nAssembles entity facts + all SVO claims that mention the entity +\nsource-document links + co-occurring entities into one response so\ncallers get a complete cross-doc picture in a single round-trip.\n\nLLM-narrated prose is out of scope here (tracked in #1361) \u2014 this\nreturns structured data only."
       },
+      "EntityBulkUpsertRequest": {
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityCreateActionParams"
+            },
+            "type": "array",
+            "title": "Entities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entities"
+        ],
+        "title": "EntityBulkUpsertRequest"
+      },
+      "EntityBulkUpsertResponse": {
+        "properties": {
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created Ids"
+          },
+          "reused_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reused Ids"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "id_by_name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Id By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_ids",
+          "reused_ids",
+          "warnings",
+          "id_by_name"
+        ],
+        "title": "EntityBulkUpsertResponse"
+      },
       "EntityCoOccurrence": {
         "properties": {
           "entity_id": {
@@ -44202,6 +44462,52 @@
         ],
         "title": "EntityCoOccurrenceListResponse",
         "description": "Standardized envelope for GET /api/entities/{entity_id}/co-occurrence."
+      },
+      "EntityCreateActionParams": {
+        "properties": {
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
+            "default": "other"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "canonical_name"
+        ],
+        "title": "EntityCreateActionParams"
       },
       "EntityCurationState": {
         "type": "string",

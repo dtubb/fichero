@@ -362,6 +362,15 @@ class Document(BaseModel):
             "Used by curation to keep selected rows out of downstream passes."
         ),
     )
+    exclude_from_search: bool = Field(
+        default=False,
+        description=(
+            "True when search must not return this document (#4580): filtered "
+            "from keyword/semantic/hybrid results and skipped by embedding. "
+            "Curation for structural pages — covers, front matter — that are "
+            "imported for completeness but are not content."
+        ),
+    )
 
     # Timestamps
     created_at: datetime = Field(default_factory=utc_now)

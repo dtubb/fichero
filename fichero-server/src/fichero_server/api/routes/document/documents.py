@@ -7,6 +7,8 @@ CRUD operations for Document model.
 import asyncio
 import logging
 import tempfile
+from enum import Enum
+
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, Optional
@@ -208,6 +210,7 @@ class DocumentUpdate(BaseModel):
     is_starred: Optional[bool] = None
     is_flagged: Optional[bool] = None
     exclude_from_processing: Optional[bool] = None
+    exclude_from_search: Optional[bool] = None
     metadata: Optional[dict] = None
     prototype_key: Optional[str] = None
     # Prototype-scoped node attribute VALUES (datasets Stage 1). Wholesale
@@ -221,10 +224,20 @@ class DocumentUpdate(BaseModel):
     z_index: Optional[int] = None
 
 
+class DocumentExclusionScope(str, Enum):
+    """Which exclusion flag a batch-exclude toggles (#4580). A closed set —
+    an enum, never a bare str, so the generated Swift client cannot drift."""
+
+    processing = "processing"
+    search = "search"
+
+
 class DocumentBatchExcludeRequest(BaseModel):
     document_ids: list[str]
     excluded: bool
     reason: str | None = None
+    # Default keeps every existing caller's behaviour (#4580).
+    scope: DocumentExclusionScope = DocumentExclusionScope.processing
 
 
 class DocumentBatchExcludeResponse(BaseModel):
@@ -2352,7 +2365,12 @@ def batch_exclude_documents_impl(
 
         before = doc.model_dump(mode="json")
         before_snapshots.append(before)
-        doc.exclude_from_processing = request.excluded
+        if request.scope == DocumentExclusionScope.search:
+            doc.exclude_from_search = request.excluded
+            changed_field = "exclude_from_search"
+        else:
+            doc.exclude_from_processing = request.excluded
+            changed_field = "exclude_from_processing"
         doc.updated_at = utc_now()
         db.save(doc)
         db.save(
@@ -2362,7 +2380,7 @@ def batch_exclude_documents_impl(
                 operation=MutationOperationType.update,
                 before_state=before,
                 after_state=doc.model_dump(mode="json"),
-                changed_fields=["exclude_from_processing"],
+                changed_fields=[changed_field],
                 created_by=request.reason or "batch_exclude_documents",
             )
         )

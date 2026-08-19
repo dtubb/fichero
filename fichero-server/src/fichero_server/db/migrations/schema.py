@@ -204,6 +204,16 @@ def migrate_document_table(conn) -> None:
                 ADD COLUMN sort_order INTEGER DEFAULT 0
             """)
 
+        # #4580: search exclusion is its own flag, separate from
+        # exclude_from_processing — both are user curation, so existing
+        # libraries need the column, not just fresh `_ensure_table` schemas.
+        if "exclude_from_search" not in columns:
+            logger.info("Migrating documents table: adding exclude_from_search column...")
+            conn.execute("""
+                ALTER TABLE documents
+                ADD COLUMN exclude_from_search BOOLEAN DEFAULT FALSE
+            """)
+
         logger.info("Documents table migration completed")
 
     except Exception as e:

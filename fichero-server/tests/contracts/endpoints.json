@@ -797,6 +797,16 @@
         "response_model": "ArtifactResponse"
       },
       {
+        "method": "POST",
+        "path": "/artifacts/bulk",
+        "operation_id": "bulk_create_artifacts_api_artifacts_bulk_post",
+        "summary": "Bulk Create Artifacts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ArtifactBulkCreateRequest",
+        "response_model": "ArtifactBulkCreateResponse"
+      },
+      {
         "method": "GET",
         "path": "/artifacts/document/{doc_id}",
         "operation_id": "list_document_artifacts_api_artifacts_document__doc_id__get",
@@ -3074,6 +3084,11 @@
             "type": "integer"
           },
           {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
             "name": "q",
             "required": false,
             "type": "string"
@@ -3101,6 +3116,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "EntityAliasMapResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/entities/bulk",
+        "operation_id": "bulk_upsert_entities_api_entities_bulk_post",
+        "summary": "Bulk Upsert Entities",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityBulkUpsertRequest",
+        "response_model": "EntityBulkUpsertResponse"
       },
       {
         "method": "GET",

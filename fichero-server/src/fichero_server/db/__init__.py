@@ -4331,6 +4331,14 @@ class Database(DatabaseEmbeddingMixin):
         Returns:
             True if embedding was created
         """
+        # #4580: an excluded document must not spend an embed or leave a
+        # vector that a later query-time filter has to hide.
+        if getattr(doc, "exclude_from_search", False):
+            self.last_embed_outcome = EmbedOutcome(
+                embedded=False, reason="excluded_from_search", document_id=doc.id
+            )
+            return False
+
         # Marker-only content guard: when transcribe runs against a blank
         # or unreadable page it sets page_content to '[sin texto]' (or
         # '[ilegible]'). Embedding that literal string makes every
@@ -4409,7 +4417,10 @@ class Database(DatabaseEmbeddingMixin):
         return any(self.has_embedding(page.id) for page in pages)
 
     def _is_active_document_id(self, document_id: str | None) -> bool:
-        """True when the document exists and is not soft-deleted."""
+        """True when the document may appear in search results: it exists,
+        is not soft-deleted, and is not excluded from search (#4580 — the
+        one gate every semantic/fulltext/hybrid leg passes through, so the
+        exclusion flag cannot miss a path)."""
         if not document_id:
             return False
         try:
@@ -4421,7 +4432,11 @@ class Database(DatabaseEmbeddingMixin):
                 "Active-document lookup failed for %s: %s", document_id, exc
             )
             return False
-        return bool(doc and getattr(doc, "deleted_at", None) is None)
+        return bool(
+            doc
+            and getattr(doc, "deleted_at", None) is None
+            and not getattr(doc, "exclude_from_search", False)
+        )
 
     def enrich_search_results_with_kg(
         self, results: list[SearchResult], query: str

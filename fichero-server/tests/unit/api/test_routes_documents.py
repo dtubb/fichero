@@ -1256,6 +1256,46 @@ class TestBatchExcludeDocuments:
         logs = [m for m in db.query(MutationLog) if m.entity_id == doc.id]
         assert len(logs) == 1
 
+    def test_batch_exclude_search_scope_sets_only_the_search_flag(self, client, db):
+        """#4580: scope=search toggles exclude_from_search and leaves
+        exclude_from_processing alone — two independent curation flags."""
+        doc = _make_doc(db, "Cover page")
+
+        r = client.patch(
+            "/api/documents/batch-exclude",
+            json={
+                "document_ids": [doc.id],
+                "excluded": True,
+                "scope": "search",
+                "reason": "front matter",
+            },
+        )
+
+        assert r.status_code == 200
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.exclude_from_search is True
+        assert refreshed.exclude_from_processing is False
+        logs = [m for m in db.query(MutationLog) if m.entity_id == doc.id]
+        assert logs and logs[-1].changed_fields == ["exclude_from_search"]
+
+    def test_search_excluded_document_never_returns_and_never_embeds(self, client, db):
+        """#4580 end to end at the db layer: the one active-document gate all
+        search legs share refuses an excluded doc, and embed() spends nothing
+        on it."""
+        doc = _make_doc(db, "Front matter")
+        doc.page_content = "Counting-House Calendar for 1923"
+        doc.exclude_from_search = True
+        db.save(doc)
+
+        assert db._is_active_document_id(doc.id) is False
+        assert db.embed(doc) is False
+        assert db.last_embed_outcome.reason == "excluded_from_search"
+
+        # And the flag is honest curation: flipping it back re-admits the doc.
+        doc.exclude_from_search = False
+        db.save(doc)
+        assert db._is_active_document_id(doc.id) is True
+
     def test_batch_exclude_missing_document_returns_404(self, client):
         r = client.patch(
             "/api/documents/batch-exclude",

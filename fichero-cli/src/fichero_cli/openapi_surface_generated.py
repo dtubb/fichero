@@ -1225,6 +1225,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("bulk-create")
+    def artifacts_bulk_create_post(
+        ctx: typer.Context,
+        artifacts: str = typer.Option(..., "--artifacts", help="Request field: artifacts."),
+    ) -> None:
+        """Bulk Create Artifacts (POST /api/artifacts/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/artifacts/bulk"
+            params = None
+            payload = _build_json_payload({
+                "artifacts": artifacts,
+            }, {
+                "artifacts": {'items': {'$ref': '#/components/schemas/ArtifactCreateRequest'}, 'type': 'array', 'title': 'Artifacts', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document")
     def artifacts_list_document_get(
         ctx: typer.Context,
@@ -3765,6 +3782,7 @@ def register_generated_openapi_commands(
         document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
         excluded: bool = typer.Option(..., "--excluded/--no-excluded", help="Request field: excluded."),
         reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        scope: Optional[str] = typer.Option(None, "--scope", help="Request field: scope."),
     ) -> None:
         """Batch Exclude Documents (PATCH /api/documents/batch-exclude)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3774,10 +3792,12 @@ def register_generated_openapi_commands(
                 "document_ids": document_ids,
                 "excluded": excluded,
                 "reason": reason,
+                "scope": scope,
             }, {
                 "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Document Ids', 'x-cli-required': True},
                 "excluded": {'type': 'boolean', 'title': 'Excluded', 'x-cli-required': True},
                 "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "scope": {'type': 'string', 'enum': ['processing', 'search'], 'title': 'DocumentExclusionScope', 'description': 'Which exclusion flag a batch-exclude toggles (#4580). A closed set —\nan enum, never a bare str, so the generated Swift client cannot drift.', 'x-cli-required': False},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -4004,6 +4024,7 @@ def register_generated_openapi_commands(
         attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
         doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Request field: doc_type."),
         exclude_from_processing: Optional[bool] = typer.Option(None, "--exclude-from-processing/--no-exclude-from-processing", help="Request field: exclude_from_processing."),
+        exclude_from_search: Optional[bool] = typer.Option(None, "--exclude-from-search/--no-exclude-from-search", help="Request field: exclude_from_search."),
         file_type: Optional[str] = typer.Option(None, "--file-type", help="Request field: file_type."),
         is_flagged: Optional[bool] = typer.Option(None, "--is-flagged/--no-is-flagged", help="Request field: is_flagged."),
         is_read: Optional[bool] = typer.Option(None, "--is-read/--no-is-read", help="Request field: is_read."),
@@ -4031,6 +4052,7 @@ def register_generated_openapi_commands(
                 "attributes": attributes,
                 "doc_type": doc_type,
                 "exclude_from_processing": exclude_from_processing,
+                "exclude_from_search": exclude_from_search,
                 "file_type": file_type,
                 "is_flagged": is_flagged,
                 "is_read": is_read,
@@ -4053,6 +4075,7 @@ def register_generated_openapi_commands(
                 "attributes": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Attributes', 'x-cli-required': False},
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
                 "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'x-cli-required': False},
+                "exclude_from_search": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Search', 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
                 "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'x-cli-required': False},
                 "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'x-cli-required': False},
@@ -4464,6 +4487,7 @@ def register_generated_openapi_commands(
         document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
         entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
         q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
     ) -> None:
         """List Entities (GET /api/entities)."""
@@ -4473,6 +4497,7 @@ def register_generated_openapi_commands(
                 "document_id": document_id,
                 "entity_type": entity_type,
                 "limit": limit,
+                "offset": offset,
                 "q": q,
             }
             return client.request("GET", endpoint_path, params=params)
@@ -4525,6 +4550,23 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/entities/alias-map"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("bulk-upsert")
+    def entities_bulk_upsert_post(
+        ctx: typer.Context,
+        entities: str = typer.Option(..., "--entities", help="Request field: entities."),
+    ) -> None:
+        """Bulk Upsert Entities (POST /api/entities/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/entities/bulk"
+            params = None
+            payload = _build_json_payload({
+                "entities": entities,
+            }, {
+                "entities": {'items': {'$ref': '#/components/schemas/EntityCreateActionParams'}, 'type': 'array', 'title': 'Entities', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("claim-counts")
