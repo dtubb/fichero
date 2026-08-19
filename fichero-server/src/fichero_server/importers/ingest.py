@@ -2003,19 +2003,32 @@ def _apply_iffy_to_document(
     # arrival (Daniel 2026-08-17, the maps corpus: "1715" must not read as
     # Undated until an Extract Dates run). Same parser, same columns, same
     # precedence as the workflow: never overwrite an existing date.
-    raw_date = iffy_data.get("iffy_original_date")
-    if raw_date and not doc.date_original and doc.date_jdn is None:
-        from fichero_server.histdate import parse_historical_date
-
-        parsed = parse_historical_date(str(raw_date))
-        if parsed is not None:
-            parsed.meta["source"] = "iffy_sidecar"
-            doc.date_original = parsed.original
-            doc.date_jdn = parsed.jdn
-            doc.date_jdn_end = parsed.jdn_end
-            doc.date_meta = parsed.as_meta()
+    apply_import_date(doc, iffy_data.get("iffy_original_date"), source="iffy_sidecar")
 
     return doc
+
+
+def apply_import_date(doc: Document, raw_date: Any, *, source: str) -> bool:
+    """Date a document on arrival from import-carried provenance.
+
+    Same parser, same columns, same precedence as the workflow: never
+    overwrite an existing date; unparseable input stays honest (metadata
+    only, no guessed columns). ``source`` records where the date came from
+    (``iffy_sidecar``, ``manifest``). Returns True when a date was applied.
+    """
+    if not raw_date or doc.date_original or doc.date_jdn is not None:
+        return False
+    from fichero_server.histdate import parse_historical_date
+
+    parsed = parse_historical_date(str(raw_date))
+    if parsed is None:
+        return False
+    parsed.meta["source"] = source
+    doc.date_original = parsed.original
+    doc.date_jdn = parsed.jdn
+    doc.date_jdn_end = parsed.jdn_end
+    doc.date_meta = parsed.as_meta()
+    return True
 
 
 # =============================================================================
@@ -2062,6 +2075,7 @@ __all__ = [
     '_FILE_TYPE_MAP',
     '_TEXT_EXTRACTABLE',
     '_apply_iffy_to_document',
+    'apply_import_date',
     '_copy_to_library',
     '_create_pdf_page_children',
     '_ensure_folder_hierarchy',

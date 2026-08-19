@@ -361,6 +361,19 @@ def _import_manifest_folder(
         if source:
             doc.path = source
             db.save(doc)
+    # A manifest node's ``date`` makes the page DATED on arrival (2026-08-19:
+    # 125/157 dated pages in a staged diary imported with date_original=None —
+    # the date rode only in metadata). Same parser/columns/precedence as the
+    # .iffy.json sidecar path, provenance recorded as "manifest".
+    from fichero_server.importers.ingest import apply_import_date
+
+    dated = 0
+    for doc in docs:
+        if apply_import_date(doc, (doc.metadata or {}).get("date"), source="manifest"):
+            db.save(doc)
+            dated += 1
+    if dated:
+        logger.info("Manifest folder import: dated %d documents on arrival", dated)
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(
         "Manifest folder import: %s -> %d documents, %d entities, %d skipped",
