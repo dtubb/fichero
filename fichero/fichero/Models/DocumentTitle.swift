@@ -84,13 +84,25 @@ enum DocumentTitle {
     static func windowTitle(
         leaf: Document?,
         parent: Document? = nil,
-        selectedPageCount: Int = 0
+        selectedPageCount: Int = 0,
+        selectionNoun: String = "pages"
     ) -> String {
         if selectedPageCount > 1 {
-            return "\(selectedPageCount) pages"
+            return "\(selectedPageCount) \(selectionNoun)"
         }
         guard let leaf else { return placeholder }
         return displayName(for: leaf, parent: parent)
+    }
+
+    /// The noun a multi-selection counts in (#4586, Daniel: "PDFs have pages,
+    /// folders have documents or images"). Image-backed page rows — the
+    /// Marshall corpus shape — are IMAGES to the user; only real PDF pages
+    /// count as "pages". A mixed selection falls back to "items".
+    static func selectionNoun(for documents: [Document]) -> String {
+        guard !documents.isEmpty else { return "items" }
+        if documents.allSatisfy({ $0.fileType == .image }) { return "images" }
+        if documents.allSatisfy({ $0.docType == .page && $0.fileType != .image }) { return "pages" }
+        return "items"
     }
 
     /// Shorten a long name for a length-constrained surface, keeping the start
