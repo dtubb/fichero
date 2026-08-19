@@ -1674,6 +1674,72 @@ def _is_sidecar_file(path: Path) -> bool:
     )
 
 
+def _load_entity_sidecar(source_path: Path) -> list[dict[str, Any]]:
+    """Entities out of ``<file>.entities.json`` beside ``source_path``.
+
+    The Marshall staging convention (stage_sidecars.py) writes a merged entity
+    set per page: ``{"entities": [{"name", "type", "raw_type", "sources",
+    "start", "end"}, ...]}``. Missing sidecar → ``[]``; a malformed one warns
+    and returns ``[]`` — one bad sidecar must not fail a 150-page folder whose
+    documents already committed.
+    """
+    sidecar = source_path.parent / f"{source_path.name}.entities.json"
+    if not sidecar.is_file():
+        return []
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Unreadable entity sidecar %s: %s", sidecar, exc)
+        return []
+    entities = data.get("entities") if isinstance(data, dict) else None
+    return [e for e in (entities or []) if isinstance(e, dict)]
+
+
+def entity_sidecar_payload(documents: list[Document]) -> list[dict[str, Any]]:
+    """One ``entity.bulk_upsert`` payload for every entity sidecar in a batch.
+
+    Reads each document's recorded ``source_path`` (works for LINK and COPY —
+    the sidecar lives beside the SOURCE file, not the library copy), dedupes by
+    canonical name across the batch, and merges page-scoped
+    ``source_document_ids`` — the same shape the manifest importer sends to
+    ``POST /entities/bulk``.
+    """
+    from fichero_server.models.knowledge import EntityType
+
+    merged: dict[str, dict[str, Any]] = {}
+    for doc in documents:
+        if doc.doc_type != DocType.file or doc.status == Status.failed:
+            continue
+        source = (doc.metadata or {}).get("source_path")
+        if not source:
+            continue
+        for raw in _load_entity_sidecar(Path(source)):
+            name = str(raw.get("name") or raw.get("canonical_name") or "").strip()
+            if not name:
+                continue
+            raw_type = str(raw.get("type") or raw.get("entity_type") or "other")
+            entity_type = (
+                raw_type if raw_type in EntityType._value2member_map_ else "other"
+            )
+            entry = merged.setdefault(
+                name,
+                {
+                    "canonical_name": name,
+                    "entity_type": entity_type,
+                    "metadata": {
+                        "sources": raw.get("sources") or [],
+                        "raw_type": raw.get("raw_type"),
+                        "start": raw.get("start"),
+                        "end": raw.get("end"),
+                    },
+                    "source_document_ids": [],
+                },
+            )
+            if doc.id not in entry["source_document_ids"]:
+                entry["source_document_ids"].append(doc.id)
+    return sorted(merged.values(), key=lambda e: e["canonical_name"].casefold())
+
+
 _ANCESTOR_MAX_DEPTH = 64
 
 
@@ -2007,6 +2073,7 @@ __all__ = [
     '_kreuzberg_pdf_pages',
     '_load_bibliography_sidecar',
     '_load_companion_json',
+    '_load_entity_sidecar',
     '_page_label_for',
     '_parse_iffy_sidecar',
     '_resolve_default_db',
@@ -2023,6 +2090,7 @@ __all__ = [
     'datetime',
     'detect_file_type',
     'discover_files',
+    'entity_sidecar_payload',
     'find_duplicates',
     'hashlib',
     'ingest_file',

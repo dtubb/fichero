@@ -88,3 +88,103 @@ def test_transcript_sidecar_lands_in_page_content(tmp_path, monkeypatch):
     assert doc.page_content and doc.page_content.startswith("SATURDAY, FEBRUARY 3, 1923")
     assert doc.metadata.get("transcript_source") == "sidecar"
     assert not called, "extraction must not run over a sidecar transcript"
+
+
+def _entity_sidecar(tmp_path, image_name: str, entities: list[dict]) -> None:
+    import json
+
+    (tmp_path / image_name).write_bytes(b"img")
+    (tmp_path / f"{image_name}.entities.json").write_text(
+        json.dumps({"schema": "fichero-page-entities-v0-proposed", "entities": entities})
+    )
+
+
+def _file_doc(doc_id: str, tmp_path, image_name: str):
+    from fichero_server.models import DocType, Document
+
+    return Document(
+        id=doc_id,
+        name=image_name,
+        doc_type=DocType.file,
+        metadata={"source_path": str(tmp_path / image_name)},
+    )
+
+
+def test_entity_sidecar_payload_dedupes_and_scopes_pages(tmp_path):
+    """x.jpg.entities.json beside x.jpg becomes ONE bulk-upsert payload:
+    deduped by canonical name across the batch, each entity carrying the
+    ids of the pages it appeared on (the manifest importer's shape)."""
+    from fichero_server.importers.ingest import entity_sidecar_payload
+
+    _entity_sidecar(tmp_path, "p1.jpg", [
+        {"name": "Istmina", "type": "location", "raw_type": "GPE",
+         "sources": ["andy-ner"], "start": 10, "end": 17},
+        {"name": "N. C. Marshall", "type": "person"},
+        {"name": "", "type": "person"},               # nameless → skipped
+        {"name": "Skimmer", "type": "steamboat"},     # unknown type → other
+    ])
+    _entity_sidecar(tmp_path, "p2.jpg", [
+        {"name": "Istmina", "type": "location"},
+    ])
+    docs = [_file_doc("d1", tmp_path, "p1.jpg"), _file_doc("d2", tmp_path, "p2.jpg")]
+
+    payload = entity_sidecar_payload(docs)
+
+    by_name = {e["canonical_name"]: e for e in payload}
+    assert set(by_name) == {"Istmina", "N. C. Marshall", "Skimmer"}
+    assert by_name["Istmina"]["source_document_ids"] == ["d1", "d2"]
+    assert by_name["Istmina"]["entity_type"] == "location"
+    assert by_name["Istmina"]["metadata"]["raw_type"] == "GPE"
+    assert by_name["Skimmer"]["entity_type"] == "other"
+    assert by_name["N. C. Marshall"]["source_document_ids"] == ["d1"]
+
+
+def test_entity_sidecar_payload_skips_failed_missing_and_malformed(tmp_path):
+    from fichero_server.models import Status
+    from fichero_server.importers.ingest import entity_sidecar_payload
+
+    # No sidecar at all.
+    (tmp_path / "plain.jpg").write_bytes(b"img")
+    plain = _file_doc("d1", tmp_path, "plain.jpg")
+    # Malformed sidecar: warns, never raises (documents already committed).
+    (tmp_path / "bad.jpg").write_bytes(b"img")
+    (tmp_path / "bad.jpg.entities.json").write_text("{not json")
+    bad = _file_doc("d2", tmp_path, "bad.jpg")
+    # Failed-ingest stub must not contribute entities.
+    _entity_sidecar(tmp_path, "failed.jpg", [{"name": "Ghost", "type": "person"}])
+    failed = _file_doc("d3", tmp_path, "failed.jpg")
+    failed.status = Status.failed
+
+    assert entity_sidecar_payload([plain, bad, failed]) == []
+
+
+def test_import_actions_route_sidecar_entities_through_bulk_upsert(monkeypatch, tmp_path):
+    """The import.folder/import.file actions hand the payload to ONE audited
+    entity.bulk_upsert with the SAME ctx (library-scoped emit), and skip the
+    invoke entirely when the batch carries no sidecars."""
+    from types import SimpleNamespace
+
+    from fichero_server.api.routes.ingest import core
+
+    _entity_sidecar(tmp_path, "p1.jpg", [{"name": "Istmina", "type": "location"}])
+    doc = _file_doc("d1", tmp_path, "p1.jpg")
+
+    calls = []
+
+    def fake_invoke(db, name, params, ctx):
+        calls.append((name, params, ctx))
+        return SimpleNamespace(result={"created_ids": ["e1"], "reused_ids": [], "warnings": []})
+
+    monkeypatch.setattr(core.registry, "invoke", fake_invoke)
+    ctx = object()
+    core._upsert_sidecar_entities("db", [doc], ctx)
+
+    assert len(calls) == 1
+    name, params, seen_ctx = calls[0]
+    assert name == "entity.bulk_upsert"
+    assert params["entities"][0]["canonical_name"] == "Istmina"
+    assert seen_ctx is ctx
+
+    # Empty batch → no action invoke at all.
+    core._upsert_sidecar_entities("db", [], ctx)
+    assert len(calls) == 1
