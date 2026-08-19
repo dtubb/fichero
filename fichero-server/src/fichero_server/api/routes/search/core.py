@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.security import authz
@@ -1373,7 +1374,7 @@ async def streaming_search(
     request: SearchRequest,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
-) -> "StreamingResponse":
+) -> StreamingResponse:
     """Streaming search v1 (#4604, Daniel's ruling Q11: streaming IS in
     scope) — results appear as they are found, newline-delimited JSON:
 
@@ -1385,8 +1386,6 @@ async def streaming_search(
     REPLACES the provisional list. A failed phase streams
     {"type": "error", "detail": ...} — never a silently truncated stream.
     """
-    from fastapi.responses import StreamingResponse
-
     if not request.query.strip():
         raise HTTPException(status_code=422, detail="stream requires a query")
 
