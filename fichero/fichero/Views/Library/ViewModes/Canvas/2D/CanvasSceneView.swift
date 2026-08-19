@@ -41,6 +41,10 @@ struct CanvasSceneView: View {
     /// Move a dragged node into a container (→ audited `document.move`), wired by
     /// LibraryView which owns the document store. `(nodeId, containerNodeId)`.
     var moveIntoContainer: (String, String) -> Void = { _, _ in }
+    /// The CURRENT library's storage service for thumbnail textures — without
+    /// it the cache falls back to the GLOBAL library and every other library's
+    /// canvas renders colored placeholders (user, live 2026-08-19).
+    var storageService: StorageService?
 
     // These three are internal, not private, for the same reason as the resize
     // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
@@ -202,6 +206,7 @@ struct CanvasSceneView: View {
         )
         renderer.onIntent = { controller.dispatch($0) }
         renderer.isDragSuppressed = { controller.isDragging($0) }
+        renderer.storageService = storageService
         controller.onMoveInto = { moveIntoContainer($0, $1) }
         self.controller = controller
     }

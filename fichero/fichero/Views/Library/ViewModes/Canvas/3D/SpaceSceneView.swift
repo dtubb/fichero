@@ -81,7 +81,7 @@ struct SpaceSceneView: View {
     /// I/O sustains GPU/CPU load and was the prime suspect for the macOS
     /// WindowServer watchdog crashes. Beyond the cap we render a bounded prefix
     /// and surface a banner — never a runaway scene.
-    private let maxRenderedNodes = 250
+    private let maxRenderedNodes = 1500
 
     /// The bounded set actually placed in the scene. Backend order is
     /// preserved; relative geometry of the rendered subset is untouched
@@ -814,7 +814,8 @@ private extension SpaceSceneView {
         _ entity: ModelEntity,
         sourceId: String,
         cardWidth: Float,
-        cardHeight: Float
+        cardHeight: Float,
+        retriesLeft: Int = 2
     ) {
         let service = storageService
         Task { @MainActor in
@@ -846,6 +847,17 @@ private extension SpaceSceneView {
                 // be loaded — but say WHY in the log (#4160): silence made
                 // 'no thumbnails' undiagnosable.
                 SpaceTextureCache.logTextureFailure(sourceId: sourceId, error: error)
+                // Fresh imports 404 until their thumbnail generates moments
+                // later; without a retry the card stayed a placeholder until
+                // the whole scene rebuilt (user, live 2026-08-19).
+                if retriesLeft > 0 {
+                    try? await Task.sleep(for: .seconds(25))
+                    refineWithPageTexture(
+                        entity, sourceId: sourceId,
+                        cardWidth: cardWidth, cardHeight: cardHeight,
+                        retriesLeft: retriesLeft - 1
+                    )
+                }
             }
         }
     }
@@ -1029,7 +1041,10 @@ actor SpaceTextureCache {
     /// request pool at 48/64 held entirely by get_thumbnail. Thumbnails DO
     /// appear later, so failures retry after the cooldown, never never.
     private var failedAt: [String: Date] = [:]
-    private static let failureCooldown: TimeInterval = 120
+    /// 120s made freshly-imported pages sit on colored placeholders for two
+    /// minutes after their thumbnails were generated (user, live 2026-08-19);
+    /// 20s still collapses the 404 stampede an import produces.
+    private static let failureCooldown: TimeInterval = 20
 
     /// At most this many thumbnail fetches on the wire at once — a folder of
     /// 204 pages trickles instead of stampeding the engine's pool.

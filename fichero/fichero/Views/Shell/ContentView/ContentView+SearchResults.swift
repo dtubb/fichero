@@ -125,21 +125,35 @@ extension ContentView {
         // its own resolution pass owns the result state.
         guard activeSearchQuery == query else { return }
 
+        // Every hit is a NODE in the grid (#4118, ruling 2026-08-19): entity,
+        // claim and artifact hits resolve to their parent documents and join
+        // the result set, so all legs are clickable, dataset-viewable,
+        // canvas-able and saveable like any other node — never a separate
+        // list stacked above the library.
+        var hitIds: [String] = store.results.map(\.documentId)
+        if let stats = store.searchStats {
+            hitIds.append(contentsOf: stats.artifactHits.map(\.documentId))
+            hitIds.append(contentsOf: stats.entityHits.compactMap(\.sourceDocumentIds?.first))
+            hitIds.append(contentsOf: stats.claimHits.compactMap(\.sourceDocumentId))
+        }
+        var seen = Set<String>()
+        let orderedIds = hitIds.filter { seen.insert($0).inserted }
+
         var resolved: [Document] = []
-        for result in store.results {
-            if let known = documentStore.currentDocuments.first(where: { $0.id == result.documentId })
-                ?? documentStore.collections.first(where: { $0.id == result.documentId }) {
+        for documentId in orderedIds {
+            if let known = documentStore.currentDocuments.first(where: { $0.id == documentId })
+                ?? documentStore.collections.first(where: { $0.id == documentId }) {
                 resolved.append(known)
                 continue
             }
             do {
-                resolved.append(try await library.documentService.getDocument(result.documentId))
+                resolved.append(try await library.documentService.getDocument(documentId))
             } catch {
                 // A hit whose document can't load is dropped from the grid —
                 // the engine already 500s on real failures (#4109), so this is
                 // a per-row race (deleted since indexing), not a silent state.
                 searchResultsLogger.warning(
-                    "search hit \(result.documentId, privacy: .public) failed to resolve: \(error.localizedDescription)"
+                    "search hit \(documentId, privacy: .public) failed to resolve: \(error.localizedDescription)"
                 )
             }
         }
@@ -270,12 +284,9 @@ extension ContentView {
             // to override. Compilation failure shows too, never hidden.
             compilationDetailRow(store: store)
 
-            // Every non-document leg the engine searched (#4118, #4403).
-            // Entities and claims were returned and counted but never
-            // rendered, which is why searching a person surfaced only
-            // Artifacts. All three now share one section type.
-            nonDocumentHitSections(store: store)
-
+            // Non-document legs are NOT listed here (#4118, ruling
+            // 2026-08-19): entity/claim/artifact hits resolve into the grid
+            // as nodes; the bar stays a slim two-row header.
             Divider()
         }
         // A document.* change on this (or another window's) library bumps
@@ -371,7 +382,11 @@ extension ContentView {
             // class this issue belongs to. rendered_total remains available and
             // is worth using as a server/client AGREEMENT check — a different
             // job from deciding what the header says.
-            let total = transientSearchHitCounts.total
+            // The grid IS the result set now (#4118): every leg's hits resolve
+            // into it as nodes, so the honest count is the rows on screen —
+            // summing the legs would double-count a doc that also matched an
+            // entity.
+            let total = searchResultDocuments.count
             Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -461,35 +476,6 @@ extension ContentView {
             .padding(.horizontal, 12)
             .padding(.bottom, 4)
             .background(.bar)
-        }
-    }
-
-    /// Artifacts, entities and claims — the three legs the engine searches
-    /// besides documents (#4403).
-    ///
-    /// Each renders through the same `SearchHitSection`, so a leg cannot be
-    /// silently unrepresented again: adding one here is the whole change.
-    @ViewBuilder
-    private func nonDocumentHitSections(store: SearchStore) -> some View {
-        if let stats = store.searchStats {
-            SearchHitSection(
-                title: "Artifacts",
-                systemImage: "shippingbox",
-                rows: SearchHitPresentation.artifactRows(stats.artifactHits),
-                open: openHitDocument
-            )
-            SearchHitSection(
-                title: "People & Places",
-                systemImage: "person.2",
-                rows: SearchHitPresentation.entityRows(stats.entityHits),
-                open: openHitDocument
-            )
-            SearchHitSection(
-                title: "Claims",
-                systemImage: "quote.opening",
-                rows: SearchHitPresentation.claimRows(stats.claimHits),
-                open: openHitDocument
-            )
         }
     }
 

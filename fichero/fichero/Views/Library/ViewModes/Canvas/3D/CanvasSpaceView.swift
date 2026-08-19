@@ -56,7 +56,7 @@ struct CanvasSpaceView: View {
 
     /// Upper bound on entities placed at once (#1400 WindowServer watchdog): a
     /// large scope renders a bounded prefix + a banner, never a runaway scene.
-    private static let maxRenderedPlaceables = 250
+    private static let maxRenderedPlaceables = 1500
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 

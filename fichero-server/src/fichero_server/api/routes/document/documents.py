@@ -3526,6 +3526,12 @@ async def create_document_group(
         name=payload.name,
         doc_type=DocType.group,
         node_kind="group",
+        # The stack takes the children's place (user, live 2026-08-19): it
+        # inherits the first child's parent and slot — a group with no parent
+        # landed at the library root while its children vanished from the
+        # browsed folder.
+        parent_id=children[0].parent_id,
+        sort_order=children[0].sort_order,
         metadata={
             "group_members": [
                 {"id": child.id, "parent_id": child.parent_id, "sort_order": child.sort_order}

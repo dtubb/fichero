@@ -76,6 +76,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// now (always false), but the seam is here so the reconcile already honors it.
     var isDragSuppressed: ((String) -> Bool)?
 
+    /// The CURRENT library's storage service, set by the hosting view — the
+    /// texture cache's fallback is the GLOBAL library, which is the wrong
+    /// library for every other canvas (user, live 2026-08-19).
+    var storageService: StorageService?
+
     var reportedZoomScale: Double { Double(Self.defaultOrthoScale / orthoScale) }
 
     init() {
@@ -312,10 +317,15 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// Load the page thumbnail through the storage service (never raw URLSession)
     /// and swap it onto the card when ready — mirrors the 3D texture path.
-    private func loadThumbnail(sourceId: String, into entity: ModelEntity) {
+    private func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 2) {
         Task { @MainActor in
             do {
-                let texture = try await SpaceTextureCache.shared.texture(forSourceId: sourceId)
+                // The CURRENT library's storage (user, live 2026-08-19): the
+                // no-service call fell back to the GLOBAL library, so any
+                // other library's 2D canvas never loaded a thumbnail.
+                let texture = try await SpaceTextureCache.shared.texture(
+                    forSourceId: sourceId, using: storageService
+                )
                 // First load: memoize the true aspect and rebuild the card
                 // once (#4193) — makeCard reads the memo, so the rebuilt card
                 // (mesh, collision, selection ring) takes the page's real
@@ -328,6 +338,13 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
                 }
             } catch {
                 log.debug("canvas thumbnail load failed for \(sourceId, privacy: .public)")
+                // Fresh imports 404 until their thumbnail generates moments
+                // later — retry so the card doesn't stay a placeholder until
+                // the next full reconcile.
+                if retriesLeft > 0 {
+                    try? await Task.sleep(for: .seconds(25))
+                    loadThumbnail(sourceId: sourceId, into: entity, retriesLeft: retriesLeft - 1)
+                }
             }
         }
     }
