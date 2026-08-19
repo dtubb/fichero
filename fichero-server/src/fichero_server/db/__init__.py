@@ -4007,15 +4007,24 @@ class Database(DatabaseEmbeddingMixin):
                     "char_start": pa.int64(),
                     "char_end": pa.int64(),
                     "vector_scale": pa.float64(),
-                    "vector_int8": pa.list_(pa.int8()),
                 }
                 inferred = pa.Table.from_pylist(data)
                 fields = []
+                drop: list[str] = []
                 for f in inferred.schema:
-                    if pa.types.is_null(f.type) and f.name in known_types:
+                    if not pa.types.is_null(f.type):
+                        fields.append(f)
+                    elif f.name in known_types:
                         fields.append(pa.field(f.name, known_types[f.name]))
                     else:
-                        fields.append(f)
+                        # An all-None column with no known scalar type (e.g.
+                        # vector_int8, a LIST that lancedb's dim inference
+                        # cannot handle when empty) — creating it Null-typed
+                        # is the poison; drop it and let a later append that
+                        # actually carries values add the column.
+                        drop.append(f.name)
+                if drop:
+                    inferred = inferred.drop_columns(drop)
                 schema = pa.schema(fields)
                 self.lance.create_table(table_name, inferred.cast(schema))
             # One append == one LanceDB fragment. Count appends per table and
