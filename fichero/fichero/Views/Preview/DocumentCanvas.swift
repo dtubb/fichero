@@ -161,6 +161,15 @@ private struct StorageDisplayImageCanvas: View {
                 } actions: {
                     Button("Retry") { Task { await loadImage() } }
                 }
+            } else if let thumbnail = storageService.cachedThumbnail(for: documentId) {
+                // #4583 (Daniel: "I click on one image and it takes a moment
+                // to load in"): the grid already fetched this document's
+                // thumbnail — show it at fit IMMEDIATELY and let the
+                // display-quality image replace it in place. No blank beat.
+                thumbnail
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 // ★ EVERY FRAME PERFECT (#3616): a sized skeleton filling the
                 // reserved pane instead of a bare spinner, so the image/PDF page
