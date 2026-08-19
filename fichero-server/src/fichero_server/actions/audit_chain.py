@@ -259,7 +259,8 @@ def _audit_rows_in_chain_order(db) -> list[ActionAudit]:
 def current_audit_chain_head(db) -> str | None:
     _backfill_chain_seq(db)
     head = db.last(ActionAudit, "chain_seq")
-    return (head.row_hash or None) if head else None
+    head_hash = getattr(head, "row_hash", None) if head is not None else None
+    return head_hash if isinstance(head_hash, str) and head_hash else None
 
 
 def save_chained_audit(db, audit: ActionAudit) -> None:
@@ -271,8 +272,12 @@ def save_chained_audit(db, audit: ActionAudit) -> None:
     head = db.last(ActionAudit, "chain_seq")
     chain_count = db.count(ActionAudit)
     audit.created_at = utc_now()
-    audit.chain_seq = ((head.chain_seq or 0) + 1) if head else 1
-    audit.prev_hash = (head.row_hash or None) if head else None
+    # Typed guards, not truthiness: route tests run against a MagicMock db,
+    # and a mock head would leak un-serializable values into the hash.
+    head_seq = getattr(head, "chain_seq", None) if head is not None else None
+    head_hash = getattr(head, "row_hash", None) if head is not None else None
+    audit.chain_seq = (head_seq + 1) if isinstance(head_seq, int) else 1
+    audit.prev_hash = head_hash if isinstance(head_hash, str) and head_hash else None
     audit.row_hash = compute_action_audit_hash(audit)
     db.save(audit)
     db.add_after_commit_hook(
