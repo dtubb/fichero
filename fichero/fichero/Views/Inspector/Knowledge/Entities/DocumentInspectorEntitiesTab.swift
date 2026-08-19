@@ -112,7 +112,13 @@ struct DocumentInspectorEntitiesTab: View {
             EntityReconciliationSheet(documentId: documentId)
         }
         .onAppear { recomputeGrouped() }
-        .onChange(of: scopedEntities) { _, _ in
+        // Fingerprint, not the array: `.onChange(of: scopedEntities)` deep-
+        // compared every generated struct (metadata dicts, per-page source
+        // lists) on the main thread each observation cycle — an 8s stall on a
+        // 2,600-entity Marshall folder (stall.txt 2026-08-19). The fingerprint
+        // hashes (id, updatedAt) in O(n) and skips regroup + List rediff when
+        // a change-stream reload returns unchanged content.
+        .onChange(of: scopedEntitiesFingerprint) { _, _ in
             recomputeGrouped()
             syncSelectionToLoadedEntities()
         }
