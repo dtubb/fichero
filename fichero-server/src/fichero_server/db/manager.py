@@ -134,6 +134,30 @@ class DatabaseManager:
 
                 self._databases[cache_key] = db
                 logger.info(f"Database connection created: {db_path}")
+
+                # Resume interrupted post-ingest work (user, live 2026-08-19):
+                # the derivative/embed queue is in-memory, so quitting mid-
+                # import stranded every still-queued document in `pending` —
+                # never embedded, invisible to semantic search. Re-queue them
+                # on open; the stages are idempotent (thumbnail is ensure-
+                # style, embed skips already-embedded rows).
+                if os.environ.get("FICHERO_SKIP_DERIVATIVE_RESUME") != "1":
+                    try:
+                        from fichero_server.importers.derivatives import (
+                            queue_derivatives,
+                        )
+                        from fichero_server.models import Document, Status
+
+                        stranded = db.query(Document, status=Status.pending)
+                        if stranded:
+                            logger.info(
+                                "Resuming derivatives for %d pending document(s)",
+                                len(stranded),
+                            )
+                            queue_derivatives(stranded, library_path=package_path)
+                    except Exception:
+                        logger.exception("Pending-derivative resume failed")
+
                 emit_change(
                     package_str,
                     type="library.opened",

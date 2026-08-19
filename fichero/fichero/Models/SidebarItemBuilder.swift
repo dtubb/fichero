@@ -13,8 +13,9 @@ enum SidebarItemBuilder {
         library: LibraryManager.LibraryReference
     ) -> [SidebarItem] {
         let documents = library.documentStore.sidebarDocuments
-        let docCount = documents.count
-        sidebarBuilderLogger.info("⏱ SidebarItemBuilder.build entry — \(docCount) docs in \(library.displayName)")
+        // Per-rebuild logging demoted to debug (perf audit 2026-08-19): these
+        // fired once a second for the whole of an import.
+        sidebarBuilderLogger.debug("⏱ SidebarItemBuilder.build entry — \(documents.count) docs in \(library.displayName)")
         var allItems: [SidebarItem] = []
 
         // Add document folders first
@@ -52,7 +53,7 @@ enum SidebarItemBuilder {
         // window into the workflow surface. The workflow SURFACE (content
         // column) reads WorkflowStore directly and is unaffected.
 
-        sidebarBuilderLogger.info("⏱ SidebarItemBuilder.build exit — \(allItems.count) total items")
+        sidebarBuilderLogger.debug("⏱ SidebarItemBuilder.build exit — \(allItems.count) total items")
         return allItems
     }
 

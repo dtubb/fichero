@@ -56,6 +56,9 @@ final class SearchStore: ChangeEventConsumer {
     // ─── Transport: the EXISTING SearchService wrapper, unchanged ───
     private let searchService: SearchService
     private let log = Logger(subsystem: "app.fichero.fichero", category: "SearchStore")
+    /// Coalesces change-stream bursts into one `changeToken` bump (see
+    /// `apply(_:)`) — same window the document store uses.
+    private let changeDebouncer = ReloadDebouncer()
 
     init(searchService: SearchService) {
         self.searchService = searchService
@@ -196,7 +199,13 @@ final class SearchStore: ChangeEventConsumer {
     nonisolated var changeDomains: Set<String> { ["document"] }
 
     func apply(_ event: ChangeEvent) {
-        changeToken &+= 1
+        // Debounced (perf audit 2026-08-19): an import emits document.updated
+        // ~2/sec for an hour, and an undebounced token bump re-ran the full
+        // 4-leg transient search per event whenever the results bar was open.
+        // One bump per burst is all a "results may be stale" signal needs.
+        changeDebouncer.schedule { [weak self] in
+            await MainActor.run { self?.changeToken &+= 1 }
+        }
         // No automatic re-search: query context lives in the view. The view
         // observes `changeToken` and can re-run the active query if desired.
     }

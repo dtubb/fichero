@@ -20,7 +20,13 @@ from fichero_server.db.app import get_app_db
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
-from fichero_server.models import ActionAudit, Document, LibrarySnapshot, SnapshotInitiatorType
+from fichero_server.models import (
+    ActionAudit,
+    Document,
+    LibrarySnapshot,
+    SnapshotInitiatorType,
+    Status,
+)
 from fichero_server.core.perf import perf_span
 from fichero_server.db.storage import (
     snapshot_library,
@@ -153,6 +159,16 @@ async def get_thumbnail(
             get_thumbnail, doc, package_path=package_path, db=db
         )
         perf["cache_state"] = "hit" if thumb_path else "miss"
+
+        if not thumb_path and doc.status == Status.pending:
+            # The derivative stage owns this document's thumbnail and will
+            # emit document.updated the moment it lands. Generating inline
+            # here DUPLICATED that work on a request thread — during an
+            # import, thousands of concurrent misses starved the pool
+            # (measured 2026-08-19: avg 784ms, worst 60s). Fail fast; the
+            # canvas/grid retry picks the image up seconds later.
+            perf["cache_state"] = "pending"
+            raise HTTPException(status_code=404, detail="Thumbnail not yet generated")
 
         if not thumb_path:
             thumb_path = await asyncio.to_thread(

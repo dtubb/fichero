@@ -60,7 +60,7 @@ extension LibraryView {
 
     func refreshPendingStatusesFromLiveUpdate() {
         guard hasProcessingDocuments, let parentId = folderId else { return }
-        Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
+        documentStore.refreshPendingStatusesDebounced(in: parentId)
     }
 
     /// Shown for a load that failed because the engine was unreachable

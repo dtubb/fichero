@@ -1048,7 +1048,10 @@ actor SpaceTextureCache {
 
     /// At most this many thumbnail fetches on the wire at once — a folder of
     /// 204 pages trickles instead of stampeding the engine's pool.
-    private static let maxConcurrentFetches = 4
+    /// 8 (was 4, 2026-08-19): the engine's thumbnail endpoint now fast-404s
+    /// pending pages instead of generating inline, so hits are cheap file
+    /// responses and a wider window just fills the canvas faster.
+    private static let maxConcurrentFetches = 8
     private var activeFetches = 0
     private var fetchWaiters: [CheckedContinuation<Void, Never>] = []
 

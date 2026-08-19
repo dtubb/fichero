@@ -291,7 +291,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     /// computed, so the floor follows item and pane changes; AppKit clamps
     /// any lower magnification writes against it.
     func applyZoomOutFloor(_ scrollView: NSScrollView, fitScale: CGFloat) {
-        scrollView.minMagnification = min(fitScale, 1.0)
+        // Half of fit, not fit exactly (user, 2026-08-19: "can't zoom out
+        // enough now") — room to see the whole page with margin while still
+        // never a 1% speck in a grey field.
+        scrollView.minMagnification = min(fitScale * 0.5, 1.0)
     }
 
     /// Center the image by expanding the image view frame when the scaled image

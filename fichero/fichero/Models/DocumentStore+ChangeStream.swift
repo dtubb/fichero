@@ -260,7 +260,8 @@ extension DocumentStore: ObservableDomainStore {
         } else if doc.parentId == nil {
             collections.append(doc)
             changes.collections = true
-        } else if childrenCache[doc.parentId ?? ""] == nil {
+        } else if childrenCache[doc.parentId ?? ""] == nil,
+                  doc.docType == .folder || doc.docType == .group {
             // Parent's children are NOT loaded, so the `childrenCache` block
             // below cannot deliver this row — and `SidebarItemBuilder` files
             // anything with a `parentId` under its parent, so `collections` is
@@ -268,10 +269,17 @@ extension DocumentStore: ObservableDomainStore {
             // broke live delivery when the roots guard first landed: importing
             // into a folder the user had not expanded showed nothing at all.
             //
-            // The cost is that `collections` briefly holds non-roots for
-            // unexpanded parents, until the next `loadCollections()`. That is
-            // the lesser evil: the pollution is transient and invisible, a
-            // missing row is neither.
+            // CONTAINERS only (perf audit 2026-08-19): the sidebar renders
+            // folders/groups, so a page inside an unexpanded folder gains
+            // nothing from this append — but a 1,100-page import used to pump
+            // every page row in here, growing the sidebar's source to
+            // thousands and re-running the whole-tree rebuild once a second
+            // (O(N²) across the import).
+            //
+            // The cost is that `collections` briefly holds non-root FOLDERS
+            // for unexpanded parents, until the next `loadCollections()`.
+            // That is the lesser evil: the pollution is transient and
+            // invisible, a missing row is neither.
             collections.append(doc)
             changes.collections = true
         }
