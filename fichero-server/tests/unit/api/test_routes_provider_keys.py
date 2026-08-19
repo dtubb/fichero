@@ -45,14 +45,18 @@ def test_set_key_validates_then_stores(monkeypatch):
 
 def test_status_reports_local_provider_without_reading_keychain(monkeypatch):
     monkeypatch.setattr(routes, "get_provider_info", lambda _name: SimpleNamespace(is_local=True))
-    monkeypatch.setattr(routes, "has_api_key", lambda _name: pytest.fail("local status must not read keychain"))
+    # #4534 renamed the keychain seam (has_api_key -> api_key_state /
+    # has_supplied_api_key); the pin follows: NEITHER may run for local.
+    monkeypatch.setattr(routes, "api_key_state", lambda _name: pytest.fail("local status must not read keychain"))
+    monkeypatch.setattr(routes, "has_supplied_api_key", lambda _name: pytest.fail("local status must not probe supplied keys"))
     monkeypatch.setattr(routes, "keychain_available", lambda: False)
 
     response = asyncio.run(routes.check_api_key_status("ollama"))
 
-    assert response.model_dump() == {
+    assert response.model_dump(exclude_none=True) == {
         "provider_type": "ollama",
         "has_api_key": True,
+        "key_state": routes.ProviderKeyState.FOUND,
         "is_local": True,
         "keychain_available": False,
     }
