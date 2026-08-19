@@ -12,6 +12,12 @@ struct DatasetTimelineView: View {
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
 
+    /// ⇧-click range anchor — SelectionGrammar owns the semantics (#4598,
+    /// same pattern as DatasetCardsView; before this a timeline click could
+    /// only REPLACE the selection, so multi/discontiguous select was
+    /// impossible).
+    @State private var selectionAnchor: String?
+
     var body: some View {
         if !store.hasDateSource {
             DatasetMissingRoleView(role: "date", renderer: "timeline")
@@ -36,7 +42,7 @@ struct DatasetTimelineView: View {
                                             ? Color.accentColor.opacity(0.12) : .clear
                                     )
                                     .onTapGesture(count: 2) { onOpen(row) }
-                                    .onTapGesture { selection = SelectionGrammar.select(row.id).selection }
+                                    .onTapGesture { handleTap(row) }
                                     // Touch parity: iPad has no double-click.
                                     .contextMenu {
                                         Button("Open") { onOpen(row) }
@@ -85,12 +91,34 @@ struct DatasetTimelineView: View {
                 Spacer(minLength: 0)
             }
             if let excerpt = store.displayExcerpt(of: row) {
+                // Full Text lifts the cap, matching the sheet (#4598 —
+                // the toggle previously did nothing here).
                 Text(excerpt)
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(store.textDetail == .full ? nil : 2)
             }
         }
+    }
+
+    /// Click with the full Mac grammar over the timeline's visual order
+    /// (months, then rows within each month) — ⇧ ranges, ⌘ toggles.
+    private func handleTap(_ row: DatasetPage.Row) {
+        var modifiers: SelectionGrammar.Modifiers = []
+        #if os(macOS)
+        if NSEvent.modifierFlags.contains(.command) { modifiers.insert(.command) }
+        if NSEvent.modifierFlags.contains(.shift) { modifiers.insert(.shift) }
+        #endif
+        let orderedIds = store.rowsByMonth().flatMap { $0.rows.map(\.id) }
+        let result = SelectionGrammar.click(
+            id: row.id,
+            in: orderedIds,
+            selection: selection,
+            anchor: selectionAnchor,
+            modifiers: modifiers
+        )
+        selection = result.selection
+        selectionAnchor = result.anchor
     }
 
     private func primaryText(_ row: DatasetPage.Row) -> String {
