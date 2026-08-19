@@ -862,3 +862,54 @@ class TestArtifactRegion:
 
     def test_region_for_a_missing_artifact_is_404(self, client):
         assert client.get("/api/artifacts/no-such-id/region", params={"line": 0}).status_code == 404
+
+
+class TestDocumentTextRegions:
+    """#4604 Phase 2: many spans -> page regions in ONE document-scoped call —
+    the search heat map's shape. Resolves the newest CAPTURED geometry
+    artifact itself; degrades honestly when there is none."""
+
+    def _geometry_artifact(self, db, doc_id):
+        # Reuse the single-span suite's fixture (a @staticmethod builder).
+        return TestArtifactRegion._geometry_artifact(db, doc_id)
+
+    def test_batch_spans_resolve_with_weights(self, client, db):
+        doc = _make_doc(db)
+        self._geometry_artifact(db, doc.id)
+
+        r = client.post(
+            f"/api/artifacts/document/{doc.id}/text-regions",
+            json={"spans": [
+                {"char_start": 6, "char_end": 10, "weight": 0.9},
+                {"char_start": 0, "char_end": 5, "weight": 0.4},
+            ]},
+        )
+
+        assert r.status_code == 200
+        body = r.json()
+        assert body["geometry_status"] == "captured"
+        assert len(body["regions"]) == 2
+        first, second = body["regions"]
+        assert first["weight"] == 0.9
+        assert [b["text"] for b in first["region"]["boxes"]] == ["beta"]
+        assert second["weight"] == 0.4
+        assert second["region"] is not None
+
+    def test_document_without_geometry_says_why(self, client, db):
+        doc = _make_doc(db)
+        r = client.post(
+            f"/api/artifacts/document/{doc.id}/text-regions",
+            json={"spans": [{"char_start": 0, "char_end": 4}]},
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["geometry_status"] == "not_run"
+        assert body["regions"] == []
+        assert body["geometry_reason"]
+
+    def test_missing_document_is_404(self, client):
+        r = client.post(
+            "/api/artifacts/document/nope/text-regions",
+            json={"spans": [{"char_start": 0, "char_end": 4}]},
+        )
+        assert r.status_code == 404

@@ -4124,6 +4124,59 @@
         }
       }
     },
+    "/api/artifacts/document/{doc_id}/text-regions": {
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Resolve Document Text Regions",
+        "description": "Resolve MANY char spans of a document's transcription to page regions\nin one call \u2014 the search heat map's shape (#4604 Phase 2): every relevant\npassage on the page, each with its weight, one request per page.\n\nDocument-scoped because a search hit knows its document and offsets but\nnot the geometry artifact's id; the resolution to the newest CAPTURED\ngeometry artifact happens here, once, instead of in each client. Degrades\nhonestly like the single-span route: a page whose engine cannot point at\nit returns its status and reason, never a silent empty list.",
+        "operationId": "resolve_document_text_regions_api_artifacts_document__doc_id__text_regions_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentTextRegionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTextRegionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/artifacts/bulk": {
       "post": {
         "tags": [
@@ -43783,6 +43836,58 @@
         "title": "DocumentSource",
         "description": "Source document reference in a response."
       },
+      "DocumentTextRegionsRequest": {
+        "properties": {
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/TextRegionSpan"
+            },
+            "type": "array",
+            "title": "Spans"
+          }
+        },
+        "type": "object",
+        "required": [
+          "spans"
+        ],
+        "title": "DocumentTextRegionsRequest"
+      },
+      "DocumentTextRegionsResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Artifact Id"
+          },
+          "geometry_status": {
+            "type": "string",
+            "title": "Geometry Status"
+          },
+          "geometry_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Geometry Reason"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/ResolvedTextRegion"
+            },
+            "type": "array",
+            "title": "Regions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "geometry_status"
+        ],
+        "title": "DocumentTextRegionsResponse"
+      },
       "DocumentUpdate": {
         "properties": {
           "name": {
@@ -57908,6 +58013,33 @@
         "title": "ResolvedPrototypeResponse",
         "description": "A prototype's EFFECTIVE attributes \u2014 parent chain merged root\u2192leaf."
       },
+      "ResolvedTextRegion": {
+        "properties": {
+          "char_start": {
+            "type": "integer",
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "title": "Char End"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "region": {
+            "$ref": "#/components/schemas/SpanRegion",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_start",
+          "char_end",
+          "weight"
+        ],
+        "title": "ResolvedTextRegion"
+      },
       "ResumeWorkflowRequest": {
         "properties": {
           "inputs": {
@@ -61578,6 +61710,34 @@
           "kind"
         ],
         "title": "TextDifferenceResponse"
+      },
+      "TextRegionSpan": {
+        "properties": {
+          "char_start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Char End"
+          },
+          "weight": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_start",
+          "char_end"
+        ],
+        "title": "TextRegionSpan",
+        "description": "One char span to resolve, with the search hit's weight for heat-map\nshading (Daniel's ruling, #4604 Q6: hotter for stronger matches)."
       },
       "ThreadDeletedResponse": {
         "properties": {

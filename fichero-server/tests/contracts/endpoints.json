@@ -840,6 +840,18 @@
         "response_model": "ArtifactListResponse"
       },
       {
+        "method": "POST",
+        "path": "/artifacts/document/{doc_id}/text-regions",
+        "operation_id": "resolve_document_text_regions_api_artifacts_document__doc_id__text_regions_post",
+        "summary": "Resolve Document Text Regions",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "DocumentTextRegionsRequest",
+        "response_model": "DocumentTextRegionsResponse"
+      },
+      {
         "method": "GET",
         "path": "/artifacts/types",
         "operation_id": "list_artifact_types_api_artifacts_types_get",

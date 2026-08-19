@@ -1263,6 +1263,24 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("resolve-document-text-regions")
+    def artifacts_resolve_document_text_regions_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        spans: str = typer.Option(..., "--spans", help="Request field: spans."),
+    ) -> None:
+        """Resolve Document Text Regions (POST /api/artifacts/document/{doc_id}/text-regions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/artifacts/document/{doc_id}/text-regions"
+            params = None
+            payload = _build_json_payload({
+                "spans": spans,
+            }, {
+                "spans": {'items': {'$ref': '#/components/schemas/TextRegionSpan'}, 'type': 'array', 'title': 'Spans', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-types")
     def artifacts_list_types_get(
         ctx: typer.Context,
