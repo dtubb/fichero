@@ -36,8 +36,8 @@ enum SearchHitPresentation {
         var isOpenable: Bool { documentId != nil }
     }
 
-    /// How many rows a section shows before it has to be expanded.
-    static let previewLimit = 5
+    // `previewLimit` DELETED (2026-08-19, Daniel's #4604 ruling): sections
+    // render every hit, no cap, no disclosure.
 
     /// Why a row cannot be opened. Shown as help text on the disabled row —
     /// the affordance stays visible and explains itself.
