@@ -24,6 +24,9 @@ struct WorkflowToolbar: View {
     /// 2026-08-19). Viewing, running, and exporting stay enabled — only
     /// editing is off, and the editor's autosave already stands down.
     var isReadOnly: Bool = false
+    /// Duplicate-to-edit for a locked preset — the editable copy lands in
+    /// the user's workflows. Only rendered while `isReadOnly`.
+    var onDuplicate: (() -> Void)?
 
     // Feature flags gate which buttons the bar composes (#3205). Injected as
     // plain values — default to the shared FeatureManager, but visible at the
@@ -44,6 +47,14 @@ struct WorkflowToolbar: View {
                     .background(Capsule().fill(Color.secondary.opacity(0.12)))
                     .help("A built-in workflow — view and run it, or duplicate it to edit")
                     .accessibilityLabel("Locked workflow, read-only")
+                if let onDuplicate {
+                    Button(action: onDuplicate) {
+                        Label("Duplicate to Edit", systemImage: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Make an editable copy in your workflows")
+                }
             }
             inputSourcePicker
             Spacer(minLength: 0)

@@ -161,6 +161,17 @@ struct WorkflowEditor: View {
                 onTidy: tidyLayout,
                 // #4514: read-only is stated in the chrome, not alerted.
                 isReadOnly: editingWorkflow.isSystem || selectedWorkflow?.isSystem == true,
+                onDuplicate: {
+                    Task { @MainActor in
+                        do {
+                            let copy = try await workflowStore.duplicateWorkflow(editingWorkflow.id)
+                            await workflowStore.loadWorkflows()
+                            actionsLogger.info("Duplicated locked workflow to \(copy.id)")
+                        } catch {
+                            saveError = "Duplicate failed: \(error.localizedDescription)"
+                        }
+                    }
+                },
                 showImportExport: featureManager.isWorkflowImportExportEnabled,
                 showLangGraphPreview: featureManager.isWorkflowLangGraphPreviewEnabled,
                 showFilesToolbarButton: featureManager.isWorkflowFilesToolbarButtonEnabled
