@@ -241,7 +241,14 @@ class _InProcessManifestClient:
                 scope = {**scope, UDS_TRANSPORT_SCOPE_KEY: "inmemory"}
             await app(scope, receive, send)
 
-        self._client = TestClient(_inmemory_app)
+        # A truthful hostname: TestClient's default "http://testserver"
+        # read as a phantom server in the log (Daniel 2026-08-18), and httpx
+        # logging one INFO line per request buried the log during imports —
+        # these calls are internal plumbing, not traffic worth a line each.
+        import logging as _logging
+
+        _logging.getLogger("httpx").setLevel(_logging.WARNING)
+        self._client = TestClient(_inmemory_app, base_url="http://fichero-internal")
         self._headers = {
             "Authorization": f"Bearer {initialize_token()}",
             "X-Fichero-Library-Path": library_path,
@@ -262,6 +269,13 @@ class _InProcessManifestClient:
             except ValueError:
                 return None
         return None
+
+
+def _is_sidecar_like(path: Path) -> bool:
+    """The staging sidecars share the image's stem — never stamp one as the
+    document's path."""
+    name = path.name.lower()
+    return name.endswith((".json", ".txt", ".jsonl", ".xmp"))
 
 
 def _import_manifest_folder(
@@ -287,14 +301,19 @@ def _import_manifest_folder(
 
     client = manifest_client or _InProcessManifestClient(str(package_path))
     ingest_mode = request.mode or ("copy" if request.copy_mode else "link")
-    summary = import_manifest(
-        client,
-        manifest_path,
-        str(package_path),
-        ingest_mode=ingest_mode,
-        root_parent_id=request.parent_id,
-        on_progress=on_progress,
-    )
+    # Import first, embed separately (Daniel 2026-08-18): per-write embedding
+    # made the entity phase crawl (5-30s per step) — rows must appear in the
+    # app fast, vectors follow in one background batch after the import.
+    with db.defer_embeddings():
+        summary = import_manifest(
+            client,
+            manifest_path,
+            str(package_path),
+            ingest_mode=ingest_mode,
+            root_parent_id=request.parent_id,
+            on_progress=on_progress,
+        )
+    db.flush_deferred_embeddings()
     for warning in summary.warnings:
         logger.warning("manifest import: %s", warning)
     # SEEN, not just created: a re-drop of an already-imported corpus must
@@ -315,13 +334,32 @@ def _import_manifest_folder(
     from fichero_server.importers.manifest_import import preferred_image
     from fichero_server.security.path_security import is_allowed_ingest_path
 
+    drop_root = Path(request.path).expanduser()
     for doc in docs:
         if doc.path:
             continue
-        image = preferred_image({"images": (doc.metadata or {}).get("images") or []})
-        source = image.get("source_path") if image else None
-        if source and Path(str(source)).is_file() and is_allowed_ingest_path(source):
-            doc.path = str(source)
+        # FIRST authority: the dropped folder itself. The request already
+        # passed _validate_ingest_path for it, and the staging convention
+        # puts each page's image (a symlink) right there — so the stamp
+        # cannot be defeated by unresolvable security-scoped bookmarks for
+        # the EXTERNAL source tree (2026-08-18 live: every bookmark for
+        # ~/code/marshall_diaries failed to resolve in the engine process
+        # and all 153 stamps declined).
+        source: str | None = None
+        in_drop = next(
+            (c for c in sorted(drop_root.glob(f"{doc.name}.*"))
+             if c.is_file() and not _is_sidecar_like(c)),
+            None,
+        )
+        if in_drop is not None:
+            source = str(in_drop)
+        else:
+            image = preferred_image({"images": (doc.metadata or {}).get("images") or []})
+            candidate = image.get("source_path") if image else None
+            if candidate and Path(str(candidate)).is_file() and is_allowed_ingest_path(candidate):
+                source = str(candidate)
+        if source:
+            doc.path = source
             db.save(doc)
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(

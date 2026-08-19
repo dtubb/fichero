@@ -35,6 +35,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 from fichero_server.importers.http_client import (
@@ -431,22 +432,49 @@ def claim_payload(
 # ---------------------------------------------------------------------------
 
 
+def _paginated(client: ManifestApiClient, path: str, keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    """Every page, not the first one. A single limit=500 read made the
+    idempotency check BLIND past 500 documents — a re-drop of a corpus
+    sitting on page two re-created every page as a duplicate (2026-08-18
+    live, 153 → 198 children and climbing)."""
+    out: list[dict[str, Any]] = []
+    offset = 0
+    first_page_head: Any = None
+    while True:
+        response = client.request("GET", f"{path}?limit=500&offset={offset}")
+        if isinstance(response, dict):
+            batch = None
+            for key in keys:
+                if isinstance(response.get(key), list):
+                    batch = response[key]
+                    break
+            batch = batch or []
+        elif isinstance(response, list):
+            batch = response
+        else:
+            batch = []
+        head = batch[0].get("id") if batch and isinstance(batch[0], dict) else None
+        if offset == 0:
+            first_page_head = head
+        elif batch and head == first_page_head:
+            # The endpoint IGNORES offset (live 2026-08-18: /entities is
+            # limit-only and this loop reached offset 4,170,000). One page is
+            # all it can give — return it and let the caller's per-name
+            # fallback cover the rest, rather than spinning forever.
+            logger.warning("%s ignores offset; dedup working set capped at %d", path, len(out))
+            return out
+        out.extend(batch)
+        if len(batch) < 500:
+            return out
+        offset += 500
+
+
 def _list_documents(client: ManifestApiClient) -> list[dict[str, Any]]:
-    response = client.request("GET", "/documents?limit=500")
-    if isinstance(response, dict):
-        return list(response.get("items") or [])
-    if isinstance(response, list):
-        return response
-    return []
+    return _paginated(client, "/documents", ("items",))
 
 
 def _list_entities(client: ManifestApiClient) -> list[dict[str, Any]]:
-    response = client.request("GET", "/entities?limit=500")
-    if isinstance(response, dict):
-        return list(response.get("items") or response.get("entities") or [])
-    if isinstance(response, list):
-        return response
-    return []
+    return _paginated(client, "/entities", ("items", "entities"))
 
 
 def _list_claim_external_ids(client: ManifestApiClient) -> set[str]:
@@ -466,12 +494,7 @@ def _list_claim_external_ids(client: ManifestApiClient) -> set[str]:
 
 
 def _list_artifact_keys(client: ManifestApiClient) -> set[tuple[str, str]]:
-    response = client.request("GET", "/artifacts/?limit=500")
-    items: list[dict[str, Any]] = []
-    if isinstance(response, dict):
-        items = list(response.get("items") or [])
-    elif isinstance(response, list):
-        items = response
+    items = _paginated(client, "/artifacts/", ("items",))
     keys: set[tuple[str, str]] = set()
     for artifact in items:
         doc_id = artifact.get("document_id")
@@ -585,14 +608,16 @@ def _ingest_page_image(
         _warm_preview_cache(client, doc_id, summary)
         return doc_id
 
-    # LINK: reference the source in place; just warm the local preview cache.
+    # LINK: reference the source in place. NO preview warm here: the routes
+    # contract strips client paths, so the document is PATHLESS until the
+    # post-import stamp — every warm request could only 404, and it cost
+    # ~0.5-0.8s per page on a large library (half the page phase,
+    # 2026-08-18). queue_derivatives builds previews after the stamp.
     if ingest_mode == "link":
         created = client.request(
             "POST", "/documents", document_payload(node, parent_id)
         )
-        doc_id = str(created["id"])
-        _warm_preview_cache(client, doc_id, summary)
-        return doc_id
+        return str(created["id"])
 
     # COPY / MOVE: copy bytes into the library via the native ingest path.
     ingested = client.request(
@@ -688,16 +713,28 @@ def import_manifest(
         pages_seen=sum(1 for n in nodes if n.get("node_type") == "page"),
     )
 
+    # One monotone step counter across ALL phases (documents, entities,
+    # artifacts): the drop UI's stall watchdog times out on 300s of an
+    # UNCHANGED status (live 2026-08-18: a corpus sat at 154/154 through the
+    # whole entity phase and the app declared "Import task timed out" while
+    # the engine was working fine). Four passes over the node list
+    # (documents, entities, artifacts, claims) → the honest total is 4×nodes.
+    total_steps = 4 * len(nodes)
+    steps_done = 0
+
     # --- documents (folders/groups/pages), parent-before-child ---
     existing_docs = _list_documents(client)
     doc_id_by_external = _existing_doc_id_by_external(existing_docs)
     existing_doc_by_external = _existing_doc_by_external(existing_docs)
 
     for node in nodes:
+        steps_done += 1
         external_id = node["external_id"]
         if external_id in doc_id_by_external:
             summary.documents_skipped += 1
             summary.seen_document_ids.append(doc_id_by_external[external_id])
+            if on_progress:
+                on_progress(steps_done, total_steps)
             continue
         parent_external = node.get("parent_external_id")
         # Root nodes land under ``root_parent_id`` when given — the folder the
@@ -724,7 +761,7 @@ def import_manifest(
         summary.seen_document_ids.append(new_id)
         if on_progress:
             # Real totals for the drop UI ("says scanning. but not total").
-            on_progress(summary.documents_created, len(nodes))
+            on_progress(steps_done, total_steps)
 
     # --- entities (deduped by canonical name across the whole manifest) ---
     entity_id_by_key: dict[str, str] = {}
@@ -735,7 +772,14 @@ def import_manifest(
             entity_id_by_key[str(name)] = str(existing["id"])
             existing_entity_by_name[str(name)] = existing
 
+    # PASS 1 (in-memory): dedupe every entity reference across the corpus.
+    # One request per (entity, page) pair took a 1,713-reference diary to
+    # ~2,500 sequential POSTs (30+ min live, 2026-08-18) — and every minute
+    # an import stays open is a minute a quit/sleep can kill it. Collapse to
+    # ONE write per unique entity, carrying the full source-document set.
+    unique: dict[str, dict[str, Any]] = {}
     for node in nodes:
+        steps_done += 1
         source_document_id = doc_id_by_external.get(node["external_id"])
         existing_doc = existing_doc_by_external.get(node["external_id"]) or {}
         if existing_doc.get("exclude_from_processing") is True:
@@ -749,45 +793,127 @@ def import_manifest(
             name = entity.get("canonical_name")
             if not name:
                 continue
-            ext = entity.get("external_id")
-            if name in entity_id_by_key:
-                # Reuse — register the external_id alias for claim refs.
-                if ext:
-                    entity_id_by_key[ext] = entity_id_by_key[name]
-                if source_document_id:
-                    existing = existing_entity_by_name.get(name, {})
-                    existing_sources = set(existing.get("source_document_ids") or [])
-                    if source_document_id not in existing_sources:
-                        merged = dict(entity)
-                        merged["id"] = entity_id_by_key[name]
-                        merged["source_document_ids"] = sorted(
-                            existing_sources | {source_document_id}
-                        )
-                        updated = client.request(
-                            "POST",
-                            "/entities",
-                            entity_payload(merged, node, source_document_id),
-                        )
-                        if isinstance(updated, dict):
-                            existing_entity_by_name[name] = updated
-                summary.entities_reused += 1
-                continue
-            created = client.request(
-                "POST",
-                "/entities",
-                entity_payload(entity, node, source_document_id),
+            entry = unique.setdefault(
+                name,
+                {"entity": entity, "node": node, "sources": set(), "exts": set()},
             )
-            new_id = str(created["id"])
-            entity_id_by_key[name] = new_id
-            if isinstance(created, dict):
-                existing_entity_by_name[name] = created
-            if ext:
-                entity_id_by_key[ext] = new_id
-            summary.entities_created += 1
+            if source_document_id:
+                entry["sources"].add(source_document_id)
+            if entity.get("external_id"):
+                entry["exts"].add(entity["external_id"])
+
+    # PASS 2 fast path: ONE bulk create-or-merge action for the whole batch
+    # (~1,700 unique entities took 10+ min as individual requests, 2026-08-18
+    # live — per-request registry/audit overhead, not the writes).
+    if unique:
+        try:
+            payload = {"entities": []}
+            for name, entry in unique.items():
+                item = dict(entry["entity"])
+                item.pop("external_id", None)
+                item.setdefault("canonical_name", name)
+                item["source_document_ids"] = sorted(entry["sources"])
+                payload["entities"].append(item)
+            bulk = client.request("POST", "/entities/bulk", payload)
+        except Exception as exc:
+            logger.info("bulk entity upsert unavailable (%s); per-entity fallback", exc)
+        else:
+            id_by_name = (bulk or {}).get("id_by_name") or {}
+            for warning in (bulk or {}).get("warnings") or []:
+                summary.warnings.append(warning)
+            summary.entities_created += len((bulk or {}).get("created_ids") or [])
+            summary.entities_reused += len((bulk or {}).get("reused_ids") or [])
+            for name, entry in unique.items():
+                eid = id_by_name.get(name)
+                if not eid:
+                    continue
+                entity_id_by_key[name] = str(eid)
+                for ext in entry["exts"]:
+                    entity_id_by_key[ext] = str(eid)
+            unique = {n: e for n, e in unique.items() if n not in entity_id_by_key}
+
+    # PASS 2 fallback: one create-or-merge request per unique entity (older
+    # engines without /entities/bulk, or names the bulk call refused).
+    for name, entry in unique.items():
+        if on_progress:
+            on_progress(steps_done, total_steps)
+        entity, node = entry["entity"], entry["node"]
+        sources, exts = entry["sources"], entry["exts"]
+        first_source = sorted(sources)[0] if sources else None
+
+        def register(eid: str) -> None:
+            entity_id_by_key[name] = eid
+            for ext in exts:
+                entity_id_by_key[ext] = eid
+
+        if name not in entity_id_by_key:
+            # The prefetched working set may be CAPPED (offset-less
+            # /entities): before creating, ask the engine for this exact
+            # name so a re-drop reuses instead of duplicating.
+            try:
+                lookup = client.request("GET", f"/entities?q={quote(name)}&limit=25")
+                rows = (
+                    lookup.get("items") or lookup.get("entities") or []
+                    if isinstance(lookup, dict) else (lookup or [])
+                )
+                exact = next(
+                    (r for r in rows if r.get("canonical_name") == name), None
+                )
+                if exact:
+                    entity_id_by_key[name] = str(exact["id"])
+                    existing_entity_by_name[name] = exact
+            except Exception:
+                pass  # lookup is an optimization; creation handles the rest
+
+        if name in entity_id_by_key:
+            # Reuse — merge any NEW source documents in a single update.
+            register(entity_id_by_key[name])
+            summary.entities_reused += 1
+            existing = existing_entity_by_name.get(name, {})
+            existing_sources = set(existing.get("source_document_ids") or [])
+            new_sources = sources - existing_sources
+            if new_sources:
+                merged = dict(entity)
+                merged["id"] = entity_id_by_key[name]
+                merged["source_document_ids"] = sorted(existing_sources | sources)
+                try:
+                    updated = client.request(
+                        "POST", "/entities", entity_payload(merged, node, first_source)
+                    )
+                except Exception as exc:
+                    summary.warnings.append(f"entity update refused for {name!r}: {exc}")
+                else:
+                    if isinstance(updated, dict):
+                        existing_entity_by_name[name] = updated
+            continue
+
+        # One refused entity must not kill a corpus import (2026-08-18 live:
+        # canonical_name "1923" — a year mis-tagged as an entity in the staged
+        # data — 422'd and the WHOLE re-drop failed). Warn, skip, keep going.
+        payload = entity_payload(dict(entity), node, first_source)
+        if sources:
+            payload["source_document_ids"] = sorted(sources)
+        try:
+            created = client.request("POST", "/entities", payload)
+        except Exception as exc:
+            summary.warnings.append(f"entity refused for {name!r}: {exc}")
+            continue
+        new_id = str(created["id"])
+        register(new_id)
+        if isinstance(created, dict):
+            existing_entity_by_name[name] = created
+        summary.entities_created += 1
 
     # --- artifacts (page-level processing outputs: transcript + entity lists) ---
+    # Collected per node, sent as ONE bulk action at the end: a route call per
+    # artifact cost ~2.4s live on a large library (34ms clean — per-request
+    # overhead, 2026-08-18) and a diary writes ~4 per page.
     existing_artifact_keys = _list_artifact_keys(client)
+    pending_artifacts: list[dict[str, Any]] = []
     for node in nodes:
+        steps_done += 1
+        if on_progress:
+            on_progress(steps_done, total_steps)
         doc_id = doc_id_by_external.get(node["external_id"])
         if not doc_id:
             continue
@@ -805,9 +931,7 @@ def import_manifest(
             if key in existing_artifact_keys:
                 summary.artifacts_skipped += 1
             else:
-                client.request(
-                    "POST",
-                    "/artifacts/",
+                pending_artifacts.append(
                     {
                         "document_id": doc_id,
                         "artifact_type": "import_receipt",
@@ -817,10 +941,9 @@ def import_manifest(
                         "model": CANONICAL_VERSION,
                         "step_name": "import_manifest",
                         "confidence": 1.0,
-                    },
+                    }
                 )
                 existing_artifact_keys.add(key)
-                summary.artifacts_created += 1
 
         text = (node.get("text") or "").strip()
         if text and write_transcript_artifacts:
@@ -828,9 +951,7 @@ def import_manifest(
             if key in existing_artifact_keys:
                 summary.artifacts_skipped += 1
             else:
-                client.request(
-                    "POST",
-                    "/artifacts/",
+                pending_artifacts.append(
                     {
                         "document_id": doc_id,
                         "artifact_type": "transcription",
@@ -844,10 +965,9 @@ def import_manifest(
                         "model": CANONICAL_VERSION,
                         "step_name": "import_manifest",
                         "confidence": 1.0,
-                    },
+                    }
                 )
                 existing_artifact_keys.add(key)
-                summary.artifacts_created += 1
 
         grouped_entities: dict[str, list[dict[str, Any]]] = {}
         for entity in node.get("entities") or []:
@@ -865,9 +985,7 @@ def import_manifest(
             if key in existing_artifact_keys:
                 summary.artifacts_skipped += 1
                 continue
-            client.request(
-                "POST",
-                "/artifacts/",
+            pending_artifacts.append(
                 {
                     "document_id": doc_id,
                     "artifact_type": artifact_type,
@@ -882,14 +1000,54 @@ def import_manifest(
                     "model": CANONICAL_VERSION,
                     "step_name": "import_manifest",
                     "confidence": 1.0,
-                },
+                }
             )
             existing_artifact_keys.add(key)
-            summary.artifacts_created += 1
+
+    # Send everything collected above — bulk first, per-item fallback for
+    # engines without /artifacts/bulk.
+    if pending_artifacts:
+        sent_bulk = True
+        try:
+            for start in range(0, len(pending_artifacts), 500):
+                chunk = pending_artifacts[start : start + 500]
+                bulk = client.request("POST", "/artifacts/bulk", {"artifacts": chunk})
+                summary.artifacts_created += len((bulk or {}).get("created_ids") or [])
+                for warning in (bulk or {}).get("warnings") or []:
+                    summary.warnings.append(warning)
+        except Exception as exc:
+            logger.info("bulk artifact create unavailable (%s); per-item fallback", exc)
+            sent_bulk = False
+        if not sent_bulk:
+            for item in pending_artifacts:
+                try:
+                    client.request("POST", "/artifacts/", item)
+                except Exception as exc:
+                    summary.warnings.append(
+                        f"artifact refused for {item.get('document_id')}: {exc}"
+                    )
+                else:
+                    summary.artifacts_created += 1
 
     # --- claims ---
-    existing_claim_externals = _list_claim_external_ids(client)
+    # An unavailable claims surface must not kill the corpus (2026-08-18 live:
+    # /api/claims is tier-gated to 'beta', so a release-tier engine 404'd the
+    # listing and the WHOLE import failed after every page had landed). The
+    # documents/entities/artifacts already imported are the product; claims
+    # degrade to a warning.
+    try:
+        existing_claim_externals = _list_claim_external_ids(client)
+        claims_available = True
+    except Exception as exc:
+        summary.warnings.append(f"claims phase skipped (surface unavailable): {exc}")
+        existing_claim_externals = set()
+        claims_available = False
     for node in nodes:
+        steps_done += 1
+        if on_progress:
+            on_progress(steps_done, total_steps)
+        if not claims_available:
+            continue
         source_document_id = doc_id_by_external.get(node["external_id"])
         existing_doc = existing_doc_by_external.get(node["external_id"]) or {}
         if existing_doc.get("exclude_from_processing") is True:

@@ -229,8 +229,14 @@ def _store_chain_anchor(db, *, chain_count: int, head_row_hash: str | None) -> d
 
 
 def _backfill_chain_seq(db) -> None:
+    # Once per connection: the full-table scan below exists only for LEGACY
+    # rows without chain_seq. Re-running it on every audited action made the
+    # chain O(history) per write (11k+ hydrations per action, 2026-08-18).
+    if getattr(db, "_audit_chain_backfilled", False):
+        return
     db._ensure_table(ActionAudit)
     rows = db.all(ActionAudit)
+    db._audit_chain_backfilled = True
     if not rows or all(row.chain_seq is not None for row in rows):
         return
 
@@ -251,27 +257,33 @@ def _audit_rows_in_chain_order(db) -> list[ActionAudit]:
 
 
 def current_audit_chain_head(db) -> str | None:
-    rows = _audit_rows_in_chain_order(db)
-    if not rows:
-        return None
-    return rows[-1].row_hash or None
+    _backfill_chain_seq(db)
+    head = db.last(ActionAudit, "chain_seq")
+    head_hash = getattr(head, "row_hash", None) if head is not None else None
+    return head_hash if isinstance(head_hash, str) and head_hash else None
 
 
 def save_chained_audit(db, audit: ActionAudit) -> None:
     """Append ``audit`` as one linear chain step inside the caller's unit of work."""
-    # One ordered load (also backfills legacy rows) gives both the max chain_seq
-    # and the current head — no raw SQL needed (#1876).
-    rows = _audit_rows_in_chain_order(db)
+    # HEAD-ONLY read: loading the whole chain here made every audited action
+    # O(history) — 11k+ row hydrations per write on the live library
+    # (2026-08-18). The legacy backfill still runs, once per connection.
+    _backfill_chain_seq(db)
+    head = db.last(ActionAudit, "chain_seq")
+    chain_count = db.count(ActionAudit)
     audit.created_at = utc_now()
-    head = rows[-1] if rows else None
-    audit.chain_seq = (head.chain_seq or 0) + 1 if head else 1
-    audit.prev_hash = head.row_hash or None if head else None
+    # Typed guards, not truthiness: route tests run against a MagicMock db,
+    # and a mock head would leak un-serializable values into the hash.
+    head_seq = getattr(head, "chain_seq", None) if head is not None else None
+    head_hash = getattr(head, "row_hash", None) if head is not None else None
+    audit.chain_seq = (head_seq + 1) if isinstance(head_seq, int) else 1
+    audit.prev_hash = head_hash if isinstance(head_hash, str) and head_hash else None
     audit.row_hash = compute_action_audit_hash(audit)
     db.save(audit)
     db.add_after_commit_hook(
         lambda: _store_chain_anchor(
             db,
-            chain_count=len(rows) + 1,
+            chain_count=chain_count + 1,
             head_row_hash=audit.row_hash,
         )
     )

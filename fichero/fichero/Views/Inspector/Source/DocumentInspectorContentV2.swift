@@ -29,6 +29,11 @@ struct DocumentInspectorContentV2: View {
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
 
     @State private var actionError: String?
+    /// What the last artifact re-sync SAW. An ancestor touch bumps only
+    /// updated_at (imports touch the whole parent chain per file, 2026-08-18:
+    /// "the inspector seems to refresh every 2-3 seconds"), and a
+    /// timestamp-only delta is not a reason to reload the panel.
+    @State private var lastSyncSignature: String = ""
 
     /// Read-through resolution (#4318): the change-stream splice lands a page
     /// child's fresh page_content in `childrenCache` (or the `collections`
@@ -77,6 +82,7 @@ struct DocumentInspectorContentV2: View {
             }
         }
         .task(id: document.id) {
+            lastSyncSignature = Self.materialSignature(of: liveDocument)
             await syncArtifactScope(force: true)
         }
         // Change-stream refresh gate (#4318). The old gate observed THIS
@@ -89,8 +95,21 @@ struct DocumentInspectorContentV2: View {
         // itself flows through `liveDocument` with no fetch here.
         .onChange(of: documentStore.revision) { _, _ in
             guard documentStore.lastChangedDocumentIds.contains(document.id) else { return }
+            // Material change only — imports touch every ancestor's
+            // updated_at per file, and a timestamp is not content
+            // (2026-08-18 flicker). Ceiling: an artifact-only write that
+            // changes no rendered document field waits for the next
+            // material event or a reselection.
+            let signature = Self.materialSignature(of: liveDocument)
+            guard signature != lastSyncSignature else { return }
+            lastSyncSignature = signature
             Task { await syncArtifactScope(force: true) }
         }
+    }
+
+    /// The fields whose change justifies reloading the artifact panel.
+    nonisolated static func materialSignature(of doc: Document) -> String {
+        "\(doc.pageContent?.hashValue ?? 0)|\(doc.status.rawValue)|\(doc.childCount)|\(doc.name)"
     }
 
     // MARK: - Subviews

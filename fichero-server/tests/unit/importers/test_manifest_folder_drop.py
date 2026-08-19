@@ -49,7 +49,10 @@ def test_folder_with_manifest_routes_through_manifest_importer(client, db, test_
     # The page's transcript landed as page_content via the live routes.
     page = next(d for d in docs if d.name == "page_001")
     assert page.page_content
-    assert progress and progress[-1][0] == progress[-1][1] == len(docs)
+    # Progress spans ALL FOUR phases (documents, entities, artifacts, claims)
+    # so the app's stall watchdog sees movement during the post-page work —
+    # the final step count is 4x the node count, and it must end complete.
+    assert progress and progress[-1][0] == progress[-1][1] == 4 * len(docs)
 
 
 def test_drop_target_becomes_corpus_root_parent(client, db, test_package, tmp_path):
@@ -127,11 +130,17 @@ def test_drop_stamps_engine_recorded_source_paths(client, db, test_package, tmp_
 
 
 def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_package, tmp_path, monkeypatch):
-    """A source the ingest authority refuses stays pathless — recorded in
-    metadata only, never a guessed grant."""
+    """No image in the dropped folder AND the external source refused by the
+    ingest authority → the page stays pathless: recorded in metadata only,
+    never a guessed grant. (An image INSIDE the dropped folder is stamped
+    regardless — the drop grant IS the authority for its own contents,
+    which is what survived the 2026-08-18 broken-bookmark live failure.)"""
     import fichero_server.security.path_security as ps
 
     manifest = _fixture_manifest(tmp_path)
+    # Remove the drop-root image so only the manifest's external source
+    # remains, then refuse that source.
+    (tmp_path / "page_001_enhanced.jpg").unlink()
     monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
 
     docs = _import_manifest_folder(
@@ -143,6 +152,29 @@ def test_drop_declines_paths_outside_the_ingest_authority(client, db, test_packa
     )
     page = next(d for d in docs if d.name == "page_001")
     assert page.path is None
+
+
+def test_drop_root_image_is_stamped_even_when_bookmarks_are_broken(client, db, test_package, tmp_path, monkeypatch):
+    """2026-08-18 live: every security-scoped bookmark for the source tree
+    failed to resolve in the engine process and all 153 stamps declined.
+    The dropped folder itself passed ingest validation — its own files ARE
+    granted, whatever the bookmark store thinks."""
+    import fichero_server.security.path_security as ps
+
+    manifest = _fixture_manifest(tmp_path)
+    # Name the drop-root image the way staging does: <doc name>.<ext>.
+    (tmp_path / "page_001_enhanced.jpg").rename(tmp_path / "page_001.jpg")
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: False)
+
+    docs = _import_manifest_folder(
+        db,
+        manifest,
+        IngestFolderRequest(path=str(tmp_path)),
+        Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    page = next(d for d in docs if d.name == "page_001")
+    assert page.path and page.path.endswith("page_001.jpg")
 
 
 def test_redrop_repairs_a_pathless_earlier_import(client, db, test_package, tmp_path):
@@ -190,3 +222,65 @@ def test_manifest_imported_corpus_deletes_cleanly(client, db, test_package, tmp_
     names = {d["name"] for d in items}
     assert "Tiny Corpus" not in names
     assert "page_001" not in names, "children must go with the corpus"
+
+
+def test_a_refused_entity_warns_but_the_corpus_still_imports(client, db, test_package, tmp_path):
+    """2026-08-18 live: an entity named '1923' (a year mis-tagged as an
+    entity in staged data) 422'd and killed the whole re-drop. A refused
+    entity is a WARNING; documents and the remaining entities land."""
+    import json
+
+    manifest = _fixture_manifest(tmp_path)
+    # Poison one node with a no-letters entity name.
+    lines = [json.loads(l) for l in manifest.read_text().splitlines()]
+    for node in lines:
+        if node.get("node_type") == "page":
+            node.setdefault("entities", []).insert(
+                0, {"canonical_name": "1923", "entity_type": "Subject"}
+            )
+    manifest.write_text("\n".join(json.dumps(n) for n in lines))
+
+    docs = _import_manifest_folder(
+        db, manifest, IngestFolderRequest(path=str(tmp_path)), Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    assert any(d.name == "page_001" for d in docs), "documents still import"
+    entities = client.get("/api/entities?limit=100").json()
+    names = {e.get("canonical_name") for e in (entities.get("items") or entities.get("entities") or entities or [])}
+    assert "1923" not in names
+    assert len(names) >= 2, "the legitimate entities still land"
+
+
+def test_dropped_corpus_serves_real_thumbnail_bytes(client, db, test_package, tmp_path, monkeypatch):
+    """THE bug of 2026-08-18, pinned end to end: a dropped manifest corpus must
+    end with pages whose thumbnails actually SERVE — stamped path, readable
+    file, generated derivative, 200 with real JPEG bytes. Every earlier layer
+    (loopback guard, pathless pages, symlink sandbox escape, manifest paths
+    outside the drop folder, imports dying before the stamp) broke exactly
+    this promise while the import itself looked green."""
+    from PIL import Image as PILImage
+
+    import fichero_server.security.path_security as ps
+
+    manifest = _fixture_manifest(tmp_path)
+    # A real JPEG where the fixture wrote placeholder bytes — thumbnail
+    # generation must succeed, not merely be attempted.
+    PILImage.new("RGB", (64, 64), (180, 40, 40)).save(
+        tmp_path / "page_001_enhanced.jpg", "JPEG"
+    )
+    monkeypatch.setattr(ps, "is_allowed_ingest_path", lambda p: True)
+
+    docs = _import_manifest_folder(
+        db,
+        manifest,
+        IngestFolderRequest(path=str(tmp_path)),
+        Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+    page = next(d for d in docs if d.name == "page_001")
+    assert page.path and Path(page.path).is_file(), "stamp must land on a readable file"
+
+    resp = client.get(f"/api/storage/thumbnail/{page.id}")
+    assert resp.status_code == 200, f"thumbnail must serve, got {resp.status_code}"
+    assert len(resp.content) > 500, "thumbnail must be real image bytes"
+    assert resp.content[:2] == b"\xff\xd8", "thumbnail must be a JPEG"

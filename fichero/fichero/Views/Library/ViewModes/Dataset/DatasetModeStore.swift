@@ -307,6 +307,50 @@ final class DatasetModeStore {
         }
     }
 
+    /// Persist a TEXT edit through the engine, then apply it in place.
+    ///
+    /// The update route stamps ``page_content_user_edited_at`` on every
+    /// page_content write (#672), so a sheet-cell edit gets the same
+    /// machine-rerun protection as the reader's editor — the curation guard
+    /// will never let a re-transcription clobber it.
+    func saveText(_ text: String, on row: DatasetPage.Row, service: DocumentService) async {
+        editErrorText = nil
+        do {
+            _ = try await service.updateDocument(row.id, pageContent: text)
+            applyLocalText(rowId: row.id, text: text)
+        } catch {
+            editErrorText = error.localizedDescription
+        }
+    }
+
+    /// In-place excerpt swap after a persisted text edit — one row, no
+    /// wholesale re-render, source reference intact.
+    func applyLocalText(rowId: String, text: String) {
+        guard let page, let index = page.rows.firstIndex(where: { $0.id == rowId }) else {
+            return
+        }
+        var rows = page.rows
+        let old = rows[index]
+        rows[index] = DatasetPage.Row(
+            id: old.id,
+            name: old.name,
+            prototypeKey: old.prototypeKey,
+            attributes: old.attributes,
+            excerpt: String(text.prefix(800)),
+            dateOriginal: old.dateOriginal,
+            dateIso: old.dateIso,
+            parentId: old.parentId
+        )
+        self.page = DatasetPage(
+            total: page.total,
+            offset: page.offset,
+            rows: rows,
+            defaultsByPrototype: page.defaultsByPrototype,
+            bins: page.bins,
+            facets: page.facets
+        )
+    }
+
     /// "January 4, 1942" from a "YYYY-MM-DD" (or longer ISO) string —
     /// the renderers' shared date presentation. Nil when unparseable so
     /// callers fall back to the raw text, never hide it.

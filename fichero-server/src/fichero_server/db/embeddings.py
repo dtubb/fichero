@@ -1248,19 +1248,83 @@ class DatabaseEmbeddingMixin:
         """Best-effort background embed for a batch of written claims."""
         self._schedule_embedding_task(list(claims), label="claim")
 
-    def _schedule_embedding_task(self, records, *, label: str) -> None:
-        """Run embedding work off-loop when possible; degrade to sync otherwise."""
-        def _run() -> None:
+    def _embed_worker(self):
+        """The long-lived embedding worker Database for this library.
+
+        Embeds must NOT run on the shared request instance: a large batch
+        holding the one shared RLock while Lance holds its own lock
+        deadlocked the whole API (2026-08-18 live, health included). The
+        OLD per-job throwaway Database avoided that but paid a full open +
+        migration suite (~2.2s) per job. One cached worker connection per
+        instance keeps both properties.
+        """
+        worker = getattr(self, "_embed_worker_db", None)
+        if worker is None:
             from fichero_server.db import Database
 
-            worker_db = Database(self.path)
+            worker = Database(self.path)
+            self._embed_worker_db = worker
+        return worker
+
+    def defer_embeddings(self):
+        """Collect entity/claim embeds instead of running them (import-first).
+
+        Daniel's ruling (2026-08-18): a corpus import must not pay embedding
+        per write — rows appear in the app first, vectors follow. Use as a
+        context manager around bulk writes, then ``flush_deferred_embeddings``
+        runs ONE batch per kind on a background thread.
+        """
+        import contextlib
+
+        @contextlib.contextmanager
+        def _ctx():
+            prev = getattr(self, "_deferred_embeds", None)
+            self._deferred_embeds = {"entity": [], "claim": []}
             try:
-                if label == "entity":
-                    worker_db.embed_entities(records)
-                else:
-                    worker_db.embed_claims(records)
+                yield self
             finally:
-                worker_db.close()
+                pending = self._deferred_embeds
+                self._deferred_embeds = prev
+                self._pending_embed_flush = pending
+
+        return _ctx()
+
+    def flush_deferred_embeddings(self) -> None:
+        """Embed everything collected under ``defer_embeddings`` off-thread."""
+        import threading
+
+        pending = getattr(self, "_pending_embed_flush", None)
+        self._pending_embed_flush = None
+        if not pending:
+            return
+
+        def _flush() -> None:
+            try:
+                worker = self._embed_worker()
+                if pending["entity"]:
+                    worker.embed_entities(pending["entity"])
+                if pending["claim"]:
+                    worker.embed_claims(pending["claim"])
+            except Exception as exc:  # embeds are best-effort; reindex recovers
+                logger.warning("Deferred embed flush failed: %s", exc)
+
+        threading.Thread(target=_flush, name="fichero-embed-flush", daemon=True).start()
+
+    def _schedule_embedding_task(self, records, *, label: str) -> None:
+        """Run embedding work off-loop when possible; degrade to sync otherwise."""
+        deferred = getattr(self, "_deferred_embeds", None)
+        if deferred is not None:
+            deferred[label if label in deferred else "claim"].extend(records)
+            return
+        def _run() -> None:
+            # The cached worker connection: off the shared request lock (a
+            # batch holding it deadlocked the API, 2026-08-18), without the
+            # old throwaway-Database-per-job boot cost.
+            worker = self._embed_worker()
+            if label == "entity":
+                worker.embed_entities(records)
+            else:
+                worker.embed_claims(records)
 
         try:
             loop = asyncio.get_running_loop()

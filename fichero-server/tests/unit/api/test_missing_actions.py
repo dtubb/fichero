@@ -433,6 +433,10 @@ class TestSearchReindex:
         e2 = KnowledgeEntity(canonical_name="Two")
         db.save(e1)
         db.save(e2)
+        # save() auto-embeds through the SAME shared instance now (the worker
+        # reuses self, #2508) — clear those calls so the assertion sees only
+        # what reindex requested.
+        embed_spy["entities"].clear()
         result = registry.invoke(db, "search.reindex", {"entity_ids": [e1.id]}, ctx)
         assert embed_spy["entities"] == [[e1.id]]
         assert result.result["entities_indexed"] == 1
