@@ -96,8 +96,11 @@ class TestAppleAvailability:
 class TestProviderKeysAndConnection:
     def test_local_provider_api_key_status_reports_true_without_key_lookup(self, client):
         with patch(
-            "fichero_server.api.routes.ai.provider_keys.has_api_key",
+            "fichero_server.api.routes.ai.provider_keys.api_key_state",
             side_effect=AssertionError("local provider should not probe key presence"),
+        ), patch(
+            "fichero_server.api.routes.ai.provider_keys.has_supplied_api_key",
+            side_effect=AssertionError("local provider should not probe supplied keys"),
         ), patch(
             "fichero_server.api.routes.ai.provider_keys.keychain_available",
             return_value=False,
@@ -105,9 +108,11 @@ class TestProviderKeysAndConnection:
             response = client.get("/api/providers/apple/api-key/status")
 
         assert response.status_code == 200
-        assert response.json() == {
+        body = {k: v for k, v in response.json().items() if v is not None}
+        assert body == {
             "provider_type": "apple",
             "has_api_key": True,
+            "key_state": "found",
             "is_local": True,
             "keychain_available": False,
         }

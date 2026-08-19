@@ -254,7 +254,14 @@ def run(
         # Deliberately NOT a flat byte allowance: the artifacts differ by three
         # orders of magnitude, so a figure generous enough for a 1.4GB bundle
         # would hide a doubling of the 57KB binary.
-        tolerance = max(int(best * 0.001), 1)
+        #
+        # And deliberately PER-ARTIFACT (2026-08-19): the jitter above was
+        # measured on the SIGNED bundle and the COMPRESSED DMG. A raw
+        # executable's byte count has no such excuse — the one-byte-over test
+        # and the iOS ratchet (#4466 "no jitter allowance at all") hold those
+        # EXACT, and the blanket tolerance had quietly disarmed both.
+        exact = name == "release.app_binary" or name.startswith("release.ios_")
+        tolerance = 0 if exact else max(int(best * 0.001), 1)
         if size > best + tolerance:
             fired = True
             print(
