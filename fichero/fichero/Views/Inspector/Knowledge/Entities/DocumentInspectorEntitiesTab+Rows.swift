@@ -228,13 +228,16 @@ extension DocumentInspectorEntitiesTab {
         .simultaneousGesture(
             TapGesture(count: 2).onEnded { openEntity(entity) }
         )
-        // Plain-click fallback (Daniel 2026-08-12: "you can't click on a list
-        // item for an entity, you have to click on the left of the name") —
-        // same seam as the sidebar's childPlainClickFallback: `.draggable`
-        // claims the press over most of the row, so List(selection:) never
-        // commits. Plain clicks select directly; shift/command clicks stay
-        // with the List for range/toggle selection.
-        .simultaneousGesture(plainClickSelectFallback(entity))
+        // Full click grammar in the fallback (#4607, supersedes the 2026-08-12
+        // plain-click-only fix): `.draggable` claims the press over the row,
+        // so List(selection:) never commits ANY click — leaving ⇧/⌘ "to the
+        // List" left them dead, and the text's rename double-tap recognizer
+        // still ate plain clicks over the name. Every click now runs
+        // SelectionGrammar over the tab's visual order: plain selects,
+        // ⇧ ranges from the anchor, ⌘ toggles — the library's exact rules,
+        // which is what bulk curation (shift-click a run of junk entities,
+        // delete once) needs.
+        .simultaneousGesture(entityRowClickGesture(entity))
         .contextMenu { entityContextMenu(for: entity) }
         .help("Inspect \(entity.canonicalName)")
     }
@@ -256,15 +259,24 @@ extension DocumentInspectorEntitiesTab {
     }
 
     // `private`: only `entityRow` (same file) reads this.
-    private func plainClickSelectFallback(
+    private func entityRowClickGesture(
         _ entity: Components.Schemas.KnowledgeEntity
     ) -> some Gesture {
         TapGesture().onEnded {
+            var modifiers: SelectionGrammar.Modifiers = []
             #if os(macOS)
-            guard !NSEvent.modifierFlags.contains(.shift),
-                  !NSEvent.modifierFlags.contains(.command) else { return }
+            if NSEvent.modifierFlags.contains(.shift) { modifiers.insert(.shift) }
+            if NSEvent.modifierFlags.contains(.command) { modifiers.insert(.command) }
             #endif
-            entitySelection = [entity.stableInspectorId]
+            let result = SelectionGrammar.click(
+                id: entity.stableInspectorId,
+                in: orderedEntities.map(\.stableInspectorId),
+                selection: entitySelection,
+                anchor: entitySelectionAnchor,
+                modifiers: modifiers
+            )
+            entitySelection = result.selection
+            entitySelectionAnchor = result.anchor
         }
     }
 

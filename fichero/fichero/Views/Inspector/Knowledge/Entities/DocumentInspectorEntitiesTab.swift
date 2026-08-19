@@ -57,6 +57,9 @@ struct DocumentInspectorEntitiesTab: View {
 
     // ponytail: recompute inputs — scopedEntities, hiddenKindsCSV
     @State var grouped: [(EntityKind, [Components.Schemas.KnowledgeEntity])] = []
+    /// ⇧-range anchor for the row click grammar (#4607) — SelectionGrammar
+    /// owns the semantics, same as library and sidebar.
+    @State var entitySelectionAnchor: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
