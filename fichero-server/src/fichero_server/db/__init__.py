@@ -4991,9 +4991,19 @@ class Database(DatabaseEmbeddingMixin):
                 # already removed scores below min_score in cosine space;
                 # this second pass catches docs that scraped past that floor
                 # but then ranked near the bottom of the fusion list.
+                #
+                # FULLTEXT hits are EXEMPT (#4236 / SEARCH_PLAN M2): a doc the
+                # keyword leg actually matched projects to 0.5 + 0.1×BM25norm,
+                # so with the app's default min_score=0.55 every keyword-only
+                # hit except the single top-BM25 doc was dropped before the
+                # user saw it — a confident, wrong, EMPTY answer for rare
+                # terms ('jemseg'). An exact keyword match is evidence, not a
+                # fuzzy neighbour; the floor exists to cut semantic noise.
                 if min_score > 0:
                     combined_results = [
-                        r for r in merged.values() if r["score"] >= min_score
+                        r for r in merged.values()
+                        if "fulltext" in r.get("match_sources", [])
+                        or r["score"] >= min_score
                     ]
                 else:
                     combined_results = list(merged.values())

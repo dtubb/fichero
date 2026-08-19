@@ -275,6 +275,74 @@ class TestHybridRanking:
         assert results[0].score > results[1].score
 
 
+
+    def test_keyword_only_hit_at_rank_2_survives_default_min_score(self, db, monkeypatch) -> None:
+        """#4236 / SEARCH_PLAN M2: a doc the KEYWORD leg matched projects to
+        0.5 + 0.1*bm25norm, so the app's default min_score=0.55 silently
+        dropped every keyword-only hit except the single top-BM25 doc — a
+        confident empty answer for rare terms. Fulltext evidence is exempt
+        from the fused-score floor; the floor still cuts semantic-only noise."""
+
+        class FakeQuery:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def select(self, _columns):
+                return self
+
+            def limit(self, _limit):
+                return self
+
+            def to_list(self):
+                return self.rows
+
+        def fulltext_row(doc_id, score):
+            return {
+                "document_id": doc_id, "id": doc_id,
+                "text": f"jemseg ledger {doc_id}", "name": doc_id,
+                "doc_type": "file", "file_type": "text", "_score": score,
+            }
+
+        class FakeTable:
+            schema = SimpleNamespace(
+                names=[
+                    "document_id", "id", "text", "name", "doc_type", "file_type",
+                    "embedding_scope", "passage_id", "page_id", "char_start", "char_end",
+                ]
+            )
+
+            def search(self, _query, query_type="auto", fts_columns=None):
+                return FakeQuery([
+                    fulltext_row("doc-kw-1", 3.0),
+                    fulltext_row("doc-kw-2", 1.0),
+                ])
+
+        fake_lance = SimpleNamespace(open_table=lambda _name: FakeTable())
+        monkeypatch.setattr(type(db), "lance", property(lambda self: fake_lance))
+        monkeypatch.setattr(type(db), "_lance_tables", lambda self: [EMBEDDINGS_TABLE])
+        monkeypatch.setattr(type(db), "_embed_text", lambda self, _query: [0.0])
+        # Semantic leg finds nothing relevant.
+        monkeypatch.setattr(
+            type(db), "search_vectors", lambda self, _t, _v, _l: []
+        )
+        monkeypatch.setattr(type(db), "_is_active_document_id", lambda self, _d: True)
+        monkeypatch.setattr(
+            type(db), "_has_indexed_page_children", lambda self, _d: False
+        )
+        monkeypatch.setattr(
+            type(db), "enrich_search_results_with_kg", lambda self, results, _q: results
+        )
+
+        results, total, _stats = Database.search(
+            db, "jemseg", search_type="hybrid", min_score=0.55
+        )
+
+        ids = [r.document_id for r in results]
+        assert "doc-kw-1" in ids and "doc-kw-2" in ids, (
+            f"keyword hits dropped by the fused min_score floor: {ids}"
+        )
+
+
 class TestMarkerOnlyDetection:
     """`_is_content_marker_only` decides whether to fall back to doc.name
     when embedding (avoids the [sin texto]-cluster bug where every blank
