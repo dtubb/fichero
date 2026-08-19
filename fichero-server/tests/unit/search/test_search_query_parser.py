@@ -164,3 +164,30 @@ class TestIntentFlags:
     def test_phrase_alone_is_freetext_intent(self) -> None:
         plan = parse_query('"el escribano"')
         assert plan.has_freetext_intent
+
+
+class TestScopeAliases:
+    """Daniel's ruling (#4604 Q2): singular and plural prefixes both parse,
+    keyed canonically (plural) in the plan."""
+
+    def test_singular_prefixes_parse_as_canonical(self):
+        plan = parse_query("person:Asprilla place:Istmina date:1923 org:BPGC")
+        assert plan.scopes["people"] == ["Asprilla"]
+        assert plan.scopes["places"] == ["Istmina"]
+        assert plan.scopes["dates"] == ["1923"]
+        assert plan.scopes["organizations"] == ["BPGC"]
+        assert plan.free_text == ""
+
+    def test_singular_and_plural_merge_into_one_scope(self):
+        plan = parse_query("person:Marshall people:Davis")
+        assert sorted(plan.scopes["people"]) == ["Davis", "Marshall"]
+
+    def test_singular_scoped_phrase(self):
+        plan = parse_query('person:"N. C. Marshall" gold')
+        assert plan.scopes["people"] == ["N. C. Marshall"]
+        assert plan.free_text == "gold"
+
+    def test_plural_never_half_matches_as_singular(self):
+        plan = parse_query("places:Condoto")
+        assert plan.scopes["places"] == ["Condoto"]
+        assert "place" not in plan.scopes
