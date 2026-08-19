@@ -658,7 +658,8 @@ extension DocumentService {
     /// so callers can refresh local state without raw URL paths.
     func batchExclude(
         documentIds: [String],
-        excluded: Bool
+        excluded: Bool,
+        scope: Components.Schemas.DocumentExclusionScope = .processing
     ) async throws -> [Document] {
         isProcessing = true
         defer { isProcessing = false }
@@ -666,7 +667,9 @@ extension DocumentService {
         let request = Components.Schemas.DocumentBatchExcludeRequest(
             documentIds: documentIds,
             excluded: excluded,
-            reason: nil
+            reason: nil,
+            // #4580: which exclusion flag — processing (default) or search.
+            scope: scope
         )
 
         let response = try await client.api.batchExcludeDocumentsApiDocumentsBatchExcludePatch(

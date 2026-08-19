@@ -193,6 +193,9 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var metadata: [String: AnyCodable]
     var pageContent: String?
     var excludeFromProcessing: Bool
+    /// Search must not return this document (#4580) — curation for
+    /// structural pages (covers, front matter) that are not content.
+    var excludeFromSearch: Bool
     var isWorkspace: Bool
     var curatedItems: [[String: AnyCodable]]
     var structure: [DocumentStructureNode]
@@ -256,6 +259,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case metadata
         case pageContent = "page_content"
         case excludeFromProcessing = "exclude_from_processing"
+        case excludeFromSearch = "exclude_from_search"
         case isWorkspace = "is_workspace"
         case curatedItems = "curated_items"
         case structure
@@ -287,6 +291,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         metadata: [String: AnyCodable] = [:],
         pageContent: String? = nil,
         excludeFromProcessing: Bool = false,
+        excludeFromSearch: Bool = false,
         isWorkspace: Bool = false,
         curatedItems: [[String: AnyCodable]] = [],
         structure: [DocumentStructureNode] = [],
@@ -316,6 +321,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.metadata = metadata
         self.pageContent = pageContent
         self.excludeFromProcessing = excludeFromProcessing
+        self.excludeFromSearch = excludeFromSearch
         self.isWorkspace = isWorkspace
         self.curatedItems = curatedItems
         self.structure = structure
@@ -351,6 +357,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.metadata = try container.decode([String: AnyCodable].self, forKey: .metadata)
         self.pageContent = try container.decodeIfPresent(String.self, forKey: .pageContent)
         self.excludeFromProcessing = try container.decodeIfPresent(Bool.self, forKey: .excludeFromProcessing) ?? false
+        self.excludeFromSearch = try container.decodeIfPresent(Bool.self, forKey: .excludeFromSearch) ?? false
         self.isWorkspace = try container.decodeIfPresent(Bool.self, forKey: .isWorkspace) ?? false
         self.curatedItems = try container.decodeIfPresent([[String: AnyCodable]].self, forKey: .curatedItems) ?? []
         self.structure = try container.decodeIfPresent([DocumentStructureNode].self, forKey: .structure) ?? []
