@@ -247,6 +247,9 @@ struct ContentView: View {
     @State var performanceService = PerformanceService()
     @State var documentScrollSync = DocumentScrollSyncState()
     @State var toolbarSearchText: String = ""
+    /// Focus for the resident top-right toolbar search field (#4604 Q10):
+    /// the old show/hide toggle's "summon" gesture becomes "focus".
+    @FocusState var toolbarSearchFieldFocused: Bool
     /// AI-first search (#4117): "Ask" (default) lets the LLM compile a
     /// plain-language query into the structured search; "Keyword" searches
     /// the raw text. Surfaced as a native search scope on the field; the

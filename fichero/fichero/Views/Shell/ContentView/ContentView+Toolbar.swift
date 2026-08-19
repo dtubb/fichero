@@ -159,21 +159,14 @@ extension ContentView {
                 .help(showChatPane ? "Hide chat pane" : "Show chat pane")
             }
 
-            // Summoned search (#4521, Finder-shaped): the engine-search field
-            // is no longer resident chrome — this toggle reveals it in the
-            // library's mini toolbar and dismisses it again (dismissal exits
-            // transient-search presentation through `clearTransientSearch`,
-            // #4106/S2 semantics unchanged). Its OWN item, not a fourth member
-            // of the pane group: the group is the three-pane control (#4374),
-            // and search is a different kind of thing.
+            // RESIDENT search field, top right (Daniel's ruling 2026-08-19,
+            // #4604 Q10 — supersedes #4521's summoned field): always visible
+            // and expanded, never a toggle away. The magnifier is the MODE
+            // menu (Ask/Keyword + Hybrid/Semantic/Full Text merged — the two
+            // controls used to live in two different bars, #4604 §4.2). The
+            // reader's find bar deliberately stays bottom (ruling Q9 split).
             ToolbarItem(id: ContentToolbarID.searchToggle, placement: .automatic) {
-                Toggle(isOn: Binding(
-                    get: { showSearchField },
-                    set: { setSearchFieldVisible($0) }
-                )) {
-                    Label("Search", systemImage: ToolbarSymbols.findField)
-                }
-                .help(showSearchField ? "Hide the search field" : "Search the library")
+                toolbarSearchField
             }
         }
 
@@ -183,6 +176,90 @@ extension ContentView {
         // (#4407): the controls now live in the library's own mini toolbar, so
         // they follow their pane — including in the compact flow — and there is
         // nothing left to except. See `LibraryView+MiniToolbar`.
+    }
+
+    // MARK: Resident search field (#4604)
+
+    /// The always-there window search: magnifier-as-menu + field + clear.
+    private var toolbarSearchField: some View {
+        HStack(spacing: 4) {
+            searchModeMenu
+
+            TextField("Search your library", text: $toolbarSearchText)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .frame(width: 180)
+                .focused($toolbarSearchFieldFocused)
+                .onSubmit { runToolbarSearch(toolbarSearchText) }
+
+            if !toolbarSearchText.isEmpty {
+                Button {
+                    // Same dismissal semantics the toggle had: emptying the
+                    // field exits transient-search presentation so the
+                    // library can't silently show results for an invisible
+                    // query (#4521 rule, field just never hides now).
+                    setSearchFieldVisible(false)
+                } label: {
+                    Image(systemName: ToolbarSymbols.clearField)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+                .help("Clear search")
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(.quaternary.opacity(0.5))
+        )
+        .help("Search the library — the magnifier picks the mode")
+    }
+
+    /// ONE mode control on the magnifier (#4604 §4.2): what the words mean
+    /// (Ask vs Keyword) and how matching runs (Hybrid / Semantic / Full
+    /// Text) — previously two controls in two different bars.
+    private var searchModeMenu: some View {
+        Menu {
+            Section("Mode") {
+                ForEach(SearchFieldMode.allCases, id: \.self) { mode in
+                    Button {
+                        searchFieldModeRaw = mode.rawValue
+                    } label: {
+                        if searchFieldModeRaw == mode.rawValue {
+                            Label(mode == .ask ? "Ask" : "Keyword", systemImage: "checkmark")
+                        } else {
+                            Text(mode == .ask ? "Ask" : "Keyword")
+                        }
+                    }
+                }
+            }
+            Section("Method") {
+                ForEach(
+                    [("hybrid", "Hybrid"), ("semantic", "Semantic"), ("fulltext", "Full Text")],
+                    id: \.0
+                ) { value, label in
+                    Button {
+                        transientSearchType = value
+                    } label: {
+                        if transientSearchType == value {
+                            Label(label, systemImage: "checkmark")
+                        } else {
+                            Text(label)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: searchFieldModeRaw == SearchFieldMode.ask.rawValue
+                ? "sparkle.magnifyingglass" : ToolbarSymbols.findField)
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Search mode: Ask or Keyword; Hybrid, Semantic, or Full Text")
     }
 
     // MARK: Library pane toggle (#4288)

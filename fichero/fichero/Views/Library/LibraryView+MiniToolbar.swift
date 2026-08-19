@@ -30,18 +30,14 @@ extension LibraryView {
         MiniToolbarPlacement.preferredForReader
     }
 
-    /// The bar itself. Order is scope-widest-first: what you are looking for,
-    /// then how it is ordered, then whether the narrowing filter row is open.
-    ///
-    /// The search field is SUMMONED, not resident (#4521): it renders only
-    /// while `searchFieldVisible` is on — the toolbar's search toggle (or a
-    /// programmatic search) reveals it. Sort and filter stay resident; they
-    /// are not search chrome.
+    /// The bar itself: row attributes, sort, then the narrowing filter row
+    /// toggle. The engine-search field is NOT here any more — see below.
     @ViewBuilder
     var libraryMiniToolbar: some View {
-        if searchFieldVisible.wrappedValue {
-            librarySearchField
-        }
+        // The engine-search field moved to the WINDOW toolbar, top right,
+        // resident (Daniel's ruling 2026-08-19, #4604 Q10 — supersedes the
+        // summoned #4521 field here). Sort, filter, and row attributes stay:
+        // they act on this list and only this list.
 
         Spacer(minLength: 8)
 
@@ -53,86 +49,6 @@ extension LibraryView {
         librarySortMenu
 
         libraryFilterToggleButton
-    }
-
-    /// The engine-backed search, now scoped to the pane it fills with results.
-    ///
-    /// Deliberately a plain field rather than `.searchable`: that API attaches
-    /// to a navigation container, which is precisely how it ended up spanning
-    /// three panes. The Ask/Keyword choice it used to render as a window-wide
-    /// scope bar is a menu here, beside the field it modifies.
-    @ViewBuilder
-    private var librarySearchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: ToolbarSymbols.findField)
-                .foregroundStyle(.secondary)
-                .font(.body)
-                .imageScale(.small)
-
-            TextField("Search", text: searchFieldText)
-                .textFieldStyle(.plain)
-                .font(.callout)
-                // While focused, the row keyboard grammar stands down —
-                // ancestor `.onKeyPress` handlers otherwise swallow every
-                // character before the field sees it (2026-08-11).
-                .focused($searchFieldFocused)
-                // Summoned means ready to type: the toolbar toggle reveals
-                // this field, so it takes focus on arrival.
-                .onAppear { searchFieldFocused = true }
-                .onSubmit { onToolbarSearchSubmit(searchFieldText.wrappedValue) }
-
-            if !searchFieldText.wrappedValue.isEmpty {
-                Button {
-                    searchFieldText.wrappedValue = ""
-                } label: {
-                    Image(systemName: ToolbarSymbols.clearField)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-                .help("Clear search")
-            }
-
-            searchModeMenu
-        }
-        // Bounded BOTH ways (views audit #6): the bare minWidth was an
-        // unshrinkable 140pt floor that propagated up and helped set the
-        // library pane's 300-340pt minimum ("the mini toolbars are screwing
-        // up the width of the centre views"). The field still grows into
-        // available space, but no longer dictates the pane's floor.
-        .frame(minWidth: 80, maxWidth: 280)
-    }
-
-    /// Ask vs Keyword. Was `.searchScopes`, which is what actually drew the
-    /// full-width bar under the toolbar (#4407).
-    @ViewBuilder
-    private var searchModeMenu: some View {
-        Menu {
-            Button {
-                searchFieldMode.wrappedValue = .ask
-            } label: {
-                Label("Ask", systemImage: "sparkles")
-                if searchFieldMode.wrappedValue == .ask {
-                    Image(systemName: "checkmark")
-                }
-            }
-            Button {
-                searchFieldMode.wrappedValue = .keyword
-            } label: {
-                Text("Keyword")
-                if searchFieldMode.wrappedValue == .keyword {
-                    Image(systemName: "checkmark")
-                }
-            }
-        } label: {
-            Label(
-                searchFieldMode.wrappedValue == .ask ? "Ask" : "Keyword",
-                systemImage: searchFieldMode.wrappedValue == .ask ? "sparkles" : "textformat"
-            )
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("Search your words as typed, or ask a question in plain language")
     }
 
     /// Drives `libraryToolbar` — the SAME sort model the View menu, the table
