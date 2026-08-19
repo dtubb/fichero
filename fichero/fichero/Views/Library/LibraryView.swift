@@ -216,6 +216,9 @@ struct LibraryView: View {
     @State var documentIndexById: [String: Int] = [:]
     @State var prefetchedThumbnailIds: Set<String> = []
     @State var thumbnailPrefetchTask: Task<Void, Never>?
+    /// The folder-open thumbnail sweep (#4589) — separate from the scroll
+    /// look-ahead task so a row appearing never cancels the sweep.
+    @State var folderThumbnailPrefetchTask: Task<Void, Never>?
 
     // Delete confirmation state
     @State var showDeleteConfirmation = false
