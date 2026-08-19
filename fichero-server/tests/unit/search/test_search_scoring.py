@@ -413,3 +413,26 @@ class TestCosineFromL2:
         # Caller clamps with max(0.0, min(1.0, cos)) → 0.0 for ranking.
         clamped = max(0.0, min(1.0, cos))
         assert clamped == 0.0
+
+
+class TestScriptAwareFold:
+    """Daniel's ruling (#4604 Q9): accent-insensitive for Latin/Greek/
+    Cyrillic; vowel signs PRESERVED for the abugidas — a Devanagari matra is
+    a vowel, not an accent, and stripping it collapsed distinct words."""
+
+    def test_latin_accents_still_fold(self) -> None:
+        assert _fold_for_search("Quibdó CAFÉ çedilla") == "quibdo cafe cedilla"
+
+    def test_devanagari_vowel_signs_survive(self) -> None:
+        # कि (ka + i-matra) must NOT collapse to क (bare ka).
+        assert _fold_for_search("कि") == "कि"
+        assert _fold_for_search("कि") != _fold_for_search("क")
+
+    def test_sanskrit_word_distinct_after_fold(self) -> None:
+        # धर्म (dharma) keeps its virama + vowel structure.
+        word = "धर्म"
+        assert _fold_for_search(word) == word
+
+    def test_mixed_script_line_folds_each_side_correctly(self) -> None:
+        folded = _fold_for_search("José कि")
+        assert folded == "jose कि"

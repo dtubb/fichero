@@ -380,11 +380,42 @@ def _fold_for_search(text: str) -> str:
     """
     if not text:
         return ""
-    return "".join(
-        c
-        for c in unicodedata.normalize("NFKD", text.casefold())
-        if unicodedata.category(c) != "Mn"
-    )
+    # SCRIPT-AWARE mark handling (Daniel's ruling, #4604 Q9): combining marks
+    # are ACCENTS in Latin/Greek/Cyrillic (and optional pointing in
+    # Arabic/Hebrew) — strip them so keyboard-ASCII queries match. In the
+    # abugidas (Devanagari, the other Indic scripts, Thai/Lao, Tibetan,
+    # Myanmar, Khmer) a combining mark IS a vowel — stripping it collapses
+    # distinct words (कि→क) and mangles Sanskrit search. So a mark survives
+    # exactly when its BASE character belongs to a mark-significant script.
+    out: list[str] = []
+    base_preserves_marks = False
+    for c in unicodedata.normalize("NFKD", text.casefold()):
+        if unicodedata.category(c) == "Mn":
+            if base_preserves_marks:
+                out.append(c)
+            continue
+        base_preserves_marks = _script_preserves_marks(ord(c))
+        out.append(c)
+    return "".join(out)
+
+
+def _script_preserves_marks(codepoint: int) -> bool:
+    """True for scripts whose combining marks carry lexical meaning (vowel
+    signs, not accents) and must survive `_fold_for_search`."""
+    return any(lo <= codepoint <= hi for lo, hi in _MARK_SIGNIFICANT_RANGES)
+
+
+# The abugida blocks: Indic (Devanagari…Sinhala), Thai/Lao, Tibetan,
+# Myanmar, Khmer, and the Devanagari Extended/Vedic blocks Sanskrit uses.
+_MARK_SIGNIFICANT_RANGES: tuple[tuple[int, int], ...] = (
+    (0x0900, 0x0DFF),  # Devanagari … Sinhala
+    (0x0E00, 0x0EFF),  # Thai, Lao
+    (0x0F00, 0x0FFF),  # Tibetan
+    (0x1000, 0x109F),  # Myanmar
+    (0x1780, 0x17FF),  # Khmer
+    (0x1CD0, 0x1CFF),  # Vedic Extensions
+    (0xA8E0, 0xA8FF),  # Devanagari Extended
+)
 
 
 class SearchExecutionError(RuntimeError):
