@@ -8123,6 +8123,16 @@
         "response_model": "ReindexStartedResponse"
       },
       {
+        "method": "POST",
+        "path": "/search/related",
+        "operation_id": "related_documents_api_search_related_post",
+        "summary": "Related Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RelatedDocumentsRequest",
+        "response_model": "fichero_server__api__routes__search__core__RelatedDocumentsResponse"
+      },
+      {
         "method": "GET",
         "path": "/search/saved",
         "operation_id": "list_saved_searches_api_search_saved_get",

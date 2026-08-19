@@ -11876,6 +11876,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("related-documents")
+    def search_related_documents_post(
+        ctx: typer.Context,
+        document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+    ) -> None:
+        """Related Documents (POST /api/search/related)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/related"
+            params = None
+            payload = _build_json_payload({
+                "document_id": document_id,
+                "limit": limit,
+            }, {
+                "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
+                "limit": {'type': 'integer', 'maximum': 50.0, 'minimum': 1.0, 'title': 'Limit', 'default': 10, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-saved-searches")
     def search_list_saved_searches_get(
         ctx: typer.Context,

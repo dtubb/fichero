@@ -4199,6 +4199,93 @@ class Database(DatabaseEmbeddingMixin):
             self.save_vectors(EMBEDDINGS_TABLE, records)
         return len(records)
 
+    def related_documents(
+        self, document_id: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Find Related Documents (#4606): rank neighbours of ``document_id``
+        by BOTH how they read and what they talk about.
+
+        * READS SIMILAR — the document's own passage vectors, averaged into a
+          centroid, searched against the embeddings table; each neighbour doc
+          keeps its best passage similarity.
+        * TALKS ABOUT THE SAME THINGS — entities citing this document pull in
+          their OTHER source documents; each shared entity adds a bonus, so a
+          page that shares three people with this one outranks a page that
+          merely reads alike.
+
+        Returns ``[{document_id, name, score, shared_entities}]``, best first.
+        Raises when the source document does not exist (never a silent []);
+        a document with no vectors still returns entity-shared neighbours.
+        """
+        from fichero_server.db.embeddings import _l2_normalize
+        from fichero_server.models import Document
+        from fichero_server.models.knowledge import KnowledgeEntity
+
+        source = self.get(Document, document_id)
+        if source is None:
+            raise ValueError(f"Document not found: {document_id}")
+
+        best_similarity: dict[str, float] = {}
+        if EMBEDDINGS_TABLE in self._lance_tables():
+            table = self.lance.open_table(EMBEDDINGS_TABLE)
+            own = (
+                table.search()
+                .where(f"document_id = '{document_id}'")
+                .limit(256)
+                .to_list()
+            )
+            vectors = [row["vector"] for row in own if row.get("vector")]
+            if vectors:
+                dims = len(vectors[0])
+                centroid = [
+                    sum(vector[i] for vector in vectors) / len(vectors)
+                    for i in range(dims)
+                ]
+                centroid = _l2_normalize(centroid)
+                for r in self.search_vectors(EMBEDDINGS_TABLE, centroid, limit * 6):
+                    neighbour = r.get("document_id") or r.get("id")
+                    if not neighbour or neighbour == document_id:
+                        continue
+                    distance = r.get("_distance", 2.0)
+                    cos_sim = max(0.0, min(1.0, 1.0 - (distance * distance) / 2.0))
+                    if cos_sim > best_similarity.get(neighbour, 0.0):
+                        best_similarity[neighbour] = cos_sim
+
+        shared_entities: dict[str, list[str]] = {}
+        for entity in self.query_json_list_intersects(
+            KnowledgeEntity, "source_document_ids", [document_id]
+        ):
+            if document_id not in (entity.source_document_ids or []):
+                continue
+            for other in entity.source_document_ids or []:
+                if other != document_id:
+                    shared_entities.setdefault(other, []).append(entity.canonical_name)
+
+        scores: dict[str, float] = dict(best_similarity)
+        for doc_id, names in shared_entities.items():
+            # Each shared entity is worth a similarity increment, capped so a
+            # hub page sharing 30 entities can't drown a true textual match.
+            scores[doc_id] = scores.get(doc_id, 0.0) + min(0.3, 0.06 * len(names))
+
+        ranked: list[dict[str, Any]] = []
+        for doc_id, score in sorted(scores.items(), key=lambda kv: -kv[1]):
+            doc = self.get(Document, doc_id)
+            if doc is None or getattr(doc, "deleted_at", None) is not None:
+                continue
+            if getattr(doc, "exclude_from_search", False):
+                continue
+            ranked.append(
+                {
+                    "document_id": doc_id,
+                    "name": doc.name,
+                    "score": round(min(1.0, score), 4),
+                    "shared_entities": sorted(shared_entities.get(doc_id, []))[:10],
+                }
+            )
+            if len(ranked) >= limit:
+                break
+        return ranked
+
     def search_similar(
         self, query_vector: list[float], limit: int = 10, model: Type[T] | None = None
     ) -> list[dict] | list[T]:
