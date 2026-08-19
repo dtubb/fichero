@@ -58,6 +58,15 @@ final class ReloadDebouncer {
             guard !Task.isCancelled else { return }
             // The burst ends when its action actually runs, so the next event
             // starts a fresh window rather than flushing immediately forever.
+            // CLEAR `pending` before running: once the action is IN FLIGHT it
+            // must never be cancelled by the next event's reschedule. Leaving
+            // the task in `pending` meant a long flush (per-document fetches
+            // during a corpus import) was cancelled mid-loop by the very next
+            // event — the 2026-08-18 four-folder drop: only the first corpus
+            // ever reached the sidebar, every later patch died in a
+            // CancellationError storm. With `pending` nil the next event just
+            // arms the NEXT flush, which picks up whatever this one left.
+            self?.pending = nil
             self?.burstStart = nil
             await action()
         }

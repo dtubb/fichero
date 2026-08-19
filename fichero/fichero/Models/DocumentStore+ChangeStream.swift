@@ -94,6 +94,15 @@ extension DocumentStore: ObservableDomainStore {
                 // the rescheduled flush owns it.
                 pendingPatchIds.insert(id)
                 pendingPatchIds.formUnion(remaining)
+                // Defensive re-arm: if this cancellation did NOT come from a
+                // reschedule (the debouncer no longer cancels running flushes,
+                // but store teardown/resync still can), no successor flush
+                // exists and these ids would sit invisible until the next
+                // resync. Scheduling coalesces with any successor, so this is
+                // free when one is already armed (2026-08-18 four-folder drop).
+                reloadDebouncer.schedule { [weak self] in
+                    await self?.flushPendingPatches()
+                }
                 break
             } catch {
                 logger.debug(
