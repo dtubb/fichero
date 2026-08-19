@@ -1149,6 +1149,37 @@ async def create_document(
     return new_doc
 
 
+class DocumentBulkCreateRequest(BaseModel):
+    documents: list[DocumentCreate]
+
+
+class DocumentBulkCreateResponse(BaseModel):
+    document_ids: list[str]
+
+
+@router.post("/bulk", status_code=201)
+async def bulk_create_documents(
+    request: DocumentBulkCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> DocumentBulkCreateResponse:
+    """Create a batch of documents in ONE audited action (#1848 pattern).
+
+    The manifest importer's page phase ran one route round-trip per page —
+    registry/audit/emit overhead per row was the measured ~1s/page on a live
+    import (2026-08-19 ledger). Order is preserved; parents must already
+    exist (the importer creates containers first).
+    """
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.bulk_create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return DocumentBulkCreateResponse.model_validate(result.result)
+
+
 @router.put("/{doc_id}")
 async def update_document(
     doc_id: str,
@@ -2747,6 +2778,35 @@ def _action_create_document(
         emit_fn=_emit_document_change_spec,
     )
     return new_doc.model_dump(mode="json"), spec
+
+
+@action(
+    "document.bulk_create",
+    DocumentBulkCreateRequest,
+    domains=["document"],
+    # ponytail: undoable=False like entity.bulk_upsert — a corpus import is
+    # not a gesture anyone undoes row by row; delete handles regret.
+    undoable=False,
+)
+def _action_bulk_create_documents(
+    db: Database, params: DocumentBulkCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Create N documents through the SAME single-create impl, one audit,
+    one trailing bulk ``document.created`` event (with parents, #4205)."""
+    created: list[Document] = []
+    for doc in params.documents:
+        created.append(create_document_impl(db, doc))
+    ids = [d.id for d in created]
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=ids,
+        after={"document_ids": ids},
+        emit_type="document.created" if ids else None,
+        document_ids=ids,
+        document_parents={d.id: d.parent_id for d in created if d.parent_id},
+        emit_fn=_emit_document_change_spec,
+    )
+    return {"document_ids": ids}, spec
 
 
 @action(

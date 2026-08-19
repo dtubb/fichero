@@ -1202,6 +1202,40 @@ class TestUpdateDocument:
         assert item["z_index"] == 3
 
 
+class TestBulkCreateDocuments:
+    def test_bulk_create_preserves_order_and_parents(self, client, db):
+        """#1848 pattern for the import page phase: N documents, one audited
+        action, ids returned in request order, parents honoured."""
+        folder = Document(name="Diary", doc_type=DocType.folder)
+        db.save(folder)
+
+        r = client.post(
+            "/api/documents/bulk",
+            json={
+                "documents": [
+                    {"name": f"page_{i:03d}", "parent_id": folder.id, "doc_type": "page"}
+                    for i in range(1, 6)
+                ]
+            },
+        )
+
+        assert r.status_code == 201
+        ids = r.json()["document_ids"]
+        assert len(ids) == 5
+        for i, doc_id in enumerate(ids, start=1):
+            doc = db.get(Document, doc_id)
+            assert doc is not None
+            assert doc.name == f"page_{i:03d}"
+            assert doc.parent_id == folder.id
+
+    def test_bulk_create_unknown_parent_fails_loudly(self, client, db):
+        r = client.post(
+            "/api/documents/bulk",
+            json={"documents": [{"name": "orphan", "parent_id": "no-such-parent"}]},
+        )
+        assert r.status_code == 400
+
+
 class TestBatchExcludeDocuments:
     def test_batch_exclude_updates_documents_and_logs_mutation(self, client, db):
         doc_a = _make_doc(db, "Doc A")

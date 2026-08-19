@@ -601,12 +601,23 @@ class DatabaseEmbeddingMixin:
                 embedded_docs = len(set(rows["document_id"].to_pylist()))
             except Exception:  # pragma: no cover - stats stay best-effort
                 embedded_docs = 0
-        from fichero_server.models import Document
+        from fichero_server.models import Document, KnowledgeClaim, KnowledgeEntity
 
         try:
             document_count = self.count(Document)
         except Exception:  # pragma: no cover
             document_count = 0
+        # Denominators for the KG legs too (2026-08-19): indexed_count alone
+        # cannot distinguish "no claims exist" from "no claims embedded" —
+        # the exact ambiguity that hid the 85%-unembedded documents.
+        try:
+            entity_count = self.count(KnowledgeEntity)
+        except Exception:  # pragma: no cover
+            entity_count = 0
+        try:
+            claim_count = self.count(KnowledgeClaim)
+        except Exception:  # pragma: no cover
+            claim_count = 0
         return {
             "indexed_count": doc_stats["indexed_count"],
             "table_exists": doc_stats["table_exists"],
@@ -616,6 +627,8 @@ class DatabaseEmbeddingMixin:
             "entity_table_exists": entity_stats["table_exists"],
             "claim_indexed_count": claim_stats["indexed_count"],
             "claim_table_exists": claim_stats["table_exists"],
+            "entity_count": entity_count,
+            "claim_count": claim_count,
         }
 
     def ensure_canonical_entity_embedding_table(self) -> str | None:

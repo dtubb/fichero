@@ -795,6 +795,11 @@ class TestSearchStats:
             "entity_table_exists": True,
             "claim_indexed_count": 3,
             "claim_table_exists": False,
+            # KG denominators (2026-08-19): indexed vs "of how many" for
+            # entities and claims too — 0 embedded of 0 is healthy, 0 of
+            # 4,000 is the silent failure the doc pair exposed.
+            "entity_count": 0,
+            "claim_count": 0,
         }
 
 
