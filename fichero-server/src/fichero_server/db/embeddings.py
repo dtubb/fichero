@@ -742,6 +742,37 @@ class DatabaseEmbeddingMixin:
         claims = self.all(KnowledgeClaim) if include_claims else []
         entities_indexed = self.embed_entities(entities) if entities else 0
         claims_indexed = self.embed_claims(claims) if claims else 0
+
+        # FINAL SWEEP (2026-08-19, found live on the first bge-m3 migration):
+        # a concurrent embed writer — the cached worker connection flushing a
+        # queued batch — can append OLD-space rows between the drop and the
+        # rebuild, leaving a mixed table that the compatibility guard then
+        # refuses forever. The migration owns the space switch, so it finishes
+        # the job: rows stamped with any other model id are debris of the old
+        # space and are deleted, loudly.
+        active_id = self._get_embedding_model_id()
+        swept = 0
+        for table_name in table_names:
+            if table_name not in self._lance_tables():
+                continue
+            try:
+                table = self.lance.open_table(table_name)
+                safe_id = active_id.replace("'", "''")
+                stale = table.count_rows(f"{EMBEDDING_MODEL_ID_FIELD} != '{safe_id}'")
+                if stale:
+                    table.delete(f"{EMBEDDING_MODEL_ID_FIELD} != '{safe_id}'")
+                    swept += stale
+                    logger.warning(
+                        "migrate_embedding_space: swept %d stale-space rows "
+                        "from %s (a concurrent writer raced the rebuild)",
+                        stale, table_name,
+                    )
+            except Exception as exc:  # noqa: BLE001 — sweep must not undo the migration
+                logger.error(
+                    "migrate_embedding_space: stale-row sweep failed for %s: %s",
+                    table_name, exc,
+                )
+
         after = self.embedding_table_model_ids()
 
         return {
@@ -749,6 +780,7 @@ class DatabaseEmbeddingMixin:
             "documents_indexed": documents_indexed,
             "entities_indexed": entities_indexed,
             "claims_indexed": claims_indexed,
+            "stale_rows_swept": swept,
             "before": before,
             "after": after,
         }
