@@ -230,3 +230,27 @@ def test_save_vectors_survives_a_null_typed_legacy_column(tmp_path):
         assert set(rows["id"]) == {"a", "b"}
     finally:
         db.close()
+
+
+def test_new_vector_table_never_pins_known_columns_to_null(tmp_path):
+    """The rebuilt live table got Null-poisoned AGAIN on creation (2026-08-19):
+    the first batch's all-None file_type inferred as arrow Null, and Null
+    cannot be retyped later. Creation must give known columns real types."""
+    import pyarrow as pa
+
+    from fichero_server.db import Database
+
+    pkg = tmp_path / "t.fichero"
+    pkg.mkdir()
+    db = Database(pkg / "fichero.duckdb")
+    try:
+        db.save_vectors("probe2", [{"id": "a", "file_type": None, "vector_scale": None}])
+        schema = db.lance.open_table("probe2").schema
+        by_name = {f.name: f.type for f in schema}
+        assert by_name["file_type"] == pa.string()
+        assert by_name["vector_scale"] == pa.float64()
+        # a later append with real values must land
+        db.save_vectors("probe2", [{"id": "b", "file_type": "image", "vector_scale": 0.5}])
+        assert db.lance.open_table("probe2").count_rows() == 2
+    finally:
+        db.close()

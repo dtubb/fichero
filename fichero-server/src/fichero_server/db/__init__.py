@@ -3991,7 +3991,33 @@ class Database(DatabaseEmbeddingMixin):
                         table.delete(f"{key_field} = '{safe_key}'")
                 table.add(data)
             else:
-                self.lance.create_table(table_name, data)
+                # EXPLICIT types for columns that are all-None in the first
+                # batch: letting arrow infer them pins the column to Null and
+                # every later append with a real value fails "cannot cast"
+                # (2026-08-18/19 live — twice: the original poisoning AND the
+                # rebuilt table, because alter_columns cannot retype Null).
+                import pyarrow as pa
+
+                known_types = {
+                    "file_type": pa.string(),
+                    "doc_type": pa.string(),
+                    "name": pa.string(),
+                    "language": pa.string(),
+                    "page_id": pa.string(),
+                    "char_start": pa.int64(),
+                    "char_end": pa.int64(),
+                    "vector_scale": pa.float64(),
+                    "vector_int8": pa.list_(pa.int8()),
+                }
+                inferred = pa.Table.from_pylist(data)
+                fields = []
+                for f in inferred.schema:
+                    if pa.types.is_null(f.type) and f.name in known_types:
+                        fields.append(pa.field(f.name, known_types[f.name]))
+                    else:
+                        fields.append(f)
+                schema = pa.schema(fields)
+                self.lance.create_table(table_name, inferred.cast(schema))
             # One append == one LanceDB fragment. Count appends per table and
             # run a bounded compaction every N of them so 100k micro-appends
             # don't rot read performance (#2542). Compacting on every write
