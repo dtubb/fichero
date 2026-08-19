@@ -588,9 +588,17 @@ class DatabaseEmbeddingMixin:
         if doc_stats["table_exists"]:
             try:
                 table = self.lance.open_table(EMBEDDINGS_TABLE)
-                embedded_docs = len(
-                    set(table.to_arrow(columns=["document_id"])["document_id"].to_pylist())
+                # search().select() rather than to_arrow(columns=...): the
+                # pinned lancedb version has no columns kwarg, and the
+                # best-effort except turned that TypeError into a silent 0 —
+                # the exact invisible-zero this counter exists to prevent.
+                rows = (
+                    table.search()
+                    .select(["document_id"])
+                    .limit(10_000_000)
+                    .to_arrow()
                 )
+                embedded_docs = len(set(rows["document_id"].to_pylist()))
             except Exception:  # pragma: no cover - stats stay best-effort
                 embedded_docs = 0
         from fichero_server.models import Document
