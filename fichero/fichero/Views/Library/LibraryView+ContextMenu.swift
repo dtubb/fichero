@@ -335,6 +335,28 @@ extension LibraryView {
                     ? "magnifyingglass" : "text.magnifyingglass"
             )
         }
+
+        // Daniel's ruling (#4604 Q1): keep the two independent flags AND a
+        // one-gesture shortcut that sets both — the cover-page case.
+        let fullyExcluded = excludeTargets.allSatisfy {
+            $0.excludeFromProcessing && $0.excludeFromSearch
+        }
+        Button {
+            Task {
+                let ids = excludeTargets.map(\.id)
+                await toggleExclusion(
+                    documentIds: ids, excluded: !fullyExcluded, scope: .processing
+                )
+                await toggleExclusion(
+                    documentIds: ids, excluded: !fullyExcluded, scope: .search
+                )
+            }
+        } label: {
+            Label(
+                fullyExcluded ? "Include Everywhere" : "Exclude Everywhere",
+                systemImage: fullyExcluded ? "eye.circle" : "eye.slash.circle"
+            )
+        }
     }
 
     // Run Workflow submenu — workflows grouped by `folderPath` so
