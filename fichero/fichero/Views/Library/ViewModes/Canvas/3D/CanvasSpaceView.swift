@@ -73,7 +73,16 @@ struct CanvasSpaceView: View {
             connections: connections,
             links: links,
             layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
-            items: itemStore?.items(for: scopeKey) ?? []
+            items: itemStore?.items(for: scopeKey) ?? [],
+            // Daniel's ruling (2026-08-19, #4601): a folder with no saved
+            // layout opens as a PAGE-ORDER grid, left to right, in BOTH
+            // canvases — the phyllotaxis default made 3D open scattered and
+            // different from 2D. Columns follow the ceil(sqrt(n)) convention
+            // the Arrange-in-Grid button and the backend `grid` strategy
+            // already use; saved rows still win over the default.
+            defaultPlacement: .grid(
+                columns: max(1, Int(Double(nodes.count + renderableItems.count).squareRoot().rounded(.up)))
+            )
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
