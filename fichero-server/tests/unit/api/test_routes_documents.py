@@ -618,22 +618,18 @@ class TestFoldedChildren:
         ids = [d["id"] for d in r.json()["items"]]
         assert child.id in ids
 
-    def test_excludes_children_that_no_longer_resolve(self, client, db, monkeypatch):
-        from fichero_server.db import Database
+    def test_excludes_children_that_no_longer_resolve(self, client, db):
+        # The resolvability check is IN-MEMORY now (perf 2026-08-19): the
+        # listing reads one committed snapshot, so "no longer resolves"
+        # means the row itself is soft-deleted — not a second fetch
+        # disagreeing with the first.
+        from datetime import datetime, timezone
 
         parent = _make_doc(db, "Parent")
         good_child = _make_doc(db, "Good Child", parent_id=parent.id)
         stale_child = _make_doc(db, "Stale Child", parent_id=parent.id)
-
-        real_query_in = Database.query_in
-
-        def flaky_query_in(self, model, column, values):
-            rows = real_query_in(self, model, column, values)
-            if model is Document and column == "id":
-                return [row for row in rows if row.id != stale_child.id]
-            return rows
-
-        monkeypatch.setattr(Database, "query_in", flaky_query_in)
+        stale_child.deleted_at = datetime.now(timezone.utc)
+        db.save(stale_child)
 
         r = client.get(f"/api/documents/{parent.id}/children")
 
@@ -678,9 +674,10 @@ class TestFoldedChildren:
             "Third",
         ]
         assert child_gets == []
-        assert len(query_in_calls) == 1
-        assert query_in_calls[0][0] == "id"
-        assert set(query_in_calls[0][1]) == child_ids
+        # ZERO re-fetches (perf 2026-08-19): the resolvability check runs on
+        # the rows already in memory — a regression to per-child (or even
+        # one batched) re-read shows up here.
+        assert query_in_calls == []
 
 
 # ---------------------------------------------------------------------------

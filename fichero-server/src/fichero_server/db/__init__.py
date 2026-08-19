@@ -42,7 +42,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 from types import UnionType
-from typing import TYPE_CHECKING, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
+from typing import TYPE_CHECKING, ClassVar, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
 
 if TYPE_CHECKING:
     from fichero_server.models import Artifact, Workflow
@@ -746,6 +746,11 @@ class Database(DatabaseEmbeddingMixin):
         # Lazily created (and recreated after invalidation) in get_committed.
         self._read_conn = None
         self._read_lock = threading.RLock()
+        # LanceDB writes get their own lock (perf audit 2026-08-19): holding
+        # the DuckDB connection lock across table.add()/optimize() made every
+        # embedding append — and the periodic compaction — block unrelated
+        # DuckDB reads for seconds during imports.
+        self._lance_lock = threading.RLock()
         # Per-table count of LanceDB appends since the last compaction. Drives
         # the bounded auto-compaction trigger in save_vectors (#2542).
         self._vector_append_counts: dict[str, int] = {}
@@ -2259,6 +2264,69 @@ class Database(DatabaseEmbeddingMixin):
         if row is None:
             return None
         return self._hydrate_row(model, columns, row)
+
+    def _read_fetch_with_columns(self, sql: str, params: dict | None = None):
+        """Run a SELECT on the dedicated READ cursor (#4523) — never queues on
+        the transaction gate. Same stale-cursor retry discipline as
+        ``get_committed``."""
+        with self._read_lock:
+            for attempt in (0, 1):
+                try:
+                    if self._read_conn is None:
+                        self._read_conn = self.conn.cursor()
+                    cur = self._read_conn.execute(sql, params or {})
+                    rows = cur.fetchall()
+                    columns = [d[0] for d in cur.description]
+                    return rows, columns
+                except duckdb.Error as exc:
+                    self._read_conn = None
+                    if self._is_invalidated_error(exc):
+                        self._reconnect_after_invalidated()
+                    if attempt == 1:
+                        raise
+
+    def query_committed(self, model: Type[T], **filters) -> list[T]:
+        """``query``, but through the dedicated READ connection (#4523).
+
+        Built for the LISTING hot paths (list_documents, get_children): the
+        gated ``query`` waits on the transaction gate, so a folder listing
+        stalled up to 12s behind an import's embed transactions (measured
+        2026-08-19). Reads last-COMMITTED state — rows written inside a
+        still-open transaction are invisible, which is exactly right for a
+        browse and wrong for read-your-own-write flows (those use ``query``).
+
+        Folded models keep using the gated path — same result, gated latency
+        — rather than half-reimplementing the fold.
+        """
+        if model.__name__ in _FOLDED_GET_MODEL_NAMES:
+            return self.query(model, **filters)
+
+        sql_table = self._sql_table_name(model)
+        for k in filters.keys():
+            if not _VALID_IDENTIFIER.match(k):
+                raise ValueError(f"Invalid column name: {k}")
+
+        query_filters: dict = {}
+        where_clauses: list[str] = []
+        for k, v in filters.items():
+            if v is None:
+                where_clauses.append(f"{k} IS NULL")
+            elif hasattr(v, "value"):
+                query_filters[k] = v.value
+                where_clauses.append(f"{k} = ${k}")
+            else:
+                query_filters[k] = v
+                where_clauses.append(f"{k} = ${k}")
+
+        sql = f"SELECT * FROM {sql_table}"
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+        rows, columns = self._read_fetch_with_columns(sql, query_filters)
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
+        ]
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""
@@ -4009,7 +4077,7 @@ class Database(DatabaseEmbeddingMixin):
         if not data:
             return
 
-        with self._lock:
+        with self._lance_lock:
             if table_name in self._lance_tables():
                 table = self.lance.open_table(table_name)
                 data = self._coerce_vectors_to_existing_schema(table_name, table, data)
@@ -4090,7 +4158,7 @@ class Database(DatabaseEmbeddingMixin):
         intact either way (optimize is atomic per table).
         """
         results: dict[str, bool] = {}
-        with self._lock:
+        with self._lance_lock:
             available = set(self._lance_tables())
             targets = (
                 [table_name] if table_name is not None else sorted(available)
@@ -4128,7 +4196,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _delete_embedding_rows(self, field: str, value: str) -> None:
         """Delete embedding rows by a trusted field/value pair."""
-        with self._lock:
+        with self._lance_lock:
             if EMBEDDINGS_TABLE not in self._lance_tables():
                 return
             safe_value = value.replace("'", "''") if value else ""
@@ -4185,7 +4253,7 @@ class Database(DatabaseEmbeddingMixin):
             **self._vector_model_metadata(),
         }
 
-        with self._lock:
+        with self._lance_lock:
             self._delete_embedding_rows("document_id", doc.id)
             self.save_vectors(EMBEDDINGS_TABLE, [record], replace=True)
 
@@ -4194,7 +4262,7 @@ class Database(DatabaseEmbeddingMixin):
         records = self.passage_embedding_records(doc, text=text)
         if not records:
             return 0
-        with self._lock:
+        with self._lance_lock:
             self._delete_embedding_rows("document_id", doc.id)
             self.save_vectors(EMBEDDINGS_TABLE, records)
         return len(records)
@@ -5468,56 +5536,79 @@ class Database(DatabaseEmbeddingMixin):
     # Helpers
     # =========================================================================
 
+    #: Per-model hydration plans (perf audit 2026-08-19): the typing
+    #: introspection below ran per FIELD per ROW — ~48 `get_origin`/`get_args`
+    #: walks per row, 152k calls per 2,000-row listing, two-thirds of the
+    #: hydrate time. The annotations are static per model class, so the plan
+    #: is computed once and shared across every Database instance.
+    _FIELD_PLAN_CACHE: ClassVar[dict[type, dict[str, tuple]]] = {}
+
+    @classmethod
+    def _field_plan(cls, model: Type[BaseModel]) -> dict[str, tuple]:
+        """(kind, unwrapped annotation, on-NULL default) per field.
+
+        kind ∈ {"container", "tuple", "model", "plain"}; the on-NULL default is
+        ("factory", f) | ("scalar", v) | None, applied only to non-Optional
+        fields — the same rules the inline branches used to re-derive per row.
+        """
+        plan = cls._FIELD_PLAN_CACHE.get(model)
+        if plan is not None:
+            return plan
+        plan = {}
+        for name, field_info in model.model_fields.items():
+            annotation = field_info.annotation
+            raw_origin = get_origin(annotation)
+            is_optional = raw_origin is Union or raw_origin is UnionType
+            if is_optional:
+                for arg in get_args(annotation):
+                    if arg is not type(None):
+                        annotation = arg
+                        break
+            inner_origin = get_origin(annotation)
+
+            if (annotation is dict or inner_origin is dict
+                    or annotation is list or inner_origin is list):
+                kind = "container"
+            elif annotation is tuple or inner_origin is tuple:
+                kind = "tuple"
+            elif isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                kind = "model"
+            else:
+                kind = "plain"
+
+            none_default = None
+            if not is_optional:
+                if kind == "container":
+                    default_factory = getattr(field_info, "default_factory", None)
+                    if callable(default_factory):
+                        none_default = ("factory", default_factory)
+                if none_default is None and not isinstance(
+                    field_info.default, PydanticUndefinedType
+                ):
+                    none_default = ("scalar", field_info.default)
+
+            plan[name] = (kind, annotation, none_default)
+        cls._FIELD_PLAN_CACHE[model] = plan
+        return plan
+
     def _parse_json_fields(self, model: Type[BaseModel], data: dict) -> dict:
         """Parse JSON string fields back to Python dicts/lists/tuples."""
         result = {}
-        for name, field_info in model.model_fields.items():
+        for name, (kind, annotation, none_default) in self._field_plan(model).items():
             value = data.get(name)
             if value is None:
-                # For non-Optional fields, substitute the field's default when the
-                # DB returns NULL (common after schema migration adds a new column).
-                annotation = field_info.annotation
-                raw_origin = get_origin(annotation)
-                is_optional = raw_origin is Union or raw_origin is UnionType
-                if not is_optional:
-                    inner = annotation
-                    inner_origin = get_origin(inner)
-                    if inner is dict or inner_origin is dict or inner is list or inner_origin is list:
-                        default_factory = getattr(field_info, "default_factory", None)
-                        if callable(default_factory):
-                            result[name] = default_factory()
-                            continue
-                    # Scalar default (e.g. enum fields added after initial schema).
-                    scalar_default = field_info.default
-                    if not isinstance(scalar_default, PydanticUndefinedType):
-                        result[name] = scalar_default
-                        continue
-                result[name] = value
+                # For non-Optional fields, substitute the field's default when
+                # the DB returns NULL (common after a schema migration adds a
+                # new column).
+                if none_default is not None:
+                    mode, payload = none_default
+                    result[name] = payload() if mode == "factory" else payload
+                else:
+                    result[name] = value
                 continue
 
-            # Check if field expects dict, list, or tuple
-            annotation = field_info.annotation
-            origin = get_origin(annotation)
-
-            # Handle Optional types (Union or | syntax)
-            if origin is Union or origin is UnionType:
-                args = get_args(annotation)
-                for arg in args:
-                    if arg is not type(None):
-                        annotation = arg
-                        origin = get_origin(annotation)
-                        break
-
-            # Re-check origin after unwrapping Optional
-            inner_origin = get_origin(annotation)
-
             # If field expects dict/list and we got a string, parse it
-            if (
-                annotation is dict
-                or inner_origin is dict
-                or annotation is list
-                or inner_origin is list
-            ):
+            if kind == "container":
                 if isinstance(value, str):
                     try:
                         result[name] = json.loads(value)
@@ -5526,7 +5617,7 @@ class Database(DatabaseEmbeddingMixin):
                 else:
                     result[name] = value
             # If field expects tuple, parse JSON and convert to tuple
-            elif annotation is tuple or inner_origin is tuple:
+            elif kind == "tuple":
                 if isinstance(value, str):
                     try:
                         parsed = json.loads(value)
@@ -5547,7 +5638,7 @@ class Database(DatabaseEmbeddingMixin):
             # on load. Save side already JSON-encodes BaseModel via the
             # `_json_safe` recursion in `Database.save`; this is the
             # symmetric read-side handling.
-            elif isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            elif kind == "model":
                 if isinstance(value, str):
                     try:
                         parsed = json.loads(value)

@@ -234,9 +234,10 @@ class TestDocumentRoutes:
         assert [item["id"] for item in response.json()["items"]] == [
             child.id for child in children
         ]
-        assert query_in_calls == [
-            (Document, "id", tuple(child.id for child in children))
-        ]
+        # ZERO re-fetches (perf 2026-08-19): the resolvability check runs
+        # in memory on the listing's own committed snapshot — a regression
+        # to per-child gets or a batched re-read shows up here.
+        assert query_in_calls == []
         assert document_get_ids == []
 
     def test_get_children_doc_prefix(self, client, db, sample_doc, sample_collection):

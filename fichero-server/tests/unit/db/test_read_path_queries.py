@@ -16,6 +16,7 @@ def _install_query_counter(monkeypatch) -> Counter[str]:
     original_all = Database.all
     original_query = Database.query
     original_query_in = Database.query_in
+    original_query_committed = Database.query_committed
     original_get = Database.get
     original_scoped_entities = Database.knowledge_entity_ids_scoped_to_documents
 
@@ -31,6 +32,10 @@ def _install_query_counter(monkeypatch) -> Counter[str]:
         counts["query_in"] += 1
         return original_query_in(self, model_class, field_name, values)
 
+    def counting_query_committed(self, model_class, **filters):
+        counts["query_committed"] += 1
+        return original_query_committed(self, model_class, **filters)
+
     def counting_get(self, model_class, record_id):
         counts["get"] += 1
         return original_get(self, model_class, record_id)
@@ -42,6 +47,7 @@ def _install_query_counter(monkeypatch) -> Counter[str]:
     monkeypatch.setattr(Database, "all", counting_all)
     monkeypatch.setattr(Database, "query", counting_query)
     monkeypatch.setattr(Database, "query_in", counting_query_in)
+    monkeypatch.setattr(Database, "query_committed", counting_query_committed)
     monkeypatch.setattr(Database, "get", counting_get)
     monkeypatch.setattr(
         Database,
@@ -114,7 +120,7 @@ def test_documents_list_query_count_does_not_scale_with_row_count(client, db, mo
     )
     assert large_response.status_code == 200
 
-    assert small_delta == Counter({"all": 1})
+    assert small_delta == Counter({"query_committed": 1})
     assert large_delta == small_delta
 
 
@@ -175,5 +181,7 @@ def test_library_tree_children_query_count_does_not_scale_with_row_count(
     )
     assert large_response.status_code == 200
 
-    assert small_delta == Counter({"query": 1, "query_in": 1})
+    # One committed read, ZERO re-fetches (perf 2026-08-19): the
+    # resolvability check runs in memory on the listing's own snapshot.
+    assert small_delta == Counter({"query_committed": 1})
     assert large_delta == small_delta

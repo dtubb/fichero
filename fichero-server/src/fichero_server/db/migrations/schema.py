@@ -214,6 +214,14 @@ def migrate_document_table(conn) -> None:
                 ADD COLUMN exclude_from_search BOOLEAN DEFAULT FALSE
             """)
 
+        # Listing hot path (perf audit 2026-08-19): every folder browse and
+        # child-count aggregate filters on parent_id; without an index each
+        # one full-scans the table — untenable at the 1M-document target.
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_documents_parent_id "
+            "ON documents(parent_id)"
+        )
+
         logger.info("Documents table migration completed")
 
     except Exception as e:

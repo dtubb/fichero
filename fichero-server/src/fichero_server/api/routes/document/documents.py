@@ -330,7 +330,10 @@ def _filter_document_visibility(
 
 
 def _list_documents_raw(db: Database, **filters: Any) -> list[Document]:
-    return list(db.query(Document, **filters)) if filters else list(db.all(Document))
+    # Committed reads (perf audit 2026-08-19, same medicine as #4523): the
+    # gated query queued listings behind an import's embed transactions —
+    # get_children stalled up to 12s. A browse wants last-committed state.
+    return list(db.query_committed(Document, **filters))
 
 
 def _list_documents(
@@ -414,14 +417,16 @@ def _filter_resolvable_documents(
     if not docs:
         return []
 
-    resolved = _filter_document_visibility(
-        db.query_in(Document, "id", [doc.id for doc in docs])
-    )
-    resolved_ids = {doc.id for doc in resolved}
+    # In-memory only (perf audit 2026-08-19): this used to re-fetch the very
+    # rows the caller just read (`query_in` by id) — every listing hydrated
+    # each row TWICE, including its full page_content. The rows come from one
+    # committed snapshot in the same request, so a second read can't observe
+    # a deletion the first one missed; the visibility rule applied to the
+    # in-memory rows is the whole check.
     resolvable: list[Document] = []
     skipped_ids: list[str] = []
     for doc in docs:
-        if doc.id not in resolved_ids:
+        if _is_document_deleted(doc):
             skipped_ids.append(doc.id)
             continue
         resolvable.append(doc)
