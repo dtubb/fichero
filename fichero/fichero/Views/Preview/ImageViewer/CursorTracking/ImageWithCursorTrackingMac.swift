@@ -273,6 +273,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             imageView.loupePosition = nil
             self.imageSize = image.size
             if let fitScale = coordinator.calculateFitScale() {
+                applyZoomOutFloor(scrollView, fitScale: fitScale)
                 scrollView.magnification = fitScale
                 coordinator.noteAutoFitApplied()
                 self.scale = fitScale
@@ -282,6 +283,15 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 coordinator.needsInitialCenter = true
             }
         }
+    }
+
+    /// Zoom-out floor tracks fit (#4587): the user can zoom out to the
+    /// fit-to-view scale (or to 100% for an image smaller than the pane),
+    /// never to a 1% speck in a grey field. Applied wherever a fresh fit is
+    /// computed, so the floor follows item and pane changes; AppKit clamps
+    /// any lower magnification writes against it.
+    func applyZoomOutFloor(_ scrollView: NSScrollView, fitScale: CGFloat) {
+        scrollView.minMagnification = min(fitScale, 1.0)
     }
 
     /// Center the image by expanding the image view frame when the scaled image
@@ -424,6 +434,7 @@ extension ImageWithCursorTracking {
                 self.imageSize = overrideImage.size
             }
             if let fitScale = coordinator.calculateFitScale() {
+                applyZoomOutFloor(scrollView, fitScale: fitScale)
                 scrollView.magnification = fitScale
                 Task { @MainActor in
                     self.scale = fitScale
@@ -463,6 +474,7 @@ extension ImageWithCursorTracking {
             // Fit to window on first layout (like Preview.app)
             var applied: CGFloat?
             if let fitScale = coordinator.calculateFitScale() {
+                applyZoomOutFloor(scrollView, fitScale: fitScale)
                 scrollView.magnification = fitScale
                 coordinator.noteAutoFitApplied()
                 applied = fitScale
