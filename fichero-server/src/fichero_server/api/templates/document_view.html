@@ -155,6 +155,12 @@
         }
 
         .transcript-page {
+            /* Offscreen pages cost nothing (perf 2026-08-19): the browser
+               skips their layout and paint entirely, which is how a huge
+               website scrolls instantly in Safari. The intrinsic-size hint
+               keeps the scrollbar honest before a page is first laid out. */
+            content-visibility: auto;
+            contain-intrinsic-size: auto 480px;
             /* Definite max width tied to the pane (#4385) so layout can never
                resolve the page to its content width. */
             max-width: 100%;
@@ -934,7 +940,7 @@ function claimMeta(claim) {
     return bits.join(" · ");
 }
 
-function renderDigest() {
+function renderDigestNow() {
     const panel = document.getElementById("digest-panel");
     const groups = groupedClaims();
     if (groups.length === 0) {
@@ -1105,7 +1111,7 @@ function forceLayout(nodes, edges, width = 440, height = 340) {
     return nodes;
 }
 
-function renderGraph() {
+function renderGraphNow() {
     const panel = document.getElementById("graph-panel");
     const { nodes, edges } = graphData();
     const panelRect = panel.getBoundingClientRect();
@@ -1251,7 +1257,7 @@ function timelineItems() {
     return [...eventItems, ...claimItems].sort((lhs, rhs) => lhs.start - rhs.start);
 }
 
-function renderTimeline() {
+function renderTimelineNow() {
     const panel = document.getElementById("timeline-panel");
     const items = timelineItems();
     if (items.length === 0) {
@@ -1349,7 +1355,7 @@ function projectPoint(lat, lon, width, height, padding, bounds) {
     return { x, y };
 }
 
-function renderMap() {
+function renderMapNow() {
     const panel = document.getElementById("map-panel");
     const geoContext = inferGeoContext();
     const resolved = entities
@@ -1416,6 +1422,26 @@ function renderMap() {
             updateGraphActiveNode();
         });
     });
+}
+
+// Lazy panels (perf audit 2026-08-19): the graph re-ran a 180-tick O(N^2)
+// force layout on every scroll page-cross, and every claim/entity highlight
+// rebuilt the timeline AND the map — all for panels that were hidden. A
+// hidden panel is marked dirty and renders when its tab opens.
+const dirtyPanels = new Set();
+function renderPanelLazy(name, renderNow) {
+    if (state.tab !== name) { dirtyPanels.add(name); return; }
+    dirtyPanels.delete(name);
+    renderNow();
+}
+function renderGraph() { renderPanelLazy("graph", renderGraphNow); }
+function renderTimeline() { renderPanelLazy("timeline", renderTimelineNow); }
+function renderMap() { renderPanelLazy("map", renderMapNow); }
+function renderDigest() { renderPanelLazy("digest", renderDigestNow); }
+function renderDirtyPanel() {
+    if (!dirtyPanels.has(state.tab)) return;
+    const renderers = { graph: renderGraph, timeline: renderTimeline, map: renderMap, digest: renderDigest };
+    (renderers[state.tab] || (() => {}))();
 }
 
 function renderAll() {
@@ -1520,6 +1546,8 @@ document.querySelectorAll(".tabs button").forEach((button) => {
             requestAnimationFrame(renderGraph);
         } else if (state.tab === "map") {
             requestAnimationFrame(renderMap);
+        } else {
+            renderDirtyPanel();
         }
     });
 });
@@ -1547,6 +1575,8 @@ window.fichero = {
             requestAnimationFrame(renderGraph);
         } else if (tab === "map") {
             requestAnimationFrame(renderMap);
+        } else {
+            renderDirtyPanel();
         }
     },
 
