@@ -55,18 +55,18 @@ import mimetypes
 # lever: init() then reads exactly nothing.
 mimetypes.knownfiles = []
 mimetypes.init()
-import os
-import shutil
-import time
-from datetime import datetime
-from fichero_server.core.timeutil import utc_now
-from enum import Enum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
-from uuid import uuid4
+import os  # noqa: E402 — must follow the mimetypes.init() hack above
+import shutil  # noqa: E402 — must follow the mimetypes.init() hack above
+import time  # noqa: E402 — must follow the mimetypes.init() hack above
+from datetime import datetime  # noqa: E402 — must follow the mimetypes.init() hack above
+from fichero_server.core.timeutil import utc_now  # noqa: E402 — must follow the mimetypes.init() hack above
+from enum import Enum  # noqa: E402 — must follow the mimetypes.init() hack above
+from pathlib import Path  # noqa: E402 — must follow the mimetypes.init() hack above
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator  # noqa: E402 — must follow the mimetypes.init() hack above
+from uuid import uuid4  # noqa: E402 — must follow the mimetypes.init() hack above
 
-from fichero_server.importers.dataless import dataless_reason, require_local_bytes
-from fichero_server.models import Artifact, Document, DocType, FileType, Status
+from fichero_server.importers.dataless import dataless_reason, require_local_bytes  # noqa: E402 — must follow the mimetypes.init() hack above
+from fichero_server.models import Artifact, Document, DocType, FileType, Status  # noqa: E402 — must follow the mimetypes.init() hack above
 
 if TYPE_CHECKING:
     from fichero_server.db import Database
