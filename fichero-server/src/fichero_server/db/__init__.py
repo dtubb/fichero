@@ -2258,6 +2258,25 @@ class Database(DatabaseEmbeddingMixin):
             if (hydrated := self._hydrate_row(model, columns, row)) is not None
         ]
 
+    def last(self, model: Type[T], order_column: str) -> T | None:
+        """The single row with the greatest ``order_column`` value, or None.
+
+        Exists so hot paths can read a chain/sequence HEAD without hydrating
+        the whole table (2026-08-18: the audit chain loaded and hydrated all
+        11k+ audit rows on EVERY audited action — O(history) per write).
+        """
+        if not order_column.replace("_", "").isalnum():
+            raise ValueError(f"Invalid column name: {order_column}")
+        sql_table = self._sql_table_name(model)
+        self._ensure_table(model)
+        rows, columns = self._execute_fetch_with_columns(
+            f"SELECT * FROM {sql_table} "
+            f"ORDER BY {order_column} DESC NULLS LAST LIMIT 1"
+        )
+        if not rows:
+            return None
+        return self._hydrate_row(model, columns, rows[0])
+
     def query(self, model: Type[T], **filters) -> list[T]:
         """Query with simple equality filters."""
         if model.__name__ == "SavedSearch":
