@@ -9,7 +9,8 @@ extension ContentView {
     // MARK: Resident search field (#4604)
 
     /// The always-there window search: magnifier-as-menu + field + clear.
-    private var toolbarSearchField: some View {
+    // internal: ContentView+Toolbar.swift mounts this; `private` is FILE-scoped.
+    var toolbarSearchField: some View {
         HStack(spacing: 4) {
             searchModeMenu
 
