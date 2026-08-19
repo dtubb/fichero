@@ -156,8 +156,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     func setOrthoScale(_ scale: Float) {
         orthoScale = min(max(scale, 0.5), 200)
         applyOrthoScale()
-        // Selection chrome is screen-space constant (#4601): its world size
-        // depends on the zoom, so a zoom change redraws it at the new ratio.
+        // Zoom-constant selection chrome (#4601): redraw at the new ratio.
         refreshSelectionDecoration()
     }
 

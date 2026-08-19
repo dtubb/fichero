@@ -112,7 +112,7 @@ extension LibraryView {
 
     /// The sentence for a store load that failed with `engineUnreachable` while
     /// the session itself has not (yet) flipped to a failure phase.
-    // Promoted private -> internal: LibraryView.swift file-length split (2026-08-13).
+    /// (Promoted private -> internal: LibraryView.swift file-length split, 2026-08-13.)
     var engineUnreachableDetail: String {
         ConnectionPresentation.failureDetail(
             accessError: .engineUnreachable,

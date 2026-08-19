@@ -443,7 +443,8 @@ extension WorkflowService {
             supportsBatch: tool.supportsBatch,
             supportsStreaming: tool.supportsStreaming,
             supportsStructuredOutput: tool.supportsStructuredOutput,
-            sortOrder: tool.sortOrder
+            sortOrder: tool.sortOrder,
+            parallelism: tool.parallelism
         )
     }
 

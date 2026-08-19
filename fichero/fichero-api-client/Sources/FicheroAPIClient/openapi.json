@@ -62010,6 +62010,11 @@
             "type": "boolean",
             "title": "Tested",
             "default": false
+          },
+          "parallelism": {
+            "type": "string",
+            "title": "Parallelism",
+            "default": "batch"
           }
         },
         "type": "object",

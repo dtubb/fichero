@@ -25,6 +25,7 @@ api/routes/document/documents.py::related_documents 2
 api/routes/document/documents.py::update_document_impl 1
 api/routes/entity/entities.py::delete_entity_impl 2
 api/routes/entity/inspector.py::inspector 2
+api/routes/ingest/core.py::_upsert_sidecar_entities 1
 api/routes/ingest/core.py::ingest_folder.do_background_ingest.on_document 2
 api/routes/kg/mutations.py::undo_mutation 1
 api/routes/kg/predictions.py::apply_prediction_run 1
@@ -55,6 +56,7 @@ db/__init__.py::Database.workflow_rows_for_list 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1
 db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1
+db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
 db/migrations/schema.py::migrate_activity_tables 1
 db/migrations/schema.py::migrate_canvas_layout_table 1
 db/migrations/schema.py::migrate_catalogue_chunk_artifact_type 1

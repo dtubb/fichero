@@ -179,10 +179,8 @@ struct CanvasSceneView: View {
     @ViewBuilder
     private var marqueeOverlay: some View {
         if let rect = marqueeRect {
-            // SAME style as the icon grid's LibraryMarquee (#4601, Daniel:
-            // "rubber band should be same style as other rubber bands —
-            // right now it's too dark"): the full-opacity stroke read darker
-            // than every other marquee in the app.
+            // SAME style as the icon grid's LibraryMarquee (#4601): the
+            // full-opacity stroke read darker than every other marquee.
             Rectangle()
                 .fill(Color.accentColor.opacity(0.15))
                 .overlay(Rectangle().stroke(Color.accentColor.opacity(0.6), lineWidth: 1))

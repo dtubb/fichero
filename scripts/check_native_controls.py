@@ -56,7 +56,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # preview host (Fichero-2026-08-14-0933xx.ips ×3). Reason also recorded
     # in-file and in native_row_containers_allowlist.json. Revisit List if a
     # selection model arrives.
-    "Library/ViewModes/Dataset/Timeline/DatasetTimelineView.swift#29943d4d41": "2026-08-14 List SIGTRAP; re-hashed 2026-08-16/17 by the shared-selection highlight/tap rows and displayExcerpt — same sanctioned block. NOTE: rows now SELECT, so the List constraint deserves a revisit next preview session",
+    "Library/ViewModes/Dataset/Timeline/DatasetTimelineView.swift#b6e4c9714f": "2026-08-14 List SIGTRAP; re-hashed 2026-08-19 by the SelectionGrammar clicks + Full Text cap lift (#4598) — same sanctioned block. NOTE: rows now multi-select, so the List constraint deserves a revisit next preview session",
 }
 
 ALLOWLIST_FILES = {
