@@ -68,6 +68,10 @@ struct LibraryPathStatusBar: View {
     let crumbs: [Document]
     let statusText: String
     var onNavigate: (Document) -> Void = { _ in }
+    /// Crumbs double as drag SOURCES (#4591, Daniel: "click on one of the
+    /// folders to go there, or drag and drop it somewhere") — the host
+    /// supplies the same payload its rows use; nil keeps a crumb inert.
+    var dragPayload: (Document) -> LibraryItemDrag? = { _ in nil }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -115,16 +119,32 @@ struct LibraryPathStatusBar: View {
         .font(.caption)
 
         if isLast {
-            label.foregroundStyle(.primary)
+            crumbDraggable(label.foregroundStyle(.primary), doc)
         } else {
-            Button {
-                onNavigate(doc)
-            } label: {
-                label
+            crumbDraggable(
+                Button {
+                    onNavigate(doc)
+                } label: {
+                    label
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Go to \(DocumentTitle.displayName(for: doc))"),
+                doc
+            )
+        }
+    }
+
+    /// A crumb with the row drag payload attached when the host offers one —
+    /// so a path-bar folder drags exactly like its library row (#4591).
+    @ViewBuilder
+    private func crumbDraggable(_ view: some View, _ doc: Document) -> some View {
+        if let payload = dragPayload(doc) {
+            view.draggable(payload) {
+                RowDragPreview(name: doc.name, systemImage: doc.displaySymbol())
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Go to \(DocumentTitle.displayName(for: doc))")
+        } else {
+            view
         }
     }
 

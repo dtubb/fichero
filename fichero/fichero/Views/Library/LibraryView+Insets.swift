@@ -176,7 +176,9 @@ extension LibraryView {
                             ? filteredEntities.count : filteredDocuments.count
                     )
                 }(),
-                onNavigate: { doc in onNavigateInto(doc) }
+                onNavigate: { doc in onNavigateInto(doc) },
+                // #4591: a crumb drags exactly like its library row.
+                dragPayload: { doc in libraryItemDrag(for: doc) }
             )
         }
     }
