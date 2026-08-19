@@ -45,16 +45,39 @@ extension LibraryView {
         if Self.servicesRowKeyboardGrammar(displayMode) {
             applyDeleteConfirmation(
                 to: applyFocusedActions(
-                    to: applyArrowKeyHandlers(to: applyPrimaryKeyHandlers(to: content))
+                    to: applyArrowKeyHandlers(
+                        to: applyPrimaryKeyHandlers(to: applyQuickLookHandlers(to: content))
+                    )
                 )
             )
         } else {
             // Delete + focused actions still apply: ⌫ and the menu commands act
             // on the selection, which is shared across modes and meaningful on a
             // canvas. It is the ROW-ordinal handlers (arrows, type-ahead) that
-            // have no meaning in a spatial arrangement.
-            applyDeleteConfirmation(to: applyFocusedActions(to: content))
+            // have no meaning in a spatial arrangement. Space → Quick Look is
+            // SELECTION-based, not row-ordinal, so it applies everywhere too —
+            // on the canvases it used to fall off the end of the responder
+            // chain and beep (#4601, Daniel 2026-08-19: "space is for quick
+            // look").
+            applyDeleteConfirmation(
+                to: applyFocusedActions(to: applyQuickLookHandlers(to: content))
+            )
         }
+    }
+
+    /// Space → Quick Look + the panel presenter, shared by BOTH branches of
+    /// `withKeyboardShortcuts`: the presenter must be attached wherever
+    /// `quickLook(_:)` can run (the context menu offers it in every mode).
+    @ViewBuilder
+    private func applyQuickLookHandlers(to content: some View) -> some View {
+        content
+            // Space → Quick Look of the cursor document, Finder-style
+            // (#4160). Toggles: a second press closes the panel.
+            .onKeyPress(.space) {
+                guard !isTextEntryActive else { return .ignored }
+                return quickLookSelectedDocument()
+            }
+            .quickLookPreview($quickLookURL)
     }
 
     /// The row keyboard grammar stands down while the user is TYPING
@@ -81,13 +104,9 @@ extension LibraryView {
                 openSelectedDocument()
                 return .handled
             }
-            // Space → Quick Look of the cursor document, Finder-style
-            // (#4160). Toggles: a second press closes the panel.
-            .onKeyPress(.space) {
-                guard !isTextEntryActive else { return .ignored }
-                return quickLookSelectedDocument()
-            }
-            .quickLookPreview($quickLookURL)
+            // Space + the Quick Look presenter live in
+            // `applyQuickLookHandlers` — attached in BOTH branches of
+            // `withKeyboardShortcuts` so the canvases get them too (#4601).
             .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters)) { keyPress in
                 guard !isTextEntryActive else { return .ignored }
                 handleTypeToSelect(keyPress.characters)
