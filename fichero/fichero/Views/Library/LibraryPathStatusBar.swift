@@ -64,7 +64,7 @@ func libraryPathCrumbs(
     return crumbs
 }
 
-struct LibraryPathStatusBar: View {
+struct LibraryPathStatusBar<CrumbMenu: View>: View {
     let crumbs: [Document]
     let statusText: String
     var onNavigate: (Document) -> Void = { _ in }
@@ -72,6 +72,9 @@ struct LibraryPathStatusBar: View {
     /// folders to go there, or drag and drop it somewhere") — the host
     /// supplies the same payload its rows use; nil keeps a crumb inert.
     var dragPayload: (Document) -> LibraryItemDrag? = { _ in nil }
+    /// Right-click menu for a crumb (#4591): the host passes the SAME
+    /// document context menu its rows use; EmptyView keeps crumbs menu-less.
+    @ViewBuilder var crumbMenu: (Document) -> CrumbMenu
 
     var body: some View {
         VStack(spacing: 0) {
@@ -139,12 +142,14 @@ struct LibraryPathStatusBar: View {
     /// so a path-bar folder drags exactly like its library row (#4591).
     @ViewBuilder
     private func crumbDraggable(_ view: some View, _ doc: Document) -> some View {
+        // Menu built at OPEN, not per render (#4544 pattern).
+        let withMenu = view.contextMenu { SidebarDeferredMenuContent { crumbMenu(doc) } }
         if let payload = dragPayload(doc) {
-            view.draggable(payload) {
+            withMenu.draggable(payload) {
                 RowDragPreview(name: doc.name, systemImage: doc.displaySymbol())
             }
         } else {
-            view
+            withMenu
         }
     }
 

@@ -3802,6 +3802,23 @@ def register_generated_openapi_commands(
             return client.request("PATCH", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("bulk-create")
+    def documents_bulk_create_post(
+        ctx: typer.Context,
+        documents: str = typer.Option(..., "--documents", help="Request field: documents."),
+    ) -> None:
+        """Bulk Create Documents (POST /api/documents/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/bulk"
+            params = None
+            payload = _build_json_payload({
+                "documents": documents,
+            }, {
+                "documents": {'items': {'$ref': '#/components/schemas/DocumentCreate'}, 'type': 'array', 'title': 'Documents', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("cleanup-orphan")
     def documents_cleanup_orphan_post(
         ctx: typer.Context,

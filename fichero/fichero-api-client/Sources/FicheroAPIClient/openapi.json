@@ -9031,6 +9031,70 @@
         }
       }
     },
+    "/api/documents/bulk": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Bulk Create Documents",
+        "description": "Create a batch of documents in ONE audited action (#1848 pattern).\n\nThe manifest importer's page phase ran one route round-trip per page \u2014\nregistry/audit/emit overhead per row was the measured ~1s/page on a live\nimport (2026-08-19 ledger). Order is preserved; parents must already\nexist (the importer creates containers first).",
+        "operationId": "bulk_create_documents_api_documents_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentBulkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentBulkCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/{doc_id}/annotations.jsonld": {
       "get": {
         "tags": [
@@ -42945,6 +43009,38 @@
         ],
         "title": "DocumentBatchExcludeResponse"
       },
+      "DocumentBulkCreateRequest": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCreate"
+            },
+            "type": "array",
+            "title": "Documents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents"
+        ],
+        "title": "DocumentBulkCreateRequest"
+      },
+      "DocumentBulkCreateResponse": {
+        "properties": {
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_ids"
+        ],
+        "title": "DocumentBulkCreateResponse"
+      },
       "DocumentCitation": {
         "properties": {
           "id": {
@@ -44061,6 +44157,16 @@
             "type": "boolean",
             "title": "Claim Table Exists",
             "default": false
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count",
+            "default": 0
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count",
+            "default": 0
           }
         },
         "type": "object",

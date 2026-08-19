@@ -177,8 +177,10 @@ extension LibraryView {
                     )
                 }(),
                 onNavigate: { doc in onNavigateInto(doc) },
-                // #4591: a crumb drags exactly like its library row.
-                dragPayload: { doc in libraryItemDrag(for: doc) }
+                // #4591: a crumb drags exactly like its library row, and
+                // right-clicks open the same document context menu.
+                dragPayload: { doc in libraryItemDrag(for: doc) },
+                crumbMenu: { doc in documentContextMenu(for: doc) }
             )
         }
     }

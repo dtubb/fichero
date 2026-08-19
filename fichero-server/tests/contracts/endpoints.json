@@ -2526,6 +2526,16 @@
       },
       {
         "method": "POST",
+        "path": "/documents/bulk",
+        "operation_id": "bulk_create_documents_api_documents_bulk_post",
+        "summary": "Bulk Create Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DocumentBulkCreateRequest",
+        "response_model": "DocumentBulkCreateResponse"
+      },
+      {
+        "method": "POST",
         "path": "/documents/cleanup-orphans",
         "operation_id": "cleanup_orphan_documents_api_documents_cleanup_orphans_post",
         "summary": "Cleanup Orphan Documents",
