@@ -132,6 +132,7 @@ struct ToolInfo: Codable, Identifiable {
         self.supportsStructuredOutput = supportsStructuredOutput
         self.sortOrder = sortOrder
         self.tested = tested
+        self.parallelism = parallelism
     }
 }
 
