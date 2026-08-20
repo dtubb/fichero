@@ -34,7 +34,16 @@ extension LibraryView {
         // #3820 — source from the SAME reference the execution uses
         // (`activeLibraryReference`), so the menu can never list a workflow the
         // run would execute against a different library and 400 on.
-        activeLibraryReference?.workflowStore.workflows ?? []
+        //
+        // GLOBAL fallback (user, 2026-08-20: no Run Workflow on library rows
+        // while the sidebar offered it): a freshly opened library's store can
+        // load before the global library has seeded/healed the defaults, and
+        // nothing reloads it. Defaults are global by design (#4450) and the
+        // engine resolves a default id against the global library on run, so
+        // offering them here is exactly the shipped fallback path.
+        let own = activeLibraryReference?.workflowStore.workflows ?? []
+        if !own.isEmpty { return own }
+        return libraryManager.globalLibrary?.workflowStore.workflows ?? []
     }
 
     var activeLibraryReference: LibraryManager.LibraryReference? {
@@ -54,6 +63,7 @@ extension LibraryView {
         // the same actions in every surface.
         addToChatMenuItem(for: document)
         importIntoFolderMenuItem(for: document)
+        newFolderMenuItem(for: document)
         openAndRenameMenuItems(for: document)
         duplicateAndAliasMenuItems(for: document)
         organizeMenuItems(for: document)
@@ -61,6 +71,24 @@ extension LibraryView {
         excludeFromProcessingMenuItem(excludeTargets: excludeTargets)
         deleteMenuItem(for: document)
         runWorkflowMenuItem(for: document)
+    }
+
+    /// New Folder — parity with the sidebar row menu (user, 2026-08-20:
+    /// "sidebar and library contextual menus ought to be same"). Creates
+    /// inside a clicked folder; beside a clicked document.
+    @ViewBuilder
+    private func newFolderMenuItem(for document: Document) -> some View {
+        Button {
+            let parentId = document.docType == .folder ? document.id : document.parentId
+            Task { @MainActor in
+                guard let library = activeLibraryReference else { return }
+                _ = try? await library.documentStore.createFolder(
+                    name: "New Folder", parentId: parentId
+                )
+            }
+        } label: {
+            Label("New Folder", systemImage: "folder.badge.plus")
+        }
     }
 
     /// Contextual-menu import (#4449) — one of the three affordances the

@@ -123,17 +123,29 @@ struct CanvasSpaceView: View {
             }
             .highPriorityGesture(nodeDrag)
             .highPriorityGesture(tapSelect)
+            // Sibling background-clear tap — same fix as the 2D canvas: an
+            // outer .onTapGesture fired alongside the entity tap and wiped
+            // the selection it had just made.
+            .gesture(TapGesture().onEnded {
+                controller?.dispatch(.tap(id: nil, modifiers: []))
+            })
             .gesture(orbitOrPan)
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
-            .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }
             // Two-finger scroll pans the camera (user, 2026-08-19: "right now
             // you have to use Space") — same input bridge as the 2D canvas.
             #if canImport(AppKit)
             .overlay {
-                CanvasScrollPanView { delta in
-                    renderer.pan(byScreenDelta: delta)
-                }
+                CanvasScrollPanView(onScroll: { delta in
+                    // Horizontal un-flip (user, 2026-08-20): the perspective
+                    // camera panned left-right the wrong way while vertical
+                    // was right — the mirror image of the 2D canvas.
+                    renderer.pan(byScreenDelta: CGSize(width: -delta.width, height: delta.height))
+                }, onZoom: { delta in
+                    // ⌘ + two-finger drag zooms: scroll up = move closer,
+                    // matching pinch. Same setter as pinch.
+                    renderer.setDistance(renderer.currentDistance * Float(1 - delta * 0.005))
+                })
                 .allowsHitTesting(false)
             }
             #endif

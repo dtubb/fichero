@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Page-thumbnail textures (split for file_length, 2026-08-20)
 
 extension CanvasOrtho2DRenderer {
-    func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 2) {
+    func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 4) {
         Task { @MainActor in
             do {
                 // The CURRENT library's storage (user, live 2026-08-19): the

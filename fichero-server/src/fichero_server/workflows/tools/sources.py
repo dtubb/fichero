@@ -177,9 +177,19 @@ def _resolve_selection_pairs(
     _pairs_cap = _source_max_files()
     _cap_logged = False
 
+    excluded_skipped = 0
+
     def _add(path: str, document: Document, origin: str) -> None:
-        nonlocal _cap_logged
+        nonlocal _cap_logged, excluded_skipped
         if document.id in seen_ids:
+            return
+        # Curation is a promise (user, live 2026-08-20: excluded-everywhere
+        # pages were processed by a folder run): a document excluded from
+        # processing NEVER becomes a work unit, whether selected directly or
+        # reached by folder/page expansion. Skipped loudly below, not
+        # silently.
+        if getattr(document, "exclude_from_processing", False):
+            excluded_skipped += 1
             return
         if _pairs_cap > 0 and len(pairs) >= _pairs_cap:
             if not _cap_logged:
@@ -288,7 +298,24 @@ def _resolve_selection_pairs(
                 doc.doc_type,
             )
 
+    if excluded_skipped:
+        logger.info(
+            "%s: skipped %d document(s) excluded from processing "
+            "(curation is a promise — an excluded doc never becomes a "
+            "work unit)",
+            source_label,
+            excluded_skipped,
+        )
+
     if not pairs:
+        if excluded_skipped:
+            # Everything the selection resolved to is EXCLUDED — say that,
+            # not "resolved to nothing".
+            raise ValueError(
+                f"{source_label}: every document in this selection "
+                f"({excluded_skipped}) is excluded from processing. "
+                "Include them (context menu → Include in Processing) to run."
+            )
         # #4467: the user POINTED AT something and it resolved to nothing —
         # stale/deleted ids, an empty folder, or docs with no on-disk file.
         # Completing green here is a run that "succeeded" at nothing,

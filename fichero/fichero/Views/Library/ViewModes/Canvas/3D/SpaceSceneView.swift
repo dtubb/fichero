@@ -208,10 +208,15 @@ struct SpaceSceneView: View {
         // second camera path.
         #if canImport(AppKit)
         .overlay {
-            CanvasScrollPanView { delta in
+            CanvasScrollPanView(onScroll: { delta in
                 panCameraIncrementally(by: delta)
                 persistViewport()
-            }
+            }, onZoom: { delta in
+                // ⌘ + two-finger drag zooms (user, 2026-08-20): scroll up =
+                // move closer, matching the pinch gesture's distance model.
+                cameraDistance = min(max(cameraDistance * (1 - delta * 0.005), 0.5), 60)
+                persistViewport()
+            })
             .allowsHitTesting(false)
         }
         #else
@@ -825,7 +830,7 @@ private extension SpaceSceneView {
         sourceId: String,
         cardWidth: Float,
         cardHeight: Float,
-        retriesLeft: Int = 2
+        retriesLeft: Int = 4
     ) {
         let service = storageService
         Task { @MainActor in

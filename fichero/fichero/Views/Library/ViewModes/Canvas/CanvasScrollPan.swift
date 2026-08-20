@@ -24,20 +24,26 @@ struct CanvasScrollPanView: NSViewRepresentable {
     /// Shaped like a drag translation so the caller can hand it to the same
     /// conversion a drag uses.
     let onScroll: (CGSize) -> Void
+    /// ⌘ + two-finger drag = zoom (user, 2026-08-20). Vertical delta only;
+    /// positive = scroll up. Nil hosts keep panning under ⌘.
+    var onZoom: ((CGFloat) -> Void)?
 
     func makeNSView(context: Context) -> NSView {
         let view = CanvasScrollCaptureView()
         view.onScroll = onScroll
+        view.onZoom = onZoom
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
         (nsView as? CanvasScrollCaptureView)?.onScroll = onScroll
+        (nsView as? CanvasScrollCaptureView)?.onZoom = onZoom
     }
 }
 
 final class CanvasScrollCaptureView: NSView {
     var onScroll: ((CGSize) -> Void)?
+    var onZoom: ((CGFloat) -> Void)?
     private var monitor: Any?
 
     /// Transparent to every other input: this view exists only to receive
@@ -89,6 +95,10 @@ final class CanvasScrollCaptureView: NSView {
         }
 
         guard deltaX != 0 || deltaY != 0 else { return }
+        if event.modifierFlags.contains(.command), let onZoom {
+            if deltaY != 0 { onZoom(deltaY) }
+            return
+        }
         onScroll?(CGSize(width: deltaX, height: deltaY))
     }
 }
