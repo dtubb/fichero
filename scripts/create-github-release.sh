@@ -230,14 +230,40 @@ For access, contact Daniel for the current TestFlight invite.
 $NOTES_MARKDOWN"
 
 if [ "$DRY_RUN" = false ]; then
-  gh release create "$TAG" \
-    "$DMG_PATH" \
-    --repo "$RELEASE_REPO" \
-    --title "Fichero $VERSION" \
-    --notes "$RELEASE_BODY" \
-    --target "$RELEASE_TARGET" \
-    $DRAFT_FLAG \
-    $PRERELEASE_FLAG
+  # Idempotent + retried (2026-08-20: a 541MB asset upload 400'd repeatedly
+  # through gh, killing the whole step after the release row was created).
+  # Create WITHOUT the asset if absent, update notes if present, then upload
+  # the asset separately with retries — a re-run finishes a half-done step.
+  if gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
+    echo "  Release $TAG exists — updating notes"
+    gh release edit "$TAG" --repo "$RELEASE_REPO" \
+      --title "Fichero $VERSION" --notes "$RELEASE_BODY"
+  else
+    gh release create "$TAG" \
+      --repo "$RELEASE_REPO" \
+      --title "Fichero $VERSION" \
+      --notes "$RELEASE_BODY" \
+      --target "$RELEASE_TARGET" \
+      $DRAFT_FLAG \
+      $PRERELEASE_FLAG
+  fi
+  if ! gh release view "$TAG" --repo "$RELEASE_REPO" --json assets \
+      --jq '.assets[].name' 2>/dev/null | grep -qx "Fichero.dmg"; then
+    uploaded=false
+    for upload_attempt in 1 2 3 4 5; do
+      if gh release upload "$TAG" "$DMG_PATH" --repo "$RELEASE_REPO" --clobber; then
+        uploaded=true; break
+      fi
+      echo "  DMG upload attempt $upload_attempt failed; retrying in $((upload_attempt * 60))s" >&2
+      sleep $((upload_attempt * 60))
+    done
+    if [ "$uploaded" != true ]; then
+      echo "error: DMG asset upload failed after 5 attempts" >&2
+      exit 1
+    fi
+  else
+    echo "  Fichero.dmg asset already present"
+  fi
 else
   echo "[DRY RUN] would run: gh release create $TAG --repo $RELEASE_REPO --target $RELEASE_TARGET --title \"Fichero $VERSION\" $DRAFT_FLAG $PRERELEASE_FLAG"
 fi
