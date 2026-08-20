@@ -89,7 +89,9 @@ struct EntityDigestView: View {
 
             // Entity List
             List(selection: $selectedEntityIds) {
-                if isLoading {
+                // Spinner only before FIRST content — refreshes splice in place
+                // (stale-while-revalidate, 2026-08-20 flash sweep).
+                if isLoading && entities.isEmpty {
                     HStack {
                         Spacer()
                         ProgressView()
@@ -301,7 +303,7 @@ struct EntityDigestContent: View {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if isLoading {
+            if isLoading && claims.isEmpty {
                 ProgressView()
             } else if claims.isEmpty {
                 Text("No claims available to reconstruct a biography.")
@@ -373,7 +375,7 @@ struct EntityDigestContent: View {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if isLoading {
+            if isLoading && claims.isEmpty {
                 ProgressView()
             } else if claims.isEmpty {
                 Text("No source citations available.")

@@ -72,11 +72,19 @@ struct DocumentInspectorEntitiesTab: View {
                     .padding(.horizontal)
             }
 
-            if isScopedLoading {
+            // STALE-WHILE-REVALIDATE (user, 2026-08-20: "the inspector
+            // reloads every second or two and flashes — can't they just come
+            // in as they're added?"): a running SVO/entity workflow emits a
+            // change event per write, and every debounced reload used to
+            // swap the WHOLE list for a spinner and back. The list now stays
+            // mounted through refreshes — new rows splice in via List
+            // diffing, selection and scroll survive — and the spinner shows
+            // only when there is nothing to show yet.
+            if isScopedLoading && scopedEntities.isEmpty {
                 ProgressView()
                     .padding(.vertical, 8)
                     .padding(.horizontal)
-            } else if let loadError = scopedLoadError {
+            } else if let loadError = scopedLoadError, scopedEntities.isEmpty {
                 Label(loadError, systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)

@@ -61,8 +61,8 @@ struct CanvasKeyboardNav: ViewModifier {
     ) -> String? {
         guard let origin, let from = positions[origin] else { return ids.first }
         var best: (id: String, score: CGFloat)?
-        for (id, p) in positions where id != origin {
-            let dx = p.x - from.x, dy = p.y - from.y
+        for (id, point) in positions where id != origin {
+            let dx = point.x - from.x, dy = point.y - from.y
             let (forward, lateral): (CGFloat, CGFloat)
             switch direction {
             case .leftArrow: (forward, lateral) = (-dx, abs(dy))
