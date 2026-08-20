@@ -97,7 +97,11 @@ struct CanvasSceneView: View {
             links: links,
             layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
             items: itemStore?.items(for: scopeKey) ?? [],
-            defaultPlacement: .grid(columns: gridColumns(in: viewportSize))
+            // TEN columns, identical in 2D and 3D (user, 2026-08-20): one
+            // shared default so the two canvases show the SAME board — they
+            // already share the layout store, so a move in one is a move in
+            // the other; the default must match too.
+            defaultPlacement: .grid(columns: 10)
         )
         state.selection = selectedNodeIds
         return state
@@ -154,11 +158,11 @@ struct CanvasSceneView: View {
             #if os(macOS)
             .overlay {
                 CanvasScrollPanView(onScroll: { delta in
-                    // Vertical un-flip (user, 2026-08-20): the ortho camera's
-                    // (x, −y) projection made two-finger vertical pans move
-                    // the board the wrong way while horizontal was right.
+                    // Raw-delta mapping (user, 2026-08-20, trackpad + Magic
+                    // Mouse both verified against the ortho (x, −y)
+                    // projection).
                     scrollPanCamera(
-                        by: CGSize(width: delta.width, height: -delta.height),
+                        by: CGSize(width: -delta.width, height: delta.height),
                         in: geo.size
                     )
                 }, onZoom: { delta in
@@ -187,8 +191,10 @@ struct CanvasSceneView: View {
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(
                 nodeIds: nodes.map(\.id),
-                selectedNodeIds: $selectedNodeIds,
-                pan: { scrollPanCamera(by: $0, in: geo.size) }
+                nodePositions: renderer.placeablesById.mapValues {
+                    CGPoint(x: $0.position.x, y: $0.position.y)
+                },
+                selectedNodeIds: $selectedNodeIds
             ))
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
             .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }

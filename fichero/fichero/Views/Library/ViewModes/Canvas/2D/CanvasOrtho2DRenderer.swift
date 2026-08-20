@@ -170,6 +170,16 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// Pan the camera across its plane by a world-space delta.
     func panCamera(worldDelta: SIMD2<Float>) {
         camera.position += SIMD3<Float>(worldDelta.x, worldDelta.y, 0)
+        // CLAMP to the content bounds plus a one-viewport margin (user,
+        // 2026-08-20: "when we scroll to the edge it should give a bit of
+        // extra space… right now we can get lost"). The board can never
+        // scroll so far that no card remains reachable.
+        let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
+        guard !points.isEmpty else { return }
+        let margin = orthoScale  // ~one viewport height of slack
+        let xs = points.map(\.x), ys = points.map(\.y)
+        camera.position.x = min(max(camera.position.x, xs.min()! - margin), xs.max()! + margin)
+        camera.position.y = min(max(camera.position.y, ys.min()! - margin), ys.max()! + margin)
     }
 
     // MARK: - Drag + marquee (#3084)

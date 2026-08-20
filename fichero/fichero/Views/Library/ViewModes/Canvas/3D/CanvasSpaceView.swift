@@ -82,9 +82,7 @@ struct CanvasSpaceView: View {
             // different from 2D. Columns follow the ceil(sqrt(n)) convention
             // the Arrange-in-Grid button and the backend `grid` strategy
             // already use; saved rows still win over the default.
-            defaultPlacement: .grid(
-                columns: max(1, Int(Double(nodes.count + renderableItems.count).squareRoot().rounded(.up)))
-            )
+            defaultPlacement: .grid(columns: 10)
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
@@ -137,10 +135,9 @@ struct CanvasSpaceView: View {
             #if canImport(AppKit)
             .overlay {
                 CanvasScrollPanView(onScroll: { delta in
-                    // Horizontal un-flip (user, 2026-08-20): the perspective
-                    // camera panned left-right the wrong way while vertical
-                    // was right — the mirror image of the 2D canvas.
-                    renderer.pan(byScreenDelta: CGSize(width: -delta.width, height: delta.height))
+                    // Raw-delta mapping (see CanvasScrollCaptureView) against
+                    // the perspective camera's screen-delta convention.
+                    renderer.pan(byScreenDelta: CGSize(width: delta.width, height: -delta.height))
                 }, onZoom: { delta in
                     // ⌘ + two-finger drag zooms: scroll up = move closer,
                     // matching pinch. Same setter as pinch.
@@ -153,8 +150,10 @@ struct CanvasSpaceView: View {
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(
                 nodeIds: nodes.map(\.id),
-                selectedNodeIds: $selectedNodeIds,
-                pan: { renderer.pan(byScreenDelta: $0) }
+                nodePositions: renderer.placeablesById.mapValues {
+                    CGPoint(x: $0.position.x, y: $0.position.y)
+                },
+                selectedNodeIds: $selectedNodeIds
             ))
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
