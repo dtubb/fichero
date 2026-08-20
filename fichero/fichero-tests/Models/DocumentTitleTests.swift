@@ -751,4 +751,22 @@ struct DocumentTitleTests {
         #expect(!breadcrumb.contains("Segment(name: $0.name"))
         #expect(!breadcrumb.contains("path.insert(doc.name"))
     }
+    // MARK: - Selection noun (#4586)
+
+    @Test("image-backed page rows count as images, PDF pages as pages, mixed as items")
+    func selectionNounFollowsContent() {
+        let imagePage = Document(id: "i1", docType: .page, fileType: .image, name: "IMG_001")
+        let pdfPage = Document(id: "p1", docType: .page, name: "page 1")
+        #expect(DocumentTitle.selectionNoun(for: [imagePage, imagePage]) == "images")
+        #expect(DocumentTitle.selectionNoun(for: [pdfPage, pdfPage]) == "pages")
+        #expect(DocumentTitle.selectionNoun(for: [imagePage, pdfPage]) == "items")
+        #expect(DocumentTitle.selectionNoun(for: []) == "items")
+    }
+
+    @Test("windowTitle counts a multi-selection in its own noun")
+    func windowTitleUsesSelectionNoun() {
+        #expect(DocumentTitle.windowTitle(
+            leaf: nil, selectedPageCount: 6, selectionNoun: "images") == "6 images")
+    }
+
 }

@@ -28,10 +28,33 @@ extension DocumentInspectorEntitiesTab {
             guard !hidden.contains(kind), let items = dict[kind], !items.isEmpty else {
                 return nil
             }
-            return (kind, items.sorted { lhs, rhs in
-                lhs.canonicalName.localizedCaseInsensitiveCompare(rhs.canonicalName) == .orderedAscending
-            })
+            // Sort on a precomputed key: `localizedCaseInsensitiveCompare` in the
+            // comparator ran ICU O(n log n) times on the MAIN thread — with a
+            // 2,600-entity Marshall folder that was a visible stall on every
+            // change-stream reload (stall.txt 2026-08-19, 8.3s worst case
+            // in this tab).
+            return (kind, items
+                .map { (key: $0.canonicalName.lowercased(), entity: $0) }
+                .sorted { $0.key < $1.key }
+                .map(\.entity))
         }
+    }
+
+    /// Cheap change signal for `scopedEntities`: hashes (id, updatedAt) per
+    /// entity instead of deep-comparing every generated struct — the arrays
+    /// carry metadata dicts and multi-hundred-element source lists, and the
+    /// full `==` on 2,600 of them ran on the main thread per change event.
+    var scopedEntitiesFingerprint: Int {
+        Self.fingerprint(of: scopedEntities)
+    }
+
+    static func fingerprint(of entities: [Components.Schemas.KnowledgeEntity]) -> Int {
+        var hasher = Hasher()
+        for entity in entities {
+            hasher.combine(entity.id)
+            hasher.combine(entity.updatedAt)
+        }
+        return hasher.finalize()
     }
 
     var hasActiveKindFilter: Bool {

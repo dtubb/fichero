@@ -1225,6 +1225,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("bulk-create")
+    def artifacts_bulk_create_post(
+        ctx: typer.Context,
+        artifacts: str = typer.Option(..., "--artifacts", help="Request field: artifacts."),
+    ) -> None:
+        """Bulk Create Artifacts (POST /api/artifacts/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/artifacts/bulk"
+            params = None
+            payload = _build_json_payload({
+                "artifacts": artifacts,
+            }, {
+                "artifacts": {'items': {'$ref': '#/components/schemas/ArtifactCreateRequest'}, 'type': 'array', 'title': 'Artifacts', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-document")
     def artifacts_list_document_get(
         ctx: typer.Context,
@@ -1244,6 +1261,24 @@ def register_generated_openapi_commands(
                 "offset": offset,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("resolve-document-text-regions")
+    def artifacts_resolve_document_text_regions_post(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        spans: str = typer.Option(..., "--spans", help="Request field: spans."),
+    ) -> None:
+        """Resolve Document Text Regions (POST /api/artifacts/document/{doc_id}/text-regions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/artifacts/document/{doc_id}/text-regions"
+            params = None
+            payload = _build_json_payload({
+                "spans": spans,
+            }, {
+                "spans": {'items': {'$ref': '#/components/schemas/TextRegionSpan'}, 'type': 'array', 'title': 'Spans', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-types")
@@ -3677,6 +3712,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Query parameter: doc_type."),
         file_type: Optional[str] = typer.Option(None, "--file-type", help="Query parameter: file_type."),
+        ids: Optional[str] = typer.Option(None, "--ids", help="Query parameter: ids."),
         include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Query parameter: node_kind."),
@@ -3690,6 +3726,7 @@ def register_generated_openapi_commands(
             params = {
                 "doc_type": doc_type,
                 "file_type": file_type,
+                "ids": ids,
                 "include_deleted": include_deleted,
                 "limit": limit,
                 "node_kind": node_kind,
@@ -3765,6 +3802,7 @@ def register_generated_openapi_commands(
         document_ids: str = typer.Option(..., "--document-ids", help="Request field: document_ids."),
         excluded: bool = typer.Option(..., "--excluded/--no-excluded", help="Request field: excluded."),
         reason: Optional[str] = typer.Option(None, "--reason", help="Request field: reason."),
+        scope: Optional[str] = typer.Option(None, "--scope", help="Request field: scope."),
     ) -> None:
         """Batch Exclude Documents (PATCH /api/documents/batch-exclude)."""
         def op_call(client: FicheroClient) -> Any:
@@ -3774,12 +3812,31 @@ def register_generated_openapi_commands(
                 "document_ids": document_ids,
                 "excluded": excluded,
                 "reason": reason,
+                "scope": scope,
             }, {
                 "document_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Document Ids', 'x-cli-required': True},
                 "excluded": {'type': 'boolean', 'title': 'Excluded', 'x-cli-required': True},
                 "reason": {'type': 'string', 'nullable': True, 'title': 'Reason', 'x-cli-required': False},
+                "scope": {'type': 'string', 'enum': ['processing', 'search'], 'title': 'DocumentExclusionScope', 'description': 'Which exclusion flag a batch-exclude toggles (#4580). A closed set —\nan enum, never a bare str, so the generated Swift client cannot drift.', 'x-cli-required': False},
             }, required=True)
             return client.request("PATCH", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("bulk-create")
+    def documents_bulk_create_post(
+        ctx: typer.Context,
+        documents: str = typer.Option(..., "--documents", help="Request field: documents."),
+    ) -> None:
+        """Bulk Create Documents (POST /api/documents/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/bulk"
+            params = None
+            payload = _build_json_payload({
+                "documents": documents,
+            }, {
+                "documents": {'items': {'$ref': '#/components/schemas/DocumentCreate'}, 'type': 'array', 'title': 'Documents', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("cleanup-orphan")
@@ -4004,6 +4061,7 @@ def register_generated_openapi_commands(
         attributes: Optional[str] = typer.Option(None, "--attributes", help="Request field: attributes."),
         doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Request field: doc_type."),
         exclude_from_processing: Optional[bool] = typer.Option(None, "--exclude-from-processing/--no-exclude-from-processing", help="Request field: exclude_from_processing."),
+        exclude_from_search: Optional[bool] = typer.Option(None, "--exclude-from-search/--no-exclude-from-search", help="Request field: exclude_from_search."),
         file_type: Optional[str] = typer.Option(None, "--file-type", help="Request field: file_type."),
         is_flagged: Optional[bool] = typer.Option(None, "--is-flagged/--no-is-flagged", help="Request field: is_flagged."),
         is_read: Optional[bool] = typer.Option(None, "--is-read/--no-is-read", help="Request field: is_read."),
@@ -4031,6 +4089,7 @@ def register_generated_openapi_commands(
                 "attributes": attributes,
                 "doc_type": doc_type,
                 "exclude_from_processing": exclude_from_processing,
+                "exclude_from_search": exclude_from_search,
                 "file_type": file_type,
                 "is_flagged": is_flagged,
                 "is_read": is_read,
@@ -4053,6 +4112,7 @@ def register_generated_openapi_commands(
                 "attributes": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Attributes', 'x-cli-required': False},
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
                 "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'x-cli-required': False},
+                "exclude_from_search": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Search', 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
                 "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'x-cli-required': False},
                 "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'x-cli-required': False},
@@ -4464,6 +4524,7 @@ def register_generated_openapi_commands(
         document_id: Optional[str] = typer.Option(None, "--document-id", help="Query parameter: document_id."),
         entity_type: Optional[str] = typer.Option(None, "--entity-type", help="Query parameter: entity_type."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Query parameter: offset."),
         q: Optional[str] = typer.Option(None, "--q", help="Query parameter: q."),
     ) -> None:
         """List Entities (GET /api/entities)."""
@@ -4473,6 +4534,7 @@ def register_generated_openapi_commands(
                 "document_id": document_id,
                 "entity_type": entity_type,
                 "limit": limit,
+                "offset": offset,
                 "q": q,
             }
             return client.request("GET", endpoint_path, params=params)
@@ -4525,6 +4587,23 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/entities/alias-map"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("bulk-upsert")
+    def entities_bulk_upsert_post(
+        ctx: typer.Context,
+        entities: str = typer.Option(..., "--entities", help="Request field: entities."),
+    ) -> None:
+        """Bulk Upsert Entities (POST /api/entities/bulk)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/entities/bulk"
+            params = None
+            payload = _build_json_payload({
+                "entities": entities,
+            }, {
+                "entities": {'items': {'$ref': '#/components/schemas/EntityCreateActionParams'}, 'type': 'array', 'title': 'Entities', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("claim-counts")
@@ -11955,6 +12034,56 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/search/stats"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("streaming")
+    def search_streaming_post(
+        ctx: typer.Context,
+        compile: Optional[bool] = typer.Option(None, "--compile/--no-compile", help="Request field: compile."),
+        filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
+        highlight_results: Optional[bool] = typer.Option(None, "--highlight-results/--no-highlight-results", help="Request field: highlight_results."),
+        include: Optional[str] = typer.Option(None, "--include", help="Request field: include."),
+        limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
+        min_score: Optional[float] = typer.Option(None, "--min-score", help="Request field: min_score."),
+        offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
+        query: str = typer.Option(..., "--query", help="Request field: query."),
+        search_type: Optional[str] = typer.Option(None, "--search-type", help="Request field: search_type."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Request field: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Request field: sort_direction."),
+        use_fuzzy_match: Optional[bool] = typer.Option(None, "--use-fuzzy-match/--no-use-fuzzy-match", help="Request field: use_fuzzy_match."),
+    ) -> None:
+        """Streaming Search (POST /api/search/stream)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/search/stream"
+            params = None
+            payload = _build_json_payload({
+                "compile": compile,
+                "filters": filters,
+                "highlight_results": highlight_results,
+                "include": include,
+                "limit": limit,
+                "min_score": min_score,
+                "offset": offset,
+                "query": query,
+                "search_type": search_type,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
+                "use_fuzzy_match": use_fuzzy_match,
+            }, {
+                "compile": {'type': 'boolean', 'title': 'Compile', 'default': False, 'x-cli-required': False},
+                "filters": {'additionalProperties': True, 'type': 'object', 'nullable': True, 'title': 'Filters', 'x-cli-required': False},
+                "highlight_results": {'type': 'boolean', 'title': 'Highlight Results', 'default': True, 'x-cli-required': False},
+                "include": {'items': {'$ref': '#/components/schemas/SearchInclude'}, 'type': 'array', 'title': 'Include', 'x-cli-required': False},
+                "limit": {'type': 'integer', 'title': 'Limit', 'default': 10, 'x-cli-required': False},
+                "min_score": {'type': 'number', 'title': 'Min Score', 'default': 0.55, 'x-cli-required': False},
+                "offset": {'type': 'integer', 'title': 'Offset', 'default': 0, 'x-cli-required': False},
+                "query": {'type': 'string', 'title': 'Query', 'x-cli-required': True},
+                "search_type": {'type': 'string', 'title': 'Search Type', 'default': 'hybrid', 'x-cli-required': False},
+                "sort_by": {'type': 'string', 'title': 'Sort By', 'default': 'relevance', 'x-cli-required': False},
+                "sort_direction": {'type': 'string', 'title': 'Sort Direction', 'default': 'desc', 'x-cli-required': False},
+                "use_fuzzy_match": {'type': 'boolean', 'title': 'Use Fuzzy Match', 'default': False, 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('settings')

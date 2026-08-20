@@ -1,6 +1,6 @@
 {
   "swift.lint_warnings": {
     "count": 66,
-    "note": "tightened from 67"
+    "note": "65 was an artifact: DocumentService.swift briefly crossed the 1000-line ERROR threshold, hiding its file_length WARNING from the count (2026-08-20)"
   }
 }

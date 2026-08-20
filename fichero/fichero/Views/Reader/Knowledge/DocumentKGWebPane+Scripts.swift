@@ -119,7 +119,7 @@ extension DocumentKGPaneRoute {
 
     private static func pageOffsetCalculationHelpers() -> String {
         """
-        function pageOffsets() {
+        function pageOffsetsUncached() {
             var root = scroller();
             var anchors = installPageAnchors();
             if (!root || anchors.length === 0) { return []; }
@@ -133,6 +133,29 @@ extension DocumentKGPaneRoute {
             offsets.sort(function(a, b) { return a.top - b.top; });
             return offsets;
         }
+        // Cached (perf 2026-08-19): the uncached form forces a synchronous
+        // layout per page anchor per SCROLL FRAME — the single biggest reason
+        // scrolling a long transcript lagged behind Safari. Layout only
+        // changes on content/size changes, so measure once and invalidate on
+        // resize and DOM mutation.
+        window.ficheroPageOffsetsCache = null;
+        function invalidatePageOffsets() { window.ficheroPageOffsetsCache = null; }
+        function pageOffsets() {
+            if (window.ficheroPageOffsetsCache === null) {
+                window.ficheroPageOffsetsCache = pageOffsetsUncached();
+            }
+            return window.ficheroPageOffsetsCache;
+        }
+        (function() {
+            window.addEventListener('resize', invalidatePageOffsets);
+            // Images/fonts landing after first layout shift every offset.
+            document.addEventListener('load', invalidatePageOffsets, true);
+            var target = document.querySelector('.transcript') || document.body;
+            if (window.MutationObserver && target) {
+                new MutationObserver(invalidatePageOffsets)
+                    .observe(target, { childList: true, subtree: true, characterData: true });
+            }
+        })();
         function pageForScroll() {
             var root = scroller();
             var offsets = pageOffsets();

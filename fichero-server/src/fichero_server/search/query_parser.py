@@ -36,6 +36,27 @@ ARTIFACT_SCOPE_TYPES = frozenset(
 SEMANTIC_SCOPE_TYPES = frozenset({"entities", "claims"})
 SCOPE_TYPES = ARTIFACT_SCOPE_TYPES | SEMANTIC_SCOPE_TYPES
 
+# Singular spellings parse too (Daniel's ruling, #4604 Q2): `person:` and
+# `people:` are the same scope — users should not have to remember which
+# grammatical number the parser happens to use. Keys in SearchPlan.scopes
+# are always the CANONICAL (plural) form.
+SCOPE_ALIASES = {
+    "person": "people",
+    "place": "places",
+    "organization": "organizations",
+    "org": "organizations",
+    "date": "dates",
+    "event": "events",
+    "keyword": "keywords",
+    "entity": "entities",
+    "claim": "claims",
+}
+_ALL_SCOPE_SPELLINGS = SCOPE_TYPES | frozenset(SCOPE_ALIASES)
+
+
+def canonical_scope(field: str) -> str:
+    return SCOPE_ALIASES.get(field, field)
+
 
 @dataclass
 class SearchPlan:
@@ -98,7 +119,11 @@ class SearchPlan:
 
 
 _QUOTED_RE = re.compile(r'"([^"]+)"')
-_SCOPE_RE = re.compile(rf'(?P<field>{"|".join(SCOPE_TYPES)}):(?P<value>\S+)')
+# Longest-first so `places:` can never half-match as `place` + a stray `s`.
+_SCOPE_RE = re.compile(
+    rf'(?P<field>{"|".join(sorted(_ALL_SCOPE_SPELLINGS, key=len, reverse=True))})'
+    r":(?P<value>\S+)"
+)
 _EXCLUDE_RE = re.compile(r"(?:^|\s)-(\S+)")
 
 
@@ -124,10 +149,12 @@ def parse_query(raw: str) -> SearchPlan:
     # 1. Scoped phrases like `people:"José Antonio"` first — they have a
     # field followed by a quoted value.
     scoped_phrase_re = re.compile(
-        rf'(?P<field>{"|".join(SCOPE_TYPES)}):"(?P<value>[^"]+)"'
+        rf'(?P<field>{"|".join(_ALL_SCOPE_SPELLINGS)}):"(?P<value>[^"]+)"'
     )
     for match in scoped_phrase_re.finditer(remaining):
-        plan.scopes.setdefault(match.group("field"), []).append(match.group("value"))
+        plan.scopes.setdefault(
+            canonical_scope(match.group("field")), []
+        ).append(match.group("value"))
     remaining = scoped_phrase_re.sub(" ", remaining)
 
     # 2. Plain quoted phrases.
@@ -137,7 +164,9 @@ def parse_query(raw: str) -> SearchPlan:
 
     # 3. Field scopes with single-word values.
     for match in _SCOPE_RE.finditer(remaining):
-        plan.scopes.setdefault(match.group("field"), []).append(match.group("value"))
+        plan.scopes.setdefault(
+            canonical_scope(match.group("field")), []
+        ).append(match.group("value"))
     remaining = _SCOPE_RE.sub(" ", remaining)
 
     # 4. Exclusions.

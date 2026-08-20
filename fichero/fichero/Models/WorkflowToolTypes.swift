@@ -39,6 +39,10 @@ struct ToolInfo: Codable, Identifiable {
     /// page text and ignores the prompt) can never satisfy it. Preflight
     /// refuses such a node before the run starts.
     let requiresGenerativeModel: Bool
+    /// How the tool consumes its batch (Python ToolDef.parallelism):
+    /// "elementwise" | "reducing" | "batch". Mirrored for model sync (#4604
+    /// gate 2026-08-19); optional so older engines decode.
+    let parallelism: String?
 
     var id: String { name }
 
@@ -57,6 +61,7 @@ struct ToolInfo: Codable, Identifiable {
         case supportsStructuredOutput = "supports_structured_output"
         case sortOrder = "sort_order"
         case requiresGenerativeModel = "requires_generative_model"
+        case parallelism
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +87,7 @@ struct ToolInfo: Codable, Identifiable {
         tested = try container.decodeIfPresent(Bool.self, forKey: .tested) ?? false
         requiresGenerativeModel = try container.decodeIfPresent(
             Bool.self, forKey: .requiresGenerativeModel) ?? false
+        parallelism = try container.decodeIfPresent(String.self, forKey: .parallelism)
     }
 
     /// Memberwise initializer for creating ToolInfo from code
@@ -104,7 +110,8 @@ struct ToolInfo: Codable, Identifiable {
         supportsStructuredOutput: Bool,
         sortOrder: Int,
         tested: Bool = false,
-        requiresGenerativeModel: Bool = false
+        requiresGenerativeModel: Bool = false,
+        parallelism: String? = nil
     ) {
         self.name = name
         self.displayName = displayName
@@ -125,6 +132,7 @@ struct ToolInfo: Codable, Identifiable {
         self.supportsStructuredOutput = supportsStructuredOutput
         self.sortOrder = sortOrder
         self.tested = tested
+        self.parallelism = parallelism
     }
 }
 

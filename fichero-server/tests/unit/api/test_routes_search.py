@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 from types import SimpleNamespace
 from urllib.parse import quote
 from unittest.mock import AsyncMock
@@ -795,6 +796,11 @@ class TestSearchStats:
             "entity_table_exists": True,
             "claim_indexed_count": 3,
             "claim_table_exists": False,
+            # KG denominators (2026-08-19): indexed vs "of how many" for
+            # entities and claims too — 0 embedded of 0 is healthy, 0 of
+            # 4,000 is the silent failure the doc pair exposed.
+            "entity_count": 0,
+            "claim_count": 0,
         }
 
 
@@ -1764,3 +1770,41 @@ class TestInterpretationLeg:
             for x in r.json()["results"]
         )
 
+
+
+class TestStreamingSearch:
+    """#4604 ruling Q11: NDJSON stream — provisional keyword batch first,
+    the fused final ranking second; failures are SAID in-stream."""
+
+    def test_stream_emits_provisional_then_final(self, client, mock_db):
+        mock_db.search.return_value = ([], 0, {"search_type": "hybrid"})
+        mock_db.recent_content_document_rows.return_value = []
+
+        r = client.post("/api/search/stream", json={"query": "andagoya"})
+
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("application/x-ndjson")
+        lines = [json.loads(line) for line in r.text.splitlines() if line.strip()]
+        assert [line["type"] for line in lines] == ["provisional", "final"]
+        assert lines[0]["leg"] == "fulltext"
+        assert lines[1]["total_count"] == 0
+
+    def test_stream_requires_a_query(self, client):
+        r = client.post("/api/search/stream", json={"query": "   "})
+        assert r.status_code == 422
+
+    def test_stream_says_when_the_final_phase_fails(self, client, mock_db):
+        calls = {"n": 0}
+
+        def flaky(**_kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return ([], 0, {})
+            raise RuntimeError("index exploded")
+
+        mock_db.search.side_effect = flaky
+
+        r = client.post("/api/search/stream", json={"query": "gold"})
+        lines = [json.loads(line) for line in r.text.splitlines() if line.strip()]
+        assert lines[-1]["type"] == "error"
+        assert "index exploded" in lines[-1]["detail"]

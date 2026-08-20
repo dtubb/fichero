@@ -195,6 +195,9 @@ final class DocumentStore {
     /// `document.*` events into a single granular fetch+splice.
     @ObservationIgnored
     let reloadDebouncer = ReloadDebouncer()
+    /// Coalesces activity-frame bursts into one pending-status folder refetch
+    /// (see `refreshPendingStatusesDebounced`).
+    private let pendingStatusDebouncer = ReloadDebouncer()
 
     /// Document ids touched by `document.updated`/`document.created` events,
     /// accumulated across a burst and flushed once by the debouncer. The flush
@@ -451,6 +454,17 @@ final class DocumentStore {
     /// only the changed rows means only those rows re-render — no
     /// whole-list flash. (#518 follow-up: 0.0.3's blanket poll was too
     /// aggressive on libraries with stuck-pending rows.)
+    /// Debounced entry — activity frames arrive several times a second during
+    /// an import, and each one used to fire a full-folder `getChildren`
+    /// (perf audit 2026-08-19: 476 calls, avg 177ms, max 12s). One refetch
+    /// per burst is all a status poll needs.
+    @MainActor
+    func refreshPendingStatusesDebounced(in parentId: String) {
+        pendingStatusDebouncer.schedule { [weak self] in
+            await self?.refreshPendingStatusesOnly(in: parentId)
+        }
+    }
+
     @MainActor
     func refreshPendingStatusesOnly(in parentId: String) async {
         // Snapshot pending row ids before the fetch — we only care about

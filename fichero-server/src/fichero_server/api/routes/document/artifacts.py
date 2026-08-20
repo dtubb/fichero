@@ -492,6 +492,110 @@ async def get_artifact_region(
     )
 
 
+class TextRegionSpan(BaseModel):
+    """One char span to resolve, with the search hit's weight for heat-map
+    shading (Daniel's ruling, #4604 Q6: hotter for stronger matches)."""
+
+    char_start: int = Field(ge=0)
+    char_end: int = Field(ge=0)
+    weight: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class DocumentTextRegionsRequest(BaseModel):
+    spans: list[TextRegionSpan]
+
+
+class ResolvedTextRegion(BaseModel):
+    char_start: int
+    char_end: int
+    weight: float
+    region: Optional[SpanRegion] = None
+
+
+class DocumentTextRegionsResponse(BaseModel):
+    document_id: str
+    artifact_id: Optional[str] = None
+    geometry_status: str
+    geometry_reason: Optional[str] = None
+    regions: list[ResolvedTextRegion] = []
+
+
+@router.post(
+    "/document/{doc_id}/text-regions",
+    response_model=DocumentTextRegionsResponse,
+)
+async def resolve_document_text_regions(
+    doc_id: str,
+    request: DocumentTextRegionsRequest,
+    db: Database = Depends(get_library_database),
+) -> DocumentTextRegionsResponse:
+    """Resolve MANY char spans of a document's transcription to page regions
+    in one call — the search heat map's shape (#4604 Phase 2): every relevant
+    passage on the page, each with its weight, one request per page.
+
+    Document-scoped because a search hit knows its document and offsets but
+    not the geometry artifact's id; the resolution to the newest CAPTURED
+    geometry artifact happens here, once, instead of in each client. Degrades
+    honestly like the single-span route: a page whose engine cannot point at
+    it returns its status and reason, never a silent empty list.
+    """
+    doc = db.get(Document, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Document not found: {doc_id}")
+
+    candidates = sorted(
+        (
+            a for a in db.query(Artifact, document_id=doc_id)
+            if a.ocr_geometry is not None
+        ),
+        key=lambda a: -(a.created_at.timestamp() if a.created_at else 0.0),
+    )
+    artifact = next(
+        (
+            a for a in candidates
+            if geometry_status(a.ocr_geometry) is OCRGeometryStatus.CAPTURED
+        ),
+        candidates[0] if candidates else None,
+    )
+    if artifact is None or artifact.ocr_geometry is None:
+        return DocumentTextRegionsResponse(
+            document_id=doc_id,
+            geometry_status=str(OCRGeometryStatus.NOT_RUN),
+            geometry_reason="no geometry artifact recorded for this document",
+        )
+
+    geometry = artifact.ocr_geometry
+    status = geometry_status(geometry)
+    reason = (
+        str(geometry.metadata.get(GEOMETRY_REASON_KEY))
+        if geometry.metadata.get(GEOMETRY_REASON_KEY)
+        else None
+    )
+    resolved: list[ResolvedTextRegion] = []
+    if status is OCRGeometryStatus.CAPTURED:
+        for span in request.spans:
+            region = (
+                region_for_span(geometry, span.char_start, span.char_end)
+                if span.char_end > span.char_start
+                else None
+            )
+            resolved.append(
+                ResolvedTextRegion(
+                    char_start=span.char_start,
+                    char_end=span.char_end,
+                    weight=span.weight,
+                    region=region,
+                )
+            )
+    return DocumentTextRegionsResponse(
+        document_id=doc_id,
+        artifact_id=artifact.id,
+        geometry_status=str(status),
+        geometry_reason=reason,
+        regions=resolved,
+    )
+
+
 class ArtifactUpdate(BaseModel):
     """Request to update an artifact's editable fields. Used by the V2
     inspector's per-panel edit. Only `content` is editable today; provider,

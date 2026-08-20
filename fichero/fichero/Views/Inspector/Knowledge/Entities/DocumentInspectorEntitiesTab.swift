@@ -57,6 +57,9 @@ struct DocumentInspectorEntitiesTab: View {
 
     // ponytail: recompute inputs — scopedEntities, hiddenKindsCSV
     @State var grouped: [(EntityKind, [Components.Schemas.KnowledgeEntity])] = []
+    /// ⇧-range anchor for the row click grammar (#4607) — SelectionGrammar
+    /// owns the semantics, same as library and sidebar.
+    @State var entitySelectionAnchor: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -112,7 +115,13 @@ struct DocumentInspectorEntitiesTab: View {
             EntityReconciliationSheet(documentId: documentId)
         }
         .onAppear { recomputeGrouped() }
-        .onChange(of: scopedEntities) { _, _ in
+        // Fingerprint, not the array: `.onChange(of: scopedEntities)` deep-
+        // compared every generated struct (metadata dicts, per-page source
+        // lists) on the main thread each observation cycle — an 8s stall on a
+        // 2,600-entity Marshall folder (stall.txt 2026-08-19). The fingerprint
+        // hashes (id, updatedAt) in O(n) and skips regroup + List rediff when
+        // a change-stream reload returns unchanged content.
+        .onChange(of: scopedEntitiesFingerprint) { _, _ in
             recomputeGrouped()
             syncSelectionToLoadedEntities()
         }

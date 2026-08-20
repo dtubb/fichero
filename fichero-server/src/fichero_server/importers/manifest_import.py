@@ -727,6 +727,48 @@ def import_manifest(
     doc_id_by_external = _existing_doc_id_by_external(existing_docs)
     existing_doc_by_external = _existing_doc_by_external(existing_docs)
 
+    # LEAF nodes in LINK mode batch through ONE audited /documents/bulk per
+    # chunk (2026-08-19 ledger: one route round-trip per page was ~1s/page
+    # live — the same per-request overhead the entity phase already killed).
+    # A node any OTHER node names as parent must exist before its child, so
+    # only leaves batch; containers stay on the singular ordered path.
+    parent_externals = {
+        n.get("parent_external_id") for n in nodes if n.get("parent_external_id")
+    }
+    pending_creates: list[tuple[dict[str, Any], dict[str, Any]]] = []
+
+    def register_created(node: dict[str, Any], new_id: str) -> None:
+        doc_id_by_external[node["external_id"]] = new_id
+        summary.documents_created += 1
+        summary.created_document_ids.append(new_id)
+        summary.seen_document_ids.append(new_id)
+
+    def flush_pending_creates() -> None:
+        nonlocal pending_creates
+        if not pending_creates:
+            return
+        batch, pending_creates = pending_creates, []
+        try:
+            bulk = client.request(
+                "POST", "/documents/bulk",
+                {"documents": [payload for _, payload in batch]},
+            )
+            ids = (bulk or {}).get("document_ids") or []
+            if len(ids) != len(batch):
+                raise RuntimeError(
+                    f"bulk create returned {len(ids)} ids for {len(batch)} documents"
+                )
+        except Exception as exc:
+            # Older engines without /documents/bulk: per-node fallback, same
+            # pattern as the entity phase's bulk fallback.
+            logger.info("bulk document create unavailable (%s); per-node fallback", exc)
+            for node, payload in batch:
+                created = client.request("POST", "/documents", payload)
+                register_created(node, str(created["id"]))
+            return
+        for (node, _), new_id in zip(batch, ids):
+            register_created(node, str(new_id))
+
     for node in nodes:
         steps_done += 1
         external_id = node["external_id"]
@@ -737,6 +779,11 @@ def import_manifest(
                 on_progress(steps_done, total_steps)
             continue
         parent_external = node.get("parent_external_id")
+        # A batched sibling could be this node's parent only if this node's
+        # parent is still pending — impossible for leaves, but flush before
+        # resolving a parent id so containers always see committed parents.
+        if parent_external and parent_external not in doc_id_by_external:
+            flush_pending_creates()
         # Root nodes land under ``root_parent_id`` when given — the folder the
         # user DROPPED the corpus onto (2026-08-17 UX path), not library root.
         parent_id = (
@@ -746,22 +793,26 @@ def import_manifest(
             raise RuntimeError(
                 f"Missing parent for {external_id}: {parent_external}"
             )
-        if node.get("node_type") == "page" and preferred_image(node):
-            # Pages with an image always go through the mode-aware path (link
-            # references + warms a local preview; copy/move bring bytes local).
+        is_leaf = external_id not in parent_externals
+        page_with_image = node.get("node_type") == "page" and preferred_image(node)
+        if is_leaf and mode == "link":
+            # LINK-mode leaves — pages and plain references alike — create
+            # from the same document_payload the singular path uses.
+            pending_creates.append((node, document_payload(node, parent_id)))
+        elif page_with_image:
+            # Pages with an image in copy/move go through the mode-aware path
+            # (bytes brought local via native ingest).
             new_id = _ingest_page_image(client, node, parent_id, mode, summary)
+            register_created(node, new_id)
         else:
             created = client.request(
                 "POST", "/documents", document_payload(node, parent_id)
             )
-            new_id = str(created["id"])
-        doc_id_by_external[external_id] = new_id
-        summary.documents_created += 1
-        summary.created_document_ids.append(new_id)
-        summary.seen_document_ids.append(new_id)
+            register_created(node, str(created["id"]))
         if on_progress:
             # Real totals for the drop UI ("says scanning. but not total").
             on_progress(steps_done, total_steps)
+    flush_pending_creates()
 
     # --- entities (deduped by canonical name across the whole manifest) ---
     entity_id_by_key: dict[str, str] = {}

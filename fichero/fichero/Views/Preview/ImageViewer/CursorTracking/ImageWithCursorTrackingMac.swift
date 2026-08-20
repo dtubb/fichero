@@ -39,7 +39,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.minMagnification = minScale
         scrollView.maxMagnification = maxScale
         scrollView.magnification = scale
-        scrollView.backgroundColor = NSColor(white: 0.88, alpha: 1)
+        // Semantic, theme-following ground (user, 2026-08-19: dark mode showed
+        // a light-grey field behind the page). underPageBackground is the
+        // system's "behind a document" color in both appearances — the same
+        // ground Preview.app uses.
+        scrollView.backgroundColor = .underPageBackgroundColor
         scrollView.scrollerStyle = .overlay  // Auto-hiding overlay scrollers like Preview.app
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.alphaValue = 0  // Hidden until first center to prevent flash
@@ -273,6 +277,7 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             imageView.loupePosition = nil
             self.imageSize = image.size
             if let fitScale = coordinator.calculateFitScale() {
+                applyZoomOutFloor(scrollView, fitScale: fitScale)
                 scrollView.magnification = fitScale
                 coordinator.noteAutoFitApplied()
                 self.scale = fitScale
@@ -282,6 +287,18 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 coordinator.needsInitialCenter = true
             }
         }
+    }
+
+    /// Zoom-out floor tracks fit (#4587): the user can zoom out to the
+    /// fit-to-view scale (or to 100% for an image smaller than the pane),
+    /// never to a 1% speck in a grey field. Applied wherever a fresh fit is
+    /// computed, so the floor follows item and pane changes; AppKit clamps
+    /// any lower magnification writes against it.
+    func applyZoomOutFloor(_ scrollView: NSScrollView, fitScale: CGFloat) {
+        // Half of fit, not fit exactly (user, 2026-08-19: "can't zoom out
+        // enough now") — room to see the whole page with margin while still
+        // never a 1% speck in a grey field.
+        scrollView.minMagnification = min(fitScale * 0.5, 1.0)
     }
 
     /// Center the image by expanding the image view frame when the scaled image
@@ -424,6 +441,7 @@ extension ImageWithCursorTracking {
                 self.imageSize = overrideImage.size
             }
             if let fitScale = coordinator.calculateFitScale() {
+                applyZoomOutFloor(scrollView, fitScale: fitScale)
                 scrollView.magnification = fitScale
                 Task { @MainActor in
                     self.scale = fitScale
@@ -463,6 +481,7 @@ extension ImageWithCursorTracking {
             // Fit to window on first layout (like Preview.app)
             var applied: CGFloat?
             if let fitScale = coordinator.calculateFitScale() {
+                applyZoomOutFloor(scrollView, fitScale: fitScale)
                 scrollView.magnification = fitScale
                 coordinator.noteAutoFitApplied()
                 applied = fitScale

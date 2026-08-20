@@ -302,23 +302,6 @@ extension DocumentService {
     /// (the backend default, used by the sidebar). Throws on non-`.ok` (#3030).
     /// - Parameter limit: Maximum documents to return, or nil for the backend default.
     /// - Returns: Array of documents.
-    func listDocuments(limit: Int? = nil) async throws -> [Document] {
-        logger.info("Listing documents (limit \(limit.map(String.init) ?? "default"))")
-
-        let response = try await client.api.listDocumentsApiDocumentsGet(
-            .init(query: .init(limit: limit))
-        )
-
-        switch response {
-        case .ok(let okResponse):
-            let docs = try okResponse.body.json
-            logger.info("Found \(docs.items.count) documents")
-            return try docs.items.map { try convertToDocument($0) }
-        default:
-            throw DocumentServiceError.unexpectedResponse
-        }
-    }
-
     /// Get all collections
     /// - Returns: Array of collection documents
     func getCollections() async throws -> [Document] {
@@ -658,7 +641,8 @@ extension DocumentService {
     /// so callers can refresh local state without raw URL paths.
     func batchExclude(
         documentIds: [String],
-        excluded: Bool
+        excluded: Bool,
+        scope: Components.Schemas.DocumentExclusionScope = .processing
     ) async throws -> [Document] {
         isProcessing = true
         defer { isProcessing = false }
@@ -666,7 +650,9 @@ extension DocumentService {
         let request = Components.Schemas.DocumentBatchExcludeRequest(
             documentIds: documentIds,
             excluded: excluded,
-            reason: nil
+            reason: nil,
+            // #4580: which exclusion flag — processing (default) or search.
+            scope: scope
         )
 
         let response = try await client.api.batchExcludeDocumentsApiDocumentsBatchExcludePatch(

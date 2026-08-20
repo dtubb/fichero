@@ -60,7 +60,7 @@ extension LibraryView {
 
     func refreshPendingStatusesFromLiveUpdate() {
         guard hasProcessingDocuments, let parentId = folderId else { return }
-        Task { await documentStore.refreshPendingStatusesOnly(in: parentId) }
+        documentStore.refreshPendingStatusesDebounced(in: parentId)
     }
 
     /// Shown for a load that failed because the engine was unreachable
@@ -112,7 +112,7 @@ extension LibraryView {
 
     /// The sentence for a store load that failed with `engineUnreachable` while
     /// the session itself has not (yet) flipped to a failure phase.
-    // Promoted private -> internal: LibraryView.swift file-length split (2026-08-13).
+    /// (Promoted private -> internal: LibraryView.swift file-length split, 2026-08-13.)
     var engineUnreachableDetail: String {
         ConnectionPresentation.failureDetail(
             accessError: .engineUnreachable,
@@ -176,7 +176,11 @@ extension LibraryView {
                             ? filteredEntities.count : filteredDocuments.count
                     )
                 }(),
-                onNavigate: { doc in onNavigateInto(doc) }
+                onNavigate: { doc in onNavigateInto(doc) },
+                // #4591: a crumb drags exactly like its library row, and
+                // right-clicks open the same document context menu.
+                dragPayload: { doc in libraryItemDrag(for: doc) },
+                crumbMenu: { doc in documentContextMenu(for: doc) }
             )
         }
     }

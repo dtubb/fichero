@@ -91,7 +91,6 @@ STRING_RE = re.compile(r'\"([^\"]+)\"')
 # Deferred gaps to fix later.
 KNOWN_GAPS: set[str] = {
     "fichero-server/src/fichero_server/api/routes/document/documents.py::import_file",
-    "fichero-server/src/fichero_server/api/routes/document/documents.py::purge_document",
     "fichero-server/src/fichero_server/api/routes/workflow/workflows.py::create_node",
 }
 
@@ -108,6 +107,9 @@ EXEMPT: set[str] = {
     "fichero-server/src/fichero_server/api/routes/interpretation/hermeneutics.py::suggest_interpretations",
     # Ephemeral crop returns a transient region preview and never saves an annotation.
     "fichero-server/src/fichero_server/api/routes/document/annotations.py::crop_ephemeral",
+    # Read-only batch resolver: char spans -> page rects for the search heat
+    # map (#4604); reads the geometry artifact, persists nothing.
+    "fichero-server/src/fichero_server/api/routes/document/artifacts.py::resolve_document_text_regions",
 }
 
 

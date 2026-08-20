@@ -20,7 +20,9 @@ import SwiftUI
 /// into the contract — no local copy).
 @MainActor
 final class CanvasScene3DRenderer: CanvasSceneRenderer {
-    private let log = Logger(subsystem: "app.fichero.fichero", category: "CanvasScene3DRenderer")
+    // Internal, not private: the thumbnail extension file needs it and
+    // Swift's `private` is FILE-scoped (same trade as +Selection).
+    let log = Logger(subsystem: "app.fichero.fichero", category: "CanvasScene3DRenderer")
 
     let root = Entity()
     let placeablesRoot = Entity()
@@ -69,6 +71,10 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     var detailTier: CanvasDetailTier = .thumbnail
     var onIntent: ((CanvasIntent) -> Void)?
     var isDragSuppressed: ((String) -> Bool)?
+    /// The CURRENT library's storage service — the texture cache's fallback
+    /// is the GLOBAL library, which made every other library's 3D canvas
+    /// fail all 1,500 thumbnail loads silently (log audit 2026-08-19).
+    var storageService: StorageService?
 
     /// Closer camera → larger reported zoom, so `CanvasDetailTier` swaps in
     /// thumbnails / full textures as the user flies in (same rule as 2D).
@@ -269,7 +275,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     static let defaultCardSize = CGSize(width: 0.8, height: 0.6)
 
-    private func reskinCard(_ id: String) {
+    func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
         placeablesRoot.findEntity(named: id)?.removeFromParent()
         placeablesRoot.addChild(makeCard(placeable))
@@ -303,34 +309,6 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
             loadThumbnail(sourceId: sourceId, into: entity)
         }
         return entity
-    }
-
-    private func loadThumbnail(sourceId: String, into entity: ModelEntity) {
-        Task { @MainActor in
-            do {
-                let texture = try await SpaceTextureCache.shared.texture(forSourceId: sourceId)
-                // First load: memoize the true aspect and rebuild the card
-                // once (#4193) — makeCard reads the memo, so the rebuilt card
-                // (mesh, collision, selection outline) takes the page's real
-                // shape and later reskins keep it. The rebuild's own reload
-                // is a cache hit that records no change, so this terminates.
-                if CanvasCardGeometry.recordAspect(of: texture, forSourceId: sourceId) {
-                    reskinCard(entity.name)
-                } else {
-                    entity.model?.materials = [UnlitMaterial(texture: texture)]
-                }
-            } catch {
-                log.debug("space thumbnail load failed for \(sourceId, privacy: .public)")
-            }
-        }
-    }
-
-    /// The page-image source id for a source-node placeable, nil otherwise.
-    func sourceId(of placeable: CanvasPlaceable) -> String? {
-        guard case .node(let node) = placeable.content,
-              node.nodeType == .source,
-              let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }
-        return sourceId
     }
 
     private func baseColor(for content: CanvasContent) -> PlatformColor {

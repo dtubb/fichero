@@ -42,7 +42,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 from types import UnionType
-from typing import TYPE_CHECKING, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
+from typing import TYPE_CHECKING, ClassVar, TypeVar, Type, get_origin, get_args, Union, Any, Sequence, cast, Callable, Literal
 
 if TYPE_CHECKING:
     from fichero_server.models import Artifact, Workflow
@@ -380,11 +380,42 @@ def _fold_for_search(text: str) -> str:
     """
     if not text:
         return ""
-    return "".join(
-        c
-        for c in unicodedata.normalize("NFKD", text.casefold())
-        if unicodedata.category(c) != "Mn"
-    )
+    # SCRIPT-AWARE mark handling (Daniel's ruling, #4604 Q9): combining marks
+    # are ACCENTS in Latin/Greek/Cyrillic (and optional pointing in
+    # Arabic/Hebrew) — strip them so keyboard-ASCII queries match. In the
+    # abugidas (Devanagari, the other Indic scripts, Thai/Lao, Tibetan,
+    # Myanmar, Khmer) a combining mark IS a vowel — stripping it collapses
+    # distinct words (कि→क) and mangles Sanskrit search. So a mark survives
+    # exactly when its BASE character belongs to a mark-significant script.
+    out: list[str] = []
+    base_preserves_marks = False
+    for c in unicodedata.normalize("NFKD", text.casefold()):
+        if unicodedata.category(c) == "Mn":
+            if base_preserves_marks:
+                out.append(c)
+            continue
+        base_preserves_marks = _script_preserves_marks(ord(c))
+        out.append(c)
+    return "".join(out)
+
+
+def _script_preserves_marks(codepoint: int) -> bool:
+    """True for scripts whose combining marks carry lexical meaning (vowel
+    signs, not accents) and must survive `_fold_for_search`."""
+    return any(lo <= codepoint <= hi for lo, hi in _MARK_SIGNIFICANT_RANGES)
+
+
+# The abugida blocks: Indic (Devanagari…Sinhala), Thai/Lao, Tibetan,
+# Myanmar, Khmer, and the Devanagari Extended/Vedic blocks Sanskrit uses.
+_MARK_SIGNIFICANT_RANGES: tuple[tuple[int, int], ...] = (
+    (0x0900, 0x0DFF),  # Devanagari … Sinhala
+    (0x0E00, 0x0EFF),  # Thai, Lao
+    (0x0F00, 0x0FFF),  # Tibetan
+    (0x1000, 0x109F),  # Myanmar
+    (0x1780, 0x17FF),  # Khmer
+    (0x1CD0, 0x1CFF),  # Vedic Extensions
+    (0xA8E0, 0xA8FF),  # Devanagari Extended
+)
 
 
 class SearchExecutionError(RuntimeError):
@@ -715,6 +746,11 @@ class Database(DatabaseEmbeddingMixin):
         # Lazily created (and recreated after invalidation) in get_committed.
         self._read_conn = None
         self._read_lock = threading.RLock()
+        # LanceDB writes get their own lock (perf audit 2026-08-19): holding
+        # the DuckDB connection lock across table.add()/optimize() made every
+        # embedding append — and the periodic compaction — block unrelated
+        # DuckDB reads for seconds during imports.
+        self._lance_lock = threading.RLock()
         # Per-table count of LanceDB appends since the last compaction. Drives
         # the bounded auto-compaction trigger in save_vectors (#2542).
         self._vector_append_counts: dict[str, int] = {}
@@ -813,6 +849,14 @@ class Database(DatabaseEmbeddingMixin):
             pass
         self.conn = self._connect()
         self.duck = self.conn
+        # The dedicated READ cursor was minted from the CLOSED connection. A
+        # stale cursor does not always raise — it can silently keep serving
+        # the old connection's snapshot, so committed reads (listings, the
+        # delete cascade's descendant walk) answered from a dead world while
+        # gated reads saw the live one (manifest-drop repro, 2026-08-20).
+        # Drop it; the next committed read mints one from the fresh conn.
+        with self._read_lock:
+            self._read_conn = None
         # Table/index setup may not have run on the fresh connection in this
         # process. Force the next _ensure_table call to reconcile schema and
         # drop unsafe indexes again.
@@ -2228,6 +2272,69 @@ class Database(DatabaseEmbeddingMixin):
         if row is None:
             return None
         return self._hydrate_row(model, columns, row)
+
+    def _read_fetch_with_columns(self, sql: str, params: dict | None = None):
+        """Run a SELECT on the dedicated READ cursor (#4523) — never queues on
+        the transaction gate. Same stale-cursor retry discipline as
+        ``get_committed``."""
+        with self._read_lock:
+            for attempt in (0, 1):
+                try:
+                    if self._read_conn is None:
+                        self._read_conn = self.conn.cursor()
+                    cur = self._read_conn.execute(sql, params or {})
+                    rows = cur.fetchall()
+                    columns = [d[0] for d in cur.description]
+                    return rows, columns
+                except duckdb.Error as exc:
+                    self._read_conn = None
+                    if self._is_invalidated_error(exc):
+                        self._reconnect_after_invalidated()
+                    if attempt == 1:
+                        raise
+
+    def query_committed(self, model: Type[T], **filters) -> list[T]:
+        """``query``, but through the dedicated READ connection (#4523).
+
+        Built for the LISTING hot paths (list_documents, get_children): the
+        gated ``query`` waits on the transaction gate, so a folder listing
+        stalled up to 12s behind an import's embed transactions (measured
+        2026-08-19). Reads last-COMMITTED state — rows written inside a
+        still-open transaction are invisible, which is exactly right for a
+        browse and wrong for read-your-own-write flows (those use ``query``).
+
+        Folded models keep using the gated path — same result, gated latency
+        — rather than half-reimplementing the fold.
+        """
+        if model.__name__ in _FOLDED_GET_MODEL_NAMES:
+            return self.query(model, **filters)
+
+        sql_table = self._sql_table_name(model)
+        for k in filters.keys():
+            if not _VALID_IDENTIFIER.match(k):
+                raise ValueError(f"Invalid column name: {k}")
+
+        query_filters: dict = {}
+        where_clauses: list[str] = []
+        for k, v in filters.items():
+            if v is None:
+                where_clauses.append(f"{k} IS NULL")
+            elif hasattr(v, "value"):
+                query_filters[k] = v.value
+                where_clauses.append(f"{k} = ${k}")
+            else:
+                query_filters[k] = v
+                where_clauses.append(f"{k} = ${k}")
+
+        sql = f"SELECT * FROM {sql_table}"
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+        rows, columns = self._read_fetch_with_columns(sql, query_filters)
+        return [
+            hydrated
+            for row in rows
+            if (hydrated := self._hydrate_row(model, columns, row)) is not None
+        ]
 
     def all(self, model: Type[T]) -> list[T]:
         """Get all objects of a type."""
@@ -3978,7 +4085,7 @@ class Database(DatabaseEmbeddingMixin):
         if not data:
             return
 
-        with self._lock:
+        with self._lance_lock:
             if table_name in self._lance_tables():
                 table = self.lance.open_table(table_name)
                 data = self._coerce_vectors_to_existing_schema(table_name, table, data)
@@ -4059,7 +4166,7 @@ class Database(DatabaseEmbeddingMixin):
         intact either way (optimize is atomic per table).
         """
         results: dict[str, bool] = {}
-        with self._lock:
+        with self._lance_lock:
             available = set(self._lance_tables())
             targets = (
                 [table_name] if table_name is not None else sorted(available)
@@ -4097,7 +4204,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _delete_embedding_rows(self, field: str, value: str) -> None:
         """Delete embedding rows by a trusted field/value pair."""
-        with self._lock:
+        with self._lance_lock:
             if EMBEDDINGS_TABLE not in self._lance_tables():
                 return
             safe_value = value.replace("'", "''") if value else ""
@@ -4154,7 +4261,7 @@ class Database(DatabaseEmbeddingMixin):
             **self._vector_model_metadata(),
         }
 
-        with self._lock:
+        with self._lance_lock:
             self._delete_embedding_rows("document_id", doc.id)
             self.save_vectors(EMBEDDINGS_TABLE, [record], replace=True)
 
@@ -4163,7 +4270,7 @@ class Database(DatabaseEmbeddingMixin):
         records = self.passage_embedding_records(doc, text=text)
         if not records:
             return 0
-        with self._lock:
+        with self._lance_lock:
             self._delete_embedding_rows("document_id", doc.id)
             self.save_vectors(EMBEDDINGS_TABLE, records)
         return len(records)
@@ -4331,6 +4438,14 @@ class Database(DatabaseEmbeddingMixin):
         Returns:
             True if embedding was created
         """
+        # #4580: an excluded document must not spend an embed or leave a
+        # vector that a later query-time filter has to hide.
+        if getattr(doc, "exclude_from_search", False):
+            self.last_embed_outcome = EmbedOutcome(
+                embedded=False, reason="excluded_from_search", document_id=doc.id
+            )
+            return False
+
         # Marker-only content guard: when transcribe runs against a blank
         # or unreadable page it sets page_content to '[sin texto]' (or
         # '[ilegible]'). Embedding that literal string makes every
@@ -4408,8 +4523,85 @@ class Database(DatabaseEmbeddingMixin):
 
         return any(self.has_embedding(page.id) for page in pages)
 
+    def _kg_evidence_results(
+        self, query: str, matched_entity_ids: list[str], limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Third RRF leg (#1833 M1): documents RANKED by knowledge-graph
+        evidence, fused into the hybrid merge instead of stapled on after.
+
+        Evidence, strongest first:
+        * claims that cite a query-matched entity, ranked by semantic
+          similarity of the CLAIM TEXT to the query (the stored
+          kg_claim_embeddings finally influence document ranking) — each
+          contributes its source document with weight by claim rank;
+        * the matched entities' own source documents, weighted by how many
+          matched entities cite each doc.
+
+        Display fields come from the Document row so a KG-only hit — a page
+        that mentions Andagoya only through its entity link — still renders.
+        [] on no matched entities; failures degrade loudly to [] (search
+        must not fail because the KG leg did).
+        """
+        if not matched_entity_ids:
+            return []
+        try:
+            from collections import Counter
+
+            from fichero_server.models import Document
+            from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
+
+            weights: Counter[str] = Counter()
+            for entity_id in matched_entity_ids:
+                entity = self.get(KnowledgeEntity, entity_id)
+                for doc_id in (entity.source_document_ids or []) if entity else []:
+                    weights[doc_id] += 1
+
+            claims = [
+                claim
+                for claim in self.query_json_list_intersects(
+                    KnowledgeClaim, "entity_ids", matched_entity_ids
+                )
+                if set(matched_entity_ids).intersection(claim.entity_ids or [])
+            ]
+            claim_by_id = {c.id: c for c in claims}
+            ranked_claim_ids = self.rank_claim_ids_by_query(
+                query, set(claim_by_id), limit
+            )
+            for rank, claim_id in enumerate(ranked_claim_ids):
+                doc_id = claim_by_id[claim_id].source_document_id
+                if doc_id:
+                    weights[doc_id] += max(1, limit - rank)
+
+            leg: list[dict[str, Any]] = []
+            for doc_id, _weight in weights.most_common(limit):
+                doc = self.get(Document, doc_id)
+                if doc is None:
+                    continue
+                leg.append(
+                    {
+                        "document_id": doc_id,
+                        "score": 0.0,
+                        "content": (doc.page_content or "")[:500],
+                        "metadata": {
+                            "name": doc.name,
+                            "doc_type": doc.doc_type.value
+                            if hasattr(doc.doc_type, "value") else doc.doc_type,
+                            "file_type": doc.file_type.value
+                            if getattr(doc, "file_type", None) is not None
+                            and hasattr(doc.file_type, "value") else None,
+                        },
+                    }
+                )
+            return leg
+        except Exception as exc:  # noqa: BLE001 — degrade, loudly
+            logger.warning("KG evidence leg failed; ranking without it: %s", exc)
+            return []
+
     def _is_active_document_id(self, document_id: str | None) -> bool:
-        """True when the document exists and is not soft-deleted."""
+        """True when the document may appear in search results: it exists,
+        is not soft-deleted, and is not excluded from search (#4580 — the
+        one gate every semantic/fulltext/hybrid leg passes through, so the
+        exclusion flag cannot miss a path)."""
         if not document_id:
             return False
         try:
@@ -4421,7 +4613,11 @@ class Database(DatabaseEmbeddingMixin):
                 "Active-document lookup failed for %s: %s", document_id, exc
             )
             return False
-        return bool(doc and getattr(doc, "deleted_at", None) is None)
+        return bool(
+            doc
+            and getattr(doc, "deleted_at", None) is None
+            and not getattr(doc, "exclude_from_search", False)
+        )
 
     def enrich_search_results_with_kg(
         self, results: list[SearchResult], query: str
@@ -4954,11 +5150,18 @@ class Database(DatabaseEmbeddingMixin):
 
                 _rrf_add(semantic_results, "semantic")
                 _rrf_add(fulltext_results, "fulltext")
+                # KG evidence as a REAL fusion leg (#1833 M1): claims and
+                # entity links rank documents alongside text similarity,
+                # instead of the post-hoc +0.1 staple (skipped below for
+                # hybrid so the same evidence never counts twice).
+                kg_results = self._kg_evidence_results(query, matched_entity_ids)
+                _rrf_add(kg_results, "kg")
 
-                # Project the RRF score into [0, 1] for UI display:
-                # the theoretical max with both lists ranking the doc #1
-                # is 2/(k+1); divide by that for a normalised [0, 1].
-                rrf_max = 2.0 / (rrf_k + 1)
+                # Project the RRF score into [0, 1] for UI display: the
+                # theoretical max with every contributing list ranking the
+                # doc #1 is legs/(k+1); divide by that for a normalised [0, 1].
+                legs = 2 + (1 if kg_results else 0)
+                rrf_max = float(legs) / (rrf_k + 1)
                 for item in merged.values():
                     item["score"] = min(1.0, item["_rrf"] / rrf_max)
                     item.pop("_rrf", None)
@@ -4976,9 +5179,22 @@ class Database(DatabaseEmbeddingMixin):
                 # already removed scores below min_score in cosine space;
                 # this second pass catches docs that scraped past that floor
                 # but then ranked near the bottom of the fusion list.
+                #
+                # FULLTEXT and KG hits are EXEMPT (#4236 / SEARCH_PLAN M2 +
+                # #1833 M1): a doc the keyword leg matched projects to
+                # ~0.5 + 0.1×BM25norm, and a KG-evidence-only doc to ~1/legs,
+                # so with the app's default min_score=0.55 both classes were
+                # dropped before the user saw them — a confident, wrong,
+                # EMPTY answer for rare terms ('jemseg') and entity-linked
+                # pages. A keyword match and a curated entity/claim link are
+                # EVIDENCE, not fuzzy neighbours; the floor exists to cut
+                # semantic-only noise.
                 if min_score > 0:
+                    evidence_sources = {"fulltext", "kg"}
                     combined_results = [
-                        r for r in merged.values() if r["score"] >= min_score
+                        r for r in merged.values()
+                        if evidence_sources.intersection(r.get("match_sources", []))
+                        or r["score"] >= min_score
                     ]
                 else:
                     combined_results = list(merged.values())
@@ -4987,13 +5203,15 @@ class Database(DatabaseEmbeddingMixin):
             elif search_type == "fulltext":
                 combined_results = fulltext_results
 
-            # Entity-aware rank bonus: when query aliases resolve to a
-            # canonical entity, nudge docs linked to that entity upward.
-            boosted_doc_ids = self._entity_bonus_doc_ids(matched_entity_ids)
-            if boosted_doc_ids:
-                for item in combined_results:
-                    if item["document_id"] in boosted_doc_ids:
-                        item["score"] = min(1.0, item["score"] + 0.1)
+            # Entity-aware rank bonus for the SINGLE-leg search types only:
+            # hybrid now fuses KG evidence as its own RRF leg above, and the
+            # same evidence must not count twice (#1833 M1).
+            if search_type != "hybrid":
+                boosted_doc_ids = self._entity_bonus_doc_ids(matched_entity_ids)
+                if boosted_doc_ids:
+                    for item in combined_results:
+                        if item["document_id"] in boosted_doc_ids:
+                            item["score"] = min(1.0, item["score"] + 0.1)
 
             # Apply filters
             if filters:
@@ -5326,56 +5544,79 @@ class Database(DatabaseEmbeddingMixin):
     # Helpers
     # =========================================================================
 
+    #: Per-model hydration plans (perf audit 2026-08-19): the typing
+    #: introspection below ran per FIELD per ROW — ~48 `get_origin`/`get_args`
+    #: walks per row, 152k calls per 2,000-row listing, two-thirds of the
+    #: hydrate time. The annotations are static per model class, so the plan
+    #: is computed once and shared across every Database instance.
+    _FIELD_PLAN_CACHE: ClassVar[dict[type, dict[str, tuple]]] = {}
+
+    @classmethod
+    def _field_plan(cls, model: Type[BaseModel]) -> dict[str, tuple]:
+        """(kind, unwrapped annotation, on-NULL default) per field.
+
+        kind ∈ {"container", "tuple", "model", "plain"}; the on-NULL default is
+        ("factory", f) | ("scalar", v) | None, applied only to non-Optional
+        fields — the same rules the inline branches used to re-derive per row.
+        """
+        plan = cls._FIELD_PLAN_CACHE.get(model)
+        if plan is not None:
+            return plan
+        plan = {}
+        for name, field_info in model.model_fields.items():
+            annotation = field_info.annotation
+            raw_origin = get_origin(annotation)
+            is_optional = raw_origin is Union or raw_origin is UnionType
+            if is_optional:
+                for arg in get_args(annotation):
+                    if arg is not type(None):
+                        annotation = arg
+                        break
+            inner_origin = get_origin(annotation)
+
+            if (annotation is dict or inner_origin is dict
+                    or annotation is list or inner_origin is list):
+                kind = "container"
+            elif annotation is tuple or inner_origin is tuple:
+                kind = "tuple"
+            elif isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                kind = "model"
+            else:
+                kind = "plain"
+
+            none_default = None
+            if not is_optional:
+                if kind == "container":
+                    default_factory = getattr(field_info, "default_factory", None)
+                    if callable(default_factory):
+                        none_default = ("factory", default_factory)
+                if none_default is None and not isinstance(
+                    field_info.default, PydanticUndefinedType
+                ):
+                    none_default = ("scalar", field_info.default)
+
+            plan[name] = (kind, annotation, none_default)
+        cls._FIELD_PLAN_CACHE[model] = plan
+        return plan
+
     def _parse_json_fields(self, model: Type[BaseModel], data: dict) -> dict:
         """Parse JSON string fields back to Python dicts/lists/tuples."""
         result = {}
-        for name, field_info in model.model_fields.items():
+        for name, (kind, annotation, none_default) in self._field_plan(model).items():
             value = data.get(name)
             if value is None:
-                # For non-Optional fields, substitute the field's default when the
-                # DB returns NULL (common after schema migration adds a new column).
-                annotation = field_info.annotation
-                raw_origin = get_origin(annotation)
-                is_optional = raw_origin is Union or raw_origin is UnionType
-                if not is_optional:
-                    inner = annotation
-                    inner_origin = get_origin(inner)
-                    if inner is dict or inner_origin is dict or inner is list or inner_origin is list:
-                        default_factory = getattr(field_info, "default_factory", None)
-                        if callable(default_factory):
-                            result[name] = default_factory()
-                            continue
-                    # Scalar default (e.g. enum fields added after initial schema).
-                    scalar_default = field_info.default
-                    if not isinstance(scalar_default, PydanticUndefinedType):
-                        result[name] = scalar_default
-                        continue
-                result[name] = value
+                # For non-Optional fields, substitute the field's default when
+                # the DB returns NULL (common after a schema migration adds a
+                # new column).
+                if none_default is not None:
+                    mode, payload = none_default
+                    result[name] = payload() if mode == "factory" else payload
+                else:
+                    result[name] = value
                 continue
 
-            # Check if field expects dict, list, or tuple
-            annotation = field_info.annotation
-            origin = get_origin(annotation)
-
-            # Handle Optional types (Union or | syntax)
-            if origin is Union or origin is UnionType:
-                args = get_args(annotation)
-                for arg in args:
-                    if arg is not type(None):
-                        annotation = arg
-                        origin = get_origin(annotation)
-                        break
-
-            # Re-check origin after unwrapping Optional
-            inner_origin = get_origin(annotation)
-
             # If field expects dict/list and we got a string, parse it
-            if (
-                annotation is dict
-                or inner_origin is dict
-                or annotation is list
-                or inner_origin is list
-            ):
+            if kind == "container":
                 if isinstance(value, str):
                     try:
                         result[name] = json.loads(value)
@@ -5384,7 +5625,7 @@ class Database(DatabaseEmbeddingMixin):
                 else:
                     result[name] = value
             # If field expects tuple, parse JSON and convert to tuple
-            elif annotation is tuple or inner_origin is tuple:
+            elif kind == "tuple":
                 if isinstance(value, str):
                     try:
                         parsed = json.loads(value)
@@ -5405,7 +5646,7 @@ class Database(DatabaseEmbeddingMixin):
             # on load. Save side already JSON-encodes BaseModel via the
             # `_json_safe` recursion in `Database.save`; this is the
             # symmetric read-side handling.
-            elif isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            elif kind == "model":
                 if isinstance(value, str):
                     try:
                         parsed = json.loads(value)

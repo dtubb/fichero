@@ -41,6 +41,10 @@ struct CanvasSceneView: View {
     /// Move a dragged node into a container (→ audited `document.move`), wired by
     /// LibraryView which owns the document store. `(nodeId, containerNodeId)`.
     var moveIntoContainer: (String, String) -> Void = { _, _ in }
+    /// The CURRENT library's storage service for thumbnail textures — without
+    /// it the cache falls back to the GLOBAL library and every other library's
+    /// canvas renders colored placeholders (user, live 2026-08-19).
+    var storageService: StorageService?
 
     // These three are internal, not private, for the same reason as the resize
     // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
@@ -50,9 +54,11 @@ struct CanvasSceneView: View {
     @State var renderer = CanvasOrtho2DRenderer()
     @State var controller: CanvasInteractionController?
 
-    // Camera-pan bookkeeping.
-    @State private var panBaseline: CGSize = .zero
-    @State private var zoomBaseline: Float = 0
+    // Camera-pan bookkeeping. Internal, not private: the camera-input
+    // extension lives in `CanvasSceneView+Camera.swift` and Swift's
+    // `private` is FILE-scoped (same trade as the resize state below).
+    @State var panBaseline: CGSize = .zero
+    @State var zoomBaseline: Float = 0
 
     // Node-drag state.
     @State private var draggingNodeId: String?
@@ -160,8 +166,13 @@ struct CanvasSceneView: View {
             #endif
             .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }   // background → clear
             .overlay { marqueeOverlay }
-            .focusable()
-            .focusEffectDisabled()
+            // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
+            // grammar (user, 2026-08-19).
+            .modifier(CanvasKeyboardNav(
+                nodeIds: nodes.map(\.id),
+                selectedNodeIds: $selectedNodeIds,
+                pan: { scrollPanCamera(by: $0, in: geo.size) }
+            ))
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
             .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }
             .task(id: folderScopeId) {
@@ -179,9 +190,11 @@ struct CanvasSceneView: View {
     @ViewBuilder
     private var marqueeOverlay: some View {
         if let rect = marqueeRect {
+            // SAME style as the icon grid's LibraryMarquee (#4601): the
+            // full-opacity stroke read darker than every other marquee.
             Rectangle()
-                .fill(Color.accentColor.opacity(0.12))
-                .overlay(Rectangle().stroke(Color.accentColor, lineWidth: 1))
+                .fill(Color.accentColor.opacity(0.15))
+                .overlay(Rectangle().stroke(Color.accentColor.opacity(0.6), lineWidth: 1))
                 .frame(width: rect.width, height: rect.height)
                 .position(x: rect.midX, y: rect.midY)
                 .allowsHitTesting(false)
@@ -200,6 +213,7 @@ struct CanvasSceneView: View {
         )
         renderer.onIntent = { controller.dispatch($0) }
         renderer.isDragSuppressed = { controller.isDragging($0) }
+        renderer.storageService = storageService
         controller.onMoveInto = { moveIntoContainer($0, $1) }
         self.controller = controller
     }
@@ -334,65 +348,5 @@ struct CanvasSceneView: View {
                 marqueeRect = nil
                 panBaseline = .zero
             }
-    }
-
-    /// Pan from a scroll delta (#4408).
-    ///
-    /// Scroll deltas are already per-event, so unlike a drag translation there
-    /// is no baseline to subtract — but the conversion to world units is the
-    /// SAME `cameraPanDelta` the drag uses, so both inputs stay calibrated
-    /// together and tuning one tunes both.
-    private func scrollPanCamera(by delta: CGSize, in size: CGSize) {
-        renderer.panCamera(
-            worldDelta: Canvas2DProjection.cameraPanDelta(
-                screenTranslation: delta,
-                orthoScale: renderer.orthoScale,
-                viewHeight: size.height
-            )
-        )
-    }
-
-    /// Advance the camera by the delta since the last pan event — `translation`
-    /// is cumulative, so the baseline turns it into a per-event step.
-    private func panCamera(by translation: CGSize, in size: CGSize) {
-        let delta = CGSize(
-            width: translation.width - panBaseline.width,
-            height: translation.height - panBaseline.height
-        )
-        panBaseline = translation
-        // ponytail: shares Canvas2DProjection.worldPerPoint with drag +
-        // marquee — the ONE calibration knob to tune against the built app.
-        renderer.panCamera(
-            worldDelta: Canvas2DProjection.cameraPanDelta(
-                screenTranslation: delta,
-                orthoScale: renderer.orthoScale,
-                viewHeight: size.height
-            )
-        )
-    }
-
-    /// Visible affordance for pan mode: an open hand while Space is held, so the
-    /// modifier is discoverable rather than folklore (#4290). Mirrors the divider
-    /// cursor idiom in `ContentViewHelperViews`.
-    private func applyPanCursor(_ held: Bool) {
-        #if canImport(AppKit)
-        if held {
-            NSCursor.openHand.set()
-        } else {
-            NSCursor.arrow.set()
-        }
-        #endif
-    }
-
-    /// Pinch zooms the ortho camera: magnify > 1 → zoom IN → smaller ortho scale.
-    private var zoom: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                if zoomBaseline == 0 { zoomBaseline = renderer.orthoScale }
-                renderer.setOrthoScale(
-                    Canvas2DProjection.orthoScale(zoomBaseline: zoomBaseline, magnification: value)
-                )
-            }
-            .onEnded { _ in zoomBaseline = 0 }
     }
 }

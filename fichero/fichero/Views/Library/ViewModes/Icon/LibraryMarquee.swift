@@ -45,6 +45,12 @@ final class MarqueeModel {
     var rect: CGRect?
     @ObservationIgnored var lastHits: Set<String> = []
     @ObservationIgnored var baseSelection: Set<String>?
+    /// Per-tile frames for hit-testing. In the BOX, not LibraryView @State
+    /// (log audit 2026-08-19: the preference fired per scroll frame — frames
+    /// are named-space relative to the outer container — and each write
+    /// re-rendered the whole grid). Only gesture handlers read this; nothing
+    /// renders from it, so it's observation-ignored.
+    @ObservationIgnored var tileFrames: [String: CGRect] = [:]
 }
 
 /// The overlay host — the ONLY reader of the model's rect.

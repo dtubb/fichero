@@ -34,6 +34,8 @@ struct CanvasSpaceView: View {
         selectedNodeIds.count == 1 ? selectedNodeIds.first : nil
     }
     var layoutStore: CanvasLayoutStore?
+    /// The CURRENT library's storage service for thumbnail textures (#4160).
+    var storageService: StorageService?
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
     /// Container spatial node ids (folder / workspace) from LibraryView — drives
@@ -56,7 +58,7 @@ struct CanvasSpaceView: View {
 
     /// Upper bound on entities placed at once (#1400 WindowServer watchdog): a
     /// large scope renders a bounded prefix + a banner, never a runaway scene.
-    private static let maxRenderedPlaceables = 250
+    private static let maxRenderedPlaceables = 1500
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 
@@ -73,7 +75,16 @@ struct CanvasSpaceView: View {
             connections: connections,
             links: links,
             layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
-            items: itemStore?.items(for: scopeKey) ?? []
+            items: itemStore?.items(for: scopeKey) ?? [],
+            // Daniel's ruling (2026-08-19, #4601): a folder with no saved
+            // layout opens as a PAGE-ORDER grid, left to right, in BOTH
+            // canvases — the phyllotaxis default made 3D open scattered and
+            // different from 2D. Columns follow the ceil(sqrt(n)) convention
+            // the Arrange-in-Grid button and the backend `grid` strategy
+            // already use; saved rows still win over the default.
+            defaultPlacement: .grid(
+                columns: max(1, Int(Double(nodes.count + renderableItems.count).squareRoot().rounded(.up)))
+            )
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
@@ -116,6 +127,23 @@ struct CanvasSpaceView: View {
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
             .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }
+            // Two-finger scroll pans the camera (user, 2026-08-19: "right now
+            // you have to use Space") — same input bridge as the 2D canvas.
+            #if canImport(AppKit)
+            .overlay {
+                CanvasScrollPanView { delta in
+                    renderer.pan(byScreenDelta: delta)
+                }
+                .allowsHitTesting(false)
+            }
+            #endif
+            // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
+            // grammar (user, 2026-08-19).
+            .modifier(CanvasKeyboardNav(
+                nodeIds: nodes.map(\.id),
+                selectedNodeIds: $selectedNodeIds,
+                pan: { renderer.pan(byScreenDelta: $0) }
+            ))
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
@@ -213,6 +241,7 @@ struct CanvasSpaceView: View {
         )
         renderer.onIntent = { controller.dispatch($0) }
         renderer.isDragSuppressed = { controller.isDragging($0) }
+        renderer.storageService = storageService
         controller.onMoveInto = { moveIntoContainer($0, $1) }
         self.controller = controller
     }

@@ -31,6 +31,9 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     var lastActiveTab: String?
     var suppressActivePageSyncUntil = Date.distantPast
     var cachedBootstrapScript: String?
+    /// The last bootstrap script actually evaluated in the page — the dedupe
+    /// behind injectContext (perf audit 2026-08-19). Reset on navigation.
+    var lastInjectedBootstrapScript: String?
     var cachedBootstrapLibraryPath: String?
     /// In-reader find sync (#4338) — shared query/index dedupe.
     let findSync = WebPaneFindSync()
@@ -76,7 +79,15 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     }
 
     func injectContext(into webView: WKWebView) {
-        webView.evaluateJavaScript(bootstrapScript())
+        // Dedupe (perf audit 2026-08-19): updateNSView runs on EVERY SwiftUI
+        // pass — an unrelated document.updated anywhere in the library used
+        // to fire a cross-process WebKit evaluateJavaScript here each time.
+        // The script only changes when the library path (→ token/context)
+        // changes, so inject only then.
+        let script = bootstrapScript()
+        guard !script.isEmpty, script != lastInjectedBootstrapScript else { return }
+        lastInjectedBootstrapScript = script
+        webView.evaluateJavaScript(script)
     }
 
     func bootstrapScript(forceRefresh: Bool = false) -> String {
@@ -216,6 +227,8 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // Fresh DOM: the dedupe must not skip the first injection.
+        lastInjectedBootstrapScript = nil
         injectContext(into: webView)
         webView.evaluateJavaScript(DocumentKGPaneRoute.themeInjectionScript())
         webView.evaluateJavaScript(DocumentKGPaneRoute.scrollSyncScript(pageCount: parent?.pageCount))

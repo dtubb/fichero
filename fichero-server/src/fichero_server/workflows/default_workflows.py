@@ -297,7 +297,21 @@ def heal_default_workflow_tree(db: "Database") -> int:
         mirror = db.get(Document, workflow.id)
         parent_id = getattr(mirror, "parent_id", None) if mirror is not None else None
         if parent_id is not None and parent_id.startswith(_DEFAULT_WORKFLOWS_CONTAINER_ID):
-            continue  # already homed
+            # Already homed — but a legacy row homed by an earlier heal can
+            # still carry is_system=False, and #4450's cross-library merge
+            # filters on that flag: every NON-global library then offers ZERO
+            # default workflows (the user, live 2026-08-19). Restore the flag
+            # before skipping.
+            if not getattr(workflow, "is_system", False):
+                try:
+                    workflow.is_system = True
+                    db.save(workflow)
+                    healed += 1
+                except Exception as exc:
+                    logger.warning(
+                        f"Could not restore is_system on preset '{workflow.name}': {exc}"
+                    )
+            continue
         try:
             workflow.is_system = True
             db.save(workflow)

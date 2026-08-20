@@ -133,7 +133,7 @@ def prepare_pdfium(logger=None) -> None:
             logger.warning("pdfium preparation failed (PDF text extraction may degrade): %s", exc)
 
 
-import sys
+import sys  # noqa: E402 — deliberate: runs after prepare_pdfium is defined
 
 if sys.platform == "darwin":
     prepare_pdfium()
@@ -172,7 +172,6 @@ def kreuzberg_pdf_usable(logger=None) -> bool:
     if _KREUZBERG_PDF_USABLE is not None:
         return _KREUZBERG_PDF_USABLE
     import subprocess
-    import sys
     import tempfile
 
     try:

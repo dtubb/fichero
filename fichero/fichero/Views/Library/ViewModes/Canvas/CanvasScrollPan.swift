@@ -38,11 +38,37 @@ struct CanvasScrollPanView: NSViewRepresentable {
 
 final class CanvasScrollCaptureView: NSView {
     var onScroll: ((CGSize) -> Void)?
+    private var monitor: Any?
 
     /// Transparent to every other input: this view exists only to receive
     /// scroll, so clicks, drags and taps must continue to the SwiftUI content
     /// underneath. Without this, wiring pan would break selection and node drag.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    /// A view that opts out of hit-testing never receives `scrollWheel(with:)`
+    /// either — AppKit routes scroll to the HIT view's responder chain, so the
+    /// original override was dead code and two-finger pan never worked (the
+    /// user, live 2026-08-19: "you have to use Space"). A LOCAL monitor sees
+    /// the event stream before dispatch; we act on scrolls inside our bounds
+    /// and pass every event through untouched.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+        guard window != nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self, let window = self.window, event.window === window else { return event }
+            let inView = self.convert(event.locationInWindow, from: nil)
+            if self.bounds.contains(inView) {
+                self.scrollWheel(with: event)
+                return nil  // consumed — the canvas owns this scroll
+            }
+            return event
+        }
+    }
+
+    // No deinit teardown: `monitor` is non-Sendable, so a nonisolated deinit
+    // can't touch it. `viewDidMoveToWindow` fires with a nil window on
+    // removal and tears the monitor down there instead.
 
     override func scrollWheel(with event: NSEvent) {
         // Momentum and inertial phases are deliberately NOT filtered out.

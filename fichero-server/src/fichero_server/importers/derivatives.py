@@ -103,14 +103,81 @@ def queue_derivatives(
 
     def submit() -> None:
         executor = _get_executor()
+        _progress_add(library, len(queued))
+        # Thumbnails FIRST, embeds after (user, live 2026-08-19): on one shared
+        # FIFO pool, interleaving them made every later page's thumbnail wait
+        # behind ~1.3s embeds of earlier pages. Submitting the whole thumbnail
+        # wave ahead of the embed wave gets images on screen while the text
+        # embeds catch up behind them.
         for doc_id in queued:
-            futures.append(executor.submit(generate_derivative, doc_id, library))
+            futures.append(executor.submit(_thumbnail_stage, doc_id, library))
+        for doc_id in queued:
+            futures.append(executor.submit(_embed_stage, doc_id, library))
 
     if db is not None:
         db.add_after_commit_hook(submit)
     else:
         submit()
     return futures
+
+
+# ---------------------------------------------------------------------------
+# Queue progress → backend.work.* events (user, live 2026-08-19): the status
+# island said "Ready" while hundreds of pages were still embedding. One
+# logical task per library tracks the queue; the app's ActivityStore already
+# understands these frames (same shape task_workers emits).
+# ---------------------------------------------------------------------------
+_progress_lock = threading.Lock()
+_progress: dict[str, dict[str, int]] = {}
+
+
+def _emit_queue_progress(library: str, done: int, total: int) -> None:
+    from fichero_server.api.change_stream import emit_change
+
+    finished = done >= total
+    percent = 100.0 if finished else (done * 100.0 / total if total else 0.0)
+    try:
+        emit_change(
+            library,
+            type="backend.work.completed" if finished else "backend.work.progress",
+            run_id=f"derivatives:{library}",
+            actor="system",
+            metadata={
+                "task_type": "derivatives",
+                "task_name": "Processing imported pages",
+                "status": "completed" if finished else "running",
+                "message": f"{done} of {total} pages embedded",
+                "current": str(done),
+                "total": str(total),
+                "percent": f"{percent:.1f}",
+            },
+        )
+    except Exception:  # never fail the stage over a status frame
+        logger.warning("derivatives: progress emit failed", exc_info=True)
+
+
+def _progress_add(library: str, count: int) -> None:
+    with _progress_lock:
+        state = _progress.setdefault(library, {"done": 0, "total": 0})
+        state["total"] += count
+        done, total = state["done"], state["total"]
+    _emit_queue_progress(library, done, total)
+
+
+def _progress_tick(library: str) -> None:
+    with _progress_lock:
+        state = _progress.get(library)
+        if state is None:
+            return
+        state["done"] += 1
+        done, total = state["done"], state["total"]
+        finished = done >= total
+        if finished:
+            del _progress[library]
+    # Every 5th completion plus the final one — enough for a live percent
+    # without an event per page on top of each page's document.updated.
+    if finished or done % 5 == 0:
+        _emit_queue_progress(library, done, total)
 
 
 def _embed_document_tree(doc: Document, db: "Database") -> str | None:
@@ -159,29 +226,36 @@ def _embed_document_tree(doc: Document, db: "Database") -> str | None:
     return None
 
 
-def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
-    """Generate one document's thumbnail and record the outcome.
-
-    Runs on a worker thread with its own database handle — the request-scoped
-    one belongs to a connection whose lifetime this outlives (#1216).
-    """
-    from fichero_server.api.change_stream import emit_change
+def _open_stage_db(library: str, doc_id: str) -> "tuple[Database, Document] | None":
+    """Worker-thread database handle + the queued document, or None (logged)."""
     from fichero_server.db.manager import db_manager
-    from fichero_server.db.storage import ensure_thumbnail
 
-    library = str(library_path)
     try:
         db: "Database" = db_manager.get_database(library)
     except Exception as exc:
         logger.error("Derivative stage could not open %s: %s", library, exc)
         return None
-
     doc = db.get(Document, doc_id)
     if doc is None:
         # Loud: a queued id that no longer resolves means the row vanished
         # between ingest and this stage, which is worth seeing.
         logger.warning("Derivative stage: document %s no longer exists", doc_id)
         return None
+    return db, doc
+
+
+def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
+    """Generate one document's thumbnail and announce it IMMEDIATELY — the
+    change event used to wait behind that document's ~1.3s embed, so the grid
+    learned about a finished image over a second late (user, live 2026-08-19).
+    """
+    from fichero_server.api.change_stream import emit_change
+    from fichero_server.db.storage import ensure_thumbnail
+
+    opened = _open_stage_db(library, doc_id)
+    if opened is None:
+        return None
+    db, doc = opened
 
     thumb: Path | None = None
     error: str | None = None
@@ -196,36 +270,100 @@ def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
                 "Derivative generation failed for %s: %s", doc_id, error
             )
 
-    embed_error = _embed_document_tree(doc, db)
+    # RE-READ before writing (same guard as the embed stage): never save a
+    # stage-start copy over a row deleted while the thumbnail rendered.
+    doc = db.get(Document, doc_id)
+    if doc is None or getattr(doc, "deleted_at", None) is not None:
+        return thumb
 
     metadata = dict(doc.metadata or {})
-    if embed_error:
-        metadata["embedding_error"] = embed_error
-    else:
-        metadata.pop("embedding_error", None)
     if error:
         metadata["derivative_error"] = error
     else:
         metadata.pop("derivative_error", None)
-        if doc.status == Status.pending:
+    # Save ONLY on a real change: this stage can run concurrently with the
+    # same document's embed stage (two pool workers), and an unconditional
+    # save here overwrote the embed stage's pending → completed flip with
+    # this stage's stale copy.
+    if metadata != (doc.metadata or {}):
+        doc.metadata = metadata
+        try:
+            db.save(doc)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Could not persist thumbnail outcome for %s: %s", doc_id, exc)
+            return thumb
+
+    if thumb is not None:
+        emit_change(
+            library,
+            type="document.updated",
+            document_ids=[doc_id],
+            actor="derivatives",
+        )
+    return thumb
+
+
+def _embed_stage(doc_id: str, library: str) -> None:
+    """Embed one document's text tree, flip pending → completed (#4225), and
+    tick the queue-progress counter that feeds the status island."""
+    from fichero_server.api.change_stream import emit_change
+
+    try:
+        opened = _open_stage_db(library, doc_id)
+        if opened is None:
+            return
+        db, doc = opened
+
+        embed_error = _embed_document_tree(doc, db)
+
+        # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
+        # takes seconds, and saving the copy read at stage START resurrected
+        # rows deleted in between — the stale save clobbered deleted_at. A
+        # row deleted mid-stage needs no status flip at all.
+        doc = db.get(Document, doc_id)
+        if doc is None or getattr(doc, "deleted_at", None) is not None:
+            return
+
+        metadata = dict(doc.metadata or {})
+        if embed_error:
+            metadata["embedding_error"] = embed_error
+        else:
+            metadata.pop("embedding_error", None)
+        if "derivative_error" not in metadata and doc.status == Status.pending:
             # The status model, pinned (#4225): ingest records a row as
             # `pending` and the derivative stage is what clears it. A document
             # that already moved on (failed, completed) is left alone.
             doc.status = Status.completed
-    doc.metadata = metadata
+        doc.metadata = metadata
 
-    try:
-        db.save(doc)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.error("Could not persist derivative outcome for %s: %s", doc_id, exc)
-        return thumb
+        try:
+            db.save(doc)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error(
+                "Could not persist derivative outcome for %s: %s", doc_id, exc
+            )
+            return
 
-    emit_change(
-        library,
-        type="document.updated",
-        document_ids=[doc_id],
-        actor="derivatives",
-    )
+        emit_change(
+            library,
+            type="document.updated",
+            document_ids=[doc_id],
+            actor="derivatives",
+        )
+    finally:
+        _progress_tick(library)
+
+
+def generate_derivative(doc_id: str, library_path: str | Path) -> Path | None:
+    """Both stages, synchronously — thumbnail then embed.
+
+    Kept as the one-call form for direct callers and tests; the queued path
+    submits the stages separately so a batch's thumbnails all land before its
+    embeds start.
+    """
+    library = str(library_path)
+    thumb = _thumbnail_stage(doc_id, library)
+    _embed_stage(doc_id, library)
     return thumb
 
 

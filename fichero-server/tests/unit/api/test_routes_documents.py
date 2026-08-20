@@ -618,22 +618,18 @@ class TestFoldedChildren:
         ids = [d["id"] for d in r.json()["items"]]
         assert child.id in ids
 
-    def test_excludes_children_that_no_longer_resolve(self, client, db, monkeypatch):
-        from fichero_server.db import Database
+    def test_excludes_children_that_no_longer_resolve(self, client, db):
+        # The resolvability check is IN-MEMORY now (perf 2026-08-19): the
+        # listing reads one committed snapshot, so "no longer resolves"
+        # means the row itself is soft-deleted — not a second fetch
+        # disagreeing with the first.
+        from datetime import datetime, timezone
 
         parent = _make_doc(db, "Parent")
         good_child = _make_doc(db, "Good Child", parent_id=parent.id)
         stale_child = _make_doc(db, "Stale Child", parent_id=parent.id)
-
-        real_query_in = Database.query_in
-
-        def flaky_query_in(self, model, column, values):
-            rows = real_query_in(self, model, column, values)
-            if model is Document and column == "id":
-                return [row for row in rows if row.id != stale_child.id]
-            return rows
-
-        monkeypatch.setattr(Database, "query_in", flaky_query_in)
+        stale_child.deleted_at = datetime.now(timezone.utc)
+        db.save(stale_child)
 
         r = client.get(f"/api/documents/{parent.id}/children")
 
@@ -678,9 +674,10 @@ class TestFoldedChildren:
             "Third",
         ]
         assert child_gets == []
-        assert len(query_in_calls) == 1
-        assert query_in_calls[0][0] == "id"
-        assert set(query_in_calls[0][1]) == child_ids
+        # ZERO re-fetches (perf 2026-08-19): the resolvability check runs on
+        # the rows already in memory — a regression to per-child (or even
+        # one batched) re-read shows up here.
+        assert query_in_calls == []
 
 
 # ---------------------------------------------------------------------------
@@ -1202,6 +1199,40 @@ class TestUpdateDocument:
         assert item["z_index"] == 3
 
 
+class TestBulkCreateDocuments:
+    def test_bulk_create_preserves_order_and_parents(self, client, db):
+        """#1848 pattern for the import page phase: N documents, one audited
+        action, ids returned in request order, parents honoured."""
+        folder = Document(name="Diary", doc_type=DocType.folder)
+        db.save(folder)
+
+        r = client.post(
+            "/api/documents/bulk",
+            json={
+                "documents": [
+                    {"name": f"page_{i:03d}", "parent_id": folder.id, "doc_type": "page"}
+                    for i in range(1, 6)
+                ]
+            },
+        )
+
+        assert r.status_code == 201
+        ids = r.json()["document_ids"]
+        assert len(ids) == 5
+        for i, doc_id in enumerate(ids, start=1):
+            doc = db.get(Document, doc_id)
+            assert doc is not None
+            assert doc.name == f"page_{i:03d}"
+            assert doc.parent_id == folder.id
+
+    def test_bulk_create_unknown_parent_fails_loudly(self, client, db):
+        r = client.post(
+            "/api/documents/bulk",
+            json={"documents": [{"name": "orphan", "parent_id": "no-such-parent"}]},
+        )
+        assert r.status_code == 400
+
+
 class TestBatchExcludeDocuments:
     def test_batch_exclude_updates_documents_and_logs_mutation(self, client, db):
         doc_a = _make_doc(db, "Doc A")
@@ -1255,6 +1286,46 @@ class TestBatchExcludeDocuments:
 
         logs = [m for m in db.query(MutationLog) if m.entity_id == doc.id]
         assert len(logs) == 1
+
+    def test_batch_exclude_search_scope_sets_only_the_search_flag(self, client, db):
+        """#4580: scope=search toggles exclude_from_search and leaves
+        exclude_from_processing alone — two independent curation flags."""
+        doc = _make_doc(db, "Cover page")
+
+        r = client.patch(
+            "/api/documents/batch-exclude",
+            json={
+                "document_ids": [doc.id],
+                "excluded": True,
+                "scope": "search",
+                "reason": "front matter",
+            },
+        )
+
+        assert r.status_code == 200
+        refreshed = db.get(Document, doc.id)
+        assert refreshed.exclude_from_search is True
+        assert refreshed.exclude_from_processing is False
+        logs = [m for m in db.query(MutationLog) if m.entity_id == doc.id]
+        assert logs and logs[-1].changed_fields == ["exclude_from_search"]
+
+    def test_search_excluded_document_never_returns_and_never_embeds(self, client, db):
+        """#4580 end to end at the db layer: the one active-document gate all
+        search legs share refuses an excluded doc, and embed() spends nothing
+        on it."""
+        doc = _make_doc(db, "Front matter")
+        doc.page_content = "Counting-House Calendar for 1923"
+        doc.exclude_from_search = True
+        db.save(doc)
+
+        assert db._is_active_document_id(doc.id) is False
+        assert db.embed(doc) is False
+        assert db.last_embed_outcome.reason == "excluded_from_search"
+
+        # And the flag is honest curation: flipping it back re-admits the doc.
+        doc.exclude_from_search = False
+        db.save(doc)
+        assert db._is_active_document_id(doc.id) is True
 
     def test_batch_exclude_missing_document_returns_404(self, client):
         r = client.patch(
@@ -1839,3 +1910,27 @@ def test_audited_move_survives_an_invalidated_connection(client, db):
     moved = client.put(f"/api/documents/{doc.id}/move?parent_id={parent.id}")
     assert moved.status_code == 200
     assert moved.json()["parent_id"] == parent.id
+
+
+class TestBatchIdListing:
+    def test_ids_filter_fetches_exactly_those_rows(self, client, db):
+        docs = [_make_doc(db, f"Doc {i}") for i in range(4)]
+        wanted = [docs[0].id, docs[2].id]
+
+        r = client.get(f"/api/documents?ids={','.join(wanted)}")
+
+        assert r.status_code == 200
+        assert sorted(d["id"] for d in r.json()["items"]) == sorted(wanted)
+
+    def test_ids_filter_skips_deleted_and_unknown(self, client, db):
+        from datetime import datetime, timezone
+
+        alive = _make_doc(db, "Alive")
+        dead = _make_doc(db, "Dead")
+        dead.deleted_at = datetime.now(timezone.utc)
+        db.save(dead)
+
+        r = client.get(f"/api/documents?ids={alive.id},{dead.id},no-such-id")
+
+        assert r.status_code == 200
+        assert [d["id"] for d in r.json()["items"]] == [alive.id]

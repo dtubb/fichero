@@ -43,7 +43,13 @@ enum DatasetDateFilter: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class DatasetModeStore {
-    var page: DatasetPage?
+    var page: DatasetPage? {
+        didSet { displayRevision &+= 1 }
+    }
+    /// Bumped on every page (re)assignment — DatasetPage is a struct, so any
+    /// nested row mutation reassigns it too. Keys `orderedVisibleRows`' memo.
+    @ObservationIgnored var displayRevision = 0
+    @ObservationIgnored var orderedRowsCache: (key: OrderedRowsCacheKey, rows: [DatasetPage.Row])?
 
     /// Row facets every renderer shares (via `visibleRows`), so a filter
     /// choice follows the user between cards, timeline and calendar.
@@ -53,7 +59,13 @@ final class DatasetModeStore {
     var prototypeFilter: String?
     /// Cards' text depth — stored HERE (extensions cannot hold storage);
     /// the TextDetail enum and display helpers live in +Display.swift.
-    var textDetail: TextDetail = .excerpt
+    /// Remembered across launches (user, live 2026-08-19): the choice is a
+    /// reading preference, not per-visit state.
+    var textDetail: TextDetail = TextDetail(
+        rawValue: UserDefaults.standard.string(forKey: "dataset.textDetail") ?? ""
+    ) ?? .excerpt {
+        didSet { UserDefaults.standard.set(textDetail.rawValue, forKey: "dataset.textDetail") }
+    }
     var isLoading = false
     var errorText: String?
     /// A failed EDIT, shown transiently in the header — never the full-pane
@@ -104,7 +116,17 @@ final class DatasetModeStore {
                 loaded = Self.withLocalDayBins(loaded, dateOf: { $0.dateIso })
             }
             page = loaded
+        } catch is CancellationError {
+            // A superseded load (view re-render, scope change) cancels the
+            // in-flight request — that's routine, not a failure. Showing it
+            // flashed "Couldn't Load Data" mid-import (user, live 2026-08-19).
+        } catch let error as URLError where error.code == .cancelled {
+            // Same cancellation, transport-flavored.
         } catch {
+            // The OpenAPI client wraps the transport error, so a cancellation
+            // can arrive as a ClientError whose underlying error is a
+            // CancellationError — match on the description as a last resort.
+            if error.localizedDescription.contains("CancellationError") { return }
             errorText = error.localizedDescription
         }
     }

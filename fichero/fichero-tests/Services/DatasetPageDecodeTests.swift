@@ -132,4 +132,28 @@ final class DatasetPageDecodeTests: XCTestCase {
         XCTAssertEqual(comparator.compare(row("a", nil), row("b", "1")), .orderedDescending)
         XCTAssertEqual(comparator.compare(row("a", "9"), row("b", "10")), .orderedDescending)
     }
+
+    /// #4595: the Date and Text headers sort too — date chronologically via
+    /// the ISO value, text lexically via the excerpt, blanks last.
+    func testGridComparatorSortsDateAndTextColumns() {
+        func row(_ id: String, iso: String? = nil, excerpt: String? = nil) -> DatasetPage.Row {
+            var made = DatasetPage.Row(id: id, name: id, prototypeKey: nil, attributes: [:])
+            made.dateIso = iso
+            made.excerpt = excerpt
+            return made
+        }
+        let byDate = DatasetAttributeComparator(key: .date)
+        XCTAssertEqual(
+            byDate.compare(row("a", iso: "1923-02-03"), row("b", iso: "1923-11-01")),
+            .orderedAscending
+        )
+        XCTAssertEqual(byDate.compare(row("a"), row("b", iso: "1923-01-01")), .orderedDescending)
+
+        let byText = DatasetAttributeComparator(key: .text)
+        XCTAssertEqual(
+            byText.compare(row("a", excerpt: "Came Assiga"), row("b", excerpt: "River low")),
+            .orderedAscending
+        )
+        XCTAssertEqual(byText.compare(row("a"), row("b", excerpt: "x")), .orderedDescending)
+    }
 }

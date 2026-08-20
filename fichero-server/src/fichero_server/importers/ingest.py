@@ -55,18 +55,18 @@ import mimetypes
 # lever: init() then reads exactly nothing.
 mimetypes.knownfiles = []
 mimetypes.init()
-import os
-import shutil
-import time
-from datetime import datetime
-from fichero_server.core.timeutil import utc_now
-from enum import Enum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator
-from uuid import uuid4
+import os  # noqa: E402 — must follow the mimetypes.init() hack above
+import shutil  # noqa: E402 — must follow the mimetypes.init() hack above
+import time  # noqa: E402 — must follow the mimetypes.init() hack above
+from datetime import datetime  # noqa: E402 — must follow the mimetypes.init() hack above
+from fichero_server.core.timeutil import utc_now  # noqa: E402 — must follow the mimetypes.init() hack above
+from enum import Enum  # noqa: E402 — must follow the mimetypes.init() hack above
+from pathlib import Path  # noqa: E402 — must follow the mimetypes.init() hack above
+from typing import TYPE_CHECKING, Any, Callable, Coroutine, Iterator  # noqa: E402 — must follow the mimetypes.init() hack above
+from uuid import uuid4  # noqa: E402 — must follow the mimetypes.init() hack above
 
-from fichero_server.importers.dataless import dataless_reason, require_local_bytes
-from fichero_server.models import Artifact, Document, DocType, FileType, Status
+from fichero_server.importers.dataless import dataless_reason, require_local_bytes  # noqa: E402 — must follow the mimetypes.init() hack above
+from fichero_server.models import Artifact, Document, DocType, FileType, Status  # noqa: E402 — must follow the mimetypes.init() hack above
 
 if TYPE_CHECKING:
     from fichero_server.db import Database
@@ -1674,6 +1674,72 @@ def _is_sidecar_file(path: Path) -> bool:
     )
 
 
+def _load_entity_sidecar(source_path: Path) -> list[dict[str, Any]]:
+    """Entities out of ``<file>.entities.json`` beside ``source_path``.
+
+    The Marshall staging convention (stage_sidecars.py) writes a merged entity
+    set per page: ``{"entities": [{"name", "type", "raw_type", "sources",
+    "start", "end"}, ...]}``. Missing sidecar → ``[]``; a malformed one warns
+    and returns ``[]`` — one bad sidecar must not fail a 150-page folder whose
+    documents already committed.
+    """
+    sidecar = source_path.parent / f"{source_path.name}.entities.json"
+    if not sidecar.is_file():
+        return []
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Unreadable entity sidecar %s: %s", sidecar, exc)
+        return []
+    entities = data.get("entities") if isinstance(data, dict) else None
+    return [e for e in (entities or []) if isinstance(e, dict)]
+
+
+def entity_sidecar_payload(documents: list[Document]) -> list[dict[str, Any]]:
+    """One ``entity.bulk_upsert`` payload for every entity sidecar in a batch.
+
+    Reads each document's recorded ``source_path`` (works for LINK and COPY —
+    the sidecar lives beside the SOURCE file, not the library copy), dedupes by
+    canonical name across the batch, and merges page-scoped
+    ``source_document_ids`` — the same shape the manifest importer sends to
+    ``POST /entities/bulk``.
+    """
+    from fichero_server.models.knowledge import EntityType
+
+    merged: dict[str, dict[str, Any]] = {}
+    for doc in documents:
+        if doc.doc_type != DocType.file or doc.status == Status.failed:
+            continue
+        source = (doc.metadata or {}).get("source_path")
+        if not source:
+            continue
+        for raw in _load_entity_sidecar(Path(source)):
+            name = str(raw.get("name") or raw.get("canonical_name") or "").strip()
+            if not name:
+                continue
+            raw_type = str(raw.get("type") or raw.get("entity_type") or "other")
+            entity_type = (
+                raw_type if raw_type in EntityType._value2member_map_ else "other"
+            )
+            entry = merged.setdefault(
+                name,
+                {
+                    "canonical_name": name,
+                    "entity_type": entity_type,
+                    "metadata": {
+                        "sources": raw.get("sources") or [],
+                        "raw_type": raw.get("raw_type"),
+                        "start": raw.get("start"),
+                        "end": raw.get("end"),
+                    },
+                    "source_document_ids": [],
+                },
+            )
+            if doc.id not in entry["source_document_ids"]:
+                entry["source_document_ids"].append(doc.id)
+    return sorted(merged.values(), key=lambda e: e["canonical_name"].casefold())
+
+
 _ANCESTOR_MAX_DEPTH = 64
 
 
@@ -1937,19 +2003,32 @@ def _apply_iffy_to_document(
     # arrival (Daniel 2026-08-17, the maps corpus: "1715" must not read as
     # Undated until an Extract Dates run). Same parser, same columns, same
     # precedence as the workflow: never overwrite an existing date.
-    raw_date = iffy_data.get("iffy_original_date")
-    if raw_date and not doc.date_original and doc.date_jdn is None:
-        from fichero_server.histdate import parse_historical_date
-
-        parsed = parse_historical_date(str(raw_date))
-        if parsed is not None:
-            parsed.meta["source"] = "iffy_sidecar"
-            doc.date_original = parsed.original
-            doc.date_jdn = parsed.jdn
-            doc.date_jdn_end = parsed.jdn_end
-            doc.date_meta = parsed.as_meta()
+    apply_import_date(doc, iffy_data.get("iffy_original_date"), source="iffy_sidecar")
 
     return doc
+
+
+def apply_import_date(doc: Document, raw_date: Any, *, source: str) -> bool:
+    """Date a document on arrival from import-carried provenance.
+
+    Same parser, same columns, same precedence as the workflow: never
+    overwrite an existing date; unparseable input stays honest (metadata
+    only, no guessed columns). ``source`` records where the date came from
+    (``iffy_sidecar``, ``manifest``). Returns True when a date was applied.
+    """
+    if not raw_date or doc.date_original or doc.date_jdn is not None:
+        return False
+    from fichero_server.histdate import parse_historical_date
+
+    parsed = parse_historical_date(str(raw_date))
+    if parsed is None:
+        return False
+    parsed.meta["source"] = source
+    doc.date_original = parsed.original
+    doc.date_jdn = parsed.jdn
+    doc.date_jdn_end = parsed.jdn_end
+    doc.date_meta = parsed.as_meta()
+    return True
 
 
 # =============================================================================
@@ -1996,6 +2075,7 @@ __all__ = [
     '_FILE_TYPE_MAP',
     '_TEXT_EXTRACTABLE',
     '_apply_iffy_to_document',
+    'apply_import_date',
     '_copy_to_library',
     '_create_pdf_page_children',
     '_ensure_folder_hierarchy',
@@ -2007,6 +2087,7 @@ __all__ = [
     '_kreuzberg_pdf_pages',
     '_load_bibliography_sidecar',
     '_load_companion_json',
+    '_load_entity_sidecar',
     '_page_label_for',
     '_parse_iffy_sidecar',
     '_resolve_default_db',
@@ -2023,6 +2104,7 @@ __all__ = [
     'datetime',
     'detect_file_type',
     'discover_files',
+    'entity_sidecar_payload',
     'find_duplicates',
     'hashlib',
     'ingest_file',

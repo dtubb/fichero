@@ -797,6 +797,16 @@
         "response_model": "ArtifactResponse"
       },
       {
+        "method": "POST",
+        "path": "/artifacts/bulk",
+        "operation_id": "bulk_create_artifacts_api_artifacts_bulk_post",
+        "summary": "Bulk Create Artifacts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ArtifactBulkCreateRequest",
+        "response_model": "ArtifactBulkCreateResponse"
+      },
+      {
         "method": "GET",
         "path": "/artifacts/document/{doc_id}",
         "operation_id": "list_document_artifacts_api_artifacts_document__doc_id__get",
@@ -828,6 +838,18 @@
         ],
         "request_model": null,
         "response_model": "ArtifactListResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/artifacts/document/{doc_id}/text-regions",
+        "operation_id": "resolve_document_text_regions_api_artifacts_document__doc_id__text_regions_post",
+        "summary": "Resolve Document Text Regions",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [],
+        "request_model": "DocumentTextRegionsRequest",
+        "response_model": "DocumentTextRegionsResponse"
       },
       {
         "method": "GET",
@@ -2461,6 +2483,11 @@
             "type": "string"
           },
           {
+            "name": "ids",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "include_deleted",
             "required": false,
             "type": "boolean"
@@ -2513,6 +2540,16 @@
         "query_params": [],
         "request_model": "DocumentBatchExcludeRequest",
         "response_model": "DocumentBatchExcludeResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/bulk",
+        "operation_id": "bulk_create_documents_api_documents_bulk_post",
+        "summary": "Bulk Create Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "DocumentBulkCreateRequest",
+        "response_model": "DocumentBulkCreateResponse"
       },
       {
         "method": "POST",
@@ -3074,6 +3111,11 @@
             "type": "integer"
           },
           {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
             "name": "q",
             "required": false,
             "type": "string"
@@ -3101,6 +3143,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "EntityAliasMapResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/entities/bulk",
+        "operation_id": "bulk_upsert_entities_api_entities_bulk_post",
+        "summary": "Bulk Upsert Entities",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "EntityBulkUpsertRequest",
+        "response_model": "EntityBulkUpsertResponse"
       },
       {
         "method": "GET",
@@ -8168,6 +8220,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "EmbeddingStatsResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/search/stream",
+        "operation_id": "streaming_search_api_search_stream_post",
+        "summary": "Streaming Search",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SearchRequest",
+        "response_model": null
       }
     ],
     "settings": [

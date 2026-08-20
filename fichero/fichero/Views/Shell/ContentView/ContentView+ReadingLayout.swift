@@ -181,17 +181,28 @@ extension ContentView {
         // (Daniel, 2026-08-09: "swipe left and right, and then the page
         // changes in the sidebar"). A scroll/swipe never stomps a
         // multi-selection the user built — only a click replaces one.
+        // During a transient search the visible rows are the RESULTS, so a
+        // reader click selects the result row for this page (itself, or its
+        // parent when only the parent matched) — the bare page id highlighted
+        // nothing (user, live 2026-08-19).
+        let selectionId: String = {
+            guard activeSearchQuery != nil else { return match.id }
+            if searchResultDocuments.contains(where: { $0.id == match.id }) { return match.id }
+            if let parentId = match.parentId,
+               searchResultDocuments.contains(where: { $0.id == parentId }) { return parentId }
+            return match.id
+        }()
         if signal.movesBrowserSelection,
-           browserSelection != [match.id],
+           browserSelection != [selectionId],
            signal == .clicked || browserSelection.count <= 1 {
-            NavTrace.log("readerPageActivation.browserSelection", "→ \(match.id)"); browserSelection = [match.id]
+            NavTrace.log("readerPageActivation.browserSelection", "→ \(selectionId)"); browserSelection = [selectionId]
             // Sidebar HIGHLIGHT only — a direct destinations write, never the
             // routing seam: routing would re-root the preview under the very
             // swipe that was meant to move within it (#1463 class). DEBOUNCED
             // (2026-08-09): a sidebar re-render per page-turn is a ~250ms
             // childrenList pass — the white-flash budget on fast swipes. The
             // highlight settles ~150ms after the last turn instead.
-            let destination = SidebarDestination.document(match.id)
+            let destination = SidebarDestination.document(selectionId)
             if sidebarSelectionState.selectedDestinations != [destination] {
                 sidebarHighlightDebounce?.cancel()
                 sidebarHighlightDebounce = Task { @MainActor in
@@ -238,7 +249,16 @@ extension ContentView {
     /// array allocation that the old `pdfDocPages` accessor cost — read twice per
     /// render for `isEmpty ? nil : count`.
     var pdfDocPageCount: Int {
-        Self.pdfDocPageCount(in: documentStore.currentDocuments)
+        // Count the READER document's own pages (#4357 candidates seam), not
+        // the browsed folder's: during a transient search the folder is not
+        // the reader's document, so the count fell to 0, livePageCount went
+        // nil, and syncActivePage never scrolled — clicking a result moved
+        // the reader nowhere (user, live 2026-08-19).
+        Self.pdfDocPageCount(in: Self.readerPageCandidates(
+            readerDocument: detailDocument ?? pageFocusDocument,
+            childrenCache: documentStore.childrenCache,
+            currentDocuments: documentStore.currentDocuments
+        ))
     }
 
     /// Pure page-child count over a document set — no sort, no allocation

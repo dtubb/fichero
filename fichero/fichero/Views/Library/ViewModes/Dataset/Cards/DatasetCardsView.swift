@@ -13,6 +13,8 @@ import SwiftUI
 struct DatasetCardsView: View {
     let store: DatasetModeStore
     var entityService: EntityService?
+    /// Nil = exclusion items hidden (previews, closed library).
+    var documentService: DocumentService?
     @Binding var selection: Set<String>
     var workflows: [WorkflowSidebarItem] = []
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
@@ -129,6 +131,28 @@ struct DatasetCardsView: View {
             Button("Edit Date…") {
                 dateDraft = store.dateValue(of: row) ?? ""
                 dateEditRow = row
+            }
+        }
+        // Exclusion parity with the library views (user, 2026-08-19): cards
+        // are nodes like any other row, so bulk curation must work here too.
+        if let documentService {
+            let targets = workflowTargets(for: row)
+            Divider()
+            Button("Exclude from Processing") {
+                Task { _ = try? await documentService.batchExclude(
+                    documentIds: targets, excluded: true, scope: .processing) }
+            }
+            Button("Exclude from Search") {
+                Task { _ = try? await documentService.batchExclude(
+                    documentIds: targets, excluded: true, scope: .search) }
+            }
+            Button("Include Everywhere") {
+                Task {
+                    _ = try? await documentService.batchExclude(
+                        documentIds: targets, excluded: false, scope: .processing)
+                    _ = try? await documentService.batchExclude(
+                        documentIds: targets, excluded: false, scope: .search)
+                }
             }
         }
         if !workflows.isEmpty {

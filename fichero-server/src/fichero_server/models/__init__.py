@@ -362,6 +362,15 @@ class Document(BaseModel):
             "Used by curation to keep selected rows out of downstream passes."
         ),
     )
+    exclude_from_search: bool = Field(
+        default=False,
+        description=(
+            "True when search must not return this document (#4580): filtered "
+            "from keyword/semantic/hybrid results and skipped by embedding. "
+            "Curation for structural pages — covers, front matter — that are "
+            "imported for completeness but are not content."
+        ),
+    )
 
     # Timestamps
     created_at: datetime = Field(default_factory=utc_now)
@@ -1606,6 +1615,12 @@ class EmbeddingStatsResponse(BaseModel):
     entity_table_exists: bool = False
     claim_indexed_count: int = 0
     claim_table_exists: bool = False
+    #: Denominators for the entity/claim legs (2026-08-19): the doc leg got
+    #: its "of how many" and the KG legs didn't — a claim table with 0 rows
+    #: against 0 claims is healthy; against 4,000 claims it is the same
+    #: silent failure the doc pair exposed.
+    entity_count: int = 0
+    claim_count: int = 0
 
 
 class LibraryStatsResponse(BaseModel):

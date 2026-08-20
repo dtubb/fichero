@@ -361,6 +361,19 @@ def _import_manifest_folder(
         if source:
             doc.path = source
             db.save(doc)
+    # A manifest node's ``date`` makes the page DATED on arrival (2026-08-19:
+    # 125/157 dated pages in a staged diary imported with date_original=None —
+    # the date rode only in metadata). Same parser/columns/precedence as the
+    # .iffy.json sidecar path, provenance recorded as "manifest".
+    from fichero_server.importers.ingest import apply_import_date
+
+    dated = 0
+    for doc in docs:
+        if apply_import_date(doc, (doc.metadata or {}).get("date"), source="manifest"):
+            db.save(doc)
+            dated += 1
+    if dated:
+        logger.info("Manifest folder import: dated %d documents on arrival", dated)
     queue_derivatives(docs, library_path=package_path, db=db)
     logger.info(
         "Manifest folder import: %s -> %d documents, %d entities, %d skipped",
@@ -844,6 +857,7 @@ def _action_import_file(
 ) -> tuple[dict, ChangeSpec]:
     package_path = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
     doc = import_file_impl(db, params, package_path)
+    _upsert_sidecar_entities(db, [doc], ctx)
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[doc.id],
@@ -856,6 +870,41 @@ def _action_import_file(
         document_parents=({doc.id: doc.parent_id} if doc.parent_id else {}),
     )
     return doc.model_dump(mode="json"), spec
+
+
+def _upsert_sidecar_entities(db: Database, docs: list[Document], ctx) -> None:
+    """Upsert every ``.entities.json`` sidecar in an import batch (2026-08-19).
+
+    Mirrors the transcript/iffy sidecar handling: a plain folder drop is
+    self-describing per file, no manifest needed. ONE audited
+    ``entity.bulk_upsert`` per import (the per-entity form took 10+ min live),
+    page-scoped via ``source_document_ids``, emitting the same bulk
+    ``entity.created`` event the manifest path emits. The documents are already
+    committed when this runs, so a failure here is logged loudly rather than
+    failing the whole import.
+    """
+    from fichero_server.importers.ingest import entity_sidecar_payload
+
+    # Load-bearing import (#3950 pattern): registers the entity.* actions
+    # that registry.invoke below depends on.
+    import fichero_server.api.routes.entity.entities  # noqa: F401
+
+    payload = entity_sidecar_payload(docs)
+    if not payload:
+        return
+    try:
+        result = registry.invoke(
+            db, "entity.bulk_upsert", {"entities": payload}, ctx
+        )
+        logger.info(
+            "ingest.entities sidecars -> %d unique, created=%d reused=%d warnings=%d",
+            len(payload),
+            len(result.result.get("created_ids") or []),
+            len(result.result.get("reused_ids") or []),
+            len(result.result.get("warnings") or []),
+        )
+    except Exception as exc:
+        logger.error("Entity sidecar upsert failed (documents already imported): %s", exc)
 
 
 @action(
@@ -883,6 +932,7 @@ def _action_import_folder(
         on_document=ctx.on_document,
         should_cancel=ctx.should_cancel,
     )
+    _upsert_sidecar_entities(db, docs, ctx)
     doc_ids = [d.id for d in docs]
     spec = ChangeSpec(
         domains=["document"],

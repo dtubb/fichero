@@ -19,7 +19,11 @@ struct DatasetGridView: View {
     @Binding var selection: Set<String>
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
-    @State private var sortOrder: [DatasetAttributeComparator] = []
+    var workflows: [WorkflowSidebarItem] = []
+    /// (workflowId, targetRowIds, provider, model) — same shape as cards.
+    var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
+    @State private var sortOrder: [DatasetAttributeComparator] =
+        DatasetAttributeComparator.restoreSavedSort()
     /// Per-window column layout (visibility + order), persisted — the
     /// metadata affordance for the sheet.
     @SceneStorage("datasetSheetColumns")
@@ -51,7 +55,7 @@ struct DatasetGridView: View {
                 // The document's OWN extracted date — only when no date
                 // attribute column will already carry it.
                 if store.hasDateSource && store.attributeForRole["date"] == nil {
-                    TableColumn("Date") { row in
+                    TableColumn("Date", sortUsing: DatasetAttributeComparator(key: .date)) { row in
                         Text(row.dateOriginal ?? row.dateIso ?? "")
                             .lineLimit(1)
                             .foregroundStyle(.secondary)
@@ -62,7 +66,7 @@ struct DatasetGridView: View {
                 // night: "just dates, no transcript"). Full Text mode lifts
                 // the line cap so whole entries read in place ("can't we
                 // have multiple lines of text on one").
-                TableColumn("Text") { row in
+                TableColumn("Text", sortUsing: DatasetAttributeComparator(key: .text)) { row in
                     if let documentService {
                         // Edits commit on submit/focus-out and persist with
                         // the user-edited stamp — machine reruns can never
@@ -122,8 +126,28 @@ struct DatasetGridView: View {
                         onOpenSource(row)
                     }
                 }
+                if !workflows.isEmpty && !ids.isEmpty {
+                    Divider()
+                    // The Finder rule: the batch applies when it includes the
+                    // clicked rows; the Table hands us the effective ids.
+                    let targets = Array(ids)
+                    Menu("Run Workflow") {
+                        if targets.count > 1 {
+                            Text("Runs on \(targets.count) entries")
+                            Divider()
+                        }
+                        RunWorkflowSubmenuItems(workflows: workflows) { workflowId, provider, model in
+                            onRunWorkflow(workflowId, targets, provider, model)
+                        }
+                    }
+                }
             } primaryAction: { ids in
                 if let id = ids.first, let row = row(id) { onOpen(row) }
+            }
+            // Remembered across launches (user, 2026-08-19), same as the
+            // cards' Text depth.
+            .onChange(of: sortOrder) { _, newValue in
+                DatasetAttributeComparator.persistSort(newValue)
             }
         }
     }
@@ -154,8 +178,68 @@ struct DatasetGridView: View {
 /// both sides parse as numbers, lexically otherwise; missing values last in
 /// either direction. `attr == nil` sorts by the node name.
 struct DatasetAttributeComparator: SortComparator, Hashable {
-    var attr: String?
+    /// What the column sorts by (#4595 — Date and Text headers must sort
+    /// like every other Mac table's).
+    enum Key: Hashable {
+        case name
+        case date
+        case text
+        case attribute(String)
+    }
+
+    var key: Key
     var order: SortOrder = .forward
+
+    init(key: Key, order: SortOrder = .forward) {
+        self.key = key
+        self.order = order
+    }
+
+    // MARK: - Persistence (user, 2026-08-19: "remember sort order")
+
+    private static let savedSortKey = "dataset.grid.sortOrder"
+
+    private var token: String {
+        let keyToken: String
+        switch key {
+        case .name: keyToken = "name"
+        case .date: keyToken = "date"
+        case .text: keyToken = "text"
+        case .attribute(let attr): keyToken = "attr:\(attr)"
+        }
+        return "\(keyToken)|\(order == .forward ? "f" : "r")"
+    }
+
+    private init?(token: String) {
+        let parts = token.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return nil }
+        switch parts[0] {
+        case "name": key = .name
+        case "date": key = .date
+        case "text": key = .text
+        default:
+            guard parts[0].hasPrefix("attr:") else { return nil }
+            key = .attribute(String(parts[0].dropFirst("attr:".count)))
+        }
+        order = parts[1] == "r" ? .reverse : .forward
+    }
+
+    static func persistSort(_ comparators: [DatasetAttributeComparator]) {
+        UserDefaults.standard.set(
+            comparators.map(\.token), forKey: savedSortKey
+        )
+    }
+
+    static func restoreSavedSort() -> [DatasetAttributeComparator] {
+        let tokens = UserDefaults.standard.stringArray(forKey: savedSortKey) ?? []
+        return tokens.compactMap(DatasetAttributeComparator.init(token:))
+    }
+
+    /// Legacy spelling used by the attribute columns: nil = name.
+    init(attr: String?, order: SortOrder = .forward) {
+        self.key = attr.map { .attribute($0) } ?? .name
+        self.order = order
+    }
 
     func compare(_ lhs: DatasetPage.Row, _ rhs: DatasetPage.Row) -> Foundation.ComparisonResult {
         switch (text(of: lhs), text(of: rhs)) {
@@ -172,9 +256,18 @@ struct DatasetAttributeComparator: SortComparator, Hashable {
     }
 
     private func text(of row: DatasetPage.Row) -> String? {
-        guard let attr else { return row.name }
-        guard let value = row.attributes[attr], let value else { return nil }
-        return String(describing: value)
+        switch key {
+        case .name:
+            return row.name
+        case .date:
+            // ISO sorts lexically == chronologically; raw original as backup.
+            return row.dateIso ?? row.dateOriginal
+        case .text:
+            return row.excerpt
+        case .attribute(let attr):
+            guard let value = row.attributes[attr], let value else { return nil }
+            return String(describing: value)
+        }
     }
 
     private func valueCompare(_ lhs: String, _ rhs: String) -> Foundation.ComparisonResult {

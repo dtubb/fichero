@@ -23,7 +23,9 @@ import SwiftUI
 /// Read the epic's SceneKit wording as superseded, not as work outstanding.
 @MainActor
 final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
-    private let log = Logger(subsystem: "app.fichero.fichero", category: "CanvasOrtho2DRenderer")
+    // Internal, not private: the thumbnail extension file needs it and
+    // Swift's `private` is FILE-scoped (same trade as +Selection).
+    let log = Logger(subsystem: "app.fichero.fichero", category: "CanvasOrtho2DRenderer")
 
     /// Added to the `RealityView` content once, then mutated in place.
     let root = Entity()
@@ -75,6 +77,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// it is skipped (don't-fight-the-gesture). Node drag lands in #3084; harmless
     /// now (always false), but the seam is here so the reconcile already honors it.
     var isDragSuppressed: ((String) -> Bool)?
+
+    /// The CURRENT library's storage service, set by the hosting view — the
+    /// texture cache's fallback is the GLOBAL library, which is the wrong
+    /// library for every other canvas (user, live 2026-08-19).
+    var storageService: StorageService?
 
     var reportedZoomScale: Double { Double(Self.defaultOrthoScale / orthoScale) }
 
@@ -156,6 +163,8 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     func setOrthoScale(_ scale: Float) {
         orthoScale = min(max(scale, 0.5), 200)
         applyOrthoScale()
+        // Zoom-constant selection chrome (#4601): redraw at the new ratio.
+        refreshSelectionDecoration()
     }
 
     /// Pan the camera across its plane by a world-space delta.
@@ -270,7 +279,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     static let defaultCardSize = CGSize(width: 1.0, height: 0.75)
 
-    private func reskinCard(_ id: String) {
+    func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
         placeablesRoot.findEntity(named: id)?.removeFromParent()
         placeablesRoot.addChild(makeCard(placeable))
@@ -310,26 +319,6 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// Load the page thumbnail through the storage service (never raw URLSession)
     /// and swap it onto the card when ready — mirrors the 3D texture path.
-    private func loadThumbnail(sourceId: String, into entity: ModelEntity) {
-        Task { @MainActor in
-            do {
-                let texture = try await SpaceTextureCache.shared.texture(forSourceId: sourceId)
-                // First load: memoize the true aspect and rebuild the card
-                // once (#4193) — makeCard reads the memo, so the rebuilt card
-                // (mesh, collision, selection ring) takes the page's real
-                // shape and later reskins keep it. The rebuild's own reload
-                // is a cache hit that records no change, so this terminates.
-                if CanvasCardGeometry.recordAspect(of: texture, forSourceId: sourceId) {
-                    reskinCard(entity.name)
-                } else {
-                    entity.model?.materials = [UnlitMaterial(texture: texture)]
-                }
-            } catch {
-                log.debug("canvas thumbnail load failed for \(sourceId, privacy: .public)")
-            }
-        }
-    }
-
     private func baseColor(for content: CanvasContent) -> PlatformColor {
         switch content {
         case .node(let node):

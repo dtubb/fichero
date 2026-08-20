@@ -28,12 +28,16 @@ from fichero_server.importers.dataless import (
 
 
 class FakeStat:
-    """Just the three fields the detection reads."""
+    """The three fields the detection reads, plus st_mode: pytest's own
+    teardown machinery (the retained-tmp sweeper) stats paths, and a fake
+    without st_mode turned every teardown after a global Path.stat patch
+    into an AttributeError (2026-08-19 full-suite pollution)."""
 
     def __init__(self, *, size: int = 3_000_000, blocks: int | None = 5860, flags: int = 0):
         self.st_size = size
         self.st_blocks = blocks
         self.st_flags = flags
+        self.st_mode = 0o100644  # regular file
 
 
 class TestTheDetection:
@@ -110,7 +114,15 @@ class TestTheSyscallWrapper:
     def test_a_simulated_placeholder_is_refused(self, tmp_path, monkeypatch):
         f = tmp_path / "IMG_001.jpg"
         f.write_bytes(b"x" * 4096)
-        monkeypatch.setattr(Path, "stat", lambda self, **kw: FakeStat(blocks=0))
+        # Patch stat for THIS file only. A blanket Path.stat fake reached
+        # pytest's own teardown sweeper and every later test in the run —
+        # the 2026-08-19 full-suite pollution (phantom ./credentials in
+        # test_nothing_is_persisted, teardown ERRORs here).
+        real_stat = Path.stat
+        monkeypatch.setattr(
+            Path, "stat",
+            lambda self, **kw: FakeStat(blocks=0) if self == f else real_stat(self, **kw),
+        )
 
         with pytest.raises(DatalessSourceError) as excinfo:
             require_local_bytes(f)
@@ -124,9 +136,13 @@ class TestTheSyscallWrapper:
     def test_compression_rescues_a_zero_block_file(self, tmp_path, monkeypatch):
         f = tmp_path / "report.pdf"
         f.write_bytes(b"x" * 4096)
+        # Same file-scoped patch as above — the dotted-path form still hit
+        # the one global pathlib.Path class.
+        real_stat = Path.stat
         monkeypatch.setattr(
-            "fichero_server.importers.dataless.Path.stat",
-            lambda self, **kw: FakeStat(blocks=0, flags=UF_COMPRESSED),
+            Path, "stat",
+            lambda self, **kw: FakeStat(blocks=0, flags=UF_COMPRESSED)
+            if self == f else real_stat(self, **kw),
         )
 
         assert dataless_reason(f) is None

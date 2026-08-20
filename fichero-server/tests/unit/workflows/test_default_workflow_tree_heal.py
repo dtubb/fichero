@@ -136,3 +136,28 @@ def test_heal_is_noop_on_healthy_tree(temp_db):
     assert heal_default_workflow_tree(temp_db) == 0
     mirror = temp_db.get(Document, workflow.id)
     assert mirror.parent_id.startswith(_DEFAULT_WORKFLOWS_CONTAINER_ID)
+
+
+def test_heal_restores_is_system_on_homed_legacy_rows(temp_db):
+    # A legacy preset homed by an earlier heal but still carrying
+    # is_system=False (pre-flag row): #4450's cross-library merge filters
+    # on the flag, so every non-global library offered ZERO defaults
+    # (the user, live 2026-08-19). Heal must restore the flag even though
+    # the mirror is already in place.
+    preset = _first_foldered_preset()
+    workflow = Workflow(
+        name=preset["name"],
+        is_template=True,
+        is_system=True,
+        folder_path=preset["folder_path"],
+    )
+    temp_db.save(workflow)  # mirror save homes it under the container
+    workflow.is_system = False
+    temp_db.save(workflow)
+
+    healed = heal_default_workflow_tree(temp_db)
+
+    assert healed == 1
+    assert temp_db.get(Workflow, workflow.id).is_system is True
+    # Second pass is a no-op — the flag stays healed.
+    assert heal_default_workflow_tree(temp_db) == 0

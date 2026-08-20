@@ -122,12 +122,22 @@ extension LibraryView {
     /// a selection; there is no path back to a no-op.
     func handleTap(_ doc: Document) {
         onRequestFocus()
+        // Finder's ICON-view grammar (#4582, Daniel 2026-08-19): ⇧-click adds/
+        // toggles the CLICKED item — never a range across the grid's rows,
+        // which is what a list-order range looks like in a 6-wide grid. The
+        // range gesture stays in list/table/columns, and ⇧-arrows still extend
+        // in icon view. Implemented as a modifier remap so the grammar itself
+        // keeps one set of rules.
+        var modifiers = currentSelectionModifiers
+        if displayMode == .icon, modifiers == [.shift] {
+            modifiers = [.command]
+        }
         let result = SelectionGrammar.click(
             id: doc.id,
             in: keyboardNavigationDocuments.map(\.id),
             selection: selection,
             anchor: selectionAnchor,
-            modifiers: currentSelectionModifiers
+            modifiers: modifiers
         )
         apply(result)
 

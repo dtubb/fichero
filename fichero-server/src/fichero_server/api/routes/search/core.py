@@ -18,6 +18,7 @@ from enum import Enum
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.security import authz
@@ -1366,6 +1367,67 @@ async def enhanced_search(
         compiled_query=compiled_query,
         compilation_error=compilation_error,
     )
+
+
+@router.post("/stream")
+async def streaming_search(
+    request: SearchRequest,
+    db: Database = Depends(get_library_database),
+    x_fichero_library_path: str = Depends(require_library_path),
+) -> StreamingResponse:
+    """Streaming search v1 (#4604, Daniel's ruling Q11: streaming IS in
+    scope) — results appear as they are found, newline-delimited JSON:
+
+        {"type": "provisional", "leg": "fulltext", "results": [...]}
+        {"type": "final", "results": [...], "total_count": N, "stats": {...}}
+
+    Phase 1 re-runs only the cheap keyword leg (~tens of ms) so exact
+    matches paint immediately; phase 2 is the full hybrid ranking, which
+    REPLACES the provisional list. A failed phase streams
+    {"type": "error", "detail": ...} — never a silently truncated stream.
+    """
+    if not request.query.strip():
+        raise HTTPException(status_code=422, detail="stream requires a query")
+
+    async def generate():
+        import dataclasses
+        import json
+
+        def _dump(results: list[SearchResult]) -> list[dict[str, Any]]:
+            # db.SearchResult is a dataclass; asdict + default=str keeps
+            # dates and nested excerpts serializable.
+            return [dataclasses.asdict(r) for r in results]
+
+        def _line(payload: dict[str, Any]) -> str:
+            return json.dumps(payload, default=str) + "\n"
+
+        try:
+            fast = request.model_copy(update={"search_type": "fulltext"})
+            provisional, _count, _stats = await asyncio.to_thread(
+                _run_content_search_sync, db, fast, request.query
+            )
+            yield _line(
+                {"type": "provisional", "leg": "fulltext", "results": _dump(provisional)}
+            )
+        except Exception as exc:  # noqa: BLE001 — provisional failure is not fatal
+            yield _line({"type": "provisional_error", "detail": str(exc)})
+
+        try:
+            results, total_count, stats = await asyncio.to_thread(
+                _run_content_search_sync, db, request, request.query
+            )
+            yield _line(
+                {
+                    "type": "final",
+                    "results": _dump(results),
+                    "total_count": total_count,
+                    "stats": stats,
+                }
+            )
+        except Exception as exc:  # noqa: BLE001 — the stream must SAY it failed
+            yield _line({"type": "error", "detail": str(exc)})
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 @router.get("/stats", response_model=EmbeddingStatsResponse)

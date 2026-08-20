@@ -41,6 +41,45 @@ os.environ.setdefault("FICHERO_FEATURE_TIER", "dev")
 # Tests assume a clean library by default — disable automatic preset seeding
 # so assertions like "GET /workflows returns []" keep working.
 os.environ.setdefault("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+
+
+def _arm_credentials_tripwire() -> None:
+    """Trace whoever writes a file literally named ``credentials``.
+
+    ``test_nothing_is_persisted`` fails ~1-in-2 FULL runs with a phantom
+    ``./credentials`` in its cwd; it always passes alone, and the writer has
+    evaded three instrumented hunts (2026-08-19/20). This audit hook costs a
+    string-endswith per open() and dumps the guilty stack to
+    /tmp/fichero_credentials_writer.log the moment it happens — delete the
+    hook once that log has named the polluter and it is fixed.
+    """
+    import sys as _sys
+    import traceback as _traceback
+
+    log_path = "/tmp/fichero_credentials_writer.log"
+
+    def _hook(event: str, args: tuple) -> None:
+        if event != "open":
+            return
+        try:
+            path = str(args[0])
+            mode = args[1] if len(args) > 1 else ""
+        except Exception:
+            return
+        wants_write = any(c in str(mode) for c in ("w", "a", "x", "+"))
+        if wants_write and (path.endswith("/credentials") or path == "credentials"):
+            with open(log_path, "a") as f:  # log name doesn't match the trap
+                f.write(f"OPEN {path} mode={mode}\n")
+                _traceback.print_stack(file=f)
+                f.write("=" * 60 + "\n")
+
+    _sys.addaudithook(_hook)
+
+
+_arm_credentials_tripwire()
+# No background embed threads out of db_manager.get_database — a re-opened
+# test package with pending rows would otherwise embed during the test.
+os.environ.setdefault("FICHERO_SKIP_DERIVATIVE_RESUME", "1")
 # #742 added shared-secret auth + a loopback check. FastAPI's TestClient
 # uses host "testclient" (not 127.0.0.1) and doesn't carry the Authorization
 # header tests aren't aware of. Disable auth entirely for the test app —

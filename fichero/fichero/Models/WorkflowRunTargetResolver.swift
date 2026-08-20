@@ -30,12 +30,16 @@ enum WorkflowRunTarget: Hashable {
     /// sitting loose at the top. An empty return here is meaningful: it means
     /// the children are not loaded, and the caller falls back to the folder's
     /// own id rather than to nothing.
-    fileprivate func fileIDs(from documents: [Document]) -> [String] {
+    fileprivate func fileIDs(
+        childrenByParent: [String: [Document]]
+    ) -> [String] {
         switch self {
         case let .file(id):
             return [id]
         case let .folder(id):
-            return WorkflowRunTargetResolver.descendantFileIDs(of: id, in: documents)
+            return WorkflowRunTargetResolver.descendantFileIDs(
+                of: id, childrenByParent: childrenByParent
+            )
         }
     }
 }
@@ -120,10 +124,16 @@ enum WorkflowRunTargetResolver {
         let targets: [WorkflowRunTarget] = usesSelection ? Array(selection) : [clicked]
         let ignoredSelection = !usesSelection && !selection.isEmpty
 
+        // ONE parent→children index for the whole resolution: building it per
+        // folder target made a multi-folder right-click O(selection × library)
+        // during menu construction — part of the beachball on a 5-6 item
+        // selection (#4585, stall audit #4602).
+        let childrenByParent = Self.childrenIndex(of: documents)
+
         var ids = Set<String>()
         var usedFallback = false
         for target in targets {
-            let expanded = target.fileIDs(from: documents)
+            let expanded = target.fileIDs(childrenByParent: childrenByParent)
             if expanded.isEmpty {
                 // NEVER resolve to nothing. The row's own identity is a target
                 // the engine can act on.
@@ -170,12 +180,21 @@ enum WorkflowRunTargetResolver {
     /// #4399 depends on. `visited` guards a malformed parent cycle rather than
     /// hanging the menu.
     static func descendantFileIDs(of folderId: String, in documents: [Document]) -> [String] {
+        descendantFileIDs(of: folderId, childrenByParent: childrenIndex(of: documents))
+    }
+
+    static func childrenIndex(of documents: [Document]) -> [String: [Document]] {
         var childrenByParent: [String: [Document]] = [:]
         for document in documents {
             guard let parentId = document.parentId, !parentId.isEmpty else { continue }
             childrenByParent[parentId, default: []].append(document)
         }
+        return childrenByParent
+    }
 
+    static func descendantFileIDs(
+        of folderId: String, childrenByParent: [String: [Document]]
+    ) -> [String] {
         var result: [String] = []
         var queue: [String] = [folderId]
         var visited: Set<String> = [folderId]

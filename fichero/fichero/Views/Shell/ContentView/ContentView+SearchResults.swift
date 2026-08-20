@@ -125,26 +125,46 @@ extension ContentView {
         // its own resolution pass owns the result state.
         guard activeSearchQuery == query else { return }
 
-        var resolved: [Document] = []
-        for result in store.results {
-            if let known = documentStore.currentDocuments.first(where: { $0.id == result.documentId })
-                ?? documentStore.collections.first(where: { $0.id == result.documentId }) {
-                resolved.append(known)
-                continue
+        let orderedIds = Self.hitDocumentIds(results: store.results, stats: store.searchStats)
+
+        // Loaded rows first, then ONE batched fetch for the rest (perf audit
+        // 2026-08-19: this was ~90 sequential per-id GETs after every
+        // search). Engine order isn't relevance order, so re-order by the
+        // hit list; a hit whose document can't load is simply absent — the
+        // engine already 500s on real failures (#4109), so a missing row is
+        // a per-row race (deleted since indexing), not a silent state.
+        var byId: [String: Document] = [:]
+        var missing: [String] = []
+        for documentId in orderedIds {
+            if let known = documentStore.currentDocuments.first(where: { $0.id == documentId })
+                ?? documentStore.collections.first(where: { $0.id == documentId }) {
+                byId[documentId] = known
+            } else {
+                missing.append(documentId)
             }
+        }
+        if !missing.isEmpty {
             do {
-                resolved.append(try await library.documentService.getDocument(result.documentId))
+                for doc in try await library.documentService.getDocuments(ids: missing) {
+                    byId[doc.id] = doc
+                }
             } catch {
-                // A hit whose document can't load is dropped from the grid —
-                // the engine already 500s on real failures (#4109), so this is
-                // a per-row race (deleted since indexing), not a silent state.
                 searchResultsLogger.warning(
-                    "search hit \(result.documentId, privacy: .public) failed to resolve: \(error.localizedDescription)"
+                    "search hit batch resolve failed for \(missing.count) id(s): \(error.localizedDescription)"
                 )
             }
         }
+        let resolved = orderedIds.compactMap { byId[$0] }
         guard activeSearchQuery == query else { return }
         searchResultDocuments = resolved
+        // Scope the reading surface to the results (user, 2026-08-19): with
+        // nothing selected, the reader kept showing the pre-search document.
+        // A selection the user makes still wins, as everywhere else.
+        if browserSelection.isEmpty, let first = resolved.first,
+           detailDocument?.id != first.id,
+           !resolved.contains(where: { $0.id == detailDocument?.id }) {
+            detailDocument = first
+        }
         transientSearchRowHits = Dictionary(
             store.results.map { ($0.documentId, $0.rowHit) },
             uniquingKeysWith: { first, _ in first }
@@ -233,301 +253,24 @@ extension ContentView {
         transientSearchContextFolder = nil
         transientSearchScopeIsFolder = false
     }
+}
 
-    // MARK: - Results bar (S5/S9 UI halves)
-
-    /// Header above the Library view while a transient search is active:
-    /// honest result count (#4113), Load More when the engine reports more
-    /// pages, the explicit Save Search action, and the engine's failure
-    /// detail (#4109) — never a silent empty grid.
-    ///
-    /// Structural invariant (crash, 2026-07-27): this view is mounted through
-    /// `AnyView(...)` inside `.safeAreaInset` at the content-router boundary
-    /// (#4188). The inset's erased content must keep ONE concrete root across
-    /// the active/inactive flip — a bare `if let` here makes the erased view
-    /// list alternate between empty and populated, which the attribute graph
-    /// resolves by re-typing live attributes mid-update and dies with a
-    /// precondition failure when a query starts or clears. The conditional
-    /// therefore lives INSIDE a constant outer container: mounting or
-    /// dismissing the bar only inserts/removes children of a stable root.
-    /// An empty VStack lays out at zero size, so the inactive state still
-    /// reserves no inset space.
-    var transientSearchResultsBar: some View {
-        VStack(spacing: 0) {
-            if let query = activeSearchQuery, let store = transientSearchStore {
-                activeSearchResultsContent(query: query, store: store)
-            }
+extension ContentView {
+    /// Every hit is a NODE in the grid (#4118, ruling 2026-08-19): entity,
+    /// claim and artifact hits resolve to their parent documents and join
+    /// the result set, so all legs are clickable, dataset-viewable,
+    /// canvas-able and saveable like any other node — never a separate
+    /// list stacked above the library. Deduped, relevance order preserved.
+    static func hitDocumentIds(
+        results: [SearchResult], stats: SearchResponse?
+    ) -> [String] {
+        var hitIds: [String] = results.map(\.documentId)
+        if let stats {
+            hitIds.append(contentsOf: stats.artifactHits.map(\.documentId))
+            hitIds.append(contentsOf: stats.entityHits.compactMap(\.sourceDocumentIds?.first))
+            hitIds.append(contentsOf: stats.claimHits.compactMap(\.sourceDocumentId))
         }
+        var seen = Set<String>()
+        return hitIds.filter { seen.insert($0).inserted }
     }
-
-    @ViewBuilder
-    private func activeSearchResultsContent(query: String, store: SearchStore) -> some View {
-        VStack(spacing: 0) {
-            searchResultsHeaderRow(query: query, store: store)
-
-            // What the AI actually searched (#4116) — always visible so
-            // the compiled query is inspectable; edit the toolbar field
-            // to override. Compilation failure shows too, never hidden.
-            compilationDetailRow(store: store)
-
-            // Every non-document leg the engine searched (#4118, #4403).
-            // Entities and claims were returned and counted but never
-            // rendered, which is why searching a person surfaced only
-            // Artifacts. All three now share one section type.
-            nonDocumentHitSections(store: store)
-
-            Divider()
-        }
-        // A document.* change on this (or another window's) library bumps
-        // SearchStore.changeToken (#3249) — re-run the active query so
-        // renamed / deleted / re-OCR'd docs don't linger stale in the
-        // results. Lives on the bar because the bar is mounted exactly
-        // while a transient search is presented.
-        .onChange(of: store.changeToken) { _, _ in
-            Task { @MainActor in
-                await runTransientSearch(query)
-            }
-        }
-        // Changing type/sort re-runs the active query with a fresh page
-        // (#4112/S8) — the values are Strings, so one observed tuple
-        // keeps the modifier count down.
-        .onChange(of: [transientSearchType, transientSearchSortBy, transientSearchSortDirection]) { _, _ in
-            transientSearchLimit = Self.transientSearchPageSize
-            Task { @MainActor in
-                await runTransientSearch(query)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func searchResultsHeaderRow(query: String, store: SearchStore) -> some View {
-        HStack(spacing: 12) {
-            searchStatusLabel(query: query, store: store)
-
-            Spacer()
-
-            searchScopePicker(query: query)
-
-            searchOptionsMenu
-
-            if store.searchStats?.hasMore == true {
-                Button("Load More") {
-                    loadMoreTransientResults()
-                }
-                .controlSize(.small)
-            }
-
-            searchResultActions(store: store)
-
-            Button {
-                toolbarSearchText = ""
-                clearTransientSearch()
-            } label: {
-                Label("Done", systemImage: "xmark.circle.fill")
-                    .labelStyle(.titleOnly)
-            }
-            .controlSize(.small)
-            .help("Clear the search and return to browsing")
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(.bar)
-        .accessibilityIdentifier("library.search.resultsBar")
-    }
-
-    /// The leading half of the bar: what the search is doing, or what it
-    /// found. Exactly one of failure / in-flight / count is ever shown.
-    @ViewBuilder
-    private func searchStatusLabel(query: String, store: SearchStore) -> some View {
-        if let failure = store.searchFailure {
-            // Typed failure: stable message inline, raw detail only on
-            // demand (error-presentation convention — never dump error
-            // text in chrome).
-            Label(failure.message, systemImage: "exclamationmark.triangle")
-                .font(.callout)
-                .foregroundStyle(.red)
-                .help(failure.detail)
-        } else if store.isSearching {
-            ProgressView()
-                .controlSize(.small)
-            Text("Searching for “\(query)”…")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        } else {
-            // #4403: this read `searchStats.totalResults`, which is the
-            // DOCUMENT leg alone — so a query matching six artifacts and no
-            // documents said "3 results" above a section headed "Artifacts (6)".
-            //
-            // It now reads the SAME `SearchHitCounts` the body renders from:
-            // `transientSearchHitCounts` counts `searchResultDocuments`,
-            // `artifactHits`, `entityHits` and `claimHits` — the four arrays the
-            // sections below are built out of. Header and body are therefore one
-            // value from one source, and cannot disagree by construction.
-            //
-            // Deliberately NOT the server's new `rendered_total`, which is also
-            // correct arithmetic but is a SECOND source of truth for one number:
-            // it would have to be kept in step with whatever the client actually
-            // renders, and "two places compute the same thing" is the defect
-            // class this issue belongs to. rendered_total remains available and
-            // is worth using as a server/client AGREEMENT check — a different
-            // job from deciding what the header says.
-            let total = transientSearchHitCounts.total
-            Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    /// Scope control (#4107/S3): whole library vs the folder that was being
-    /// browsed when the search ran. Absent when there was no browsing folder.
-    /// No "All libraries" until cross-library fan-out lands (#4110).
-    @ViewBuilder
-    private func searchScopePicker(query: String) -> some View {
-        if let folder = transientSearchContextFolder {
-            Picker("Search scope", selection: $transientSearchScopeIsFolder) {
-                Text("Library").tag(false)
-                Text("“\(folder.name)”").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .fixedSize()
-            .labelsHidden()
-            .controlSize(.small)
-            .onChange(of: transientSearchScopeIsFolder) { _, _ in
-                transientSearchLimit = Self.transientSearchPageSize
-                Task { @MainActor in
-                    await runTransientSearch(query)
-                }
-            }
-        }
-    }
-
-    /// What you can do with a result set: chat it, or save it. Both require
-    /// results that actually loaded, so a failed search offers neither.
-    @ViewBuilder
-    private func searchResultActions(store: SearchStore) -> some View {
-        if !store.results.isEmpty && store.searchFailure == nil {
-            // Chat the search (#4117): the result set becomes the
-            // conversation's document scope.
-            Button {
-                openChatWithSearchResults()
-            } label: {
-                Label("Chat", systemImage: "bubble.left.and.text.bubble.right")
-            }
-            .controlSize(.small)
-            .help("Chat about these results — the search scope becomes the conversation's context")
-
-            Button {
-                Task { await saveTransientSearch() }
-            } label: {
-                Label("Save Search", systemImage: "square.and.arrow.down")
-            }
-            .controlSize(.small)
-            .help("Save this search to the sidebar")
-        }
-    }
-
-    @ViewBuilder
-    private func compilationDetailRow(store: SearchStore) -> some View {
-        if let compiled = store.searchStats?.compiledQuery {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.secondary)
-                Text("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .help("Searched: “\(compiled.semanticQuery)”\(Self.compiledFiltersSummary(compiled))")
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
-            .background(.bar)
-        } else if let compileError = store.searchStats?.compilationError {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .foregroundStyle(.secondary)
-                // Readable failure (the user, live 2026-07-27): one
-                // truncated line hid the actual error. Wrap up to
-                // four lines + full text on hover — a failure detail
-                // the user can't read is a silent failure.
-                Text("AI couldn't refine this search (\(compileError)) — searched your words as typed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
-                    .textSelection(.enabled)
-                    .help(compileError)
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 4)
-            .background(.bar)
-        }
-    }
-
-    /// Artifacts, entities and claims — the three legs the engine searches
-    /// besides documents (#4403).
-    ///
-    /// Each renders through the same `SearchHitSection`, so a leg cannot be
-    /// silently unrepresented again: adding one here is the whole change.
-    @ViewBuilder
-    private func nonDocumentHitSections(store: SearchStore) -> some View {
-        if let stats = store.searchStats {
-            SearchHitSection(
-                title: "Artifacts",
-                systemImage: "shippingbox",
-                rows: SearchHitPresentation.artifactRows(stats.artifactHits),
-                open: openHitDocument
-            )
-            SearchHitSection(
-                title: "People & Places",
-                systemImage: "person.2",
-                rows: SearchHitPresentation.entityRows(stats.entityHits),
-                open: openHitDocument
-            )
-            SearchHitSection(
-                title: "Claims",
-                systemImage: "quote.opening",
-                rows: SearchHitPresentation.claimRows(stats.claimHits),
-                open: openHitDocument
-            )
-        }
-    }
-
-    /// Search type and sort order (#4112/S8), lifted out of
-    /// `searchResultsHeaderRow` (#4353).
-    ///
-    /// That function was at 95 of the 100-line ERROR threshold — five lines of
-    /// headroom, in a file #4403 had just added to. Extracted by cohesion: this
-    /// is one self-contained control, not a slice taken to reach a number.
-    @ViewBuilder
-    private var searchOptionsMenu: some View {
-                // Real parameters (#4112/S8): search type + sort, the
-                // knobs the deleted mode surface used to own. One compact
-                // menu, not a pile of chrome.
-                Menu {
-                    Picker("Search Type", selection: $transientSearchType) {
-                        Text("Hybrid").tag("hybrid")
-                        Text("Semantic").tag("semantic")
-                        Text("Full Text").tag("fulltext")
-                    }
-                    Divider()
-                    Picker("Sort By", selection: $transientSearchSortBy) {
-                        Text("Relevance").tag("relevance")
-                        Text("Date").tag("date")
-                        Text("Name").tag("name")
-                        Text("Size").tag("size")
-                    }
-                    Picker("Order", selection: $transientSearchSortDirection) {
-                        Text("Descending").tag("desc")
-                        Text("Ascending").tag("asc")
-                    }
-                } label: {
-                    Label("Search Options", systemImage: "slider.horizontal.3")
-                        .labelStyle(.iconOnly)
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Search type and sort order")
-    }
-
 }

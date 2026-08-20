@@ -4124,6 +4124,113 @@
         }
       }
     },
+    "/api/artifacts/document/{doc_id}/text-regions": {
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Resolve Document Text Regions",
+        "description": "Resolve MANY char spans of a document's transcription to page regions\nin one call \u2014 the search heat map's shape (#4604 Phase 2): every relevant\npassage on the page, each with its weight, one request per page.\n\nDocument-scoped because a search hit knows its document and offsets but\nnot the geometry artifact's id; the resolution to the newest CAPTURED\ngeometry artifact happens here, once, instead of in each client. Degrades\nhonestly like the single-span route: a page whose engine cannot point at\nit returns its status and reason, never a silent empty list.",
+        "operationId": "resolve_document_text_regions_api_artifacts_document__doc_id__text_regions_post",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentTextRegionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentTextRegionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artifacts/bulk": {
+      "post": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Bulk Create Artifacts",
+        "description": "Create a batch of artifacts (one audited action, #1848).",
+        "operationId": "bulk_create_artifacts_api_artifacts_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactBulkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactBulkCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bookmarks": {
       "post": {
         "tags": [
@@ -7896,6 +8003,18 @@
             "description": "Filter by parent ID"
           },
           {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Comma-separated document ids \u2014 fetch exactly these rows in one round-trip. The client's change-stream patch flush used to issue one GET per id (measured 2026-08-19: 1,001 requests in a session). Combines with the other filters.",
+              "title": "Ids"
+            },
+            "description": "Comma-separated document ids \u2014 fetch exactly these rows in one round-trip. The client's change-stream patch flush used to issue one GET per id (measured 2026-08-19: 1,001 requests in a session). Combines with the other filters."
+          },
+          {
             "name": "doc_type",
             "in": "query",
             "required": false,
@@ -8960,6 +9079,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Document"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/bulk": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Bulk Create Documents",
+        "description": "Create a batch of documents in ONE audited action (#1848 pattern).\n\nThe manifest importer's page phase ran one route round-trip per page \u2014\nregistry/audit/emit overhead per row was the measured ~1s/page on a live\nimport (2026-08-19 ledger). Order is preserved; parents must already\nexist (the importer creates containers first).",
+        "operationId": "bulk_create_documents_api_documents_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentBulkCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentBulkCreateResponse"
                 }
               }
             }
@@ -10672,6 +10855,71 @@
         }
       }
     },
+    "/api/entities/bulk": {
+      "post": {
+        "tags": [
+          "entities",
+          "entities"
+        ],
+        "summary": "Bulk Upsert Entities",
+        "description": "Create-or-merge a batch of entities (one audited action, #1848).",
+        "operationId": "bulk_upsert_entities_api_entities_bulk_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntityBulkUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityBulkUpsertResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/entities": {
       "post": {
         "tags": [
@@ -10785,6 +11033,17 @@
               "minimum": 1,
               "default": 50,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
             }
           }
         ],
@@ -16239,6 +16498,46 @@
                 "schema": {
                   "$ref": "#/components/schemas/SearchResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/stream": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Streaming Search",
+        "description": "Streaming search v1 (#4604, Daniel's ruling Q11: streaming IS in\nscope) \u2014 results appear as they are found, newline-delimited JSON:\n\n    {\"type\": \"provisional\", \"leg\": \"fulltext\", \"results\": [...]}\n    {\"type\": \"final\", \"results\": [...], \"total_count\": N, \"stats\": {...}}\n\nPhase 1 re-runs only the cheap keyword leg (~tens of ms) so exact\nmatches paint immediately; phase 2 is the full hybrid ranking, which\nREPLACES the provisional list. A failed phase streams\n{\"type\": \"error\", \"detail\": ...} \u2014 never a silently truncated stream.",
+        "operationId": "streaming_search_api_search_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -35903,6 +36202,46 @@
         "title": "Artifact",
         "description": "Output from any processing step - versioned and chainable.\n\nArtifacts are results from AI/ML processing:\n- Transcription (OCR text)\n- Entities (people, places, dates)\n- Summary\n- Translation\n- Grouping suggestions (which pages belong together)\n- Segmentation suggestions (regions within a page)\n\nVersioning: Multiple versions can exist for the same document.\nChaining: One artifact can be derived from another (OCR \u2192 cleaned text).\n\nStructural artifacts (grouping, segmentation) suggest changes that\nbecome Document structure when user approves."
       },
+      "ArtifactBulkCreateRequest": {
+        "properties": {
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactCreateRequest"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "artifacts"
+        ],
+        "title": "ArtifactBulkCreateRequest"
+      },
+      "ArtifactBulkCreateResponse": {
+        "properties": {
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created Ids"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_ids",
+          "warnings"
+        ],
+        "title": "ArtifactBulkCreateResponse"
+      },
       "ArtifactComparisonResponse": {
         "properties": {
           "document_id": {
@@ -42629,6 +42968,12 @@
             "description": "True when import/workflow processing should skip this document. Used by curation to keep selected rows out of downstream passes.",
             "default": false
           },
+          "exclude_from_search": {
+            "type": "boolean",
+            "title": "Exclude From Search",
+            "description": "True when search must not return this document (#4580): filtered from keyword/semantic/hybrid results and skipped by embedding. Curation for structural pages \u2014 covers, front matter \u2014 that are imported for completeness but are not content.",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -42735,6 +43080,10 @@
             "type": "string",
             "nullable": true,
             "title": "Reason"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/DocumentExclusionScope",
+            "default": "processing"
           }
         },
         "type": "object",
@@ -42764,6 +43113,38 @@
           "document_ids"
         ],
         "title": "DocumentBatchExcludeResponse"
+      },
+      "DocumentBulkCreateRequest": {
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCreate"
+            },
+            "type": "array",
+            "title": "Documents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "documents"
+        ],
+        "title": "DocumentBulkCreateRequest"
+      },
+      "DocumentBulkCreateResponse": {
+        "properties": {
+          "document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_ids"
+        ],
+        "title": "DocumentBulkCreateResponse"
       },
       "DocumentCitation": {
         "properties": {
@@ -43018,6 +43399,15 @@
           "metadata"
         ],
         "title": "DocumentDebugResponse"
+      },
+      "DocumentExclusionScope": {
+        "type": "string",
+        "enum": [
+          "processing",
+          "search"
+        ],
+        "title": "DocumentExclusionScope",
+        "description": "Which exclusion flag a batch-exclude toggles (#4580). A closed set \u2014\nan enum, never a bare str, so the generated Swift client cannot drift."
       },
       "DocumentFetchRequest": {
         "properties": {
@@ -43456,6 +43846,58 @@
         "title": "DocumentSource",
         "description": "Source document reference in a response."
       },
+      "DocumentTextRegionsRequest": {
+        "properties": {
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/TextRegionSpan"
+            },
+            "type": "array",
+            "title": "Spans"
+          }
+        },
+        "type": "object",
+        "required": [
+          "spans"
+        ],
+        "title": "DocumentTextRegionsRequest"
+      },
+      "DocumentTextRegionsResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "artifact_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Artifact Id"
+          },
+          "geometry_status": {
+            "type": "string",
+            "title": "Geometry Status"
+          },
+          "geometry_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Geometry Reason"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/ResolvedTextRegion"
+            },
+            "type": "array",
+            "title": "Regions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "geometry_status"
+        ],
+        "title": "DocumentTextRegionsResponse"
+      },
       "DocumentUpdate": {
         "properties": {
           "name": {
@@ -43514,6 +43956,11 @@
             "type": "boolean",
             "nullable": true,
             "title": "Exclude From Processing"
+          },
+          "exclude_from_search": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Exclude From Search"
           },
           "metadata": {
             "additionalProperties": true,
@@ -43838,6 +44285,16 @@
             "type": "boolean",
             "title": "Table Exists"
           },
+          "embedded_document_count": {
+            "type": "integer",
+            "title": "Embedded Document Count",
+            "default": 0
+          },
+          "document_count": {
+            "type": "integer",
+            "title": "Document Count",
+            "default": 0
+          },
           "entity_indexed_count": {
             "type": "integer",
             "title": "Entity Indexed Count",
@@ -43857,6 +44314,16 @@
             "type": "boolean",
             "title": "Claim Table Exists",
             "default": false
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count",
+            "default": 0
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count",
+            "default": 0
           }
         },
         "type": "object",
@@ -44146,6 +44613,62 @@
         "title": "EntityBiographyResponse",
         "description": "Structured biography bundle for a single entity.\n\nAssembles entity facts + all SVO claims that mention the entity +\nsource-document links + co-occurring entities into one response so\ncallers get a complete cross-doc picture in a single round-trip.\n\nLLM-narrated prose is out of scope here (tracked in #1361) \u2014 this\nreturns structured data only."
       },
+      "EntityBulkUpsertRequest": {
+        "properties": {
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/EntityCreateActionParams"
+            },
+            "type": "array",
+            "title": "Entities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entities"
+        ],
+        "title": "EntityBulkUpsertRequest"
+      },
+      "EntityBulkUpsertResponse": {
+        "properties": {
+          "created_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Created Ids"
+          },
+          "reused_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reused Ids"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "id_by_name": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Id By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created_ids",
+          "reused_ids",
+          "warnings",
+          "id_by_name"
+        ],
+        "title": "EntityBulkUpsertResponse"
+      },
       "EntityCoOccurrence": {
         "properties": {
           "entity_id": {
@@ -44202,6 +44725,52 @@
         ],
         "title": "EntityCoOccurrenceListResponse",
         "description": "Standardized envelope for GET /api/entities/{entity_id}/co-occurrence."
+      },
+      "EntityCreateActionParams": {
+        "properties": {
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "entity_type": {
+            "$ref": "#/components/schemas/fichero_server__models__knowledge__EntityType",
+            "default": "other"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "title": "Description"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true,
+            "title": "Language"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "source_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Source Document Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "canonical_name"
+        ],
+        "title": "EntityCreateActionParams"
       },
       "EntityCurationState": {
         "type": "string",
@@ -57450,6 +58019,33 @@
         "title": "ResolvedPrototypeResponse",
         "description": "A prototype's EFFECTIVE attributes \u2014 parent chain merged root\u2192leaf."
       },
+      "ResolvedTextRegion": {
+        "properties": {
+          "char_start": {
+            "type": "integer",
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "title": "Char End"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "region": {
+            "$ref": "#/components/schemas/SpanRegion",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_start",
+          "char_end",
+          "weight"
+        ],
+        "title": "ResolvedTextRegion"
+      },
       "ResumeWorkflowRequest": {
         "properties": {
           "inputs": {
@@ -61121,6 +61717,34 @@
         ],
         "title": "TextDifferenceResponse"
       },
+      "TextRegionSpan": {
+        "properties": {
+          "char_start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Char End"
+          },
+          "weight": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Weight",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "char_start",
+          "char_end"
+        ],
+        "title": "TextRegionSpan",
+        "description": "One char span to resolve, with the search hit's weight for heat-map\nshading (Daniel's ruling, #4604 Q6: hotter for stronger matches)."
+      },
       "ThreadDeletedResponse": {
         "properties": {
           "message": {
@@ -61398,6 +62022,11 @@
             "type": "boolean",
             "title": "Tested",
             "default": false
+          },
+          "parallelism": {
+            "type": "string",
+            "title": "Parallelism",
+            "default": "batch"
           }
         },
         "type": "object",

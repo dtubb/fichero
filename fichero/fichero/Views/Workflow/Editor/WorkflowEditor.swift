@@ -139,9 +139,16 @@ struct WorkflowEditor: View {
                 onImport: importWorkflow,
                 onExport: exportWorkflow,
                 onPreviewDiagram: {
-                    // Auto-save before showing diagram preview
+                    // Auto-save before showing diagram preview — but never
+                    // for a locked preset: previewing is a VIEW action, and
+                    // the save would only raise the read-only alert (#4514).
                     Task { @MainActor in
-                        await saveWorkflow()
+                        if WorkflowSavePolicy.canAutoSave(
+                            editorIsSystem: editingWorkflow.isSystem,
+                            canonicalIsSystem: selectedWorkflow?.isSystem
+                        ) {
+                            await saveWorkflow()
+                        }
                         showDiagramPreview = true
                     }
                 },
@@ -152,6 +159,19 @@ struct WorkflowEditor: View {
                     showModelComparison = true
                 },
                 onTidy: tidyLayout,
+                // #4514: read-only is stated in the chrome, not alerted.
+                isReadOnly: editingWorkflow.isSystem || selectedWorkflow?.isSystem == true,
+                onDuplicate: {
+                    Task { @MainActor in
+                        do {
+                            let copy = try await workflowStore.duplicateWorkflow(editingWorkflow.id)
+                            await workflowStore.loadWorkflows()
+                            actionsLogger.info("Duplicated locked workflow to \(copy.id)")
+                        } catch {
+                            saveError = "Duplicate failed: \(error.localizedDescription)"
+                        }
+                    }
+                },
                 showImportExport: featureManager.isWorkflowImportExportEnabled,
                 showLangGraphPreview: featureManager.isWorkflowLangGraphPreviewEnabled,
                 showFilesToolbarButton: featureManager.isWorkflowFilesToolbarButtonEnabled
@@ -242,6 +262,21 @@ struct WorkflowEditor: View {
             first node provider=\(firstNode?.providerName ?? "nil"), \
             model=\(firstNode?.modelName ?? "nil")
             """)
+            // Locked system presets are VIEWABLE, silently (#4514, Daniel
+            // 2026-08-19: "I should be able to view it without getting an
+            // alert every time"). Opening the editor mutates editingWorkflow
+            // (layout/position normalisation), so this autosave fired on
+            // LOOKING at a locked workflow, saveWorkflow answered with the
+            // read-only error, and the Save Failed alert greeted every view.
+            // The policy check that exists for exactly this now guards it;
+            // an EXPLICIT Save press still explains itself.
+            guard WorkflowSavePolicy.canAutoSave(
+                editorIsSystem: newValue.isSystem,
+                canonicalIsSystem: selectedWorkflow?.isSystem
+            ) else {
+                actionsLogger.info("[autosave] skipped: read-only system workflow")
+                return
+            }
             autosaveTask?.cancel()
             autosaveTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(300))

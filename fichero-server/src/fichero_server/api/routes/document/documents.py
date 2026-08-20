@@ -7,6 +7,8 @@ CRUD operations for Document model.
 import asyncio
 import logging
 import tempfile
+from enum import Enum
+
 from fichero_server.core.timeutil import utc_now
 from pathlib import Path
 from typing import Any, Optional
@@ -208,6 +210,7 @@ class DocumentUpdate(BaseModel):
     is_starred: Optional[bool] = None
     is_flagged: Optional[bool] = None
     exclude_from_processing: Optional[bool] = None
+    exclude_from_search: Optional[bool] = None
     metadata: Optional[dict] = None
     prototype_key: Optional[str] = None
     # Prototype-scoped node attribute VALUES (datasets Stage 1). Wholesale
@@ -221,10 +224,20 @@ class DocumentUpdate(BaseModel):
     z_index: Optional[int] = None
 
 
+class DocumentExclusionScope(str, Enum):
+    """Which exclusion flag a batch-exclude toggles (#4580). A closed set —
+    an enum, never a bare str, so the generated Swift client cannot drift."""
+
+    processing = "processing"
+    search = "search"
+
+
 class DocumentBatchExcludeRequest(BaseModel):
     document_ids: list[str]
     excluded: bool
     reason: str | None = None
+    # Default keeps every existing caller's behaviour (#4580).
+    scope: DocumentExclusionScope = DocumentExclusionScope.processing
 
 
 class DocumentBatchExcludeResponse(BaseModel):
@@ -317,7 +330,10 @@ def _filter_document_visibility(
 
 
 def _list_documents_raw(db: Database, **filters: Any) -> list[Document]:
-    return list(db.query(Document, **filters)) if filters else list(db.all(Document))
+    # Committed reads (perf audit 2026-08-19, same medicine as #4523): the
+    # gated query queued listings behind an import's embed transactions —
+    # get_children stalled up to 12s. A browse wants last-committed state.
+    return list(db.query_committed(Document, **filters))
 
 
 def _list_documents(
@@ -401,14 +417,16 @@ def _filter_resolvable_documents(
     if not docs:
         return []
 
-    resolved = _filter_document_visibility(
-        db.query_in(Document, "id", [doc.id for doc in docs])
-    )
-    resolved_ids = {doc.id for doc in resolved}
+    # In-memory only (perf audit 2026-08-19): this used to re-fetch the very
+    # rows the caller just read (`query_in` by id) — every listing hydrated
+    # each row TWICE, including its full page_content. The rows come from one
+    # committed snapshot in the same request, so a second read can't observe
+    # a deletion the first one missed; the visibility rule applied to the
+    # in-memory rows is the whole check.
     resolvable: list[Document] = []
     skipped_ids: list[str] = []
     for doc in docs:
-        if doc.id not in resolved_ids:
+        if _is_document_deleted(doc):
             skipped_ids.append(doc.id)
             continue
         resolvable.append(doc)
@@ -515,6 +533,15 @@ def _resolve_workspace_item_target(db: Database, item: dict[str, Any]) -> Any:
 @router.get("")
 async def list_documents(
     parent_id: Optional[str] = Query(None, description="Filter by parent ID"),
+    ids: Optional[str] = Query(
+        None,
+        description=(
+            "Comma-separated document ids — fetch exactly these rows in one "
+            "round-trip. The client's change-stream patch flush used to issue "
+            "one GET per id (measured 2026-08-19: 1,001 requests in a "
+            "session). Combines with the other filters."
+        ),
+    ),
     doc_type: Optional[DocType] = Query(None, description="Filter by document type"),
     node_kind: Optional[str] = Query(None, description="Filter by node kind"),
     file_type: Optional[FileType] = Query(None, description="Filter by file type"),
@@ -554,16 +581,39 @@ async def list_documents(
         if status is not None:
             filters["status"] = status
 
-        docs = _list_documents(db, include_deleted=include_deleted, **filters)
+        # OFF THE LOOP (perf audit 2026-08-19, same medicine as the write
+        # path's _run_document_write): the fetch+hydrate is synchronous DuckDB
+        # work, and running it inline serialized every concurrent GET on the
+        # one event-loop thread.
+        requested_ids: list[str] | None = None
+        if ids:
+            requested_ids = [
+                _normalize_document_id(part)
+                for part in ids.split(",")
+                if part.strip()
+            ]
 
-        if normalized_parent_id is not None:
-            docs = _filter_resolvable_documents(
-                db, docs, parent_id=normalized_parent_id
-            )
+        def _fetch() -> list[Document]:
+            if requested_ids is not None:
+                rows = _filter_document_visibility(
+                    db.query_in(Document, "id", requested_ids),
+                    include_deleted=include_deleted,
+                )
+                for k, v in filters.items():
+                    value = v.value if hasattr(v, "value") else v
+                    rows = [r for r in rows if getattr(r, k, None) == value
+                            or getattr(getattr(r, k, None), "value", None) == value]
+            else:
+                rows = _list_documents(db, include_deleted=include_deleted, **filters)
+            if normalized_parent_id is not None:
+                rows = _filter_resolvable_documents(
+                    db, rows, parent_id=normalized_parent_id
+                )
+            # Order by user-defined sort_order before paginating so drag-drop
+            # positions survive a refresh and clients don't re-sort (#572).
+            return _ordered_by_sort_order(rows)
 
-        # Order by user-defined sort_order before paginating so drag-drop
-        # positions survive a refresh and clients don't re-sort (#572).
-        docs = _ordered_by_sort_order(docs)
+        docs = await asyncio.to_thread(_fetch)
 
         if limit is not None:
             items = docs[offset : offset + limit]
@@ -984,13 +1034,20 @@ async def get_children(
         # (e.g. "doc:abc123"). Documents are stored with bare hex ids, so strip
         # the prefix before every DB lookup so both forms resolve correctly (#1345).
         normalized_id = _normalize_document_id(doc_id)
-        children = _filter_resolvable_documents(
-            db,
-            _list_documents(db, parent_id=normalized_id),
-            parent_id=normalized_id,
-        )
-        children = _ordered_by_sort_order(children)
-        children = _apply_listing_sort(children, sort_by, sort_direction)
+
+        # OFF THE LOOP (perf audit 2026-08-19): synchronous DuckDB work ran
+        # inline in this async route, serializing every concurrent GET on the
+        # event-loop thread.
+        def _fetch() -> list[Document]:
+            rows = _filter_resolvable_documents(
+                db,
+                _list_documents(db, parent_id=normalized_id),
+                parent_id=normalized_id,
+            )
+            rows = _ordered_by_sort_order(rows)
+            return _apply_listing_sort(rows, sort_by, sort_direction)
+
+        children = await asyncio.to_thread(_fetch)
         perf["normalized_id"] = normalized_id
         perf["matched_rows"] = len(children)
 
@@ -1134,6 +1191,37 @@ async def create_document(
     new_doc = Document.model_validate(result.result)
     logger.info(f"Created document: {new_doc.id} ({new_doc.name})")
     return new_doc
+
+
+class DocumentBulkCreateRequest(BaseModel):
+    documents: list[DocumentCreate]
+
+
+class DocumentBulkCreateResponse(BaseModel):
+    document_ids: list[str]
+
+
+@router.post("/bulk", status_code=201)
+async def bulk_create_documents(
+    request: DocumentBulkCreateRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> DocumentBulkCreateResponse:
+    """Create a batch of documents in ONE audited action (#1848 pattern).
+
+    The manifest importer's page phase ran one route round-trip per page —
+    registry/audit/emit overhead per row was the measured ~1s/page on a live
+    import (2026-08-19 ledger). Order is preserved; parents must already
+    exist (the importer creates containers first).
+    """
+    result = await _run_document_write(
+        registry.invoke,
+        db,
+        "document.bulk_create",
+        request.model_dump(mode="json"),
+        ctx,
+    )
+    return DocumentBulkCreateResponse.model_validate(result.result)
 
 
 @router.put("/{doc_id}")
@@ -1604,6 +1692,9 @@ async def related_documents(
         overlap_count = counter.get(other_id, 0)
         other = _get_document_row(db, other_id)
         if other is None:
+            continue
+        # #4580: a search-excluded document must not resurface as "related".
+        if getattr(other, "exclude_from_search", False):
             continue
         # Resolve up to 3 sample entity names per related doc.
         sample_names: list[str] = []
@@ -2352,7 +2443,12 @@ def batch_exclude_documents_impl(
 
         before = doc.model_dump(mode="json")
         before_snapshots.append(before)
-        doc.exclude_from_processing = request.excluded
+        if request.scope == DocumentExclusionScope.search:
+            doc.exclude_from_search = request.excluded
+            changed_field = "exclude_from_search"
+        else:
+            doc.exclude_from_processing = request.excluded
+            changed_field = "exclude_from_processing"
         doc.updated_at = utc_now()
         db.save(doc)
         db.save(
@@ -2362,7 +2458,7 @@ def batch_exclude_documents_impl(
                 operation=MutationOperationType.update,
                 before_state=before,
                 after_state=doc.model_dump(mode="json"),
-                changed_fields=["exclude_from_processing"],
+                changed_fields=[changed_field],
                 created_by=request.reason or "batch_exclude_documents",
             )
         )
@@ -2729,6 +2825,35 @@ def _action_create_document(
         emit_fn=_emit_document_change_spec,
     )
     return new_doc.model_dump(mode="json"), spec
+
+
+@action(
+    "document.bulk_create",
+    DocumentBulkCreateRequest,
+    domains=["document"],
+    # ponytail: undoable=False like entity.bulk_upsert — a corpus import is
+    # not a gesture anyone undoes row by row; delete handles regret.
+    undoable=False,
+)
+def _action_bulk_create_documents(
+    db: Database, params: DocumentBulkCreateRequest, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Create N documents through the SAME single-create impl, one audit,
+    one trailing bulk ``document.created`` event (with parents, #4205)."""
+    created: list[Document] = []
+    for doc in params.documents:
+        created.append(create_document_impl(db, doc))
+    ids = [d.id for d in created]
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=ids,
+        after={"document_ids": ids},
+        emit_type="document.created" if ids else None,
+        document_ids=ids,
+        document_parents={d.id: d.parent_id for d in created if d.parent_id},
+        emit_fn=_emit_document_change_spec,
+    )
+    return {"document_ids": ids}, spec
 
 
 @action(
@@ -3445,6 +3570,12 @@ async def create_document_group(
         name=payload.name,
         doc_type=DocType.group,
         node_kind="group",
+        # The stack takes the children's place (user, live 2026-08-19): it
+        # inherits the first child's parent and slot — a group with no parent
+        # landed at the library root while its children vanished from the
+        # browsed folder.
+        parent_id=children[0].parent_id,
+        sort_order=children[0].sort_order,
         metadata={
             "group_members": [
                 {"id": child.id, "parent_id": child.parent_id, "sort_order": child.sort_order}

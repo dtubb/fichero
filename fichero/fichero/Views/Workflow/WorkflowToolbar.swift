@@ -19,6 +19,15 @@ struct WorkflowToolbar: View {
     /// Lays the graph out left-to-right by execution order (#4323).
     var onTidy: (() -> Void)?
 
+    /// Locked system preset (#4514): shows the lock badge so read-only is
+    /// STATED in the chrome instead of alerted on every view (Daniel
+    /// 2026-08-19). Viewing, running, and exporting stay enabled — only
+    /// editing is off, and the editor's autosave already stands down.
+    var isReadOnly: Bool = false
+    /// Duplicate-to-edit for a locked preset — the editable copy lands in
+    /// the user's workflows. Only rendered while `isReadOnly`.
+    var onDuplicate: (() -> Void)?
+
     // Feature flags gate which buttons the bar composes (#3205). Injected as
     // plain values — default to the shared FeatureManager, but visible at the
     // call site and overridable in previews/tests — instead of an `@ObservedObject`
@@ -29,6 +38,24 @@ struct WorkflowToolbar: View {
 
     var body: some View {
         MiniToolbar(content: {
+            if isReadOnly {
+                Label("Locked", systemImage: "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                    .help("A built-in workflow — view and run it, or duplicate it to edit")
+                    .accessibilityLabel("Locked workflow, read-only")
+                if let onDuplicate {
+                    Button(action: onDuplicate) {
+                        Label("Duplicate to Edit", systemImage: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Make an editable copy in your workflows")
+                }
+            }
             inputSourcePicker
             Spacer(minLength: 0)
             adaptiveActionRow

@@ -375,6 +375,21 @@ class FolderAccessManager {
                 let didStart = url.startAccessingSecurityScopedResource()
 
                 if isStale {
+                    // NEVER follow a library into the Trash (log audit
+                    // 2026-08-19): a stale bookmark resolved to
+                    // …/.Trash/…/Marshall Diaries.fichero and was SAVED as the
+                    // new location — emptying the Trash would then destroy the
+                    // only reference. A trashed resolution means the bookmark
+                    // is broken, not moved.
+                    if url.pathComponents.contains(".Trash") {
+                        logger.error(
+                            "Bookmark for \(path) resolved into the Trash (\(url.path)) — dropping it, not following"
+                        )
+                        if didStart { url.stopAccessingSecurityScopedResource() }
+                        bookmarks.removeValue(forKey: path)
+                        changed = true
+                        continue
+                    }
                     // Bookmark is stale, try to refresh it
                     logger.info("Stale bookmark for: \(path), refreshing...")
                     saveBookmark(for: url)

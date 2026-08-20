@@ -245,10 +245,13 @@ struct DatasetModeView: View {
                 DatasetGridView(store: store, entityService: entityService,
                                 documentService: documentService,
                                 selection: $selection,
-                                onOpen: onOpen, onOpenSource: onOpenSource)
+                                onOpen: onOpen, onOpenSource: onOpenSource,
+                                workflows: workflows,
+                                onRunWorkflow: onRunWorkflow)
             case .cards:
                 DatasetCardsView(
                     store: store, entityService: entityService,
+                    documentService: documentService,
                     selection: $selection, workflows: workflows,
                     onOpen: onOpen, onOpenSource: onOpenSource,
                     onRunWorkflow: onRunWorkflow

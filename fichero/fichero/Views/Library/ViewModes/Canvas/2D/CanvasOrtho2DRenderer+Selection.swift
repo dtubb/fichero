@@ -40,8 +40,14 @@ extension CanvasOrtho2DRenderer {
     // MARK: - Selection decoration (#4409)
 
     /// Redraw the selection frames and handles from the CURRENT card geometry.
+    /// `chromeScale` keeps the frame a constant SCREEN thickness across zoom
+    /// (#4601): orthoScale grows as the user zooms out, so the world-space
+    /// bars grow by the same ratio and cancel out on screen.
     func refreshSelectionDecoration() {
-        decorator.update(items: selectionFrameItems())
+        decorator.update(
+            items: selectionFrameItems(),
+            chromeScale: orthoScale / Self.defaultOrthoScale
+        )
     }
 
     /// The selected placeables, projected, at their LIVE positions.

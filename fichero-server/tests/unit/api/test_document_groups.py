@@ -20,6 +20,11 @@ def test_group_and_ungroup_restore_each_child_parent_and_order(client, db, monke
     assert grouped.status_code == 200
     group_id = grouped.json()["id"]
     assert db.get(Document, first.id).parent_id == group_id
+    # The stack takes the first child's place in the tree — a parentless
+    # group landed at the root and "disappeared" from the browsed folder.
+    group = db.get(Document, group_id)
+    assert group.parent_id == left_parent.id
+    assert group.sort_order == 3
     assert emitted == [{
         "library_path": str(db.path.parent),
         "type": "document.updated",

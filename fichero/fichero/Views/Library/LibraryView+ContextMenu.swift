@@ -303,15 +303,58 @@ extension LibraryView {
         let shouldIncludeInProcessing = excludeTargets.allSatisfy(\.excludeFromProcessing)
         Button {
             Task {
-                await toggleExcludeFromProcessing(
+                await toggleExclusion(
                     documentIds: excludeTargets.map(\.id),
-                    excluded: !shouldIncludeInProcessing
+                    excluded: !shouldIncludeInProcessing,
+                    scope: .processing
                 )
             }
         } label: {
             Label(
                 shouldIncludeInProcessing ? "Include in Processing" : "Exclude from Processing",
                 systemImage: shouldIncludeInProcessing ? "eye" : "eye.slash"
+            )
+        }
+
+        // #4580 (Daniel 2026-08-19): search exclusion is its OWN flag —
+        // structural pages (covers, front matter) stay browsable but never
+        // pollute keyword/semantic results.
+        let shouldIncludeInSearch = excludeTargets.allSatisfy(\.excludeFromSearch)
+        Button {
+            Task {
+                await toggleExclusion(
+                    documentIds: excludeTargets.map(\.id),
+                    excluded: !shouldIncludeInSearch,
+                    scope: .search
+                )
+            }
+        } label: {
+            Label(
+                shouldIncludeInSearch ? "Include in Search" : "Exclude from Search",
+                systemImage: shouldIncludeInSearch
+                    ? "magnifyingglass" : "text.magnifyingglass"
+            )
+        }
+
+        // Daniel's ruling (#4604 Q1): keep the two independent flags AND a
+        // one-gesture shortcut that sets both — the cover-page case.
+        let fullyExcluded = excludeTargets.allSatisfy {
+            $0.excludeFromProcessing && $0.excludeFromSearch
+        }
+        Button {
+            Task {
+                let ids = excludeTargets.map(\.id)
+                await toggleExclusion(
+                    documentIds: ids, excluded: !fullyExcluded, scope: .processing
+                )
+                await toggleExclusion(
+                    documentIds: ids, excluded: !fullyExcluded, scope: .search
+                )
+            }
+        } label: {
+            Label(
+                fullyExcluded ? "Include Everywhere" : "Exclude Everywhere",
+                systemImage: fullyExcluded ? "eye.circle" : "eye.slash.circle"
             )
         }
     }
@@ -462,16 +505,18 @@ extension LibraryView {
     }
 
     @MainActor
-    private func toggleExcludeFromProcessing(
+    private func toggleExclusion(
         documentIds: [String],
-        excluded: Bool
+        excluded: Bool,
+        scope: Components.Schemas.DocumentExclusionScope
     ) async {
         guard let library = activeLibraryReference else { return }
 
         do {
             let refreshed = try await library.documentService.batchExclude(
                 documentIds: documentIds,
-                excluded: excluded
+                excluded: excluded,
+                scope: scope
             )
             for updated in refreshed {
                 documentStore.refreshLocalContent(updated)

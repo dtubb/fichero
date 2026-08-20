@@ -28,6 +28,8 @@ READ_ONLY_MUTATING_VERB_ALLOWLIST: dict[str, str] = {
     "search/core.py:enhanced_search:POST": "POST /api/search is read-only search/query compute.",
     "search/explain.py:explain_search:POST": "POST body contains explanation request; handler only reads search inputs and returns attribution.",
     "workflow/workflows.py:estimate_workflow_cost:POST": "POST body contains estimate inputs; handler only reads workflow pricing context.",
+    "search/core.py:streaming_search:POST": "POST /api/search/stream is the same read-only search compute as enhanced_search, streamed as NDJSON (#4604).",
+    "document/artifacts.py:resolve_document_text_regions:POST": "POST body carries char spans to resolve; handler only reads the geometry artifact and returns page rects — the heat-map batch resolver persists nothing (#4604).",
 }
 
 

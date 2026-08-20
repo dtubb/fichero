@@ -159,21 +159,14 @@ extension ContentView {
                 .help(showChatPane ? "Hide chat pane" : "Show chat pane")
             }
 
-            // Summoned search (#4521, Finder-shaped): the engine-search field
-            // is no longer resident chrome — this toggle reveals it in the
-            // library's mini toolbar and dismisses it again (dismissal exits
-            // transient-search presentation through `clearTransientSearch`,
-            // #4106/S2 semantics unchanged). Its OWN item, not a fourth member
-            // of the pane group: the group is the three-pane control (#4374),
-            // and search is a different kind of thing.
+            // RESIDENT search field, top right (Daniel's ruling 2026-08-19,
+            // #4604 Q10 — supersedes #4521's summoned field): always visible
+            // and expanded, never a toggle away. The magnifier is the MODE
+            // menu (Ask/Keyword + Hybrid/Semantic/Full Text merged — the two
+            // controls used to live in two different bars, #4604 §4.2). The
+            // reader's find bar deliberately stays bottom (ruling Q9 split).
             ToolbarItem(id: ContentToolbarID.searchToggle, placement: .automatic) {
-                Toggle(isOn: Binding(
-                    get: { showSearchField },
-                    set: { setSearchFieldVisible($0) }
-                )) {
-                    Label("Search", systemImage: ToolbarSymbols.findField)
-                }
-                .help(showSearchField ? "Hide the search field" : "Search the library")
+                toolbarSearchField
             }
         }
 

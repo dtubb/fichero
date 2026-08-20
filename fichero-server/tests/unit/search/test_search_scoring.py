@@ -275,6 +275,74 @@ class TestHybridRanking:
         assert results[0].score > results[1].score
 
 
+
+    def test_keyword_only_hit_at_rank_2_survives_default_min_score(self, db, monkeypatch) -> None:
+        """#4236 / SEARCH_PLAN M2: a doc the KEYWORD leg matched projects to
+        0.5 + 0.1*bm25norm, so the app's default min_score=0.55 silently
+        dropped every keyword-only hit except the single top-BM25 doc — a
+        confident empty answer for rare terms. Fulltext evidence is exempt
+        from the fused-score floor; the floor still cuts semantic-only noise."""
+
+        class FakeQuery:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def select(self, _columns):
+                return self
+
+            def limit(self, _limit):
+                return self
+
+            def to_list(self):
+                return self.rows
+
+        def fulltext_row(doc_id, score):
+            return {
+                "document_id": doc_id, "id": doc_id,
+                "text": f"jemseg ledger {doc_id}", "name": doc_id,
+                "doc_type": "file", "file_type": "text", "_score": score,
+            }
+
+        class FakeTable:
+            schema = SimpleNamespace(
+                names=[
+                    "document_id", "id", "text", "name", "doc_type", "file_type",
+                    "embedding_scope", "passage_id", "page_id", "char_start", "char_end",
+                ]
+            )
+
+            def search(self, _query, query_type="auto", fts_columns=None):
+                return FakeQuery([
+                    fulltext_row("doc-kw-1", 3.0),
+                    fulltext_row("doc-kw-2", 1.0),
+                ])
+
+        fake_lance = SimpleNamespace(open_table=lambda _name: FakeTable())
+        monkeypatch.setattr(type(db), "lance", property(lambda self: fake_lance))
+        monkeypatch.setattr(type(db), "_lance_tables", lambda self: [EMBEDDINGS_TABLE])
+        monkeypatch.setattr(type(db), "_embed_text", lambda self, _query: [0.0])
+        # Semantic leg finds nothing relevant.
+        monkeypatch.setattr(
+            type(db), "search_vectors", lambda self, _t, _v, _l: []
+        )
+        monkeypatch.setattr(type(db), "_is_active_document_id", lambda self, _d: True)
+        monkeypatch.setattr(
+            type(db), "_has_indexed_page_children", lambda self, _d: False
+        )
+        monkeypatch.setattr(
+            type(db), "enrich_search_results_with_kg", lambda self, results, _q: results
+        )
+
+        results, total, _stats = Database.search(
+            db, "jemseg", search_type="hybrid", min_score=0.55
+        )
+
+        ids = [r.document_id for r in results]
+        assert "doc-kw-1" in ids and "doc-kw-2" in ids, (
+            f"keyword hits dropped by the fused min_score floor: {ids}"
+        )
+
+
 class TestMarkerOnlyDetection:
     """`_is_content_marker_only` decides whether to fall back to doc.name
     when embedding (avoids the [sin texto]-cluster bug where every blank
@@ -345,3 +413,100 @@ class TestCosineFromL2:
         # Caller clamps with max(0.0, min(1.0, cos)) → 0.0 for ranking.
         clamped = max(0.0, min(1.0, cos))
         assert clamped == 0.0
+
+
+class TestScriptAwareFold:
+    """Daniel's ruling (#4604 Q9): accent-insensitive for Latin/Greek/
+    Cyrillic; vowel signs PRESERVED for the abugidas — a Devanagari matra is
+    a vowel, not an accent, and stripping it collapsed distinct words."""
+
+    def test_latin_accents_still_fold(self) -> None:
+        assert _fold_for_search("Quibdó CAFÉ çedilla") == "quibdo cafe cedilla"
+
+    def test_devanagari_vowel_signs_survive(self) -> None:
+        # कि (ka + i-matra) must NOT collapse to क (bare ka).
+        assert _fold_for_search("कि") == "कि"
+        assert _fold_for_search("कि") != _fold_for_search("क")
+
+    def test_sanskrit_word_distinct_after_fold(self) -> None:
+        # धर्म (dharma) keeps its virama + vowel structure.
+        word = "धर्म"
+        assert _fold_for_search(word) == word
+
+    def test_mixed_script_line_folds_each_side_correctly(self) -> None:
+        folded = _fold_for_search("José कि")
+        assert folded == "jose कि"
+
+
+class TestKGFusionLeg:
+    """#1833 M1: KG evidence is a real RRF leg in hybrid search — claims and
+    entity links rank documents alongside text similarity, and a KG-only hit
+    survives the min_score floor (it is evidence, not a fuzzy neighbour)."""
+
+    def _wire(self, db, monkeypatch, kg_leg):
+        class FakeQuery:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def select(self, _columns):
+                return self
+
+            def limit(self, _limit):
+                return self
+
+            def to_list(self):
+                return self.rows
+
+        class FakeTable:
+            schema = SimpleNamespace(
+                names=[
+                    "document_id", "id", "text", "name", "doc_type", "file_type",
+                    "embedding_scope", "passage_id", "page_id", "char_start", "char_end",
+                ]
+            )
+
+            def search(self, _query, query_type="auto", fts_columns=None):
+                return FakeQuery([])
+
+        fake_lance = SimpleNamespace(open_table=lambda _name: FakeTable())
+        monkeypatch.setattr(type(db), "lance", property(lambda self: fake_lance))
+        monkeypatch.setattr(type(db), "_lance_tables", lambda self: [EMBEDDINGS_TABLE])
+        monkeypatch.setattr(type(db), "_embed_text", lambda self, _q: [0.0])
+        monkeypatch.setattr(type(db), "search_vectors", lambda self, _t, _v, _l: [])
+        monkeypatch.setattr(type(db), "_is_active_document_id", lambda self, _d: True)
+        monkeypatch.setattr(
+            type(db), "_has_indexed_page_children", lambda self, _d: False
+        )
+        monkeypatch.setattr(
+            type(db), "enrich_search_results_with_kg", lambda self, results, _q: results
+        )
+        monkeypatch.setattr(
+            type(db),
+            "_expand_query_with_entity_aliases",
+            lambda self, q: ([q], ["entity-1"]),
+        )
+        monkeypatch.setattr(
+            type(db), "_kg_evidence_results",
+            lambda self, _q, _ids, limit=20: kg_leg,
+        )
+
+    def test_kg_only_document_survives_default_min_score(self, db, monkeypatch) -> None:
+        kg_leg = [{
+            "document_id": "doc-kg", "score": 0.0,
+            "content": "Andagoya entity-linked page",
+            "metadata": {"name": "IMG_010", "doc_type": "page", "file_type": "image"},
+        }]
+        self._wire(db, monkeypatch, kg_leg)
+
+        results, total, _stats = Database.search(
+            db, "Andagoya", search_type="hybrid", min_score=0.55
+        )
+        assert total == 1
+        assert results[0].document_id == "doc-kg"
+
+    def test_no_matched_entities_means_no_kg_leg(self, db, monkeypatch) -> None:
+        self._wire(db, monkeypatch, [])
+        results, total, _stats = Database.search(
+            db, "nothing", search_type="hybrid", min_score=0.55
+        )
+        assert total == 0

@@ -31,13 +31,19 @@ extension ContentView {
             // the engine's upload temp name, so it read `fichero_upload_…pdf`
             // where the sidebar read `18590129.pdf`.
             if let page = activeLocationDocument, page.docType == .page {
-                let selectedPageCount = browserSelection.filter { id in
-                    documentStore.currentDocuments.first(where: { $0.id == id })?.docType == .page
-                }.count
+                // One pass over currentDocuments with a Set — the old
+                // `filter { first(where:) }` was O(selection × library) per
+                // title evaluation (stall audit #4602).
+                let selectedIds = Set(browserSelection)
+                let selectedPages = documentStore.currentDocuments.filter {
+                    selectedIds.contains($0.id) && $0.docType == .page
+                }
                 viewName = DocumentTitle.windowTitle(
                     leaf: page,
                     parent: document,
-                    selectedPageCount: selectedPageCount
+                    selectedPageCount: selectedPages.count,
+                    // #4586: images are images; "pages" only for real PDF pages.
+                    selectionNoun: DocumentTitle.selectionNoun(for: selectedPages)
                 )
             } else if let document {
                 viewName = DocumentTitle.displayName(for: document)
@@ -86,19 +92,17 @@ extension ContentView {
             return ""
         }
 
-        // Build a lookup function for parent documents from currentDocuments + cache
-        // ContentView is a struct (value type) — capture by value, no weak/retain-cycle concern.
-        let parentLookup: BreadcrumbBuilder.DocumentLookup = { parentId in
-            // Check currentDocuments first (most likely case)
-            if let found = documentStore.currentDocuments.first(where: { $0.id == parentId }) {
-                return found
-            }
-            // Fallback to collections if not found in current docs
-            if let found = documentStore.collections.first(where: { $0.id == parentId }) {
-                return found
-            }
-            return nil
-        }
+        // ONE id-indexed dictionary per evaluation. The closure used to run
+        // `first(where:)` over currentDocuments + collections PER ANCESTOR HOP
+        // — O(depth × library) inside a toolbar body eval, sampled at 689ms on
+        // the Marshall library (stall audit #4602).
+        // ContentView is a struct (value type) — capture by value, no
+        // weak/retain-cycle concern.
+        let documentsById = Dictionary(
+            (documentStore.currentDocuments + documentStore.collections).map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let parentLookup: BreadcrumbBuilder.DocumentLookup = { documentsById[$0] }
 
         let pageLabel: String? = if let page = activeLocationDocument, page.docType == .page {
             page.pageThumbnailLabel

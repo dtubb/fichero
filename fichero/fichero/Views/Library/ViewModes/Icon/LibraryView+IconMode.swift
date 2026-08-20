@@ -116,12 +116,11 @@ extension LibraryView {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
                 .coordinateSpace(name: "libraryIconGrid")
-                .onPreferenceChange(IconTileFramesKey.self) {
-                    // Equality guard (2026-08-09 log: 'Bound preference
-                    // IconTileFramesKey tried to update multiple times per
-                    // frame') — writing the identical dictionary re-rendered
-                    // the grid, which re-reported the frames, which…
-                    if iconTileFrames != $0 { iconTileFrames = $0 }
+                .onPreferenceChange(IconTileFramesKey.self) { [marqueeModel] frames in
+                    // Into the observation-ignored BOX (log audit 2026-08-19):
+                    // as @State, every scroll frame's report re-rendered the
+                    // whole grid. Gesture handlers read the box directly.
+                    marqueeModel.tileFrames = frames
                 }
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
@@ -144,7 +143,7 @@ extension LibraryView {
                             // had already made. A sweep may only BEGIN where
                             // no tile is; once live it continues anywhere.
                             guard marqueeModel.rect != nil
-                                || LibraryMarquee.startsInGutter(value.startLocation, frames: iconTileFrames)
+                                || LibraryMarquee.startsInGutter(value.startLocation, frames: marqueeModel.tileFrames)
                             else { return }
                             let rect = LibraryMarquee.rect(from: value.startLocation, to: value.location)
                             // Per-tick: mutate the box (overlay-only render).
@@ -155,7 +154,7 @@ extension LibraryView {
                             // Selection applies ONLY when the hit set changes
                             // — the expensive grid re-render happens when a
                             // tile enters/leaves the band, not per pixel.
-                            let hits = LibraryMarquee.hitIds(in: iconTileFrames, rect: rect)
+                            let hits = LibraryMarquee.hitIds(in: marqueeModel.tileFrames, rect: rect)
                             guard hits != marqueeModel.lastHits else { return }
                             marqueeModel.lastHits = hits
                             apply(SelectionGrammar.marquee(
@@ -227,6 +226,13 @@ extension LibraryView {
                 .focusEffectDisabled()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.leading, browserLeadingInset)
+                // #4589 (Daniel): load a folder's thumbnails when it OPENS,
+                // bounded, instead of lazy-loading on scroll — the grid
+                // jumped as rows arrived. The per-row look-ahead prefetch
+                // stays as the catch-up path for folders above the cap.
+                .task(id: "\(folderId ?? "root")-\(filteredDocuments.count)") {
+                    prefetchFolderThumbnails()
+                }
                 // Pinch-to-zoom on the trackpad resizes icons live, like
                 // Finder's icon view. Clamped 0.5–2.5x to match the toolbar
                 // +/- buttons' usable range; persisted via @AppStorage on
@@ -336,6 +342,32 @@ extension LibraryView {
     // from ITS rows' onAppear (#4160) — list rows previously fetched one at a
     // time on scroll, so every scroll showed skeleton churn. The table's name
     // cell joins them now that it renders thumbnails too (#4202).
+    /// Prefetch the WHOLE open folder's thumbnails, front to back, capped
+    /// (#4589). Runs once per folder/document-set through the same
+    /// storage-service pipeline (6-wide concurrency) and the same
+    /// `prefetchedThumbnailIds` ledger the scroll look-ahead uses, so the two
+    /// paths never double-fetch. Its own task variable — a scroll prefetch
+    /// must not cancel the folder sweep.
+    func prefetchFolderThumbnails() {
+        // ponytail: 600 covers every Marshall diary (max 204 pages) with
+        // headroom; beyond the cap the scroll look-ahead still catches up.
+        let cap = 600
+        guard !isShowingEntitiesCollection else { return }
+        let imageIds = filteredDocuments.prefix(cap)
+            .filter {
+                DocumentThumbnailKind.forDocument($0).fetchesStorageThumbnail
+                    && !prefetchedThumbnailIds.contains($0.id)
+            }
+            .map(\.id)
+        guard !imageIds.isEmpty,
+              let storageService = scopedLibraryReference?.storageService else { return }
+        prefetchedThumbnailIds.formUnion(imageIds)
+        folderThumbnailPrefetchTask?.cancel()
+        folderThumbnailPrefetchTask = Task {
+            await storageService.prefetchThumbnails(imageIds)
+        }
+    }
+
     func scheduleThumbnailPrefetch(around documentId: String) {
         guard !isShowingEntitiesCollection,
               let index = documentIndexById[documentId] else { return }

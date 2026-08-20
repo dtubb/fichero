@@ -62,7 +62,11 @@ enum SearchAgreement: Equatable {
             arrived: response.results.count
                 + response.entityHits.count
                 + response.claimHits.count
-                + response.artifactHits.count
+            // NOT artifactHits: the engine folds artifact-hit documents INTO
+            // `results` and its rendered_total counts them exactly once —
+            // adding the leg again here reported a phantom "+N decoded"
+            // disagreement on every artifact-bearing search (log audit
+            // 2026-08-19: 172 vs 122, the 50 artifact hits double-counted).
         )
     }
 

@@ -132,7 +132,7 @@ extension ContentView {
         }
         rememberRunSelection(newSelection)
         let primaryId = shellPrimarySelectionId(
-            in: newSelection, orderedBy: documentStore.currentDocuments
+            in: newSelection, orderedBy: selectedDocuments
         )
         if isEntityLibrarySelection {
             guard let firstId = primaryId else {
@@ -160,7 +160,7 @@ extension ContentView {
             }
             return
         }
-        if let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }) {
+        if let doc = selectedDocuments.first(where: { $0.id == firstId }) {
             NavTrace.log("selChange.promote", "\(firstId) (rewrite; had \(detailDocument?.id ?? "nil"))")
             detailDocument = doc
             return
@@ -174,7 +174,7 @@ extension ContentView {
             let fetched = try? await documentStore.documentService.getDocument(firstId)
             if let fetched,
                shellPrimarySelectionId(
-                   in: browserSelection, orderedBy: documentStore.currentDocuments
+                   in: browserSelection, orderedBy: selectedDocuments
                ) == firstId {
                 NavTrace.log("selChange.asyncFetch", "\(firstId)")
                 detailDocument = fetched

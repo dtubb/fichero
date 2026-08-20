@@ -104,6 +104,9 @@ class ToolResponse(BaseModel):
     supports_structured_output: bool
     sort_order: int
     tested: bool = False  # False = UNTESTED; only the HTR chain is tested today
+    # How the tool consumes its batch: elementwise | reducing | batch
+    # (ToolDef.parallelism, exposed 2026-08-19 for the ToolInfo model sync).
+    parallelism: str = "batch"
 
 
 class CategoryToolsResponse(BaseModel):
@@ -373,6 +376,7 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
         supports_structured_output=tool.supports_structured_output,
         sort_order=tool.sort_order,
         tested=tool.tested,
+        parallelism=tool.parallelism,
     )
 
 

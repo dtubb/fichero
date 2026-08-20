@@ -48,8 +48,8 @@ final class CanvasSelectionDecorator {
     init(
         showsHandles: Bool,
         accentColor: PlatformColor,
-        frameThickness: Float = 0.022,
-        setFrameThickness: Float = 0.014,
+        frameThickness: Float = 0.014,
+        setFrameThickness: Float = 0.009,
         frameLift: Float = 0.02,
         handleLift: Float = 0.03,
         handleSide: Float = 0.09
@@ -76,7 +76,19 @@ final class CanvasSelectionDecorator {
     ///
     /// `depth` supplies each item's plane offset (the 3D renderer's cards sit
     /// at different z; the 2D renderer's are all on one plane).
-    func update(items: [CanvasSelectionFrame.Item], depth: (String) -> Float = { _ in 0 }) {
+    /// `chromeScale` keeps the chrome CONSTANT in screen space (#4601,
+    /// Daniel: the box must not fatten as you zoom): the 2D renderer passes
+    /// its current-zoom ratio so bar thickness and handle size are multiplied
+    /// back up as the world shrinks on screen. Default 1 = world-constant
+    /// (the 3D perspective scene, where no single ratio exists).
+    func update(
+        items: [CanvasSelectionFrame.Item],
+        depth: (String) -> Float = { _ in 0 },
+        chromeScale: Float = 1
+    ) {
+        let scale = max(chromeScale, 0.001)
+        let frameThickness = self.frameThickness * scale
+        let setFrameThickness = self.setFrameThickness * scale
         root.children.forEach { $0.removeFromParent() }
         // Sorted to match `plan`'s own ordering, so `itemBoxes[i]` and
         // `ordered[i]` are the same placeable and each frame gets ITS card's
@@ -100,7 +112,7 @@ final class CanvasSelectionDecorator {
 
         guard showsHandles else { return }
         for handle in plan.handles {
-            root.addChild(makeHandle(handle, depth: depth(handle.itemId)))
+            root.addChild(makeHandle(handle, depth: depth(handle.itemId), scale: scale))
         }
     }
 
@@ -134,7 +146,10 @@ final class CanvasSelectionDecorator {
 
     /// A corner grab handle — the ONE decoration that is an input target. The
     /// host's resize drag finds it by name.
-    private func makeHandle(_ handle: CanvasSelectionFrame.Handle, depth: Float) -> ModelEntity {
+    private func makeHandle(
+        _ handle: CanvasSelectionFrame.Handle, depth: Float, scale: Float = 1
+    ) -> ModelEntity {
+        let handleSide = self.handleSide * scale
         let mesh = MeshResource.generatePlane(
             width: handleSide, height: handleSide, cornerRadius: handleSide * 0.25
         )

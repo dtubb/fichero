@@ -284,3 +284,46 @@ def test_dropped_corpus_serves_real_thumbnail_bytes(client, db, test_package, tm
     assert resp.status_code == 200, f"thumbnail must serve, got {resp.status_code}"
     assert len(resp.content) > 500, "thumbnail must be real image bytes"
     assert resp.content[:2] == b"\xff\xd8", "thumbnail must be a JPEG"
+
+
+def test_manifest_date_makes_the_page_dated_on_arrival(client, db, test_package, tmp_path):
+    """A manifest node's ``date`` lands in date_original/date_jdn at import
+    (2026-08-19: a staged diary imported with 125/157 dated pages all reading
+    as Undated — the date rode only in metadata). Provenance is recorded as
+    ``manifest``, same parser and precedence as the .iffy.json sidecar path."""
+    manifest = _fixture_manifest(tmp_path)
+
+    docs = _import_manifest_folder(
+        db,
+        manifest,
+        IngestFolderRequest(path=str(tmp_path)),
+        Path(test_package),
+        manifest_client=_TestClientAdapter(client),
+    )
+
+    page = next(d for d in docs if d.name == "page_001")
+    fresh = db.get(Document, page.id)
+    assert fresh.date_original == "1923-02-05"
+    assert fresh.date_jdn is not None and fresh.date_jdn_end is not None
+    assert (fresh.date_meta or {}).get("source") == "manifest"
+
+    group = next(d for d in docs if d.name == "Tiny Corpus")
+    fresh_group = db.get(Document, group.id)
+    assert fresh_group.date_original == "1923", "group dates apply too"
+
+
+def test_apply_import_date_never_overwrites_and_stays_honest():
+    from fichero_server.importers.ingest import apply_import_date
+
+    doc = Document(id="d1", name="x.jpg")
+    assert apply_import_date(doc, "1923-02-05", source="manifest")
+    assert doc.date_original == "1923-02-05" and doc.date_jdn is not None
+
+    # Existing dates are never clobbered.
+    assert not apply_import_date(doc, "1999-01-01", source="manifest")
+    assert doc.date_original == "1923-02-05"
+
+    # Unparseable input: metadata-honest no-op, no guessed columns.
+    blank = Document(id="d2", name="y.jpg")
+    assert not apply_import_date(blank, "sometime colonial", source="manifest")
+    assert blank.date_original is None and blank.date_jdn is None

@@ -21,6 +21,9 @@ final class ActivityStore: ChangeEventConsumer {
     /// Bumped whenever an activity SSE event arrives or a reconnect resync fires.
     /// `ActivityBrowserView` observes this to reload its run list.
     private(set) var refreshToken: Int = 0
+    /// Coalesces activity-frame bursts into one refreshToken bump (see
+    /// `applyActivityEvent`).
+    private let refreshDebouncer = ReloadDebouncer()
 
     private let log = Logger(subsystem: "app.fichero.fichero", category: "ActivityStore")
     private let streamService: ActivityStreamService
@@ -218,9 +221,19 @@ final class ActivityStore: ChangeEventConsumer {
             log.debug("ActivityStore: folded change \(change.type, privacy: .public) routed=\(routed, privacy: .public)")
             return
         }
-        refreshToken += 1
-        let token = self.refreshToken
-        log.debug("ActivityStore: activity event \(activity.type, privacy: .public), refreshToken → \(token, privacy: .public)")
+        // Debounced (perf audit 2026-08-19): a running workflow emits several
+        // activity frames per second, and every refreshToken bump used to fan
+        // out to a full run-list refetch in the sidebar, the activity pane
+        // AND the library's pending-status poll — ~10 GET /api/activity per
+        // second for the whole run. One bump per burst carries the same
+        // "something changed" signal.
+        refreshDebouncer.schedule { [weak self] in
+            await MainActor.run {
+                guard let self else { return }
+                self.refreshToken += 1
+                self.log.debug("ActivityStore: activity burst, refreshToken → \(self.refreshToken, privacy: .public)")
+            }
+        }
     }
 
     /// Drive the live backend-work indicator from a decoded signal (#2279).
