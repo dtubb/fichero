@@ -270,6 +270,12 @@ def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
                 "Derivative generation failed for %s: %s", doc_id, error
             )
 
+    # RE-READ before writing (same guard as the embed stage): never save a
+    # stage-start copy over a row deleted while the thumbnail rendered.
+    doc = db.get(Document, doc_id)
+    if doc is None or getattr(doc, "deleted_at", None) is not None:
+        return thumb
+
     metadata = dict(doc.metadata or {})
     if error:
         metadata["derivative_error"] = error
@@ -309,6 +315,14 @@ def _embed_stage(doc_id: str, library: str) -> None:
         db, doc = opened
 
         embed_error = _embed_document_tree(doc, db)
+
+        # RE-READ before writing (manifest-drop repro, 2026-08-20): embedding
+        # takes seconds, and saving the copy read at stage START resurrected
+        # rows deleted in between — the stale save clobbered deleted_at. A
+        # row deleted mid-stage needs no status flip at all.
+        doc = db.get(Document, doc_id)
+        if doc is None or getattr(doc, "deleted_at", None) is not None:
+            return
 
         metadata = dict(doc.metadata or {})
         if embed_error:

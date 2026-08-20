@@ -5,6 +5,7 @@ Thumbnail and file serving endpoints.
 """
 
 import asyncio
+import threading
 import logging
 import os
 from fichero_server.core.timeutil import utc_now
@@ -25,7 +26,6 @@ from fichero_server.models import (
     Document,
     LibrarySnapshot,
     SnapshotInitiatorType,
-    Status,
 )
 from fichero_server.core.perf import perf_span
 from fichero_server.db.storage import (
@@ -106,6 +106,12 @@ def _document_or_404(db: Database, doc_id: str) -> Document:
     return doc
 
 
+#: Permits for generate-on-miss thumbnail work on request threads. Two keeps
+#: interactive single requests instant while an import's miss-storm is shed to
+#: the derivative stage (perf audit 2026-08-19).
+_inline_thumbnail_permits = threading.BoundedSemaphore(2)
+
+
 def _inline_content_disposition(filename: str) -> str:
     """Build a Content-Disposition header safe for non-ASCII filenames."""
     ascii_fallback = (
@@ -160,20 +166,25 @@ async def get_thumbnail(
         )
         perf["cache_state"] = "hit" if thumb_path else "miss"
 
-        if not thumb_path and doc.status == Status.pending:
-            # The derivative stage owns this document's thumbnail and will
-            # emit document.updated the moment it lands. Generating inline
-            # here DUPLICATED that work on a request thread — during an
-            # import, thousands of concurrent misses starved the pool
-            # (measured 2026-08-19: avg 784ms, worst 60s). Fail fast; the
-            # canvas/grid retry picks the image up seconds later.
-            perf["cache_state"] = "pending"
-            raise HTTPException(status_code=404, detail="Thumbnail not yet generated")
-
         if not thumb_path:
-            thumb_path = await asyncio.to_thread(
-                ensure_thumbnail, doc, package_path=package_path, db=db
-            )
+            # BOUNDED inline generation (perf audit 2026-08-19): during an
+            # import, thousands of concurrent misses each generated inline on
+            # a request thread and starved the pool (avg 784ms, worst 60s).
+            # A few permits keep the lazy generate-on-miss contract alive for
+            # interactive singles; beyond them the storm fails fast — the
+            # derivative stage announces each image and the clients retry.
+            if _inline_thumbnail_permits.acquire(blocking=False):
+                try:
+                    thumb_path = await asyncio.to_thread(
+                        ensure_thumbnail, doc, package_path=package_path, db=db
+                    )
+                finally:
+                    _inline_thumbnail_permits.release()
+            else:
+                perf["cache_state"] = "shed"
+                raise HTTPException(
+                    status_code=404, detail="Thumbnail not yet generated"
+                )
             perf["cache_state"] = "generated" if thumb_path else "unavailable"
             # Warm the companion display image so both formats exist after the
             # first access — avoids the asymmetry where only the requested format

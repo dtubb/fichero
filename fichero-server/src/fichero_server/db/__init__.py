@@ -849,6 +849,14 @@ class Database(DatabaseEmbeddingMixin):
             pass
         self.conn = self._connect()
         self.duck = self.conn
+        # The dedicated READ cursor was minted from the CLOSED connection. A
+        # stale cursor does not always raise — it can silently keep serving
+        # the old connection's snapshot, so committed reads (listings, the
+        # delete cascade's descendant walk) answered from a dead world while
+        # gated reads saw the live one (manifest-drop repro, 2026-08-20).
+        # Drop it; the next committed read mints one from the fresh conn.
+        with self._read_lock:
+            self._read_conn = None
         # Table/index setup may not have run on the fresh connection in this
         # process. Force the next _ensure_table call to reconcile schema and
         # drop unsafe indexes again.

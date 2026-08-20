@@ -21,6 +21,8 @@
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		A5B94ED995BD4F2B9E989B3A /* ContentView+ToolbarSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8DB883AB37E68F8A3D1BDC7 /* ContentView+ToolbarSearch.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
+		D72DE5EA7E66F0CFE794F3CD /* DocumentService+Listing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */; };
+		DDF8D961FA198EE2DA1B626D /* DocumentService+Listing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */; };
 		E42DFD2AB6B9855B43C1D47C /* DocumentStore+StatusRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237D07C2E74AC737AC2EC8A6 /* DocumentStore+StatusRefresh.swift */; };
 		EC49A3C9238F18751638C41D /* ContentView+SearchResultsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2839F5A59ABAB7347E7EF48B /* ContentView+SearchResultsBar.swift */; };
 		EEE1695EB4BF56967A740C90 /* DocumentStore+StatusRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237D07C2E74AC737AC2EC8A6 /* DocumentStore+StatusRefresh.swift */; };
@@ -79,6 +81,7 @@
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		144803782C36A3D39C9A7F39 /* CanvasOrtho2DRenderer+Thumbnails.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CanvasOrtho2DRenderer+Thumbnails.swift"; sourceTree = "<group>"; };
+		1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentService+Listing.swift"; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		237D07C2E74AC737AC2EC8A6 /* DocumentStore+StatusRefresh.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentStore+StatusRefresh.swift"; sourceTree = "<group>"; };
 		2839F5A59ABAB7347E7EF48B /* ContentView+SearchResultsBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "ContentView+SearchResultsBar.swift"; sourceTree = "<group>"; };
@@ -263,6 +266,7 @@
 			children = (
 				07B3BB1A0843DC54A55C5D44 /* Views */,
 				FC062A6DAB9CF45323430B09 /* Models */,
+				DF6A257394E7187A126884A6 /* Services */,
 			);
 			path = fichero;
 			sourceTree = "<group>";
@@ -294,6 +298,15 @@
 				35AF1B56C3E7D54AFDBA97B3 /* 3D */,
 			);
 			path = Canvas;
+			sourceTree = "<group>";
+		};
+		DF6A257394E7187A126884A6 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */,
+			);
+			name = Services;
+			path = Services;
 			sourceTree = "<group>";
 		};
 		E10DE0854FE81EE122E41C4F /* Library */ = {
@@ -1156,6 +1169,7 @@
 				A18B0C7292A00BEAE970BE72 /* ContentView+SearchResultsBar.swift in Sources */,
 				E42DFD2AB6B9855B43C1D47C /* DocumentStore+StatusRefresh.swift in Sources */,
 				87CE97FEFB3F064FEEEB4F76 /* CanvasSceneView+Camera.swift in Sources */,
+				DDF8D961FA198EE2DA1B626D /* DocumentService+Listing.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1183,6 +1197,7 @@
 				EC49A3C9238F18751638C41D /* ContentView+SearchResultsBar.swift in Sources */,
 				EEE1695EB4BF56967A740C90 /* DocumentStore+StatusRefresh.swift in Sources */,
 				2AA74E9F0D6667C0DE8C2005 /* CanvasSceneView+Camera.swift in Sources */,
+				D72DE5EA7E66F0CFE794F3CD /* DocumentService+Listing.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */
