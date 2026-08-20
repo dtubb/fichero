@@ -2,6 +2,63 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.08.20
+
+### Dev build
+
+The speed build: a night of profiling the live Marshall corpus (4,169
+documents) and removing every whole-collection cost the logs surfaced,
+plus the day's live-testing fixes.
+
+**Browsing stays fast while the engine works.** Folder listings read the
+last-committed snapshot instead of queueing behind an import's embedding
+transactions (worst case measured: 12 seconds); each row hydrates once,
+without its full page text, through a memoized field plan; vector writes
+no longer block database reads; and a new index backs every parent-folder
+lookup. Listing routes run off the event loop, so concurrent requests
+stop serializing.
+
+**Thumbnails land as they're made.** The derivative queue renders a
+folder's thumbnails before starting its slower text embeddings, announces
+each image the moment it exists, and reports its progress in the toolbar
+island ("Processing imported pages — 42%") instead of claiming Ready.
+Quitting mid-import is safe: interrupted work resumes on the next launch.
+The thumbnail endpoint serves interactive requests instantly and sheds
+import-storm misses to the queue (previously: 15,565 calls averaging
+784ms, worst 60 seconds).
+
+**One request where there were a thousand.** The change-stream patch
+flush, workflow-completion refresh, and search resolution now fetch
+documents in one batched call each; a live session had issued 1,001
+sequential single-document requests.
+
+**Search results are nodes.** Every hit — document, person, place, claim,
+artifact — resolves into the library grid as a clickable node that
+preview, reader, inspector, workflows, and Select All all agree on. The
+reader follows result clicks and scrolls to the page; clicking a page in
+the reader selects its result row.
+
+**Canvas input works like it should.** Two-finger scroll pans both
+canvases (the old overlay never actually received scroll events), arrow
+keys nudge the camera, ⌘A selects every node, and page thumbnails load
+from the library you're in — a wrong-library lookup had silently failed
+all 1,500 texture loads in a session. The render cap rises to 1,500.
+
+**The reader scrolls like Safari.** Off-screen pages skip layout and
+paint entirely, page positions are measured once instead of per scroll
+frame, and hidden panels (graph, timeline, map) render only when opened —
+crossing a page boundary used to re-run a force-directed graph layout for
+a panel that wasn't visible.
+
+**Corrections from live testing.** Default workflows appear in every
+library again (a legacy flag heal); grouped items stack in place instead
+of vanishing to the library root; deleting a corpus can no longer be
+raced by its own background embeds resurrecting pages; a stale bookmark
+that resolves into the Trash is dropped rather than followed (a library
+reference had silently moved to iCloud's Trash); the preview background
+follows dark mode; dataset views remember sort and text depth; dataset
+cards and sheet rows gain Run Workflow and exclusion menus.
+
 ## 2026.08.17
 
 ### Dev build
