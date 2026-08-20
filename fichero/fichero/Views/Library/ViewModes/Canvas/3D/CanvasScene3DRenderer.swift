@@ -69,6 +69,10 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     var detailTier: CanvasDetailTier = .thumbnail
     var onIntent: ((CanvasIntent) -> Void)?
     var isDragSuppressed: ((String) -> Bool)?
+    /// The CURRENT library's storage service — the texture cache's fallback
+    /// is the GLOBAL library, which made every other library's 3D canvas
+    /// fail all 1,500 thumbnail loads silently (log audit 2026-08-19).
+    var storageService: StorageService?
 
     /// Closer camera → larger reported zoom, so `CanvasDetailTier` swaps in
     /// thumbnails / full textures as the user flies in (same rule as 2D).
@@ -305,10 +309,12 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         return entity
     }
 
-    private func loadThumbnail(sourceId: String, into entity: ModelEntity) {
+    private func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 2) {
         Task { @MainActor in
             do {
-                let texture = try await SpaceTextureCache.shared.texture(forSourceId: sourceId)
+                let texture = try await SpaceTextureCache.shared.texture(
+                    forSourceId: sourceId, using: storageService
+                )
                 // First load: memoize the true aspect and rebuild the card
                 // once (#4193) — makeCard reads the memo, so the rebuilt card
                 // (mesh, collision, selection outline) takes the page's real
@@ -320,7 +326,14 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
                     entity.model?.materials = [UnlitMaterial(texture: texture)]
                 }
             } catch {
-                log.debug("space thumbnail load failed for \(sourceId, privacy: .public)")
+                // Say WHY (perf audit 2026-08-19: 1,500 silent failures in
+                // 16s made 'no thumbnails' undiagnosable) — and retry once:
+                // fresh imports 404 until the derivative stage lands them.
+                log.error("space thumbnail load failed for \(sourceId, privacy: .public): \(error.localizedDescription)")
+                if retriesLeft > 0 {
+                    try? await Task.sleep(for: .seconds(25))
+                    loadThumbnail(sourceId: sourceId, into: entity, retriesLeft: retriesLeft - 1)
+                }
             }
         }
     }

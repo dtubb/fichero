@@ -245,6 +245,11 @@ struct SpaceSceneView: View {
             persistViewport()
             return .handled
         }
+        .onKeyPress(.init("a"), phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            selectedNodeIds = Set(nodes.map(\.id))
+            return .handled
+        }
         .onAppear {
             applyInitialViewportIfNeeded()
         }

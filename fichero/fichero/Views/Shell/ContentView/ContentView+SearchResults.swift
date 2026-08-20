@@ -159,6 +159,14 @@ extension ContentView {
         }
         guard activeSearchQuery == query else { return }
         searchResultDocuments = resolved
+        // Scope the reading surface to the results (user, 2026-08-19): with
+        // nothing selected, the reader kept showing the pre-search document.
+        // A selection the user makes still wins, as everywhere else.
+        if browserSelection.isEmpty, let first = resolved.first,
+           detailDocument?.id != first.id,
+           !resolved.contains(where: { $0.id == detailDocument?.id }) {
+            detailDocument = first
+        }
         transientSearchRowHits = Dictionary(
             store.results.map { ($0.documentId, $0.rowHit) },
             uniquingKeysWith: { first, _ in first }

@@ -33,6 +33,7 @@ extension LibraryView {
                 connections: [],
                 selectedNodeIds: canvasSelectedNodeIds,
                 layoutStore: canvasLayoutStore,
+                storageService: activeLibraryReference?.storageService,
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
                 containerIds: canvasContainerIds,

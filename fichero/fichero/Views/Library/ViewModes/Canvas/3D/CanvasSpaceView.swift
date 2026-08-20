@@ -34,6 +34,8 @@ struct CanvasSpaceView: View {
         selectedNodeIds.count == 1 ? selectedNodeIds.first : nil
     }
     var layoutStore: CanvasLayoutStore?
+    /// The CURRENT library's storage service for thumbnail textures (#4160).
+    var storageService: StorageService?
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
     /// Container spatial node ids (folder / workspace) from LibraryView — drives
@@ -125,6 +127,35 @@ struct CanvasSpaceView: View {
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
             .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }
+            // Two-finger scroll pans the camera (user, 2026-08-19: "right now
+            // you have to use Space") — same input bridge as the 2D canvas.
+            #if canImport(AppKit)
+            .overlay {
+                CanvasScrollPanView { delta in
+                    renderer.pan(byScreenDelta: delta)
+                }
+                .allowsHitTesting(false)
+            }
+            #endif
+            .focusable()
+            .focusEffectDisabled()
+            // Arrow keys nudge the camera; ⌘A selects every node.
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow], phases: [.down, .repeat]) { press in
+                let step: CGFloat = 48
+                switch press.key {
+                case .upArrow: renderer.pan(byScreenDelta: CGSize(width: 0, height: step))
+                case .downArrow: renderer.pan(byScreenDelta: CGSize(width: 0, height: -step))
+                case .leftArrow: renderer.pan(byScreenDelta: CGSize(width: step, height: 0))
+                case .rightArrow: renderer.pan(byScreenDelta: CGSize(width: -step, height: 0))
+                default: return .ignored
+                }
+                return .handled
+            }
+            .onKeyPress(.init("a"), phases: .down) { press in
+                guard press.modifiers.contains(.command) else { return .ignored }
+                selectedNodeIds = Set(nodes.map(\.id))
+                return .handled
+            }
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
@@ -222,6 +253,7 @@ struct CanvasSpaceView: View {
         )
         renderer.onIntent = { controller.dispatch($0) }
         renderer.isDragSuppressed = { controller.isDragging($0) }
+        renderer.storageService = storageService
         controller.onMoveInto = { moveIntoContainer($0, $1) }
         self.controller = controller
     }

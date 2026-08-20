@@ -57,6 +57,7 @@ db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1
 db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1
 db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
+db/manager.py::DatabaseManager.get_database 1
 db/migrations/schema.py::migrate_activity_tables 1
 db/migrations/schema.py::migrate_canvas_layout_table 1
 db/migrations/schema.py::migrate_catalogue_chunk_artifact_type 1
@@ -83,6 +84,7 @@ execution/chaining.py::ChainExecutor._emit_event 1
 execution/runner.py::_run_workflow_in_background 4
 execution/runner.py::_run_workflow_in_background._close_in_flight_steps 1
 execution/runner.py::_run_workflow_in_background._finalize_documents 2
+importers/derivatives.py::_emit_queue_progress 1
 importers/ingest.py::_create_pdf_page_children 3
 importers/ingest.py::_extract_file_metadata 1
 importers/ingest.py::_extract_image_metadata 1
@@ -148,7 +150,7 @@ workflows/builder.py::_resolve_node_llm_config_inner 1
 workflows/cache.py::NodeCache.set 1
 workflows/completion.py::finalize_run_documents 2
 workflows/default_workflows.py::_load_preset_files 1
-workflows/default_workflows.py::heal_default_workflow_tree 2
+workflows/default_workflows.py::heal_default_workflow_tree 3
 workflows/default_workflows.py::prune_default_workflows 1
 workflows/default_workflows.py::seed_default_workflows 4
 workflows/executor.py::WorkflowExecutor._emit_event 1

@@ -116,12 +116,11 @@ extension LibraryView {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
                 .coordinateSpace(name: "libraryIconGrid")
-                .onPreferenceChange(IconTileFramesKey.self) {
-                    // Equality guard (2026-08-09 log: 'Bound preference
-                    // IconTileFramesKey tried to update multiple times per
-                    // frame') — writing the identical dictionary re-rendered
-                    // the grid, which re-reported the frames, which…
-                    if iconTileFrames != $0 { iconTileFrames = $0 }
+                .onPreferenceChange(IconTileFramesKey.self) { [marqueeModel] frames in
+                    // Into the observation-ignored BOX (log audit 2026-08-19):
+                    // as @State, every scroll frame's report re-rendered the
+                    // whole grid. Gesture handlers read the box directly.
+                    marqueeModel.tileFrames = frames
                 }
                 // Click in the gutter/empty space deselects, like Finder
                 // (#4160). Tile taps win — their gestures are deeper.
@@ -144,7 +143,7 @@ extension LibraryView {
                             // had already made. A sweep may only BEGIN where
                             // no tile is; once live it continues anywhere.
                             guard marqueeModel.rect != nil
-                                || LibraryMarquee.startsInGutter(value.startLocation, frames: iconTileFrames)
+                                || LibraryMarquee.startsInGutter(value.startLocation, frames: marqueeModel.tileFrames)
                             else { return }
                             let rect = LibraryMarquee.rect(from: value.startLocation, to: value.location)
                             // Per-tick: mutate the box (overlay-only render).
@@ -155,7 +154,7 @@ extension LibraryView {
                             // Selection applies ONLY when the hit set changes
                             // — the expensive grid re-render happens when a
                             // tile enters/leaves the band, not per pixel.
-                            let hits = LibraryMarquee.hitIds(in: iconTileFrames, rect: rect)
+                            let hits = LibraryMarquee.hitIds(in: marqueeModel.tileFrames, rect: rect)
                             guard hits != marqueeModel.lastHits else { return }
                             marqueeModel.lastHits = hits
                             apply(SelectionGrammar.marquee(

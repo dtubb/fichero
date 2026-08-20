@@ -19,11 +19,25 @@ extension DatasetModeStore {
     /// 2026-08-15 night: "its not in order though. that's the first thing").
     /// Undated rows sort last, matching the timeline's sections.
     var orderedVisibleRows: [DatasetPage.Row] {
+        // Memoized (log audit 2026-08-19: up to 2.1s stalls — this getter is
+        // read per body evaluation, and the sort computed dateValue +
+        // localizedLowercase PER COMPARISON over 500 rows). Sort keys are
+        // precomputed once; the result is cached until the inputs change.
+        let key = OrderedRowsCacheKey(
+            revision: displayRevision,
+            dateFilter: dateFilter,
+            prototypeFilter: prototypeFilter
+        )
+        if let cached = orderedRowsCache, cached.key == key { return cached.rows }
         let undatedLast = "\u{10FFFF}"
-        return visibleRows.sorted {
-            (dateValue(of: $0) ?? undatedLast, $0.name.localizedLowercase)
-                < (dateValue(of: $1) ?? undatedLast, $1.name.localizedLowercase)
+        let keyed = visibleRows.map {
+            (row: $0, date: dateValue(of: $0) ?? undatedLast, name: $0.name.localizedLowercase)
         }
+        let rows = keyed
+            .sorted { ($0.date, $0.name) < ($1.date, $1.name) }
+            .map(\.row)
+        orderedRowsCache = (key, rows)
+        return rows
     }
 
     /// A row's text for display: the excerpt with a LEADING date-heading line
@@ -74,4 +88,13 @@ extension DatasetModeStore {
         return text[text.index(after: firstNewline)...]
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
+}
+
+
+/// Cache key for `orderedVisibleRows` — page revision plus the two facets
+/// the visible set depends on.
+struct OrderedRowsCacheKey: Equatable {
+    let revision: Int
+    let dateFilter: DatasetDateFilter
+    let prototypeFilter: String?
 }

@@ -80,7 +80,7 @@ extension ContentView {
     @ViewBuilder
     private var widescreenCanvasPaneContent: some View {
         let stackDocuments = previewStackDocuments(
-            selection: browserSelection, in: documentStore.currentDocuments
+            selection: browserSelection, in: selectedDocuments
         )
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
@@ -106,7 +106,7 @@ extension ContentView {
         } else {
             let canvasDocument = CanvasDocumentPolicy.documentForCanvas(
                 selectedDocumentIds: browserSelection,
-                documents: documentStore.currentDocuments,
+                documents: selectedDocuments,
                 detailDocument: detailDocument,
                 inspectorDocument: inspectorDocument
             )
@@ -142,7 +142,7 @@ extension ContentView {
         // for ALL selected items is the pane-rebuild enhancement; until then
         // the reader must not present one item's text as the selection's.
         let readerStack = previewStackDocuments(
-            selection: browserSelection, in: documentStore.currentDocuments
+            selection: browserSelection, in: selectedDocuments
         )
         // Each SplittablePane instance renders ReadingPaneView independently,
         // giving left and right split panes their own @State (including pin).
@@ -213,12 +213,12 @@ extension ContentView {
             VStack(spacing: 0) {
                 let previewDocument = CanvasDocumentPolicy.documentForCanvas(
                     selectedDocumentIds: browserSelection,
-                    documents: documentStore.currentDocuments,
+                    documents: selectedDocuments,
                     detailDocument: detailDocument,
                     inspectorDocument: inspectorDocument
                 )
                 let stackDocuments = previewStackDocuments(
-                    selection: browserSelection, in: documentStore.currentDocuments
+                    selection: browserSelection, in: selectedDocuments
                 )
                 if stackDocuments.count > 1 {
                     // Finder's stacked multi-selection preview (#95): the fan

@@ -43,7 +43,13 @@ enum DatasetDateFilter: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class DatasetModeStore {
-    var page: DatasetPage?
+    var page: DatasetPage? {
+        didSet { displayRevision &+= 1 }
+    }
+    /// Bumped on every page (re)assignment — DatasetPage is a struct, so any
+    /// nested row mutation reassigns it too. Keys `orderedVisibleRows`' memo.
+    @ObservationIgnored var displayRevision = 0
+    @ObservationIgnored var orderedRowsCache: (key: OrderedRowsCacheKey, rows: [DatasetPage.Row])?
 
     /// Row facets every renderer shares (via `visibleRows`), so a filter
     /// choice follows the user between cards, timeline and calendar.

@@ -66,9 +66,9 @@ final class CanvasScrollCaptureView: NSView {
         }
     }
 
-    deinit {
-        if let monitor { NSEvent.removeMonitor(monitor) }
-    }
+    // No deinit teardown: `monitor` is non-Sendable, so a nonisolated deinit
+    // can't touch it. `viewDidMoveToWindow` fires with a nil window on
+    // removal and tears the monitor down there instead.
 
     override func scrollWheel(with event: NSEvent) {
         // Momentum and inertial phases are deliberately NOT filtered out.

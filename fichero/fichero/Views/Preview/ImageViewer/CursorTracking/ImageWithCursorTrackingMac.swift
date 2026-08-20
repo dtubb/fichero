@@ -39,7 +39,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         scrollView.minMagnification = minScale
         scrollView.maxMagnification = maxScale
         scrollView.magnification = scale
-        scrollView.backgroundColor = NSColor(white: 0.88, alpha: 1)
+        // Semantic, theme-following ground (user, 2026-08-19: dark mode showed
+        // a light-grey field behind the page). underPageBackground is the
+        // system's "behind a document" color in both appearances — the same
+        // ground Preview.app uses.
+        scrollView.backgroundColor = .underPageBackgroundColor
         scrollView.scrollerStyle = .overlay  // Auto-hiding overlay scrollers like Preview.app
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.alphaValue = 0  // Hidden until first center to prevent flash

@@ -181,6 +181,12 @@ struct CanvasSceneView: View {
                 scrollPanCamera(by: delta, in: geo.size)
                 return .handled
             }
+            .onKeyPress(.init("a"), phases: .down) { press in
+                // Edit ▸ Select All, canvas edition (user, 2026-08-19).
+                guard press.modifiers.contains(.command) else { return .ignored }
+                selectedNodeIds = Set(nodes.map(\.id))
+                return .handled
+            }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
             .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }
             .task(id: folderScopeId) {

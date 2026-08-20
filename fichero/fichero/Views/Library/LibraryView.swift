@@ -293,5 +293,4 @@ struct LibraryView: View {
     /// grid; see MarqueeModel. Frames stay @State (they change on layout,
     /// not per tick).
     @State var marqueeModel = MarqueeModel()
-    @State var iconTileFrames: [String: CGRect] = [:]
 }
