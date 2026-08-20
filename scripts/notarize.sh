@@ -130,10 +130,21 @@ if [ "$DRY_RUN" = true ]; then
   echo "[DRY RUN] would run: xcrun notarytool submit $SUBMIT_PATH ${NOTARY_AUTH_ARGS[*]} --output-format json"
   echo "[DRY RUN] would poll: xcrun notarytool info <id> until status != In Progress"
 else
-  SUBMIT_JSON="$(xcrun notarytool submit "$SUBMIT_PATH" "${NOTARY_AUTH_ARGS[@]}" --output-format json)"
-  SUBMISSION_ID="$(printf '%s' "$SUBMIT_JSON" | /usr/bin/python3 -c 'import json,sys; print(json.load(sys.stdin).get("id",""))')"
+  # The upload is a multi-GB S3 multipart transfer and aborts transiently
+  # (2026-08-20: abortedUpload killed a release whose signing had just
+  # succeeded). Three attempts with backoff before giving up.
+  SUBMISSION_ID=""
+  for submit_attempt in 1 2 3; do
+    SUBMIT_JSON="$(xcrun notarytool submit "$SUBMIT_PATH" "${NOTARY_AUTH_ARGS[@]}" --output-format json)" || SUBMIT_JSON=""
+    SUBMISSION_ID="$(printf '%s' "$SUBMIT_JSON" | /usr/bin/python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("id",""))
+except Exception: print("")')"
+    [ -n "$SUBMISSION_ID" ] && break
+    echo "  submit attempt $submit_attempt failed; retrying in $((submit_attempt * 30))s" >&2
+    sleep $((submit_attempt * 30))
+  done
   if [ -z "$SUBMISSION_ID" ]; then
-    echo "error: notarytool submit returned no submission id" >&2
+    echo "error: notarytool submit returned no submission id after 3 attempts" >&2
     printf '%s\n' "$SUBMIT_JSON" >&2
     exit 1
   fi
