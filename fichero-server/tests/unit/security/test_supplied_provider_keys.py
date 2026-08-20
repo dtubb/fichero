@@ -114,7 +114,21 @@ def test_nothing_is_persisted(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     provider_keys.supply_api_key("openrouter", "sk-test")
 
-    assert list(tmp_path.iterdir()) == []
+    # Self-diagnosing failure (2026-08-20): a phantom ./credentials appears
+    # ~1-in-2 FULL runs (never in isolation), and the Python-level open()
+    # audit tripwire in conftest never fires — the writer is a NATIVE library
+    # or a leaked background thread from an earlier test, and cwd-inheritance
+    # makes it land here. Dump what the file IS so the next failure names it.
+    leaked = list(tmp_path.iterdir())
+    detail = ""
+    for item in leaked:
+        try:
+            stat = item.stat()
+            head = item.read_bytes()[:200] if item.is_file() else b"<dir>"
+            detail += f"\n  {item.name}: size={stat.st_size} mtime={stat.st_mtime} head={head!r}"
+        except OSError as exc:
+            detail += f"\n  {item.name}: <unreadable: {exc}>"
+    assert leaked == [], f"unexpected files in supply-key cwd:{detail}"
 
 
 # ---------------------------------------------------------------------------
