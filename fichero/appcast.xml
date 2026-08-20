@@ -6,6 +6,67 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.08.20</title>
+            <pubDate>Thu, 20 Aug 2026 15:12:06 -0300</pubDate>
+            <sparkle:version>2026082001</sparkle:version>
+            <sparkle:shortVersionString>2026.08.20</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<h3>Dev build</h3>
+<p>The speed build: a night of profiling the live Marshall corpus (4,169
+documents) and removing every whole-collection cost the logs surfaced,
+plus the day's live-testing fixes.</p>
+<p><strong>Browsing stays fast while the engine works.</strong> Folder listings read the
+last-committed snapshot instead of queueing behind an import's embedding
+transactions (worst case measured: 12 seconds); each row hydrates once,
+without its full page text, through a memoized field plan; vector writes
+no longer block database reads; and a new index backs every parent-folder
+lookup. Listing routes run off the event loop, so concurrent requests
+stop serializing.</p>
+<p><strong>Thumbnails land as they're made.</strong> The derivative queue renders a
+folder's thumbnails before starting its slower text embeddings, announces
+each image the moment it exists, and reports its progress in the toolbar
+island ("Processing imported pages — 42%") instead of claiming Ready.
+Quitting mid-import is safe: interrupted work resumes on the next launch.
+The thumbnail endpoint serves interactive requests instantly and sheds
+import-storm misses to the queue (previously: 15,565 calls averaging
+784ms, worst 60 seconds).</p>
+<p><strong>One request where there were a thousand.</strong> The change-stream patch
+flush, workflow-completion refresh, and search resolution now fetch
+documents in one batched call each; a live session had issued 1,001
+sequential single-document requests.</p>
+<p><strong>Search results are nodes.</strong> Every hit — document, person, place, claim,
+artifact — resolves into the library grid as a clickable node that
+preview, reader, inspector, workflows, and Select All all agree on. The
+reader follows result clicks and scrolls to the page; clicking a page in
+the reader selects its result row.</p>
+<p><strong>Canvas input works like it should.</strong> Two-finger scroll pans both
+canvases (the old overlay never actually received scroll events), arrow
+keys nudge the camera, ⌘A selects every node, and page thumbnails load
+from the library you're in — a wrong-library lookup had silently failed
+all 1,500 texture loads in a session. The render cap rises to 1,500.</p>
+<p><strong>The reader scrolls like Safari.</strong> Off-screen pages skip layout and
+paint entirely, page positions are measured once instead of per scroll
+frame, and hidden panels (graph, timeline, map) render only when opened —
+crossing a page boundary used to re-run a force-directed graph layout for
+a panel that wasn't visible.</p>
+<p><strong>Corrections from live testing.</strong> Default workflows appear in every
+library again (a legacy flag heal); grouped items stack in place instead
+of vanishing to the library root; deleting a corpus can no longer be
+raced by its own background embeds resurrecting pages; a stale bookmark
+that resolves into the Trash is dropped rather than followed (a library
+reference had silently moved to iCloud's Trash); the preview background
+follows dark mode; dataset views remember sort and text depth; dataset
+cards and sheet rows gain Run Workflow and exclusion menus.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.08.20/Fichero.dmg"
+                length="567351460"
+                type="application/octet-stream"
+                sparkle:edSignature="hHQPDY0WF1IY+u/FgiOcsz2zjmkAQb/9FdXaw0TTW84FntD5yMkEmKywyiC0tSrP7Hp4rdTU2rlIBkIbhwc9BQ=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.08.17</title>
             <pubDate>Tue, 18 Aug 2026 09:24:56 -0300</pubDate>
             <sparkle:version>2026081701</sparkle:version>
