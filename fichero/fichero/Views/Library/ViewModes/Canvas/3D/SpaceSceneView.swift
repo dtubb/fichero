@@ -227,6 +227,24 @@ struct SpaceSceneView: View {
             optionHeld = modifiers.contains(.option)
         }
         #endif
+        .focusable()
+        .focusEffectDisabled()
+        // Arrow keys nudge the camera (user, 2026-08-19) — same pan path as
+        // two-finger scroll.
+        .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow], phases: [.down, .repeat]) { press in
+            let step: CGFloat = 48
+            let delta: CGSize
+            switch press.key {
+            case .upArrow: delta = CGSize(width: 0, height: step)
+            case .downArrow: delta = CGSize(width: 0, height: -step)
+            case .leftArrow: delta = CGSize(width: step, height: 0)
+            case .rightArrow: delta = CGSize(width: -step, height: 0)
+            default: return .ignored
+            }
+            panCameraIncrementally(by: delta)
+            persistViewport()
+            return .handled
+        }
         .onAppear {
             applyInitialViewportIfNeeded()
         }

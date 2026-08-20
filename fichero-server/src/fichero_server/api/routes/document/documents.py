@@ -572,16 +572,21 @@ async def list_documents(
         if status is not None:
             filters["status"] = status
 
-        docs = _list_documents(db, include_deleted=include_deleted, **filters)
+        # OFF THE LOOP (perf audit 2026-08-19, same medicine as the write
+        # path's _run_document_write): the fetch+hydrate is synchronous DuckDB
+        # work, and running it inline serialized every concurrent GET on the
+        # one event-loop thread.
+        def _fetch() -> list[Document]:
+            rows = _list_documents(db, include_deleted=include_deleted, **filters)
+            if normalized_parent_id is not None:
+                rows = _filter_resolvable_documents(
+                    db, rows, parent_id=normalized_parent_id
+                )
+            # Order by user-defined sort_order before paginating so drag-drop
+            # positions survive a refresh and clients don't re-sort (#572).
+            return _ordered_by_sort_order(rows)
 
-        if normalized_parent_id is not None:
-            docs = _filter_resolvable_documents(
-                db, docs, parent_id=normalized_parent_id
-            )
-
-        # Order by user-defined sort_order before paginating so drag-drop
-        # positions survive a refresh and clients don't re-sort (#572).
-        docs = _ordered_by_sort_order(docs)
+        docs = await asyncio.to_thread(_fetch)
 
         if limit is not None:
             items = docs[offset : offset + limit]
@@ -1002,13 +1007,20 @@ async def get_children(
         # (e.g. "doc:abc123"). Documents are stored with bare hex ids, so strip
         # the prefix before every DB lookup so both forms resolve correctly (#1345).
         normalized_id = _normalize_document_id(doc_id)
-        children = _filter_resolvable_documents(
-            db,
-            _list_documents(db, parent_id=normalized_id),
-            parent_id=normalized_id,
-        )
-        children = _ordered_by_sort_order(children)
-        children = _apply_listing_sort(children, sort_by, sort_direction)
+
+        # OFF THE LOOP (perf audit 2026-08-19): synchronous DuckDB work ran
+        # inline in this async route, serializing every concurrent GET on the
+        # event-loop thread.
+        def _fetch() -> list[Document]:
+            rows = _filter_resolvable_documents(
+                db,
+                _list_documents(db, parent_id=normalized_id),
+                parent_id=normalized_id,
+            )
+            rows = _ordered_by_sort_order(rows)
+            return _apply_listing_sort(rows, sort_by, sort_direction)
+
+        children = await asyncio.to_thread(_fetch)
         perf["normalized_id"] = normalized_id
         perf["matched_rows"] = len(children)
 

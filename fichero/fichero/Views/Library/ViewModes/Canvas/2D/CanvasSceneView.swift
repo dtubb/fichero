@@ -166,6 +166,21 @@ struct CanvasSceneView: View {
             .overlay { marqueeOverlay }
             .focusable()
             .focusEffectDisabled()
+            // Arrow keys nudge the camera (user, 2026-08-19) — a third input
+            // to the same pan path scroll and Space-drag use.
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow], phases: [.down, .repeat]) { press in
+                let step: CGFloat = 48
+                let delta: CGSize
+                switch press.key {
+                case .upArrow: delta = CGSize(width: 0, height: step)
+                case .downArrow: delta = CGSize(width: 0, height: -step)
+                case .leftArrow: delta = CGSize(width: step, height: 0)
+                case .rightArrow: delta = CGSize(width: -step, height: 0)
+                default: return .ignored
+                }
+                scrollPanCamera(by: delta, in: geo.size)
+                return .handled
+            }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
             .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }
             .task(id: folderScopeId) {

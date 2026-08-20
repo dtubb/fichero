@@ -244,8 +244,9 @@ struct DatasetModeView: View {
             case .grid:
                 DatasetGridView(store: store, entityService: entityService,
                                 documentService: documentService,
-                                selection: $selection,
-                                onOpen: onOpen, onOpenSource: onOpenSource)
+                                selection: $selection, workflows: workflows,
+                                onOpen: onOpen, onOpenSource: onOpenSource,
+                                onRunWorkflow: onRunWorkflow)
             case .cards:
                 DatasetCardsView(
                     store: store, entityService: entityService,

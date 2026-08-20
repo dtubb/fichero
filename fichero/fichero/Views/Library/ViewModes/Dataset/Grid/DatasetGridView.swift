@@ -19,7 +19,11 @@ struct DatasetGridView: View {
     @Binding var selection: Set<String>
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
-    @State private var sortOrder: [DatasetAttributeComparator] = []
+    var workflows: [WorkflowSidebarItem] = []
+    /// (workflowId, targetRowIds, provider, model) — same shape as cards.
+    var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
+    @State private var sortOrder: [DatasetAttributeComparator] =
+        DatasetAttributeComparator.restoreSavedSort()
     /// Per-window column layout (visibility + order), persisted — the
     /// metadata affordance for the sheet.
     @SceneStorage("datasetSheetColumns")
@@ -122,8 +126,28 @@ struct DatasetGridView: View {
                         onOpenSource(row)
                     }
                 }
+                if !workflows.isEmpty && !ids.isEmpty {
+                    Divider()
+                    // The Finder rule: the batch applies when it includes the
+                    // clicked rows; the Table hands us the effective ids.
+                    let targets = Array(ids)
+                    Menu("Run Workflow") {
+                        if targets.count > 1 {
+                            Text("Runs on \(targets.count) entries")
+                            Divider()
+                        }
+                        RunWorkflowSubmenuItems(workflows: workflows) { workflowId, provider, model in
+                            onRunWorkflow(workflowId, targets, provider, model)
+                        }
+                    }
+                }
             } primaryAction: { ids in
                 if let id = ids.first, let row = row(id) { onOpen(row) }
+            }
+            // Remembered across launches (user, 2026-08-19), same as the
+            // cards' Text depth.
+            .onChange(of: sortOrder) { _, newValue in
+                DatasetAttributeComparator.persistSort(newValue)
             }
         }
     }
@@ -169,6 +193,46 @@ struct DatasetAttributeComparator: SortComparator, Hashable {
     init(key: Key, order: SortOrder = .forward) {
         self.key = key
         self.order = order
+    }
+
+    // MARK: - Persistence (user, 2026-08-19: "remember sort order")
+
+    private static let savedSortKey = "dataset.grid.sortOrder"
+
+    private var token: String {
+        let keyToken: String
+        switch key {
+        case .name: keyToken = "name"
+        case .date: keyToken = "date"
+        case .text: keyToken = "text"
+        case .attribute(let attr): keyToken = "attr:\(attr)"
+        }
+        return "\(keyToken)|\(order == .forward ? "f" : "r")"
+    }
+
+    private init?(token: String) {
+        let parts = token.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2 else { return nil }
+        switch parts[0] {
+        case "name": key = .name
+        case "date": key = .date
+        case "text": key = .text
+        default:
+            guard parts[0].hasPrefix("attr:") else { return nil }
+            key = .attribute(String(parts[0].dropFirst("attr:".count)))
+        }
+        order = parts[1] == "r" ? .reverse : .forward
+    }
+
+    static func persistSort(_ comparators: [DatasetAttributeComparator]) {
+        UserDefaults.standard.set(
+            comparators.map(\.token), forKey: savedSortKey
+        )
+    }
+
+    static func restoreSavedSort() -> [DatasetAttributeComparator] {
+        let tokens = UserDefaults.standard.stringArray(forKey: savedSortKey) ?? []
+        return tokens.compactMap(DatasetAttributeComparator.init(token:))
     }
 
     /// Legacy spelling used by the attribute columns: nil = name.

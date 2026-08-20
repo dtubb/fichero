@@ -4,9 +4,15 @@ import SwiftUI
 
 extension ContentView {
 
-    /// Documents for the browser based on current library selection
+    /// Documents for the browser based on current library selection.
+    ///
+    /// During a transient search the RESULTS are the browsed set (user, live
+    /// 2026-08-19: ⌘A selected 90 results but preview/inspector/title said
+    /// "5 items" — every downstream consumer resolved the selection against
+    /// the underlying folder instead of what was on screen, and Run Workflow
+    /// received one document instead of the batch).
     var selectedDocuments: [Document] {
-        return documentStore.currentDocuments
+        activeSearchQuery != nil ? searchResultDocuments : documentStore.currentDocuments
     }
 
     /// Document to show in inspector. Precedence:
@@ -33,10 +39,12 @@ extension ContentView {
         // preview and detail — a hash-order draw here is 'the inspector
         // shows another page'.
         if let firstId = shellPrimarySelectionId(
-               in: browserSelection, orderedBy: documentStore.currentDocuments
+               in: browserSelection, orderedBy: selectedDocuments
            ),
-           let doc = documentStore.currentDocuments.first(where: { $0.id == firstId }),
-           doc.parentId == currentSidebarFolder?.id {
+           let doc = selectedDocuments.first(where: { $0.id == firstId }),
+           // Search results span folders by design, so the stale-selection
+           // parent guard only applies while browsing (2026-08-19).
+           activeSearchQuery != nil || doc.parentId == currentSidebarFolder?.id {
             return doc
         }
         // 2. Page focus — updated by scroll/page-flip via syncGridSelectionToPDFPage
