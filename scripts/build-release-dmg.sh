@@ -126,15 +126,23 @@ entitlements_for() {
 # sign_hardened PATH → Developer ID + hardened runtime + timestamp, adding
 # --entitlements when entitlements_for selects one. Returns codesign's status.
 sign_hardened() {
-  local target="$1" ent
+  # Retries are load-bearing: --timestamp is a network round-trip to Apple's
+  # timestamp service per binary, and a 285-binary pass reliably hits
+  # transient refusals (2026-08-20: 77 of 285 failed in one run, every one
+  # signed fine on manual retry). Three attempts with backoff.
+  local target="$1" ent attempt
   ent="$(entitlements_for "$target")"
-  if [ -n "$ent" ]; then
-    codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp \
-      --entitlements "$ent" "$target" >/dev/null 2>&1
-  else
-    codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp \
-      "$target" >/dev/null 2>&1
-  fi
+  for attempt in 1 2 3; do
+    if [ -n "$ent" ]; then
+      codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp \
+        --entitlements "$ent" "$target" >/dev/null 2>&1 && return 0
+    else
+      codesign --force --sign "$DEV_IDENTITY" --options runtime --timestamp \
+        "$target" >/dev/null 2>&1 && return 0
+    fi
+    sleep $((attempt * 2))
+  done
+  return 1
 }
 
 if [ ! -f "$ENGINE_ENTITLEMENTS" ]; then
