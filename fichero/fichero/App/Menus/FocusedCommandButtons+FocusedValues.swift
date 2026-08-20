@@ -3,13 +3,22 @@ import SwiftUI
 // MARK: - Focused Values for Menu Commands
 
 /// Actions for image preview zoom controls
-struct ImageZoomActions {
+struct ImageZoomActions: Equatable {
     let zoomIn: () -> Void
     let zoomOut: () -> Void
     let actualSize: () -> Void
     let zoomToFit: () -> Void
     let canZoomIn: Bool
     let canZoomOut: Bool
+
+    /// Same rationale as `SidebarActions.==` below: the closures capture the
+    /// same parent state, so only the flags distinguish instances. Without
+    /// this, every preview body pass published a "new" value and tripped the
+    /// "FocusedValue update tried to update multiple times per frame" fault
+    /// (×31 in the 2026-08-19 live log).
+    static func == (lhs: ImageZoomActions, rhs: ImageZoomActions) -> Bool {
+        lhs.canZoomIn == rhs.canZoomIn && lhs.canZoomOut == rhs.canZoomOut
+    }
 }
 
 /// FocusedValue key for image zoom actions

@@ -3712,6 +3712,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         doc_type: Optional[str] = typer.Option(None, "--doc-type", help="Query parameter: doc_type."),
         file_type: Optional[str] = typer.Option(None, "--file-type", help="Query parameter: file_type."),
+        ids: Optional[str] = typer.Option(None, "--ids", help="Query parameter: ids."),
         include_deleted: Optional[bool] = typer.Option(None, "--include-deleted/--no-include-deleted", help="Query parameter: include_deleted."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         node_kind: Optional[str] = typer.Option(None, "--node-kind", help="Query parameter: node_kind."),
@@ -3725,6 +3726,7 @@ def register_generated_openapi_commands(
             params = {
                 "doc_type": doc_type,
                 "file_type": file_type,
+                "ids": ids,
                 "include_deleted": include_deleted,
                 "limit": limit,
                 "node_kind": node_kind,

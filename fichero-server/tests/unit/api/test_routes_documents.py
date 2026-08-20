@@ -1910,3 +1910,27 @@ def test_audited_move_survives_an_invalidated_connection(client, db):
     moved = client.put(f"/api/documents/{doc.id}/move?parent_id={parent.id}")
     assert moved.status_code == 200
     assert moved.json()["parent_id"] == parent.id
+
+
+class TestBatchIdListing:
+    def test_ids_filter_fetches_exactly_those_rows(self, client, db):
+        docs = [_make_doc(db, f"Doc {i}") for i in range(4)]
+        wanted = [docs[0].id, docs[2].id]
+
+        r = client.get(f"/api/documents?ids={','.join(wanted)}")
+
+        assert r.status_code == 200
+        assert sorted(d["id"] for d in r.json()["items"]) == sorted(wanted)
+
+    def test_ids_filter_skips_deleted_and_unknown(self, client, db):
+        from datetime import datetime, timezone
+
+        alive = _make_doc(db, "Alive")
+        dead = _make_doc(db, "Dead")
+        dead.deleted_at = datetime.now(timezone.utc)
+        db.save(dead)
+
+        r = client.get(f"/api/documents?ids={alive.id},{dead.id},no-such-id")
+
+        assert r.status_code == 200
+        assert [d["id"] for d in r.json()["items"]] == [alive.id]

@@ -90,7 +90,6 @@ extension DatasetModeStore {
     }
 }
 
-
 /// Cache key for `orderedVisibleRows` — page revision plus the two facets
 /// the visible set depends on.
 struct OrderedRowsCacheKey: Equatable {

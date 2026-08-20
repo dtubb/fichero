@@ -2483,6 +2483,11 @@
             "type": "string"
           },
           {
+            "name": "ids",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "include_deleted",
             "required": false,
             "type": "boolean"

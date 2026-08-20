@@ -137,25 +137,13 @@ struct CanvasSpaceView: View {
                 .allowsHitTesting(false)
             }
             #endif
-            .focusable()
-            .focusEffectDisabled()
-            // Arrow keys nudge the camera; ⌘A selects every node.
-            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow], phases: [.down, .repeat]) { press in
-                let step: CGFloat = 48
-                switch press.key {
-                case .upArrow: renderer.pan(byScreenDelta: CGSize(width: 0, height: step))
-                case .downArrow: renderer.pan(byScreenDelta: CGSize(width: 0, height: -step))
-                case .leftArrow: renderer.pan(byScreenDelta: CGSize(width: step, height: 0))
-                case .rightArrow: renderer.pan(byScreenDelta: CGSize(width: -step, height: 0))
-                default: return .ignored
-                }
-                return .handled
-            }
-            .onKeyPress(.init("a"), phases: .down) { press in
-                guard press.modifiers.contains(.command) else { return .ignored }
-                selectedNodeIds = Set(nodes.map(\.id))
-                return .handled
-            }
+            // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
+            // grammar (user, 2026-08-19).
+            .modifier(CanvasKeyboardNav(
+                nodeIds: nodes.map(\.id),
+                selectedNodeIds: $selectedNodeIds,
+                pan: { renderer.pan(byScreenDelta: $0) }
+            ))
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))

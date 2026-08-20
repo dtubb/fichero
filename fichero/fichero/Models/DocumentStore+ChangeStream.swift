@@ -76,41 +76,33 @@ extension DocumentStore: ObservableDomainStore {
         // Collect the whole batch, then splice ONCE (#4235). Splicing inside
         // this loop published a change per document, so a 500-file import
         // rebuilt the sidebar 500 times over a list that was itself growing.
-        var fetched: [Document] = []
-        fetched.reserveCapacity(ids.count)
-        var remaining = ids
-        for id in ids {
-            remaining.remove(id)
-            let fresh: Document
-            do {
-                fresh = try await documentService.getDocument(id)
-            } catch is CancellationError {
-                // A newer burst rescheduled the debouncer and cancelled THIS
-                // flush mid-loop. The ids were already popped, so dropping
-                // them here silently lost every one of these updates until
-                // the next resync (2026-08-12 bulk-import repro: hundreds of
-                // 'granular patch fetch failed … CancellationError' lines,
-                // each a lost patch). Hand the whole unfetched tail back —
-                // the rescheduled flush owns it.
-                pendingPatchIds.insert(id)
-                pendingPatchIds.formUnion(remaining)
-                // Defensive re-arm: if this cancellation did NOT come from a
-                // reschedule (the debouncer no longer cancels running flushes,
-                // but store teardown/resync still can), no successor flush
-                // exists and these ids would sit invisible until the next
-                // resync. Scheduling coalesces with any successor, so this is
-                // free when one is already armed (2026-08-18 four-folder drop).
-                reloadDebouncer.schedule { [weak self] in
-                    await self?.flushPendingPatches()
-                }
-                break
-            } catch {
-                logger.debug(
-                    "granular patch fetch failed for \(id, privacy: .public): \(error.localizedDescription, privacy: .public)"
-                )
-                continue
+        // ONE batched round-trip (perf audit 2026-08-19): the per-id loop
+        // issued 1,001 sequential GETs over a session and was the top driver
+        // of the main-thread stall storm. Deleted/unknown ids are simply
+        // absent from the response — exactly what a patch flush wants.
+        let fetched: [Document]
+        do {
+            fetched = applyStatusOverrides(
+                try await documentService.getDocuments(ids: Array(ids))
+            )
+        } catch is CancellationError {
+            // A newer burst rescheduled the debouncer and cancelled THIS
+            // flush. The ids were already popped, so dropping them here
+            // silently lost every one of these updates until the next resync
+            // (2026-08-12 bulk-import repro). Hand the whole batch back —
+            // the rescheduled flush owns it — and defensively re-arm in case
+            // the cancellation came from teardown/resync rather than a
+            // reschedule (2026-08-18 four-folder drop).
+            pendingPatchIds.formUnion(ids)
+            reloadDebouncer.schedule { [weak self] in
+                await self?.flushPendingPatches()
             }
-            fetched.append(applyStatusOverrides([fresh]).first ?? fresh)
+            return
+        } catch {
+            logger.debug(
+                "granular patch batch fetch failed for \(ids.count) id(s): \(error.localizedDescription, privacy: .public)"
+            )
+            return
         }
         spliceDocuments(fetched)
     }

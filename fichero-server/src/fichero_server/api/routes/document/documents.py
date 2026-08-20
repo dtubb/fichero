@@ -533,6 +533,15 @@ def _resolve_workspace_item_target(db: Database, item: dict[str, Any]) -> Any:
 @router.get("")
 async def list_documents(
     parent_id: Optional[str] = Query(None, description="Filter by parent ID"),
+    ids: Optional[str] = Query(
+        None,
+        description=(
+            "Comma-separated document ids — fetch exactly these rows in one "
+            "round-trip. The client's change-stream patch flush used to issue "
+            "one GET per id (measured 2026-08-19: 1,001 requests in a "
+            "session). Combines with the other filters."
+        ),
+    ),
     doc_type: Optional[DocType] = Query(None, description="Filter by document type"),
     node_kind: Optional[str] = Query(None, description="Filter by node kind"),
     file_type: Optional[FileType] = Query(None, description="Filter by file type"),
@@ -576,8 +585,26 @@ async def list_documents(
         # path's _run_document_write): the fetch+hydrate is synchronous DuckDB
         # work, and running it inline serialized every concurrent GET on the
         # one event-loop thread.
+        requested_ids: list[str] | None = None
+        if ids:
+            requested_ids = [
+                _normalize_document_id(part)
+                for part in ids.split(",")
+                if part.strip()
+            ]
+
         def _fetch() -> list[Document]:
-            rows = _list_documents(db, include_deleted=include_deleted, **filters)
+            if requested_ids is not None:
+                rows = _filter_document_visibility(
+                    db.query_in(Document, "id", requested_ids),
+                    include_deleted=include_deleted,
+                )
+                for k, v in filters.items():
+                    value = v.value if hasattr(v, "value") else v
+                    rows = [r for r in rows if getattr(r, k, None) == value
+                            or getattr(getattr(r, k, None), "value", None) == value]
+            else:
+                rows = _list_documents(db, include_deleted=include_deleted, **filters)
             if normalized_parent_id is not None:
                 rows = _filter_resolvable_documents(
                     db, rows, parent_id=normalized_parent_id

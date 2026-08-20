@@ -8003,6 +8003,18 @@
             "description": "Filter by parent ID"
           },
           {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Comma-separated document ids \u2014 fetch exactly these rows in one round-trip. The client's change-stream patch flush used to issue one GET per id (measured 2026-08-19: 1,001 requests in a session). Combines with the other filters.",
+              "title": "Ids"
+            },
+            "description": "Comma-separated document ids \u2014 fetch exactly these rows in one round-trip. The client's change-stream patch flush used to issue one GET per id (measured 2026-08-19: 1,001 requests in a session). Combines with the other filters."
+          },
+          {
             "name": "doc_type",
             "in": "query",
             "required": false,

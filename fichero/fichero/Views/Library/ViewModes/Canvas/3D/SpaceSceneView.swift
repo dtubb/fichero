@@ -227,29 +227,16 @@ struct SpaceSceneView: View {
             optionHeld = modifiers.contains(.option)
         }
         #endif
-        .focusable()
-        .focusEffectDisabled()
-        // Arrow keys nudge the camera (user, 2026-08-19) — same pan path as
-        // two-finger scroll.
-        .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow], phases: [.down, .repeat]) { press in
-            let step: CGFloat = 48
-            let delta: CGSize
-            switch press.key {
-            case .upArrow: delta = CGSize(width: 0, height: step)
-            case .downArrow: delta = CGSize(width: 0, height: -step)
-            case .leftArrow: delta = CGSize(width: step, height: 0)
-            case .rightArrow: delta = CGSize(width: -step, height: 0)
-            default: return .ignored
+        // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
+        // grammar (user, 2026-08-19).
+        .modifier(CanvasKeyboardNav(
+            nodeIds: nodes.map(\.id),
+            selectedNodeIds: $selectedNodeIds,
+            pan: { delta in
+                panCameraIncrementally(by: delta)
+                persistViewport()
             }
-            panCameraIncrementally(by: delta)
-            persistViewport()
-            return .handled
-        }
-        .onKeyPress(.init("a"), phases: .down) { press in
-            guard press.modifiers.contains(.command) else { return .ignored }
-            selectedNodeIds = Set(nodes.map(\.id))
-            return .handled
-        }
+        ))
         .onAppear {
             applyInitialViewportIfNeeded()
         }
