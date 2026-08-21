@@ -157,6 +157,13 @@ struct ZoomableImagePreview: View {
     // what "next" means that ordering server-side exists to prevent.
     @State var renditions: [DocumentRendition] = []
     @State var renditionIndex: Int = 0
+    /// The flipped-to rendition's pixels. MUST outrank `renderedImage` in the
+    /// override chain: the flip used to write `image`, which rendered-mode
+    /// ignores — the engine served each rendition's distinct bytes (200s in
+    /// the log) and the view kept showing the display JPEG, reading as "no
+    /// difference between original, enhanced, and background removed"
+    /// (Daniel, 2026-08-21). Cleared on document change.
+    @State var renditionOverrideImage: NSImage?
 
     @State var scale: CGFloat = 1.0
     @State var minScale: CGFloat = 0.01
@@ -222,7 +229,7 @@ struct ZoomableImagePreview: View {
                             // pixels, and for a crop/rotate/deskew/split
                             // rendition a different FRAME, which moves every
                             // box on the page.
-                            overrideImage: renderedImage ?? highResImage,
+                            overrideImage: renditionOverrideImage ?? renderedImage ?? highResImage,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,

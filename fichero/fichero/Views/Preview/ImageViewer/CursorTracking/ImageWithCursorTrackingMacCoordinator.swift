@@ -178,6 +178,16 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
             let location = gesture.location(in: scrollView.contentView)
             scrollView.setMagnification(clamped, centeredAt: location)
         case .ended, .cancelled, .failed:
+            // Snap to fit when the pinch lands NEAR fit (Daniel, 2026-08-21:
+            // "when we zoom out it should get to full image and snap to
+            // that, without going too far. we can keep going if we want").
+            // A ±15% band: inside it the intent was clearly "show me the
+            // whole page", so land exactly there; a pinch past the band is
+            // the user deliberately going further and is left alone.
+            if let fit = calculateFitScale(),
+               abs(scrollView.magnification - fit) / fit < 0.15 {
+                scrollView.magnification = fit
+            }
             // #596: write the final magnification back to the @Binding
             // so the next updateNSView sync-check sees matching values
             // and doesn't snap the zoom back to the pre-pinch scale.

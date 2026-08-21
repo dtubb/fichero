@@ -26,12 +26,23 @@ final class SiblingSwipeScrollView: NSScrollView {
     private static let threshold: CGFloat = 60
 
     override func scrollWheel(with event: NSEvent) {
-        super.scrollWheel(with: event)
-        guard let doc = documentView else { return }
+        guard let doc = documentView else {
+            super.scrollWheel(with: event)
+            return
+        }
         let scaledWidth = doc.frame.width * magnification
         let scaledHeight = doc.frame.height * magnification
         let canPanHorizontally = scaledWidth > contentSize.width + 0.5
         let canPanVertically = scaledHeight > contentSize.height + 0.5
+        // A fitted image has nowhere to scroll: swallowing the event kills
+        // the elastic bounce that made two-finger navigation feel like the
+        // page was jumping around (Daniel, 2026-08-21: "why does 2 fingers
+        // move anything if the entire image is visible?"). The gesture is
+        // pure navigation in that state; native panning returns the moment
+        // either axis actually overflows.
+        if canPanHorizontally || canPanVertically {
+            super.scrollWheel(with: event)
+        }
         switch event.phase {
         case .began:
             accumulatedX = 0

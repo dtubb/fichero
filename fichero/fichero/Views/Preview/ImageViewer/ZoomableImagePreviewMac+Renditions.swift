@@ -14,6 +14,7 @@ extension ZoomableImagePreview {
     func loadRenditions() async {
         renditions = []
         renditionIndex = 0
+        renditionOverrideImage = nil
         guard let documentId, let renditionService else { return }
         // Only renditions whose bytes are expected to exist: a
         // referenced-but-absent staging entry is a knowable state in the
@@ -63,7 +64,7 @@ extension ZoomableImagePreview {
                 )
                 guard self.renditionIndex == targetIndex else { return }  // a newer flip won
                 if let img = NSImage(data: data) {
-                    self.image = img
+                    self.renditionOverrideImage = img
                     self.imageSize = img.size
                 } else {
                     Self.logger.error(
