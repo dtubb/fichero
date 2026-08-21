@@ -18,6 +18,10 @@ import threading
 from typing import Any, Callable, Literal
 
 from fichero_server.errors import ErrorCategory, handle_error
+# Imported from the submodule directly, not via `fichero_server.models`:
+# anchors.py depends on nothing in the project, so this cannot reintroduce
+# the #2566 circular-import ordering bug.
+from fichero_server.models.anchors import SourceAnchor
 
 logger = logging.getLogger(__name__)
 
@@ -111,18 +115,20 @@ class EmbeddingMigrationConfirmationError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class SourceAnchor:
-    """Where an embeddable text unit came from."""
-
-    document_id: str
-    page_id: str | None = None
-    char_start: int | None = None
-    char_end: int | None = None
-
-
-@dataclass(frozen=True)
 class EmbeddableUnit:
-    """Generic embedding payload; image regions/annotations can reuse this."""
+    """Generic embedding payload; image regions/annotations can reuse this.
+
+    ``anchor`` is the SHARED ``SourceAnchor`` (2026-08-21). A local dataclass
+    of the same name used to live here carrying exactly
+    ``document_id``/``page_id``/``char_start``/``char_end`` — a strict subset
+    of the shared type — which made two different classes called
+    ``SourceAnchor`` in one codebase whose entire point was collapsing seven
+    anchor representations into two. Absorbing rather than renaming removes
+    the duplicate instead of decorating around it, and it delivers what this
+    docstring already promised: an image region genuinely CAN reuse this now,
+    because the shared anchor carries ``rect``/``rendition_id`` and the local
+    one could not.
+    """
 
     id: str
     text: str
