@@ -96,6 +96,10 @@ class LibraryManager {
         let importService: ImportService
         let documentService: DocumentService
         let storageService: StorageService
+        // Renditions of a page (bbox program, 2026-08-20) — the reader's
+        // rendition indicator reads this; nil environment hides it, so the
+        // injection in LibraryServiceEnvironment is load-bearing.
+        let renditionService: RenditionService
         let providerService: ProviderAPIService
         let modelService: ModelService
         let artifactService: ArtifactService
@@ -387,6 +391,7 @@ class LibraryManager {
             #endif
             self.documentService = DocumentService(ficheroClient: self.ficheroClient)
             self.storageService = storageService ?? StorageService(ficheroClient: self.ficheroClient)
+            self.renditionService = RenditionService(ficheroClient: self.ficheroClient)
             self.providerService = providerService ?? ProviderAPIService(ficheroClient: self.ficheroClient)
             self.modelService = modelService ?? ModelService(ficheroClient: self.ficheroClient)
             self.artifactService = ArtifactService(ficheroClient: self.ficheroClient)

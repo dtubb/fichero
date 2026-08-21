@@ -33,6 +33,7 @@ extension View {
             .environment(library.importService)
             .environment(library.documentService)
             .environment(library.storageService)
+            .environment(library.renditionService)
             .environment(library.providerService)
             .environment(library.modelService)
             .environment(library.artifactService)

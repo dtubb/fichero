@@ -93,4 +93,34 @@ final class PreviewImageGeometryTests: XCTestCase {
         XCTAssertEqual(rect?.minX ?? -1, 0, accuracy: 0.001)
         XCTAssertEqual(rect?.minY ?? -1, 0, accuracy: 0.001)
     }
+
+    // MARK: - Zoom-out letterbox mapping (2026-08-21: "if I zoom out, it
+    // doesn't work") — the drawn frame must be the image WITHIN the
+    // letterboxing NSImageView, not the view bounds.
+
+    /// A wide image in a viewport-sized view sits centered with vertical
+    /// slack; the drawn rect must inset to it.
+    func testAspectFitRectInsetsLetterbox() {
+        let rect = DrawnImageFrame.aspectFitRect(
+            of: CGSize(width: 200, height: 100),
+            in: CGRect(x: 0, y: 0, width: 400, height: 400)
+        )
+        XCTAssertEqual(rect, CGRect(x: 0, y: 100, width: 400, height: 200))
+    }
+
+    /// A view already image-shaped (zoomed in / exact fit) is a no-op —
+    /// the pre-fix behavior, preserved.
+    func testAspectFitRectExactShapeIsNoop() {
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 150)
+        let rect = DrawnImageFrame.aspectFitRect(
+            of: CGSize(width: 200, height: 100), in: bounds
+        )
+        XCTAssertEqual(rect, bounds)
+    }
+
+    /// Degenerate sizes never divide by zero — the bounds come back whole.
+    func testAspectFitRectDegenerateFallsBackToBounds() {
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 150)
+        XCTAssertEqual(DrawnImageFrame.aspectFitRect(of: .zero, in: bounds), bounds)
+    }
 }
