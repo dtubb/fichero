@@ -2619,6 +2619,49 @@
         }
       }
     },
+    "/api/documents/{document_id}/renditions": {
+      "get": {
+        "tags": [
+          "renditions"
+        ],
+        "summary": "List Renditions",
+        "description": "Every rendition of one node, in display order.\n\n404s on a missing document rather than returning an empty list: \"this node\nhas no renditions\" and \"this node does not exist\" are different answers,\nand a client that cannot tell them apart will render an empty flip strip\nfor a typo'd id and call it a page with one image.\n\nAn existing node with no renditions is a legitimate empty list \u2014 folders\nhave none, and neither does a node whose bytes were never materialised.",
+        "operationId": "list_renditions_api_documents__document_id__renditions_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenditionListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/notes": {
       "post": {
         "tags": [
@@ -35385,6 +35428,15 @@
         "title": "AgentWriteResponse",
         "description": "Response for agent write submission."
       },
+      "AnchorSpace": {
+        "type": "string",
+        "enum": [
+          "normalized",
+          "pixel"
+        ],
+        "title": "AnchorSpace",
+        "description": "What the numbers in a rect are measured in.\n\nA closed set on purpose \u2014 unlike ``granularity`` below, a new coordinate\nspace is a breaking change to every consumer, not an additive label."
+      },
       "Annotation": {
         "properties": {
           "id": {
@@ -42798,6 +42850,10 @@
             "nullable": true,
             "title": "Page Label"
           },
+          "region_in_parent": {
+            "$ref": "#/components/schemas/NodeRegion",
+            "nullable": true
+          },
           "bbox": {
             "prefixItems": [
               {
@@ -45705,13 +45761,13 @@
             "nullable": true,
             "title": "Precision M"
           },
-          "bbox": {
+          "geo_bbox": {
             "items": {
               "type": "number"
             },
             "type": "array",
             "nullable": true,
-            "title": "Bbox"
+            "title": "Geo Bbox"
           },
           "geojson": {
             "additionalProperties": true,
@@ -53392,6 +53448,42 @@
         ],
         "title": "NodeModelApplyPatch"
       },
+      "NodeRegion": {
+        "properties": {
+          "rect": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Rect"
+          },
+          "space": {
+            "$ref": "#/components/schemas/AnchorSpace",
+            "default": "normalized"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/RegionConfidence",
+            "default": "nominal"
+          },
+          "method": {
+            "type": "string",
+            "nullable": true,
+            "title": "Method"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "rect"
+        ],
+        "title": "NodeRegion",
+        "description": "Where this node sits inside its parent's frame.\n\nReplaces three representations of the same fact: ``Document.bbox`` (pixel\nints), ``metadata[\"source_bbox\"]`` written by the crop/split routes, and\nthe staging sidecar's ``region_on_original``. The field names below are\ntaken from that sidecar deliberately \u2014 the contract already exists in the\ndata, and inventing a fourth spelling of it is how there came to be three."
+      },
       "NodeResponse": {
         "properties": {
           "id": {
@@ -57051,6 +57143,16 @@
         ],
         "title": "RegenerateMissingResponse"
       },
+      "RegionConfidence": {
+        "type": "string",
+        "enum": [
+          "measured",
+          "nominal",
+          "user"
+        ],
+        "title": "RegionConfidence",
+        "description": "How much a region's rect is actually worth.\n\nThe Marshall sidecars carry ``\"method\": \"nominal-even-split\"`` with the\nnote that \"the fold was not measured\" \u2014 a 50/50 guess at where an opening\ndivides. That is a different fact from a measured fold, and collapsing them\nwould make a guess indistinguishable from a measurement. Same three-way\nhonesty ``date_meta`` and ``language_meta`` already use."
+      },
       "RegisteredActionInfo": {
         "properties": {
           "name": {
@@ -57442,6 +57544,116 @@
         ],
         "title": "RenameFolderRequest",
         "description": "Request to rename a folder."
+      },
+      "Rendition": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "title": "Is Primary",
+            "default": false
+          },
+          "pixel_width": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pixel Width"
+          },
+          "pixel_height": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pixel Height"
+          },
+          "transform": {
+            "$ref": "#/components/schemas/NodeRegion",
+            "nullable": true
+          },
+          "derived_from_rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Derived From Rendition Id"
+          },
+          "producer_run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Run Id"
+          },
+          "producer_tool": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Tool"
+          },
+          "producer_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "Producer Model"
+          },
+          "storage": {
+            "type": "string",
+            "nullable": true,
+            "title": "Storage"
+          },
+          "materialized": {
+            "type": "boolean",
+            "title": "Materialized",
+            "default": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "document_id",
+          "role",
+          "path"
+        ],
+        "title": "Rendition",
+        "description": "One set of pixels for a node \u2014 same page, different rendering.\n\nA rendition NEVER changes what the page is, only how it looks: the\narchival original, a contrast-enhanced pass, a background-removed copy, a\nthumbnail. Anything that changes WHICH CONTENT is shown \u2014 a split half, a\ncropped map section \u2014 is a different node carrying a ``NodeRegion``, not a\nrendition. That rule is what makes an anchor portable: a box normalized to\nthe node's frame is valid on every rendition of it, with no maths.\n\n``transform`` is the honest exception. Daniel's staging pipeline produces\nan ``enhanced`` rendition that is \"cropped/deskewed\" relative to the\noriginal, so it is genuinely not the node's frame. Rather than pretend\n(which silently moves every box) or promote it to its own node (which\ndoubles the tree and makes \"which node is the page?\" ambiguous), such a\nrendition records the transform explicitly. ``None`` is the common case\nand the rule's default."
+      },
+      "RenditionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Rendition"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "RenditionListResponse",
+        "description": "Standardized envelope for GET /api/documents/{document_id}/renditions."
       },
       "ReorderResponse": {
         "properties": {

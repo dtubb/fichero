@@ -4500,6 +4500,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-renditions")
+    def documents_list_renditions_get(
+        ctx: typer.Context,
+        document_id: str = typer.Argument(..., help="Path parameter: document_id."),
+    ) -> None:
+        """List Renditions (GET /api/documents/{document_id}/renditions)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{document_id}/renditions"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("cheap-per-type-child-counts-for-a-collapsed-library-outline-row")
     def documents_cheap_per_type_child_counts_for_a_collapsed_library_outline_row_get(
         ctx: typer.Context,
