@@ -26,22 +26,49 @@ enum PreviewSwapAnimation {
 
     static func park(_ kind: Kind) { pending = kind }
 
+    /// User-facing style (Settings ▸ General ▸ Display). "curl" rides the
+    /// undocumented-but-long-lived "pageCurl"/"pageUnCurl" CATransition
+    /// strings — Daniel's ruling (2026-08-21, Bookends precedent): an
+    /// OPTION, slide the default. If an OS update ever kills the strings,
+    /// Core Animation ignores unknown types and the swap is simply instant —
+    /// degraded, never broken.
+    static let styleKey = "preview.pageTurnStyle"
+
+    private static var curlEnabled: Bool {
+        UserDefaults.standard.string(forKey: styleKey) == "curl"
+    }
+
     /// Run-and-clear on the view whose content is about to swap.
     static func runPending(on view: NSView) {
         guard let kind = pending else { return }
         pending = nil
         let transition = CATransition()
-        transition.duration = 0.22
         transition.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        transition.type = .push
+        let forward: Bool
         switch kind {
-        case .pageStep(let forward):
-            transition.subtype = forward ? .fromRight : .fromLeft
-        case .renditionFlip(let forward):
-            // AppKit layers are y-up: .fromTop pushes content in from the
-            // BOTTOM of the screen. Forward (next rendition, fingers up)
-            // reads as the new image rising from below.
-            transition.subtype = forward ? .fromTop : .fromBottom
+        case .pageStep(let f): forward = f
+        case .renditionFlip(let f): forward = f
+        }
+        if curlEnabled {
+            transition.duration = 0.35
+            transition.type = CATransitionType(rawValue: forward ? "pageCurl" : "pageUnCurl")
+            if case .renditionFlip = kind {
+                transition.subtype = forward ? .fromTop : .fromBottom
+            } else {
+                transition.subtype = forward ? .fromRight : .fromLeft
+            }
+        } else {
+            transition.duration = 0.22
+            transition.type = .push
+            switch kind {
+            case .pageStep(let forward):
+                transition.subtype = forward ? .fromRight : .fromLeft
+            case .renditionFlip(let forward):
+                // AppKit layers are y-up: .fromTop pushes content in from the
+                // BOTTOM of the screen. Forward (next rendition, fingers up)
+                // reads as the new image rising from below.
+                transition.subtype = forward ? .fromTop : .fromBottom
+            }
         }
         view.wantsLayer = true
         view.layer?.add(transition, forKey: "previewSwap")
