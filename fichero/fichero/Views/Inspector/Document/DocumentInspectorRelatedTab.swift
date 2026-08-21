@@ -64,9 +64,13 @@ struct DocumentInspectorRelatedTab: View {
                         // `ArtifactListView` uses. Navigating on selection
                         // change would mean arrow-keying through the list
                         // reloaded the whole content pane on every keystroke.
-                        .onTapGesture(count: 2) {
+                        // simultaneousGesture, not onTapGesture — a plain
+                        // double-tap recognizer claims single clicks over the
+                        // label, leaving selection only on the row margin
+                        // (same defect fixed in ArtifactListView, 2026-08-21).
+                        .simultaneousGesture(TapGesture(count: 2).onEnded {
                             navigate(to: item.documentId)
-                        }
+                        })
                         .contextMenu {
                             Button("Open Document") {
                                 navigate(to: item.documentId)

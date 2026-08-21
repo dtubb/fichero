@@ -175,11 +175,17 @@ struct ArtifactListView: View {
                     ? artifact.content ?? artifact.artifactTypeDisplayName
                     : artifact.artifactTypeDisplayName
             ))
-            .onTapGesture(count: 2) {
+            // simultaneousGesture, NOT onTapGesture (Daniel, 2026-08-21: "I
+            // cannot click on artifact, except by clicking on space beside
+            // name"): a plain double-tap recognizer CLAIMS single clicks over
+            // the label while ruling out a double, so List selection only
+            // survived on the row margin. Simultaneous lets the single click
+            // select while the double still opens the window.
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
                 guard let onOpenInWindow else { return }
                 focused.select(artifact.id, in: store.items)
                 onOpenInWindow()
-            }
+            })
             .contextMenu {
                 if let onOpenInWindow {
                     Button("Open in Window") {
