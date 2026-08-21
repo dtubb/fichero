@@ -30,7 +30,6 @@
     "/api/documents/{doc_id}/page-ranges": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
     "/api/documents/{doc_id}/page-ranges/at/{page}": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog",
     "/api/documents/{doc_id}/purge": "#2075 backend; UI tracked in #2077",
-    "/api/documents/{document_id}/renditions/{rendition_id}/content": "bbox review 2026-08-20: rendition bytes exist so the preview CAN show a named rendition, but the flip ships as an indicator first — a visible control that does nothing is worse than an absent one. Drops off this list when the Swift flip is wired.",
     "/api/entities/bulk": "importer-path bulk upsert; Swift store wiring queued with #4118",
     "/api/entities/digest": "WebKit document view consumes the digest; no native Swift call site (#3765)",
     "/api/entities/{entity_id}/export": "engine half of #3703; Swift drag-export wiring pending in the same issue - remove this entry when the Swift side calls it",

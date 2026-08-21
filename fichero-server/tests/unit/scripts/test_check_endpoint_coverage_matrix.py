@@ -43,4 +43,8 @@ def test_witnesses_are_limited_to_the_repaired_store_methods():
         "GET /api/documents/{document_id}/renditions": (
             "listRenditionsApiDocumentsDocumentIdRenditionsGet"
         ),
+        # The flip fetch (RenditionService.contentData, wired 2026-08-21).
+        "GET /api/documents/{document_id}/renditions/{rendition_id}/content": (
+            "getRenditionContentApiDocumentsDocumentIdRenditionsRenditionIdContentGet"
+        ),
     }

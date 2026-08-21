@@ -48,6 +48,9 @@ SWIFT_OPERATION_WITNESSES = {
     "GET /api/documents/{document_id}/renditions": (
         "listRenditionsApiDocumentsDocumentIdRenditionsGet"
     ),
+    "GET /api/documents/{document_id}/renditions/{rendition_id}/content": (
+        "getRenditionContentApiDocumentsDocumentIdRenditionsRenditionIdContentGet"
+    ),
     "GET /api/citation-usages": "listCitationUsagesApiCitationUsagesGet",
     "GET /api/libraries/{lib}/entity-types": "listLibraryEntityTypesApiLibrariesLibEntityTypesGet",
     "POST /api/libraries/{lib}/entity-types": "addLibraryEntityTypeApiLibrariesLibEntityTypesPost",

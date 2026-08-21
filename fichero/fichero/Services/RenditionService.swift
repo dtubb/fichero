@@ -55,6 +55,13 @@ struct DocumentRendition: Identifiable, Hashable, Sendable {
 /// tiebreak) so the preview and any other surface agree what "next" means.
 /// Re-sorting here would recreate exactly the disagreement the engine-side
 /// decision exists to prevent.
+enum RenditionServiceError: Error {
+    /// The engine 404ed the bytes — a referenced-but-absent rendition, or a
+    /// stale id. Distinct from "no renditions" so the flip can say why.
+    case contentUnavailable(renditionId: String)
+    case unexpectedResponse
+}
+
 @MainActor
 @Observable
 final class RenditionService {
@@ -130,6 +137,32 @@ final class RenditionService {
     /// not show the viewer a placeholder every second press.
     func displayable(documentId: String) -> [DocumentRendition] {
         (renditionsByDocument[documentId] ?? []).filter(\.isMaterialized)
+    }
+
+    /// One rendition's image bytes — the flip's fetch (up/down axis). Cached
+    /// per rendition id: flipping back and forth between two renditions of a
+    /// page must not refetch either.
+    private var contentCache: [String: Data] = [:]
+
+    func contentData(documentId: String, renditionId: String) async throws -> Data {
+        if let cached = contentCache[renditionId] { return cached }
+        let response = try await client.api
+            .getRenditionContentApiDocumentsDocumentIdRenditionsRenditionIdContentGet(
+                .init(path: .init(documentId: documentId, renditionId: renditionId))
+            )
+        switch response {
+        case .ok(let ok):
+            let body = try ok.body.image_Ast_
+            // 128MB: archival TIFF-derived renditions run large; the display
+            // path's cap is sized for JPEGs and would truncate them.
+            let data = try await Data(collecting: body, upTo: 128 * 1024 * 1024)
+            contentCache[renditionId] = data
+            return data
+        case .notFound:
+            throw RenditionServiceError.contentUnavailable(renditionId: renditionId)
+        default:
+            throw RenditionServiceError.unexpectedResponse
+        }
     }
 
     private static func convert(_ item: Components.Schemas.Rendition) -> DocumentRendition {

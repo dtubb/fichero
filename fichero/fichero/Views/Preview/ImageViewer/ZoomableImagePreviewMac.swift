@@ -189,6 +189,12 @@ struct ZoomableImagePreview: View {
         return geometry.visible.width < 0.999
     }
 
+    /// The vertical twin — ↑/↓'s pan-vs-flip-rendition test.
+    var canPanVertically: Bool {
+        guard geometry.visible.height > 0 else { return false }
+        return geometry.visible.height < 0.999
+    }
+
     /// The position to use for magnifier (locked or cursor)
     var magnifierPosition: CGPoint {
         magnifierLocked ? lockedPosition : cursorPosition
@@ -328,8 +334,22 @@ struct ZoomableImagePreview: View {
             }
             return .handled
         }
-        .onKeyPress(.upArrow, phases: .down) { _ in panUp(); return .handled }
-        .onKeyPress(.downArrow, phases: .down) { _ in panDown(); return .handled }
+        // ↑/↓ = the RENDITION axis when this page has more than one (Daniel's
+        // ruling: up/down flips renditions, ←/→ walks pages) — same
+        // pan-first grammar as ←/→: a zoomed image that can travel
+        // vertically still pans; otherwise the keys flip.
+        .onKeyPress(.upArrow, phases: .down) { _ in
+            if canPanVertically { panUp() } else {
+                flipRendition(to: renditionIndex - 1)
+            }
+            return .handled
+        }
+        .onKeyPress(.downArrow, phases: .down) { _ in
+            if canPanVertically { panDown() } else {
+                flipRendition(to: renditionIndex + 1)
+            }
+            return .handled
+        }
         .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
             zoomIn: zoomIn,
             zoomOut: zoomOut,

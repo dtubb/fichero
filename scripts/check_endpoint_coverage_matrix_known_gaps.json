@@ -101,7 +101,6 @@
   "GET /api/documents/{doc_id}/workflow-runs": "store missing",
   "GET /api/documents/{doc_id}/workspace/items": "store missing",
   "GET /api/documents/{document_id}/outline": "store missing",
-  "GET /api/documents/{document_id}/renditions/{rendition_id}/content": "store missing - bbox review: flip ships as an indicator until the Swift flip is wired; endpoint exists so it can be",
   "GET /api/entities/alias-map": "store missing",
   "GET /api/entities/claim-counts": "store missing",
   "GET /api/entities/digest": "WebKit document view consumes the digest; no native Swift store surface (#3765)",
