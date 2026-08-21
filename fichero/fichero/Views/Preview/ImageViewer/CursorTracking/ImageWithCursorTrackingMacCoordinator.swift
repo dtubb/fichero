@@ -22,12 +22,14 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
     func isCurrentImageLoad(_ token: Int) -> Bool { token == imageLoadToken }
     /// Tracks the last override image set so we detect changes by identity (#1402).
     weak var currentOverrideImage: NSImage?
-    var onVisibleRectChanged: ((CGRect) -> Void)?
-    /// Where the image is actually DRAWN inside the scroll view's bounds
-    /// (SwiftUI top-left coords, 2026-08-12 bbox repro): the box overlays must
-    /// frame to THIS, not the pane, or fit-with-letterbox puts boxes in the
-    /// gray margins. Fires alongside `onVisibleRectChanged` — same crop.
-    var onDrawnImageFrameChanged: ((CGRect) -> Void)?
+    /// Visible window AND drawn image rect from ONE measurement pass.
+    ///
+    /// One callback, not two (2026-08-20 bbox review, D3): overlays frame to
+    /// `drawnFrame` while mapping boxes through `visible`, so a consumer that
+    /// sees a fresh value of one against a stale value of the other draws
+    /// every box in the wrong place. Two callbacks meant two independent
+    /// `@MainActor` hops, and exactly that mismatch during a pinch.
+    var onGeometryChanged: ((PreviewImageGeometry) -> Void)?
     /// #596 (2nd attempt): fires once at gesture `.ended` with the final
     /// magnification. The owning `ImageWithCursorTracking` writes it
     /// back to its `@Binding var scale` so `updateNSView`'s sync-check
@@ -258,11 +260,14 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
             height: normalizedHeight
         )
 
-        onVisibleRectChanged?(rect)
-
-        if let drawn = DrawnImageFrame.compute(scrollView: scrollView, imageView: imageView) {
-            onDrawnImageFrameChanged?(drawn)
+        // Both rects leave together or not at all. Publishing the visible
+        // window while `DrawnImageFrame.compute` returns nil would strand the
+        // consumer with a fresh crop and a stale (or zero) frame — the D3
+        // mismatch, just arriving by a different route.
+        guard let drawn = DrawnImageFrame.compute(scrollView: scrollView, imageView: imageView) else {
+            return
         }
+        onGeometryChanged?(PreviewImageGeometry(visible: rect, drawnFrame: drawn))
     }
 
     /// Calculate the scale needed to fit the image in the scroll view.

@@ -16,10 +16,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     @Binding var scale: CGFloat
     @Binding var cursorPosition: CGPoint  // Normalized 0-1 position in image
     @Binding var imageSize: CGSize
-    @Binding var visibleRect: CGRect  // Normalized 0-1 visible area
-    /// The image's on-screen rect within the pane (top-left coords) — what
-    /// the box overlays must be framed to, NOT the whole pane (2026-08-12).
-    @Binding var drawnImageFrame: CGRect
+    /// The visible window plus the image's on-screen rect, as ONE value.
+    ///
+    /// These were two bindings written from two independent `@MainActor`
+    /// hops, which let SwiftUI render a frame pairing a new visible window
+    /// with a stale drawn frame — every box off by the difference, on any
+    /// frame during a pinch (2026-08-20 bbox review, D3). One binding, one
+    /// write, one transaction.
+    @Binding var geometry: PreviewImageGeometry
     let minScale: CGFloat
     let maxScale: CGFloat
     let loupeEnabled: Bool
@@ -147,15 +151,12 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             name: NSView.boundsDidChangeNotification,
             object: scrollView.contentView
         )
-        context.coordinator.onVisibleRectChanged = { rect in
+        // ONE hop, so the two rects reach SwiftUI in a single transaction and
+        // the overlay never maps a fresh crop through a stale frame (D3).
+        context.coordinator.onGeometryChanged = { measured in
             Task { @MainActor in
-                self.visibleRect = rect
-            }
-        }
-        context.coordinator.onDrawnImageFrameChanged = { rect in
-            Task { @MainActor in
-                if self.drawnImageFrame != rect {
-                    self.drawnImageFrame = rect
+                if self.geometry != measured {
+                    self.geometry = measured
                 }
             }
         }

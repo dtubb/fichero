@@ -147,12 +147,13 @@ struct ZoomableImagePreview: View {
     @State var lockedPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Position when locked
     @State var imageSize: CGSize = .zero
     @State var image: NSImage?
-    @State var visibleRect: CGRect = .zero  // Normalized 0-1
-    /// The image's on-screen rect within the pane (top-left coords), from the
-    /// scroll coordinator. Overlays are framed to THIS, never the whole pane —
-    /// at fit-with-letterbox, pane-spanning overlays drew normalized boxes
-    /// into the gray margins below the image (2026-08-12 bbox repro).
-    @State var drawnImageFrame: CGRect = .zero
+    /// Visible window + drawn image rect, measured together by the scroll
+    /// coordinator (2026-08-20 bbox review, D3). Overlays frame to
+    /// `drawnFrame`, never the whole pane — at fit-with-letterbox a
+    /// pane-spanning overlay drew normalized boxes into the gray margins
+    /// below the image (2026-08-12 bbox repro) — and map through `visible`.
+    /// One value because the two are only correct together.
+    @State var geometry: PreviewImageGeometry = .unmeasured
     @State var imageCoordinator: ImageWithCursorTracking.Coordinator?
     // Full-resolution source image fetched lazily when zoom exceeds 1.5× (#2427).
     @State var highResImage: NSImage?
@@ -167,10 +168,10 @@ struct ZoomableImagePreview: View {
     /// swipe uses in SiblingSwipeScrollView): the scaled width must exceed
     /// the visible width by more than a hairline.
     var canPanHorizontally: Bool {
-        // visibleRect is NORMALIZED (0-1): seeing less than the full image
-        // width means horizontal travel is possible.
-        guard visibleRect.width > 0 else { return false }
-        return visibleRect.width < 0.999
+        // The visible window is NORMALIZED (0-1): seeing less than the full
+        // image width means horizontal travel is possible.
+        guard geometry.visible.width > 0 else { return false }
+        return geometry.visible.width < 0.999
     }
 
     /// The position to use for magnifier (locked or cursor)
@@ -189,12 +190,19 @@ struct ZoomableImagePreview: View {
                     if renderedImage != nil || url != nil {
                         ImageWithCursorTracking(
                             url: url,
-                            overrideImage: highResImage ?? renderedImage,
+                            // A backend-rendered rendition WINS over the
+                            // high-res source (2026-08-20 bbox review, D2).
+                            // The old `highResImage ?? renderedImage` let the
+                            // zoom-triggered source fetch replace the very
+                            // rendition the user chose to look at — different
+                            // pixels, and for a crop/rotate/deskew/split
+                            // rendition a different FRAME, which moves every
+                            // box on the page.
+                            overrideImage: renderedImage ?? highResImage,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,
-                            visibleRect: $visibleRect,
-                            drawnImageFrame: $drawnImageFrame,
+                            geometry: $geometry,
                             minScale: minScale,
                             maxScale: maxScale,
                             loupeEnabled: loupeEnabled,
@@ -249,17 +257,16 @@ struct ZoomableImagePreview: View {
                 .background(Color(nsColor: .underPageBackgroundColor))
 
                 // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active.
-                // visibleRect starts at (0,0,0,0) before layout completes, which would
-                // pass the "< 0.99" zoom check and flash the minimap on every image
-                // load (#771). Require positive area so the predicate only fires once
-                // the viewport has actually measured the image.
-                let visibleRectIsMeasured = visibleRect.width > 0 && visibleRect.height > 0
-                let isActuallyZoomed = visibleRectIsMeasured
-                    && (visibleRect.width < 0.99 || visibleRect.height < 0.99)
+                // The visible window starts at (0,0,0,0) before layout completes,
+                // which would pass the "< 0.99" zoom check and flash the minimap on
+                // every image load (#771). `isMeasured` is that same guard, now
+                // expressed once on the geometry value instead of re-derived here.
+                let isActuallyZoomed = geometry.isMeasured
+                    && (geometry.visible.width < 0.99 || geometry.visible.height < 0.99)
                 if let img = image, isActuallyZoomed || loupeEnabled {
                     NavigatorMiniMap(
                         image: img,
-                        visibleRect: visibleRect,
+                        visibleRect: geometry.visible,
                         onRectangleDragged: { normalizedOrigin in
                             imageCoordinator?.scrollToNormalizedPosition(normalizedOrigin)
                         }
@@ -344,43 +351,47 @@ struct ZoomableImagePreview: View {
 extension ZoomableImagePreview {
     /// Both box overlays, framed to the DRAWN image rect — never the pane.
     /// Pane-spanning overlays put boxes in the letterbox (2026-08-12 bbox
-    /// repro). `visibleRect` and `drawnImageFrame` describe the same crop,
-    /// so the mapping stays consistent while panning.
+    /// repro). `geometry.visible` and `geometry.drawnFrame` describe the same
+    /// crop and arrive in one write, so the mapping stays consistent while
+    /// panning — it used to be two independent writes, and the pair could
+    /// disagree mid-gesture (2026-08-20 bbox review, D3).
     @ViewBuilder
     var boxOverlays: some View {
-        ZStack(alignment: .topLeading) {
-            // Saved bounding boxes + the region-draw layer (#2458).
-            // Shown whenever there are boxes or the tool is armed.
-            if !regionBoxes.isEmpty || !highlightBoxes.isEmpty || isDrawingRegion {
-                BoundingBoxOverlay(
-                    boxes: regionBoxes + highlightBoxes,
-                    visible: visibleRect == .zero
-                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
-                        : visibleRect,
-                    isDrawing: isDrawingRegion,
-                    onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
-                )
+        // Nothing renders until a layout pass has measured BOTH rects
+        // (2026-08-20 bbox review, D5). The old unit-rect fallback left the
+        // overlay unframed before the first measurement — spanning the whole
+        // pane — and mapped boxes against the full image, flashing them across
+        // the pane on every image load. An unmeasured viewport is not a
+        // viewport showing the whole image; drawing nothing for one frame is
+        // the honest answer, and the Every Frame Perfect one.
+        if geometry.isMeasured {
+            ZStack(alignment: .topLeading) {
+                // Saved bounding boxes + the region-draw layer (#2458).
+                // Shown whenever there are boxes or the tool is armed.
+                if !regionBoxes.isEmpty || !highlightBoxes.isEmpty || isDrawingRegion {
+                    BoundingBoxOverlay(
+                        boxes: regionBoxes + highlightBoxes,
+                        visible: geometry.visible,
+                        isDrawing: isDrawingRegion,
+                        onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
+                    )
+                }
+                // OCR text boxes from the transcription pass (#4309),
+                // toggled from the reader toolbar.
+                if ocrBoxesEnabled, let ocrGeometry {
+                    OCRGeometryOverlay(
+                        geometry: ocrGeometry,
+                        visible: geometry.visible
+                    )
+                }
             }
-            // OCR text boxes from the transcription pass (#4309),
-            // toggled from the reader toolbar.
-            if ocrBoxesEnabled, let ocrGeometry {
-                OCRGeometryOverlay(
-                    geometry: ocrGeometry,
-                    visible: visibleRect == .zero
-                        ? CGRect(x: 0, y: 0, width: 1, height: 1)
-                        : visibleRect
-                )
-            }
+            .frame(width: geometry.drawnFrame.width, height: geometry.drawnFrame.height)
+            // Boxes never bleed past the drawn image into the letterbox or the
+            // neighbouring panes (user, 2026-08-20: "they draw over the image
+            // and sometimes into other views").
+            .clipped()
+            .offset(x: geometry.drawnFrame.minX, y: geometry.drawnFrame.minY)
         }
-        .frame(
-            width: drawnImageFrame == .zero ? nil : drawnImageFrame.width,
-            height: drawnImageFrame == .zero ? nil : drawnImageFrame.height
-        )
-        // Boxes never bleed past the drawn image into the letterbox or the
-        // neighboring panes (user, 2026-08-20: "they draw over the image and
-        // sometimes into other views").
-        .clipped()
-        .offset(x: drawnImageFrame.minX, y: drawnImageFrame.minY)
     }
 }
 
