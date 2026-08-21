@@ -26,7 +26,6 @@ struct GeneralSettingsView: View {
     private static let defaultLineSpacing: Double = 4
     private static let defaultMarginH: Double = 16
     private static let defaultMarginV: Double = 12
-    @AppStorage("preview.pageTurnStyle") private var pageTurnStyle = "slide"
     private static let defaultThumbnailSize: Double = 120
 
     var body: some View {
@@ -35,16 +34,6 @@ struct GeneralSettingsView: View {
                 Slider(value: $thumbnailSize, in: 80...200) {
                     Text("Thumbnail Size")
                 }
-                #if os(macOS)
-                // Page-turn style (Daniel, 2026-08-21, Bookends precedent):
-                // an option, slide the default. Curl rides undocumented
-                // CATransition strings and degrades to an instant swap if an
-                // OS update removes them — see PreviewSwapAnimation.
-                Picker("Page turns", selection: $pageTurnStyle) {
-                    Text("Slide").tag("slide")
-                    Text("Page Curl").tag("curl")
-                }
-                #endif
                 // "Selection changes layout" was deleted with #4525 (V6):
                 // selection NEVER changes which panes are visible — #1452's
                 // stable default is the only behaviour now.
