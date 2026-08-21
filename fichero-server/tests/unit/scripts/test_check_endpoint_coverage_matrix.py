@@ -37,4 +37,10 @@ def test_witnesses_are_limited_to_the_repaired_store_methods():
         "DELETE /api/libraries/{lib}/entity-types/{entity_type_key}": (
             "removeLibraryEntityTypeApiLibrariesLibEntityTypesEntityTypeKeyDelete"
         ),
+        # RenditionService calls through the generated client, so the literal
+        # path never appears in Swift — the operation name is the honest
+        # witness (RenditionService.swift, bbox lane 2026-08-20).
+        "GET /api/documents/{document_id}/renditions": (
+            "listRenditionsApiDocumentsDocumentIdRenditionsGet"
+        ),
     }

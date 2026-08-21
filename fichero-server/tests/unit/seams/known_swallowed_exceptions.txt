@@ -25,6 +25,7 @@ api/routes/document/documents.py::related_documents 2
 api/routes/document/documents.py::update_document_impl 1
 api/routes/entity/entities.py::delete_entity_impl 2
 api/routes/entity/inspector.py::inspector 2
+api/routes/ingest/core.py::_apply_sidecar_renditions 1
 api/routes/ingest/core.py::_upsert_sidecar_entities 1
 api/routes/ingest/core.py::ingest_folder.do_background_ingest.on_document 2
 api/routes/kg/mutations.py::undo_mutation 1

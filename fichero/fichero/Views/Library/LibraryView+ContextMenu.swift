@@ -415,7 +415,9 @@ extension LibraryView {
                         Text("Runs on \(resolution.targetIds.count) documents")
                         Divider()
                     }
-                    RunWorkflowSubmenuItems(workflows: availableWorkflows) { workflowId, providerOverride, modelOverride in
+                    RunWorkflowSubmenuItems(
+                        workflows: availableWorkflows
+                    ) { workflowId, providerOverride, modelOverride in
                         Task { @MainActor in
                             contextMenuLogger.info(
                                 """

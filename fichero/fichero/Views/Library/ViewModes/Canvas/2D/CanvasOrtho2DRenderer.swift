@@ -177,9 +177,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
         guard !points.isEmpty else { return }
         let margin = orthoScale  // ~one viewport height of slack
-        let xs = points.map(\.x), ys = points.map(\.y)
-        camera.position.x = min(max(camera.position.x, xs.min()! - margin), xs.max()! + margin)
-        camera.position.y = min(max(camera.position.y, ys.min()! - margin), ys.max()! + margin)
+        let xCoords = points.map(\.x), yCoords = points.map(\.y)
+        camera.position.x = min(max(camera.position.x, xCoords.min()! - margin), xCoords.max()! + margin)
+        camera.position.y = min(max(camera.position.y, yCoords.min()! - margin), yCoords.max()! + margin)
     }
 
     // MARK: - Drag + marquee (#3084)
@@ -363,7 +363,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// A thin FLAT rectangle in the z=0 plane between two points — the RealityKit
     /// twin of the 2D `Path` stroke (no 3D tube; true-flat for the ortho camera).
-    private func makeConnector(from source: SIMD3<Float>, to target: SIMD3<Float>, style: CanvasEdgeStyle) -> ModelEntity {
+    private func makeConnector(
+        from source: SIMD3<Float>, to target: SIMD3<Float>, style: CanvasEdgeStyle
+    ) -> ModelEntity {
         let delta = SIMD2<Float>(target.x - source.x, target.y - source.y)
         let length = max(simd_length(delta), 0.0001)
         let thickness: Float = 0.02

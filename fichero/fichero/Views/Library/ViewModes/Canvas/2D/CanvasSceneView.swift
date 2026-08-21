@@ -319,7 +319,9 @@ struct CanvasSceneView: View {
             }
     }
 
-    private func draggedWorld(start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat, id: String) -> SIMD3<Double> {
+    private func draggedWorld(
+        start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat, id: String
+    ) -> SIMD3<Double> {
         // Preserve the row's existing z (#3090): a 2D move never touches z, so a
         // z the 3D renderer set survives a 2D save — one row, two projections.
         let existingZ = layoutStore?.layout(for: scopeKey).first { $0.itemId == id }?.z ?? 0

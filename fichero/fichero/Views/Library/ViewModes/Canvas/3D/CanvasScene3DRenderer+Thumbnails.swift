@@ -24,7 +24,9 @@ extension CanvasScene3DRenderer {
                 // Say WHY (perf audit 2026-08-19: 1,500 silent failures in
                 // 16s made 'no thumbnails' undiagnosable) — and retry once:
                 // fresh imports 404 until the derivative stage lands them.
-                log.error("space thumbnail load failed for \(sourceId, privacy: .public): \(error.localizedDescription)")
+                log.error(
+                    "space thumbnail load failed for \(sourceId, privacy: .public): \(error.localizedDescription)"
+                )
                 if retriesLeft > 0 {
                     try? await Task.sleep(for: .seconds(25))
                     loadThumbnail(sourceId: sourceId, into: entity, retriesLeft: retriesLeft - 1)

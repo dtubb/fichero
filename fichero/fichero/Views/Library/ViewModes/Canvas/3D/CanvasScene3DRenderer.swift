@@ -171,10 +171,10 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         let points = placeablesById.values.map { Canvas3DProjection.scenePosition($0.position) }
         if !points.isEmpty {
             let margin: Float = max(distance, 4)
-            let xs = points.map(\.x), ys = points.map(\.y), zs = points.map(\.z)
-            lookAt.x = min(max(lookAt.x, xs.min()! - margin), xs.max()! + margin)
-            lookAt.y = min(max(lookAt.y, ys.min()! - margin), ys.max()! + margin)
-            lookAt.z = min(max(lookAt.z, zs.min()! - margin), zs.max()! + margin)
+            let xCoords = points.map(\.x), yCoords = points.map(\.y), zCoords = points.map(\.z)
+            lookAt.x = min(max(lookAt.x, xCoords.min()! - margin), xCoords.max()! + margin)
+            lookAt.y = min(max(lookAt.y, yCoords.min()! - margin), yCoords.max()! + margin)
+            lookAt.z = min(max(lookAt.z, zCoords.min()! - margin), zCoords.max()! + margin)
         }
         updateCamera()
     }
@@ -304,8 +304,13 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
             fallback: Float(size.width) / Float(size.height)
         )
         let depth: Float = 0.04
-        let mesh = MeshResource.generateBox(size: SIMD3<Float>(width, height, depth), cornerRadius: min(width, height) * 0.08)
-        let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: baseColor(for: placeable.content), isMetallic: false)])
+        let mesh = MeshResource.generateBox(
+            size: SIMD3<Float>(width, height, depth), cornerRadius: min(width, height) * 0.08
+        )
+        let entity = ModelEntity(
+            mesh: mesh,
+            materials: [SimpleMaterial(color: baseColor(for: placeable.content), isMetallic: false)]
+        )
         entity.name = placeable.id
         entity.position = Canvas3DProjection.scenePosition(placeable.position)
         entity.components.set(InputTargetComponent())
@@ -353,11 +358,15 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     /// A thin cylinder spanning two 3D points — reads as a tube from any orbit
     /// angle (the 3D twin of the 2D flat connector).
-    private func makeConnector(from source: SIMD3<Float>, to target: SIMD3<Float>, style: CanvasEdgeStyle) -> ModelEntity {
+    private func makeConnector(
+        from source: SIMD3<Float>, to target: SIMD3<Float>, style: CanvasEdgeStyle
+    ) -> ModelEntity {
         let delta = target - source
         let length = max(simd_length(delta), 0.0001)
         let mesh = MeshResource.generateCylinder(height: length, radius: 0.008)
-        let entity = ModelEntity(mesh: mesh, materials: [SimpleMaterial(color: connectorColor(style), isMetallic: false)])
+        let entity = ModelEntity(
+            mesh: mesh, materials: [SimpleMaterial(color: connectorColor(style), isMetallic: false)]
+        )
         entity.position = (source + target) / 2
         entity.orientation = simd_quatf(from: SIMD3<Float>(0, 1, 0), to: delta / length)
         return entity

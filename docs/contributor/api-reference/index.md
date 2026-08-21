@@ -32,6 +32,23 @@ mind-palace routes, renamed to `/api/canvas`), and more.
 - Response: `200` with the JSON-LD AnnotationPage object; missing documents
   return `404`.
 
+## Renditions (bbox program, 2026-08-20)
+
+`GET /api/documents/{document_id}/renditions`
+
+- Purpose: list a document's renditions — the same page in different pixel
+  frames (archival original, enhanced, background-removed). The engine
+  returns them in canonical order (primary first, then role preference), so
+  every client agrees what "next" means. Missing documents return a declared
+  `404`.
+
+`GET /api/documents/{document_id}/renditions/{rendition_id}/content`
+
+- Purpose: the bytes of one named rendition, for the preview's up/down
+  rendition flip. Unknown document or rendition id returns a declared `404`.
+  Not yet called from Swift — tracked in the ui-wiring baseline until the
+  flip control is wired.
+
 ## Prototype attributes and the dataset query (datasets Stages 1–2)
 
 `GET /api/documents/{doc_id}/effective-attributes`

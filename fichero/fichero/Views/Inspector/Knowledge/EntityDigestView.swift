@@ -58,7 +58,9 @@ struct EntityDigestView: View {
             if entitiesToDelete.count == 1, let entity = entitiesToDelete.first {
                 Text("Are you sure you want to delete \"\(entity.canonicalName)\"? This action cannot be undone.")
             } else if !entitiesToDelete.isEmpty {
-                Text("Are you sure you want to delete \(entitiesToDelete.count) entities? This action cannot be undone.")
+                Text(
+                    "Are you sure you want to delete \(entitiesToDelete.count) entities? This action cannot be undone."
+                )
             }
         }
     }

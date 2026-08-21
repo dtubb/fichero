@@ -32,9 +32,12 @@ extension LibraryView {
     /// selection exactly as the list/grid menus do, because the canvas
     /// selection IS `selection` (one mapped binding).
     private var canvasMenuDocument: Document? {
+        // No `?? selection.first` fallback: a selection whose primary cannot
+        // be named by row order gets the empty menu, never an arbitrary node
+        // (selection-grammar rule 2, 2026-08-09).
         guard let firstId = shellPrimarySelectionId(
             in: selection, orderedBy: filteredDocuments
-        ) ?? selection.first else { return nil }
+        ) else { return nil }
         return documents.first { $0.id == firstId }
             ?? filteredDocuments.first { $0.id == firstId }
     }
