@@ -28,6 +28,23 @@ from fichero_server.security.path_security import resolve_document_source_path
 
 router = APIRouter(prefix="/documents")
 
+# Explicit suffix→type map, NEVER the mimetypes module: mimetypes' first-use
+# initializer reads system files (/etc/apache2/mime.types), which the
+# sandboxed engine is denied — every flip 500ed with PermissionError while
+# the tests, unsandboxed, stayed green (live repro 2026-08-21). Mirrors the
+# storage routes' map; renditions are images by construction.
+IMAGE_MEDIA_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".tiff": "image/tiff",
+    ".tif": "image/tiff",
+    ".bmp": "image/bmp",
+    ".heic": "image/heic",
+}
+
 
 @router.get(
     "/{document_id}/renditions",
@@ -130,4 +147,9 @@ async def get_rendition_content(
             status_code=404,
             detail=f"Rendition {rendition_id} has no readable file",
         )
-    return FileResponse(resolved)
+    return FileResponse(
+        resolved,
+        media_type=IMAGE_MEDIA_TYPES.get(
+            resolved.suffix.lower(), "application/octet-stream"
+        ),
+    )

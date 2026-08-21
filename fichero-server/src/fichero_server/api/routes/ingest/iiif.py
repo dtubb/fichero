@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fichero_server.api.routes.document.renditions import IMAGE_MEDIA_TYPES
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -482,7 +483,16 @@ async def get_document_image(
 
     # If no resize requested, return original
     if width is None and height is None:
-        return FileResponse(image_path)
+        # Explicit media type — bare FileResponse falls back to the mimetypes
+        # module, whose first-use init reads /etc/apache2/mime.types and dies
+        # with PermissionError in the sandboxed engine (2026-08-21, same 500
+        # the rendition-content route shipped with).
+        return FileResponse(
+            image_path,
+            media_type=IMAGE_MEDIA_TYPES.get(
+                image_path.suffix.lower(), "application/octet-stream"
+            ),
+        )
 
     # Resize requested
     from PIL import Image  # lazy (#3985): keep PIL off the engine boot path

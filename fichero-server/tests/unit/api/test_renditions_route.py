@@ -189,6 +189,29 @@ class TestRenditionContent:
 
         assert response.status_code == 404
 
+    def test_media_type_is_explicit_never_the_mimetypes_module(self, client, db, tmp_path):
+        """The content-type comes from the route's own suffix map.
+
+        A bare FileResponse falls back to Python's mimetypes module, whose
+        first-use initializer reads /etc/apache2/mime.types — denied in the
+        SANDBOXED engine, so every flip 500ed with PermissionError while
+        these tests, unsandboxed, stayed green (live repro 2026-08-21). The
+        header is the observable proof the explicit map is in the path.
+        """
+        import fichero_server.api.routes.document.renditions as renditions_module
+
+        doc = _page(db)
+        path = tmp_path / "page.jpg"
+        path.write_bytes(b"\xff\xd8\xffjpegish")
+        rendition = Rendition(document_id=doc.id, role="enhanced", path=str(path))
+        db.save(rendition)
+
+        assert renditions_module.IMAGE_MEDIA_TYPES[".jpg"] == "image/jpeg"
+        response = client.get(f"/api/documents/{doc.id}/renditions/{rendition.id}/content")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/jpeg"
+
     def test_missing_file_on_disk_is_404(self, client, db, tmp_path):
         doc = _page(db)
         rendition = Rendition(
