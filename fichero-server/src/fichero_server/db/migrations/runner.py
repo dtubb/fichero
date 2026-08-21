@@ -51,7 +51,7 @@ from fichero_server.models.knowledge import (
     MutationLog,
     MutationOperationType,
 )
-from fichero_server.models import Document
+from fichero_server.models import Document, Rendition
 
 logger = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -316,6 +316,138 @@ class MigrationRunner:
             result.error_message = str(e)
             result.completed_at = utc_now()
             logger.error(f"Migration failed: {e}")
+            raise
+
+        return result
+
+    def backfill_renditions_from_metadata(
+        self,
+        dry_run: bool = False,
+        limit: int | None = None,
+    ) -> MigrationResult:
+        """Create Rendition rows for documents imported before the type existed.
+
+        Sources, in order of preference:
+
+        * ``metadata["images"]`` — the manifest importer's list of
+          ``{role, source_path}``, which is where every Marshall page's
+          renditions have been living as untyped metadata.
+        * ``Document.path`` — the fallback for a plain import, which yields a
+          single rendition. Its role is deliberately ``unknown`` rather than
+          ``original``: nothing recorded what that file actually IS, and
+          calling an enhanced scan "original" would be inventing provenance.
+          ``unknown`` sorts last in RENDITION_ROLE_PREFERENCE and is visibly
+          not a claim.
+
+        Idempotent by ``(document_id, path)``: a document that already has a
+        rendition for a path is skipped, so re-running cannot duplicate rows.
+
+        Deliberately does NOT touch ``region_in_parent``. The old
+        ``metadata["source_bbox"]`` is in PIXELS against an unrecorded frame,
+        and converting it would require pixel dimensions nothing stored. A
+        wrong region is worse than an absent one, so those stay absent and are
+        counted in ``details["source_bbox_unconvertible"]`` for the
+        re-anchoring pass to pick up.
+        """
+        result = MigrationResult(
+            migration_name="backfill_renditions_from_metadata",
+            status=MigrationStatus.running,
+            dry_run=dry_run,
+        )
+
+        try:
+            run_id = f"backfill_renditions_{uuid4().hex[:8]}"
+            documents = self.db.all(Document)
+            processed = 0
+            from_images = 0
+            from_path = 0
+            unconvertible_bbox = 0
+
+            for doc in documents:
+                if limit and processed >= limit:
+                    break
+
+                metadata = doc.metadata or {}
+                if metadata.get("source_bbox"):
+                    unconvertible_bbox += 1
+
+                existing = {
+                    r.path for r in self.db.query(Rendition, document_id=doc.id)
+                }
+
+                images = metadata.get("images")
+                planned: list[tuple[str, str, bool]] = []
+                if isinstance(images, list) and images:
+                    preferred = metadata.get("preferred_image_role")
+                    for image in images:
+                        if not isinstance(image, dict):
+                            continue
+                        path = image.get("source_path") or image.get("path")
+                        role = image.get("role")
+                        if not path or not role:
+                            continue
+                        planned.append((str(role), str(path), role == preferred))
+                elif doc.path:
+                    planned.append(("unknown", str(doc.path), True))
+
+                for role, path, is_primary in planned:
+                    if path in existing:
+                        result.skipped += 1
+                        continue
+                    if not dry_run:
+                        rendition = Rendition(
+                            document_id=doc.id,
+                            role=role,
+                            path=path,
+                            is_primary=is_primary,
+                            note="backfilled from pre-Rendition metadata",
+                        )
+                        self.db.save(rendition)
+                        self._log_mutation(
+                            entity_type="Rendition",
+                            entity_id=rendition.id,
+                            operation=MutationOperationType.create,
+                            before_state=None,
+                            after_state=rendition.model_dump(mode="json"),
+                            changed_fields=["*"],
+                            run_id=run_id,
+                        )
+                        if not result.audit_id:
+                            result.audit_id = run_id
+                    existing.add(path)
+                    result.migrated += 1
+                    if role == "unknown":
+                        from_path += 1
+                    else:
+                        from_images += 1
+
+                processed += 1
+
+            result.status = MigrationStatus.completed
+            result.completed_at = utc_now()
+            result.details = {
+                "run_id": run_id,
+                "documents_scanned": len(documents),
+                "from_metadata_images": from_images,
+                "from_document_path": from_path,
+                # Not converted on purpose — pixels against an unrecorded
+                # frame. Counted so the re-anchoring pass knows the size of
+                # the job rather than discovering it.
+                "source_bbox_unconvertible": unconvertible_bbox,
+            }
+            logger.info(
+                "backfill_renditions: %d created (%d from metadata.images, "
+                "%d from path), %d skipped, %d documents carry an "
+                "unconvertible pixel source_bbox%s",
+                result.migrated, from_images, from_path, result.skipped,
+                unconvertible_bbox, " [DRY RUN]" if dry_run else "",
+            )
+
+        except Exception as e:
+            result.status = MigrationStatus.failed
+            result.error_message = str(e)
+            result.completed_at = utc_now()
+            logger.error(f"backfill_renditions failed: {e}")
             raise
 
         return result
