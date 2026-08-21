@@ -70,7 +70,6 @@ struct ReaderRenditionNav {
     let goNext: (() -> Void)?
 }
 
-
 struct ReaderPageNav {
     let pageIndex: Int
     let pageCount: Int

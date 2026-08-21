@@ -97,8 +97,8 @@ final class RenditionService {
                     path: .init(documentId: documentId)
                 )
             switch response {
-            case .ok(let ok):
-                let list = try ok.body.json
+            case .ok(let okResponse):
+                let list = try okResponse.body.json
                 let items = list.items.map(Self.convert)
                 renditionsByDocument[documentId] = items
                 return items
