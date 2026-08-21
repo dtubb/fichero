@@ -48,6 +48,13 @@ KNOWN_GAPS: dict[str, str] = {
     'DELETE /api/chains/executions/{execution_id}': "#1920 baseline - cli-only",
     'DELETE /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'DELETE /api/library/links/{link_id}': "#1920 baseline - cli-only",
+    # 2026-08-20 bbox review: the rendition BYTES route exists so the preview
+    # can show a named rendition, but the flip ships as an INDICATOR first —
+    # a visible control that does nothing is worse than an absent one, so the
+    # Swift side names the rendition and draws no chevrons yet. Tracked here
+    # rather than silently allowed: the gap is real and closes when the flip
+    # is wired.
+    'GET /api/documents/{document_id}/renditions/{rendition_id}/content': "bbox review - Swift flip wiring pending",
     'GET /api/auth/sessions': "#1920 baseline - cli-only",
     'GET /api/folders/{entity_type}/folders': "#1920 baseline - cli-only",
     'GET /api/folders/{folder_id}/views': "#1920 baseline - cli-only",

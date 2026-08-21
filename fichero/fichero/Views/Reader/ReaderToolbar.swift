@@ -81,6 +81,14 @@ struct ReaderToolbar: View {
     // ─── Page navigation (nil ⇒ greyed) ───
     var pageNav: ReaderPageNav?
 
+    // ─── Rendition navigation (nil, or a single rendition ⇒ hidden) ───
+    // A different axis from pages: pages change WHAT you read, renditions
+    // change how the same page looks (2026-08-20 bbox review). Hidden rather
+    // than greyed when there is nothing to switch between — an always-visible
+    // control that never does anything is the clutter the dead-simple-UX rule
+    // forbids, and page nav is greyed only because a reader always expects it.
+    var renditionNav: ReaderRenditionNav?
+
     // ─── Page layout (#2090; nil ⇒ picker hidden — nothing to arrange) ───
     var pageLayout: Binding<PageLayoutMode>?
 
@@ -127,6 +135,7 @@ struct ReaderToolbar: View {
         MiniToolbar(content: {
             chromeSection
             pageNavCluster
+            renditionSection
             pageLayoutSection
             Spacer(minLength: 0)
             adaptiveToolsRow

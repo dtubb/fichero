@@ -540,7 +540,12 @@ class EvidentialPlace(BaseModel):
     lat: float | None = Field(default=None, ge=-90.0, le=90.0)
     lon: float | None = Field(default=None, ge=-180.0, le=180.0)
     precision_m: float | None = None
-    bbox: list[float] | None = None
+    # GEOGRAPHIC extent — a lat/lon bounding box, NOT an image region. Renamed
+    # from `bbox` on 2026-08-20: six other models use `bbox`/`source_bbox` for
+    # a rectangle on a page image, and this one sitting among them meant a
+    # reader (or a grep-driven refactor) could fold a map extent into the
+    # image-anchor type. The name now says which kind it is.
+    geo_bbox: list[float] | None = None
     geojson: dict | None = None
     basis: EvidenceBasis
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)

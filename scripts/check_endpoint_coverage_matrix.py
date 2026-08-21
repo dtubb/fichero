@@ -41,6 +41,13 @@ KNOWN_GAPS = load_known_gaps(
     Path(__file__).with_name("check_endpoint_coverage_matrix_known_gaps.json")
 )
 SWIFT_OPERATION_WITNESSES = {
+    # The store calls this through the GENERATED client, which is the mandated
+    # transport (no hand-rolled URLs), so the raw path string never appears in
+    # Swift for the matrix to find. The generated operation name is the honest
+    # witness that the endpoint really is reached (2026-08-20 bbox review).
+    "GET /api/documents/{document_id}/renditions": (
+        "listRenditionsApiDocumentsDocumentIdRenditionsGet"
+    ),
     "GET /api/citation-usages": "listCitationUsagesApiCitationUsagesGet",
     "GET /api/libraries/{lib}/entity-types": "listLibraryEntityTypesApiLibrariesLibEntityTypesGet",
     "POST /api/libraries/{lib}/entity-types": "addLibraryEntityTypeApiLibrariesLibEntityTypesPost",
