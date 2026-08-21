@@ -92,6 +92,11 @@ extension ContentView {
     func handlePreviewSiblingSwipe(_ notification: Notification) {
         guard let direction = notification.object as? Int else { return }
         NavTrace.log("previewSiblingSwipe", "direction \(direction)")
+        #if os(macOS)
+        // Park the horizontal push for the swap this step causes (Daniel,
+        // 2026-08-21: "right now it just changes").
+        PreviewSwapAnimation.park(.pageStep(forward: direction > 0))
+        #endif
         if direction > 0 { navigateSiblingNext() } else { navigateSiblingPrevious() }
     }
 

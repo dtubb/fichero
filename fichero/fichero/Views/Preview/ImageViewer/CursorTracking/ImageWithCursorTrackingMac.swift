@@ -404,6 +404,7 @@ extension ImageWithCursorTracking {
                 let ratio = old.size.width / overrideImage.size.width
                 let preservedMagnification = scrollView.magnification * ratio
                 let visibleOrigin = scrollView.contentView.bounds.origin
+                PreviewSwapAnimation.runPending(on: scrollView)
                 imageView.image = overrideImage
                 imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
                 coordinator.currentOverrideImage = overrideImage
@@ -425,6 +426,7 @@ extension ImageWithCursorTracking {
             // Already-decoded override: apply synchronously, fit in the same
             // frame so the new image never renders at the old magnification
             // for a frame (#773/#777).
+            PreviewSwapAnimation.runPending(on: scrollView)
             imageView.image = overrideImage
             imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
             imageView.loupePosition = nil  // Reset loupe on image change

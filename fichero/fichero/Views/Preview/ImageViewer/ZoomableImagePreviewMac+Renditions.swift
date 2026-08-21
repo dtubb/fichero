@@ -54,6 +54,7 @@ extension ZoomableImagePreview {
               renditions.indices.contains(targetIndex),
               targetIndex != renditionIndex else { return }
         let target = renditions[targetIndex]
+        PreviewSwapAnimation.park(.renditionFlip(forward: targetIndex > renditionIndex))
         renditionIndex = targetIndex
         Task {
             do {
