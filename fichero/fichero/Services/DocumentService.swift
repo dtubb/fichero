@@ -77,6 +77,8 @@ extension DocumentService {
         name: String,
         parentId: String? = nil,
         docType: DocType = .file,
+        nodeKind: String? = nil,
+        pageContent: String? = nil,
         metadata: [String: String]? = nil
     ) async throws -> Document {
         isProcessing = true
@@ -96,7 +98,9 @@ extension DocumentService {
         let request = Components.Schemas.DocumentCreate(
             name: name,
             parentId: parentId,
+            nodeKind: nodeKind,
             docType: convertToGeneratedDocType(docType),
+            pageContent: pageContent,
             metadata: metadataPayload
         )
 

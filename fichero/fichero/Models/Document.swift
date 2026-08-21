@@ -112,7 +112,7 @@ enum Status: String, Codable, CaseIterable {
 
 /// Common drag payload for library items. The text file makes each row useful
 /// outside Fichero while JSON preserves its identity for in-app destinations.
-struct LibraryItemDrag: Codable, Transferable {
+struct LibraryItemDrag: Codable, Equatable, Transferable {
     enum Kind: String, Codable {
         case document
         case page

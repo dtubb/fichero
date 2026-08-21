@@ -11,21 +11,13 @@
 		02ACE1146F7D273A41BFDFA2 /* CanvasOrtho2DRenderer+Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144803782C36A3D39C9A7F39 /* CanvasOrtho2DRenderer+Thumbnails.swift */; };
 		1BA06929DF97011400AAC71A /* CanvasKeyboardNav.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78A8FF8BE8002154274B11CA /* CanvasKeyboardNav.swift */; };
 		2AA74E9F0D6667C0DE8C2005 /* CanvasSceneView+Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8B68D6F1B05B34933F3BC1 /* CanvasSceneView+Camera.swift */; };
-		3BF7FF4972369972B83B66A3 /* CanvasOrtho2DRenderer+Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144803782C36A3D39C9A7F39 /* CanvasOrtho2DRenderer+Thumbnails.swift */; };
 		6C06A0972001E086021EA42A /* CanvasScene3DRenderer+Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAA4F637825259B1905F947 /* CanvasScene3DRenderer+Thumbnails.swift */; };
-		87CE97FEFB3F064FEEEB4F76 /* CanvasSceneView+Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8B68D6F1B05B34933F3BC1 /* CanvasSceneView+Camera.swift */; };
-		8A0746D363B4E95A553AFC23 /* CanvasScene3DRenderer+Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAA4F637825259B1905F947 /* CanvasScene3DRenderer+Thumbnails.swift */; };
-		95456CDF1477FA11ABB6E173 /* CanvasKeyboardNav.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78A8FF8BE8002154274B11CA /* CanvasKeyboardNav.swift */; };
 		A18B0C7292A00BEAE970BE72 /* ContentView+SearchResultsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2839F5A59ABAB7347E7EF48B /* ContentView+SearchResultsBar.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
-		A5B94ED995BD4F2B9E989B3A /* ContentView+ToolbarSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8DB883AB37E68F8A3D1BDC7 /* ContentView+ToolbarSearch.swift */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
 		D72DE5EA7E66F0CFE794F3CD /* DocumentService+Listing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */; };
-		DDF8D961FA198EE2DA1B626D /* DocumentService+Listing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */; };
 		E42DFD2AB6B9855B43C1D47C /* DocumentStore+StatusRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237D07C2E74AC737AC2EC8A6 /* DocumentStore+StatusRefresh.swift */; };
-		EC49A3C9238F18751638C41D /* ContentView+SearchResultsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2839F5A59ABAB7347E7EF48B /* ContentView+SearchResultsBar.swift */; };
-		EEE1695EB4BF56967A740C90 /* DocumentStore+StatusRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237D07C2E74AC737AC2EC8A6 /* DocumentStore+StatusRefresh.swift */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 /* End PBXBuildFile section */
@@ -1163,13 +1155,9 @@
 			isa = PBXSourcesBuildPhase;
 			files = (
 				01642E86BC15D2FEF17B126B /* ContentView+ToolbarSearch.swift in Sources */,
-				95456CDF1477FA11ABB6E173 /* CanvasKeyboardNav.swift in Sources */,
 				02ACE1146F7D273A41BFDFA2 /* CanvasOrtho2DRenderer+Thumbnails.swift in Sources */,
-				8A0746D363B4E95A553AFC23 /* CanvasScene3DRenderer+Thumbnails.swift in Sources */,
 				A18B0C7292A00BEAE970BE72 /* ContentView+SearchResultsBar.swift in Sources */,
 				E42DFD2AB6B9855B43C1D47C /* DocumentStore+StatusRefresh.swift in Sources */,
-				87CE97FEFB3F064FEEEB4F76 /* CanvasSceneView+Camera.swift in Sources */,
-				DDF8D961FA198EE2DA1B626D /* DocumentService+Listing.swift in Sources */,
 			);
 		};
 		A10521A52EFDC92400B28C3E /* Sources */ = {
@@ -1190,12 +1178,8 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				A5B94ED995BD4F2B9E989B3A /* ContentView+ToolbarSearch.swift in Sources */,
 				1BA06929DF97011400AAC71A /* CanvasKeyboardNav.swift in Sources */,
-				3BF7FF4972369972B83B66A3 /* CanvasOrtho2DRenderer+Thumbnails.swift in Sources */,
 				6C06A0972001E086021EA42A /* CanvasScene3DRenderer+Thumbnails.swift in Sources */,
-				EC49A3C9238F18751638C41D /* ContentView+SearchResultsBar.swift in Sources */,
-				EEE1695EB4BF56967A740C90 /* DocumentStore+StatusRefresh.swift in Sources */,
 				2AA74E9F0D6667C0DE8C2005 /* CanvasSceneView+Camera.swift in Sources */,
 				D72DE5EA7E66F0CFE794F3CD /* DocumentService+Listing.swift in Sources */,
 			);

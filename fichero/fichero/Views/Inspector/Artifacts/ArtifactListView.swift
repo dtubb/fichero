@@ -173,7 +173,8 @@ struct ArtifactListView: View {
                 documentId: artifact.documentId,
                 text: artifact.content?.isEmpty == false
                     ? artifact.content ?? artifact.artifactTypeDisplayName
-                    : artifact.artifactTypeDisplayName
+                    : artifact.artifactTypeDisplayName,
+                name: artifact.artifactTypeDisplayName
             ))
             // simultaneousGesture, NOT onTapGesture (Daniel, 2026-08-21: "I
             // cannot click on artifact, except by clicking on space beside

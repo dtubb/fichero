@@ -170,6 +170,12 @@ enum SidebarDropPayload: Equatable {
     /// a workspace can receive one — every other surface refuses loudly,
     /// and nothing on this path may ever reach the importer.
     case internalEntities([String])
+    /// Artifacts dragged from the inspector artifacts list (Daniel,
+    /// 2026-08-21: dropping one on a folder "promotes" it — a text NODE in
+    /// that folder referring back to its source). The full drag payloads,
+    /// because the promote needs name + text + source document id, not just
+    /// an id. Never reaches the importer.
+    case internalArtifacts([LibraryItemDrag])
     /// No internal id anywhere: a genuine drop from outside the app.
     case externalFiles
     /// The drag carries an internal flavour but no id could be read from it.
@@ -283,9 +289,16 @@ func classifySidebarDropPayload(
     if !entityIDs.isEmpty {
         return .internalEntities(entityIDs)
     }
+    // Artifact drags promote (Daniel, 2026-08-21) — checked after documents
+    // and entities so a mixed session still routes as a move.
+    let artifactDrags = loadedIDs.compactMap(decodeLibraryDragJSON)
+        .filter { $0.kind == .artifact }
+    if !artifactDrags.isEmpty {
+        return .internalArtifacts(artifactDrags)
+    }
     // A payload that PARSES as our own drag JSON but yielded no reparentable
-    // id (an annotation, a note, an artifact) is provably ours — refuse it
-    // rather than letting the file URL riding beside it re-import anything.
+    // id (an annotation or a note) is provably ours — refuse it rather than
+    // letting the file URL riding beside it re-import anything.
     if carriesOwnProcessFlavor
         || loadedIDs.contains(where: { decodeLibraryDragJSON($0) != nil }) {
         // Started inside the app, but we could not read what it was. Do NOT

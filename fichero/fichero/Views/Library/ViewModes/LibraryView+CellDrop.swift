@@ -109,6 +109,9 @@ extension LibraryView {
             case .internalEntities(let entityIds):
                 await addEntitiesToWorkspaceCell(entityIds, folder: folder)
 
+            case .internalArtifacts(let drags):
+                await promoteArtifactsIntoCell(drags, folder: folder)
+
             case .unreadableInternal:
                 // Started inside the app and we could not read what it was.
                 // Re-importing would create a hollow duplicate of something
@@ -143,6 +146,44 @@ extension LibraryView {
     /// (Daniel 2026-08-12) — same rule as the sidebar row: a plain folder has
     /// no curated-items surface, so it refuses loudly instead of writing
     /// something invisible.
+    /// Artifact drops on a library folder tile promote (Daniel, 2026-08-21)
+    /// — a text node in that folder referring to its source, the same
+    /// creation the sidebar row and header perform.
+    private func promoteArtifactsIntoCell(_ drags: [LibraryItemDrag], folder: Document) async {
+        guard let library = activeLibraryReference else {
+            DragDropLog.refused("library-cell(\(folder.id))", reason: "no active library reference")
+            return
+        }
+        var promoted = 0
+        for drag in drags {
+            var metadata: [String: String] = [:]
+            if let sourceId = drag.documentId { metadata["source_document_id"] = sourceId }
+            metadata["source_artifact_id"] = drag.id
+            do {
+                _ = try await library.documentService.createDocument(
+                    name: drag.name.isEmpty ? "Artifact" : drag.name,
+                    parentId: folder.id,
+                    docType: .file,
+                    nodeKind: "artifact",
+                    pageContent: drag.text,
+                    metadata: metadata
+                )
+                promoted += 1
+            } catch {
+                DragDropLog.refused(
+                    "library-cell(\(folder.id))",
+                    reason: "artifact promote failed for \(drag.id): \(error.localizedDescription)"
+                )
+            }
+        }
+        if promoted > 0 {
+            DragDropLog.performed(
+                "library-cell(\(folder.id))",
+                outcome: "promoted \(promoted) artifact(s) into folder '\(folder.name)'"
+            )
+        }
+    }
+
     private func addEntitiesToWorkspaceCell(_ entityIds: [String], folder: Document) async {
         guard folder.isWorkspace else {
             DragDropLog.refused(

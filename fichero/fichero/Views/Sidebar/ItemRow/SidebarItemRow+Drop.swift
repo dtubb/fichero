@@ -65,6 +65,9 @@ extension SidebarItemRow {
             case .internalEntities(let entityIds):
                 await addEntitiesToWorkspace(entityIds)
 
+            case .internalArtifacts(let drags):
+                await promoteArtifacts(drags)
+
             case .externalFiles:
                 let targetFolder = item.isFolder ? item : parentFolderItem(of: item)
                 _ = handleProvidersDrop(providers, targetFolder: targetFolder)
@@ -133,6 +136,60 @@ extension SidebarItemRow {
             DragDropLog.refused(
                 "sidebar-row",
                 reason: "workspace entity add failed: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    /// Artifacts dropped on a FOLDER promote (Daniel, 2026-08-21: "maybe on
+    /// a folder to promote to top level, e.g. a node referring to the
+    /// source"): each becomes a text node in that folder, provenance-stamped
+    /// with the source page and artifact — the diary-entry idiom
+    /// (`source_document_id`), never a copy that forgets where it came from.
+    /// Non-folder rows refuse loudly; nothing here may reach the importer.
+    @MainActor
+    func promoteArtifacts(_ drags: [LibraryItemDrag]) async {
+        guard case .document(let doc) = item.itemType, doc.docType == .folder else {
+            DragDropLog.refused(
+                "sidebar-row",
+                reason: "\(drags.count) artifact(s) dropped on '\(item.name)', "
+                    + "which is not a folder — artifacts promote into folders only"
+            )
+            return
+        }
+        guard let service = (item.libraryId.flatMap { libraryManager.getLibrary(id: $0) }
+            ?? libraryManager.globalLibrary)?.documentService else {
+            DragDropLog.refused(
+                "sidebar-row",
+                reason: "no document service for the library of folder '\(item.name)'"
+            )
+            return
+        }
+        var promoted = 0
+        for drag in drags {
+            var metadata: [String: String] = [:]
+            if let sourceId = drag.documentId { metadata["source_document_id"] = sourceId }
+            metadata["source_artifact_id"] = drag.id
+            do {
+                _ = try await service.createDocument(
+                    name: drag.name.isEmpty ? "Artifact" : drag.name,
+                    parentId: doc.id,
+                    docType: .file,
+                    nodeKind: "artifact",
+                    pageContent: drag.text,
+                    metadata: metadata
+                )
+                promoted += 1
+            } catch {
+                DragDropLog.refused(
+                    "sidebar-row",
+                    reason: "artifact promote failed for \(drag.id): \(error.localizedDescription)"
+                )
+            }
+        }
+        if promoted > 0 {
+            DragDropLog.performed(
+                "sidebar-row",
+                outcome: "promoted \(promoted) artifact(s) into folder '\(item.name)'"
             )
         }
     }

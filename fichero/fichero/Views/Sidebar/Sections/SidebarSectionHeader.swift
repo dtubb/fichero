@@ -252,6 +252,13 @@ struct LibrarySectionHeader: View {
             case .internalEntities(let entityIds):
                 refuseHeaderEntityDrop(entityIds)
 
+            case .internalArtifacts(let drags):
+                // The library NAME is the "top level" (Daniel, 2026-08-21:
+                // "maybe on a folder to promote to top level"): each artifact
+                // becomes a root text node referring to its source, the same
+                // promote the folder rows perform one level down.
+                await promoteArtifactsToRoot(drags)
+
             case .externalFiles:
                 await importExternalDrop(providers)
 
@@ -292,6 +299,39 @@ struct LibrarySectionHeader: View {
     /// then died here with "Couldn't read the dropped item(s)". One loader,
     /// every surface (#4184's rule); the row and library-cell paths already
     /// complied, this was the straggler.
+    /// Folder-row promote, aimed at the library root (parentId nil).
+    @MainActor
+    private func promoteArtifactsToRoot(_ drags: [LibraryItemDrag]) async {
+        var promoted = 0
+        for drag in drags {
+            var metadata: [String: String] = [:]
+            if let sourceId = drag.documentId { metadata["source_document_id"] = sourceId }
+            metadata["source_artifact_id"] = drag.id
+            do {
+                _ = try await library.documentService.createDocument(
+                    name: drag.name.isEmpty ? "Artifact" : drag.name,
+                    parentId: nil,
+                    docType: .file,
+                    nodeKind: "artifact",
+                    pageContent: drag.text,
+                    metadata: metadata
+                )
+                promoted += 1
+            } catch {
+                DragDropLog.refused(
+                    "sidebar-library-header",
+                    reason: "artifact promote failed for \(drag.id): \(error.localizedDescription)"
+                )
+            }
+        }
+        if promoted > 0 {
+            DragDropLog.performed(
+                "sidebar-library-header",
+                outcome: "promoted \(promoted) artifact(s) to the top level of '\(library.displayName)'"
+            )
+        }
+    }
+
     private func importExternalDrop(_ providers: [NSItemProvider]) async {
         guard let onFileDrop else {
             // #4533: same shape as the internal handler above.

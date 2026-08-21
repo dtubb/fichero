@@ -338,6 +338,10 @@ struct ZoomableImagePreview: View {
         // ruling: up/down flips renditions, ←/→ walks pages) — same
         // pan-first grammar as ←/→: a zoomed image that can travel
         // vertically still pans; otherwise the keys flip.
+        .onReceive(NotificationCenter.default.publisher(for: .previewRenditionSwipe)) { note in
+            guard let step = note.object as? Int else { return }
+            flipRendition(to: renditionIndex + step)
+        }
         .onKeyPress(.upArrow, phases: .down) { _ in
             if canPanVertically { panUp() } else {
                 flipRendition(to: renditionIndex - 1)
