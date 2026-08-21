@@ -858,7 +858,7 @@ def _action_import_file(
     package_path = Path(ctx.library_path) if ctx.library_path else Path(db.path).parent
     doc = import_file_impl(db, params, package_path)
     _upsert_sidecar_entities(db, [doc], ctx)
-    _apply_sidecar_renditions(db, [doc])
+    _apply_sidecar_renditions(db, [doc], package_path)
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[doc.id],
@@ -873,7 +873,9 @@ def _action_import_file(
     return doc.model_dump(mode="json"), spec
 
 
-def _apply_sidecar_renditions(db: Database, docs: list[Document]) -> None:
+def _apply_sidecar_renditions(
+    db: Database, docs: list[Document], package_path: Path | None = None
+) -> None:
     """Attach every ``.renditions.json`` in an import batch (2026-08-20).
 
     Mirrors ``_upsert_sidecar_entities``: a plain folder drop is
@@ -883,7 +885,7 @@ def _apply_sidecar_renditions(db: Database, docs: list[Document]) -> None:
     from fichero_server.importers.ingest import apply_rendition_sidecars
 
     try:
-        apply_rendition_sidecars(db, docs)
+        apply_rendition_sidecars(db, docs, package_path=package_path)
     except Exception:  # pragma: no cover - defensive, mirrors entity path
         logger.exception("ingest.renditions: sidecar application failed")
 
@@ -949,7 +951,7 @@ def _action_import_folder(
         should_cancel=ctx.should_cancel,
     )
     _upsert_sidecar_entities(db, docs, ctx)
-    _apply_sidecar_renditions(db, docs)
+    _apply_sidecar_renditions(db, docs, package_path)
     doc_ids = [d.id for d in docs]
     spec = ChangeSpec(
         domains=["document"],

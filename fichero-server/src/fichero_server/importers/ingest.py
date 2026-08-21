@@ -1695,7 +1695,9 @@ def _load_entity_sidecar(source_path: Path) -> list[dict[str, Any]]:
     return [e for e in (entities or []) if isinstance(e, dict)]
 
 
-def apply_rendition_sidecars(db: "Database", documents: list[Document]) -> dict[str, int]:
+def apply_rendition_sidecars(
+    db: "Database", documents: list[Document], package_path: Path | None = None
+) -> dict[str, int]:
     """Turn every ``.renditions.json`` beside an imported file into rows.
 
     The engine has skipped these since the Marshall staging convention landed
@@ -1712,7 +1714,11 @@ def apply_rendition_sidecars(db: "Database", documents: list[Document]) -> dict[
     """
     from fichero_server.importers.rendition_sidecar import load_sidecar, plan_renditions
 
-    counts = {"documents": 0, "renditions": 0, "regions": 0, "deferred": 0, "warnings": 0}
+    counts = {
+        "documents": 0, "renditions": 0, "regions": 0, "deferred": 0, "warnings": 0,
+        "openings": 0, "adopted": 0,
+    }
+    seen_sidecars: dict[str, dict[str, Any]] = {}
     for doc in documents:
         source = (doc.metadata or {}).get("source_path") or doc.path
         if not source:
@@ -1721,6 +1727,7 @@ def apply_rendition_sidecars(db: "Database", documents: list[Document]) -> dict[
         if sidecar is None:
             continue
 
+        seen_sidecars[doc.id] = sidecar
         plan = plan_renditions(doc.id, sidecar)
         counts["documents"] += 1
         counts["deferred"] += len(plan.deferred)
@@ -1740,6 +1747,14 @@ def apply_rendition_sidecars(db: "Database", documents: list[Document]) -> dict[
             db.save(doc)
             counts["regions"] += 1
 
+    # Now that every part is committed, give them their opening.
+    adopted = _adopt_openings(db, documents, seen_sidecars, package_path)
+    counts["openings"] = adopted["openings"]
+    counts["adopted"] = adopted["adopted"]
+    # An original that found its opening is no longer deferred — it landed on
+    # the node it always belonged to.
+    counts["deferred"] = max(0, counts["deferred"] - adopted["originals"])
+
     if counts["deferred"]:
         # Loud on purpose. These are real renditions we are NOT attaching
         # because they belong to a parent opening that is not a node yet
@@ -1757,6 +1772,135 @@ def apply_rendition_sidecars(db: "Database", documents: list[Document]) -> dict[
             counts["documents"], counts["renditions"], counts["regions"],
             counts["deferred"], counts["warnings"],
         )
+    return counts
+
+
+def _adopt_openings(
+    db: "Database",
+    documents: list[Document],
+    sidecars: dict[str, dict[str, Any]],
+    package_path: Path | None,
+) -> dict[str, int]:
+    """Give split parts the OPENING they came from, as a real parent node.
+
+    The staging pipeline hands us the halves as real files and leaves the
+    photographed opening on disk, unimported — which is why every split part's
+    ``original`` rendition had nowhere to attach. This creates that opening as
+    a node so the corpus matches the split model the app ALREADY has: parent
+    holds the source, children are its pages, and ``image.unsplit`` (already
+    audited and undoable) collapses the group without touching bytes.
+
+    Parts are paired by ``original_image_stem``, read from the data rather
+    than inferred from filenames, so a pipeline that starts splitting three
+    ways keeps working.
+
+    The opening's bytes follow the SAME ingest mode the parts were imported
+    with (Daniel, 2026-08-21): an opening is just another image, so ``link``
+    references it in place, ``copy`` brings it into the library. Nothing here
+    invents a policy of its own.
+
+    Idempotent: an opening already adopted (same stem, same parent folder) is
+    reused, so re-import cannot fork the tree.
+    """
+    from fichero_server.models import Rendition
+
+    counts = {"openings": 0, "adopted": 0, "originals": 0}
+    groups: dict[tuple[str | None, str], list[Document]] = {}
+    originals: dict[tuple[str | None, str], str] = {}
+
+    for doc in documents:
+        sidecar = sidecars.get(doc.id)
+        if sidecar is None:
+            continue
+        from fichero_server.importers.rendition_sidecar import opening_of
+
+        opening = opening_of(sidecar)
+        if opening is None:
+            continue
+        stem, original_path = opening
+
+        # ALREADY ADOPTED: on re-import the part's parent IS the opening, so
+        # grouping by `doc.parent_id` would key on the opening itself, find no
+        # opening beneath it, and create a second one. Detect and skip.
+        # (Caught by test_reimport_reuses_the_same_opening.)
+        current_parent = db.get(Document, doc.parent_id) if doc.parent_id else None
+        if (
+            current_parent is not None
+            and current_parent.prototype_key == "opening"
+            and (current_parent.metadata or {}).get("opening_stem") == stem
+        ):
+            continue
+
+        key = (doc.parent_id, stem)
+        groups.setdefault(key, []).append(doc)
+        originals.setdefault(key, original_path)
+
+    for (parent_id, stem), parts in groups.items():
+        original_path = originals[(parent_id, stem)]
+
+        # Reuse an opening already adopted for this stem in this folder.
+        existing = [
+            candidate
+            for candidate in db.query(Document, parent_id=parent_id)
+            if candidate.prototype_key == "opening"
+            and (candidate.metadata or {}).get("opening_stem") == stem
+            and candidate.deleted_at is None
+        ]
+        if existing:
+            opening_doc = existing[0]
+        else:
+            mode = str((parts[0].metadata or {}).get("ingest_mode") or "link")
+            stored_path = original_path
+            if mode in ("copy", "move"):
+                try:
+                    stored_path = str(_copy_to_library(Path(original_path), package_path))
+                except Exception as exc:
+                    # Fall back to referencing in place rather than failing the
+                    # import — and say so, because a silently linked file in a
+                    # COPY library is a provenance claim that would be false.
+                    logger.warning(
+                        "opening %s: could not copy under mode=%s (%s); referencing in place",
+                        stem, mode, exc,
+                    )
+                    mode = "link"
+            opening_doc = Document(
+                parent_id=parent_id,
+                name=stem,
+                path=stored_path,
+                doc_type=parts[0].doc_type,
+                file_type=parts[0].file_type,
+                prototype_key="opening",
+                metadata={
+                    "opening_stem": stem,
+                    "ingest_mode": mode,
+                    "source_path": original_path,
+                    "adopted_by": "renditions-sidecar",
+                },
+            )
+            db.save(opening_doc)
+            counts["openings"] += 1
+
+        if not db.query(Rendition, document_id=opening_doc.id):
+            db.save(
+                Rendition(
+                    document_id=opening_doc.id,
+                    role="original",
+                    path=opening_doc.path or original_path,
+                    is_primary=True,
+                    note="archival scan of the whole opening (from renditions sidecar)",
+                )
+            )
+            counts["originals"] += 1
+
+        for part in sorted(parts, key=lambda d: (d.sequence or 0, d.name)):
+            if part.parent_id == opening_doc.id:
+                continue
+            part.parent_id = opening_doc.id
+            if not part.prototype_key:
+                part.prototype_key = "page"
+            db.save(part)
+            counts["adopted"] += 1
+
     return counts
 
 

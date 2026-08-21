@@ -248,6 +248,35 @@ _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS: tuple[dict[str, Any], ...] = (
         },
     },
     {
+        # A photographed two-page OPENING that was split into pages
+        # (2026-08-20 bbox review). The parent of a split, and the node that
+        # holds the archival original — the pages hold their enhanced crops.
+        #
+        # `stack_children` is the Aperture-style hint: a library view should
+        # show the PAGES and offer the opening as a collapsed group, rather
+        # than littering the grid with both. Expressed as a prototype
+        # attribute so the rule is data a user can change, not a hard-coded
+        # branch in a view.
+        "key": "opening",
+        "label": "Opening",
+        "color": "#AF52DE",
+        "attributes": {
+            "container_kind": "opening",
+            "supports_children": True,
+            "stack_children": True,
+            "prefer_children_in_library": True,
+        },
+    },
+    {
+        # A single page. Usually a child of an `opening`, but equally a
+        # standalone scan that was never split — which is why it carries no
+        # containment assumption of its own.
+        "key": "page",
+        "label": "Page",
+        "color": "#64D2FF",
+        "attributes": {},
+    },
+    {
         "key": "letter",
         "label": "Letter",
         "color": "#30D158",

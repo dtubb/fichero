@@ -208,3 +208,28 @@ def plan_renditions(document_id: str, sidecar: dict[str, Any]) -> RenditionPlan:
         )
 
     return plan
+
+
+def opening_of(sidecar: dict[str, Any]) -> tuple[str, str] | None:
+    """The opening a split part belongs to, as ``(stem, original_path)``.
+
+    ``None`` when the sidecar does not describe a part — a whole page belongs
+    to no opening, and inventing one would assert a containment that does not
+    exist.
+
+    The pairing key is ``original_image_stem`` rather than the file path,
+    because the two halves of one opening name the SAME stem while their own
+    paths differ. Reading the stem from the data is also what lets a pipeline
+    that starts splitting three ways keep working without a code change.
+    """
+    if sidecar.get("part") is None:
+        return None
+    stem = sidecar.get("original_image_stem")
+    if not stem:
+        return None
+    for entry in sidecar.get("renditions") or []:
+        if isinstance(entry, dict) and entry.get("role") == "original":
+            path = entry.get("path")
+            if path:
+                return (str(stem), str(path))
+    return None
