@@ -164,6 +164,21 @@ struct FileMenuCommands: View {
                 Label("Export", systemImage: "square.and.arrow.up")
             }
             .disabled(currentLibrary == nil)
+
+            // Grant Folder Access… (2026-08-21): linked sources outside every
+            // granted root — a Box folder imported in link mode — leave the
+            // sandboxed engine with "No source found" and the preview stuck on
+            // its thumbnail, and NO existing UI could mint the missing grant:
+            // the only prompt covers the library folder itself. The saved
+            // bookmark is handed to the RUNNING engine, so previews recover
+            // without a relaunch.
+            #if os(macOS)
+            Button("Grant Folder Access...") {
+                FolderAccessManager.shared.requestFolderAccess { granted in
+                    logger.info("Manual folder grant: \(granted ? "granted" : "declined")")
+                }
+            }
+            #endif
         }
         .task {
             if registry.libraries.isEmpty {
