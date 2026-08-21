@@ -2690,8 +2690,16 @@ async def process_vision(
             # run, making Catalogue idempotent when composed with Transcribe.
             # Skipped for a born-digital PDF (pdf_layer_used) — its fresh text
             # layer beats any cached artifact, including stale OCR garbage (#1064).
+            # `force_ocr` also bypasses THIS gate (Daniel, 2026-08-21: a
+            # re-run with the same model returned the same wrong text —
+            # "platinum" read as "petitions" — and deleting the artifact was
+            # the only way to get a fresh pass). The advanced toggle is the
+            # user saying "run it again for real"; honoring it only for the
+            # text-layer shortcut but not the artifact cache made a deliberate
+            # re-run indistinguishable from a no-op.
             if (
                 not pdf_layer_used
+                and not force_ocr
                 and tool_config.skip_if_artifact_exists
                 and save_to_db
                 and library_path
