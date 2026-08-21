@@ -20,6 +20,11 @@ enum PreviewSwapAnimation {
         case pageStep(forward: Bool)
         /// Rendition flip: vertical push — the up/down axis made visible.
         case renditionFlip(forward: Bool)
+
+        var isRenditionFlip: Bool {
+            if case .renditionFlip = self { return true }
+            return false
+        }
     }
 
     private static var pending: Kind?
@@ -52,11 +57,11 @@ enum PreviewSwapAnimation {
         if curlEnabled {
             transition.duration = 0.35
             transition.type = CATransitionType(rawValue: forward ? "pageCurl" : "pageUnCurl")
-            if case .renditionFlip = kind {
-                transition.subtype = forward ? .fromTop : .fromBottom
-            } else {
-                transition.subtype = forward ? .fromRight : .fromLeft
-            }
+            // Un-curl peels from the SAME corner the curl lifted toward —
+            // mirroring the corner made "back" read as another forward curl
+            // (Daniel, 2026-08-21: "when one goes backwards, curl should be
+            // reversed").
+            transition.subtype = (kind.isRenditionFlip) ? .fromTop : .fromRight
         } else {
             transition.duration = 0.22
             transition.type = .push
