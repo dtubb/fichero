@@ -1403,6 +1403,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     documents,
     folders,
     inspector as document_inspector,
+    renditions,
     notes,
     sources,
 )
@@ -1480,6 +1481,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (changes.router, "/api", ["changes"]),
     (annotations.router, "/api", ["annotations"]),
     (content_representations.router, "/api", ["content-representations"]),
+    # Renditions — alternative pixels of one node; ordered engine-side so the
+    # preview and any card surface agree what "next" means (2026-08-20).
+    (renditions.router, "/api", ["renditions"]),
     (notes.router, "/api", ["notes"]),
     (projects.router, "/api", ["projects"]),
     (artifacts.router, "/api/artifacts", ["artifacts"]),
