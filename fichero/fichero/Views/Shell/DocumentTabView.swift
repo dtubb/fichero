@@ -152,6 +152,10 @@ struct DocumentTabView: View {
                 .environment(importService)
                 .environment(documentService)
                 .environment(storageService)
+                // Renditions reach the preview through THIS boundary too —
+                // the guard in loadRenditions exits silently without it
+                // (2026-08-21: up/down flip dead, zero rendition requests).
+                .environment(library.renditionService)
                 .environment(workflowStreamService)
                 .environment(researchService)
                 .environment(windowState)
