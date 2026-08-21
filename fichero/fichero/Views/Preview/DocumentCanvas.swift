@@ -134,6 +134,9 @@ private struct StorageDisplayImageCanvas: View {
     var highlightBoxes: [[Double]] = []
 
     @Environment(StorageService.self) private var storageService
+    /// Optional: hosts without a store (isolated previews) skip the
+    /// grant-prompt path; the degraded-thumbnail capsule still renders.
+    @Environment(DocumentStore.self) private var documentStore: DocumentStore?
     @State private var image: PlatformImage?
     @State private var loadError: Error?
     /// Monotonic token: each load claims a generation and only the latest may
@@ -227,6 +230,29 @@ private struct StorageDisplayImageCanvas: View {
             // A failed load must not silently keep showing the WRONG page.
             image = nil
             loadError = error
+            promptForSourceAccessIfMissing()
         }
+    }
+
+    /// A display 404 for a linked source usually means the sandboxed engine
+    /// has no grant for the source's folder ("No source found",
+    /// has_bookmark=False) — so ask for it RIGHT HERE instead of leaving the
+    /// user to discover File ▸ Grant Folder Access… (user, 2026-08-21:
+    /// "can't we ask for folder access directly if it's needed?"). At most
+    /// one panel per folder per run; a fresh grant reaches the running
+    /// engine, so the retry succeeds without a relaunch.
+    private func promptForSourceAccessIfMissing() {
+        #if os(macOS)
+        guard let store = documentStore else { return }
+        let candidates = store.currentDocuments
+            + store.collections
+            + [store.selectedDocument].compactMap { $0 }
+        guard let sourcePath = candidates.first(where: { $0.id == documentId })?.path,
+              !sourcePath.isEmpty else { return }
+        FolderAccessManager.shared.promptOnceForSource(path: sourcePath) { granted in
+            guard granted else { return }
+            Task { await loadImage() }
+        }
+        #endif
     }
 }

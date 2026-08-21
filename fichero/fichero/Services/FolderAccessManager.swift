@@ -61,6 +61,26 @@ class FolderAccessManager {
         return false
     }
 
+    /// Source roots already asked about this run — one panel per folder, never
+    /// a storm: a 471-page folder whose display images all 404 must produce
+    /// ONE ask, not 471 (user, 2026-08-21: "can't we ask for folder access
+    /// directly if it's needed?").
+    @ObservationIgnored private var promptedSourceRoots: Set<String> = []
+
+    /// Ask for access to a failed source file's folder, at most once per
+    /// folder per run. No-op when the path is already covered — the failure
+    /// then isn't a grant problem (moved file, dataless Box placeholder) and
+    /// a panel would be noise. `completion(true)` only on a fresh grant.
+    func promptOnceForSource(path: String, completion: @escaping (Bool) -> Void) {
+        let root = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        guard !hasAccess(to: path), !promptedSourceRoots.contains(root) else {
+            completion(false)
+            return
+        }
+        promptedSourceRoots.insert(root)
+        requestFolderAccess(suggestedPath: path, completion: completion)
+    }
+
     /// Request access to a folder (shows NSOpenPanel)
     func requestFolderAccess(suggestedPath: String? = nil, completion: @escaping (Bool) -> Void) {
         Task { @MainActor in
