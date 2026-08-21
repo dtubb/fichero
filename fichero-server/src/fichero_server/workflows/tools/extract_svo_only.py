@@ -140,6 +140,20 @@ def _entities_for_records(records: list[dict[str, Any]], db) -> dict[str, dict[s
         ),
     ],
     sort_order=37,
+    config_schema={
+        "document_context": {
+            "type": "string",
+            "title": "Document Context",
+            "description": (
+                "Corpus framing the text cannot supply, e.g. 'The personal "
+                "diary of N.C. Marshall, an American engineer in Colombia.' "
+                "First-person statements are attributed to the author named "
+                "here. Blank = derived from each document's author metadata "
+                "when present."
+            ),
+            "default": "",
+        }
+    },
 )
 async def extract_svo_only(
     inputs: dict[str, Any],
@@ -199,7 +213,7 @@ async def extract_svo_only(
     # extraction at all. Resolved PER DOCUMENT now, which is what makes
     # "language of the document" mean something on a mixed corpus.
     policy = configured_policy()
-    instructions_by_language: dict[str, str] = {}
+    instructions_by_language: dict[tuple[str, str], str] = {}
     languages_used: dict[str, int] = defaultdict(int)
 
     progress_callback = inputs.get("__progress_callback")
@@ -222,10 +236,22 @@ async def extract_svo_only(
         )
         languages_used[resolution.language or UNKNOWN] += 1
         instruction_key = prompt_language(resolution)
-        claim_instructions = instructions_by_language.get(instruction_key)
+        # Corpus framing (user, 2026-08-20): the node's `document_context`
+        # config, else the document's own author metadata — so a diary's "I"
+        # resolves to its diarist instead of a nearby name.
+        document = documents[record["index"]]
+        doc_meta = dict(getattr(document, "metadata", None) or {})
+        document_context = (
+            str(inputs.get("document_context") or "").strip()
+            or (f"Written by {doc_meta['author']}." if doc_meta.get("author") else "")
+        )
+        cache_key = (instruction_key, document_context)
+        claim_instructions = instructions_by_language.get(cache_key)
         if claim_instructions is None:
-            claim_instructions = _build_per_entity_claim_instructions(instruction_key)
-            instructions_by_language[instruction_key] = claim_instructions
+            claim_instructions = _build_per_entity_claim_instructions(
+                instruction_key, document_context or None
+            )
+            instructions_by_language[cache_key] = claim_instructions
 
         await emit_progress_event(
             progress_callback,

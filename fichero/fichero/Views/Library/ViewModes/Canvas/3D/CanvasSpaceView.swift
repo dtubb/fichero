@@ -82,9 +82,7 @@ struct CanvasSpaceView: View {
             // different from 2D. Columns follow the ceil(sqrt(n)) convention
             // the Arrange-in-Grid button and the backend `grid` strategy
             // already use; saved rows still win over the default.
-            defaultPlacement: .grid(
-                columns: max(1, Int(Double(nodes.count + renderableItems.count).squareRoot().rounded(.up)))
-            )
+            defaultPlacement: .grid(columns: 10)
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
@@ -123,17 +121,28 @@ struct CanvasSpaceView: View {
             }
             .highPriorityGesture(nodeDrag)
             .highPriorityGesture(tapSelect)
+            // Sibling background-clear tap — same fix as the 2D canvas: an
+            // outer .onTapGesture fired alongside the entity tap and wiped
+            // the selection it had just made.
+            .gesture(TapGesture().onEnded {
+                controller?.dispatch(.tap(id: nil, modifiers: []))
+            })
             .gesture(orbitOrPan)
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
-            .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }
             // Two-finger scroll pans the camera (user, 2026-08-19: "right now
             // you have to use Space") — same input bridge as the 2D canvas.
             #if canImport(AppKit)
             .overlay {
-                CanvasScrollPanView { delta in
-                    renderer.pan(byScreenDelta: delta)
-                }
+                CanvasScrollPanView(onScroll: { delta in
+                    // Raw-delta mapping (see CanvasScrollCaptureView) against
+                    // the perspective camera's screen-delta convention.
+                    renderer.pan(byScreenDelta: CGSize(width: delta.width, height: -delta.height))
+                }, onZoom: { delta in
+                    // ⌘ + two-finger drag zooms: scroll up = move closer,
+                    // matching pinch. Same setter as pinch.
+                    renderer.setDistance(renderer.currentDistance * Float(1 - delta * 0.005))
+                })
                 .allowsHitTesting(false)
             }
             #endif
@@ -141,8 +150,10 @@ struct CanvasSpaceView: View {
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(
                 nodeIds: nodes.map(\.id),
-                selectedNodeIds: $selectedNodeIds,
-                pan: { renderer.pan(byScreenDelta: $0) }
+                nodePositions: renderer.placeablesById.mapValues {
+                    CGPoint(x: $0.position.x, y: $0.position.y)
+                },
+                selectedNodeIds: $selectedNodeIds
             ))
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }

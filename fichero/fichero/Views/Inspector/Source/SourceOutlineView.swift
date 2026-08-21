@@ -118,7 +118,7 @@ struct SourceOutlineView: View {
 
     var body: some View {
         Group {
-            if store.isLoading {
+            if store.isLoading && store.rows.isEmpty {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let loadError = store.loadError {

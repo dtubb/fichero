@@ -166,6 +166,16 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     func pan(byScreenDelta delta: CGSize) {
         let speed = distance * 0.0022
         lookAt += (-cameraRight * Float(delta.width) + cameraUp * Float(delta.height)) * speed
+        // CLAMP to content bounds + margin (user, 2026-08-20: canvas pans
+        // must never lose the board) — mirror of the 2D camera clamp.
+        let points = placeablesById.values.map { Canvas3DProjection.scenePosition($0.position) }
+        if !points.isEmpty {
+            let margin: Float = max(distance, 4)
+            let xs = points.map(\.x), ys = points.map(\.y), zs = points.map(\.z)
+            lookAt.x = min(max(lookAt.x, xs.min()! - margin), xs.max()! + margin)
+            lookAt.y = min(max(lookAt.y, ys.min()! - margin), ys.max()! + margin)
+            lookAt.z = min(max(lookAt.z, zs.min()! - margin), zs.max()! + margin)
+        }
         updateCamera()
     }
 

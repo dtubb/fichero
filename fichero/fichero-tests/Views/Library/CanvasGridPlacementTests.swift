@@ -62,8 +62,8 @@ struct CanvasGridPlacementTests {
         #expect(CanvasGridPlacement.position(index: 2, columns: 3) == SIMD3<Double>(2 * width, 0, 0))
         // Wraps to the next line, and y DECREASES — canonical space is y-up and
         // the 2D projection flips it, so lower y reads as further down the board.
-        #expect(CanvasGridPlacement.position(index: 3, columns: 3) == SIMD3<Double>(0, -height, 0))
-        #expect(CanvasGridPlacement.position(index: 4, columns: 3) == SIMD3<Double>(width, -height, 0))
+        #expect(CanvasGridPlacement.position(index: 3, columns: 3) == SIMD3<Double>(0, height, 0))
+        #expect(CanvasGridPlacement.position(index: 4, columns: 3) == SIMD3<Double>(width, height, 0))
     }
 
     @Test("a single item sits at the origin, not offset into nowhere")
@@ -85,8 +85,8 @@ struct CanvasGridPlacementTests {
     func oneColumn() {
         let height = CanvasGridPlacement.cellHeight
         #expect(CanvasGridPlacement.position(index: 0, columns: 1) == SIMD3<Double>(0, 0, 0))
-        #expect(CanvasGridPlacement.position(index: 1, columns: 1) == SIMD3<Double>(0, -height, 0))
-        #expect(CanvasGridPlacement.position(index: 2, columns: 1) == SIMD3<Double>(0, -2 * height, 0))
+        #expect(CanvasGridPlacement.position(index: 1, columns: 1) == SIMD3<Double>(0, height, 0))
+        #expect(CanvasGridPlacement.position(index: 2, columns: 1) == SIMD3<Double>(0, 2 * height, 0))
     }
 
     @Test("a non-positive column count degrades to one column, never divides by zero")

@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import SwiftUI
 
 extension SidebarItemRow {
@@ -58,14 +59,26 @@ extension SidebarItemRow {
                 RevealOriginalMenuItem(document: revealDoc)
             }
 
-            // Grid-menu parity (#4121): the processing toggle the library
-            // grid offers, for the same document, on its sidebar row.
-            if case .document(let processDoc) = item.itemType, processDoc.docType != .folder {
+            // Grid-menu parity (#4121, extended 2026-08-20): the curation
+            // and organization items the library grid offers, on EVERY
+            // document row — folders included (the user: "sidebar and
+            // library contextual menus ought to be same"; the library menu
+            // excludes folders fine, and folder exclusion is the common
+            // curation move for front/back matter). Export stays file-only —
+            // a folder has no single source file to copy out.
+            if case .document(let processDoc) = item.itemType {
                 Button(
                     processDoc.excludeFromProcessing
                         ? "Include in Processing" : "Exclude from Processing"
                 ) {
                     toggleExcludeFromProcessing(processDoc)
+                }
+                Button(
+                    processDoc.excludeFromSearch
+                        ? "Include in Search" : "Exclude from Search"
+                ) {
+                    toggleExclusion(processDoc, scope: .search,
+                                    excluded: !processDoc.excludeFromSearch)
                 }
                 // Same-parity picker sheets (#4121): saved-pointer bookmark
                 // and workspace membership, presented from this row.
@@ -80,14 +93,16 @@ extension SidebarItemRow {
                     Label("Add to Workspace…", systemImage: "square.grid.2x2")
                 }
                 #if os(macOS)
-                // Export a real copy of the source file (#4121) — the same
-                // storage-service path the Finder drag-out uses (#4123).
-                Button {
-                    DocumentExporter.exportViaSavePanel(SidebarDragID(item: item)) { message in
-                        sidebarState.dropErrorMessage = message
+                if processDoc.docType != .folder {
+                    // Export a real copy of the source file (#4121) — the same
+                    // storage-service path the Finder drag-out uses (#4123).
+                    Button {
+                        DocumentExporter.exportViaSavePanel(SidebarDragID(item: item)) { message in
+                            sidebarState.dropErrorMessage = message
+                        }
+                    } label: {
+                        Label("Export…", systemImage: "square.and.arrow.up")
                     }
-                } label: {
-                    Label("Export…", systemImage: "square.and.arrow.up")
                 }
                 #endif
             }
@@ -194,12 +209,22 @@ extension SidebarItemRow {
     /// sidebar-only copy. The tree republishes on the store refresh.
     /// Same executor as the grid menu (#4121): batchExclude + local refresh.
     private func toggleExcludeFromProcessing(_ doc: Document) {
+        toggleExclusion(doc, scope: .processing, excluded: !doc.excludeFromProcessing)
+    }
+
+    /// One exclusion toggle for both scopes — grid-menu parity (#4121).
+    private func toggleExclusion(
+        _ doc: Document,
+        scope: Components.Schemas.DocumentExclusionScope,
+        excluded: Bool
+    ) {
         guard let library else { return }
         Task { @MainActor in
             do {
                 let refreshed = try await library.documentService.batchExclude(
                     documentIds: [doc.id],
-                    excluded: !doc.excludeFromProcessing
+                    excluded: excluded,
+                    scope: scope
                 )
                 for updated in refreshed {
                     library.documentStore.refreshLocalContent(updated)

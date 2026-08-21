@@ -25,6 +25,29 @@ extension LibraryView {
             _ = try? await documentStore.moveDocument(docId, toParent: parentId)
         }
     }
+    /// The document behind the canvas selection's primary node — the subject
+    /// of the right-click menu (user, 2026-08-20: "in 2d and 3d and all
+    /// other library views we ought to be able to do contextual menus").
+    /// `documentContextMenu`'s own Finder-rule resolvers widen to the full
+    /// selection exactly as the list/grid menus do, because the canvas
+    /// selection IS `selection` (one mapped binding).
+    private var canvasMenuDocument: Document? {
+        guard let firstId = shellPrimarySelectionId(
+            in: selection, orderedBy: filteredDocuments
+        ) ?? selection.first else { return nil }
+        return documents.first { $0.id == firstId }
+            ?? filteredDocuments.first { $0.id == firstId }
+    }
+
+    @ViewBuilder
+    private func canvasContextMenu() -> some View {
+        if let doc = canvasMenuDocument {
+            documentContextMenu(for: doc)
+        } else {
+            Text("Select a card for its actions")
+        }
+    }
+
     @ViewBuilder
     var spaceModeView: some View {
         if featureManager.isCanvasRealityKit3DEnabled {
@@ -39,6 +62,7 @@ extension LibraryView {
                 containerIds: canvasContainerIds,
                 moveIntoContainer: moveCanvasNodeIntoContainer
             )
+            .contextMenu { canvasContextMenu() }
         } else {
             SpaceSceneView(
                 nodes: libraryProjection.nodes,
@@ -53,6 +77,7 @@ extension LibraryView {
                 // page thumbnails.
                 storageService: activeLibraryReference?.storageService
             )
+            .contextMenu { canvasContextMenu() }
         }
     }
     /// The 2D Canvas renderer, gated (#3083): the new RealityKit-ortho
@@ -74,6 +99,7 @@ extension LibraryView {
                 moveIntoContainer: moveCanvasNodeIntoContainer,
                 storageService: activeLibraryReference?.storageService
             )
+            .contextMenu { canvasContextMenu() }
         } else {
             Spatial2DCanvas(
                 nodes: libraryProjection.nodes,
@@ -84,6 +110,7 @@ extension LibraryView {
                 folderScopeId: folderId ?? wholeLibraryRoomId,
                 storageService: activeLibraryReference?.storageService
             )
+            .contextMenu { canvasContextMenu() }
         }
     }
 }

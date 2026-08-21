@@ -97,7 +97,11 @@ struct CanvasSceneView: View {
             links: links,
             layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
             items: itemStore?.items(for: scopeKey) ?? [],
-            defaultPlacement: .grid(columns: gridColumns(in: viewportSize))
+            // TEN columns, identical in 2D and 3D (user, 2026-08-20): one
+            // shared default so the two canvases show the SAME board — they
+            // already share the layout store, so a move in one is a move in
+            // the other; the default must match too.
+            defaultPlacement: .grid(columns: 10)
         )
         state.selection = selectedNodeIds
         return state
@@ -136,6 +140,13 @@ struct CanvasSceneView: View {
             .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
+            // Background tap clears — as a SIBLING gesture, not a separate
+            // .onTapGesture on an outer wrapper: the wrapper's tap fired
+            // ALONGSIDE the entity tap and instantly wiped the selection it
+            // had just made ("only way to select is drag", 2026-08-20).
+            .gesture(TapGesture().onEnded {
+                controller?.dispatch(.tap(id: nil, modifiers: []))
+            })
             .gesture(panOrMarquee(in: geo.size))
             .simultaneousGesture(zoom)
             .background(SpaceTheme.canvasBackground)
@@ -146,9 +157,20 @@ struct CanvasSceneView: View {
             // selection and node drag are untouched.
             #if os(macOS)
             .overlay {
-                CanvasScrollPanView { delta in
-                    scrollPanCamera(by: delta, in: geo.size)
-                }
+                CanvasScrollPanView(onScroll: { delta in
+                    // Raw-delta mapping (user, 2026-08-20, trackpad + Magic
+                    // Mouse both verified against the ortho (x, −y)
+                    // projection).
+                    scrollPanCamera(
+                        by: CGSize(width: -delta.width, height: delta.height),
+                        in: geo.size
+                    )
+                }, onZoom: { delta in
+                    // ⌘ + two-finger drag zooms (user, 2026-08-20): scroll up
+                    // = zoom in, matching pinch. Same setter as pinch, so the
+                    // detail-tier gating stays consistent.
+                    renderer.setOrthoScale(renderer.orthoScale * Float(1 + delta * 0.005))
+                })
                 .allowsHitTesting(false)
             }
             #else
@@ -164,14 +186,15 @@ struct CanvasSceneView: View {
                 }
             }
             #endif
-            .onTapGesture { controller?.dispatch(.tap(id: nil, modifiers: [])) }   // background → clear
             .overlay { marqueeOverlay }
             // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(
                 nodeIds: nodes.map(\.id),
-                selectedNodeIds: $selectedNodeIds,
-                pan: { scrollPanCamera(by: $0, in: geo.size) }
+                nodePositions: renderer.placeablesById.mapValues {
+                    CGPoint(x: $0.position.x, y: $0.position.y)
+                },
+                selectedNodeIds: $selectedNodeIds
             ))
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld, spaceHeld: $spaceHeld))
             .onChange(of: spaceHeld) { _, held in applyPanCursor(held) }

@@ -50,9 +50,11 @@ enum CanvasGridPlacement {
     static var cellHeight: Double { cardHeight + gutter }     // 1.25
 
     /// The world slot for the `index`-th row-less placeable in a `columns`-wide
-    /// grid: left-to-right, then down. `y` decreases per line because canonical
-    /// space is y-up and the 2D projection flips it, so lower `y` reads as
-    /// further DOWN the board — the same convention as the item cascade.
+    /// grid: left-to-right, then down. `y` INCREASES per line: the projection
+    /// renders scene y as −world.y, so growing world y is what reads as
+    /// further DOWN the board. The old `−line` double-negated with the
+    /// projection and the grid marched UP from the bottom-left (user,
+    /// 2026-08-20: "laid out from bottom left, not top left").
     ///
     /// A non-positive `columns` degrades to a single column rather than
     /// dividing by zero: a narrow board, never a crash or a pile at the origin.
@@ -61,7 +63,7 @@ enum CanvasGridPlacement {
         let slot = max(index, 0)
         let column = Double(slot % columnCount)
         let line = Double(slot / columnCount)
-        return SIMD3<Double>(column * cellWidth, -line * cellHeight, 0)
+        return SIMD3<Double>(column * cellWidth, line * cellHeight, 0)
     }
 
     /// How many columns fit across `worldWidth` world units. At least one, so a

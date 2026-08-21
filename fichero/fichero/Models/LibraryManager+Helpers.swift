@@ -268,7 +268,19 @@ extension LibraryManager {
         // the next trigger (heartbeat / reconnect / window .task) retries, and skip
         // Inbox creation which must never run against an unknown collections state.
         let store = library.documentStore
-        guard Self.libraryLoadSucceeded(error: store.error, isConnected: store.isConnected) else {
+        // The WORKFLOW leg counts too (user, 2026-08-20: Run Workflow menus
+        // and the Data-menu picker sat on "No workflows available" all
+        // session): a boot-window 401 could fail the workflow load while the
+        // document load succeeded, and "loaded" then froze the empty store
+        // forever. A failed workflow leg leaves the library unloaded so the
+        // same retry machinery re-runs the whole load.
+        let workflowLegFailed = FeatureManager.shared.isVisible(.workflows)
+            && !Self.libraryLoadSucceeded(
+                error: library.workflowStore.error,
+                isConnected: library.workflowStore.isConnected
+            )
+        guard Self.libraryLoadSucceeded(error: store.error, isConnected: store.isConnected),
+              !workflowLegFailed else {
             // C3: say WHY, and say WHERE. "Library load failed" with no cause is
             // what a library refused by the engine's path allowlist
             // (`_is_allowed_library_path`, api/main.py) looked like from here —

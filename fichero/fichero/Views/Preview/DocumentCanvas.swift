@@ -151,15 +151,40 @@ private struct StorageDisplayImageCanvas: View {
                     highlightBoxes: highlightBoxes
                 )
             } else if let loadError {
-                // Surface the failure with a message + Retry instead of a mute
-                // icon (#3210), matching QuickLookDownloadView in the same pane
-                // (raise-not-silent).
-                ContentUnavailableView {
-                    Label("Couldn't load image", systemImage: "photo")
-                } description: {
-                    Text(loadError.localizedDescription)
-                } actions: {
-                    Button("Retry") { Task { await loadImage() } }
+                if let thumbnail = storageService.cachedThumbnail(for: documentId) {
+                    // Degrade to the THUMBNAIL, not a dead pane (user,
+                    // 2026-08-20: "just load the thumbnail, and if you can't
+                    // find the original, flag it briefly — the user can keep
+                    // working"). The failure stays visible as a compact
+                    // banner with the retry, never a full-pane stop.
+                    thumbnail
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .overlay(alignment: .bottom) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle")
+                                Text("Showing thumbnail — original unavailable")
+                                    .font(.caption)
+                                Button("Retry") { Task { await loadImage() } }
+                                    .controlSize(.small)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.regularMaterial, in: Capsule())
+                            .padding(.bottom, 10)
+                            .help(loadError.localizedDescription)
+                        }
+                } else {
+                    // No fallback pixels at all: surface the failure with a
+                    // message + Retry instead of a mute icon (#3210).
+                    ContentUnavailableView {
+                        Label("Couldn't load image", systemImage: "photo")
+                    } description: {
+                        Text(loadError.localizedDescription)
+                    } actions: {
+                        Button("Retry") { Task { await loadImage() } }
+                    }
                 }
             } else if let thumbnail = storageService.cachedThumbnail(for: documentId) {
                 // #4583 (Daniel: "I click on one image and it takes a moment

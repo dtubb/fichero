@@ -89,7 +89,9 @@ struct EntityDigestView: View {
 
             // Entity List
             List(selection: $selectedEntityIds) {
-                if isLoading {
+                // Spinner only before FIRST content — refreshes splice in place
+                // (stale-while-revalidate, 2026-08-20 flash sweep).
+                if isLoading && entities.isEmpty {
                     HStack {
                         Spacer()
                         ProgressView()
@@ -231,7 +233,16 @@ struct EntityDigestContent: View {
     @Environment(ClaimSourceNavigationState.self)
     private var claimSourceNavigationState: ClaimSourceNavigationState?
 
+    /// Optional on purpose: the digest renders in panes that may not carry
+    /// the service (missing @Environment of a non-optional traps, #4513).
+    @Environment(DocumentService.self) private var documentService: DocumentService?
+
     @State private var claims: [Components.Schemas.KnowledgeClaim] = []
+    /// The DOCUMENTS this entity appears in (user, 2026-08-20: "tell me in
+    /// the inspector at the bottom where I can find this person — the actual
+    /// files"). Resolved from source_document_ids in ONE batched fetch.
+    @State private var appearsIn: [Document] = []
+    @State private var selectedAppearsRowId: String?
     @State private var selectedClaimRowId: String?
     @State private var isLoading = false
 
@@ -244,13 +255,17 @@ struct EntityDigestContent: View {
                 // 2. Biography (Reconstructed prose)
                 biographySection
 
-                // 3. Source Annotations (Detailed provenance)
+                // 3. Where this entity appears — the actual files.
+                appearsInSection
+
+                // 4. Source Annotations (Detailed provenance)
                 provenanceSection
             }
             .padding(32)
         }
         .task(id: entity.id) {
             await loadClaims()
+            await loadAppearsIn()
         }
     }
 
@@ -288,7 +303,7 @@ struct EntityDigestContent: View {
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if isLoading {
+            if isLoading && claims.isEmpty {
                 ProgressView()
             } else if claims.isEmpty {
                 Text("No claims available to reconstruct a biography.")
@@ -304,13 +319,63 @@ struct EntityDigestContent: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var appearsInSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(appearsIn.isEmpty ? "Appears In" : "Appears In (\(appearsIn.count))")
+                .font(.headline)
+                .padding(.bottom, 4)
+
+            if appearsIn.isEmpty {
+                Text(isLoading ? " " : "No source documents recorded.")
+                    .foregroundStyle(.secondary)
+                    .italic()
+            } else {
+                // Real rows: select to reveal in the reading surface via the
+                // SAME source cursor claims use; drag out as plain text ids
+                // for now (full library-drag payload is queued).
+                List(selection: $selectedAppearsRowId) {
+                    ForEach(appearsIn) { doc in
+                        HStack(spacing: 8) {
+                            Image(systemName: doc.docType == .folder ? "folder" : "doc.text.image")
+                                .foregroundStyle(.secondary)
+                            Text(doc.name)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                        .tag(doc.id)
+                        .draggable(doc.id)
+                    }
+                }
+                .listStyle(.inset)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 80, maxHeight: 280)
+                .onChange(of: selectedAppearsRowId) { _, newSelection in
+                    guard let newSelection else { return }
+                    claimSourceNavigationState?.request(
+                        ClaimSourceNavigationRequest(documentId: newSelection)
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func loadAppearsIn() async {
+        let ids = entity.sourceDocumentIds ?? []
+        guard !ids.isEmpty, let documentService else {
+            appearsIn = []
+            return
+        }
+        appearsIn = (try? await documentService.getDocuments(ids: ids)) ?? []
+    }
+
     private var provenanceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Source Annotations")
                 .font(.headline)
                 .padding(.bottom, 4)
 
-            if isLoading {
+            if isLoading && claims.isEmpty {
                 ProgressView()
             } else if claims.isEmpty {
                 Text("No source citations available.")

@@ -384,9 +384,27 @@ def _build_entity_only_instructions(output_language: str) -> str:
     )
 
 
-def _build_per_entity_claim_instructions(output_language: str) -> str:
-    """Stage 2 instructions - extract grounded SVO claims for a specific entity."""
+def _build_per_entity_claim_instructions(
+    output_language: str, document_context: str | None = None
+) -> str:
+    """Stage 2 instructions - extract grounded SVO claims for a specific entity.
+
+    ``document_context`` is the corpus-level framing the text itself cannot
+    supply (user, 2026-08-20: SVO attributed the diarist's own actions to
+    Miguel Samper — "the diary is written by N.C. Marshall, maybe we need to
+    give it more info"). When present it is stated up front, together with the
+    rule that first-person pronouns resolve to the document's author.
+    """
+    context_block = ""
+    if document_context and document_context.strip():
+        context_block = (
+            f"Document context: {document_context.strip()}\n"
+            "First-person statements ('I', 'me', 'my') refer to the document's "
+            "author named in the context above — never to another entity "
+            "mentioned nearby.\n\n"
+        )
     return (
+        f"{context_block}"
         f"You are extracting facts about a specific entity from a document. "
         f"Extract specific SVO (Subject-Verb-Object) claims about this entity. "
         f"For each claim, provide:\n"

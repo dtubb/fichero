@@ -24,20 +24,26 @@ struct CanvasScrollPanView: NSViewRepresentable {
     /// Shaped like a drag translation so the caller can hand it to the same
     /// conversion a drag uses.
     let onScroll: (CGSize) -> Void
+    /// ⌘ + two-finger drag = zoom (user, 2026-08-20). Vertical delta only;
+    /// positive = scroll up. Nil hosts keep panning under ⌘.
+    var onZoom: ((CGFloat) -> Void)?
 
     func makeNSView(context: Context) -> NSView {
         let view = CanvasScrollCaptureView()
         view.onScroll = onScroll
+        view.onZoom = onZoom
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
         (nsView as? CanvasScrollCaptureView)?.onScroll = onScroll
+        (nsView as? CanvasScrollCaptureView)?.onZoom = onZoom
     }
 }
 
 final class CanvasScrollCaptureView: NSView {
     var onScroll: ((CGSize) -> Void)?
+    var onZoom: ((CGFloat) -> Void)?
     private var monitor: Any?
 
     /// Transparent to every other input: this view exists only to receive
@@ -74,21 +80,19 @@ final class CanvasScrollCaptureView: NSView {
         // Momentum and inertial phases are deliberately NOT filtered out.
         // Stopping at `.ended` cuts the glide short and makes trackpad panning
         // feel dead — the phase is exactly the part that feels like a canvas.
-        var deltaX = event.scrollingDeltaX
-        var deltaY = event.scrollingDeltaY
-
-        // `isDirectionInvertedFromDevice` reports that the OS already flipped
-        // these for the user's "natural scrolling" preference. Un-flip so the
-        // gesture agrees with Space-drag, which moves the view WITH the
-        // pointer — two inputs, one on-screen result. Read rather than
-        // hardcoded: a hardcoded sign is right for half the users and feels
-        // broken in a way they cannot articulate.
-        if event.isDirectionInvertedFromDevice {
-            deltaX = -deltaX
-            deltaY = -deltaY
-        }
+        // RAW deltas, no isDirectionInvertedFromDevice un-flip (user,
+        // 2026-08-20: Magic Mouse x reversed while the trackpad was right —
+        // that flag differs per DEVICE, so un-flipping made the two devices
+        // disagree). Raw scrollingDelta is what NSScrollView pans with, so
+        // both devices follow the user's own scrolling preference.
+        let deltaX = event.scrollingDeltaX
+        let deltaY = event.scrollingDeltaY
 
         guard deltaX != 0 || deltaY != 0 else { return }
+        if event.modifierFlags.contains(.command), let onZoom {
+            if deltaY != 0 { onZoom(deltaY) }
+            return
+        }
         onScroll?(CGSize(width: deltaX, height: deltaY))
     }
 }

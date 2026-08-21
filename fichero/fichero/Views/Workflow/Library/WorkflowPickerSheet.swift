@@ -13,7 +13,21 @@ struct WorkflowPickerSheet: View {
 
     private var workflows: [WorkflowSidebarItem] {
         let library = libraryManager.getLibrary(id: windowState.libraryId) ?? libraryManager.globalLibrary
-        return library?.workflowStore.directlyRunnableWorkflows ?? []
+        let own = library?.workflowStore.directlyRunnableWorkflows ?? []
+        if !own.isEmpty { return own }
+        // GLOBAL fallback (user, 2026-08-20: "No workflows available" on a
+        // non-global library): a store that loaded during the engine's boot
+        // window (401) stays empty, and defaults are global by design
+        // (#4450) — the engine resolves default ids against the global
+        // library on run. Same fallback the sidebar menu already uses.
+        return libraryManager.globalLibrary?.workflowStore.directlyRunnableWorkflows ?? []
+    }
+
+    /// The store this sheet reads — retried on appear when empty, so a load
+    /// that failed during engine boot heals the moment the picker opens.
+    private var pickerWorkflowStore: WorkflowStore? {
+        (libraryManager.getLibrary(id: windowState.libraryId)
+            ?? libraryManager.globalLibrary)?.workflowStore
     }
 
     private var filteredWorkflows: [WorkflowSidebarItem] {
@@ -110,6 +124,16 @@ struct WorkflowPickerSheet: View {
         // overflows the ~390pt screen, so let iOS use natural sheet sizing (#3666).
         #if os(macOS)
         .frame(width: 500, height: 600)
+        // Heal a boot-window load failure the moment the picker opens
+        // (user, 2026-08-20: "No workflows available").
+        .task {
+            if workflows.isEmpty {
+                await pickerWorkflowStore?.loadWorkflows()
+                if workflows.isEmpty {
+                    await libraryManager.globalLibrary?.workflowStore.loadWorkflows()
+                }
+            }
+        }
         #endif
     }
 }

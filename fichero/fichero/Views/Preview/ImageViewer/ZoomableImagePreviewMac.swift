@@ -376,6 +376,10 @@ extension ZoomableImagePreview {
             width: drawnImageFrame == .zero ? nil : drawnImageFrame.width,
             height: drawnImageFrame == .zero ? nil : drawnImageFrame.height
         )
+        // Boxes never bleed past the drawn image into the letterbox or the
+        // neighboring panes (user, 2026-08-20: "they draw over the image and
+        // sometimes into other views").
+        .clipped()
         .offset(x: drawnImageFrame.minX, y: drawnImageFrame.minY)
     }
 }

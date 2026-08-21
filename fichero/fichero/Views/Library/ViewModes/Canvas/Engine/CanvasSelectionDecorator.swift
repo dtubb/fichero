@@ -101,14 +101,11 @@ final class CanvasSelectionDecorator {
             root.addChild(makeFrame(box, depth: itemDepth, thickness: frameThickness, alpha: 1))
         }
 
-        if let setBox = plan.setBox {
-            // Thinner and dimmer than the item frames: it says "these belong
-            // together" without competing with the frames that say which
-            // things are selected.
-            let depths = ordered.map { depth($0.id) }
-            let meanDepth = depths.isEmpty ? 0 : depths.reduce(0, +) / Float(depths.count)
-            root.addChild(makeFrame(setBox, depth: meanDepth, thickness: setFrameThickness, alpha: 0.55))
-        }
+        // No set frame (user, 2026-08-20: "it should just be blue around the
+        // items selected") — the outer box around a multi-selection read as
+        // a second, wrong selection. plan.setBox still computed: the resize
+        // handles hang off it.
+        _ = plan.setBox
 
         guard showsHandles else { return }
         for handle in plan.handles {

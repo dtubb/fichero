@@ -43,7 +43,7 @@ extension KnowledgeGraphInspectorSection {
     /// mode; a ScrollView for the text digest / loading / empty states.
     @ViewBuilder
     var kgContent: some View {
-        if isLoading {
+        if isLoading && claimsById.isEmpty {
             ProgressView()
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -208,10 +208,16 @@ struct SpaceSceneView: View {
         // second camera path.
         #if canImport(AppKit)
         .overlay {
-            CanvasScrollPanView { delta in
-                panCameraIncrementally(by: delta)
+            CanvasScrollPanView(onScroll: { delta in
+                // Raw deltas invert both axes vs the old un-flipped feed.
+                panCameraIncrementally(by: CGSize(width: -delta.width, height: -delta.height))
                 persistViewport()
-            }
+            }, onZoom: { delta in
+                // ⌘ + two-finger drag zooms (user, 2026-08-20): scroll up =
+                // move closer, matching the pinch gesture's distance model.
+                cameraDistance = min(max(cameraDistance * (1 - delta * 0.005), 0.5), 60)
+                persistViewport()
+            })
             .allowsHitTesting(false)
         }
         #else
@@ -231,11 +237,10 @@ struct SpaceSceneView: View {
         // grammar (user, 2026-08-19).
         .modifier(CanvasKeyboardNav(
             nodeIds: nodes.map(\.id),
-            selectedNodeIds: $selectedNodeIds,
-            pan: { delta in
-                panCameraIncrementally(by: delta)
-                persistViewport()
-            }
+            nodePositions: Dictionary(uniqueKeysWithValues: nodes.map {
+                ($0.id, CGPoint(x: $0.positionX, y: $0.positionY))
+            }),
+            selectedNodeIds: $selectedNodeIds
         ))
         .onAppear {
             applyInitialViewportIfNeeded()
@@ -825,7 +830,7 @@ private extension SpaceSceneView {
         sourceId: String,
         cardWidth: Float,
         cardHeight: Float,
-        retriesLeft: Int = 2
+        retriesLeft: Int = 4
     ) {
         let service = storageService
         Task { @MainActor in
