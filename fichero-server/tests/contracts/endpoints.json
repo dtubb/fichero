@@ -3088,6 +3088,19 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{document_id}/renditions/{rendition_id}/content",
+        "operation_id": "get_rendition_content_api_documents__document_id__renditions__rendition_id__content_get",
+        "summary": "Get Rendition Content",
+        "path_params": [
+          "document_id",
+          "rendition_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "GET",
         "path": "/documents/{document_id}/rollup",
         "operation_id": "document_rollup_api_documents__document_id__rollup_get",
         "summary": "Cheap per-type child counts for a collapsed library outline row",

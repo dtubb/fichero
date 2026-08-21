@@ -2649,6 +2649,60 @@
               }
             }
           },
+          "404": {
+            "description": "No document with this id exists"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{document_id}/renditions/{rendition_id}/content": {
+      "get": {
+        "tags": [
+          "renditions"
+        ],
+        "summary": "Get Rendition Content",
+        "description": "Serve one rendition's pixels.\n\nWithout this a client can list a page's renditions and name them but never\nSHOW one, because `Rendition.path` is a server-side path and the standing\nrule is that visuals travel over storage endpoints \u2014 the engine may be on\nanother machine, so a path is not something a client can open.\n\nEvery failure is a 404 on purpose, and the reasons are deliberately not\ndistinguished to the caller: separating \"no such rendition\" from \"belongs\nto another document\" from \"outside the permitted roots\" would let a caller\nprobe for the existence of ids and paths it has no grant for. The\ndistinction that IS meaningful to a client \u2014 no such document versus a\ndocument with no renditions \u2014 is already answered by the list route above.\n\nThe path is confined by `resolve_document_source_path`, the same authority\nthe IIIF image route uses. Its contract is that the path comes from a\nRECORD reached by id and never from the caller, which is exactly the case\nhere: `rendition_id` selects a row, and only that row's stored path is\nresolved. The client never supplies a path.",
+        "operationId": "get_rendition_content_api_documents__document_id__renditions__rendition_id__content_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "rendition_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Rendition Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rendition's bytes",
+            "content": {
+              "image/*": {}
+            }
+          },
+          "404": {
+            "description": "No such document or rendition, the rendition belongs to a different document, its bytes were never materialised, or its recorded path resolves outside the permitted roots"
+          },
           "422": {
             "description": "Validation Error",
             "content": {

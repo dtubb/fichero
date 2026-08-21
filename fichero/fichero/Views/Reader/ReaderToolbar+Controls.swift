@@ -85,6 +85,70 @@ extension ReaderToolbar {
         sectionDivider
     }
 
+    // MARK: - Renditions
+
+    /// The rendition indicator + flip control.
+    ///
+    /// Shown ONLY when a page actually has more than one rendition. The name
+    /// is not decoration: a reader looking at a contrast-enhanced, deskewed
+    /// crop while believing they see the archival scan cannot judge what they
+    /// are reading, and that exact invisibility is how geometry computed on
+    /// one rendition came to be drawn over another for months.
+    @ViewBuilder
+    var renditionSection: some View {
+        if let nav = renditionNav, nav.count > 1 {
+            sectionDivider
+
+            if let goPrevious = nav.goPrevious {
+                Button(action: goPrevious) {
+                    Image(systemName: "chevron.up")
+                        .foregroundStyle(.secondary)
+                        .readerIconTarget()
+                }
+                .buttonStyle(.plain)
+                .help("Previous Rendition")
+                .accessibilityLabel("Previous Rendition")
+                .accessibilityIdentifier("previewPreviousRendition")
+            }
+
+            HStack(spacing: 4) {
+                Text(nav.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                // A rendition in its OWN frame (cropped/rotated/deskewed) is
+                // not interchangeable with the others: the image shape changes
+                // and page-frame boxes do not apply to it. Marked so the
+                // difference is visible rather than inferred from a jump.
+                if nav.hasOwnFrame {
+                    Image(systemName: "crop")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .help("This rendition is cropped or deskewed — its frame differs from the page")
+                        .accessibilityLabel("Cropped or deskewed rendition")
+                }
+                Text("\(nav.index + 1)/\(nav.count)")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(minWidth: 96)
+            .accessibilityIdentifier("previewRenditionName")
+
+            if let goNext = nav.goNext {
+                Button(action: goNext) {
+                    Image(systemName: "chevron.down")
+                        .foregroundStyle(.secondary)
+                        .readerIconTarget()
+                }
+                .buttonStyle(.plain)
+                .help("Next Rendition")
+                .accessibilityLabel("Next Rendition")
+                .accessibilityIdentifier("previewNextRendition")
+            }
+        }
+    }
+
     // MARK: - Zoom
 
     @ViewBuilder

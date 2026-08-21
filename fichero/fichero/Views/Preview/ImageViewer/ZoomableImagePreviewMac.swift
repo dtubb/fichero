@@ -122,6 +122,9 @@ struct ZoomableImagePreview: View {
     /// Optional so previews / hosts without the service stay safe; the text-box
     /// toggle simply loads nothing without it.
     @Environment(ArtifactService.self) var artifactService: ArtifactService?
+    /// Optional so previews / hosts without the service stay safe; the
+    /// rendition control simply stays hidden without it.
+    @Environment(RenditionService.self) var renditionService: RenditionService?
 
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
     // drag; `pendingAnnotationTool` carries the tool kind into the saved box.
@@ -139,6 +142,13 @@ struct ZoomableImagePreview: View {
     /// calls worse than absent.
     @AppStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     @State var ocrGeometry: OCRGeometry?
+
+    // Renditions of the current page (2026-08-20 bbox review). `renditions`
+    // arrives in ENGINE order — primary first, then role preference — so this
+    // view never re-sorts; doing so would recreate the disagreement about
+    // what "next" means that ordering server-side exists to prevent.
+    @State var renditions: [DocumentRendition] = []
+    @State var renditionIndex: Int = 0
 
     @State var scale: CGFloat = 1.0
     @State var minScale: CGFloat = 0.01
@@ -282,6 +292,7 @@ struct ZoomableImagePreview: View {
         }
         .task(id: url) { await handleImageURLChanged() }
         .task(id: "\(documentId ?? "")|\(ocrBoxesEnabled)") { await loadOCRGeometry() }
+        .task(id: documentId) { await loadRenditions() }
         .onAppear { handleViewAppeared() }
         .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
         .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
@@ -332,6 +343,7 @@ struct ZoomableImagePreview: View {
     var readerToolbar: some View {
         ReaderToolbar(
             pageNav: nil,
+            renditionNav: renditionNav,
             scalePercent: Int(scale * 100),
             zoomIn: zoomIn,
             zoomOut: zoomOut,

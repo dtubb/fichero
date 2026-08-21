@@ -38,6 +38,39 @@ enum ReaderAnnotationTool: String, CaseIterable, Identifiable {
 
 /// Page-within-document navigation state for the reader toolbar. Supplied by the
 /// PDF reader; `nil` (or a single-page document) greys the nav controls out.
+/// Which rendition of the current page is showing, and how to step between
+/// them (2026-08-20 bbox review).
+///
+/// Renditions are alternative PIXELS of one page — the archival original, a
+/// contrast-enhanced pass, a background-removed copy. Stepping between them is
+/// a different axis from turning pages: pages change WHAT you are reading,
+/// renditions change how the same thing looks.
+///
+/// `name` is shown, always, whenever more than one exists. A reader who cannot
+/// tell they are looking at an enhanced crop cannot judge what they are
+/// seeing — which is precisely how a corpus-wide mis-registration stayed
+/// invisible for months.
+struct ReaderRenditionNav {
+    let name: String
+    let index: Int
+    let count: Int
+    /// True when this rendition is not in the page's own frame (cropped,
+    /// rotated, deskewed) — so the image shape changes on the flip, and boxes
+    /// anchored to the page frame do not apply to it unchanged.
+    let hasOwnFrame: Bool
+    /// Stepping actions, or `nil` while flipping is not yet possible.
+    ///
+    /// Switching the displayed rendition requires fetching THAT rendition's
+    /// bytes, and no endpoint serves them yet (`getSourceData` returns the
+    /// document's source, not a named rendition). Until one exists the chrome
+    /// shows WHICH rendition is displayed and how many there are — which is
+    /// the part that makes the view honest — and draws no chevrons at all.
+    /// A visible control that does nothing is worse than an absent one.
+    let goPrevious: (() -> Void)?
+    let goNext: (() -> Void)?
+}
+
+
 struct ReaderPageNav {
     let pageIndex: Int
     let pageCount: Int

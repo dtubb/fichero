@@ -110,3 +110,92 @@ def test_pure_resample_reports_null_transform(client, db):
     item = client.get(f"/api/documents/{doc.id}/renditions").json()["items"][0]
 
     assert item["transform"] is None
+
+
+class TestRenditionContent:
+    """Serving a rendition's bytes.
+
+    The ownership check is a security boundary, not tidiness: without it a
+    valid rendition id from ANY document would serve through any other
+    document's URL, making the document segment of the path decorative.
+    """
+
+    def _served(self, db, tmp_path, name="e.jpg", body=b"\xff\xd8jpegbytes"):
+        doc = _page(db)
+        source = tmp_path / name
+        source.write_bytes(body)
+        rendition = Rendition(document_id=doc.id, role="enhanced", path=str(source))
+        db.save(rendition)
+        return doc, rendition, body
+
+    def test_serves_the_bytes(self, client, db, tmp_path):
+        doc, rendition, body = self._served(db, tmp_path)
+
+        response = client.get(f"/api/documents/{doc.id}/renditions/{rendition.id}/content")
+
+        assert response.status_code == 200
+        assert response.content == body
+
+    def test_rendition_of_another_document_is_not_served(self, client, db, tmp_path):
+        """The load-bearing check. A real rendition id must not be reachable
+        through a different document's URL."""
+        _, rendition, _ = self._served(db, tmp_path)
+        other = _page(db, "other")
+
+        response = client.get(f"/api/documents/{other.id}/renditions/{rendition.id}/content")
+
+        assert response.status_code == 404
+
+    def test_missing_document_is_404(self, client, db, tmp_path):
+        _, rendition, _ = self._served(db, tmp_path)
+
+        response = client.get(f"/api/documents/nope/renditions/{rendition.id}/content")
+
+        assert response.status_code == 404
+
+    def test_missing_rendition_is_404(self, client, db):
+        doc = _page(db)
+
+        response = client.get(f"/api/documents/{doc.id}/renditions/nope/content")
+
+        assert response.status_code == 404
+
+    def test_unmaterialized_rendition_is_404_not_a_deeper_failure(self, client, db, tmp_path):
+        """A knowable absent state recorded at import. Better an honest 404
+        than a path failing deeper in the stack with a worse error."""
+        doc = _page(db)
+        source = tmp_path / "never-written.jpg"
+        source.write_bytes(b"present-but-flagged-absent")
+        rendition = Rendition(
+            document_id=doc.id, role="original", path=str(source), materialized=False
+        )
+        db.save(rendition)
+
+        response = client.get(f"/api/documents/{doc.id}/renditions/{rendition.id}/content")
+
+        assert response.status_code == 404
+
+    def test_path_escaping_the_permitted_roots_is_refused(self, client, db):
+        """The stored path is confined by the same authority the IIIF image
+        route uses. A row pointing outside the permitted roots must not become
+        an arbitrary-file-read."""
+        doc = _page(db)
+        rendition = Rendition(
+            document_id=doc.id, role="original", path="/etc/passwd"
+        )
+        db.save(rendition)
+
+        response = client.get(f"/api/documents/{doc.id}/renditions/{rendition.id}/content")
+
+        assert response.status_code == 404
+
+    def test_missing_file_on_disk_is_404(self, client, db, tmp_path):
+        doc = _page(db)
+        rendition = Rendition(
+            document_id=doc.id, role="enhanced", path=str(tmp_path / "absent.jpg")
+        )
+        db.save(rendition)
+
+        response = client.get(f"/api/documents/{doc.id}/renditions/{rendition.id}/content")
+
+        assert response.status_code == 404
