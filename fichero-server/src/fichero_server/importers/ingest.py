@@ -1695,6 +1695,71 @@ def _load_entity_sidecar(source_path: Path) -> list[dict[str, Any]]:
     return [e for e in (entities or []) if isinstance(e, dict)]
 
 
+def apply_rendition_sidecars(db: "Database", documents: list[Document]) -> dict[str, int]:
+    """Turn every ``.renditions.json`` beside an imported file into rows.
+
+    The engine has skipped these since the Marshall staging convention landed
+    (``_is_sidecar_file`` recognised the suffix only to avoid importing 450
+    JSON blobs per diary as documents). The contract inside is the one
+    ``Rendition`` was built for, so this reads it.
+
+    Runs AFTER the documents commit, like the entity sidecars: a failure here
+    is counted and logged, never allowed to fail an import whose pages are
+    already in the library.
+
+    Returns counts so the caller can report what happened rather than
+    reporting that something happened.
+    """
+    from fichero_server.importers.rendition_sidecar import load_sidecar, plan_renditions
+
+    counts = {"documents": 0, "renditions": 0, "regions": 0, "deferred": 0, "warnings": 0}
+    for doc in documents:
+        source = (doc.metadata or {}).get("source_path") or doc.path
+        if not source:
+            continue
+        sidecar = load_sidecar(Path(source))
+        if sidecar is None:
+            continue
+
+        plan = plan_renditions(doc.id, sidecar)
+        counts["documents"] += 1
+        counts["deferred"] += len(plan.deferred)
+        counts["warnings"] += len(plan.warnings)
+        for warning in plan.warnings:
+            logger.warning("renditions sidecar for %s: %s", doc.id, warning)
+
+        for rendition in plan.renditions:
+            db.save(rendition)
+            counts["renditions"] += 1
+
+        # The node's own geometry, only when the sidecar actually describes a
+        # part. Never overwrite a region already set — a user correction or a
+        # measured fold outranks a re-import of the same nominal guess.
+        if plan.region_in_parent is not None and doc.region_in_parent is None:
+            doc.region_in_parent = plan.region_in_parent
+            db.save(doc)
+            counts["regions"] += 1
+
+    if counts["deferred"]:
+        # Loud on purpose. These are real renditions we are NOT attaching
+        # because they belong to a parent opening that is not a node yet
+        # (#bbox-review). Silence here would read as "there were none".
+        logger.warning(
+            "ingest.renditions: %d rendition(s) deferred — a split part's "
+            "`original` is the whole opening, a different frame, so it belongs "
+            "to a parent node that does not exist. They are NOT attached.",
+            counts["deferred"],
+        )
+    if counts["documents"]:
+        logger.info(
+            "ingest.renditions: %d sidecar(s) -> %d rendition(s), %d region(s), "
+            "%d deferred, %d warning(s)",
+            counts["documents"], counts["renditions"], counts["regions"],
+            counts["deferred"], counts["warnings"],
+        )
+    return counts
+
+
 def entity_sidecar_payload(documents: list[Document]) -> list[dict[str, Any]]:
     """One ``entity.bulk_upsert`` payload for every entity sidecar in a batch.
 
@@ -2104,6 +2169,7 @@ __all__ = [
     'datetime',
     'detect_file_type',
     'discover_files',
+    'apply_rendition_sidecars',
     'entity_sidecar_payload',
     'find_duplicates',
     'hashlib',
