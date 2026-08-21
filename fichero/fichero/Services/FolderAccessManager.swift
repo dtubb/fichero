@@ -81,6 +81,26 @@ class FolderAccessManager {
         requestFolderAccess(suggestedPath: path, completion: completion)
     }
 
+    /// After a LINK-mode import: make sure access to the source folder will
+    /// survive relaunch. A drag gives this session implicit read scope and a
+    /// live engine grant, but if no PERSISTENT bookmark could be minted (a
+    /// dropped URL isn't security-scoped, so `.withSecurityScope` minting
+    /// throws), that access dies with the session — Marshall v2's originals
+    /// all 404ed on the next launch exactly this way. So ask NOW, while the
+    /// user still remembers dropping the folder (user, 2026-08-21: "we need
+    /// it to work if you drag and drop or add things").
+    func ensurePersistedGrant(for url: URL) {
+        guard !isTransientPath(url) else { return }
+        let covered = accessedFolders.contains { url.path.hasPrefix($0.path) }
+        guard !covered, !promptedSourceRoots.contains(url.path) else { return }
+        promptedSourceRoots.insert(url.path)
+        requestFolderAccess(suggestedPath: url.appendingPathComponent("x").path) { granted in
+            self.logger.info(
+                "Persist-grant prompt for imported folder \(url.path): \(granted ? "granted" : "declined")"
+            )
+        }
+    }
+
     /// Request access to a folder (shows NSOpenPanel)
     func requestFolderAccess(suggestedPath: String? = nil, completion: @escaping (Bool) -> Void) {
         Task { @MainActor in
@@ -363,6 +383,14 @@ class FolderAccessManager {
         logger.info(
             "Post-ready grant sweep: \(granted) of \(stored.count) bookmark(s) granted to the live engine"
         )
+        // Unstick libraries gated on a grant that FAILED before auth
+        // (2026-08-21 relaunch log): the open-time grant 401s against the
+        // not-yet-authenticated engine, `grantThenEngineWork` throws before
+        // its engineWork leg, and `libraryIdsAwaitingGrant` never clears —
+        // every later load trigger then defers forever and the library needs
+        // a manual close/reopen. This sweep IS the grant landing, so it
+        // clears the gate and reschedules the deferred loads.
+        LibraryManager.shared.grantSweepDidComplete()
     }
 
     /// Restore bookmarks on app launch

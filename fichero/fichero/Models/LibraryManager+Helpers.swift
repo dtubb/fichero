@@ -231,6 +231,22 @@ extension LibraryManager {
         }
     }
 
+    /// The post-ready grant sweep finished — every persisted bookmark the
+    /// engine will ever accept has now been re-sent. Any library still gated
+    /// on `libraryIdsAwaitingGrant` is stuck on a pre-auth grant failure
+    /// (the 401 race, 2026-08-21): clear the gates and rerun the loads.
+    func grantSweepDidComplete() {
+        guard !libraryIdsAwaitingGrant.isEmpty else { return }
+        let stuck = libraryIdsAwaitingGrant
+        libraryIdsAwaitingGrant.removeAll()
+        for library in openLibraries where stuck.contains(library.id) {
+            libraryManagerLogger.info(
+                "Grant sweep unstuck deferred library load: \(library.displayName)"
+            )
+            scheduleLoadWhenBackendReady(for: library)
+        }
+    }
+
     /// Initialize the backend database, load app data, and create Inbox once
     /// per library. Re-entrant guards avoid duplicate startup tasks when the
     /// window, restore, and backend-ready paths all observe the same library.

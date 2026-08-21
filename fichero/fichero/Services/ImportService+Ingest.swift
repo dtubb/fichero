@@ -71,6 +71,14 @@ extension ImportService {
             )
             currentTask = task
             logger.info("Folder import task started: \(task.taskId)")
+            #if os(macOS)
+            // Linked sources must outlive this session's implicit drag scope
+            // (2026-08-21): if no persistent bookmark covers the folder, ask
+            // for one now — once per folder, after the import is under way.
+            if mode == .link {
+                await FolderAccessManager.shared.ensurePersistedGrant(for: url)
+            }
+            #endif
             return task
         case .unprocessableContent(let error):
             let detail = try? error.body.json
