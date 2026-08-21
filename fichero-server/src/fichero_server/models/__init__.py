@@ -59,6 +59,18 @@ from fichero_server.models.knowledge import (
     LibraryItemLink,
 )
 
+# The shared geometry types (2026-08-20 bbox review). anchors.py sits BELOW
+# both this file and knowledge.py and imports from neither, so both can use
+# the one anchor without reintroducing the #2566 circular-import ordering bug.
+from fichero_server.models.anchors import (
+    ANCHOR_GRANULARITIES,
+    AnchorSpace,
+    NodeRegion,
+    RegionConfidence,
+    SourceAnchor,
+    validate_rect,
+)
+
 # Forward refs — routes import from this file, so we can't import back. The
 # route modules call model_rebuild() on their owning envelope at module end.
 if TYPE_CHECKING:
@@ -194,7 +206,25 @@ class Document(BaseModel):
     # For pages/chunks
     sequence: int | None = None  # Raw 1-based page/image order
     page_label: str | None = None  # Document's own numbering; distinct from sequence
+
+    # WHERE THIS NODE SITS IN ITS PARENT (2026-08-20 bbox review). The one
+    # field for a fact that had three spellings: this `bbox` as pixel ints,
+    # `metadata["source_bbox"]` written by the crop/split routes, and the
+    # staging sidecar's `region_on_original`. Normalized fractions of the
+    # parent's frame by default, and carrying whether the rect was MEASURED
+    # or is a nominal guess — the Marshall openings are split 50/50 without
+    # the fold ever being measured, and a guess must not read as a
+    # measurement.
+    region_in_parent: NodeRegion | None = None
+
+    # DEPRECATED (2026-08-20): superseded by `region_in_parent`. Kept readable
+    # so existing rows decode, and because `_ensure_table` would ADD COLUMN it
+    # back onto any library created before the rename. Pixel ints against an
+    # unnamed frame — which is the original defect in miniature. New writes
+    # must use `region_in_parent`; the crop/split routes and the manifest
+    # importer are the remaining callers to convert.
     bbox: tuple[int, int, int, int] | None = None  # x, y, width, height
+
     prototype_key: str | None = None  # user-assigned document prototype/class key
 
     # Alias / reference node (#2591 P2, node-model fold). When set, this node is
@@ -776,6 +806,114 @@ class ContentRepresentationRevisionListResponse(BaseModel):
     """Standardized envelope for GET /api/content-representations/{representation_id}/revisions."""
 
     items: list[ContentRepresentationRevision]
+    count: int
+
+
+# =============================================================================
+# Rendition — alternative PIXELS of one node (2026-08-20 bbox review)
+# =============================================================================
+#
+# The image sibling of ContentRepresentation above, deliberately sharing its
+# idiom (id / document_id / derived_from / producer_* / created_at) rather than
+# extending it: ContentRepresentation requires `content: str`, which an image
+# has none of, and its immutable-plus-revisions design was built for
+# transcription review, not pixels. One table pretending to be two things is
+# how six representations of "a derived image" came to exist.
+#
+# Those six were: Document.bbox + metadata{derived_from, source_bbox,
+# view_kind} written by the crop/split routes; metadata["images"] +
+# preferred_image_role written by the manifest importer; the .renditions.json
+# sidecar (written by staging, skipped at ingest); ImageEditChain;
+# ContentRepresentation; and the Swift Representation enum over conversion
+# artifacts. This type plus NodeRegion replaces the first three.
+
+
+#: Display preference when a node has several renditions and none is marked
+#: primary. Mirrors the manifest importer's existing IMAGE_ROLE_PREFERENCE so
+#: the two cannot drift; the resolved choice is always NAMED in the preview
+#: chrome, because a reader who cannot tell they are looking at an enhanced
+#: crop cannot judge what they are seeing.
+RENDITION_ROLE_PREFERENCE: tuple[str, ...] = (
+    "enhanced",
+    "background_removed",
+    "rotated",
+    "deskewed",
+    "crop",
+    "original",
+)
+
+
+class Rendition(BaseModel):
+    """One set of pixels for a node — same page, different rendering.
+
+    A rendition NEVER changes what the page is, only how it looks: the
+    archival original, a contrast-enhanced pass, a background-removed copy, a
+    thumbnail. Anything that changes WHICH CONTENT is shown — a split half, a
+    cropped map section — is a different node carrying a ``NodeRegion``, not a
+    rendition. That rule is what makes an anchor portable: a box normalized to
+    the node's frame is valid on every rendition of it, with no maths.
+
+    ``transform`` is the honest exception. Daniel's staging pipeline produces
+    an ``enhanced`` rendition that is "cropped/deskewed" relative to the
+    original, so it is genuinely not the node's frame. Rather than pretend
+    (which silently moves every box) or promote it to its own node (which
+    doubles the tree and makes "which node is the page?" ambiguous), such a
+    rendition records the transform explicitly. ``None`` is the common case
+    and the rule's default.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra="allow")
+
+    id: str = Field(default_factory=_new_id)
+    document_id: str
+
+    #: ``original`` | ``enhanced`` | ``background_removed`` | ``rotated`` |
+    #: ``deskewed`` | ``crop`` | ``thumbnail`` | ``pdf_page_render``.
+    #: Free-form for the same reason ``Annotation.anchor_kind`` is: the
+    #: staging pipeline names new roles without waiting for a model bump.
+    role: str
+    #: Where the bytes are. Served through the storage endpoints, never handed
+    #: to a client as a local path — the server may be remote.
+    path: str
+    #: The rendition the reader opens on. At most one per node should be true;
+    #: when none is, ``RENDITION_ROLE_PREFERENCE`` decides.
+    is_primary: bool = False
+
+    #: Actual pixel dimensions. Required to convert a normalized anchor to
+    #: pixels, and the reason a normalized rect survives a re-render at a
+    #: different resolution while a pixel rect does not.
+    pixel_width: int | None = None
+    pixel_height: int | None = None
+
+    #: How this rendition relates to its node's frame. ``None`` (the norm)
+    #: means identical — a pure resample, anchors pass straight through. A
+    #: value means cropped/rotated/deskewed, and anchors expressed against
+    #: this rendition must name it via ``SourceAnchor.rendition_id``.
+    transform: NodeRegion | None = None
+
+    #: Provenance, matching ContentRepresentation's vocabulary.
+    derived_from_rendition_id: str | None = None
+    producer_run_id: str | None = None
+    producer_tool: str | None = None
+    producer_model: str | None = None
+
+    #: Staging bookkeeping carried through from the sidecar contract:
+    #: ``storage`` is where the bytes live (e.g. ``"staged"``) and
+    #: ``materialized`` records whether they were actually written, so a
+    #: referenced-but-absent rendition is a knowable state rather than a
+    #: broken path discovered at render time.
+    storage: str | None = None
+    materialized: bool = True
+    #: Terse provenance note. Machine-honest and short, not prose.
+    note: str | None = None
+
+    created_at: datetime = Field(default_factory=utc_now)
+
+
+class RenditionListResponse(BaseModel):
+    """Standardized envelope for GET /api/documents/{document_id}/renditions."""
+
+    items: list[Rendition]
     count: int
 
 
@@ -2362,6 +2500,17 @@ __all__ = [
     # Models
     "Document",
     "Artifact",
+    # Shared geometry (2026-08-20 bbox review). Re-exported here so callers
+    # keep importing from `fichero_server.models` rather than reaching into
+    # the submodule; `anchors.py` stays below this file in the import graph.
+    "AnchorSpace",
+    "NodeRegion",
+    "RegionConfidence",
+    "SourceAnchor",
+    "Rendition",
+    "RenditionListResponse",
+    "ANCHOR_GRANULARITIES",
+    "validate_rect",
     "Workflow",
     "Run",
     "Trace",
