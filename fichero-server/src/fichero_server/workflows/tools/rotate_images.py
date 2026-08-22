@@ -9,7 +9,11 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
-from fichero_server.workflows.tools.image_edit_chains import append_image_edit_operations
+from fichero_server.workflows.tools.image_edit_chains import (
+    append_image_edit_operations,
+    describe_no_effect,
+    persist_workflow_renditions,
+)
 from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -227,10 +231,23 @@ async def rotate_images(
         },
     )
 
+    # Persist the pixels, not just the paths (2026-08-21). These tools wrote
+    # derived images to a temp directory and returned the paths; nothing
+    # reached the library, so a run "completed" with no user-visible effect.
+    rendition_report = persist_workflow_renditions(
+        inputs, state, role="rotated", results=results
+    )
+
     output_files = [path for result in results for path in result.get("outputs", [])]
+    no_effect = describe_no_effect(files, output_files, rendition_report)
+    if no_effect:
+        logger.warning("rotate_images: %s", no_effect)
     errors = [result["error"] for result in results if result.get("error")]
     return {
         "output_files": output_files,
+        "renditions": rendition_report.get("renditions") or [],
+        "rendition_report": rendition_report,
+        "no_effect": no_effect,
         "files": output_files,
         "count": len(output_files),
         "results": results,

@@ -9,7 +9,11 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
-from fichero_server.workflows.tools.image_edit_chains import append_image_edit_operations
+from fichero_server.workflows.tools.image_edit_chains import (
+    append_image_edit_operations,
+    describe_no_effect,
+    persist_workflow_renditions,
+)
 from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -248,6 +252,13 @@ async def remove_background_images(
         for file_path in files
     ]
 
+    # Persist the pixels, not just the paths (2026-08-21). The tool wrote PNGs
+    # to a temp directory and returned their paths; nothing reached the
+    # library, so a run "completed successfully" with no user-visible effect.
+    rendition_report = persist_workflow_renditions(
+        inputs, state, role="background_removed", results=results
+    )
+
     image_edit_operations = append_image_edit_operations(
         inputs,
         state,
@@ -260,11 +271,24 @@ async def remove_background_images(
 
     output_files = [path for result in results for path in result.get("outputs", [])]
     errors = [result["error"] for result in results if result.get("error")]
+
+    # A run that produced nothing must SAY so — shared so every image tool
+    # reports a no-op identically (absence-read-as-success).
+    persisted = rendition_report.get("renditions") or []
+    no_effect = describe_no_effect(files, output_files, rendition_report)
+    if no_effect:
+        logger.warning("remove_background_images: %s", no_effect)
+
     return {
         "output_files": output_files,
         "files": output_files,
         "count": len(output_files),
         "results": results,
         "image_edit_operations": image_edit_operations,
+        "renditions": persisted,
+        "rendition_report": rendition_report,
+        # Surfaced in the run log, not just returned: the caller should not
+        # have to infer a no-op from an empty list.
+        "no_effect": no_effect,
         "error": errors[0] if len(errors) == 1 else (f"{len(errors)} files failed" if errors else None),
     }

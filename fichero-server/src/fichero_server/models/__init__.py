@@ -893,6 +893,14 @@ class Rendition(BaseModel):
 
     #: Provenance, matching ContentRepresentation's vocabulary.
     derived_from_rendition_id: str | None = None
+    #: The path a workflow WROTE before the bytes were copied into library
+    #: storage — usually under $TMPDIR. Kept because `_copy_to_library`
+    #: generates a unique destination filename every call, so the stored path
+    #: cannot identify "the same output produced again"; this can, which is
+    #: what makes re-running a workflow idempotent instead of stacking a
+    #: duplicate row per run. Also plain provenance: it records what the tool
+    #: actually emitted.
+    produced_from: str | None = None
     producer_run_id: str | None = None
     producer_tool: str | None = None
     producer_model: str | None = None
