@@ -19,11 +19,29 @@ extension ZoomableImagePreview {
         // the honest answer, and the Every Frame Perfect one.
         if geometry.isMeasured {
             ZStack(alignment: .topLeading) {
+                // Entry-source highlight FIRST — a soft wash BEHIND the word
+                // boxes, visually distinct from annotation regions (Daniel,
+                // 2026-08-21: "wrong color… it should be behind words").
+                // Where it lands is the anchor DATA's problem (Step-4
+                // re-anchor); how it reads is this layer's.
+                ForEach(Array(highlightBoxes.enumerated()), id: \.offset) { _, box in
+                    if let rect = BoundingBoxGeometry.viewRect(
+                        normalized: box,
+                        in: geometry.drawnFrame.size,
+                        visible: geometry.visible
+                    ) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.yellow.opacity(0.22))
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                            .allowsHitTesting(false)
+                    }
+                }
                 // Saved bounding boxes + the region-draw layer (#2458).
                 // Shown whenever there are boxes or the tool is armed.
-                if !regionBoxes.isEmpty || !highlightBoxes.isEmpty || isDrawingRegion {
+                if !regionBoxes.isEmpty || isDrawingRegion {
                     BoundingBoxOverlay(
-                        boxes: regionBoxes + highlightBoxes,
+                        boxes: regionBoxes,
                         visible: geometry.visible,
                         isDrawing: isDrawingRegion,
                         onCreate: { box in createAnnotation(box: box, tool: pendingAnnotationTool) }
