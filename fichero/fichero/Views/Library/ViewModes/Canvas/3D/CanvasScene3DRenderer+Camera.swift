@@ -41,7 +41,11 @@ extension CanvasScene3DRenderer {
     func focusZoom(on id: String) {
         guard let placeable = placeablesById[id] else { return }
         lookAt = Canvas3DProjection.scenePosition(placeable.position)
-        setDistance(CanvasZoomRange.minDistance(itemExtent: Self.itemExtent) * 1.8)
+        // Face the card head-on (Daniel, 2026-08-22: "camera is not set to
+        // straight on") — the reading pose, not the orbit's last angle.
+        yaw = 0
+        pitch = 0
+        setDistance(CanvasZoomRange.minDistance(itemExtent: Self.itemExtent) * 1.4)
     }
 
     func setDistance(_ value: Float) {

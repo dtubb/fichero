@@ -161,7 +161,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     // MARK: - Camera control (view drives these from gestures)
 
     func setOrthoScale(_ scale: Float) {
-        orthoScale = min(max(scale, 0.5), 200)
+        orthoScale = min(max(scale, 0.1), 200)  // 0.5→0.1 (2026-08-22): zoom close enough to read
         applyOrthoScale()
         // Zoom-constant selection chrome (#4601): redraw at the new ratio.
         refreshSelectionDecoration()

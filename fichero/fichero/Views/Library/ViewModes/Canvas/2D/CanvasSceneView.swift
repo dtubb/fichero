@@ -140,7 +140,6 @@ struct CanvasSceneView: View {
             .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
-            .simultaneousGesture(doubleTapZoom)
             .onReceive(NotificationCenter.default.publisher(for: .canvasFocusZoomToggle)) { note in
                 guard let id = note.object as? String else { return }
                 toggleFocusZoom(on: id)
@@ -275,6 +274,13 @@ struct CanvasSceneView: View {
 
     /// Where double-click zoom returns to; nil = not zoomed into a node.
     @State var focusReturnSnapshot: (position: SIMD3<Float>, scale: Float)?
+    /// Manual double-click detection INSIDE tapSelect (2026-08-22): a
+    /// separate simultaneous TapGesture(count: 2) joined the gesture set and
+    /// broke the exclusivity that let tapSelect's success suppress the
+    /// background-clear tap — every click selected and was instantly wiped
+    /// ("you can't single click on an item"). One gesture, no interplay.
+    @State var lastTapNodeId: String?
+    @State var lastTapAt: Date = .distantPast
 
     // MARK: - Gestures
 

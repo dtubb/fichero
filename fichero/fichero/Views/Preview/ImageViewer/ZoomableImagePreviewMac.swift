@@ -208,7 +208,12 @@ struct ZoomableImagePreview: View {
                             // rendition a different FRAME, which moves every
                             // box on the page.
                             overrideImage: renditionOverrideImage ?? renderedImage ?? highResImage,
-                            itemKey: documentId,
+                            // Rendition index in the key: a flip counts as
+                            // an ITEM change so the view refits — renditions
+                            // have different pixel sizes, and preserving
+                            // apparent width left one at 70% and the next at
+                            // 26% (Daniel, 2026-08-22).
+                            itemKey: "\(documentId ?? "")#r\(renditionIndex)",
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,

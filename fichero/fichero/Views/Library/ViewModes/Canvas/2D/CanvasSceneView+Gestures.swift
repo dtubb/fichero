@@ -5,18 +5,7 @@ import SwiftUI
 // type_body_length).
 
 extension CanvasSceneView {
-    /// Double-click a card → fill the view with it; double-click again →
-    /// return to the exact prior pose (user, 2026-08-20). Simultaneous so the
-    /// first click still selects instantly.
-    var doubleTapZoom: some Gesture {
-        TapGesture(count: 2)
-            .targetedToAnyEntity()
-            .onEnded { value in
-                let id = value.entity.name
-                guard !CanvasSelectionFrame.isDecoration(id), !id.isEmpty else { return }
-                toggleFocusZoom(on: id)
-            }
-    }
+
 
     /// One toggle for both routes — double-click AND the context menu's
     /// "Zoom to Card" (touch-reachability: iPad has no double-click, so the
@@ -42,6 +31,17 @@ extension CanvasSceneView {
                 // in the scene, so dispatching one would select a placeable
                 // that does not exist and silently clear the real selection.
                 guard !CanvasSelectionFrame.isDecoration(id) else { return }
+                // Double-click on the SAME card within the classic interval →
+                // zoom toggle; anything else is a select. See lastTapNodeId.
+                let now = Date()
+                if !id.isEmpty, lastTapNodeId == id,
+                   now.timeIntervalSince(lastTapAt) < 0.35 {
+                    lastTapNodeId = nil
+                    toggleFocusZoom(on: id)
+                    return
+                }
+                lastTapNodeId = id.isEmpty ? nil : id
+                lastTapAt = now
                 controller?.dispatch(.tap(
                     id: id.isEmpty ? nil : id,
                     modifiers: CanvasInteractionController.liveSelectionModifiers()
