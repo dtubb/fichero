@@ -83,7 +83,18 @@ def _swift_handled_cases(source: str, func: str) -> set[str]:
                 break
     else:
         body = source[i:]
-    return set(re.findall(r"\bcase\s+\.([A-Za-z_][A-Za-z0-9_]*)\s*:", body))
+    handled = set(re.findall(r"\bcase\s+\.([A-Za-z_][A-Za-z0-9_]*)\s*:", body))
+    # A decoder may be TABLE-shaped rather than switch-shaped (2026-08-22:
+    # the FileType mapping became `Self.fileTypeMap[...]` — data, not logic).
+    # Follow any `Self.<name>` the body references to its dictionary literal
+    # and count its KEYS as handled.
+    for map_name in set(re.findall(r"Self\.([A-Za-z_][A-Za-z0-9_]*)\b", body)):
+        literal = re.search(
+            rf"let {map_name}\s*:[^=]*=\s*\[(.*?)\]", source, re.S
+        )
+        if literal:
+            handled |= set(re.findall(r"\.([A-Za-z_][A-Za-z0-9_]*)\s*:", literal.group(1)))
+    return handled
 
 
 def violations(
