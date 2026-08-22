@@ -9,7 +9,11 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
-from fichero_server.workflows.tools.image_edit_chains import append_image_edit_operations
+from fichero_server.workflows.tools.image_edit_chains import (
+    append_image_edit_operations,
+    describe_no_effect,
+    persist_workflow_child_regions,
+)
 from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -191,6 +195,11 @@ def segment_image_file(
             )
             outputs: list[str] = []
             for index, segment in enumerate(segments, start=1):
+                # Record the frame each segment was measured in — the detector
+                # emits only bbox/area/segment_type and the caller cannot
+                # normalize without it.
+                segment["source_size"] = [original.width, original.height]
+                segment["output_file"] = None
                 left, top, width, height = segment["bbox"]
                 cropped = original.crop((left, top, left + width, top + height))
                 output_path = output_root / f"{source.stem}_segment_{index:03d}.{ext}"
@@ -200,6 +209,7 @@ def segment_image_file(
                     output_format=output_format,
                     compression_quality=compression_quality,
                 )
+                segment["output_file"] = str(output_path)
                 outputs.append(str(output_path))
 
         return {
@@ -318,10 +328,25 @@ async def segment_images(
         },
     )
 
+    # Create the NODES, not just the files (2026-08-21). These tools cut real
+    # pixels and created nothing — no node, no geometry, no user-visible
+    # effect. Children carry region_in_parent, the same geometry the in-app
+    # split writes, so hand-cut and workflow-cut pages are one shape.
+    child_report = persist_workflow_child_regions(
+        inputs, state, results=results, part_key="segments",
+        role="segment", method="detected-segment", name="segment",
+    )
+
     output_files = [path for result in results for path in result.get("outputs", [])]
+    no_effect = describe_no_effect(files, output_files, {"renditions": child_report["children"]})
+    if no_effect:
+        logger.warning("segment_images: %s", no_effect)
     errors = [result["error"] for result in results if result.get("error")]
     return {
         "output_files": output_files,
+        "children": child_report["children"],
+        "child_report": child_report,
+        "no_effect": no_effect,
         "files": output_files,
         "count": len(output_files),
         "segments": all_segments,

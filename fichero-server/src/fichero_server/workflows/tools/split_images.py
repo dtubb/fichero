@@ -9,6 +9,10 @@ from typing import Any
 
 from fichero_server.llm import LLMConfig
 from fichero_server.workflows.registry import register_tool
+from fichero_server.workflows.tools.image_edit_chains import (
+    describe_no_effect,
+    persist_workflow_child_regions,
+)
 from fichero_server.workflows.types import DataType, PortDef, State
 
 logger = logging.getLogger(__name__)
@@ -128,6 +132,10 @@ def _split_image_grid(
                     "row": row + 1,
                     "column": column + 1,
                     "bbox": [left, top, right - left, bottom - top],
+                    # The frame the bbox is measured in. Without it a consumer
+                    # cannot normalize the rect, and a rect against an
+                    # unrecorded frame is the defect this program removes.
+                    "source_size": [image.width, image.height],
                     "output_file": str(output_path),
                 }
             )
@@ -170,6 +178,8 @@ def _split_pdf_pages(
                 "part": index,
                 "page": index,
                 "bbox": [0, 0, pix.width, pix.height],
+                # A rendered PDF page is its OWN frame, so the part fills it.
+                "source_size": [pix.width, pix.height],
                 "output_file": str(output_path),
             }
         )
@@ -307,11 +317,26 @@ async def split_images(
         for file_path in files
     ]
 
+    # Create the NODES, not just the files (2026-08-21). These tools cut real
+    # pixels and created nothing — no node, no geometry, no user-visible
+    # effect. Children carry region_in_parent, the same geometry the in-app
+    # split writes, so hand-cut and workflow-cut pages are one shape.
+    child_report = persist_workflow_child_regions(
+        inputs, state, results=results, part_key="parts",
+        role="split_part", method="workflow-split", name="part",
+    )
+
     output_files = [path for result in results for path in result.get("outputs", [])]
+    no_effect = describe_no_effect(files, output_files, {"renditions": child_report["children"]})
+    if no_effect:
+        logger.warning("split_images: %s", no_effect)
     parts = [part for result in results for part in result.get("parts", [])]
     errors = [result["error"] for result in results if result.get("error")]
     return {
         "output_files": output_files,
+        "children": child_report["children"],
+        "child_report": child_report,
+        "no_effect": no_effect,
         "files": output_files,
         "count": len(output_files),
         "parts": parts,

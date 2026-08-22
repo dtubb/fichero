@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fichero_server.db import db_manager
 from fichero_server.models import Document, ImageEditChain, Rendition
+from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.workflows.types import State
 
 logger = logging.getLogger(__name__)
@@ -230,3 +231,164 @@ def describe_no_effect(
             "document — no rendition was attached"
         )
     return f"{len(output_files)} file(s) written but no rendition was attached"
+
+
+def persist_workflow_child_regions(
+    inputs: dict[str, Any],
+    state: State,
+    *,
+    results: list[dict[str, Any]],
+    part_key: str,
+    role: str,
+    method: str,
+    name: str,
+) -> dict[str, Any]:
+    """Turn a workflow's cut-up parts into CHILD NODES of the page they came from.
+
+    split_images and segment_images did real work and created nothing: they
+    wrote part files to a temp directory and returned the paths, so a run
+    "completed" with no node, no geometry and no user-visible effect — the same
+    disease remove_background had.
+
+    Children carry `region_in_parent`, the SAME geometry the in-app split
+    writes since ca1ed6b25. That convergence is the point: a page cut up by a
+    workflow and a page cut up by hand are now the same shape, so one library
+    view, one unsplit, one set of coordinate maths serves both.
+
+    The parent is the SOURCE DOCUMENT — it is already a node, so unlike the
+    staged-import path there is no opening to adopt. Deliberately does NOT
+    attach any archival original: whether previously-deferred originals get
+    attached is a scope decision still parked with Daniel, and a workflow must
+    not pre-empt it.
+
+    Each part gets its own rendition, because a workflow part HAS bytes —
+    unlike an in-app split child, which is a virtual region of its parent.
+    The converged model allows both: a child either has renditions or falls
+    back to rendering its region of the parent.
+    """
+    from fichero_server.importers.ingest import _copy_to_library
+    from fichero_server.models import DocType
+
+    report: dict[str, Any] = {
+        "children": [],
+        "unmatched_sources": [],
+        "skipped_no_region": 0,
+        # Parts whose bytes could not be stored. A failure here MUST reach the
+        # caller: a part that silently vanishes is a page the user cut and
+        # never got, reported as success.
+        "failed_outputs": [],
+    }
+
+    library_path = state.get("library_path") or inputs.get("library_path")
+    if not library_path:
+        report["skipped_reason"] = "no library_path in scope — no nodes created"
+        return report
+
+    db = db_manager.get_database(library_path)
+    package_path = Path(library_path)
+    by_path = _document_by_source_path(db, _candidate_document_ids(inputs, state))
+
+    for result in results:
+        source = result.get("source")
+        parts = result.get(part_key) or []
+        if not parts:
+            continue
+        parent = by_path.get(str(Path(source))) if source else None
+        if parent is None:
+            report["unmatched_sources"].append(str(source))
+            continue
+
+        for index, part in enumerate(parts, start=1):
+            output = part.get("output_file")
+            if not output:
+                continue
+            # Idempotent: a re-run must not create a second child for the same
+            # part. Keyed on the produced file, for the same reason the
+            # rendition path is — the stored path is renamed on copy.
+            if any(
+                (child.metadata or {}).get("produced_from") == str(output)
+                for child in db.query(Document, parent_id=parent.id)
+            ):
+                continue
+
+            region = _region_from_part(part, method)
+            if region is None:
+                # A part whose frame we cannot name gets NO region rather than
+                # a guessed one. Counted so the caller can say so.
+                report["skipped_no_region"] += 1
+
+            try:
+                stored = _copy_to_library(Path(output), package_path)
+            except Exception as exc:
+                # Routed into the report, not just logged. An only-log broad
+                # handler influences nothing downstream (#4395): the caller
+                # would report success while a cut page quietly went missing.
+                logger.warning(
+                    "child region for %s: could not store %s (%s)", parent.id, output, exc
+                )
+                report["failed_outputs"].append(
+                    {"output": str(output), "parent_id": parent.id, "error": str(exc)}
+                )
+                continue
+
+            child = Document(
+                parent_id=parent.id,
+                doc_type=DocType.chunk,
+                file_type=parent.file_type,
+                name=f"{parent.name} {name} {index}",
+                path=str(stored),
+                sequence=index,
+                region_in_parent=region,
+                metadata={
+                    "derived_from": parent.id,
+                    # The same discovery key the in-app split uses, so
+                    # `_split_children` and therefore unsplit find these too.
+                    "split_source_id": parent.id,
+                    "produced_from": str(output),
+                },
+                source_authority=parent.source_authority,
+                source_metadata=parent.source_metadata,
+                provenance_chain=list(parent.provenance_chain or []),
+                image_provenance=parent.image_provenance,
+            )
+            db.save(child)
+            db.save(
+                Rendition(
+                    document_id=child.id,
+                    role=role,
+                    path=str(stored),
+                    produced_from=str(output),
+                    is_primary=True,
+                    producer_tool=str(state.get("tool_name") or ""),
+                    producer_run_id=str(state.get("run_id") or ""),
+                    note=f"cut from {parent.name} by the {role} workflow",
+                )
+            )
+            report["children"].append({"document_id": child.id, "parent_id": parent.id})
+
+    return report
+
+
+def _region_from_part(part: dict[str, Any], method: str) -> NodeRegion | None:
+    """Normalize a part's pixel bbox against the frame it was cut from."""
+    bbox = part.get("bbox")
+    size = part.get("source_size")
+    if not (isinstance(bbox, list) and len(bbox) == 4):
+        return None
+    if not (isinstance(size, list) and len(size) == 2):
+        return None
+    width, height = float(size[0] or 0), float(size[1] or 0)
+    if width <= 0 or height <= 0 or float(bbox[2]) <= 0 or float(bbox[3]) <= 0:
+        return None
+    return NodeRegion(
+        rect=[
+            float(bbox[0]) / width,
+            float(bbox[1]) / height,
+            float(bbox[2]) / width,
+            float(bbox[3]) / height,
+        ],
+        # MEASURED: a workflow cut the pixels at these coordinates. It is not
+        # a nominal guess at where a fold might be.
+        confidence=RegionConfidence.measured,
+        method=method,
+    )

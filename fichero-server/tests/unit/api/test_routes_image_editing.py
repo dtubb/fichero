@@ -239,9 +239,14 @@ class TestImageEditChainRoutes:
         )
         assert [child.sequence for child in children] == [1, 2]
         assert [child.path for child in children] == [doc.path, doc.path]
-        assert children[0].bbox == (10, 10, 20, 20)
-        assert children[1].bbox == (65, 20, 25, 25)
-        assert children[0].metadata["view_kind"] == "image_segment"
+        # Segments carry the same ONE geometry as splits and crops.
+        # _make_segmentable_image_doc is 100x60.
+        assert children[0].region_in_parent.rect == [10 / 100, 10 / 60, 20 / 100, 20 / 60]
+        assert children[1].region_in_parent.rect == [65 / 100, 20 / 60, 25 / 100, 25 / 60]
+        # `view_kind` is gone: it had NO readers anywhere in the tree
+        # (verified before removal) and duplicated what the geometry and
+        # `segment_type` already say.
+        assert "view_kind" not in children[0].metadata
         assert children[0].metadata["source_document_id"] == doc.id
 
     @pytest.mark.anyio
@@ -310,9 +315,15 @@ class TestReversibleImageSplit:
         )
         assert split.status_code == 200
         children = split.json()["children"]
-        assert [child["bbox"] for child in children] == [[0, 0, 40, 50], [40, 0, 40, 50]]
+        # Left and right halves of an 80x50 source, as fractions.
+        assert [child["region_in_parent"]["rect"] for child in children] == [
+            [0.0, 0.0, 0.5, 1.0],
+            [0.5, 0.0, 0.5, 1.0],
+        ]
         assert all(child["metadata"]["derived_from"] == source.id for child in children)
-        assert all(child["metadata"]["source_bbox"] == child["bbox"] for child in children)
+        # `source_bbox` is gone — it duplicated the geometry verbatim, which
+        # is how one fact came to have three spellings.
+        assert all("source_bbox" not in child["metadata"] for child in children)
         assert db.get(Document, source.id).model_dump(mode="json") == source_before
 
         unsplit = client.post(f"/api/images/{source.id}/unsplit")
@@ -332,7 +343,11 @@ class TestReversibleImageSplit:
 
         split = client.post(f"/api/images/{source.id}/split", json={})
         assert split.status_code == 200
-        assert [child["bbox"][2] for child in split.json()["children"]] == [600, 600]
+        # The detector splits a 1200-wide scan down the middle: each half is
+        # exactly 0.5 of the parent's width.
+        assert [
+            child["region_in_parent"]["rect"][2] for child in split.json()["children"]
+        ] == [0.5, 0.5]
 
     def test_split_rejects_empty_and_overlapping_regions(self, client, db, tmp_path):
         source = _make_image_doc(db, tmp_path)
@@ -358,7 +373,8 @@ class TestReversibleImageCrop:
         )
         assert cropped.status_code == 200
         child = cropped.json()["child"]
-        assert child["bbox"] == [10, 15, 50, 40]
+        # 100x80 source.
+        assert child["region_in_parent"]["rect"] == [10 / 100, 15 / 80, 50 / 100, 40 / 80]
         assert child["metadata"]["derived_from"] == source.id
         assert db.get(Document, source.id).model_dump(mode="json") == source_before
 
