@@ -29,6 +29,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero_server.db import Database, db_manager
+from fichero_server.db.node_levels import resolve_workflow_targets
 from fichero_server.histdate import parse_historical_date
 from fichero_server.llm import LLMConfig, chat_structured
 from fichero_server.models import Artifact, DocType, Document, Status
@@ -420,15 +421,17 @@ async def diary_entries(
     ).strip() or DEFAULT_PROTOTYPE_KEY
 
     raw_documents = inputs.get("documents") or state.get("documents") or []
+    # Resolve containers to the pages inside them (2026-08-22). Handed an
+    # OPENING, this tool used to treat the spread as a page: it transcribed two
+    # pages as one blob and anchored every entry to the spread's frame. A
+    # container is not a unit of work.
+    pages = resolve_workflow_targets(db, raw_documents)
     created: list[Document] = []
     lines: list[str] = []
     errors: list[str] = []
-    for raw in raw_documents:
-        doc_id = raw.get("id") if isinstance(raw, dict) else None
-        page = db.get(Document, doc_id) if doc_id else None
-        if page is None:
-            errors.append(f"document {doc_id!r} not found")
-            continue
+    if not pages and raw_documents:
+        errors.append(f"{len(raw_documents)} selected document(s) resolved to no pages")
+    for page in pages:
         try:
             entries = await split_page_into_entries(
                 db, page, llm_config, prototype_key=prototype_key
