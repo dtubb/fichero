@@ -140,6 +140,7 @@ struct CanvasSceneView: View {
             .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
+            .simultaneousGesture(doubleTapZoom)
             // Background tap clears — as a SIBLING gesture, not a separate
             // .onTapGesture on an outer wrapper: the wrapper's tap fired
             // ALONGSIDE the entity tap and instantly wiped the selection it
@@ -268,7 +269,29 @@ struct CanvasSceneView: View {
             .map { CanvasDropTarget(id: $0, kind: targetKind($0)) }
     }
 
+    /// Where double-click zoom returns to; nil = not zoomed into a node.
+    @State private var focusReturnSnapshot: (position: SIMD3<Float>, scale: Float)?
+
     // MARK: - Gestures
+
+    /// Double-click a card → fill the view with it; double-click again →
+    /// return to the exact prior pose (user, 2026-08-20). Simultaneous so the
+    /// first click still selects instantly.
+    private var doubleTapZoom: some Gesture {
+        TapGesture(count: 2)
+            .targetedToAnyEntity()
+            .onEnded { value in
+                let id = value.entity.name
+                guard !CanvasSelectionFrame.isDecoration(id), !id.isEmpty else { return }
+                if let snapshot = focusReturnSnapshot {
+                    renderer.restoreCamera(snapshot)
+                    focusReturnSnapshot = nil
+                } else {
+                    focusReturnSnapshot = renderer.cameraSnapshot()
+                    renderer.focusZoom(on: id)
+                }
+            }
+    }
 
     /// Tap a card → select it through the controller (writes `selectedNodeId`).
     private var tapSelect: some Gesture {

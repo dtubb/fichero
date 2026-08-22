@@ -179,6 +179,24 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         updateCamera()
     }
 
+    /// Camera pose for double-click zoom's return trip.
+    func cameraSnapshot() -> (lookAt: SIMD3<Float>, distance: Float) {
+        (lookAt, distance)
+    }
+
+    func restoreCamera(_ snapshot: (lookAt: SIMD3<Float>, distance: Float)) {
+        lookAt = snapshot.lookAt
+        setDistance(snapshot.distance)
+    }
+
+    /// Double-click: close in on ONE card; double-click again returns (user,
+    /// 2026-08-20). Distance = the legibility floor with breathing room.
+    func focusZoom(on id: String) {
+        guard let placeable = placeablesById[id] else { return }
+        lookAt = Canvas3DProjection.scenePosition(placeable.position)
+        setDistance(CanvasZoomRange.minDistance(itemExtent: Self.itemExtent) * 1.8)
+    }
+
     func setDistance(_ value: Float) {
         // #4411: was clamped to a fixed 2.2…16 — about 7x, which is neither
         // enough to read a page nor enough to see a whole arrangement. The

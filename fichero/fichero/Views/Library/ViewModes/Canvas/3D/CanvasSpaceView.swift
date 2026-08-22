@@ -121,6 +121,7 @@ struct CanvasSpaceView: View {
             }
             .highPriorityGesture(nodeDrag)
             .highPriorityGesture(tapSelect)
+            .simultaneousGesture(doubleTapZoom)
             // Sibling background-clear tap — same fix as the 2D canvas: an
             // outer .onTapGesture fired alongside the entity tap and wiped
             // the selection it had just made.
@@ -273,6 +274,27 @@ struct CanvasSpaceView: View {
     }
 
     // MARK: - Gestures
+
+    /// Where double-click zoom returns to; nil = not zoomed into a node.
+    @State private var focusReturnSnapshot: (lookAt: SIMD3<Float>, distance: Float)?
+
+    /// Double-click a card → close in on it; again → the prior pose (user,
+    /// 2026-08-20). Simultaneous so the first click still selects.
+    private var doubleTapZoom: some Gesture {
+        TapGesture(count: 2)
+            .targetedToAnyEntity()
+            .onEnded { value in
+                let id = value.entity.name
+                guard !id.isEmpty else { return }
+                if let snapshot = focusReturnSnapshot {
+                    renderer.restoreCamera(snapshot)
+                    focusReturnSnapshot = nil
+                } else {
+                    focusReturnSnapshot = renderer.cameraSnapshot()
+                    renderer.focusZoom(on: id)
+                }
+            }
+    }
 
     private var tapSelect: some Gesture {
         TapGesture()

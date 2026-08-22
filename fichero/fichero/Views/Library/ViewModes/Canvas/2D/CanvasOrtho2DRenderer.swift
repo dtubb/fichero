@@ -137,6 +137,24 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         camera.position = SIMD3<Float>(point.x, point.y, camera.position.z)
     }
 
+    /// Camera pose for double-click zoom's return trip.
+    func cameraSnapshot() -> (position: SIMD3<Float>, scale: Float) {
+        (camera.position, orthoScale)
+    }
+
+    func restoreCamera(_ snapshot: (position: SIMD3<Float>, scale: Float)) {
+        camera.position = snapshot.position
+        setOrthoScale(snapshot.scale)
+    }
+
+    /// Double-click: fill the view with ONE card (user, 2026-08-20:
+    /// "double-click zooms node to full screen, double-click again zooms
+    /// back"). Scale from the card cell, same basis fit() uses for the board.
+    func focusZoom(on id: String) {
+        focus(on: id)
+        setOrthoScale(Float(CanvasGridPlacement.cellHeight) * 0.7)
+    }
+
     func fit() {
         let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
         guard !points.isEmpty else {
