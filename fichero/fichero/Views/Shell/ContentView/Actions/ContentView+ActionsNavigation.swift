@@ -170,13 +170,71 @@ extension ContentView {
     /// current folder's sort order. Wraps with a small easeInOut animation so
     /// the EditorView's `.transition(.opacity)` produces a crossfade instead
     /// of a hard cut.
+
+    /// Sidebar-scoped stepping (Daniel, 2026-08-21): with MULTIPLE sidebar
+    /// rows selected, ←/→ rotates within that selection (wrap-around); the
+    /// walk works whether or not the library pane has focus, because it rides
+    /// the same notification the swipe posts. Returns true when it consumed
+    /// the step.
+    private func stepWithinSidebarSelection(forward: Bool, from current: Document) -> Bool {
+        let selectedDocIds = sidebarSelectionState.selectedDestinations.compactMap { dest -> String? in
+            if case .document(let id) = dest { return id }
+            return nil
+        }
+        guard selectedDocIds.count > 1, selectedDocIds.contains(current.id) else { return false }
+        let pool = documentStore.currentDocuments
+            + documentStore.collections
+            + documentStore.childrenCache.values.flatMap { $0 }
+        var docsById: [String: Document] = [:]
+        for doc in pool where docsById[doc.id] == nil { docsById[doc.id] = doc }
+        let members = displayOrdered(
+            selectedDocIds.compactMap { docsById[$0] },
+            folderId: current.parentId
+        )
+        guard members.count > 1,
+              let idx = members.firstIndex(where: { $0.id == current.id }) else { return false }
+        let target = members[(idx + (forward ? 1 : members.count - 1)) % members.count]
+        NavTrace.log("stepWithinSidebarSelection", "\(current.id) → \(target.id)")
+        withAnimation(.easeInOut(duration: 0.2)) {
+            detailDocument = target
+            browserSelection = [target.id]
+        }
+        return true
+    }
+
+    /// The "single sidebar file" fallback (Daniel, 2026-08-21: "it should
+    /// swipe to next file in sidebar. right now it does nothing"): the doc's
+    /// siblings were never loaded into any cache the sync walk can see, so
+    /// fetch the parent's children once and re-step.
+    private func stepViaFetchedSiblings(forward: Bool, from current: Document) {
+        guard let parentId = current.parentId else { return }
+        Task { @MainActor in
+            let kids = displayOrdered(
+                await documentStore.children(of: parentId)
+                    .filter { $0.docType != .folder },
+                folderId: parentId
+            )
+            guard let idx = kids.firstIndex(where: { $0.id == current.id }) else { return }
+            let next = idx + (forward ? 1 : -1)
+            guard kids.indices.contains(next) else { return }
+            let target = kids[next]
+            NavTrace.log("stepViaFetchedSiblings", "\(current.id) → \(target.id)")
+            withAnimation(.easeInOut(duration: 0.2)) {
+                detailDocument = target
+                browserSelection = [target.id]
+            }
+        }
+    }
+
     func navigateSiblingPrevious() {
         guard let current = detailDocument else { return }
         if isPlainFolder(current) {
             navigateIntoFolder(current, forward: false)
             return
         }
+        if stepWithinSidebarSelection(forward: false, from: current) { return }
         let docs = navigableSiblings(for: current)
+        if docs.count <= 1 { stepViaFetchedSiblings(forward: false, from: current); return }
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
         let target = docs[idx - 1]
         NavTrace.log("navigateSiblingPrevious", "\(current.id) → \(target.id)")
@@ -194,7 +252,9 @@ extension ContentView {
             navigateIntoFolder(current, forward: true)
             return
         }
+        if stepWithinSidebarSelection(forward: true, from: current) { return }
         let docs = navigableSiblings(for: current)
+        if docs.count <= 1 { stepViaFetchedSiblings(forward: true, from: current); return }
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }
         let target = docs[idx + 1]
         NavTrace.log("navigateSiblingNext", "\(current.id) → \(target.id)")

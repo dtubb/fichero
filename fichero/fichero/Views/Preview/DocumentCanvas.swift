@@ -164,7 +164,11 @@ private struct StorageDisplayImageCanvas: View {
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .overlay(alignment: .bottom) {
+                        // TOP, not bottom (Daniel, 2026-08-20: "the showing
+                        // thumbnails replaces the bottom bar — that's not
+                        // good"): the pane's mini toolbar owns the bottom
+                        // edge, and the capsule was sitting on top of it.
+                        .overlay(alignment: .top) {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle")
                                 Text("Showing thumbnail — original unavailable")
@@ -175,7 +179,7 @@ private struct StorageDisplayImageCanvas: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(.regularMaterial, in: Capsule())
-                            .padding(.bottom, 10)
+                            .padding(.top, 10)
                             .help(loadError.localizedDescription)
                         }
                 } else {

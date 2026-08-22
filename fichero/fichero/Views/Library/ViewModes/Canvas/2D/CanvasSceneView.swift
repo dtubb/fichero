@@ -162,7 +162,7 @@ struct CanvasSceneView: View {
                     // Mouse both verified against the ortho (x, −y)
                     // projection).
                     scrollPanCamera(
-                        by: CGSize(width: -delta.width, height: delta.height),
+                        by: CGSize(width: delta.width, height: delta.height),
                         in: geo.size
                     )
                 }, onZoom: { delta in

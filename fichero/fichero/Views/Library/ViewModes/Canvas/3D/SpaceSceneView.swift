@@ -81,7 +81,7 @@ struct SpaceSceneView: View {
     /// I/O sustains GPU/CPU load and was the prime suspect for the macOS
     /// WindowServer watchdog crashes. Beyond the cap we render a bounded prefix
     /// and surface a banner — never a runaway scene.
-    private let maxRenderedNodes = 1500
+    private let maxRenderedNodes = 10_000
 
     /// The bounded set actually placed in the scene. Backend order is
     /// preserved; relative geometry of the rendered subset is untouched

@@ -21,7 +21,10 @@ enum CanvasZoomRange {
     /// rather than a constant. Not zero — the camera must not enter or pass
     /// through the thing it is looking at.
     static func minDistance(itemExtent: Float) -> Float {
-        max(0.05, itemExtent * 0.6)
+        // 0.25× the item (was 0.6×): at 0.6 a handwritten page never filled
+        // the view — "can't zoom in enough in 3D" (Daniel, 2026-08-21). Still
+        // never zero: the camera must not enter the page.
+        max(0.02, itemExtent * 0.25)
     }
 
     /// Furthest retreat, in scene units.

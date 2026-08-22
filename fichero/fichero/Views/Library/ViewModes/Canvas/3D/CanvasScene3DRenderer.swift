@@ -170,7 +170,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         // must never lose the board) — mirror of the 2D camera clamp.
         let points = placeablesById.values.map { Canvas3DProjection.scenePosition($0.position) }
         if !points.isEmpty {
-            let margin: Float = max(distance, 4)
+            let margin: Float = max(distance * 0.5, 2)  // ~half a viewport (Daniel: one was too wide)
             let xCoords = points.map(\.x), yCoords = points.map(\.y), zCoords = points.map(\.z)
             lookAt.x = min(max(lookAt.x, xCoords.min()! - margin), xCoords.max()! + margin)
             lookAt.y = min(max(lookAt.y, yCoords.min()! - margin), yCoords.max()! + margin)
@@ -198,10 +198,24 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// A screen drag → a world delta in the camera's view plane, for dragging a
     /// card in 3D. ponytail: distance-scaled camera-plane heuristic (depth is the
     /// card's; exact feel is the calibration knob — tune with the flag on).
-    func worldDragDelta(screenTranslation: CGSize) -> SIMD3<Double> {
+    func worldDragDelta(screenTranslation: CGSize, moveInZ: Bool = false) -> SIMD3<Double> {
+        // Board-plane by DEFAULT: the raw camera basis carries a z component
+        // whenever the orbit is tilted, so plain drags drifted in depth and
+        // "popped back" on release. z moves only behind ⌥ (Daniel's ruling:
+        // "drag must move X/Y only, z locked behind a modifier").
         let speed = distance * 0.0022
-        let delta = (cameraRight * Float(screenTranslation.width) - cameraUp * Float(screenTranslation.height)) * speed
-        return SIMD3<Double>(Double(delta.x), Double(delta.y), Double(delta.z))
+        var right = cameraRight; right.z = 0
+        var up = cameraUp; up.z = 0
+        if simd_length(right) > 0.0001 { right = simd_normalize(right) }
+        if simd_length(up) > 0.0001 { up = simd_normalize(up) }
+        if moveInZ {
+            let planar = right * Float(screenTranslation.width) * speed
+            // Fingers up = toward the viewer (+z), matching the lift metaphor.
+            let depth = Double(-screenTranslation.height) * Double(speed)
+            return SIMD3<Double>(Double(planar.x), Double(planar.y), depth)
+        }
+        let delta = (right * Float(screenTranslation.width) - up * Float(screenTranslation.height)) * speed
+        return SIMD3<Double>(Double(delta.x), Double(delta.y), 0)
     }
 
     /// Move a card to a world position IN PLACE (visual-only, no diff) — live

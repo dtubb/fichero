@@ -58,7 +58,7 @@ struct CanvasSpaceView: View {
 
     /// Upper bound on entities placed at once (#1400 WindowServer watchdog): a
     /// large scope renders a bounded prefix + a banner, never a runaway scene.
-    private static let maxRenderedPlaceables = 1500
+    private static let maxRenderedPlaceables = 10_000
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 
@@ -137,7 +137,7 @@ struct CanvasSpaceView: View {
                 CanvasScrollPanView(onScroll: { delta in
                     // Raw-delta mapping (see CanvasScrollCaptureView) against
                     // the perspective camera's screen-delta convention.
-                    renderer.pan(byScreenDelta: CGSize(width: delta.width, height: -delta.height))
+                    renderer.pan(byScreenDelta: CGSize(width: delta.width, height: delta.height))
                 }, onZoom: { delta in
                     // ⌘ + two-finger drag zooms: scroll up = move closer,
                     // matching pinch. Same setter as pinch.
@@ -298,14 +298,16 @@ struct CanvasSpaceView: View {
                     controller?.dispatch(.dragBegan(id: id))
                 }
                 guard let start = dragStartWorld else { return }
-                let world = start + renderer.worldDragDelta(screenTranslation: value.translation)
+                let moveInZ = NSEvent.modifierFlags.contains(.option)
+                let world = start + renderer.worldDragDelta(screenTranslation: value.translation, moveInZ: moveInZ)
                 renderer.liveMove(id: id, toWorld: world)
                 renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
                 controller?.dispatch(.dragMoved(id: id, position: world))
             }
             .onEnded { value in
                 guard let id = draggingNodeId, let start = dragStartWorld else { return }
-                let world = start + renderer.worldDragDelta(screenTranslation: value.translation)
+                let moveInZ = NSEvent.modifierFlags.contains(.option)
+                let world = start + renderer.worldDragDelta(screenTranslation: value.translation, moveInZ: moveInZ)
                 renderer.setHoverTarget(nil)
                 let target = dropTarget(near: world, dragged: id)
                 let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []

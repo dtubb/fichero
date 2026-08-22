@@ -176,7 +176,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         // scroll so far that no card remains reachable.
         let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
         guard !points.isEmpty else { return }
-        let margin = orthoScale  // ~one viewport height of slack
+        let margin = orthoScale * 0.5  // ~half a viewport of slack (Daniel: one was too wide)
         let xCoords = points.map(\.x), yCoords = points.map(\.y)
         camera.position.x = min(max(camera.position.x, xCoords.min()! - margin), xCoords.max()! + margin)
         camera.position.y = min(max(camera.position.y, yCoords.min()! - margin), yCoords.max()! + margin)
