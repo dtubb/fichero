@@ -57641,6 +57641,11 @@
             "nullable": true,
             "title": "Derived From Rendition Id"
           },
+          "produced_from": {
+            "type": "string",
+            "nullable": true,
+            "title": "Produced From"
+          },
           "producer_run_id": {
             "type": "string",
             "nullable": true,
