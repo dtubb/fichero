@@ -60,7 +60,12 @@ def test_batch_crop_creates_one_child_per_image_and_undo_restores_all(
     assert {db.get(Document, child_id).derived_from for child_id in child_ids} == {
         source.id for source in sources
     }
-    assert all(db.get(Document, child_id).bbox == (10, 10, 50, 40) for child_id in child_ids)
+    # ONE geometry since 2026-08-21: normalized fractions of the parent's
+    # frame, not pixel ints. Source is 100x80, so (10,10,50,40) px is:
+    assert all(
+        db.get(Document, child_id).region_in_parent.rect == [0.1, 0.125, 0.5, 0.5]
+        for child_id in child_ids
+    )
     assert [db.get(Document, source.id).model_dump(mode="json") for source in sources] == source_rows
     assert [_hash(source) for source in sources] == source_hashes
 
@@ -86,7 +91,8 @@ def test_batch_split_dispatches_existing_split_primitive(client, db, batch_manag
     assert applied.status_code == 200
     child_id = applied.json()["items"][0]["inputs"]["child_ids"][0]
     assert db.get(Document, child_id).derived_from == source.id
-    assert db.get(Document, child_id).bbox == (0, 0, 100, 80)
+    # Whole 100x80 source -> the child fills its parent's frame.
+    assert db.get(Document, child_id).region_in_parent.rect == [0.0, 0.0, 1.0, 1.0]
 
 
 def test_batch_item_failure_isolated_to_bad_image(client, db, batch_manager):

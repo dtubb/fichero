@@ -28,6 +28,7 @@ from fichero_server.api.routes.workflow.batch import BatchResponse, get_batch_ma
 from fichero_server.api.routes.document.documents import _descendant_document_ids
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
+from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.execution.batch import BatchItemStatus, BatchStatus
 from fichero_server.db.storage import resolve_source
 # NOTE: apply_operation is imported inside the functions that render (#3985) and
@@ -623,7 +624,15 @@ def _create_segment_documents(
     doc: Document,
     page: int,
     segments: list[dict[str, Any]],
+    source_size: tuple[int, int],
 ) -> list[str]:
+    """Create one child per detected segment.
+
+    ``source_size`` is threaded in from the caller because the segmenter's
+    output carries only ``bbox``/``area``/``segment_type`` — no dimensions —
+    and a region cannot be normalized against a frame nobody named. Deriving
+    it here from the segments themselves would be a guess.
+    """
     child_ids: list[str] = []
     for index, segment in enumerate(segments, start=1):
         bbox = segment["bbox"]
@@ -634,13 +643,17 @@ def _create_segment_documents(
             name=f"{doc.name} segment {index}",
             path=doc.path,
             sequence=index,
-            bbox=(int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])),
+            region_in_parent=_region_in_parent(
+                (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])),
+                source_size[0],
+                source_size[1],
+                f"detected-{segment.get('segment_type', 'foreground')}",
+            ),
             metadata={
                 "source_document_id": doc.id,
                 "source_page": page,
                 "segment_type": segment.get("segment_type", "foreground"),
                 "segment_area": segment.get("area"),
-                "view_kind": "image_segment",
             },
             source_authority=doc.source_authority,
             source_metadata=doc.source_metadata,
@@ -690,6 +703,35 @@ def _archive_split_bboxes(image: Image.Image) -> list[tuple[int, int, int, int]]
     return [(0, 0, split_x, height), (split_x, 0, width - split_x, height)]
 
 
+def _region_in_parent(
+    bbox: tuple[int, int, int, int], width: int, height: int, method: str
+) -> NodeRegion | None:
+    """A pixel rect on the source, expressed as the child's region in it.
+
+    Converged with the staged-split path on 2026-08-21: both now record ONE
+    geometry, normalized fractions of the parent's frame, instead of the three
+    spellings that used to coexist (`Document.bbox` pixel ints,
+    `metadata["source_bbox"]`, and the sidecar's `region_on_original`).
+
+    `confidence` is MEASURED here, unlike a staged import: these rects come
+    from the actual image — a user's drag or a detected border — not from a
+    50/50 guess at where a fold might be.
+
+    Returns None when the source dimensions are unknown; a region against an
+    unrecorded frame is the original defect, so it is better left absent.
+    """
+    if width <= 0 or height <= 0:
+        return None
+    left, top, box_width, box_height = bbox
+    if box_width <= 0 or box_height <= 0:
+        return None
+    return NodeRegion(
+        rect=[left / width, top / height, box_width / width, box_height / height],
+        confidence=RegionConfidence.measured,
+        method=method,
+    )
+
+
 def split_image_impl(
     db: Database, source_id: str, request: ImageSplitRequest
 ) -> list[Document]:
@@ -698,10 +740,12 @@ def split_image_impl(
     if _split_children(db, source.id):
         raise HTTPException(status_code=409, detail="Source image already has split children")
 
+    # The source image is loaded even when bboxes were supplied, because the
+    # region can only be normalized against dimensions we actually know.
+    source_image = _load_source_image(_resolve_source_or_404(db, source))
     bboxes = request.bboxes
     if bboxes is None:
-        source_path = _resolve_source_or_404(db, source)
-        bboxes = _archive_split_bboxes(_load_source_image(source_path))
+        bboxes = _archive_split_bboxes(source_image)
 
     children: list[Document] = []
     for index, bbox in enumerate(bboxes, start=1):
@@ -712,12 +756,15 @@ def split_image_impl(
             name=f"{source.name} region {index}",
             path=source.path,
             sequence=index,
-            bbox=bbox,
+            region_in_parent=_region_in_parent(
+                bbox, source_image.width, source_image.height, "user-split"
+            ),
             metadata={
                 "derived_from": source.id,
+                # The discovery key for `_split_children`, and therefore for
+                # unsplit. Kept: `parent_id` alone cannot say a child came
+                # from a SPLIT rather than being an ordinary page.
                 "split_source_id": source.id,
-                "source_bbox": list(bbox),
-                "view_kind": "image_region",
             },
             source_authority=source.source_authority,
             source_metadata=source.source_metadata,
@@ -764,18 +811,19 @@ def crop_image_child_impl(
     """Reuse the crop edit-chain on a derived child, never on its source."""
     source = _validate_crop_bounds(db, source_id, request)
     bbox = (request.left, request.top, request.width, request.height)
+    source_image = _load_source_image(_resolve_source_or_404(db, source), page=request.page)
     child = Document(
         parent_id=source.id,
         doc_type=DocType.chunk,
         file_type=source.file_type,
         name=f"{source.name} crop",
         path=source.path,
-        bbox=bbox,
+        region_in_parent=_region_in_parent(
+            bbox, source_image.width, source_image.height, "user-crop"
+        ),
         metadata={
             "derived_from": source.id,
             "crop_source_id": source.id,
-            "source_bbox": list(bbox),
-            "view_kind": "image_crop",
         },
         source_authority=source.source_authority,
         source_metadata=source.source_metadata,
@@ -951,7 +999,9 @@ def segment_image_impl(
         "max_segments": request.max_segments,
     }
     segments = _segment_image(base, params)
-    child_ids = _create_segment_documents(db, doc, request.page, segments)
+    child_ids = _create_segment_documents(
+        db, doc, request.page, segments, (base.width, base.height)
+    )
     op = {
         "op": "segment",
         "page": request.page,
