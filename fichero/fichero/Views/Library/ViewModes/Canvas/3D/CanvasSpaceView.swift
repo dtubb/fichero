@@ -110,7 +110,7 @@ struct CanvasSpaceView: View {
     }
 
     private var scene: some View {
-        GeometryReader { _ in
+        GeometryReader { geo in
             RealityView { content in
                 content.add(renderer.camera)
                 content.add(renderer.root)
@@ -119,9 +119,20 @@ struct CanvasSpaceView: View {
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
                 renderer.reconcile(to: resolvedState)
             }
+            .highPriorityGesture(marqueeGesture(in: geo.size), isEnabled: marqueeModifiersHeld)
             .highPriorityGesture(nodeDrag)
             .highPriorityGesture(tapSelect)
             .simultaneousGesture(doubleTapZoom)
+            .overlay {
+                if let rect = marqueeScreenRect {
+                    Rectangle()
+                        .fill(Color.accentColor.opacity(0.12))
+                        .overlay(Rectangle().stroke(Color.accentColor, lineWidth: 1))
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                        .allowsHitTesting(false)
+                }
+            }
             // Sibling background-clear tap — same fix as the 2D canvas: an
             // outer .onTapGesture fired alongside the entity tap and wiped
             // the selection it had just made.
@@ -277,6 +288,41 @@ struct CanvasSpaceView: View {
 
     /// Where double-click zoom returns to; nil = not zoomed into a node.
     @State private var focusReturnSnapshot: (lookAt: SIMD3<Float>, distance: Float)?
+
+    /// ⇧⌥ rubber band (user, 2026-08-20). Screen-space: nodes whose projected
+    /// centers fall inside the rect join the selection through the SAME
+    /// SelectionGrammar.marquee path the 2D canvas uses.
+    @State private var marqueeStart: CGPoint?
+    @State private var marqueeScreenRect: CGRect?
+
+    private var marqueeModifiersHeld: Bool {
+        NSEvent.modifierFlags.contains(.shift) && NSEvent.modifierFlags.contains(.option)
+    }
+
+    private func marqueeGesture(in size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                if marqueeStart == nil { marqueeStart = value.startLocation }
+                guard let start = marqueeStart else { return }
+                marqueeScreenRect = CGRect(
+                    x: min(start.x, value.location.x),
+                    y: min(start.y, value.location.y),
+                    width: abs(value.location.x - start.x),
+                    height: abs(value.location.y - start.y)
+                )
+            }
+            .onEnded { _ in
+                defer { marqueeStart = nil; marqueeScreenRect = nil }
+                guard let rect = marqueeScreenRect, rect.width > 2, rect.height > 2 else { return }
+                let hits = renderer.screenPositions(in: size)
+                    .filter { rect.contains($0.value) }
+                    .map(\.key)
+                controller?.dispatch(.marquee(
+                    ids: Set(hits),
+                    modifiers: CanvasInteractionController.liveSelectionModifiers()
+                ))
+            }
+    }
 
     /// Double-click a card → close in on it; again → the prior pose (user,
     /// 2026-08-20). Simultaneous so the first click still selects.

@@ -282,6 +282,30 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         SIMD3<Float>(-sin(yaw) * sin(pitch), cos(pitch), -cos(yaw) * sin(pitch))
     }
 
+    /// Screen positions of every placeable — the ⇧⌥ marquee's hit metric
+    /// (user, 2026-08-20: "3D shift-option rubber band"). Manual perspective
+    /// projection from the camera basis; RealityView exposes no projector on
+    /// macOS. Vertical fov matches PerspectiveCamera's 60° default.
+    func screenPositions(in viewSize: CGSize) -> [String: CGPoint] {
+        guard viewSize.width > 0, viewSize.height > 0 else { return [:] }
+        let forward = simd_normalize(lookAt - camera.position)
+        let fovRadians: Float = 60 * .pi / 180
+        let focal = Float(viewSize.height) / (2 * tan(fovRadians / 2))
+        var out: [String: CGPoint] = [:]
+        for (id, placeable) in placeablesById {
+            let rel = Canvas3DProjection.scenePosition(placeable.position) - camera.position
+            let depth = simd_dot(rel, forward)
+            guard depth > 0.01 else { continue }  // behind the camera
+            let x = simd_dot(rel, cameraRight)
+            let y = simd_dot(rel, cameraUp)
+            out[id] = CGPoint(
+                x: CGFloat(Float(viewSize.width) / 2 + focal * x / depth),
+                y: CGFloat(Float(viewSize.height) / 2 - focal * y / depth)
+            )
+        }
+        return out
+    }
+
     private func updateCamera() {
         let offset = SIMD3<Float>(
             sin(yaw) * cos(pitch) * distance,
