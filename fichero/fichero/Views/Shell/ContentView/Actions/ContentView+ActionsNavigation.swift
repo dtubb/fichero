@@ -238,11 +238,7 @@ extension ContentView {
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
         let target = docs[idx - 1]
         NavTrace.log("navigateSiblingPrevious", "\(current.id) → \(target.id)")
-        withAnimation(.easeInOut(duration: 0.2)) {
-            detailDocument = target
-            browserSelection = [target.id]
-        }
-        prefetchAdjacentSiblingDisplays(around: idx - 1, in: docs)
+        commitSiblingStep(to: target, at: idx - 1, in: docs)
     }
 
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
@@ -258,11 +254,31 @@ extension ContentView {
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }
         let target = docs[idx + 1]
         NavTrace.log("navigateSiblingNext", "\(current.id) → \(target.id)")
-        withAnimation(.easeInOut(duration: 0.2)) {
-            detailDocument = target
-            browserSelection = [target.id]
+        commitSiblingStep(to: target, at: idx + 1, in: docs)
+    }
+
+    /// Commit a sibling step with the image READY (Daniel, 2026-08-21: "the
+    /// animation has to happen first, before the library or reader updates —
+    /// ideally all at the same time"). The display fetch gets a short head
+    /// start (a cache/prefetch hit resolves in a frame or two) so the page
+    /// transition and the selection change land together; an uncached page
+    /// commits after the cap anyway — navigation must never feel stuck.
+    private func commitSiblingStep(to target: Document, at index: Int, in docs: [Document]) {
+        let storage = storageService
+        Task { @MainActor in
+            let warm = Task { _ = try? await storage.getDisplayPlatformImage(target.id) }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { _ = await warm.value }
+                group.addTask { try? await Task.sleep(for: .milliseconds(140)) }
+                await group.next()
+                group.cancelAll()
+            }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                detailDocument = target
+                browserSelection = [target.id]
+            }
+            prefetchAdjacentSiblingDisplays(around: index, in: docs)
         }
-        prefetchAdjacentSiblingDisplays(around: idx + 1, in: docs)
     }
 
     /// ★ EVERY FRAME PERFECT: warm the display cache both directions around

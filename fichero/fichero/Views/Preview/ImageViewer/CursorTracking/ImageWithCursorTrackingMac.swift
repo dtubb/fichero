@@ -230,6 +230,14 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // Keep content centered when the viewport size changes.
         updateContentInsets(scrollView: scrollView, imageView: context.coordinator.imageView!)
 
+        // Re-measure the overlay geometry after every updateNSView pass that
+        // may have moved the fit: the boundsDidChange notification does NOT
+        // fire for the initial layout/auto-fit, so the overlay kept its
+        // mid-layout snapshot — boxes slightly off at fit, then EXACT the
+        // moment any zoom forced a re-measure (Daniel's 100%-vs-134%
+        // screenshot pair, 2026-08-21). Cheap: publishes only on change.
+        context.coordinator.updateVisibleRect()
+
         // Some first-paint paths reach here with a loaded image and real bounds
         // but without the reveal callback having fired yet. Reveal eagerly so
         // the image doesn't stay blank until the next interaction.
