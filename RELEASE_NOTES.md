@@ -2,6 +2,52 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.08.22
+
+The bounding-box build. A page's alternative pixels — archival original,
+contrast-enhanced, background-removed — are now first-class renditions:
+imported from staging sidecars, produced by the image workflows
+themselves, listed and served by the engine, and flipped in the preview
+with a vertical swipe (↑/↓ keys and chevrons too). Splits made in the
+app, by a workflow, or in staging all record one identical geometry, so
+"undo the split" is one mechanism and a box drawn on a part means the
+same thing everywhere.
+
+**Pending human acceptance:** the Marshall visual check — flip a spread
+between original / enhanced / split with word boxes showing, and the
+boxes stay on the words — has NOT yet been run. Everything below is
+verified in isolation; that flip is the acceptance test for this
+program and needs a live session.
+
+- Renditions: engine list + content routes; preview flip via vertical
+  swipe/↑↓/chevrons with a slide transition; indicator names the
+  rendition and marks cropped/deskewed frames.
+- Image workflows persist what they make: enhance, fuzzy-clean,
+  prepare, rotate, remove-background write renditions (never primary,
+  provenance-stamped); split/segment create child nodes with real
+  regions; a part that fails to store reaches the caller — no more
+  green ticks on runs that changed nothing.
+- One geometry: in-app crop/split/segment write region_in_parent with
+  measured confidence, converged with staged sidecars.
+- Preview: boxes exact at first fit and at zoom-out; boxes survive page
+  steps; tall pages fit both axes; page steps land with the image
+  ready; entry highlight is a soft wash behind the words; page arrows
+  on images match PDFs; fitted images no longer bounce under
+  two-finger swipes; pinch snaps to fit.
+- Canvas: ⌘-scroll and pinch zoom into the cursor; double-click zooms
+  a card to full view and back (context menu too); ⇧⌥ rubber-band in
+  3D; drag stays in the board plane with z behind ⌥; render cap
+  10,000; halved edge margins; empirical scroll-sign fixes.
+- Access: libraries survive relaunch (pre-auth grant race fixed);
+  link-mode imports ask to persist folder access; a failed original
+  prompts for its folder right in the preview; File ▸ Grant Folder
+  Access… for manual grants.
+- Artifacts: drag to Finder/apps exports text or .txt; drop on a
+  folder/library promotes to a provenance-stamped node; inspector rows
+  select on the name click.
+- Workflows: force-image-processing genuinely re-runs past the
+  skip-if-done cache; transcription geometry survives page steps.
+
 ## 2026.08.20
 
 ### Dev build
