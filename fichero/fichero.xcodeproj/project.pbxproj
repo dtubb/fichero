@@ -7,13 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1BA06929DF97011400AAC71A /* CanvasKeyboardNav.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78A8FF8BE8002154274B11CA /* CanvasKeyboardNav.swift */; };
-		2AA74E9F0D6667C0DE8C2005 /* CanvasSceneView+Camera.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8B68D6F1B05B34933F3BC1 /* CanvasSceneView+Camera.swift */; };
-		6C06A0972001E086021EA42A /* CanvasScene3DRenderer+Thumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFAA4F637825259B1905F947 /* CanvasScene3DRenderer+Thumbnails.swift */; };
 		A18ED3AB2F13E313007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		A18ED3F22F141DFE007C2C6E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 		C10000020000000000000001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = C10000310000000000000001 /* Sparkle */; };
-		D72DE5EA7E66F0CFE794F3CD /* DocumentService+Listing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */; };
 		FEED0000000000000000024E /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3AA2F13E313007C2C6E /* FicheroAPIClient */; };
 		FEED0000000000000000024F /* FicheroAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = A18ED3F12F141DFE007C2C6E /* FicheroAPIClient */; };
 /* End PBXBuildFile section */
@@ -70,20 +66,16 @@
 
 /* Begin PBXFileReference section */
 		100 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "DocumentService+Listing.swift"; sourceTree = "<group>"; };
 		208ADA993022008200B83F96 /* FicheroIOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		78A8FF8BE8002154274B11CA /* CanvasKeyboardNav.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CanvasKeyboardNav.swift; sourceTree = "<group>"; };
 		A10521A92EFDC92400B28C3E /* FicheroTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10521C12EFDC94100B28C3E /* FicheroUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A16FDD632EFDCD17003296BF /* fichero-tests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-tests.xctestplan"; sourceTree = "<group>"; };
 		A16FDD642EFDCD17003296C0 /* fichero.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = fichero.xctestplan; sourceTree = "<group>"; };
 		A16FDD652EFDCD17003296C1 /* fichero-embedded.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-embedded.xctestplan"; sourceTree = "<group>"; };
 		A16FDD662EFDCD17003296C2 /* fichero-ipad.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = "fichero-ipad.xctestplan"; sourceTree = "<group>"; };
-		EE8B68D6F1B05B34933F3BC1 /* CanvasSceneView+Camera.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CanvasSceneView+Camera.swift"; sourceTree = "<group>"; };
 		FE1DAD000000000000000010 /* FicheroIPadTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FicheroIPadTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000260 /* Fichero.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Fichero.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEED00000000000000000262 /* Configs/Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Configs/Version.xcconfig; sourceTree = "<group>"; };
-		FFAA4F637825259B1905F947 /* CanvasScene3DRenderer+Thumbnails.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "CanvasScene3DRenderer+Thumbnails.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -194,7 +186,6 @@
 		35AF1B56C3E7D54AFDBA97B3 /* 3D */ = {
 			isa = PBXGroup;
 			children = (
-				FFAA4F637825259B1905F947 /* CanvasScene3DRenderer+Thumbnails.swift */,
 			);
 			path = 3D;
 			sourceTree = "<group>";
@@ -258,7 +249,6 @@
 		CC50A9D73FE68DD997A3DA1E /* 2D */ = {
 			isa = PBXGroup;
 			children = (
-				EE8B68D6F1B05B34933F3BC1 /* CanvasSceneView+Camera.swift */,
 			);
 			path = 2D;
 			sourceTree = "<group>";
@@ -266,7 +256,6 @@
 		CD1D1CBA46C8D4D56A56B144 /* Canvas */ = {
 			isa = PBXGroup;
 			children = (
-				78A8FF8BE8002154274B11CA /* CanvasKeyboardNav.swift */,
 				CC50A9D73FE68DD997A3DA1E /* 2D */,
 				35AF1B56C3E7D54AFDBA97B3 /* 3D */,
 			);
@@ -276,7 +265,6 @@
 		DF6A257394E7187A126884A6 /* Services */ = {
 			isa = PBXGroup;
 			children = (
-				1BB1543B7CE1FD58D69D1AA3 /* DocumentService+Listing.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1136,10 +1124,6 @@
 		FEED0000000000000000024D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			files = (
-				1BA06929DF97011400AAC71A /* CanvasKeyboardNav.swift in Sources */,
-				6C06A0972001E086021EA42A /* CanvasScene3DRenderer+Thumbnails.swift in Sources */,
-				2AA74E9F0D6667C0DE8C2005 /* CanvasSceneView+Camera.swift in Sources */,
-				D72DE5EA7E66F0CFE794F3CD /* DocumentService+Listing.swift in Sources */,
 			);
 		};
 /* End PBXSourcesBuildPhase section */

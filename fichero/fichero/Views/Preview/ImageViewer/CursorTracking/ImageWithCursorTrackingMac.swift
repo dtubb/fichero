@@ -418,26 +418,11 @@ extension ImageWithCursorTracking {
             coordinator.currentItemKey = itemKey
             if !urlChanged, !itemChanged, let old = coordinator.currentOverrideImage,
                old.size.width > 0, overrideImage.size.width > 0 {
-                let ratio = old.size.width / overrideImage.size.width
-                let preservedMagnification = scrollView.magnification * ratio
-                let visibleOrigin = scrollView.contentView.bounds.origin
-                PreviewSwapAnimation.runPending(on: imageView)
-                imageView.image = overrideImage
-                imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
-                coordinator.currentOverrideImage = overrideImage
-                Task { @MainActor in
-                    self.imageSize = overrideImage.size
-                }
-                scrollView.magnification = preservedMagnification
-                scrollView.contentView.scroll(
-                    to: NSPoint(x: visibleOrigin.x / ratio, y: visibleOrigin.y / ratio)
+                applySameItemPixelSwap(
+                    overrideImage, replacing: old,
+                    imageView: imageView, scrollView: scrollView,
+                    coordinator: coordinator
                 )
-                // The binding write lands a turn later — park the value so the
-                // magnification↔scale sync doesn't snap back to the stale scale.
-                coordinator.pendingProgrammaticScale = preservedMagnification
-                Task { @MainActor in
-                    self.scale = preservedMagnification
-                }
                 return
             }
             // Already-decoded override: apply synchronously, fit in the same
@@ -474,6 +459,37 @@ extension ImageWithCursorTracking {
             // page stays visible until the ready image swaps in fitted, in one
             // turn — no main-thread block, no wrong-magnification flash.
             loadImageAsync(url: url, into: imageView, scrollView: scrollView, coordinator: coordinator)
+        }
+    }
+
+    /// SAME item, new pixels — the hi-res upgrade: preserve the on-screen
+    /// view exactly (apparent size via the pixel-width ratio, scroll origin,
+    /// zoom ownership untouched). Extracted from `applyImageChangeIfNeeded`
+    /// for function_body_length.
+    private func applySameItemPixelSwap(
+        _ overrideImage: PlatformImage, replacing old: PlatformImage,
+        imageView: TrackingImageView, scrollView: NSScrollView,
+        coordinator: ImageWithCursorTrackingMacCoordinator
+    ) {
+        let ratio = old.size.width / overrideImage.size.width
+        let preservedMagnification = scrollView.magnification * ratio
+        let visibleOrigin = scrollView.contentView.bounds.origin
+        PreviewSwapAnimation.runPending(on: imageView)
+        imageView.image = overrideImage
+        imageView.frame = NSRect(origin: .zero, size: overrideImage.size)
+        coordinator.currentOverrideImage = overrideImage
+        Task { @MainActor in
+            self.imageSize = overrideImage.size
+        }
+        scrollView.magnification = preservedMagnification
+        scrollView.contentView.scroll(
+            to: NSPoint(x: visibleOrigin.x / ratio, y: visibleOrigin.y / ratio)
+        )
+        // The binding write lands a turn later — park the value so the
+        // magnification↔scale sync doesn't snap back to the stale scale.
+        coordinator.pendingProgrammaticScale = preservedMagnification
+        Task { @MainActor in
+            self.scale = preservedMagnification
         }
     }
 }

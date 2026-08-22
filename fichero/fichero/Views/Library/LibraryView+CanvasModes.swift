@@ -3,6 +3,12 @@ import SwiftUI
 
 // MARK: - Canvas & spatial view modes (#4192)
 
+extension Notification.Name {
+    /// Toggle zoom-to-card in whichever canvas is showing. `object` is the
+    /// spatial node id ("doc:<uuid>").
+    static let canvasFocusZoomToggle = Notification.Name("canvasFocusZoomToggle")
+}
+
 /// The two spatial view modes and the audited move their drags perform.
 ///
 /// Split out of `LibraryView` for `type_body_length`, which #4353's strict
@@ -45,6 +51,15 @@ extension LibraryView {
     @ViewBuilder
     private func canvasContextMenu() -> some View {
         if let doc = canvasMenuDocument {
+            // Touch-reachable twin of the canvas double-click (iPad has no
+            // double-click; the guardrail is right that the action must
+            // exist on a reachable route). Same toggle, same return trip.
+            Button("Zoom to Card") {
+                NotificationCenter.default.post(
+                    name: .canvasFocusZoomToggle, object: "doc:\(doc.id)"
+                )
+            }
+            Divider()
             documentContextMenu(for: doc)
         } else {
             Text("Select a card for its actions")

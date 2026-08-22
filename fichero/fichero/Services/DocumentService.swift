@@ -808,22 +808,18 @@ extension DocumentService {
         }
     }
 
-    /// Convert generated FileType to local FileType
+    /// Generated FileType → local FileType. A TABLE, not a switch: the
+    /// mapping is data (docx folds into word), and the cyclomatic rule is
+    /// right that a 12-way switch reads as logic it isn't.
+    private static let fileTypeMap: [Components.Schemas.FileType: FileType] = [
+        .image: .image, .pdf: .pdf, .text: .text, .word: .word,
+        .docx: .word, .audio: .audio, .video: .video, .epub: .epub,
+        .spreadsheet: .spreadsheet, .presentation: .presentation,
+        .other: .other
+    ]
+
     private func convertFromGeneratedFileType(_ fileType: Components.Schemas.FileType?) -> FileType? {
-        guard let fileType = fileType else { return nil }
-        switch fileType {
-        case .image: return .image
-        case .pdf: return .pdf
-        case .text: return .text
-        case .word: return .word
-        case .docx: return .word  // docx is a Word variant
-        case .audio: return .audio
-        case .video: return .video
-        case .epub: return .epub
-        case .spreadsheet: return .spreadsheet
-        case .presentation: return .presentation
-        case .other: return .other
-        }
+        fileType.flatMap { Self.fileTypeMap[$0] }
     }
 
     /// Convert generated Status to local Status

@@ -151,8 +151,8 @@ final class RenditionService {
                 .init(path: .init(documentId: documentId, renditionId: renditionId))
             )
         switch response {
-        case .ok(let ok):
-            let body = try ok.body.image_Ast_
+        case .ok(let okResponse):
+            let body = try okResponse.body.image_Ast_
             // 128MB: archival TIFF-derived renditions run large; the display
             // path's cap is sized for JPEGs and would truncate them.
             let data = try await Data(collecting: body, upTo: 128 * 1024 * 1024)

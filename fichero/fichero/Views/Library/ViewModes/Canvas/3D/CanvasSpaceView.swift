@@ -45,16 +45,16 @@ struct CanvasSpaceView: View {
     /// LibraryView. `(nodeId, containerNodeId)`.
     var moveIntoContainer: (String, String) -> Void = { _, _ in }
 
-    @Environment(\.undoManager) private var undoManager
+    @Environment(\.undoManager) var undoManager
 
-    @State private var renderer = CanvasScene3DRenderer()
-    @State private var controller: CanvasInteractionController?
+    @State var renderer = CanvasScene3DRenderer()
+    @State var controller: CanvasInteractionController?
     @State private var cameraBaseline: CGSize = .zero
     @State private var zoomBaseline: Float = 0
-    @State private var optionHeld = false
+    @State var optionHeld = false
 
-    @State private var draggingNodeId: String?
-    @State private var dragStartWorld: SIMD3<Double>?
+    @State var draggingNodeId: String?
+    @State var dragStartWorld: SIMD3<Double>?
 
     /// Upper bound on entities placed at once (#1400 WindowServer watchdog): a
     /// large scope renders a bounded prefix + a banner, never a runaway scene.
@@ -123,6 +123,10 @@ struct CanvasSpaceView: View {
             .highPriorityGesture(nodeDrag)
             .highPriorityGesture(tapSelect)
             .simultaneousGesture(doubleTapZoom)
+            .onReceive(NotificationCenter.default.publisher(for: .canvasFocusZoomToggle)) { note in
+                guard let id = note.object as? String else { return }
+                toggleFocusZoom(on: id)
+            }
             .overlay {
                 if let rect = marqueeScreenRect {
                     Rectangle()
@@ -279,7 +283,7 @@ struct CanvasSpaceView: View {
         return containerIds.contains(id) ? .container : .leaf
     }
 
-    private func dropTarget(near world: SIMD3<Double>, dragged: String) -> CanvasDropTarget? {
+    func dropTarget(near world: SIMD3<Double>, dragged: String) -> CanvasDropTarget? {
         renderer.dropTargetId(nearWorld: world, excluding: dragged)
             .map { CanvasDropTarget(id: $0, kind: targetKind($0)) }
     }
@@ -287,109 +291,13 @@ struct CanvasSpaceView: View {
     // MARK: - Gestures
 
     /// Where double-click zoom returns to; nil = not zoomed into a node.
-    @State private var focusReturnSnapshot: (lookAt: SIMD3<Float>, distance: Float)?
+    @State var focusReturnSnapshot: (lookAt: SIMD3<Float>, distance: Float)?
 
     /// ⇧⌥ rubber band (user, 2026-08-20). Screen-space: nodes whose projected
     /// centers fall inside the rect join the selection through the SAME
     /// SelectionGrammar.marquee path the 2D canvas uses.
-    @State private var marqueeStart: CGPoint?
-    @State private var marqueeScreenRect: CGRect?
-
-    private var marqueeModifiersHeld: Bool {
-        NSEvent.modifierFlags.contains(.shift) && NSEvent.modifierFlags.contains(.option)
-    }
-
-    private func marqueeGesture(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 4)
-            .onChanged { value in
-                if marqueeStart == nil { marqueeStart = value.startLocation }
-                guard let start = marqueeStart else { return }
-                marqueeScreenRect = CGRect(
-                    x: min(start.x, value.location.x),
-                    y: min(start.y, value.location.y),
-                    width: abs(value.location.x - start.x),
-                    height: abs(value.location.y - start.y)
-                )
-            }
-            .onEnded { _ in
-                defer { marqueeStart = nil; marqueeScreenRect = nil }
-                guard let rect = marqueeScreenRect, rect.width > 2, rect.height > 2 else { return }
-                let hits = renderer.screenPositions(in: size)
-                    .filter { rect.contains($0.value) }
-                    .map(\.key)
-                controller?.dispatch(.marquee(
-                    ids: Set(hits),
-                    modifiers: CanvasInteractionController.liveSelectionModifiers()
-                ))
-            }
-    }
-
-    /// Double-click a card → close in on it; again → the prior pose (user,
-    /// 2026-08-20). Simultaneous so the first click still selects.
-    private var doubleTapZoom: some Gesture {
-        TapGesture(count: 2)
-            .targetedToAnyEntity()
-            .onEnded { value in
-                let id = value.entity.name
-                guard !id.isEmpty else { return }
-                if let snapshot = focusReturnSnapshot {
-                    renderer.restoreCamera(snapshot)
-                    focusReturnSnapshot = nil
-                } else {
-                    focusReturnSnapshot = renderer.cameraSnapshot()
-                    renderer.focusZoom(on: id)
-                }
-            }
-    }
-
-    private var tapSelect: some Gesture {
-        TapGesture()
-            .targetedToAnyEntity()
-            .onEnded { value in
-                let id = value.entity.name
-                controller?.dispatch(.tap(
-                    id: id.isEmpty ? nil : id,
-                    modifiers: CanvasInteractionController.liveSelectionModifiers()
-                ))
-            }
-    }
-
-    /// Drag a card in 3D: move it in the camera's view plane and persist a single
-    /// snapped row on release — same controller path as 2D, only the screen→world
-    /// conversion is 3D (camera-plane) instead of ortho.
-    private var nodeDrag: some Gesture {
-        DragGesture(minimumDistance: 2)
-            .targetedToAnyEntity()
-            .onChanged { value in
-                let id = value.entity.name
-                guard !id.isEmpty else { return }
-                if draggingNodeId == nil {
-                    draggingNodeId = id
-                    dragStartWorld = Canvas3DProjection.worldPosition(value.entity.position(relativeTo: nil))
-                    controller?.dispatch(.dragBegan(id: id))
-                }
-                guard let start = dragStartWorld else { return }
-                let moveInZ = NSEvent.modifierFlags.contains(.option)
-                let world = start + renderer.worldDragDelta(screenTranslation: value.translation, moveInZ: moveInZ)
-                renderer.liveMove(id: id, toWorld: world)
-                renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
-                controller?.dispatch(.dragMoved(id: id, position: world))
-            }
-            .onEnded { value in
-                guard let id = draggingNodeId, let start = dragStartWorld else { return }
-                let moveInZ = NSEvent.modifierFlags.contains(.option)
-                let world = start + renderer.worldDragDelta(screenTranslation: value.translation, moveInZ: moveInZ)
-                renderer.setHoverTarget(nil)
-                let target = dropTarget(near: world, dragged: id)
-                let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
-                controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
-                if target == nil {
-                    controller?.registerMoveUndo(id: id, origin: start, destination: world, undoManager: undoManager)
-                }
-                draggingNodeId = nil
-                dragStartWorld = nil
-            }
-    }
+    @State var marqueeStart: CGPoint?
+    @State var marqueeScreenRect: CGRect?
 
     /// Background drag: option-held → pan the look-at target; otherwise orbit.
     private var orbitOrPan: some Gesture {

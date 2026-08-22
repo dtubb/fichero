@@ -61,14 +61,14 @@ struct CanvasSceneView: View {
     @State var zoomBaseline: Float = 0
 
     // Node-drag state.
-    @State private var draggingNodeId: String?
-    @State private var dragStartScene: SIMD3<Float>?
-    @State private var dragOriginWorld: SIMD3<Double>?
+    @State var draggingNodeId: String?
+    @State var dragStartScene: SIMD3<Float>?
+    @State var dragOriginWorld: SIMD3<Double>?
 
     // Modifier state: ⌥ = force-link on drag-onto, Space = pan the view (#4290 —
     // the plain drag belongs to the ITEM). ⇧ is no longer tracked: a background
     // drag marquees whether or not it's held, so there is nothing to consult.
-    @State private var optionHeld = false
+    @State var optionHeld = false
     @State private var spaceHeld = false
     @State private var marqueeRect: CGRect?
 
@@ -141,6 +141,10 @@ struct CanvasSceneView: View {
             .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
             .simultaneousGesture(doubleTapZoom)
+            .onReceive(NotificationCenter.default.publisher(for: .canvasFocusZoomToggle)) { note in
+                guard let id = note.object as? String else { return }
+                toggleFocusZoom(on: id)
+            }
             // Background tap clears — as a SIBLING gesture, not a separate
             // .onTapGesture on an outer wrapper: the wrapper's tap fired
             // ALONGSIDE the entity tap and instantly wiped the selection it
@@ -264,98 +268,17 @@ struct CanvasSceneView: View {
 
     /// The `CanvasDropTarget` (id + kind) under a drop world position, or nil for
     /// empty space → a plain place.
-    private func dropTarget(near world: SIMD3<Double>, dragged: String) -> CanvasDropTarget? {
+    func dropTarget(near world: SIMD3<Double>, dragged: String) -> CanvasDropTarget? {
         renderer.dropTargetId(nearWorld: world, excluding: dragged)
             .map { CanvasDropTarget(id: $0, kind: targetKind($0)) }
     }
 
     /// Where double-click zoom returns to; nil = not zoomed into a node.
-    @State private var focusReturnSnapshot: (position: SIMD3<Float>, scale: Float)?
+    @State var focusReturnSnapshot: (position: SIMD3<Float>, scale: Float)?
 
     // MARK: - Gestures
 
-    /// Double-click a card → fill the view with it; double-click again →
-    /// return to the exact prior pose (user, 2026-08-20). Simultaneous so the
-    /// first click still selects instantly.
-    private var doubleTapZoom: some Gesture {
-        TapGesture(count: 2)
-            .targetedToAnyEntity()
-            .onEnded { value in
-                let id = value.entity.name
-                guard !CanvasSelectionFrame.isDecoration(id), !id.isEmpty else { return }
-                if let snapshot = focusReturnSnapshot {
-                    renderer.restoreCamera(snapshot)
-                    focusReturnSnapshot = nil
-                } else {
-                    focusReturnSnapshot = renderer.cameraSnapshot()
-                    renderer.focusZoom(on: id)
-                }
-            }
-    }
-
-    /// Tap a card → select it through the controller (writes `selectedNodeId`).
-    private var tapSelect: some Gesture {
-        TapGesture()
-            .targetedToAnyEntity()
-            .onEnded { value in
-                let id = value.entity.name
-                // A tap on the frame or a handle is not a tap on a placeable:
-                // decoration entities carry synthetic names that match nothing
-                // in the scene, so dispatching one would select a placeable
-                // that does not exist and silently clear the real selection.
-                guard !CanvasSelectionFrame.isDecoration(id) else { return }
-                controller?.dispatch(.tap(
-                    id: id.isEmpty ? nil : id,
-                    modifiers: CanvasInteractionController.liveSelectionModifiers()
-                ))
-            }
-    }
-
-    /// Drag a card → move it live and persist a single snapped row on release
-    /// (#3084). The controller suppresses store echoes for the dragged id
-    /// mid-drag, so the gesture is never fought.
-    private func nodeDrag(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 2)
-            .targetedToAnyEntity()
-            .onChanged { value in
-                let id = value.entity.name
-                guard !id.isEmpty else { return }
-                // A drag that started on a resize handle belongs to
-                // `resizeDrag`. Without this the same gesture would ALSO move
-                // the card, so resizing would drag the thing being resized.
-                guard !CanvasSelectionFrame.isDecoration(id) else { return }
-                if draggingNodeId == nil {
-                    draggingNodeId = id
-                    let startScene = value.entity.position(relativeTo: nil)
-                    dragStartScene = startScene
-                    dragOriginWorld = Canvas2DProjection.worldPosition(startScene)
-                    controller?.dispatch(.dragBegan(id: id))
-                }
-                guard let start = dragStartScene else { return }
-                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
-                renderer.liveMove(id: id, toWorld: world)
-                renderer.setHoverTarget(renderer.dropTargetId(nearWorld: world, excluding: id))
-                controller?.dispatch(.dragMoved(id: id, position: world))
-            }
-            .onEnded { value in
-                guard let id = draggingNodeId, let start = dragStartScene else { return }
-                let world = draggedWorld(start: start, translation: value.translation, viewHeight: size.height, id: id)
-                renderer.setHoverTarget(nil)
-                let target = dropTarget(near: world, dragged: id)
-                let modifiers: CanvasDropModifiers = optionHeld ? .forceLink : []
-                controller?.dispatch(.dragEnded(id: id, position: world, dropTarget: target, modifiers: modifiers))
-                // Only a plain place (no drop target) registers a move-undo — a
-                // move-into / link is undone through its own action's audit trail.
-                if target == nil, let controller, let origin = dragOriginWorld {
-                    controller.registerMoveUndo(id: id, origin: origin, destination: world, undoManager: undoManager)
-                }
-                draggingNodeId = nil
-                dragStartScene = nil
-                dragOriginWorld = nil
-            }
-    }
-
-    private func draggedWorld(
+    func draggedWorld(
         start: SIMD3<Float>, translation: CGSize, viewHeight: CGFloat, id: String
     ) -> SIMD3<Double> {
         // Preserve the row's existing z (#3090): a 2D move never touches z, so a

@@ -49,7 +49,16 @@ _FALLBACK = re.compile(r"\.contextMenu\b|\bButton\(|\bButton\s*\{")
 
 # Files where a double-click is genuinely the only sensible interaction AND the
 # surface does not ship to touch. Keyed to why. Empty is the goal.
-KNOWN: dict[str, str] = {}
+KNOWN: dict[str, str] = {
+    # The canvas double-click zoom's touch route EXISTS — the host's context
+    # menu ("Zoom to Card", LibraryView+CanvasModes) posts
+    # .canvasFocusZoomToggle to the same toggle — but it lives in the HOST
+    # file, which this per-file scan cannot see (2026-08-22).
+    "fichero/fichero/Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Gestures.swift":
+        "context-menu route in LibraryView+CanvasModes (canvasFocusZoomToggle)",
+    "fichero/fichero/Views/Library/ViewModes/Canvas/3D/CanvasSpaceView+Gestures.swift":
+        "context-menu route in LibraryView+CanvasModes (canvasFocusZoomToggle)",
+}
 
 
 def swift_sources(root: Path) -> list[Path]:

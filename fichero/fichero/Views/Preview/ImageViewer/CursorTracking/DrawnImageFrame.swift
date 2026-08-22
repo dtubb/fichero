@@ -21,7 +21,7 @@ enum DrawnImageFrame {
     @MainActor
     static func compute(scrollView: NSScrollView, imageView: NSView) -> CGRect? {
         var imageRect = imageView.bounds
-        if let iv = imageView as? NSImageView, let img = iv.image {
+        if let hostView = imageView as? NSImageView, let img = hostView.image {
             imageRect = aspectFitRect(of: img.size, in: imageRect)
         }
         let visible = scrollView.convert(imageRect, from: imageView)
