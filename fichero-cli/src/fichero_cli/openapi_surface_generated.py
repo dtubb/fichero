@@ -4163,6 +4163,7 @@ def register_generated_openapi_commands(
     def documents_get_children_get(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
         sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
@@ -4171,6 +4172,7 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/documents/{doc_id}/children"
             params = {
+                "level": level,
                 "limit": limit,
                 "sort_by": sort_by,
                 "sort_direction": sort_direction,

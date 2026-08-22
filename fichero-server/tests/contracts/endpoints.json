@@ -2767,6 +2767,11 @@
         ],
         "query_params": [
           {
+            "name": "level",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "limit",
             "required": false,
             "type": "integer"

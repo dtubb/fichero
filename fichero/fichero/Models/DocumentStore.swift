@@ -299,6 +299,15 @@ final class DocumentStore {
     /// engine.
     private(set) var listingSort: ListingSort?
 
+    /// Which TIER the grid shows — spreads as held, or the pages inside them
+    /// (2026-08-22). A diary folder legitimately holds openings AND pages that
+    /// were never split, so only the reader knows which they meant.
+    ///
+    /// The SIDEBAR does not use this: it is a tree browser and always shows
+    /// the structure as held, or the hierarchy would be invisible in the one
+    /// surface built to display it.
+    private(set) var libraryLevel: LibraryLevel = .gridDefault
+
     /// Point the store at a new server ordering and reload if the request
     /// actually changed. Returns whether a refetch happened.
     ///
@@ -311,6 +320,22 @@ final class DocumentStore {
     func setListingSort(_ sort: ListingSort?) async -> Bool {
         guard ListingSort.requiresRefetch(from: listingSort, to: sort) else { return false }
         listingSort = sort
+        await refresh()
+        return true
+    }
+
+    /// Point the grid at a different tier and reload.
+    ///
+    /// Always refetches, unlike `setListingSort`, because the tier changes
+    /// WHICH DOCUMENTS exist in the listing rather than their order — there is
+    /// no client-side rearrangement that could produce the other tier from
+    /// what is already loaded. The cache is cleared for the same reason: a
+    /// cached child list is a list of the OTHER tier's rows.
+    @discardableResult
+    func setLibraryLevel(_ level: LibraryLevel) async -> Bool {
+        guard level != libraryLevel else { return false }
+        libraryLevel = level
+        childrenCache.removeAll()
         await refresh()
         return true
     }
@@ -409,7 +434,9 @@ final class DocumentStore {
         do {
             let children = applyStatusOverrides(
                 try await fetchWithRetry {
-                    try await documentService.getChildren(document.id, sort: self.listingSort)
+                    try await documentService.getChildren(
+                        document.id, sort: self.listingSort, level: self.libraryLevel
+                    )
                 }
             )
             self.childrenCache[document.id] = children
@@ -477,7 +504,9 @@ final class DocumentStore {
         guard !pendingIds.isEmpty else { return }
 
         do {
-            let fresh = try await documentService.getChildren(parentId)
+            // Follows the grid's current tier: a refresh that silently
+            // changed level would be this morning's bug in miniature.
+            let fresh = try await documentService.getChildren(parentId, level: libraryLevel)
             let freshById = Dictionary(uniqueKeysWithValues: fresh.map { ($0.id, $0) })
 
             // Walk currentDocuments. For each pending row whose status
@@ -512,7 +541,7 @@ final class DocumentStore {
         }
 
         do {
-            let fresh = try await documentService.getChildren(documentId)
+            let fresh = try await documentService.getChildren(documentId, level: libraryLevel)
             childrenCache[documentId] = applyStatusOverrides(fresh)
             return childrenCache[documentId] ?? []
         } catch {
