@@ -138,10 +138,13 @@ struct CanvasSpaceView: View {
                     // Raw-delta mapping (see CanvasScrollCaptureView) against
                     // the perspective camera's screen-delta convention.
                     renderer.pan(byScreenDelta: CGSize(width: delta.width, height: delta.height))
-                }, onZoom: { delta in
-                    // ⌘ + two-finger drag zooms: scroll up = move closer,
-                    // matching pinch. Same setter as pinch.
-                    renderer.setDistance(renderer.currentDistance * Float(1 - delta * 0.005))
+                }, onZoom: { delta, anchor in
+                    // ⌘ + two-finger drag zooms INTO THE CURSOR: the look-at
+                    // shifts so the content under the pointer stays put as
+                    // the camera closes in.
+                    let oldDistance = renderer.currentDistance
+                    renderer.setDistance(oldDistance * Float(1 - delta * 0.005))
+                    renderer.shiftLookAtForCursorZoom(anchor: anchor, oldDistance: oldDistance)
                 })
                 .allowsHitTesting(false)
             }

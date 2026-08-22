@@ -198,6 +198,16 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// A screen drag → a world delta in the camera's view plane, for dragging a
     /// card in 3D. ponytail: distance-scaled camera-plane heuristic (depth is the
     /// card's; exact feel is the calibration knob — tune with the flag on).
+    /// Keep the content under the cursor fixed across a distance change:
+    /// world-per-point at the content plane scales with distance (the pan
+    /// speed's own constant), so the look-at shifts by the anchor times the
+    /// speed delta. `anchor` is the cursor's offset from view center, y-down.
+    func shiftLookAtForCursorZoom(anchor: CGPoint, oldDistance: Float) {
+        let dk = (oldDistance - distance) * 0.0022
+        lookAt += (cameraRight * Float(anchor.x) - cameraUp * Float(anchor.y)) * dk
+        updateCamera()
+    }
+
     func worldDragDelta(screenTranslation: CGSize, moveInZ: Bool = false) -> SIMD3<Double> {
         // Board-plane by DEFAULT: the raw camera basis carries a z component
         // whenever the orbit is tilted, so plain drags drifted in depth and

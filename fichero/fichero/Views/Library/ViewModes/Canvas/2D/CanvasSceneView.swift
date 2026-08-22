@@ -165,11 +165,24 @@ struct CanvasSceneView: View {
                         by: CGSize(width: delta.width, height: delta.height),
                         in: geo.size
                     )
-                }, onZoom: { delta in
-                    // ⌘ + two-finger drag zooms (user, 2026-08-20): scroll up
-                    // = zoom in, matching pinch. Same setter as pinch, so the
-                    // detail-tier gating stays consistent.
-                    renderer.setOrthoScale(renderer.orthoScale * Float(1 + delta * 0.005))
+                }, onZoom: { delta, anchor in
+                    // ⌘ + two-finger drag zooms INTO THE CURSOR (user,
+                    // 2026-08-20): the world point under the pointer stays
+                    // put while the scale changes — pan by the anchor times
+                    // the world-per-point change, same mapping the pan uses.
+                    let oldScale = renderer.orthoScale
+                    renderer.setOrthoScale(oldScale * Float(1 + delta * 0.005))
+                    let wppOld = Canvas2DProjection.worldPerPoint(
+                        orthoScale: oldScale, viewHeight: geo.size.height
+                    )
+                    let wppNew = Canvas2DProjection.worldPerPoint(
+                        orthoScale: renderer.orthoScale, viewHeight: geo.size.height
+                    )
+                    let factor = wppOld - wppNew
+                    renderer.panCamera(worldDelta: SIMD2<Float>(
+                        Float(anchor.x) * factor,
+                        -Float(anchor.y) * factor
+                    ))
                 })
                 .allowsHitTesting(false)
             }

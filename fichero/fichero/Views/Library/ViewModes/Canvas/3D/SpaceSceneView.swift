@@ -212,9 +212,11 @@ struct SpaceSceneView: View {
                 // Raw deltas invert both axes vs the old un-flipped feed.
                 panCameraIncrementally(by: CGSize(width: -delta.width, height: -delta.height))
                 persistViewport()
-            }, onZoom: { delta in
+            }, onZoom: { delta, _ in
                 // ⌘ + two-finger drag zooms (user, 2026-08-20): scroll up =
                 // move closer, matching the pinch gesture's distance model.
+                // Legacy SceneKit view: center-anchored (retired at #3087
+                // cutover; cursor anchoring lives in the RealityKit hosts).
                 cameraDistance = min(max(cameraDistance * (1 - delta * 0.005), 0.5), 60)
                 persistViewport()
             })

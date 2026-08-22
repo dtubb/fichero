@@ -26,7 +26,8 @@ struct CanvasScrollPanView: NSViewRepresentable {
     let onScroll: (CGSize) -> Void
     /// ⌘ + two-finger drag = zoom (user, 2026-08-20). Vertical delta only;
     /// positive = scroll up. Nil hosts keep panning under ⌘.
-    var onZoom: ((CGFloat) -> Void)?
+    /// (deltaY, cursor offset from the view CENTER in points, y-down).
+    var onZoom: ((CGFloat, CGPoint) -> Void)?
 
     func makeNSView(context: Context) -> NSView {
         let view = CanvasScrollCaptureView()
@@ -43,7 +44,8 @@ struct CanvasScrollPanView: NSViewRepresentable {
 
 final class CanvasScrollCaptureView: NSView {
     var onScroll: ((CGSize) -> Void)?
-    var onZoom: ((CGFloat) -> Void)?
+    /// (deltaY, cursor offset from the view CENTER in points, y-down).
+    var onZoom: ((CGFloat, CGPoint) -> Void)?
     private var monitor: Any?
 
     /// Transparent to every other input: this view exists only to receive
@@ -90,7 +92,17 @@ final class CanvasScrollCaptureView: NSView {
 
         guard deltaX != 0 || deltaY != 0 else { return }
         if event.modifierFlags.contains(.command), let onZoom {
-            if deltaY != 0 { onZoom(deltaY) }
+            if deltaY != 0 {
+                // Cursor offset from the view center, y-DOWN (screen sense) —
+                // the anchor for zoom-into-the-cursor (user, 2026-08-20:
+                // "pinch and ⌘-scroll zoom must zoom INTO THE CURSOR").
+                let local = convert(event.locationInWindow, from: nil)
+                let anchor = CGPoint(
+                    x: local.x - bounds.midX,
+                    y: (bounds.height - local.y) - bounds.height / 2
+                )
+                onZoom(deltaY, anchor)
+            }
             return
         }
         onScroll?(CGSize(width: deltaX, height: deltaY))
