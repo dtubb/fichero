@@ -1,4 +1,3 @@
-#if os(macOS)
 import CoreGraphics
 import Foundation
 import RealityKit
@@ -124,4 +123,3 @@ extension CanvasScene3DRenderer {
         camera.look(at: lookAt, from: camera.position, relativeTo: nil)
     }
 }
-#endif
