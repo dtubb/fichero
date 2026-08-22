@@ -104,11 +104,11 @@ extension CanvasScene3DRenderer {
             let rel = Canvas3DProjection.scenePosition(placeable.position) - camera.position
             let depth = simd_dot(rel, forward)
             guard depth > 0.01 else { continue }  // behind the camera
-            let x = simd_dot(rel, cameraRight)
-            let y = simd_dot(rel, cameraUp)
+            let lateral = simd_dot(rel, cameraRight)
+            let vertical = simd_dot(rel, cameraUp)
             out[id] = CGPoint(
-                x: CGFloat(Float(viewSize.width) / 2 + focal * x / depth),
-                y: CGFloat(Float(viewSize.height) / 2 - focal * y / depth)
+                x: CGFloat(Float(viewSize.width) / 2 + focal * lateral / depth),
+                y: CGFloat(Float(viewSize.height) / 2 - focal * vertical / depth)
             )
         }
         return out
