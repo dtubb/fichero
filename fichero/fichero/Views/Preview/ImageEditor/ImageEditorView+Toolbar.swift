@@ -15,6 +15,10 @@ extension ImageEditorView {
                     .accessibilityLabel("Edited — with all applied edits")
             }
             .pickerStyle(.segmented)
+            // labelsHidden, or macOS squeezes "Show image as" into a
+            // one-character column beside the segments — Daniel's unreadable
+            // "S h" (2026-08-21). Icons + help + accessibility carry it.
+            .labelsHidden()
             .frame(width: 64)
             .help(model.showEdited
                   ? "Showing edited version — click to compare original"
@@ -104,6 +108,7 @@ extension ImageEditorView {
                     .accessibilityLabel("Side-by-Side — original and edited in split view")
             }
             .pickerStyle(.segmented)
+            .labelsHidden()  // same one-character-column squeeze ("C o")
             .frame(width: 96)
             .help("Compare mode — Single view, Slider wipe, or Side-by-Side")
 
