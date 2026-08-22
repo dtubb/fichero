@@ -39,6 +39,14 @@ extension ZoomableImagePreview {
         if let img = newImg {
             image = img
             imageSize = img.size
+            // Boxes survive a page step (Daniel, 2026-08-21: "they should
+            // still be shown on the next page — you have to click to hide
+            // and show them again"): the geometry fetch racing the sibling
+            // swap can lose; once the new page's pixels are up, a missing
+            // geometry gets ONE reload rather than waiting for the toggle.
+            if ocrBoxesEnabled, ocrGeometry == nil {
+                Task { await loadOCRGeometry() }
+            }
         }
     }
 

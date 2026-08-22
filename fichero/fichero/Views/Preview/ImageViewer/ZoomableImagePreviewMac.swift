@@ -230,6 +230,7 @@ struct ZoomableImagePreview: View {
                             // rendition a different FRAME, which moves every
                             // box on the page.
                             overrideImage: renditionOverrideImage ?? renderedImage ?? highResImage,
+                            itemKey: documentId,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,

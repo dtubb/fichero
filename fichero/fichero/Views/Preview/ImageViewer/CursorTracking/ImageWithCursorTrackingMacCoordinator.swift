@@ -22,6 +22,10 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
     func isCurrentImageLoad(_ token: Int) -> Bool { token == imageLoadToken }
     /// Tracks the last override image set so we detect changes by identity (#1402).
     weak var currentOverrideImage: NSImage?
+    /// Item identity for the same-item-vs-new-item call in
+    /// `applyImageChangeIfNeeded` — `currentURL` is nil throughout rendered
+    /// mode, so it cannot make that call.
+    var currentItemKey: String?
     /// Visible window AND drawn image rect from ONE measurement pass.
     ///
     /// One callback, not two (2026-08-20 bbox review, D3): overlays frame to

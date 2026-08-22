@@ -13,6 +13,13 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     /// When non-nil, this image is used directly instead of loading from `url`.
     /// Enables editor mode where the canvas shows a backend-rendered preview (#1402).
     var overrideImage: PlatformImage?
+    /// Stable identity of the ITEM on screen. `url` is nil for every
+    /// backend-rendered preview, so URL comparison called a sibling step
+    /// "same item, new pixels" and preserved the previous page's WIDTH —
+    /// a tall page then overflowed vertically (Daniel, 2026-08-21: "it
+    /// doesn't scale to fit height, just width"). The width-preserving
+    /// branch is for the hi-res upgrade of the SAME item only.
+    var itemKey: String?
     @Binding var scale: CGFloat
     @Binding var cursorPosition: CGPoint  // Normalized 0-1 position in image
     @Binding var imageSize: CGSize
@@ -407,7 +414,9 @@ extension ImageWithCursorTracking {
             // URL is unchanged preserves the on-screen view instead: same
             // apparent size (magnification scaled by the pixel-width ratio),
             // same scroll position, zoom ownership untouched.
-            if !urlChanged, let old = coordinator.currentOverrideImage,
+            let itemChanged = itemKey != coordinator.currentItemKey
+            coordinator.currentItemKey = itemKey
+            if !urlChanged, !itemChanged, let old = coordinator.currentOverrideImage,
                old.size.width > 0, overrideImage.size.width > 0 {
                 let ratio = old.size.width / overrideImage.size.width
                 let preservedMagnification = scrollView.magnification * ratio
