@@ -273,6 +273,10 @@ def persist_workflow_child_regions(
         "children": [],
         "unmatched_sources": [],
         "skipped_no_region": 0,
+        # Parts whose bytes could not be stored. A failure here MUST reach the
+        # caller: a part that silently vanishes is a page the user cut and
+        # never got, reported as success.
+        "failed_outputs": [],
     }
 
     library_path = state.get("library_path") or inputs.get("library_path")
@@ -316,8 +320,14 @@ def persist_workflow_child_regions(
             try:
                 stored = _copy_to_library(Path(output), package_path)
             except Exception as exc:
+                # Routed into the report, not just logged. An only-log broad
+                # handler influences nothing downstream (#4395): the caller
+                # would report success while a cut page quietly went missing.
                 logger.warning(
                     "child region for %s: could not store %s (%s)", parent.id, output, exc
+                )
+                report["failed_outputs"].append(
+                    {"output": str(output), "parent_id": parent.id, "error": str(exc)}
                 )
                 continue
 
