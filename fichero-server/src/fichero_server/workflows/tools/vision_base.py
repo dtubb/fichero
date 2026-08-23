@@ -4081,12 +4081,30 @@ async def process_vision(
     # For single file, return the value directly; for multiple, return list
     single_value = values[0] if len(values) == 1 else values
 
+    # WHAT THIS RUN ACTUALLY DID (2026-08-23). The per-file skip-if-done path
+    # already recorded {"cached": True} and the artifact it reused; nothing
+    # aggregated it, so a node that reused everything reported the same bare
+    # "completed in 0ms" as a node that did the work in no time. Those are
+    # different facts and a reader could not tell them apart.
+    #
+    # A run has to be narratable from its log alone — Daniel re-ran a page,
+    # saw 0ms, and had no way to learn whether anything happened.
+    _reused = [r for r in results if isinstance(r, dict) and r.get("cached")]
+    _reused_artifacts = [
+        a for a in artifact_ids if a
+    ] if len(_reused) == len(results) and results else []
+
     return {
         "text": "\n\n".join(texts),
         "value": single_value,
         "texts": texts,
         "values": values,
         "results": results,
+        # Counts, not booleans: a partial reuse (3 of 5 pages cached) is the
+        # common shape and "cached: true/false" cannot express it.
+        "reused_count": len(_reused),
+        "processed_count": len(results) - len(_reused),
+        "reused_artifact_ids": _reused_artifacts,
         # Canonical records port for workflow edges (e.g.
         # transcribe.records -> extract_all.records). Keep the legacy
         # page_records key for callers that read it directly.
