@@ -13192,6 +13192,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         checkpoint_ns: Optional[str] = typer.Option(None, "--checkpoint-ns", help="Request field: checkpoint_ns."),
         force_new: Optional[bool] = typer.Option(None, "--force-new/--no-force-new", help="Request field: force_new."),
+        force_recompute: Optional[bool] = typer.Option(None, "--force-recompute/--no-force-recompute", help="Request field: force_recompute."),
         inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
         interrupt_after: Optional[str] = typer.Option(None, "--interrupt-after", help="Request field: interrupt_after."),
         interrupt_before: Optional[str] = typer.Option(None, "--interrupt-before", help="Request field: interrupt_before."),
@@ -13209,6 +13210,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "checkpoint_ns": checkpoint_ns,
                 "force_new": force_new,
+                "force_recompute": force_recompute,
                 "inputs": inputs,
                 "interrupt_after": interrupt_after,
                 "interrupt_before": interrupt_before,
@@ -13221,6 +13223,7 @@ def register_generated_openapi_commands(
             }, {
                 "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'default': '', 'x-cli-required': False},
                 "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
+                "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'default': False, 'x-cli-required': False},
                 "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'x-cli-required': False},
                 "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
                 "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},
