@@ -1131,6 +1131,20 @@ class MigrationRunner:
         )
 
         try:
+            # A library that never had a `notes` table at all — PRAGMA raises a
+            # CatalogException rather than returning empty, which would report
+            # this migration as FAILED when the honest answer is "completed,
+            # nothing to do". A no-op must not look like a fault.
+            table_exists = self.db.conn.execute(
+                "SELECT count(*) FROM information_schema.tables "
+                "WHERE table_name = 'notes'"
+            ).fetchone()[0]
+            if not table_exists:
+                result.status = MigrationStatus.completed
+                result.completed_at = utc_now()
+                result.details["reason"] = "no notes table in this library"
+                return result
+
             columns = {
                 row[1]
                 for row in self.db.conn.execute("PRAGMA table_info('notes')").fetchall()

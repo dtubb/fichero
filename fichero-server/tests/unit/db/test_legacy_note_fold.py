@@ -144,3 +144,18 @@ class TestRefusalsAndIdempotence:
             "SELECT count(*) FROM notes WHERE id = 'note-7'"
         ).fetchone()
         assert still_there[0] == 1
+
+
+class TestALibraryWithoutTheTable:
+    def test_a_missing_notes_table_is_completed_not_failed(self, db):
+        """PRAGMA raises a CatalogException on a table that never existed, so
+        the migration reported FAILED for a library that simply had nothing to
+        migrate. A no-op must not look like a fault — an operator reading a
+        migration report cannot tell the difference."""
+        db.conn.execute("DROP TABLE IF EXISTS notes")
+
+        result = MigrationRunner(db).migrate_legacy_notes_to_annotations()
+
+        assert result.status is MigrationStatus.completed
+        assert result.error_message is None
+        assert result.details["reason"] == "no notes table in this library"
