@@ -116,6 +116,10 @@ struct LibraryView: View {
     /// The data views' own selection numbers for the status line (nil in
     /// browse modes) — reported by DatasetModeView.
     @State var datasetSelectionStatus: DatasetSelectionStatus?
+    /// What a dataset renderer is SHOWING, in view order — what ⌘A covers in
+    /// those modes (Daniel, 2026-08-23: "visible surface, always"). Empty
+    /// outside them.
+    @State var datasetVisibleIds: [String] = []
 
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.

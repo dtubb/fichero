@@ -32,6 +32,12 @@ struct DatasetModeView: View {
     /// night: "select them, and then run svo on them"). Empty hides the menu.
     /// Feeds the pane's status line the DATASET's numbers and nouns.
     var onSelectionStatus: (DatasetSelectionStatus) -> Void = { _ in }
+    /// The rows this renderer is SHOWING, in view order — what ⌘A covers here.
+    /// Published upward for the same reason the selection is (Daniel,
+    /// 2026-08-23: "visible surface, always"): the dataset filters by date and
+    /// prototype in its own store, so the library's document list is not what
+    /// the user is looking at.
+    var onVisibleIds: ([String]) -> Void = { _ in }
     var workflows: [WorkflowSidebarItem] = []
     var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
@@ -101,10 +107,10 @@ struct DatasetModeView: View {
             else { return }
             onOpen(row)
         }
-        .onChange(of: store.dateFilter) { _, _ in reportSelectionStatus() }
-        .onChange(of: store.prototypeFilter) { _, _ in reportSelectionStatus() }
+        .onChange(of: store.dateFilter) { _, _ in reportVisible() }
+        .onChange(of: store.prototypeFilter) { _, _ in reportVisible() }
         .onChange(of: store.isLoading) { _, loading in
-            if !loading { reportSelectionStatus() }
+            if !loading { reportVisible() }
         }
         .task(id: refreshToken) {
             // Skip the mount tick — the folderId task above owns first load.
@@ -116,6 +122,14 @@ struct DatasetModeView: View {
             guard !Task.isCancelled else { return }
             await store.load(folderId: folderId, searchHitIds: searchHitIds, service: documentService)
         }
+    }
+
+    /// Status AND the visible-id list travel together: they answer the same
+    /// question ("what is this renderer showing?") and drifting apart would put
+    /// ⌘A and the status line on different row sets.
+    private func reportVisible() {
+        reportSelectionStatus()
+        onVisibleIds(store.orderedVisibleRows.map(\.id))
     }
 
     /// The dataset's numbers in the dataset's language: rows that carry

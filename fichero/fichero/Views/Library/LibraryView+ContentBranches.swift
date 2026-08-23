@@ -190,6 +190,7 @@ extension LibraryView {
                 // (debounced inside DatasetModeView).
                 refreshToken: documentStore.revision,
                 onSelectionStatus: { datasetSelectionStatus = $0 },
+                onVisibleIds: { datasetVisibleIds = $0 },
                 // Card selections run workflows through the SAME batch seam
                 // as the grid context menu (#3820 library binding), which is
                 // how "select entries, run SVO" works (2026-08-15 night).
