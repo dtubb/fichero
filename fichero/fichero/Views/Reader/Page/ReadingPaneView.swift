@@ -269,30 +269,41 @@ struct ReadingPaneView: View {
         if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
     }
 
+    /// Explicitly typed and extracted (2026-08-23 gate red): the combined
+    /// generic inference — key-paths-as-functions + three @ViewBuilder slots +
+    /// the Binding — collapsed the type checker at this call site ("failed to
+    /// produce diagnostic"). Bounded sub-expressions are the LibraryWindow.body
+    /// rule applied here.
+    private var readerSelector: PaneKindSelector<ReaderLens> {
+        PaneKindSelector(
+            kindTitle: "Reader",
+            kindIcon: "book",
+            lenses: ReaderLens.allCases,
+            lensTitle: { (lens: ReaderLens) in lens.title },
+            lensIcon: { (lens: ReaderLens) in lens.icon },
+            lens: readerLensBinding
+        )
+    }
+
+    private var publishedReaderLens: FocusedReaderLens {
+        FocusedReaderLens(
+            value: readerLensBinding.wrappedValue,
+            set: { readerLensBinding.wrappedValue = $0 }
+        )
+    }
+
     /// The pane's floating head (R1/R3/R5/R7).
     private var paneHead: some View {
         PaneHead(
             crumbs: readerCrumbs,
             onClose: (onClose != nil || splitAxisActions != nil) ? closePane : nil,
-            selector: {
-                PaneKindSelector(
-                    kindTitle: "Reader",
-                    kindIcon: "book",
-                    lenses: ReaderLens.allCases,
-                    lensTitle: \.title,
-                    lensIcon: \.icon,
-                    lens: readerLensBinding
-                )
-            },
+            selector: { readerSelector },
             controls: { EmptyView() },
             tools: { EmptyView() }
         )
         // The menu bar shows the SAME lens list, reading this publication —
         // one binding rendered twice, never a second switch (R3).
-        .focusedSceneValue(\.readerLens, FocusedReaderLens(
-            value: readerLensBinding.wrappedValue,
-            set: { readerLensBinding.wrappedValue = $0 }
-        ))
+        .focusedSceneValue(\.readerLens, publishedReaderLens)
     }
 
     /// The pane's title line IS its breadcrumb (R1), not "Reader" — and it is
