@@ -142,24 +142,26 @@ class NodeRegion(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
-    # OPEN QUESTION, filed for Daniel 2026-08-23 (workflow bbox audit).
-    #
-    # This has NO `rendition_id`, while `SourceAnchor` below has one AND a
-    # `rotation`. That asymmetry is deliberate and it is safe only while the
-    # rule holds: "same frame = rendition, different frame = node". If every
-    # rendition of a node shares its frame, normalized fractions are identical
-    # across all of them and naming one would be noise.
-    #
-    # The audit found the rule is not enforced. `rotate_images` and
-    # `auto_crop_border_images` persist RENDITIONS whose frame differs from the
-    # node's — a rotation swaps width and height, a crop removes borders — so
-    # "fractions of the parent" becomes ambiguous for a node that has both.
-    #
-    # Renditions now record `pixel_width`/`pixel_height` (they always had the
-    # fields; nothing filled them), so the invariant is at least CHECKABLE.
-    # Whether the answer is "regions name their rendition", "a reframing
-    # produces a node, not a rendition", or "renditions carry a transform back
-    # to the original frame" is a design call, not a worker's to make.
+    #: WHICH pixel frame ``rect`` was measured on. ``None`` means the node's
+    #: own original frame, which is what every row written before 2026-08-23
+    #: means and is correct for a pure resample.
+    #:
+    #: RESOLVED 2026-08-23 (Daniel). The audit filed this as an open question:
+    #: ``SourceAnchor`` named its rendition and ``NodeRegion`` did not, which
+    #: was safe only while "same frame = rendition" held — and `rotate_images`
+    #: and `auto_crop_border_images` already broke it.
+    #:
+    #: The ruling is that frames CHAIN: an image is cut to spreads, then to
+    #: pages, then rotated, deskewed, background-removed, enhanced, and only
+    #: then are diaries extracted from it. Every step in that chain is a new
+    #: frame, and a rect measured somewhere along it is meaningless without
+    #: saying WHERE. So a region names the rendition it was measured on, for
+    #: the same reason an anchor does.
+    #:
+    #: Optional, and it must stay optional: the alternative is guessing a
+    #: rendition for every existing row, which is the invented-frame defect
+    #: this whole program removed.
+    rendition_id: str | None = None
 
     #: ``[x, y, width, height]`` in the PARENT's frame.
     rect: list[float]

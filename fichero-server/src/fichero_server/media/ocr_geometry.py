@@ -108,6 +108,19 @@ class OCRGeometryResult(BaseModel):
     model: str | None = None
     boxes: list[OCRGeometryBox] = Field(default_factory=list)
     source: str | None = None
+    #: WHICH PICTURE these boxes were measured on (2026-08-23).
+    #:
+    #: The whole box set shares one frame, so the frame belongs here rather
+    #: than on each box. ``None`` means the document's own image, which is
+    #: what every result before entry-scoped runs means.
+    #:
+    #: When a tool runs on a region node it is handed that node's CROP, so its
+    #: boxes are fractions of the crop and NOT of the page. A renderer that
+    #: assumed otherwise would draw an entry's boxes across the whole page,
+    #: which looks like a plausible result rather than an obvious bug. Naming
+    #: the rendition is what lets the display side resolve them — through
+    #: ``region_math.rect_to_parent`` — instead of guessing.
+    rendition_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("text", mode="before")

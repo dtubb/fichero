@@ -21,13 +21,14 @@ from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
+    Note,
     ClaimRelationType,
     KnowledgeClaim,
     KnowledgeEntity,
     LibraryItemLink,
     LibraryItemType,
 )
-from fichero_server.models import Document, LibraryItemLinkListResponse, Note
+from fichero_server.models import Document, LibraryItemLinkListResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["library-links"])
@@ -36,6 +37,11 @@ router = APIRouter(tags=["library-links"])
 # Map typed item kinds to the Pydantic model used to validate existence.
 _MODEL_FOR_TYPE: dict[str, type[Any]] = {
     LibraryItemType.document.value: Document,
+    # `knowledge.Note` — the note people actually have. This used to point at
+    # `models.Note`, a DIFFERENT class of the same name whose rows share this
+    # table, and validating a real note through it raised a ValidationError:
+    # linking to a note could not succeed. The duplicate type is gone
+    # (2026-08-23); this is the one that was always meant.
     LibraryItemType.note.value: Note,
     LibraryItemType.entity.value: KnowledgeEntity,
     LibraryItemType.claim.value: KnowledgeClaim,

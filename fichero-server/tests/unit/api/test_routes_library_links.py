@@ -15,6 +15,7 @@ import fichero_server.api.routes.system.actions_registry  # noqa: F401
 from fichero_server.actions.registry import ActionContext
 from fichero_server.api.routes.system.actions_registry import undo_action
 from fichero_server.models.knowledge import (
+    Note,
     ClaimRelationType,
     KnowledgeClaim,
     KnowledgeClaimLink,
@@ -22,7 +23,7 @@ from fichero_server.models.knowledge import (
     LibraryItemLink,
     LibraryItemType,
 )
-from fichero_server.models import ActionAudit, Document, DocType, Note
+from fichero_server.models import ActionAudit, Document, DocType
 
 
 # ---------------------------------------------------------------------------
@@ -37,7 +38,14 @@ def _make_document(db, name: str = "Source") -> Document:
 
 
 def _make_note(db, target: Document) -> Note:
-    note = Note(target_type="Document", target_id=target.id, content="annotation")
+    """A `knowledge.Note` — the note people actually have.
+
+    This used to build a `models.Note`, and the route validated against that
+    same class, so the test agreed with itself while the real path was broken:
+    a genuine note has no `target_type`, so validating one through
+    `models.Note` raised. The duplicate type is gone (2026-08-23).
+    """
+    note = Note(title="annotation", body="annotation", linked_document_ids=[target.id])
     db.save(note)
     return note
 

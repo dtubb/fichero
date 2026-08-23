@@ -1190,53 +1190,23 @@ class Trace(BaseModel):
 # =============================================================================
 
 
-class Note(BaseModel):
-    """
-    User annotation on any object.
-
-    Can be attached to Documents or Artifacts.
-    Can have a position (bbox) for image annotations.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str = Field(default_factory=_new_id)
-
-    # Target
-    target_type: str  # "Document", "Artifact"
-    target_id: str
-
-    # Content
-    content: str
-    note_type: str = "comment"  # "comment", "question", "flag", "correction"
-
-    # Position (for image annotations)
-    # NOT MIGRATED TO `SourceAnchor` — deliberately blocked (2026-08-22).
-    #
-    # Every other bbox in this program has been consolidated. This one cannot
-    # be, because it is not clear it should exist at all: there are TWO live
-    # classes named `Note`, and they are different concepts.
-    #
-    #   fichero_server.models.Note        target_type / target_id / bbox
-    #   fichero_server.models.knowledge.Note   title / linked_document_ids
-    #
-    # They are not the same object (`models.Note is knowledge.Note` -> False),
-    # both are imported and used, and the name alone does not say which you
-    # get. THIS one — "user annotation on any object, with a position" — is
-    # very close to `Annotation`, which already carries a validated `anchor`.
-    #
-    # Measured 2026-08-22: this field has NO readers and no explicit writer;
-    # it can only be populated by a client payload through `Note(**payload)`.
-    #
-    # So the open question is not "what shape should this be" but "should this
-    # model exist, or is it Annotation under a second name". Renaming the
-    # field first would make that harder to see, and would spend a wire change
-    # on something that may be deleted. Left alone on purpose.
-    bbox: tuple[int, int, int, int] | None = None
-
-    # Timestamps
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+# `Note` LIVED HERE AND IS GONE (2026-08-23, Daniel's ruling).
+#
+# There were two live classes named `Note` — this one
+# (target_type / target_id / content / bbox) and `knowledge.Note`
+# (title / body / linked_document_ids). The table name is derived as
+# "lowercase + s", so BOTH claimed the table `notes`, and reading a real note
+# through this one raised a ValidationError. `routes/library/links.py` used it
+# to check a note exists before linking, so linking to a note could not
+# succeed. Nothing ever constructed it.
+#
+# It folded into `Annotation(kind=note)`, which already anchors to a document,
+# carries tags/links, and has a validated `anchor` where this had a bare pixel
+# `bbox`. Legacy rows are converted by
+# `MigrationRunner.migrate_legacy_notes_to_annotations`.
+#
+# Top-level note NODES remain `knowledge.Note`; annotations attach to
+# documents. Two concepts, two names, no collision.
 
 
 class DocumentNote(BaseModel):
