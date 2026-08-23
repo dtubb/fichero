@@ -72,8 +72,17 @@ struct ReadingPaneView: View {
     /// first" note is retired — the source lives in Preview, never here.
     @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.page.rawValue
     var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .page }
-    private var readerTabBinding: Binding<ReaderTab> {
-        Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
+    /// The pane head's lens — ONE user-facing value over the two internal
+    /// enums (R3). Setting it writes both, so the head, the menu bar and the
+    /// restored scene state cannot disagree about what is showing.
+    var readerLensBinding: Binding<ReaderLens> {
+        Binding(
+            get: { ReaderLens.lens(for: readerTab, representation: activeTab) },
+            set: { lens in
+                readerTabRaw = lens.tab.rawValue
+                if let representation = lens.representation { activeTab = representation }
+            }
+        )
     }
 
     var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
@@ -93,12 +102,6 @@ struct ReadingPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Shared top-tab chrome (Page/Knowledge/Notes) — the same
-            // SurfaceTabBar icon row the Inspector uses (#3530), fixed over the
-            // WebKit/native content beneath (reader IA fold, 2026-07-11).
-            SurfaceTabBar(tabs: ReaderTab.allCases, selection: readerTabBinding)
-            Divider()
-
             // In-reader find (#4338): the shared filter bar hosts the find
             // field — match count + prev/next drive the WebKit highlight. Its
             // edge is the component's ONE platform decision (#4362): top on the
@@ -109,6 +112,12 @@ struct ReadingPaneView: View {
             }
 
             readerTabContent
+                // R1/R7: the head floats OVER the content's top edge — no grey
+                // bar, content scrolls under. It replaces the Page/Knowledge/
+                // Notes SurfaceTabBar: those three are lenses now, alongside
+                // the five knowledge surfaces that were reachable only from the
+                // menu bar (Daniel, 2026-08-23).
+                .overlay(alignment: .top) { paneHead }
 
             if MiniToolbarPlacement.preferredForReader == .bottom {
                 PaneFilterBar(placement: .bottom) { readerFindBar }
@@ -259,4 +268,41 @@ struct ReadingPaneView: View {
     private func revealInTranscript() {
         if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
     }
+
+    /// The pane's floating head (R1/R3/R5/R7).
+    private var paneHead: some View {
+        PaneHead(
+            crumbs: readerCrumbs,
+            onClose: (onClose != nil || splitAxisActions != nil) ? closePane : nil,
+            selector: {
+                PaneKindSelector(
+                    kindTitle: "Reader",
+                    kindIcon: "book",
+                    lenses: ReaderLens.allCases,
+                    lensTitle: \.title,
+                    lensIcon: \.icon,
+                    lens: readerLensBinding
+                )
+            },
+            controls: { EmptyView() },
+            tools: { EmptyView() }
+        )
+        // The menu bar shows the SAME lens list, reading this publication —
+        // one binding rendered twice, never a second switch (R3).
+        .focusedSceneValue(\.readerLens, FocusedReaderLens(
+            value: readerLensBinding.wrappedValue,
+            set: { readerLensBinding.wrappedValue = $0 }
+        ))
+    }
+
+    /// The pane's title line IS its breadcrumb (R1), not "Reader".
+    ///
+    /// ponytail: document name today, ancestry when the shell publishes it —
+    /// Daniel's proxy-icon crumbs are a later slice, and half of them now would
+    /// be worse than one honest line.
+    private var readerCrumbs: [String] {
+        guard let document = effectiveDocument else { return [] }
+        return [document.name]
+    }
+
 }
