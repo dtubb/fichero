@@ -39,4 +39,18 @@ struct SidebarMultiSelectionScopeTests {
         #expect(!sidebarScopeExpandsToContents([page, image]))
         #expect(!sidebarScopeExpandsToContents([]))
     }
+
+    @Test("shown set is a SET: parent-and-child ⌘A keeps first occurrence only")
+    func dedupeKeepsFirstOccurrenceInOrder() {
+        // 2026-08-23 crash: ⌘A selects every visible sidebar row, so an
+        // expanded folder AND its child both contribute the child — the
+        // duplicate id trapped CanvasArrangement.slotIndices in 3D mode.
+        let child = Document(id: "d1", parentId: "f1", docType: .file, fileType: .image, name: "C.png")
+        let childAgain = Document(id: "d1", parentId: "f1", docType: .file, fileType: .image, name: "C.png")
+        let other = Document(id: "d2", docType: .file, fileType: .image, name: "D.png")
+        #expect(sidebarScopeDeduped([child, other, childAgain]).map(\.id) == ["d1", "d2"])
+        #expect(sidebarScopeDeduped([]).isEmpty)
+        // Unique input passes through untouched, order intact.
+        #expect(sidebarScopeDeduped([other, child]).map(\.id) == ["d2", "d1"])
+    }
 }
