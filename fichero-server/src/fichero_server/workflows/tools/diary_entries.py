@@ -28,6 +28,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database, db_manager
 from fichero_server.db.node_levels import resolve_workflow_targets
 from fichero_server.histdate import parse_historical_date
@@ -44,6 +45,14 @@ from fichero_server.workflows.types import DataType, PortDef, State
 logger = logging.getLogger(__name__)
 
 _DIARY_TOOL_KEY = "diary_entries_tool"
+
+#: Per-page counts from the most recent split, so the tool wrapper can
+#: say what it DID rather than only how many nodes exist now.
+_LAST_SPLIT_REPORT: dict[str, dict[str, int]] = {}
+
+#: Marks a soft-delete this tool performed, as opposed to a person's. Only the
+#: tool's own removals are resurrected when an entry reappears.
+_TOOL_REMOVED_KEY = "diary_entries_tool_removed"
 DEFAULT_PROTOTYPE_KEY = "diary_entry"
 
 _SYSTEM = (
@@ -361,6 +370,36 @@ def _region_union(
         return None
 
 
+
+def _entry_identity(iso: str | None, date_text: str, body: str) -> str:
+    """What makes two extractions "the same entry".
+
+    The DATE first: a diary entry is the day it describes, and the date is the
+    one thing a re-extraction reproduces reliably even when the transcript
+    wobbles. Body text is the fallback for undated entries, normalized so
+    whitespace and case changes between runs do not read as a different entry.
+    """
+    if iso:
+        return f"date:{iso}"
+    heading = " ".join(date_text.split()).casefold()
+    if heading:
+        return f"heading:{heading}"
+    return "body:" + " ".join(body.split()).casefold()[:120]
+
+
+def _entry_unchanged(node: Document, body: str, iso: str | None) -> bool:
+    """Whether re-extraction produced materially the same entry.
+
+    Region is deliberately NOT compared. A recomputed region can differ by a
+    pixel because the OCR ran again, and calling that "changed" would make
+    every re-run report churn it did not cause — which is the reporting
+    problem this work exists to fix.
+    """
+    same_body = " ".join((node.page_content or "").split()) == " ".join(body.split())
+    same_date = (node.attributes or {}).get("date") == iso
+    return same_body and same_date
+
+
 async def split_page_into_entries(
     db: Database,
     page: Document,
@@ -393,16 +432,91 @@ async def split_page_into_entries(
         else [None] * len(entries)
     )
 
-    # Idempotent re-run: this tool's previous children go, others stay.
+    # RE-RUN MATCHING (2026-08-23). This used to hard-delete every previous
+    # entry and recreate it, so a re-run that changed nothing still replaced
+    # every node with a new id — Daniel's "I saw no change" was true on screen
+    # while identity churned underneath, and any curation on an entry was
+    # destroyed. Verified: nothing restored it. Workflow runs write no
+    # ActionAudit and no MutationLog, and the "workflow snapshot" is the graph
+    # definition, not the data.
+    #
+    # So: match, reuse, update in place, and SOFT-delete what is genuinely gone.
+    existing_by_identity: dict[str, Document] = {}
+    existing_nodes: list[Document] = []
     for child in db.query(Document, parent_id=page.id) or []:
-        if (child.metadata or {}).get(_DIARY_TOOL_KEY):
-            db.delete(child)
+        if not (child.metadata or {}).get(_DIARY_TOOL_KEY):
+            continue
+        if child.deleted_at is not None:
+            # A previously soft-deleted entry is still MATCHABLE, but only if
+            # THIS TOOL removed it. LLM output flickers — an entry can vanish
+            # on one run and return on the next — and creating a fresh node on
+            # its return would lose the curation a second time, defeating the
+            # point of keeping the row. Resurrecting it restores the id and
+            # everything attached to it.
+            #
+            # A user's own deletion is NOT resurrected: they meant it, and a
+            # re-run that quietly undid a person's delete would be worse than
+            # a duplicate.
+            if not (child.metadata or {}).get(_TOOL_REMOVED_KEY):
+                continue
+        existing_nodes.append(child)
+        identity = _entry_identity(
+            (child.attributes or {}).get("date"),
+            str((child.metadata or {}).get("date_text") or ""),
+            child.page_content or "",
+        )
+        existing_by_identity.setdefault(identity, child)
 
     created: list[Document] = []
+    matched_ids: set[str] = set()
+    report = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
+
     for index, entry in enumerate(entries, start=1):
         iso = _normalized_iso(entry)
         region = _region_union(boxes, spans[index - 1], geometry_provider)
         body = _body_without_date_heading(entry.text, entry.date_text)
+
+        identity = _entry_identity(iso, entry.date_text, body)
+        prior = existing_by_identity.get(identity)
+        if prior is not None and prior.id not in matched_ids:
+            matched_ids.add(prior.id)
+            unchanged = _entry_unchanged(prior, body, iso)
+
+            # A REGION A PERSON PLACED OR CORRECTED SURVIVES RE-EXTRACTION.
+            # That is what RegionConfidence.user is for, and the old
+            # delete-and-recreate defeated it every run. Daniel's ruling: keep
+            # the correction even when the text around it changed.
+            keep_user_region = (
+                prior.region_in_parent is not None
+                and prior.region_in_parent.confidence is RegionConfidence.user
+            )
+            prior.page_content = body
+            prior.name = iso or entry.date_text.strip() or f"Entry {index}"
+            prior.sequence = index
+            prior.attributes = {"date": iso} if iso else {}
+            if not keep_user_region and region is not None:
+                prior.region_in_parent = region
+            # Back from the dead, if it had been removed by a previous run.
+            prior.deleted_at = None
+            prior.metadata = {
+                **(prior.metadata or {}),
+                _DIARY_TOOL_KEY: True,
+                _TOOL_REMOVED_KEY: False,
+                "source_document_id": page.id,
+                "source_document_name": page.name,
+                "date_text": entry.date_text,
+                "date_parsed": iso is not None,
+                "bbox_basis": (
+                    "user-corrected" if keep_user_region
+                    else ("ocr_geometry" if region else "none")
+                ),
+            }
+            db.save(prior)
+            created.append(prior)
+            report["unchanged" if unchanged else "updated"] += 1
+            continue
+
+        report["created"] += 1
         node = Document(
             parent_id=page.id,
             doc_type=DocType.file,
@@ -429,6 +543,22 @@ async def split_page_into_entries(
         )
         db.save(node)
         created.append(node)
+
+    # Entries the extraction no longer sees are SOFT-deleted (Daniel's ruling,
+    # 2026-08-23, after the evidence that nothing restores a hard delete). The
+    # cost asymmetry decides it: a soft-deleted entry nobody wanted is
+    # invisible clutter, while a hard-deleted entry someone had corrected is
+    # unrecoverable work.
+    for node in existing_nodes:
+        if node.id in matched_ids:
+            continue
+        node.deleted_at = utc_now()
+        # Stamped so a later run can tell ITS OWN removal from a person's.
+        node.metadata = {**(node.metadata or {}), _TOOL_REMOVED_KEY: True}
+        db.save(node)
+        report["removed"] += 1
+
+    _LAST_SPLIT_REPORT[page.id] = report
     return created
 
 
@@ -512,6 +642,7 @@ async def diary_entries(
     created: list[Document] = []
     lines: list[str] = []
     errors: list[str] = []
+    totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
     if not pages and raw_documents:
         errors.append(f"{len(raw_documents)} selected document(s) resolved to no pages")
     for page in pages:
@@ -523,9 +654,29 @@ async def diary_entries(
             errors.append(str(exc))
             continue
         created.extend(entries)
+        page_report = _LAST_SPLIT_REPORT.pop(page.id, None) or {}
+        for key in totals:
+            totals[key] += page_report.get(key, 0)
         for node in entries:
             marker = "▣" if node.region_in_parent else "·"
             lines.append(f"{marker} {node.name} — {page.name}")
+
+    # SAY WHAT THE RUN DID, not just what exists now. "Marked 3 completed"
+    # told Daniel nothing about whether re-running had changed anything —
+    # and until this pass it genuinely could not, because every entry was
+    # deleted and recreated regardless.
+    verdict = ", ".join(
+        f"{count} {label}"
+        for label, count in (
+            ("unchanged", totals["unchanged"]),
+            ("updated", totals["updated"]),
+            ("new", totals["created"]),
+            ("removed", totals["removed"]),
+        )
+        if count
+    )
+    if lines:
+        lines.insert(0, verdict or "no entries changed")
 
     summary = "\n".join(lines) if lines else "No entries created"
     if errors:
@@ -537,4 +688,10 @@ async def diary_entries(
         "text": summary,
         "error": "; ".join(errors) if errors and not created else None,
         "cached": False,
+        # Counts the runner can narrate, same vocabulary as the vision tools'
+        # reused/processed split.
+        "unchanged_count": totals["unchanged"],
+        "updated_count": totals["updated"],
+        "created_count": totals["created"],
+        "removed_count": totals["removed"],
     }
