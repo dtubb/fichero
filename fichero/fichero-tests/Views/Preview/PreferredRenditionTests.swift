@@ -37,4 +37,25 @@ struct PreferredRenditionTests {
         #expect(preferredRenditionIndex(in: [], stickyRole: nil) == 0)
     }
 }
+
+// The overlay frame matrix — match-or-skip, never transform (2026-08-23).
+// Pins the reasoning from the entry-scoped-runs contract: a region node's
+// BASE display is its parent's pixels, so a crop-framed set must stay dark
+// there and light only on the crop rendition itself.
+struct OverlayFrameMatrixTests {
+    @Test("document-frame sets draw on the base image and frame-keeping renditions only")
+    func nilRequired() {
+        #expect(overlayFrameMatches(required: nil, displayed: nil, displayedHasOwnFrame: false))
+        #expect(overlayFrameMatches(required: nil, displayed: "bg", displayedHasOwnFrame: false))
+        #expect(!overlayFrameMatches(required: nil, displayed: "crop", displayedHasOwnFrame: true))
+    }
+
+    @Test("a named set draws only on exactly that rendition's pixels")
+    func namedRequired() {
+        #expect(overlayFrameMatches(required: "crop", displayed: "crop", displayedHasOwnFrame: true))
+        // The region node's base display = parent's full pixels → dark.
+        #expect(!overlayFrameMatches(required: "crop", displayed: nil, displayedHasOwnFrame: false))
+        #expect(!overlayFrameMatches(required: "crop", displayed: "bg", displayedHasOwnFrame: false))
+    }
+}
 #endif

@@ -20,6 +20,26 @@ func preferredRenditionIndex(in renditions: [DocumentRendition], stickyRole: Str
     return 0
 }
 
+/// The overlay frame matrix (2026-08-23 entry-scoped runs) — match-or-SKIP,
+/// never transform. A predicate over the displayed pixels cannot be wrong
+/// about a frame it does not compute:
+/// - `required == nil` (the document's own frame): draws on the base image
+///   and on any rendition that keeps that frame; skips a rendition with its
+///   own frame (crop/rotate/deskew).
+/// - `required != nil`: draws ONLY when exactly that rendition's pixels are
+///   on screen. Note a region node's BASE display serves its parent's full
+///   pixels, so a crop-framed set stays dark there — deliberately: blank
+///   beats a plausible band in the wrong frame. Compose-through-region lands
+///   here with the ladder work. File scope so the matrix is pinned off-main.
+func overlayFrameMatches(
+    required: String?,
+    displayed: String?,
+    displayedHasOwnFrame: Bool
+) -> Bool {
+    guard let required else { return !displayedHasOwnFrame }
+    return required == displayed
+}
+
 extension ZoomableImagePreview {
     /// Load this page's renditions (2026-08-20 bbox review).
     ///
@@ -62,20 +82,17 @@ extension ZoomableImagePreview {
         return renditions[renditionIndex].id
     }
 
-    /// Whether an OCR box set may be drawn over the current pixels — frames
-    /// must MATCH, not merely coexist (2026-08-23 entry-scoped runs):
-    /// - a nil-rendition set is in the document's own frame, valid on the base
-    ///   image and on any rendition that keeps that frame (!hasOwnFrame);
-    /// - a named set is valid only on that exact rendition.
-    /// Anything else is plausible boxes in the wrong frame — skip, never
-    /// approximate. (Compose-through-region comes with the ladder work.)
+    /// Whether an OCR box set may be drawn over the current pixels. Match-or-
+    /// SKIP, never transform — see `overlayFrameMatches` for the matrix.
     func geometryFrameMatchesDisplay(_ geometry: OCRGeometry) -> Bool {
-        guard let required = geometry.renditionId else {
-            guard renditionOverrideImage != nil,
-                  renditions.indices.contains(renditionIndex) else { return true }
-            return !renditions[renditionIndex].hasOwnFrame
-        }
-        return required == displayedRenditionId
+        let displayedOwnFrame = renditionOverrideImage != nil
+            && renditions.indices.contains(renditionIndex)
+            && renditions[renditionIndex].hasOwnFrame
+        return overlayFrameMatches(
+            required: geometry.renditionId,
+            displayed: displayedRenditionId,
+            displayedHasOwnFrame: displayedOwnFrame
+        )
     }
 
     /// What the toolbar shows about the current rendition.
