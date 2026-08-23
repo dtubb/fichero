@@ -65,8 +65,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         return sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) } != nil
     }
 
-    /// Seconds a `.move` animates for, set per diff by `apply`.
-    private var moveDuration = CanvasMoveAnimation.feedbackDuration
+    /// Seconds a `.move` animates for, set per diff by `apply`. Internal, not
+    /// private: `applyMove` lives in +Ops.swift and `private` is FILE-scoped.
+    var moveDuration = CanvasMoveAnimation.feedbackDuration
 
     /// WHICH cards matter right now — a search's heat map or an entity
     /// highlight. Held so a card inserted while emphasis is live is painted on
@@ -325,7 +326,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     // MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
 
-    private func rebuildEdges(_ edges: [CanvasEdge]) {
+    // Internal, not private: the op-application extension (+Ops.swift) needs
+    // it and Swift's `private` is FILE-scoped — the same trade documented on
+    // CanvasSceneView's split state.
+    func rebuildEdges(_ edges: [CanvasEdge]) {
         edgesRoot.children.forEach { $0.removeFromParent() }
         for edge in edges {
             guard

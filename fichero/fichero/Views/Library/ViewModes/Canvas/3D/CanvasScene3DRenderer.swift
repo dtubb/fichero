@@ -76,8 +76,9 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         return sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) } != nil
     }
 
-    /// Seconds a `.move` animates for, set per diff by `apply`.
-    private var moveDuration = CanvasMoveAnimation.feedbackDuration
+    /// Seconds a `.move` animates for, set per diff by `apply`. Internal, not
+    /// private: `applyMove` lives in +Ops.swift and `private` is FILE-scoped.
+    var moveDuration = CanvasMoveAnimation.feedbackDuration
 
     /// WHICH cards matter right now — a search's heat map or an entity
     /// highlight. Held so a card INSERTED while emphasis is live is painted on
@@ -262,7 +263,10 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         placeablesRoot.addChild(card)
     }
 
-    private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
+    // Internal, not private: the op-application extension (+Ops.swift) needs
+    // it and Swift's `private` is FILE-scoped — the same trade documented on
+    // CanvasSceneView's split state.
+    func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let size = placeable.size ?? Self.defaultCardSize
         // Source cards take their page's true aspect once the texture has
         // loaded (#4193), area-normalized to the configured card footprint;
@@ -326,7 +330,10 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     // MARK: - Edges (cylinders between xyz endpoints; rebuilt wholesale)
 
-    private func rebuildEdges(_ edges: [CanvasEdge]) {
+    // Internal, not private: the op-application extension (+Ops.swift) needs
+    // it and Swift's `private` is FILE-scoped — the same trade documented on
+    // CanvasSceneView's split state.
+    func rebuildEdges(_ edges: [CanvasEdge]) {
         edgesRoot.children.forEach { $0.removeFromParent() }
         for edge in edges {
             guard
