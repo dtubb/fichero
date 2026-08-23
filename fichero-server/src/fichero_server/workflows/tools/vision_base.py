@@ -431,6 +431,110 @@ def _interpolated_word_bbox(
     ]
 
 
+def _line_coverage_gaps(
+    line_boxes: list[Any],
+    *,
+    min_gap_factor: float = 1.6,
+    max_bands: int = 6,
+) -> list[tuple[float, float]]:
+    """Vertical bands BETWEEN detected lines big enough to hold missed ones.
+
+    Apple Vision routinely returns NO observation for a faint cursive line
+    (2026-08-23, "Went to Condoto this morning" — transcript has it, geometry
+    doesn't). A gap taller than ``min_gap_factor`` × the median detected line
+    height is where such a line would live; the escalation pass re-OCRs just
+    that crop, where the glyphs are proportionally larger. INTERNAL gaps
+    only — page margins are usually honest emptiness. Top-origin normalized
+    coordinates in and out.
+    """
+    heights = sorted(
+        b.bbox[3] for b in line_boxes
+        if getattr(b, "bbox", None) and len(b.bbox) == 4 and b.bbox[3] > 0
+    )
+    if len(heights) < 2:
+        return []
+    median_height = heights[len(heights) // 2]
+    min_gap = median_height * min_gap_factor
+    rows = sorted(
+        (b.bbox[1], b.bbox[1] + b.bbox[3])
+        for b in line_boxes
+        if getattr(b, "bbox", None) and len(b.bbox) == 4
+    )
+    gaps: list[tuple[float, float]] = []
+    cursor = rows[0][1]
+    for top, bottom in rows[1:]:
+        if top - cursor >= min_gap:
+            # Half a line of context each side so ascenders/descenders that
+            # straddle the band edge are not cut mid-glyph.
+            pad = median_height / 2
+            gaps.append((max(0.0, cursor - pad), min(1.0, top + pad)))
+        cursor = max(cursor, bottom)
+    return gaps[:max_bands]
+
+
+def _rebase_geometry_reading_order(
+    line_boxes: list["VisionOCRBox"],
+    word_boxes: list["VisionOCRBox"],
+) -> tuple[str, list["VisionOCRBox"], list["VisionOCRBox"]]:
+    """Rebuild page text + char offsets from ALL lines, sorted by position.
+
+    The escalation pass recovers lines from MID-page, so appending their text
+    would scramble reading order — and every char-span consumer (entry
+    matching, span→region resolution) indexes into the page text. Sort every
+    line by (page, y, x), regenerate the text, and re-base each line's and
+    each word's span; a word's offset within its line is preserved exactly.
+    """
+    def sort_key(box: "VisionOCRBox"):
+        y = box.bbox[1] if box.bbox and len(box.bbox) == 4 else 0.0
+        x = box.bbox[0] if box.bbox and len(box.bbox) == 4 else 0.0
+        return (box.page_index or 0, round(y, 4), x)
+
+    ordered = sorted(line_boxes, key=sort_key)
+    words_by_line: dict[int, list[VisionOCRBox]] = {}
+    for word in word_boxes:
+        words_by_line.setdefault(id(_owning_line(word, line_boxes)), []).append(word)
+
+    new_lines: list[VisionOCRBox] = []
+    new_words: list[VisionOCRBox] = []
+    pieces: list[str] = []
+    cursor = 0
+    for line in ordered:
+        text = line.text or ""
+        start = cursor
+        pieces.append(text)
+        old_start = line.char_start
+        new_lines.append(dataclasses.replace(
+            line, char_start=start, char_end=start + len(text)
+        ))
+        for word in words_by_line.get(id(line), []):
+            if word.char_start is not None and old_start is not None:
+                relative = word.char_start - old_start
+                span = (word.char_end or word.char_start) - word.char_start
+                new_words.append(dataclasses.replace(
+                    word,
+                    char_start=start + relative,
+                    char_end=start + relative + span,
+                ))
+            else:
+                new_words.append(word)
+        cursor = start + len(text) + 1  # the joining newline
+    return "\n".join(pieces), new_lines, new_words
+
+
+def _owning_line(word: "VisionOCRBox", lines: list["VisionOCRBox"]) -> "VisionOCRBox | None":
+    """The line whose char span contains this word's — spans, not geometry,
+    because the interpolated fallback derives word rects FROM line rects and
+    a geometric test would be circular."""
+    if word.char_start is None:
+        return None
+    for line in lines:
+        if line.char_start is None or line.char_end is None:
+            continue
+        if line.char_start <= word.char_start < line.char_end:
+            return line
+    return None
+
+
 def _vision_text_range(start: int, length: int) -> Any:
     try:
         from Foundation import NSMakeRange
@@ -1075,6 +1179,66 @@ def _vision_ocr_cgimage_with_geometry(
         geometry = _vision_geometry_from_results(results, page_index=page_index)
         return geometry if geometry.text else None
 
+    def _escalate_gaps(base: VisionOCRResult) -> VisionOCRResult:
+        """Re-OCR the vertical bands Vision returned nothing for.
+
+        The band crop makes the glyphs proportionally larger — the same
+        pass that missed a faint cursive line at page scale routinely reads
+        it at band scale (Daniel's smaller-chunks hunch, applied only where
+        a line is provably missing). Recovered boxes are MEASURED (Vision
+        measured them, just on a crop); everything is re-sorted into reading
+        order so char-span consumers stay coherent.
+        """
+        from Quartz import (  # noqa: PLC0415
+            CGImageCreateWithImageInRect,
+            CGImageGetHeight,
+            CGImageGetWidth,
+            CGRectMake,
+        )
+        gaps = _line_coverage_gaps(base.line_boxes)
+        if not gaps:
+            return base
+        width = CGImageGetWidth(cg_image)
+        height = CGImageGetHeight(cg_image)
+        lines = list(base.line_boxes)
+        words = list(base.word_boxes)
+        recovered = 0
+        for band_top, band_bottom in gaps:
+            band_height = band_bottom - band_top
+            if band_height <= 0:
+                continue
+            crop = CGImageCreateWithImageInRect(
+                cg_image,
+                CGRectMake(0, band_top * height, width, band_height * height),
+            )
+            if crop is None:
+                continue
+            request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+            request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+            request.setRecognitionLanguages_([lang])
+            handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(crop, None)
+            success, _error = handler.performRequests_error_([request], None)
+            results = request.results() if success else None
+            if not results:
+                continue
+            band = _vision_geometry_from_results(results, page_index=page_index)
+            for box in band.line_boxes + band.word_boxes:
+                x, y, w, h = box.bbox
+                box.bbox = [x, band_top + y * band_height, w, h * band_height]
+            # Char offsets from the band run are provisional — the rebase
+            # below regenerates every span from the merged reading order.
+            lines.extend(band.line_boxes)
+            words.extend(band.word_boxes)
+            recovered += len(band.line_boxes)
+        if recovered == 0:
+            return base
+        logger.info(
+            "Gap escalation recovered %d line(s) across %d band(s)",
+            recovered, len(gaps),
+        )
+        text, lines, words = _rebase_geometry_reading_order(lines, words)
+        return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
+
     # Try Accurate first
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
@@ -1082,7 +1246,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Accurate")
     if geometry is not None:
-        return geometry
+        return _escalate_gaps(geometry)
 
     # Retry with Fast if Accurate returned empty
     logger.info("Retrying with Fast recognition level")
@@ -1092,7 +1256,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Fast")
     if geometry is not None:
-        return geometry
+        return _escalate_gaps(geometry)
 
     # Both attempts returned empty
     msg = f"Vision OCR returned empty even at Fast level (lang={language})"
