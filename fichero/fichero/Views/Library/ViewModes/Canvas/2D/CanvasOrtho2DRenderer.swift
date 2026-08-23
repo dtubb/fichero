@@ -61,8 +61,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// Whether a card currently carries a page image — a textured card keeps
     /// its page, so the tint yields to legibility (see `CanvasTintPainter`).
     func isTextured(_ id: String) -> Bool {
-        guard detailTier >= .thumbnail, let placeable = placeablesById[id] else { return false }
-        return sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) } != nil
+        texturedIds.contains(id)
     }
 
     /// Seconds a `.move` animates for, set per diff by `apply`. Internal, not
@@ -91,7 +90,25 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// The detail tier the view derives from the reported zoom; gates thumbnail
     /// loads so a zoomed-out overview issues zero image requests.
-    var detailTier: CanvasDetailTier = .thumbnail
+    var detailTier: CanvasDetailTier = .thumbnail {
+        didSet {
+            // Zooming IN has to fetch what the glyph tier skipped. Cards are
+            // only given a texture when they are BUILT, and a reconcile that
+            // changes nothing builds nothing — so a board framed at .glyph
+            // stayed flat colour no matter how far the user then zoomed in
+            // (Daniel, live 2026-08-23: "all cards are blue rectangles").
+            guard detailTier >= .thumbnail, oldValue < .thumbnail else { return }
+            loadMissingThumbnails()
+        }
+    }
+
+    /// Ids whose card currently CARRIES a page texture.
+    ///
+    /// Not derivable from `CanvasCardGeometry.knownAspect`: the memo says a
+    /// texture was measured once, which stays true after a rebuild that left
+    /// the new card flat. Tracking the entity's actual state is what makes
+    /// "which cards still need one" answerable.
+    var texturedIds: Set<String> = []
 
     var onIntent: ((CanvasIntent) -> Void)?
 
@@ -187,6 +204,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     func setOrthoScale(_ scale: Float) {
         orthoScale = min(max(scale, 0.1), 200)  // 0.5→0.1 (2026-08-22): zoom close enough to read
+        // The tier follows the zoom here for the same reason as 3D: this is a
+        // plain class, so a pinch that only moves the scale republishes
+        // nothing and a SwiftUI update pass may never re-read it.
+        detailTier = CanvasDetailTier.forZoomScale(reportedZoomScale)
         applyOrthoScale()
         // Zoom-constant selection chrome (#4601): redraw at the new ratio.
         refreshSelectionDecoration()
