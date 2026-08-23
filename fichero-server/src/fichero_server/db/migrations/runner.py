@@ -1135,10 +1135,10 @@ class MigrationRunner:
             # CatalogException rather than returning empty, which would report
             # this migration as FAILED when the honest answer is "completed,
             # nothing to do". A no-op must not look like a fault.
-            table_exists = self.db.conn.execute(
+            table_exists = self.db.execute_fetchone(
                 "SELECT count(*) FROM information_schema.tables "
                 "WHERE table_name = 'notes'"
-            ).fetchone()[0]
+            )[0]
             if not table_exists:
                 result.status = MigrationStatus.completed
                 result.completed_at = utc_now()
@@ -1147,7 +1147,7 @@ class MigrationRunner:
 
             columns = {
                 row[1]
-                for row in self.db.conn.execute("PRAGMA table_info('notes')").fetchall()
+                for row in self.db.execute_fetchall("PRAGMA table_info('notes')")
             }
             if "target_type" not in columns:
                 # The legacy columns were never created here, so there is
@@ -1164,7 +1164,7 @@ class MigrationRunner:
             )
             if limit:
                 sql += f" LIMIT {int(limit)}"
-            rows = self.db.conn.execute(sql).fetchall()
+            rows = self.db.execute_fetchall(sql)
 
             for row in rows:
                 (
@@ -1211,7 +1211,7 @@ class MigrationRunner:
                         annotation.updated_at = updated_at
 
                     if not dry_run:
-                        self.db.conn.execute(
+                        self.db.execute(
                             "DELETE FROM notes WHERE id = ?", [note_id]
                         )
                         self.db.save(annotation)

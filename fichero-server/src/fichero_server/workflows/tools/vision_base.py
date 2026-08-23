@@ -2078,22 +2078,23 @@ async def _propagate_to_page_children(
                         else None
                     )
                     if _page_geometry is not None:
-                        try:
-                            from fichero_server.media.region_crops import (
-                                existing_region_crop,
-                            )
+                        # NOT wrapped in a broad except on purpose. If the
+                        # frame cannot be determined, the artifact would save
+                        # with no rendition_id — which by OMISSION claims the
+                        # boxes are in the document's own frame, and the client
+                        # would draw an entry's boxes across the whole page.
+                        # A silent failure here produces exactly the wrong-frame
+                        # bug this field exists to prevent, so it must surface.
+                        from fichero_server.media.region_crops import (
+                            existing_region_crop,
+                        )
 
-                            _crop = existing_region_crop(db, page_doc)
-                            if _crop is not None:
-                                if hasattr(_page_geometry, "rendition_id"):
-                                    _page_geometry.rendition_id = _crop.id
-                                elif isinstance(_page_geometry, dict):
-                                    _page_geometry["rendition_id"] = _crop.id
-                        except Exception as exc:  # noqa: BLE001
-                            logger.warning(
-                                "could not stamp geometry frame for %s: %s",
-                                page_doc.id, exc,
-                            )
+                        _crop = existing_region_crop(db, page_doc)
+                        if _crop is not None:
+                            if hasattr(_page_geometry, "rendition_id"):
+                                _page_geometry.rendition_id = _crop.id
+                            elif isinstance(_page_geometry, dict):
+                                _page_geometry["rendition_id"] = _crop.id
                     if matched:
                         art = matched[0]
                         art.content = artifact_content
@@ -2485,13 +2486,16 @@ def _substitute_region_crops(
                     doc_id,
                 )
         except RegionCropUnavailable as exc:
+            # The EXPECTED failure, and the only one that is safe to absorb:
+            # `materialize_region_crop` funnels every internal problem into
+            # this type, so anything else reaching here is a genuine bug.
+            # Catching those too would hide a real defect behind a log line —
+            # the #4395 shape — so they are deliberately left to propagate.
             logger.warning(
                 "entry-scoped run declined for %s — the tool will run on the "
                 "FULL parent image instead: %s",
                 doc_id, exc,
             )
-        except Exception as exc:  # noqa: BLE001 - one bad node must not abort
-            logger.warning("region crop failed for %s: %s", doc_id, exc)
     return substituted
 
 
