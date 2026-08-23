@@ -767,6 +767,19 @@ extension DocumentService {
         }
         // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
         let bbox = doc.bbox?.value as? [Int]
+        // Step 3 (bbox retirement): the typed region every NEW extraction
+        // writes. Forgetting it here is what made the entry-source preview
+        // lose its highlight on 2026-08-23 — the decoder-side support was
+        // dead code because everything flows through this converter.
+        let regionInParent = doc.regionInParent.map { region in
+            DocumentRegion(
+                rect: region.rect,
+                space: region.space?.rawValue,
+                confidence: region.confidence?.rawValue,
+                method: region.method,
+                note: region.note
+            )
+        }
 
         return Document(
             id: doc.id ?? UUID().uuidString,
@@ -777,6 +790,7 @@ extension DocumentService {
             path: doc.path,
             sequence: doc.sequence,
             bbox: bbox,
+            regionInParent: regionInParent,
             status: convertFromGeneratedStatus(doc.status),
             metadata: convertMetadata(doc.metadata),
             pageContent: doc.pageContent,

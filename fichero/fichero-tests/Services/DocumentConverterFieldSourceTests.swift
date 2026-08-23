@@ -142,6 +142,11 @@ final class DocumentConverterFieldSourceTests: XCTestCase {
                 ".aliasTargetId",
                 ".sortOrder",
                 ".isWorkspace",
+                // Step 3 (2026-08-23): the typed region every new extraction
+                // writes — its omission was exactly this defect class (the
+                // entry-source preview lost its highlight while the decoder
+                // path carried dead support).
+                ".regionInParent",
                 "convertAttributes("
             ] {
                 XCTAssertTrue(

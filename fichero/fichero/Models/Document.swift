@@ -187,7 +187,9 @@ struct DocumentRegion: Codable, Hashable {
     /// `space == "normalized"` (the only space extractions write today).
     var rect: [Double]
     var space: String?
-    var confidence: Double?
+    /// "measured" | "nominal" | "user" — how much the rect is worth (the
+    /// Marshall nominal-even-split openings are guesses, not measurements).
+    var confidence: String?
     var method: String?
     var note: String?
 }
