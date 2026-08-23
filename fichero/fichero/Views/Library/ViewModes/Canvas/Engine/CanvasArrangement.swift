@@ -74,6 +74,9 @@ enum CanvasArrangement: String, CaseIterable, Identifiable, Sendable {
         let group: Int
         let key: String
         let original: Int
+
+        /// Canvas items rank after every node kind, under every arrangement.
+        var isItem: Bool { group == itemGroupRank }
     }
 
     static func slotIndices(
@@ -110,7 +113,15 @@ enum CanvasArrangement: String, CaseIterable, Identifiable, Sendable {
             ordered = entries
         case .name:
             ordered = entries.sorted { left, right in
-                left.key == right.key ? left.original < right.original : left.key < right.key
+                // Items stay after every node here too. Sorting purely by key
+                // let a note titled "aaa" sort ahead of every page, which
+                // contradicts what this type promises above: a note is a thing
+                // you put ON the board, not a document to be filed among the
+                // pages. `.type` got this from its group rank and `.asFiled`
+                // from incoming order; `.name` was the one that forgot.
+                if left.isItem != right.isItem { return right.isItem }
+                if left.key != right.key { return left.key < right.key }
+                return left.original < right.original
             }
         case .type:
             ordered = entries.sorted { left, right in

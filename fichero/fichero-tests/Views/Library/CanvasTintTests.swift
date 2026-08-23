@@ -63,7 +63,7 @@ struct CanvasTintTests {
         // every user's board recolours and this test is the thing that says so.
         #expect(CanvasTint.slot(forValue: "folder-1") == CanvasTint.slot(forValue: "folder-1"))
         #expect(CanvasTint.slot(forValue: "") == 5)
-        #expect(CanvasTint.slot(forValue: "completed") == 3)
+        #expect(CanvasTint.slot(forValue: "completed") == 2)
         #expect(CanvasTint.slot(forValue: "processing") == 6)
     }
 

@@ -316,8 +316,20 @@ struct CanvasArrangeWiringGuardTests {
             let source = try appSource(path)
             #expect(source.contains("@AppStorage(CanvasArrangement.storageKey)"), "\(path) forked the choice")
             #expect(source.contains("arrangement: CanvasArrangement.stored(arrangementRaw)"))
-            #expect(source.contains("CanvasArrangePicker()"), "\(path) has no way to re-arrange")
+            // Through the shared strip since Colour-by landed — so the guard
+            // asserts the strip is present AND that the strip still carries the
+            // arrangement picker, which is the property (both canvases can
+            // re-arrange), not the spelling.
+            #expect(source.contains("CanvasControlStrip()"), "\(path) has no control strip")
         }
+    }
+
+    @Test("the control strip is where the arrangement picker actually lives")
+    func stripCarriesTheArrangePicker() throws {
+        let strip = try appSource("Views/Library/ViewModes/Canvas/CanvasArrangePicker.swift")
+        #expect(strip.contains("struct CanvasControlStrip"))
+        #expect(strip.contains("CanvasArrangePicker()"))
+        #expect(strip.contains("CanvasColourPicker()"))
     }
 
     @Test("both renderers ANIMATE a move, through the shared duration")
