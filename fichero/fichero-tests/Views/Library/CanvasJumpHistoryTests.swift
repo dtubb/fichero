@@ -129,11 +129,30 @@ struct CanvasJumpHistoryScopeGuardTests {
         try String(contentsOf: AppSource.root().appendingPathComponent(relativePath), encoding: .utf8)
     }
 
+    /// Comments stripped before scanning — the `CanvasPanInputParityTests`
+    /// pattern. A literal ban that reads prose fires on the very doc comment
+    /// explaining WHY the thing is banned, which is a guard that punishes
+    /// documentation.
+    private static func code(of source: String) -> String {
+        source
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> Substring in
+                guard let marker = line.range(of: "//") else { return line }
+                return line[line.startIndex..<marker.lowerBound]
+            }
+            .joined(separator: "\n")
+    }
+
     @Test("history touches no store, no defaults, no disk")
     func historyIsWindowLocal() throws {
-        let source = try appSource("Views/Library/ViewModes/Canvas/Engine/CanvasJumpHistory.swift")
+        let code = Self.code(
+            of: try appSource("Views/Library/ViewModes/Canvas/Engine/CanvasJumpHistory.swift")
+        )
+        // The scan proves it read something real first: an empty or mangled
+        // read satisfies every negative assertion below.
+        #expect(code.contains("struct CanvasJumpHistory"))
         for forbidden in ["UserDefaults", "AppStorage", "CanvasLayoutStore", "SceneStorage", "FileManager"] {
-            #expect(!source.contains(forbidden), "jump history reached for \(forbidden) — it is view state")
+            #expect(!code.contains(forbidden), "jump history reached for \(forbidden) — it is view state")
         }
     }
 }
@@ -193,8 +212,13 @@ struct CanvasCameraCommandGuardTests {
         // The ×31 "FocusedValue update tried to update multiple times per
         // frame" fault in the 2026-08-19 log came from exactly this.
         let source = try appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
-        let tail = try #require(source.components(separatedBy: "struct CanvasViewActions").last)
+        // Anchor on the DECLARATION, not a prefix of it: "struct
+        // CanvasViewActions" also matches "struct CanvasViewActionsKey", so
+        // `.last` handed back the KEY's body — which contains no `==` at all
+        // and would have failed for the wrong reason, or passed for one.
+        let tail = try #require(source.components(separatedBy: "struct CanvasViewActions: Equatable").last)
         let body = try #require(tail.components(separatedBy: "\nstruct ").first)
+        #expect(body.contains("static func =="))
         #expect(body.contains("lhs.canJumpBack == rhs.canJumpBack && lhs.canJumpForward == rhs.canJumpForward"))
         #expect(!body.contains("lhs.zoomToFit"))
     }
