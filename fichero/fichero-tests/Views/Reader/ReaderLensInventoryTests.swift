@@ -150,4 +150,27 @@ struct PaneHeadWiringGuardTests {
         #expect(selector.contains("Label(kindTitle, systemImage: kindIcon)"))
         #expect(!selector.contains("Picker(\"Kind\""))
     }
+
+    @Test("the crumb is FULL ancestry, through the walk that already exists")
+    func crumbsAreFullAncestry() throws {
+        // R1: the title line IS the breadcrumb — "Marshall Diaries v4 › Inbox ›
+        // 1933", not "Reader". Daniel, 2026-08-23: full ancestry, in scope now.
+        let reader = try code(at: "Views/Reader/Page/ReadingPaneView.swift")
+        #expect(reader.contains("libraryPathCrumbs("),
+                "the reader walks ancestors itself — two walks disagree eventually")
+        #expect(reader.contains("documentStore.resolveDocument($0)"))
+        // The library is the root crumb: a path starting at a folder does not
+        // say WHICH library's Inbox you are in.
+        #expect(reader.contains("private var libraryName: String?"))
+    }
+
+    @Test("the crumb capsule truncates from the LEADING edge")
+    func crumbsTruncateFromTheHead() throws {
+        // A deep path's tail identifies it; its head is inferable. Proxy-icon
+        // collapse is a later slice, so truncation is what keeps a long path
+        // readable until then.
+        let head = try code(at: "Views/Shell/PaneHead/PaneHead.swift")
+        #expect(head.contains(".truncationMode(.head)"))
+        #expect(head.contains(".lineLimit(1)"))
+    }
 }

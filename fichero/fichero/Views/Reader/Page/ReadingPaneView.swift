@@ -295,14 +295,40 @@ struct ReadingPaneView: View {
         ))
     }
 
-    /// The pane's title line IS its breadcrumb (R1), not "Reader".
+    /// The pane's title line IS its breadcrumb (R1), not "Reader" — and it is
+    /// the FULL ancestry (Daniel, 2026-08-23: "it's important"):
+    /// "Marshall Diaries v4 › Inbox › 1933".
     ///
-    /// ponytail: document name today, ancestry when the shell publishes it —
-    /// Daniel's proxy-icon crumbs are a later slice, and half of them now would
-    /// be worse than one honest line.
+    /// Through `libraryPathCrumbs`, the walk the library's path bar already
+    /// uses — root-first, cycle-guarded, depth-capped. A second ancestor walk
+    /// for the same question is how two surfaces come to disagree about where
+    /// you are.
+    ///
+    /// ponytail: names today. Daniel's proxy-icon crumbs (parents collapse to
+    /// icons with chevrons, expanding on hover) are a later slice; the capsule
+    /// truncates from the leading edge until then, so a deep path still shows
+    /// the part that identifies it.
     private var readerCrumbs: [String] {
         guard let document = effectiveDocument else { return [] }
-        return [document.name]
+        let ancestry = libraryPathCrumbs(
+            anchorId: document.id,
+            resolve: { documentStore.resolveDocument($0) }
+        ).map(\.name)
+        // The library is the root crumb: a path that starts at a folder does
+        // not say WHICH library's Inbox you are in, and several are open at
+        // once in the normal case.
+        return ([libraryName].compactMap { $0 }) + (ancestry.isEmpty ? [document.name] : ancestry)
+    }
+
+    /// The library the read document belongs to, for the root crumb.
+    ///
+    /// `Document` carries no library id — the current library IS the reading
+    /// context, the same assumption the path bar and the sidebar reveal make.
+    private var libraryName: String? {
+        guard let libraryId = LibraryManager.shared.currentLibraryId,
+              let library = LibraryManager.shared.getLibrary(id: libraryId)
+        else { return nil }
+        return library.displayName
     }
 
 }
