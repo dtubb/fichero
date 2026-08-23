@@ -2406,6 +2406,66 @@ def _write_joined_page_content(
     return failures
 
 
+
+def _substitute_region_crops(
+    files: list[str], documents: list[dict], library_path: str
+) -> list[str]:
+    """Swap in each region node's own crop, keeping index alignment exact.
+
+    Returns a NEW list of the same length. A document that is not a band, or
+    that already owns its pixels, keeps its original file untouched.
+
+    A crop that cannot be made honestly leaves the original file in place and
+    logs why. That is deliberate: refusing to run at all would turn "we cannot
+    narrow this to the entry" into a failed run, when the tool can still do
+    useful work on the page — but it must be VISIBLE, never silent, because
+    the result then covers more than the caller asked for.
+    """
+    if not documents or not library_path:
+        return list(files)
+
+    substituted = list(files)
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.media.region_crops import (
+            RegionCropUnavailable,
+            materialize_region_crop,
+        )
+        from fichero_server.models import Document as _Document
+
+        db = db_manager.get_database(library_path)
+    except Exception as exc:  # pragma: no cover - environment
+        logger.warning("region-crop substitution unavailable: %s", exc)
+        return substituted
+
+    for index, doc in enumerate(documents):
+        if index >= len(substituted):
+            break
+        doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
+        if not doc_id:
+            continue
+        try:
+            document = db.get(_Document, doc_id)
+            if document is None or document.region_in_parent is None:
+                continue
+            rendition = materialize_region_crop(db, document, library_path)
+            if rendition is not None and rendition.path:
+                substituted[index] = rendition.path
+                logger.info(
+                    "entry-scoped run: %s will be processed on its own crop",
+                    doc_id,
+                )
+        except RegionCropUnavailable as exc:
+            logger.warning(
+                "entry-scoped run declined for %s — the tool will run on the "
+                "FULL parent image instead: %s",
+                doc_id, exc,
+            )
+        except Exception as exc:  # noqa: BLE001 - one bad node must not abort
+            logger.warning("region crop failed for %s: %s", doc_id, exc)
+    return substituted
+
+
 async def process_vision(
     files: list[str],
     documents: list[dict],
@@ -3923,6 +3983,21 @@ async def process_vision(
             }
         finally:
             _vision_activity_db_path.reset(activity_scope)
+
+    # ENTRY-SCOPED RUNS (2026-08-23): give region nodes their own pixels.
+    #
+    # `files[i]` is paired POSITIONALLY with `documents[i]`. For a node that is
+    # a band of its parent — a diary entry — `files[i]` is the whole page, so
+    # running a tool "on the entry" runs it on everything around the entry too.
+    #
+    # This rewrites the list ELEMENT-WISE. It cannot change the length, and
+    # that is the entire reason for its shape: a filter or a comprehension that
+    # dropped an entry would shift every later file against its document and
+    # mis-pair the whole batch silently. Rewriting in place cannot do that.
+    #
+    # Anything that is not a region node is left exactly as it was, so the
+    # ordinary page path is untouched.
+    files = _substitute_region_crops(files, documents, library_path)
 
     _schedule_window = max(VISION_FAN_OUT_CONCURRENCY * 8, 32)
     for _start in range(0, len(files), _schedule_window):
