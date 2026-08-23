@@ -126,12 +126,27 @@ extension ContentView {
                 .overlay { paneFocusIndicator(for: .content) }
             )
         case .preview:
-            return AnyView(widescreenCanvasPane)
+            // Clicking a pane FOCUSES it — the same gesture .content and .chat
+            // already carried. Without it the focus hint never left .content,
+            // so ⌘A over a clicked preview still went to the library (Daniel,
+            // live 2026-08-23).
+            return AnyView(
+                widescreenCanvasPane
+                    .simultaneousGesture(
+                        TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview }
+                    )
+                    .overlay { paneFocusIndicator(for: .preview) }
+            )
         case .reading:
+            let reading = widescreenReadingPane
+                .simultaneousGesture(
+                    TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading }
+                )
+                .overlay { paneFocusIndicator(for: .reading) }
             if let width = spec.fixedWidth {
-                return AnyView(widescreenReadingPane.frame(width: width))
+                return AnyView(reading.frame(width: width))
             }
-            return AnyView(widescreenReadingPane.frame(maxWidth: .infinity))
+            return AnyView(reading.frame(maxWidth: .infinity))
         case .chat:
             return AnyView(
                 chatPaneContent

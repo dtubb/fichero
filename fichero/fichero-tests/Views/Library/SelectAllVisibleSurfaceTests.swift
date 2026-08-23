@@ -165,32 +165,76 @@ struct SelectAllVisibleSurfaceTests {
         #expect(!tab.contains("onKeyPress(.init(\"a\")"))
     }
 
-    /// RECORDED ABSENCES. Two surfaces in the ruling publish nothing, and that
-    /// is the finding rather than a gap to paper over — a select-all needs
-    /// something to select, and inventing one to fill a matrix cell would ship
-    /// a command that lies.
-    @Test("the image editor publishes nothing, because it has no selection")
-    func imageEditorHasNothingToSelect() throws {
-        // If the editor ever grows a selection concept, this test is what says
-        // the publication is now missing rather than absent by design.
-        let editor = try code(at: "Views/Preview/ImageEditor/ImageEditorView+Canvas.swift")
-        #expect(!editor.contains("selectAll"), "the image editor grew a selection — publish it")
-        #expect(!editor.contains("inspectorSelectAll"))
+    // MARK: - The three live bugs, 2026-08-23
+
+    @Test("the Edit menu carries exactly ONE Select All row")
+    func oneSelectAllRow() throws {
+        // It showed two: ours with the shortcut, and the system's disabled
+        // beneath it. `after: .pasteboard` ADDS beside the system group;
+        // `replacing: .textEditing` takes over the group that carries Select
+        // All, which is the only way to have one row.
+        let app = try code(at: "FicheroApp.swift")
+        #expect(app.contains("CommandGroup(replacing: .textEditing)"))
+        #expect(!app.contains("CommandGroup(after: .pasteboard)"),
+                "the system Select All is back beside ours")
+        #expect(app.components(separatedBy: "SelectAllButton()").count - 1 == 1,
+                "more than one Select All row is declared")
     }
 
-    @Test("the sidebar publishes nothing yet, and the reason is recorded")
-    func sidebarPublicationIsScopedNotForgotten() throws {
-        // The sidebar HAS multi-selection (`List(selection: Set<SidebarDestination>)`
-        // committed through `applySidebarSelectionProposal`), so ⌘A is
-        // implementable there — but it has no single ordered list of the
-        // destinations currently visible, only per-section flattenings. Making
-        // one is a sidebar-side change with its own ordering decisions
-        // (libraries, folders, workflows, smart items), so it is scoped rather
-        // than guessed. This test pins BOTH halves: the seam exists, and
-        // nothing publishes yet.
+    @Test("every pane claims focus when clicked, so ⌘A can follow it")
+    func everyPaneClaimsFocus() throws {
+        // Preview and reading carried no focus gesture, so the hint never left
+        // .content and ⌘A over a clicked preview still went to the library.
+        let spec = try code(at: "Views/Shell/ContentView/Layout/PaneSpec.swift")
+        for pane in [".content", ".chat", ".preview", ".reading"] {
+            #expect(spec.contains("focusedPane = \(pane); paneFocusHint = \(pane)"),
+                    "the \(pane) pane does not claim focus on click")
+        }
+    }
+
+    @Test("the reader declines EXPLICITLY, rather than by accident")
+    func readerDeclinesOnPurpose() throws {
+        // It routed correctly before only because the library's enablement
+        // happened to be false — an accident, not a decision. Now `.reading`
+        // returns nil in its own branch, with the reason at the site.
+        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        let tail = try #require(button.components(separatedBy: "case .reading:").last)
+        let branch = try #require(tail.components(separatedBy: "default:").first)
+        #expect(branch.contains("return nil"))
+    }
+
+    // MARK: - What each surface answers with
+
+    @Test("the preview selects the WHOLE image, through the marquee it already has")
+    func previewSelectsTheWholeImage() throws {
+        // My earlier audit recorded "the image editor has no selection concept"
+        // — that was WRONG, and worth saying plainly: the concept lives in
+        // ImageMarqueeOverlay (a normalized 0…1 rect), not in the canvas file I
+        // scanned. So ⌘A needed no new concept, only its full extent.
+        let editor = try code(at: "Views/Preview/ImageEditor/ImageEditorView.swift")
+        #expect(editor.contains("\\.previewSelectAll"))
+        #expect(editor.contains("CGRect(x: 0, y: 0, width: 1, height: 1)"))
+        #expect(editor.contains("isEnabled: model.preview != nil"),
+                "the preview claims ⌘A with no image shown")
+    }
+
+    @Test("the sidebar selects the CURRENT library's visible rows, never across libraries")
+    func sidebarSelectsOneLibrary() throws {
+        // Daniel's ruling. Several libraries open at once is the normal state,
+        // and a chord reaching all of them would select things the user cannot
+        // see and did not open.
+        let sections = try code(at: "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+        #expect(sections.contains("var currentLibraryVisibleDestinations: [SidebarDestination]"))
+        #expect(sections.contains("libraryManager.currentLibraryId"))
+        // VISIBLE has two halves: the group is expanded, and the rows are the
+        // ones the view actually renders.
+        #expect(sections.contains("sidebarState.isLibraryExpanded(libraryId)"))
+        #expect(sections.contains("flattenedLibraryItems(libraryId: libraryId, buckets: buckets)"))
+
         let components = try code(at: "Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
-        #expect(components.contains("func applySidebarSelectionProposal"))
-        #expect(!components.contains("\\.sidebarSelectAll"),
-                "the sidebar now publishes — give it a route and update this row")
+        #expect(components.contains("\\.sidebarSelectAll"))
+        // Through the same commit seam a click uses, so a select-all cannot
+        // bypass the resilience filter and primary derivation.
+        #expect(components.contains("applySidebarSelectionProposal(Set(currentLibraryVisibleDestinations))"))
     }
 }

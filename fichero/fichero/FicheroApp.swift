@@ -434,12 +434,18 @@ struct FicheroApp: App {
             }
 
             // Edit menu
-            CommandGroup(after: .pasteboard) {
-                // ⌘A, routed by focus (#4376). Declared AFTER the system
-                // pasteboard group on purpose: menu key equivalents match in
-                // menu order, and this item disables itself whenever the app
-                // has no business claiming ⌘A — so the reader's WebKit surface
-                // still gets its own select-all through the responder chain.
+            // REPLACING, not after: `after: .pasteboard` left the system's own
+            // Select All in place, so the Edit menu showed TWO rows — ours with
+            // the shortcut and the system's disabled beneath it (Daniel, live
+            // 2026-08-23). One chord, one row, one owner. `.textEditing` is the
+            // group that carries Select All; the app has no menu-driven Find
+            // (its search surfaces own ⌘F themselves), so nothing else in the
+            // group is being displaced.
+            CommandGroup(replacing: .textEditing) {
+                // ⌘A, routed by focus (#4376). It disables itself whenever the
+                // app has no business claiming ⌘A — so the reader's WebKit
+                // surface still gets its own select-all through the responder
+                // chain.
                 SelectAllButton()
 
                 Divider()

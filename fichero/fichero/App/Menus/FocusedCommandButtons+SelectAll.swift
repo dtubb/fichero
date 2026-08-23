@@ -24,6 +24,8 @@ struct SelectAllButton: View {
     @FocusedValue(\.librarySelectAll) private var librarySelectAll
     @FocusedValue(\.inspectorSelectAll) private var inspectorSelectAll
     @FocusedValue(\.focusedPaneKind) private var focusedPane
+    @FocusedValue(\.sidebarSelectAll) private var sidebarSelectAll
+    @FocusedValue(\.previewSelectAll) private var previewSelectAll
 
     var body: some View {
         Button("Select All") {
@@ -53,6 +55,17 @@ struct SelectAllButton: View {
         switch focusedPane {
         case .inspector:
             return inspectorSelectAll?.isEnabled == true ? .inspectorList : nil
+        case .sidebar:
+            return sidebarSelectAll?.isEnabled == true ? .sidebarRows : nil
+        case .preview:
+            return previewSelectAll?.isEnabled == true ? .previewImage : nil
+        case .reading:
+            // DELIBERATELY nil: the reader is WebKit and selecting its text is
+            // the web view's own job, so this route declines and the key
+            // equivalent falls through. Spelled out rather than left to the
+            // default branch, because "the reader works" was previously an
+            // accident of the library's enablement rather than a decision.
+            return nil
         default:
             // The library is the default owner, as it was before the inspector
             // could answer: no pane hint at all still means the library, which
@@ -74,6 +87,10 @@ struct SelectAllButton: View {
             librarySelectAll?.run()
         case .inspectorList:
             inspectorSelectAll?.run()
+        case .sidebarRows:
+            sidebarSelectAll?.run()
+        case .previewImage:
+            previewSelectAll?.run()
         }
     }
 }

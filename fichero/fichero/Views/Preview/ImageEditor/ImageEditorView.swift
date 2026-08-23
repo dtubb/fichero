@@ -83,6 +83,18 @@ struct ImageEditorView: View {
             Divider()
             canvas
         }
+        // ⌘A over a shown image selects the WHOLE image (Daniel, 2026-08-23).
+        // The marquee already speaks normalized image space, so "everything"
+        // is the unit rect — no new selection concept, just its full extent.
+        // Published rather than key-handled here: `SelectAllButton` owns the
+        // chord and asks which pane has focus.
+        .focusedSceneValue(
+            \.previewSelectAll,
+            FocusedLibraryAction(
+                isEnabled: model.preview != nil,
+                run: { marqueeSelection = CGRect(x: 0, y: 0, width: 1, height: 1) }
+            )
+        )
         .task(id: document.id) {
             // External selection changed (host drove a new document).
             activeDocumentID = document.id
