@@ -11,9 +11,10 @@ from unittest.mock import patch
 
 import pytest
 
+from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
-from fichero_server.models.anchors import RegionConfidence
+from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.models import Artifact, DocType, Document
 from fichero_server.models.knowledge import (
     ClassificationDimension,
@@ -59,7 +60,7 @@ def diary_db(tmp_path):
             document_id="page-1",
             artifact_type="transcription",
             content=PAGE_TEXT,
-            ocr_geometry=OCRGeometryResult(text=PAGE_TEXT, boxes=boxes, provider="test"),
+            ocr_geometry=OCRGeometryResult(text=PAGE_TEXT, boxes=boxes, provider="apple"),
         )
     )
     return db, page
@@ -87,6 +88,10 @@ TWO_ENTRIES = [
         text="January 9th 1942\nRain all day. The convoy did not arrive.",
     ),
 ]
+
+#: The same page re-extracted with the SECOND entry no longer seen — what a
+#: changed transcript or a differently-behaving model produces.
+ONE_ENTRY = [TWO_ENTRIES[0]]
 
 
 class TestDiaryEntries:
@@ -123,14 +128,57 @@ class TestDiaryEntries:
         assert first.rect[1] + first.rect[3] <= second.rect[1]
 
     @pytest.mark.asyncio
-    async def test_the_union_is_marked_measured_not_nominal(self, diary_db):
-        """It is the union of OCR line boxes actually found on the page, not a
-        guess at where an entry might fall."""
+    async def test_apple_boxes_are_marked_measured(self, diary_db):
+        """Apple Vision DETECTS boxes from the pixels, so the union of them is
+        a measurement, not a guess at where an entry might fall."""
         db, page = diary_db
         with _split(TWO_ENTRIES):
             created = await split_page_into_entries(db, page, llm_config=None)
 
         assert created[0].region_in_parent.confidence is RegionConfidence.measured
+
+    @pytest.mark.asyncio
+    async def test_VLM_boxes_are_marked_nominal_not_measured(self, diary_db):
+        """`detect_regions` says it itself: "VLM boxes are claimed, not
+        measured". A model asked for boxes and answered; nothing verified them
+        against the pixels. Marking the resulting entry region `measured` would
+        make a guess indistinguishable from a measurement — the exact
+        distinction RegionConfidence exists to preserve."""
+        db, page = diary_db
+        artifact = db.query(Artifact, document_id=page.id)[0]
+        artifact.provider = "openrouter"
+        db.save(artifact)
+
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent.confidence is RegionConfidence.nominal
+
+    @pytest.mark.asyncio
+    async def test_the_region_names_where_its_numbers_came_from(self, diary_db):
+        """A region should carry WHERE its numbers came from, not merely how
+        they were combined."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent.method == "diary-entry-word-union:apple"
+
+    @pytest.mark.asyncio
+    async def test_unknown_provenance_under_claims(self, diary_db):
+        """The safe default is to under-claim: a region wrongly marked
+        measured tells a reader the box was verified when nobody verified
+        it."""
+        db, page = diary_db
+        artifact = db.query(Artifact, document_id=page.id)[0]
+        artifact.provider = None
+        artifact.ocr_geometry.provider = "something-new"
+        db.save(artifact)
+
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent.confidence is RegionConfidence.nominal
 
     @pytest.mark.asyncio
     async def test_geometry_SURVIVES_a_page_with_no_pixel_dimensions(self, diary_db):
@@ -184,21 +232,92 @@ class TestDiaryEntries:
         assert created[0].metadata["date_parsed"] is False
 
     @pytest.mark.asyncio
-    async def test_rerun_replaces_only_this_tools_children(self, diary_db):
+    async def test_rerun_touches_only_this_tools_children(self, diary_db):
         db, page = diary_db
         bystander = Document(
             id="note-1", name="my note", parent_id="page-1", doc_type=DocType.file
         )
         db.save(bystander)
         with _split(TWO_ENTRIES):
-            first_run = await split_page_into_entries(db, page, llm_config=None)
+            await split_page_into_entries(db, page, llm_config=None)
             second_run = await split_page_into_entries(db, page, llm_config=None)
         assert len(second_run) == 2
         live = db.query(Document, parent_id="page-1") or []
         live_ids = {d.id for d in live if d.deleted_at is None}
         assert "note-1" in live_ids, "bystander children survive re-runs"
-        for stale in first_run:
-            assert stale.id not in live_ids, "previous run's entries are replaced"
+
+    @pytest.mark.asyncio
+    async def test_an_unchanged_rerun_KEEPS_the_same_nodes(self, diary_db):
+        """The heart of it. This used to hard-delete every entry and recreate
+        it with a new id, so a re-run that changed nothing still replaced
+        everything — Daniel's "I saw no change" was true on screen while
+        identity churned underneath, and anything referencing an entry was
+        orphaned."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            first = await split_page_into_entries(db, page, llm_config=None)
+            second = await split_page_into_entries(db, page, llm_config=None)
+
+        assert [d.id for d in first] == [d.id for d in second]
+
+    @pytest.mark.asyncio
+    async def test_a_user_corrected_region_SURVIVES_re_extraction(self, diary_db):
+        """`RegionConfidence.user` exists so a person's correction survives
+        re-extraction. Delete-and-recreate defeated it every single run."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            first = await split_page_into_entries(db, page, llm_config=None)
+
+            corrected = db.get(Document, first[0].id)
+            corrected.region_in_parent = NodeRegion(
+                rect=[0.05, 0.05, 0.9, 0.2],
+                confidence=RegionConfidence.user,
+                method="drawn-by-hand",
+            )
+            db.save(corrected)
+
+            await split_page_into_entries(db, page, llm_config=None)
+
+        after = db.get(Document, first[0].id)
+        assert after.region_in_parent.confidence is RegionConfidence.user
+        assert after.region_in_parent.rect == [0.05, 0.05, 0.9, 0.2]
+        assert after.metadata["bbox_basis"] == "user-corrected"
+
+    @pytest.mark.asyncio
+    async def test_a_machine_region_is_still_refreshed(self, diary_db):
+        """Only USER regions are protected. A nominal/measured one must keep
+        improving as the geometry improves, or re-running could never fix a
+        bad box."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            first = await split_page_into_entries(db, page, llm_config=None)
+            machine = db.get(Document, first[0].id)
+            machine.region_in_parent = NodeRegion(
+                rect=[0.0, 0.0, 0.1, 0.1], confidence=RegionConfidence.nominal
+            )
+            db.save(machine)
+
+            await split_page_into_entries(db, page, llm_config=None)
+
+        after = db.get(Document, first[0].id)
+        assert after.region_in_parent.rect != [0.0, 0.0, 0.1, 0.1]
+
+    @pytest.mark.asyncio
+    async def test_an_entry_that_disappears_is_SOFT_deleted(self, diary_db):
+        """Daniel's ruling, after the evidence that nothing restores a hard
+        delete: workflow runs write no ActionAudit and no MutationLog, and the
+        "workflow snapshot" is the graph, not the data."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            first = await split_page_into_entries(db, page, llm_config=None)
+        assert len(first) == 2
+
+        with _split(ONE_ENTRY):
+            await split_page_into_entries(db, page, llm_config=None)
+
+        gone = db.get(Document, first[1].id)
+        assert gone is not None, "the row must still exist to be recoverable"
+        assert gone.deleted_at is not None
 
     @pytest.mark.asyncio
     async def test_entry_body_drops_its_date_heading(self, diary_db):
@@ -363,3 +482,66 @@ class TestHeadingAnchoredRegions:
         # the last entry short of the page's trailing boxes.
         jan9 = created[2].region_in_parent.rect
         assert jan9[1] + jan9[3] >= 0.80, f"last entry's band stops at {jan9[1] + jan9[3]}"
+
+
+class TestFlicker:
+    """LLM output is not deterministic: an entry can vanish on one run and
+    return on the next. Creating a fresh node on its return would lose the
+    curation a second time, which defeats the point of keeping the row."""
+
+    @pytest.mark.asyncio
+    async def test_an_entry_that_returns_gets_its_OLD_node_back(self, diary_db):
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            first = await split_page_into_entries(db, page, llm_config=None)
+        vanished_id = first[1].id
+
+        with _split(ONE_ENTRY):
+            await split_page_into_entries(db, page, llm_config=None)
+        assert db.get(Document, vanished_id).deleted_at is not None
+
+        with _split(TWO_ENTRIES):
+            third = await split_page_into_entries(db, page, llm_config=None)
+
+        assert vanished_id in {d.id for d in third}, "the id must come back"
+        assert db.get(Document, vanished_id).deleted_at is None
+
+    @pytest.mark.asyncio
+    async def test_curation_survives_a_flicker(self, diary_db):
+        """The reason resurrection matters at all."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            first = await split_page_into_entries(db, page, llm_config=None)
+            corrected = db.get(Document, first[1].id)
+            corrected.region_in_parent = NodeRegion(
+                rect=[0.02, 0.5, 0.9, 0.3],
+                confidence=RegionConfidence.user,
+            )
+            db.save(corrected)
+
+        with _split(ONE_ENTRY):
+            await split_page_into_entries(db, page, llm_config=None)
+        with _split(TWO_ENTRIES):
+            await split_page_into_entries(db, page, llm_config=None)
+
+        after = db.get(Document, first[1].id)
+        assert after.region_in_parent.confidence is RegionConfidence.user
+        assert after.region_in_parent.rect == [0.02, 0.5, 0.9, 0.3]
+
+    @pytest.mark.asyncio
+    async def test_a_PERSON_s_deletion_is_not_undone(self, diary_db):
+        """A re-run that quietly resurrected what someone deliberately deleted
+        would be worse than a duplicate. Only this tool's own removals come
+        back."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            first = await split_page_into_entries(db, page, llm_config=None)
+
+        deleted_by_person = db.get(Document, first[1].id)
+        deleted_by_person.deleted_at = utc_now()   # no tool-removed marker
+        db.save(deleted_by_person)
+
+        with _split(TWO_ENTRIES):
+            await split_page_into_entries(db, page, llm_config=None)
+
+        assert db.get(Document, first[1].id).deleted_at is not None

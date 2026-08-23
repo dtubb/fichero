@@ -1838,6 +1838,12 @@ def _make_parallel_node_function(
                 "documents": [document] if document else [],
                 **node_def.config,  # Static config
             }
+            # The elementwise fan-out builds its inputs here rather than through
+            # resolve_inputs, so a forced run has to be honoured in both places
+            # or Option-run would work for sequential nodes and silently not
+            # for per-file ones. Explicit node config still wins.
+            if state.get("force_recompute") and "force_ocr" not in tool_inputs:
+                tool_inputs["force_ocr"] = True
             # Chained stage: the item's payload is the upstream branch's
             # OUTPUT — a text-consuming tool (extract_entities, summarize)
             # reads it as its `text` input instead of erroring on a bare file.

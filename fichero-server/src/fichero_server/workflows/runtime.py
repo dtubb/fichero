@@ -157,6 +157,10 @@ def build_initial_state(
         # Without this, selected_doc_ids gets dropped when LangGraph initialises
         # channels from the State TypedDict.
         "selected_doc_ids": inputs.get("selected_doc_ids") or [],
+        # Same reason as selected_doc_ids: without an explicit declaration
+        # LangGraph drops it when it initialises channels from the State
+        # TypedDict, and a force run would silently become an ordinary one.
+        "force_recompute": bool(inputs.get("force_recompute", False)),
     }
     if metadata:
         state["metadata"] = metadata

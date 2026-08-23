@@ -70,8 +70,11 @@ DETECT_REGIONS_CONFIG = {
     parallelism="elementwise",
     display_name="Detect Regions",
     description=(
-        "On-device text-region detection (Apple Vision): normalized line and "
-        "word bounding boxes saved per page, before any transcription"
+        "Finds WHERE the words are, on-device and free. Apple Vision reads the "
+        "page locally to locate line and word boxes, so it does produce text — "
+        "that text is a by-product of finding the boxes, not a transcription: "
+        "it never replaces the page's transcript, and no model is called. Runs "
+        "before a transcriber so every box exists up front."
     ),
     category="vision",
     icon="rectangle.dashed.badge.record",

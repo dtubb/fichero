@@ -38,6 +38,16 @@ class ExecuteWorkflowRequest(BaseModel):
     skip_cache: bool = (
         False  # If True, bypass node result cache (still writes new results)
     )
+    #: "Run it again for real" — bypass every cache, including the ARTIFACT
+    #: cache that `skip_cache` does not touch (2026-08-23).
+    #:
+    #: These are deliberately separate flags because they defeat different
+    #: caches. `skip_cache` bypasses the node-result cache, and sub-workflows
+    #: set it unconditionally; widening it to mean this as well would make
+    #: every child run re-OCR its pages, which is minutes of work nobody asked
+    #: for. A user holding Option to force a recompute is a different intent
+    #: from the runtime declining to reuse a node result.
+    force_recompute: bool = False
     provider_override: str | None = None  # Optional run-level provider override
     model_override: str | None = None  # Optional run-level model override
 
