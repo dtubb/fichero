@@ -41,6 +41,33 @@ class TrackingImageView: NSImageView {
     private let minLoupeMagnification: CGFloat = 0.25
     private let maxLoupeMagnification: CGFloat = 20.0
 
+    /// Transparency must READ as transparency: a background-removed PNG over
+    /// the pane's near-white ground looks like a white background, which is a
+    /// lie about the pixels. Preview.app answers this with a checkerboard
+    /// behind alpha images only — same here, and only under the image's own
+    /// frame so opaque pages are untouched.
+    private var imageHasAlpha = false
+    override var image: NSImage? {
+        didSet {
+            imageHasAlpha = image?.representations.contains { $0.hasAlpha } ?? false
+        }
+    }
+
+    /// One 16pt pattern tile filled by AppKit's pattern machinery — a per-draw
+    /// square loop would be O(pixels) on a 4000px scan; a pattern fill is not.
+    private static let transparencyChecker: NSColor = {
+        let tile: CGFloat = 16
+        let image = NSImage(size: NSSize(width: tile, height: tile), flipped: false) { _ in
+            NSColor(white: 0.95, alpha: 1).setFill()
+            NSRect(x: 0, y: 0, width: tile, height: tile).fill()
+            NSColor(white: 0.78, alpha: 1).setFill()
+            NSRect(x: 0, y: 0, width: tile / 2, height: tile / 2).fill()
+            NSRect(x: tile / 2, y: tile / 2, width: tile / 2, height: tile / 2).fill()
+            return true
+        }
+        return NSColor(patternImage: image)
+    }()
+
     /// Show loupe at center of visible area
     func showLoupeAtCenter() {
         guard let scrollView = enclosingScrollView else {
@@ -247,6 +274,19 @@ class TrackingImageView: NSImageView {
     // to avoid conflicts between event handling and gesture recognition
 
     override func draw(_ dirtyRect: NSRect) {
+        if imageHasAlpha, let image {
+            // Same centering math as the loupe: the view can be larger than
+            // the image, and the checker belongs under the pixels only.
+            let offsetX = max(0, (bounds.width - image.size.width) / 2)
+            let offsetY = max(0, (bounds.height - image.size.height) / 2)
+            let imageRect = NSRect(
+                x: offsetX, y: offsetY,
+                width: min(image.size.width, bounds.width),
+                height: min(image.size.height, bounds.height)
+            )
+            Self.transparencyChecker.setFill()
+            imageRect.intersection(dirtyRect).fill()
+        }
         super.draw(dirtyRect)
 
         // Draw loupe if enabled and positioned
