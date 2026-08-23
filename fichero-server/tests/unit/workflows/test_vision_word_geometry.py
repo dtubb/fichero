@@ -6,6 +6,7 @@ fallback for ranges Vision cannot map.
 """
 from fichero_server.workflows.tools.vision_base import (
     VisionOCRBox,
+    _unmatched_reference_bands,
     _interpolated_word_bbox,
     _line_coverage_gaps,
     _rebase_geometry_reading_order,
@@ -88,3 +89,51 @@ def test_rebase_restores_reading_order_and_spans():
     assert text[middle.char_start:middle.char_end] == "recovered middle"
     word = words[0]
     assert text[word.char_start:word.char_end] == "middle"
+
+
+# --- Transcript-anchored bands (2026-08-23, "way down." at ordinary spacing) ---
+
+
+def test_transcript_names_a_missed_line_between_two_anchors():
+    # OCR detected the header and the line two below; the transcript proves
+    # a line between them that left NO tall gap.
+    detected = [
+        _line("FRIDAY, JANUARY 13. 1933", 0.10, start=0),
+        _line("Took air plane over to Andagoya", 0.17, start=25),
+    ]
+    reference = "FRIDAY, JANUARY 13, 1933\nway down. stopped at dredge\nTook air plane over to Andagoya"
+    bands = _unmatched_reference_bands(reference, detected)
+    assert len(bands) == 1
+    top, bottom = bands[0]
+    # Band runs from the header's bottom edge to the matched line's top,
+    # padded — tight spacing is exactly the point.
+    assert top < 0.14 and bottom > 0.16
+
+
+def test_matched_transcript_produces_no_bands():
+    detected = [_line("alpha line here", 0.10), _line("beta line here", 0.14)]
+    reference = "alpha line here\nbeta line here"
+    assert _unmatched_reference_bands(reference, detected) == []
+
+
+def test_missed_line_without_both_anchors_stays_unclaimed():
+    # The transcript's FIRST line missing (no anchor above) → margins are
+    # honest emptiness, never a guessed band.
+    detected = [_line("second line matched", 0.30)]
+    reference = "first line missed entirely\nsecond line matched"
+    assert _unmatched_reference_bands(reference, detected) == []
+
+
+def test_punctuation_and_case_do_not_fake_a_miss():
+    detected = [_line("SATURDAY. JANUARY 14. 1933", 0.10), _line("closing anchor line", 0.30)]
+    reference = "Saturday, January 14, 1933\nclosing anchor line"
+    assert _unmatched_reference_bands(reference, detected) == []
+
+
+def test_adjacent_misses_merge_into_one_band():
+    detected = [_line("top anchor line", 0.10, start=0), _line("bottom anchor line", 0.40, start=16)]
+    reference = (
+        "top anchor line\nfirst missed cursive line\nsecond missed cursive line\nbottom anchor line"
+    )
+    bands = _unmatched_reference_bands(reference, detected)
+    assert len(bands) == 1

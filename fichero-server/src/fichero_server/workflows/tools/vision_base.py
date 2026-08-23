@@ -472,6 +472,84 @@ def _line_coverage_gaps(
     return gaps[:max_bands]
 
 
+def _normalized_probe(text: str) -> str:
+    """Whitespace-collapsed, punctuation-stripped, case-folded — the same
+    tolerances the diary heading matcher earned on this corpus."""
+    kept = "".join(ch if ch not in ".,;:" else " " for ch in text)
+    return " ".join(kept.split()).casefold()
+
+
+def _unmatched_reference_bands(
+    reference_text: str,
+    line_boxes: list[Any],
+    *,
+    max_bands: int = 6,
+) -> list[tuple[float, float]]:
+    """Bands where the TRANSCRIPT proves a line the OCR missed.
+
+    The gap pass only sees tall emptiness; a missed line at ordinary spacing
+    ("way down." — 2026-08-23) leaves no gap. But the page already HAS a
+    transcript, and a transcript line with no fuzzy match in the OCR text is
+    provably missed. Its nearest transcript NEIGHBOURS that did match give
+    the band: from the matched line above to the matched line below,
+    regardless of how tight the spacing is. Top-origin normalized out.
+    """
+    boxes = [
+        b for b in line_boxes
+        if getattr(b, "bbox", None) and len(b.bbox) == 4 and (b.text or "").strip()
+    ]
+    if not boxes or not reference_text.strip():
+        return []
+    heights = sorted(b.bbox[3] for b in boxes if b.bbox[3] > 0)
+    pad = (heights[len(heights) // 2] if heights else 0.02) / 2
+
+    ocr_haystack = _normalized_probe("\n".join(b.text for b in boxes))
+
+    def match_box(reference_line: str) -> Any | None:
+        probe = _normalized_probe(reference_line)[:24]
+        while len(probe) >= 8:
+            if probe in ocr_haystack:
+                for b in boxes:
+                    if probe in _normalized_probe(b.text):
+                        return b
+                # Matched across a line join — treat as matched, unanchored.
+                return None
+            probe = probe[:-4]
+        return "MISS"
+
+    reference_lines = [ln for ln in reference_text.splitlines() if len(_normalized_probe(ln)) >= 8]
+    anchors: list[Any] = [match_box(ln) for ln in reference_lines]
+
+    bands: list[tuple[float, float]] = []
+    for index, anchor_box in enumerate(anchors):
+        if anchor_box != "MISS":
+            continue
+        above = next(
+            (a for a in reversed(anchors[:index]) if a not in ("MISS", None)), None
+        )
+        below = next(
+            (a for a in anchors[index + 1:] if a not in ("MISS", None)), None
+        )
+        if above is None or below is None:
+            # No anchor on one side — the margin stays honest emptiness.
+            continue
+        top = above.bbox[1] + above.bbox[3]
+        bottom = below.bbox[1]
+        if bottom <= top:
+            continue
+        bands.append((max(0.0, top - pad), min(1.0, bottom + pad)))
+
+    # Merge overlaps so adjacent misses share one crop.
+    bands.sort()
+    merged: list[tuple[float, float]] = []
+    for band in bands:
+        if merged and band[0] <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], band[1]))
+        else:
+            merged.append(band)
+    return merged[:max_bands]
+
+
 def _rebase_geometry_reading_order(
     line_boxes: list["VisionOCRBox"],
     word_boxes: list["VisionOCRBox"],
@@ -1003,6 +1081,7 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
 def apple_vision_ocr_with_geometry(
     image_path: str,
     language: str = "en",
+    reference_text: str | None = None,
 ) -> VisionOCRResult:
     """Extract text and normalized Apple Vision geometry from image or PDF.
 
@@ -1109,7 +1188,9 @@ def apple_vision_ocr_with_geometry(
                     f"{effective_path}"
                 )
 
-            return _vision_ocr_cgimage_with_geometry(cg_image, language)
+            return _vision_ocr_cgimage_with_geometry(
+                cg_image, language, reference_text=reference_text
+            )
 
     except ImportError as e:
         msg = f"Apple Vision not available: {e}"
@@ -1138,6 +1219,7 @@ def _vision_ocr_cgimage_with_geometry(
     language: str = "en",
     *,
     page_index: int | None = None,
+    reference_text: str | None = None,
 ) -> VisionOCRResult:
     """Run Vision OCR on a CGImage and return the recognized text.
 
@@ -1196,6 +1278,18 @@ def _vision_ocr_cgimage_with_geometry(
             CGRectMake,
         )
         gaps = _line_coverage_gaps(base.line_boxes)
+        # Transcript-anchored bands catch what the gap heuristic cannot: a
+        # missed line at ORDINARY spacing, provable because the page's
+        # existing transcript names it (2026-08-23, "way down.").
+        if reference_text:
+            gaps = gaps + _unmatched_reference_bands(reference_text, base.line_boxes)
+            deduped: list[tuple[float, float]] = []
+            for band in sorted(gaps):
+                if deduped and band[0] <= deduped[-1][1]:
+                    deduped[-1] = (deduped[-1][0], max(deduped[-1][1], band[1]))
+                else:
+                    deduped.append(band)
+            gaps = deduped
         if not gaps:
             return base
         width = CGImageGetWidth(cg_image)
@@ -1444,10 +1538,12 @@ async def apple_vision_ocr_pdf_page_geometry_async(
 
 
 async def apple_vision_ocr_with_geometry_async(
-    image_path: str, language: str = "en"
+    image_path: str, language: str = "en", reference_text: str | None = None
 ) -> VisionOCRResult:
     """Async wrapper for Apple Vision OCR that keeps geometry (#4309)."""
-    return await asyncio.to_thread(apple_vision_ocr_with_geometry, image_path, language)
+    return await asyncio.to_thread(
+        apple_vision_ocr_with_geometry, image_path, language, reference_text
+    )
 
 
 def _apple_geometry_result(result: VisionOCRResult) -> OCRGeometryResult | None:
@@ -3015,7 +3111,11 @@ async def process_vision(
                         text = "\n\n".join(parts)
                 else:
                     _vision_result = await apple_vision_ocr_with_geometry_async(
-                        file_path, language
+                        file_path,
+                        language,
+                        # The page's existing transcript anchors the recovery
+                        # of lines Vision misses at ordinary spacing.
+                        reference_text=existing_text or None,
                     )
                     text = _vision_result.text
                     page_geometry = _apple_geometry_result(_vision_result)
