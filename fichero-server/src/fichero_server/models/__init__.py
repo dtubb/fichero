@@ -217,12 +217,19 @@ class Document(BaseModel):
     # measurement.
     region_in_parent: NodeRegion | None = None
 
-    # DEPRECATED (2026-08-20): superseded by `region_in_parent`. Kept readable
-    # so existing rows decode, and because `_ensure_table` would ADD COLUMN it
-    # back onto any library created before the rename. Pixel ints against an
-    # unnamed frame — which is the original defect in miniature. New writes
-    # must use `region_in_parent`; the crop/split routes and the manifest
-    # importer are the remaining callers to convert.
+    # DEPRECATED (2026-08-20), and as of 2026-08-22 NOTHING WRITES IT.
+    #
+    # The last writer was `diary_entries.py`, which scaled normalized OCR
+    # geometry DOWN into pixel ints here — a conversion that needed the page's
+    # width/height and silently produced no geometry at all when the page
+    # metadata lacked them. It now writes `region_in_parent` directly, which
+    # removes the conversion and recovers those entries.
+    #
+    # The field stays READ-ONLY so pre-rename rows still decode, and because
+    # `_ensure_table` would ADD COLUMN it back onto any older library anyway.
+    # Removing it is a reimport-time cleanup, not a code change: pixel ints
+    # against an unnamed frame are the original defect in miniature, and the
+    # only thing keeping them here is data that predates the fix.
     bbox: tuple[int, int, int, int] | None = None  # x, y, width, height
 
     prototype_key: str | None = None  # user-assigned document prototype/class key
@@ -753,14 +760,6 @@ class ContentReviewState(str, Enum):
     reviewed = "reviewed"
 
 
-class ContentSourceAnchor(BaseModel):
-    document_id: str
-    page_id: str | None = None
-    char_start: int | None = None
-    char_end: int | None = None
-    bbox: list[float] | None = None
-
-
 class ContentRepresentation(BaseModel):
     """Immutable source-linked content representation (#3443 slice 1)."""
 
@@ -772,7 +771,18 @@ class ContentRepresentation(BaseModel):
     content: str
     language: str | None = None
     script: str | None = None
-    source_anchor: ContentSourceAnchor
+    #: The SHARED anchor (2026-08-22). This field used to carry a local
+    #: `ContentSourceAnchor` whose four fields — document_id / page_id /
+    #: char_start / char_end — were a strict SUBSET of `SourceAnchor`, plus a
+    #: `bbox` that is `rect` here. Two types meaning "where this came from" in
+    #: a program whose purpose is collapsing anchor representations was one
+    #: type too many, so the local one is gone rather than aliased: the order
+    #: was to retire old paths, and an alias keeps two names for one thing.
+    #:
+    #: It also gains what the local type could not express — `rendition_id`,
+    #: `granularity`, `refines`, `polygon` — so a representation can now say
+    #: WHICH pixel frame its region belongs to.
+    source_anchor: SourceAnchor
     parent_representation_id: str | None = None
     derived_from_representation_id: str | None = None
     producer_run_id: str | None = None
@@ -1201,6 +1211,27 @@ class Note(BaseModel):
     note_type: str = "comment"  # "comment", "question", "flag", "correction"
 
     # Position (for image annotations)
+    # NOT MIGRATED TO `SourceAnchor` — deliberately blocked (2026-08-22).
+    #
+    # Every other bbox in this program has been consolidated. This one cannot
+    # be, because it is not clear it should exist at all: there are TWO live
+    # classes named `Note`, and they are different concepts.
+    #
+    #   fichero_server.models.Note        target_type / target_id / bbox
+    #   fichero_server.models.knowledge.Note   title / linked_document_ids
+    #
+    # They are not the same object (`models.Note is knowledge.Note` -> False),
+    # both are imported and used, and the name alone does not say which you
+    # get. THIS one — "user annotation on any object, with a position" — is
+    # very close to `Annotation`, which already carries a validated `anchor`.
+    #
+    # Measured 2026-08-22: this field has NO readers and no explicit writer;
+    # it can only be populated by a client payload through `Note(**payload)`.
+    #
+    # So the open question is not "what shape should this be" but "should this
+    # model exist, or is it Annotation under a second name". Renaming the
+    # field first would make that harder to see, and would spend a wire change
+    # on something that may be deleted. Left alone on purpose.
     bbox: tuple[int, int, int, int] | None = None
 
     # Timestamps

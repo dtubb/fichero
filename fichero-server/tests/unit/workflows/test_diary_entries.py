@@ -13,6 +13,7 @@ import pytest
 
 from fichero_server.db import Database
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
+from fichero_server.models.anchors import RegionConfidence
 from fichero_server.models import Artifact, DocType, Document
 from fichero_server.models.knowledge import (
     ClassificationDimension,
@@ -106,18 +107,50 @@ class TestDiaryEntries:
         assert "convoy" in created[1].page_content
 
     @pytest.mark.asyncio
-    async def test_bbox_is_union_of_the_days_line_boxes(self, diary_db):
+    async def test_region_is_union_of_the_days_line_boxes(self, diary_db):
         db, page = diary_db
         with _split(TWO_ENTRIES):
             created = await split_page_into_entries(db, page, llm_config=None)
 
-        first, second = created[0].bbox, created[1].bbox
+        first, second = created[0].region_in_parent, created[1].region_in_parent
         assert first is not None and second is not None
-        # Pixel ints against the page's 1000x2000 metadata: day one spans its
-        # heading + body lines; day two starts lower; no vertical overlap.
-        assert first == (100, 100, 800, 200)
-        assert second == (100, 1000, 850, 200)
-        assert first[1] + first[3] <= second[1]
+        # NORMALIZED fractions of the page now, not pixel ints. These are the
+        # same rectangles the old assertion described — 0.1 x 1000 = 100,
+        # 0.05 x 2000 = 100, and so on — with the lossy scaling step removed.
+        assert first.rect == pytest.approx([0.1, 0.05, 0.8, 0.10])
+        assert second.rect == pytest.approx([0.1, 0.50, 0.85, 0.10])
+        # Day one ends above where day two begins: no vertical overlap.
+        assert first.rect[1] + first.rect[3] <= second.rect[1]
+
+    @pytest.mark.asyncio
+    async def test_the_union_is_marked_measured_not_nominal(self, diary_db):
+        """It is the union of OCR line boxes actually found on the page, not a
+        guess at where an entry might fall."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent.confidence is RegionConfidence.measured
+
+    @pytest.mark.asyncio
+    async def test_geometry_SURVIVES_a_page_with_no_pixel_dimensions(self, diary_db):
+        """The recovered case, and the reason for the change.
+
+        The old code scaled the normalized OCR union down into pixel ints,
+        which needed the page's width/height from metadata and returned None
+        without them — discarding geometry that was sitting right there. A
+        normalized region never needed those dimensions.
+        """
+        db, page = diary_db
+        page.metadata = {}
+        db.save(page)
+
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent is not None
+        assert created[0].region_in_parent.rect == pytest.approx([0.1, 0.05, 0.8, 0.10])
+        assert created[0].metadata["bbox_basis"] == "ocr_geometry"
 
     @pytest.mark.asyncio
     async def test_prototype_created_with_date_role(self, diary_db):

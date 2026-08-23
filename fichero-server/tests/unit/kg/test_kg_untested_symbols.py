@@ -17,6 +17,7 @@ import pandas as pd
 import pytest
 from pydantic import ValidationError
 
+from fichero_server.models.anchors import AnchorSpace, SourceAnchor
 from fichero_server.knowledge.graph import (
     CentralityScore,
     MergeCandidate,
@@ -86,7 +87,9 @@ def _sample_claims() -> list[Any]:
             epistemic_status=None,
             text="Alice meets Carol.",
             source_excerpt="Alice meets Carol",
-            source_bbox=[1, 2, 3, 4],
+            source_anchor=SourceAnchor(
+                document_id="doc-1", rect=[1, 2, 3, 4], space=AnchorSpace.pixel
+            ),
             source_char_start=0,
             source_char_end=17,
         ),
@@ -99,7 +102,9 @@ def _sample_claims() -> list[Any]:
             epistemic_status=None,
             text="Bob mentions Dora.",
             source_excerpt="Bob mentions Dora",
-            source_bbox=[1, 2, 3, 4],
+            source_anchor=SourceAnchor(
+                document_id="doc-1", rect=[1, 2, 3, 4], space=AnchorSpace.pixel
+            ),
             source_char_start=0,
             source_char_end=16,
         ),

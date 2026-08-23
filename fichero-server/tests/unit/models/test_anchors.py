@@ -19,6 +19,7 @@ from fichero_server.models.anchors import (
     NodeRegion,
     RegionConfidence,
     SourceAnchor,
+    validate_rect,
 )
 
 
@@ -196,3 +197,54 @@ class TestDocumentRegion:
         ADD COLUMN it back onto an older library regardless."""
         doc = Document(name="old", bbox=(0, 0, 100, 200))
         assert doc.bbox == (0, 0, 100, 200)
+
+
+class TestRectMustStayInsideItsFrame:
+    """Per-component bounds were not enough (2026-08-22).
+
+    `[0.5, 0, 0.9, 1]` has every component inside [0, 1] and still runs 40% off
+    the right edge. A normalized rect names a fraction OF a frame, so one that
+    leaves the frame points at a place that does not exist — the same silent
+    wrong-place failure as an unnamed frame, one level in.
+    """
+
+    def test_a_rect_running_off_the_right_edge_is_rejected(self):
+        with pytest.raises(ValueError, match="x \\+ width"):
+            validate_rect([0.5, 0.0, 0.9, 1.0])
+
+    def test_a_rect_running_off_the_bottom_edge_is_rejected(self):
+        with pytest.raises(ValueError, match="y \\+ height"):
+            validate_rect([0.0, 0.8, 1.0, 0.9])
+
+    @pytest.mark.parametrize(
+        "rect,label",
+        [
+            ([0.0, 0.0, 0.5, 1.0], "even split, left page"),
+            ([0.5, 0.0, 0.5, 1.0], "even split, right page"),
+            ([0.0, 0.0, 1.0, 1.0], "full page"),
+        ],
+    )
+    def test_the_shapes_the_importer_writes_are_accepted(self, rect, label):
+        """These land EXACTLY on the edge. Rejecting them would break every
+        opening the Marshall sidecars describe."""
+        assert validate_rect(list(rect)) == rect
+
+    def test_float_drift_does_not_fail_a_perfect_rect(self):
+        """1/3 + 2/3 is not exactly 1.0 in binary. A rect that is
+        geometrically perfect must not be rejected for binary rounding."""
+        assert validate_rect([1 / 3, 0.0, 2 / 3, 1.0]) is not None
+
+    def test_pixel_space_is_untouched_by_the_edge_rule(self):
+        """A pixel rect's numbers are not fractions of anything, so "> 1" is
+        meaningless there — a 2000px-wide box is ordinary."""
+        assert validate_rect(
+            [72.0, 144.0, 2000.0, 3000.0], space=AnchorSpace.pixel
+        ) is not None
+
+    def test_the_rule_reaches_the_models_not_just_the_function(self):
+        """Both anchor types validate by construction, so the rule cannot be
+        skipped by going through a model instead of the helper."""
+        with pytest.raises(ValueError):
+            NodeRegion(rect=[0.5, 0.0, 0.9, 1.0])
+        with pytest.raises(ValueError):
+            SourceAnchor(document_id="d", rect=[0.5, 0.0, 0.9, 1.0])

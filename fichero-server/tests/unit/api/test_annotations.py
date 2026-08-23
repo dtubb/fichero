@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import Annotation, AnnotationKind
 from fichero_server.models import DocType, Document, FileType, Status
 from fichero_server.workflows.tools._annotation_input import crop_text
@@ -78,14 +79,14 @@ class TestAnnotationCreate:
         assert "id" in data
         assert "created_at" in data
 
-    def test_create_with_page_index_and_bbox(self, client, doc):
+    def test_create_with_page_index_and_anchor(self, client, doc):
         resp = client.post(
             "/api/annotations",
             json={
                 "document_id": doc.id,
                 "kind": "highlight",
                 "page_index": 2,
-                "bbox": [0.1, 0.2, 0.5, 0.3],
+                "anchor": {"document_id": "doc-1", "rect": [0.1, 0.2, 0.5, 0.3]},
                 "color": "#FFFF00",
                 "tags": ["important"],
             },
@@ -93,7 +94,9 @@ class TestAnnotationCreate:
         assert resp.status_code == 200
         data = resp.json()
         assert data["page_index"] == 2
-        assert data["bbox"] == [0.1, 0.2, 0.5, 0.3]
+        # Round-trips as the anchor, which unlike the old bare bbox can also
+        # carry WHICH rendition the coordinates belong to.
+        assert data["anchor"]["rect"] == [0.1, 0.2, 0.5, 0.3]
         assert data["color"] == "#FFFF00"
 
     def test_create_unknown_document_returns_404(self, client):
@@ -636,20 +639,28 @@ class TestAnnotationCreatedByAttribution:
 
 
 class TestAnnotationBboxValidation:
-    """Annotation models reject malformed bbox and color."""
+    """Annotation models reject a malformed region and colour.
+
+    The rect invariant moved onto `SourceAnchor` (2026-08-22), so it is now
+    enforced everywhere an anchor exists rather than on this one model — which
+    was the original complaint: the rule was written down and applied to one
+    field out of six.
+    """
 
     def test_annotation_model_bbox_wrong_length_rejected(self, client):
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError) as exc:
-            Annotation(kind=AnnotationKind.highlight, bbox=[0.1, 0.2, 0.3])
-        assert "bbox must have exactly 4 elements" in str(exc.value)
+            Annotation(kind=AnnotationKind.highlight,
+                       anchor=SourceAnchor(document_id='d', rect=[0.1, 0.2, 0.3]))
+        assert "rect must have exactly 4 elements" in str(exc.value)
 
     def test_annotation_model_zero_bbox_rejected(self, client):
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError) as exc:
-            Annotation(kind=AnnotationKind.highlight, bbox=[0.0, 0.0, 0.0, 0.0])
+            Annotation(kind=AnnotationKind.highlight,
+                       anchor=SourceAnchor(document_id='d', rect=[0.0, 0.0, 0.0, 0.0]))
         assert "width must be > 0" in str(exc.value)
 
     def test_annotation_model_invalid_color_rejected(self, client):
@@ -664,15 +675,15 @@ class TestAnnotationBboxValidation:
         from pydantic import ValidationError
         from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
-            AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.3])
-        assert "bbox must have exactly 4 elements" in str(exc.value)
+            AnnotationCreateRequest(kind="highlight", anchor=SourceAnchor(document_id="d", rect=[0.1, 0.2, 0.3]))
+        assert "rect must have exactly 4 elements" in str(exc.value)
 
     def test_bbox_negative_value_rejected(self, client):
         """bbox values must be in [0, 1]."""
         from pydantic import ValidationError
         from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
-            AnnotationCreateRequest(kind="highlight", bbox=[-0.1, 0.2, 0.3, 0.4])
+            AnnotationCreateRequest(kind="highlight", anchor=SourceAnchor(document_id="d", rect=[-0.1, 0.2, 0.3, 0.4]))
         assert "must be in [0, 1]" in str(exc.value)
 
     def test_bbox_zero_width_rejected(self, client):
@@ -680,7 +691,7 @@ class TestAnnotationBboxValidation:
         from pydantic import ValidationError
         from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
-            AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.0, 0.4])
+            AnnotationCreateRequest(kind="highlight", anchor=SourceAnchor(document_id="d", rect=[0.1, 0.2, 0.0, 0.4]))
         assert "width must be > 0" in str(exc.value)
 
     def test_bbox_zero_height_rejected(self, client):
@@ -688,20 +699,20 @@ class TestAnnotationBboxValidation:
         from pydantic import ValidationError
         from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
         with pytest.raises(ValidationError) as exc:
-            AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.3, 0.0])
+            AnnotationCreateRequest(kind="highlight", anchor=SourceAnchor(document_id="d", rect=[0.1, 0.2, 0.3, 0.0]))
         assert "height must be > 0" in str(exc.value)
 
     def test_bbox_valid_passes(self, client):
         """Valid bbox values pass."""
         from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
-        req = AnnotationCreateRequest(kind="highlight", bbox=[0.1, 0.2, 0.3, 0.4])
-        assert req.bbox == [0.1, 0.2, 0.3, 0.4]
+        req = AnnotationCreateRequest(kind="highlight", anchor=SourceAnchor(document_id="d", rect=[0.1, 0.2, 0.3, 0.4]))
+        assert req.anchor.rect == [0.1, 0.2, 0.3, 0.4]
 
     def test_bbox_none_passes(self, client):
         """None bbox is allowed."""
         from fichero_server.api.routes.document.annotations import AnnotationCreateRequest
-        req = AnnotationCreateRequest(kind="highlight", bbox=None)
-        assert req.bbox is None
+        req = AnnotationCreateRequest(kind="highlight", anchor=None)
+        assert req.anchor is None
 
     def test_color_invalid_string_rejected(self, client):
         """color must be hex like #RRGGBB."""
@@ -737,8 +748,8 @@ class TestAnnotationPatchBboxValidation:
         from pydantic import ValidationError
         from fichero_server.api.routes.document.annotations import AnnotationPatchRequest
         with pytest.raises(ValidationError) as exc:
-            AnnotationPatchRequest(bbox=[0.1, 0.2])
-        assert "bbox must have exactly 4 elements" in str(exc.value)
+            AnnotationPatchRequest(anchor=SourceAnchor(document_id="d", rect=[0.1, 0.2]))
+        assert "rect must have exactly 4 elements" in str(exc.value)
 
     def test_patch_color_invalid_rejected(self, client):
         from pydantic import ValidationError

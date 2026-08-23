@@ -5,6 +5,7 @@ from collections import defaultdict
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity, Note
@@ -27,7 +28,10 @@ class ColumnEntity(BaseModel):
 class ColumnAnnotation(BaseModel):
     id: str
     kind: str
-    bbox: list[float] | None = None
+    #: The whole anchor, not four bare numbers: unwrapping it here would
+    #: drop the space and the rendition the annotation recorded, and the
+    #: client would be back to a rect against an unnamed frame.
+    anchor: SourceAnchor | None = None
 
 
 class ColumnNote(BaseModel):
@@ -116,13 +120,13 @@ async def library_item_columns(
 
     # One grouping pass over each fixed bulk result; no per-item DB work.
     for document in documents:
-        if document.bbox is not None:
+        if document.region_in_parent is not None:
             for item_id in owners.get(document.id, ()):
                 rows[item_id].bbox_counts.node_regions += 1
     for claim in claims:
         for item_id in owners.get(claim.source_document_id, ()):
             row_entity_ids[item_id].update(claim.entity_ids)
-            if claim.source_bbox is not None:
+            if claim.source_anchor is not None:
                 rows[item_id].bbox_counts.claims += 1
     for annotation in annotations:
         for item_id in set().union(
@@ -134,9 +138,9 @@ async def library_item_columns(
                 continue
             seen_annotations[item_id].add(annotation.id)
             rows[item_id].annotations.append(ColumnAnnotation(
-                id=annotation.id, kind=annotation.kind.value, bbox=annotation.bbox
+                id=annotation.id, kind=annotation.kind.value, anchor=annotation.anchor
             ))
-            if annotation.bbox is not None:
+            if annotation.anchor is not None:
                 rows[item_id].bbox_counts.annotations += 1
     for note in notes:
         for item_id in set().union(

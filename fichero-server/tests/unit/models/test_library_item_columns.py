@@ -2,6 +2,7 @@
 
 import pytest
 
+from fichero_server.models.anchors import NodeRegion, SourceAnchor
 from fichero_server.api.routes.library import items as library_items
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
@@ -19,7 +20,13 @@ from fichero_server.models import DocType, Document
 async def test_columns_are_batched_ordered_and_roll_up_descendants(tmp_path, monkeypatch):
     db = Database(path=tmp_path / "library" / "fichero.duckdb")
     parent = Document(name="Letter", doc_type=DocType.group)
-    child = Document(name="Page one", parent_id=parent.id, bbox=(1, 2, 3, 4))
+    child = Document(
+        name="Page one", parent_id=parent.id,
+        # `region_in_parent`, not the legacy pixel `bbox` — the column
+        # counter reads the current field, so a fixture on the old one
+        # would report zero regions for a page that plainly has one.
+        region_in_parent=NodeRegion(rect=[0.0, 0.0, 0.5, 1.0]),
+    )
     empty = Document(name="Empty")
     entity = KnowledgeEntity(canonical_name="Rosario", entity_type=EntityType.person)
     db.save(parent)
@@ -28,11 +35,13 @@ async def test_columns_are_batched_ordered_and_roll_up_descendants(tmp_path, mon
     db.save(entity)
     db.save(KnowledgeClaim(
         text="Rosario wrote the letter", source_document_id=child.id,
-        entity_ids=[entity.id], source_bbox=[0.1, 0.1, 0.2, 0.2],
+        entity_ids=[entity.id],
+        source_anchor=SourceAnchor(document_id=child.id, rect=[0.1, 0.1, 0.2, 0.2]),
     ))
     db.save(Annotation(
         kind=AnnotationKind.highlight, document_id=child.id,
-        bbox=[0.2, 0.2, 0.2, 0.2], text="signature",
+        anchor=SourceAnchor(document_id=child.id, rect=[0.2, 0.2, 0.2, 0.2]),
+        text="signature",
     ))
     db.save(Note(title="Context", linked_document_ids=[child.id]))
     calls = 0

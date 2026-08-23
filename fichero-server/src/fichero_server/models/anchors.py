@@ -56,6 +56,12 @@ class AnchorSpace(str, Enum):
     pixel = "pixel"
 
 
+#: Float slack for the frame-edge check. A rect assembled as 1/3 + 2/3 does not
+#: sum to exactly 1.0 in binary, and rejecting it would fail a rect that is
+#: geometrically perfect.
+_EDGE_TOLERANCE = 1e-6
+
+
 def validate_rect(
     value: list[float] | None, *, space: AnchorSpace = AnchorSpace.normalized
 ) -> list[float] | None:
@@ -87,6 +93,22 @@ def validate_rect(
         raise ValueError(f"rect width must be > 0, got {value[2]}")
     if value[3] <= 0:
         raise ValueError(f"rect height must be > 0, got {value[3]}")
+    if space is AnchorSpace.normalized:
+        # Per-component bounds are not enough: [0.5, 0, 0.9, 1] has every
+        # component inside [0, 1] and still runs 40% off the right edge. A
+        # normalized rect names a fraction OF a frame, so one that leaves the
+        # frame is pointing at a place that does not exist — the same silent
+        # wrong-place failure as an unnamed frame, one level in.
+        #
+        # The tolerance absorbs float drift only. An even split writes
+        # 0.5 + 0.5, and a full-page box 0.0 + 1.0; both land exactly on the
+        # edge, and neither should be rejected for a bit of binary rounding.
+        for index, extent in ((0, value[0] + value[2]), (1, value[1] + value[3])):
+            if extent > 1.0 + _EDGE_TOLERANCE:
+                axis = "x + width" if index == 0 else "y + height"
+                raise ValueError(
+                    f"{axis} must not exceed 1 for a normalized rect, got {extent}"
+                )
     return value
 
 

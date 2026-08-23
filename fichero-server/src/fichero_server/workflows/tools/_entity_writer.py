@@ -21,6 +21,7 @@ from typing import Optional
 
 from fichero_server.db import Database
 from fichero_server.knowledge._common import is_bare_is_a_copula
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import (
     AttributionRole,
     AttributionStep,
@@ -827,7 +828,7 @@ def derive_evidential_dimensions(
     source_excerpt: Optional[str],
     source_char_start: Optional[int],
     source_char_end: Optional[int],
-    source_bbox: Optional[list[float]],
+    source_anchor: Optional[SourceAnchor],
     confidence: float,
     asserted_date_values: Optional[list[EvidentialDateRange | dict]] = None,
     asserted_place_values: Optional[list[EvidentialPlace | dict]] = None,
@@ -940,7 +941,7 @@ def derive_evidential_dimensions(
         source_excerpt=source_excerpt,
         source_char_start=source_char_start,
         source_char_end=source_char_end,
-        source_bbox=source_bbox,
+        source_anchor=source_anchor,
         support_basis=EvidenceBasis.asserted,
         support_confidence=confidence,
         date_values=date_values,
@@ -1870,7 +1871,7 @@ def save_claim(
     epistemic_status: Optional[EpistemicStatus] = None,
     source_char_start: Optional[int] = None,
     source_char_end: Optional[int] = None,
-    source_bbox: Optional[list[float]] = None,
+    source_anchor: Optional[SourceAnchor] = None,
     time_start: Optional[str] = None,
     time_end: Optional[str] = None,
     time_precision: Optional[str] = None,
@@ -2078,7 +2079,7 @@ def save_claim(
         source_excerpt=source_excerpt,
         source_char_start=source_char_start,
         source_char_end=source_char_end,
-        source_bbox=source_bbox,
+        source_anchor=source_anchor,
         confidence=confidence,
         asserted_date_values=date_values,
         asserted_place_values=place_values,
@@ -2107,7 +2108,7 @@ def save_claim(
         source_page_label=source_page_label,
         source_char_start=source_char_start,
         source_char_end=source_char_end,
-        source_bbox=source_bbox,
+        source_anchor=source_anchor,
         time_start=time_start,
         time_end=time_end,
         time_precision=time_precision,

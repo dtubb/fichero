@@ -113,7 +113,21 @@ def _iiif_base_url(document_id: str) -> str:
     return f"/api/iiif/iiif/{document_id}"
 
 
-def _iiif_canvas_id(document_id: str) -> str:
+def _iiif_canvas_id(document_id: str, rendition_id: str | None = None) -> str:
+    """The canvas an annotation's coordinates belong to.
+
+    Was hard-coded to `/canvas/1` for every annotation on every document
+    (2026-08-20 review): a synthetic per-document canvas with NO rendition
+    dimension, so an exported annotation could not say which image its
+    percentages were percentages OF. W3C gives `target.source` for exactly
+    this and it was being filled with a constant.
+
+    A rendition-scoped canvas is emitted when the anchor names one; documents
+    whose annotations predate rendition-aware anchors still get canvas/1, which
+    is the honest answer for a coordinate whose frame was never recorded.
+    """
+    if rendition_id:
+        return f"{_iiif_base_url(document_id)}/canvas/{rendition_id}"
     return f"{_iiif_base_url(document_id)}/canvas/1"
 
 
@@ -157,17 +171,35 @@ def _annotation_target(doc: Document, ann: Annotation) -> dict[str, Any]:
                     "exact": exact,
                 }
             )
-    if ann.bbox and len(ann.bbox) == 4:
-        x, y, width, height = ann.bbox
-        selectors.append(
-            {
-                "type": "FragmentSelector",
-                "conformsTo": "http://www.w3.org/TR/media-frags/",
-                "value": f"xywh=pct:{x * 100:g},{y * 100:g},{width * 100:g},{height * 100:g}",
-            }
+    rect = ann.anchor.rect if ann.anchor else None
+    region_selector: dict[str, Any] | None = None
+    if rect and len(rect) == 4:
+        x, y, width, height = rect
+        region_selector = {
+            "type": "FragmentSelector",
+            "conformsTo": "http://www.w3.org/TR/media-frags/",
+            "value": f"xywh=pct:{x * 100:g},{y * 100:g},{width * 100:g},{height * 100:g}",
+        }
+
+    target: dict[str, Any] = {
+        "source": _iiif_canvas_id(
+            doc.id, ann.anchor.rendition_id if ann.anchor else None
         )
-    target: dict[str, Any] = {"source": _iiif_canvas_id(doc.id)}
-    if selectors:
+    }
+
+    # NESTED, not flattened (2026-08-20 review). A bare list of selectors reads
+    # as "ANY of these locates the target"; the real relationship is "this text
+    # span, WITHIN this region". W3C's `refinedBy` says precisely that, and
+    # emitting a flat list threw the containment away — the export claimed less
+    # than the data knew.
+    if region_selector and selectors:
+        region_selector["refinedBy"] = (
+            selectors[0] if len(selectors) == 1 else selectors
+        )
+        target["selector"] = region_selector
+    elif region_selector:
+        target["selector"] = region_selector
+    elif selectors:
         target["selector"] = selectors[0] if len(selectors) == 1 else selectors
     return target
 
