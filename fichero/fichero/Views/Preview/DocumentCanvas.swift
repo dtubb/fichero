@@ -26,6 +26,11 @@ struct DocumentCanvas: View {
     /// entry-source highlight (preview-layers M1, #27). Display-only; the
     /// annotation region layer is unaffected.
     var highlightBoxes: [[Double]] = []
+    /// Entry ladder (2026-08-23): open zoomed to this normalized rect, and
+    /// route vertical steps to the host's containment ladder. Image canvases
+    /// only; other content kinds ignore both.
+    var focusRegion: [Double]?
+    var onContainmentStep: ((Int) -> Bool)?
 
     enum Content {
         /// A backend storage display image, resolved by document id.
@@ -74,7 +79,9 @@ struct DocumentCanvas: View {
                 documentId: docId,
                 onNavigateToDocument: onNavigateToDocument,
                 isEditing: isEditing,
-                highlightBoxes: highlightBoxes
+                highlightBoxes: highlightBoxes,
+                focusRegion: focusRegion,
+                onContainmentStep: onContainmentStep
             )
         case .imageRendered(let nsImage, let docId):
             ZoomableImagePreview(
@@ -82,7 +89,9 @@ struct DocumentCanvas: View {
                 renderedImage: nsImage,
                 onNavigateToDocument: onNavigateToDocument,
                 isEditing: isEditing,
-                highlightBoxes: highlightBoxes
+                highlightBoxes: highlightBoxes,
+                focusRegion: focusRegion,
+                onContainmentStep: onContainmentStep
             )
         case .pdf(let documentId, let pageIndex):
             PDFPageWithToolbar(
@@ -132,6 +141,8 @@ private struct StorageDisplayImageCanvas: View {
     var onNavigateToDocument: ((String) -> Void)?
     var isEditing: Binding<Bool>?
     var highlightBoxes: [[Double]] = []
+    var focusRegion: [Double]?
+    var onContainmentStep: ((Int) -> Bool)?
 
     @Environment(StorageService.self) private var storageService
     /// Optional: hosts without a store (isolated previews) skip the
@@ -151,7 +162,9 @@ private struct StorageDisplayImageCanvas: View {
                     content: .imageRendered(image: image, documentId: documentId),
                     onNavigateToDocument: onNavigateToDocument,
                     isEditing: isEditing,
-                    highlightBoxes: highlightBoxes
+                    highlightBoxes: highlightBoxes,
+                    focusRegion: focusRegion,
+                    onContainmentStep: onContainmentStep
                 )
             } else if let loadError {
                 if let thumbnail = storageService.cachedThumbnail(for: documentId) {

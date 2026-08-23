@@ -71,3 +71,49 @@ struct ImageSwapGeometryGuardTests {
         )
     }
 }
+
+/// The entry containment ladder (Daniel, 2026-08-23: "only show the bounding
+/// box, but be able to get back to full page by swiping…which will also
+/// bring us up to the full spread"). Structural pins: the vertical axis is
+/// the LADDER on an entry and the rendition flip everywhere else, and the
+/// region rung opens zoomed to the band.
+struct EntryContainmentLadderGuardTests {
+    private func source(_ rel: String) throws -> String {
+        try String(
+            contentsOf: AppSource.root().appendingPathComponent(rel), encoding: .utf8
+        )
+    }
+
+    @Test("vertical steps consult the ladder before the rendition flip")
+    func ladderOutranksRenditionFlip() throws {
+        let viewer = try source("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
+        #expect(viewer.contains("if let onContainmentStep, onContainmentStep(step) { return }"))
+        // All three vertical inputs route through the ONE arbiter — swipe
+        // notification plus both arrow keys. Counted so a fourth input can't
+        // quietly go straight to the flip.
+        #expect(viewer.components(separatedBy: "verticalStep(").count - 1 >= 4)
+    }
+
+    @Test("the region rung opens zoomed to the band and owns the vertical axis")
+    func regionRungOpensOnTheBand() throws {
+        let entry = try source("Views/Preview/EntrySourcePreview.swift")
+        #expect(entry.contains("focusRegion: ladderLevel == .region ? region.first : nil"))
+        let tracking = try source("Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift")
+        #expect(tracking.contains("coordinator.zoomToNormalizedRegion(region)"))
+        #expect(tracking.contains("verticalSwipeAlwaysNavigates =\n            focusRegion != nil"))
+    }
+
+    @Test("an entry with no region starts at the page rung, never a dead crop")
+    func regionlessEntryStartsAtPage() throws {
+        let entry = try source("Views/Preview/EntrySourcePreview.swift")
+        #expect(entry.contains("ladderLevel = entry.regionInParent == nil ? .page : .region"))
+        // …and stepping IN from the page respects the same absence.
+        #expect(entry.contains("if entry.regionInParent != nil { ladderLevel = .region }"))
+    }
+
+    @Test("a folder parent is not a rung — the ladder stops at the page")
+    func folderParentIsNotARung() throws {
+        let entry = try source("Views/Preview/EntrySourcePreview.swift")
+        #expect(entry.contains("guard let parent, parent.docType != .folder else { return }"))
+    }
+}

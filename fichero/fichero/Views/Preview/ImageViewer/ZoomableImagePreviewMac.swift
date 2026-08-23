@@ -30,6 +30,16 @@ struct ZoomableImagePreview: View {
     /// Entry-source highlight: normalized `[x,y,w,h]` boxes drawn with the
     /// saved-region layer (preview-layers M1, #27). Display-only.
     var highlightBoxes: [[Double]] = []
+    /// Entry ladder (2026-08-23, "we should only show the bounding box"):
+    /// when set, the image OPENS zoomed to this normalized rect instead of
+    /// fit-to-window.
+    var focusRegion: [Double]?
+    /// Entry ladder: the host's containment step (region → page → spread).
+    /// Vertical swipes/arrows call this FIRST; a `true` return consumes the
+    /// step, `false` falls through to the rendition flip — so on an entry the
+    /// vertical axis walks the containment ladder, on a plain page it keeps
+    /// flipping renditions.
+    var onContainmentStep: ((Int) -> Bool)?
 
     init(
         url: URL? = nil,
@@ -37,7 +47,9 @@ struct ZoomableImagePreview: View {
         renderedImage: NSImage? = nil,
         onNavigateToDocument: ((String) -> Void)? = nil,
         isEditing: Binding<Bool>? = nil,
-        highlightBoxes: [[Double]] = []
+        highlightBoxes: [[Double]] = [],
+        focusRegion: [Double]? = nil,
+        onContainmentStep: ((Int) -> Bool)? = nil
     ) {
         self.url = url
         self.documentId = documentId
@@ -45,6 +57,15 @@ struct ZoomableImagePreview: View {
         self.onNavigateToDocument = onNavigateToDocument
         self.isEditing = isEditing
         self.highlightBoxes = highlightBoxes
+        self.focusRegion = focusRegion
+        self.onContainmentStep = onContainmentStep
+    }
+
+    /// One vertical step: the containment ladder when the host provides one,
+    /// the rendition flip otherwise.
+    private func verticalStep(_ step: Int) {
+        if let onContainmentStep, onContainmentStep(step) { return }
+        flipRendition(to: renditionIndex + step)
     }
 
     /// Annotation tools from the reader toolbar (#2458). Highlight/Note arm a
@@ -214,6 +235,7 @@ struct ZoomableImagePreview: View {
                             // apparent width left one at 70% and the next at
                             // 26% (Daniel, 2026-08-22).
                             itemKey: "\(documentId ?? "")#r\(renditionIndex)",
+                            focusRegion: focusRegion,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,
@@ -334,17 +356,17 @@ struct ZoomableImagePreview: View {
         // vertically still pans; otherwise the keys flip.
         .onReceive(NotificationCenter.default.publisher(for: .previewRenditionSwipe)) { note in
             guard let step = note.object as? Int else { return }
-            flipRendition(to: renditionIndex + step)
+            verticalStep(step)
         }
         .onKeyPress(.upArrow, phases: .down) { _ in
             if canPanVertically { panUp() } else {
-                flipRendition(to: renditionIndex - 1)
+                verticalStep(-1)
             }
             return .handled
         }
         .onKeyPress(.downArrow, phases: .down) { _ in
             if canPanVertically { panDown() } else {
-                flipRendition(to: renditionIndex + 1)
+                verticalStep(1)
             }
             return .handled
         }

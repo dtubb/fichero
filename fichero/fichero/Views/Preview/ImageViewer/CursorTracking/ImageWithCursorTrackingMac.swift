@@ -20,6 +20,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     /// doesn't scale to fit height, just width"). The width-preserving
     /// branch is for the hi-res upgrade of the SAME item only.
     var itemKey: String?
+    /// Normalized rect to open ON instead of fit-to-window (entry ladder,
+    /// 2026-08-23): the entry's band on its source page. Applied at the same
+    /// two fit sites a plain open uses; nil keeps fit-to-window.
+    var focusRegion: [Double]?
     @Binding var scale: CGFloat
     @Binding var cursorPosition: CGPoint  // Normalized 0-1 position in image
     @Binding var imageSize: CGSize
@@ -186,6 +190,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        // Entry ladder: the region rung owns the vertical swipe axis even
+        // though the page around the crop could pan (2026-08-23).
+        (scrollView as? SiblingSwipeScrollView)?.verticalSwipeAlwaysNavigates =
+            focusRegion != nil
         let hasImage = (context.coordinator.imageView as? NSImageView)?.image != nil
         // Scale this pass applied automatically (initial fit or resize re-fit).
         // #4279: when set, the magnification↔scale sync below must NOT run — the
@@ -298,6 +306,10 @@ struct ImageWithCursorTracking: NSViewRepresentable {
                 coordinator.noteAutoFitApplied()
                 self.scale = fitScale
                 centerImage(scrollView: scrollView, imageView: imageView)
+                if let region = focusRegion {
+                    // Entry ladder: open ON the band, not the whole page.
+                    coordinator.zoomToNormalizedRegion(region)
+                }
                 if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
             } else {
                 coordinator.needsInitialCenter = true
@@ -460,6 +472,9 @@ extension ImageWithCursorTracking {
                 }
             }
             centerImage(scrollView: scrollView, imageView: imageView)
+            if let region = focusRegion {
+                coordinator.zoomToNormalizedRegion(region)
+            }
             if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
             // Same re-measure as the async completion: the fit this branch
             // applies is exactly the auto-fit boundsDidChange misses.

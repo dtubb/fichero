@@ -137,6 +137,44 @@ class ImageWithCursorTrackingMacCoordinator: NSObject, NSGestureRecognizerDelega
         }
     }
 
+    /// Zoom so a normalized image rect fills the viewport (entry ladder,
+    /// 2026-08-23: "we should only show the bounding box"). Magnification is
+    /// chosen so the rect plus a small margin fits both axes, clamped to the
+    /// scroll view's own limits, then the rect is centered. The margin keeps
+    /// a sliver of page visible around the band so the crop reads as a place
+    /// ON the page, not a detached scan.
+    @MainActor
+    func zoomToNormalizedRegion(_ rect: [Double]) {
+        guard rect.count == 4, rect[2] > 0, rect[3] > 0,
+              let scrollView = scrollView,
+              let imageView = imageView as? NSImageView,
+              let image = imageView.image else { return }
+        let imageSize = image.size
+        let regionWidth = rect[2] * imageSize.width
+        let regionHeight = rect[3] * imageSize.height
+        let viewport = scrollView.bounds.size
+        guard viewport.width > 0, viewport.height > 0 else { return }
+        let margin: CGFloat = 1.12
+        let target = min(
+            viewport.width / (regionWidth * margin),
+            viewport.height / (regionHeight * margin)
+        )
+        let clamped = min(max(target, scrollView.minMagnification), scrollView.maxMagnification)
+        scrollView.magnification = clamped
+        // Center of the region, top-left-normalized → the scroll origin that
+        // centers it in the viewport (document coords, bottom-left origin).
+        let centerX = (rect[0] + rect[2] / 2) * imageSize.width
+        let centerYTop = (rect[1] + rect[3] / 2) * imageSize.height
+        let visible = scrollView.contentView.documentVisibleRect
+        let origin = CGPoint(
+            x: centerX - visible.width / 2,
+            y: (imageSize.height - centerYTop) - visible.height / 2
+        )
+        scrollView.contentView.scroll(to: origin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        updateVisibleRect()
+    }
+
     /// Scroll to a normalized position (0-1 coordinates)
     @MainActor
     func scrollToNormalizedPosition(_ normalizedOrigin: CGPoint) {

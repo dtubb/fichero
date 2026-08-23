@@ -24,6 +24,12 @@ final class SiblingSwipeScrollView: NSScrollView {
     private var accumulatedY: CGFloat = 0
     private var firedThisGesture = false
     private static let threshold: CGFloat = 60
+    /// Entry ladder (2026-08-23): at the REGION rung the crop is fully
+    /// visible but the page around it still pans, so pan-first would swallow
+    /// the zoom-out swipe. When set, vertical swipes NAVIGATE regardless of
+    /// pannability (and vertical panning yields); horizontal keeps the
+    /// pan-first sibling grammar.
+    var verticalSwipeAlwaysNavigates = false
 
     override func scrollWheel(with event: NSEvent) {
         guard let doc = documentView else {
@@ -40,7 +46,12 @@ final class SiblingSwipeScrollView: NSScrollView {
         // move anything if the entire image is visible?"). The gesture is
         // pure navigation in that state; native panning returns the moment
         // either axis actually overflows.
-        if canPanHorizontally || canPanVertically {
+        // A vertical-leaning event in ladder mode belongs to the ladder, not
+        // the pan — passing it to super would scroll the page out from under
+        // the step.
+        let verticalLeaning = abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX)
+        let ladderOwnsThisEvent = verticalSwipeAlwaysNavigates && verticalLeaning
+        if (canPanHorizontally || canPanVertically) && !ladderOwnsThisEvent {
             super.scrollWheel(with: event)
         }
         // Flaky-swipe fix (Daniel, 2026-08-21: "doesn't always let you swipe
@@ -72,7 +83,9 @@ final class SiblingSwipeScrollView: NSScrollView {
                     name: .previewSiblingSwipe,
                     object: accumulatedX < 0 ? 1 : -1
                 )
-            } else if !horizontalIntent, !canPanVertically, abs(accumulatedY) > Self.threshold {
+            } else if !horizontalIntent,
+                      !canPanVertically || verticalSwipeAlwaysNavigates,
+                      abs(accumulatedY) > Self.threshold {
                 // Vertical = the RENDITION axis (Daniel, 2026-08-21). Same
                 // pan-first rule: a vertically-overflowing zoom keeps native
                 // scrolling; the flip engages only when there is nothing to
