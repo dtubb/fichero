@@ -292,18 +292,24 @@ struct ReadingPaneView: View {
         )
     }
 
-    /// The pane's floating head (R1/R3/R5/R7).
+    /// The pane's floating head (R1/R3/R5/R7). Generic parameters SPELLED OUT
+    /// and the modifier chained on a named value: the inferred form collapsed
+    /// the type checker twice ("failed to produce diagnostic").
     private var paneHead: some View {
-        PaneHead(
+        var closeAction: (() -> Void)?
+        if onClose != nil || splitAxisActions != nil {
+            closeAction = { self.closePane() }
+        }
+        let head = PaneHead<PaneKindSelector<ReaderLens>, EmptyView, EmptyView>(
             crumbs: readerCrumbs,
-            onClose: (onClose != nil || splitAxisActions != nil) ? closePane : nil,
-            selector: { readerSelector },
+            onClose: closeAction,
+            selector: { self.readerSelector },
             controls: { EmptyView() },
             tools: { EmptyView() }
         )
         // The menu bar shows the SAME lens list, reading this publication —
         // one binding rendered twice, never a second switch (R3).
-        .focusedSceneValue(\.readerLens, publishedReaderLens)
+        return head.focusedSceneValue(\.readerLens, publishedReaderLens)
     }
 
     /// The pane's title line IS its breadcrumb (R1), not "Reader" — and it is
