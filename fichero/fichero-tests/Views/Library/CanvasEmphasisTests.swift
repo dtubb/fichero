@@ -164,7 +164,10 @@ struct CanvasEmphasisDiffTests {
             switch op {
             case .move, .resize, .updateContent, .insert, .remove:
                 Issue.record("emphasis produced a layout op: \(op)")
-            case .setEmphasis, .setSelection, .setEdges:
+            // Not layout ops. `.setTint` is a sibling re-encode channel: it is
+            // not what this test forbids, and `ops.count == 1` below is what
+            // catches it firing when nothing asked it to.
+            case .setEmphasis, .setSelection, .setEdges, .setTint:
                 continue
             }
         }

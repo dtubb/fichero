@@ -202,11 +202,16 @@ struct CanvasRearrangeDiffTests {
     func rearrangeEmitsOnlyMoves() {
         let ops = CanvasSceneDiff.compute(from: board(.asFiled), to: board(.name))
         #expect(!ops.isEmpty)
+        // Exhaustive on purpose, with no `default`: a NEW op added to
+        // CanvasSceneOp must fail to compile here rather than quietly slip past
+        // as "not forbidden". `.setTint` arrived this way — arrangement moves
+        // cards, it does not recolour them, so it belongs on the forbidden side.
         for op in ops {
             switch op {
             case .move:
                 continue
-            case .insert, .remove, .resize, .updateContent, .setEdges, .setSelection, .setEmphasis:
+            case .insert, .remove, .resize, .updateContent,
+                 .setEdges, .setSelection, .setEmphasis, .setTint:
                 Issue.record("a re-arrange emitted \(op) — that is a rebuild, not a transition")
             }
         }
