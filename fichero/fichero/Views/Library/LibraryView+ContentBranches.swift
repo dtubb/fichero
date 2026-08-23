@@ -203,7 +203,12 @@ extension LibraryView {
                             modelOverride: model
                         )
                     }
-                }
+                },
+                // The visible surface's selection IS the library's (Daniel,
+                // 2026-08-23: "visible surface, always") — so the bottom bar
+                // and the menu bar act on the rows the user picked rather than
+                // on a browser selection they cannot see.
+                selection: $selection
             )
         } else {
             ContentUnavailableView(

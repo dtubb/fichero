@@ -9,6 +9,11 @@ import SwiftUI
 struct DatasetMapView: View {
     let store: DatasetModeStore
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
+    var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
+    /// Nil = exclusion items hidden (previews, closed library).
+    var documentService: DocumentService?
+    var workflows: [WorkflowSidebarItem] = []
+    var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
     private struct Pin: Identifiable {
         let row: DatasetPage.Row
@@ -42,7 +47,20 @@ struct DatasetMapView: View {
                                 .foregroundStyle(.red)
                                 .onTapGesture(count: 2) { onOpen(pin.row) }
                                 // Touch parity: iPad has no double-click.
-                                .contextMenu { Button("Open") { onOpen(pin.row) } }
+                                // The ONE dataset row menu. Map holds no
+                                // selection of its own, so a pin's batch is the
+                                // pin — the Finder rule with a set of one.
+                                .contextMenu {
+                                    DatasetRowMenu(
+                                        rows: [pin.row],
+                                        targets: [pin.row.id],
+                                        documentService: documentService,
+                                        workflows: workflows,
+                                        onOpen: onOpen,
+                                        onOpenSource: onOpenSource,
+                                        onRunWorkflow: onRunWorkflow
+                                    )
+                                }
                         }
                     }
                 }

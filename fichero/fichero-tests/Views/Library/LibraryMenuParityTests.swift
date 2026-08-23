@@ -128,18 +128,43 @@ struct LibraryMenuParityTests {
         #expect(code.contains("documentContextMenu(for: doc)"))
     }
 
-    // MARK: - EXPECTED DIVERGENCE: dataset menus are five private copies
+    // MARK: - Dataset menus: consolidated behind ONE builder
 
-    @Test("the dataset renderers still hand-roll their menus — filed, not fixed here")
-    func datasetMenusAreStillPrivateCopies() throws {
-        // The consolidation this audit exists to do. When a shared
-        // `DatasetRowMenu` lands, this test is what has to be edited — and the
-        // edit is the record that the copies are gone.
+    @Test("every dataset renderer builds its menu from the ONE shared DatasetRowMenu")
+    func datasetRenderersShareTheirBuilder() throws {
+        // Was five private copies offering four different menus. Consolidated
+        // 2026-08-23; the row that used to assert the copies is this one.
         for surface in datasetSurfaces {
             let code = try code(at: surface.path)
             #expect(code.contains(surface.anchor), "\(surface.mode): scan read the wrong file")
-            #expect(!code.contains("documentContextMenu(for:"),
-                    "\(surface.mode) now uses the browse builder — update this matrix row")
+            #expect(code.contains("DatasetRowMenu("),
+                    "\(surface.mode) hand-rolled a row menu again")
+        }
+    }
+
+    @Test("the dataset verbs are spelled in the shared builder and nowhere else")
+    func datasetVerbsLiveInOnePlace() throws {
+        let builder = try code(at: "Views/Library/ViewModes/Dataset/DatasetRowMenu.swift")
+        for verb in ["\"Show Source Page\"", "\"Edit Date…\"", "\"Exclude from Processing\"",
+                     "\"Exclude from Search\"", "\"Include Everywhere\"", "\"Run Workflow\""] {
+            #expect(builder.contains(verb), "the shared dataset builder lost \(verb)")
+        }
+        for surface in datasetSurfaces {
+            let code = try code(at: surface.path)
+            for verb in ["\"Show Source Page\"", "\"Exclude from Processing\"", "\"Run Workflow\""] {
+                #expect(!code.contains(verb), "\(surface.mode) spells \(verb) itself again")
+            }
+        }
+    }
+
+    @Test("dataset rows keep the narrower vocabulary — this is not the browse menu")
+    func datasetMenuStaysNarrow() throws {
+        // Deliberate (ruling, 2026-08-23): a dataset row's menu is narrower
+        // than a browse row's — Edit Date belongs, duplicate/alias do not.
+        // Widening it is a product decision, so it must not happen by drift.
+        let builder = try code(at: "Views/Library/ViewModes/Dataset/DatasetRowMenu.swift")
+        for verb in ["\"Duplicate\"", "\"Make Alias\"", "\"Rename\"", "\"New Folder\""] {
+            #expect(!builder.contains(verb), "the dataset menu grew \(verb) without a ruling")
         }
     }
 
@@ -148,8 +173,7 @@ struct LibraryMenuParityTests {
         // The one verb that was already consolidated, and the reason its
         // override test exists. Whatever else diverges, this must not.
         for path in ["Views/Library/LibraryView+ContextMenu.swift",
-                     "Views/Library/ViewModes/Dataset/Grid/DatasetGridView.swift",
-                     "Views/Library/ViewModes/Dataset/Cards/DatasetCardsView.swift"] {
+                     "Views/Library/ViewModes/Dataset/DatasetRowMenu.swift"] {
             #expect(try code(at: path).contains("RunWorkflowSubmenuItems("),
                     "\(path) forked the workflow submenu")
         }
@@ -159,50 +183,55 @@ struct LibraryMenuParityTests {
     func runScopeIsAlwaysStated() throws {
         // "Runs on N entries" before the submenu — the 2026-08-15 ruling that
         // a batch must name its scope BEFORE it is invoked, not after.
-        for path in ["Views/Library/ViewModes/Dataset/Grid/DatasetGridView.swift",
-                     "Views/Library/ViewModes/Dataset/Cards/DatasetCardsView.swift"] {
-            #expect(try code(at: path).contains("Runs on \\(targets.count) entries"),
-                    "\(path) runs a batch without stating its scope")
-        }
+        // In ONE place now, which is the point: the preamble was copy-pasted
+        // into Grid and Cards and absent from the other three.
+        #expect(try code(at: "Views/Library/ViewModes/Dataset/DatasetRowMenu.swift")
+            .contains("Runs on \\(targets.count) entries"))
     }
 
     // MARK: - EXPECTED DIVERGENCE: Table builds its menu per render
 
-    @Test("three of four browse modes defer menu construction to open time")
-    func menuDeferralIsNotYetUniversal() throws {
-        // #4544: building a menu per render costs on every row pass. Icon, List
-        // and Columns defer; Table does not. Consolidating that is step 3 of
-        // this audit, and this row changes when it lands.
+    @Test("every browse mode defers menu construction to open time")
+    func menuDeferralIsUniversal() throws {
+        // #4544: building a menu per render costs on every row pass. Table was
+        // the last mode still doing it; consolidated 2026-08-23.
         for path in ["Views/Library/ViewModes/Icon/LibraryView+IconMode.swift",
                      "Views/Library/ViewModes/List/LibraryView+ListView.swift",
-                     "Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift"] {
+                     "Views/Library/ViewModes/Columns/LibraryView+ColumnsView.swift",
+                     "Views/Library/ViewModes/Table/LibraryView+TableView.swift"] {
             #expect(try code(at: path).contains("SidebarDeferredMenuContent"),
                     "\(path) stopped deferring its menu")
         }
-        #expect(!(try code(at: "Views/Library/ViewModes/Table/LibraryView+TableView.swift"))
-            .contains("SidebarDeferredMenuContent"),
-                "Table now defers — update this matrix row")
     }
 
-    // MARK: - EXPECTED DIVERGENCE (FILED, B1): the bar's target vs the visible surface
+    // MARK: - B1 RESOLVED: every surface acts on the selection you can SEE
 
-    @Test("the bottom bar acts on the BROWSER selection in every mode — filed finding B1")
-    func bottomBarActsOnBrowserSelection() throws {
-        // B1, for Daniel: `DatasetModeView` owns a private `selection`, so in
-        // the five dataset modes the bar's Delete and Run Workflow target a
-        // selection the user cannot see and did not make, while the context
-        // menu two inches away targets the row they right-clicked. Same verb,
-        // same screen, different set.
-        //
-        // Canvas is NOT affected: its selection IS `selection`, translated
-        // (LibraryView.swift, "Canvas/spatial selection is NOT separate state").
+    @Test("the bar acts on the visible surface's selection, in every mode")
+    func everySurfacePublishesItsSelection() throws {
+        // Daniel's ruling, 2026-08-23: "visible surface, always". The bar and
+        // the menu bar act on `selection`; every mode now WRITES that
+        // selection, so the verb and the thing it targets are the same in all
+        // of them. Dataset was the exception — it owned a private @State.
         let bar = try code(at: "Views/Library/LibraryView+BottomActionBar.swift")
         #expect(bar.contains("selectedDocumentIdsForBatch = Array(selection)"))
-        #expect(bar.contains("selection.isEmpty"))
 
         let dataset = try code(at: "Views/Library/ViewModes/Dataset/DatasetModeView.swift")
-        #expect(dataset.contains("@State private var selection: Set<String> = []"),
-                "dataset selection is no longer private — B1 may be resolved; update this row")
+        #expect(dataset.contains("@Binding var selection: Set<String>"),
+                "dataset owns its selection again — the bar would target rows the user cannot see")
+        #expect(!dataset.contains("@State private var selection"))
+        #expect(try code(at: "Views/Library/LibraryView+ContentBranches.swift")
+            .contains("selection: $selection"), "the dataset branch stopped binding the selection")
+    }
+
+    @Test("a single dataset selection still routes the other panes")
+    func datasetSelectionDrivesThePreview() throws {
+        // The other half of the ruling ("if card suggests showing full page
+        // great, if bbox great"): one chosen row opens the document, which is
+        // what drives preview / reader / inspector. Sharing the selection
+        // upward must not cost that router.
+        let dataset = try code(at: "Views/Library/ViewModes/Dataset/DatasetModeView.swift")
+        #expect(dataset.contains(".onChange(of: selection)"))
+        #expect(dataset.contains("onOpen(row)"))
     }
 
     @Test("the bar renders in every mode, so its verbs are always reachable")
