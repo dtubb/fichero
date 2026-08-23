@@ -307,6 +307,10 @@ final class DocumentStore {
     /// the structure as held, or the hierarchy would be invisible in the one
     /// surface built to display it.
     private(set) var libraryLevel: LibraryLevel = .gridDefault
+    /// One debounced engine re-ask when the change stream delivers a row the
+    /// content tier may or may not show (2026-08-23 spread-reappears bug) —
+    /// the same burst-coalescing every other reload uses.
+    let levelReloadDebouncer = ReloadDebouncer()
 
     /// Point the store at a new server ordering and reload if the request
     /// actually changed. Returns whether a refetch happened.
@@ -331,6 +335,14 @@ final class DocumentStore {
     /// no client-side rearrangement that could produce the other tier from
     /// what is already loaded. The cache is cleared for the same reason: a
     /// cached child list is a list of the OTHER tier's rows.
+    #if DEBUG
+    /// Test seam: set the tier WITHOUT the network refresh `setLibraryLevel`
+    /// performs — the splice rules are what's under test, not the reload.
+    func setLibraryLevelForTesting(_ level: LibraryLevel) {
+        libraryLevel = level
+    }
+    #endif
+
     @discardableResult
     func setLibraryLevel(_ level: LibraryLevel) async -> Bool {
         guard level != libraryLevel else { return false }

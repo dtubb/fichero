@@ -145,8 +145,24 @@ extension DocumentStore: ObservableDomainStore {
                 currentDocuments: &nextCurrent,
                 childrenCache: &nextChildren,
                 selectedCollectionId: selectedId,
+                libraryLevel: libraryLevel,
                 changes: &changed
             )
+        }
+
+        // Content tier: an updated container (a spread whose artifact write
+        // bumped it) must NOT be appended to a grid that deliberately shows
+        // its CHILDREN instead — that is how Detect Regions made spreads
+        // reappear beside their own pages (2026-08-23). The splice rules skip
+        // the append and raise this flag; ONE debounced engine reload answers
+        // the tier question the only place it can be answered.
+        if changed.needsLevelReload {
+            levelReloadDebouncer.schedule { [weak self] in
+                await MainActor.run {
+                    guard let self, let selected = self.selectedCollection else { return }
+                    Task { await self.selectCollection(selected) }
+                }
+            }
         }
 
         // One assignment each, gated on the CHANGED FLAGS the splice rules set
@@ -221,6 +237,9 @@ extension DocumentStore: ObservableDomainStore {
         var collections = false
         var currentDocuments = false
         var childrenCache = false
+        /// Content tier only: a row arrived that the tier-resolved grid may
+        /// or may not show — the engine must re-answer, never the client.
+        var needsLevelReload = false
     }
 
     /// The per-document splice rules, over plain values so a batch can apply
@@ -231,6 +250,7 @@ extension DocumentStore: ObservableDomainStore {
         currentDocuments: inout [Document],
         childrenCache: inout [String: [Document]],
         selectedCollectionId: String?,
+        libraryLevel: LibraryLevel = .gridDefault,
         changes: inout SpliceChanges
     ) {
         // ROOTS ONLY — `loadCollections()` assigns `getRoots()`
@@ -283,8 +303,24 @@ extension DocumentStore: ObservableDomainStore {
                 changes.currentDocuments = true
             }
         } else if let selectedCollectionId, doc.parentId == selectedCollectionId {
-            currentDocuments.append(doc)
-            changes.currentDocuments = true
+            if libraryLevel == .content {
+                // The grid shows the CONTENT tier: whether this row belongs
+                // in it is the engine's prefer_children resolution, which the
+                // client must not re-derive (LibraryLevel's whole contract).
+                // Ask again instead of guessing.
+                changes.needsLevelReload = true
+            } else {
+                currentDocuments.append(doc)
+                changes.currentDocuments = true
+            }
+        } else if libraryLevel == .content, selectedCollectionId != nil, doc.parentId != nil {
+            // A PART updated under a spread: its parent is the spread, not
+            // the selected folder, so the stored-tier rule above never
+            // reaches the grid — but at content tier this row may be ON
+            // SCREEN right now. Only when it isn't already patched in place
+            // (the firstIndex branch handled that) does the engine need to
+            // re-answer.
+            changes.needsLevelReload = true
         }
 
         // Children cache (only a parent already loaded — i.e. a folder the user

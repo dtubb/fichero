@@ -136,6 +136,9 @@ struct DocumentStoreSpliceTests {
     @Test("a child of the selected collection still reaches the grid")
     func childOfSelectionReachesGrid() {
         let store = store()
+        // Direct grid delivery is the STORED tier's contract; at the content
+        // default the engine re-answers instead (2026-08-23 splice rule).
+        store.setLibraryLevelForTesting(.stored)
         let folder = Document(id: "folder", docType: .folder, name: "Folder")
         store.collections = [folder]
         store.selectedCollection = folder
@@ -169,5 +172,39 @@ struct DocumentStoreSpliceTests {
         store.spliceDocuments([root, child])
 
         #expect(!fired, "an identical batch reassigned a published container — no-op polls now rebuild the sidebar")
+    }
+
+    // MARK: Content tier (2026-08-23: Detect Regions made spreads reappear)
+
+    /// At the CONTENT tier the grid shows a container's CHILDREN; an updated
+    /// container arriving on the change stream must never be appended beside
+    /// them — the engine re-answers the tier question instead.
+    @Test("content tier: an updated container is not appended to the grid")
+    func contentTierNeverAppendsAContainer() {
+        let store = store()
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
+        store.setLibraryLevelForTesting(.content)
+        store.selectedCollection = store.collections[0]
+        store.currentDocuments = [doc("part1", parent: "spread"), doc("part2", parent: "spread")]
+
+        store.spliceDocument(doc("spread", parent: "folder", docType: .folder))
+
+        #expect(!store.currentDocuments.contains { $0.id == "spread" },
+                "the spread joined the grid beside its own pages")
+    }
+
+    /// Stored tier keeps today's live-delivery behaviour untouched.
+    @Test("stored tier still appends a new child of the selected folder")
+    func storedTierStillAppends() {
+        let store = store()
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
+        // The grid DEFAULTS to content (the level-selector ruling) — the
+        // stored-tier delivery contract needs the tier said out loud.
+        store.setLibraryLevelForTesting(.stored)
+        store.selectedCollection = store.collections[0]
+
+        store.spliceDocument(doc("new-row", parent: "folder"))
+
+        #expect(store.currentDocuments.contains { $0.id == "new-row" })
     }
 }
