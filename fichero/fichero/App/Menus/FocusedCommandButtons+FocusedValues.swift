@@ -26,6 +26,33 @@ struct ImageZoomActionsKey: FocusedValueKey {
     typealias Value = ImageZoomActions
 }
 
+/// Camera commands for the focused canvas — zoom to fit, and the Back/Forward
+/// jump history (§16, R10 step 4).
+///
+/// Published only by the canvas modes, so it is nil in List, Table or Reader —
+/// which is what makes the View menu's Canvas section disable itself outside a
+/// canvas instead of teasing a control that cannot apply.
+///
+/// Equatable on the FLAGS only, for the reason `ImageZoomActions` documents:
+/// the closures capture the same view state, so comparing them republishes on
+/// every body pass and trips the "FocusedValue update tried to update multiple
+/// times per frame" fault.
+struct CanvasViewActions: Equatable {
+    let zoomToFit: () -> Void
+    let jumpBack: () -> Void
+    let jumpForward: () -> Void
+    let canJumpBack: Bool
+    let canJumpForward: Bool
+
+    static func == (lhs: CanvasViewActions, rhs: CanvasViewActions) -> Bool {
+        lhs.canJumpBack == rhs.canJumpBack && lhs.canJumpForward == rhs.canJumpForward
+    }
+}
+
+struct CanvasViewActionsKey: FocusedValueKey {
+    typealias Value = CanvasViewActions
+}
+
 /// Actions that can be performed on the sidebar selection.
 ///
 /// Equatable returns `true` unconditionally: all instances constructed by
@@ -248,5 +275,10 @@ extension FocusedValues {
     var navigateForwardAction: NavigateForwardActionKey.Value? {
         get { self[NavigateForwardActionKey.self] }
         set { self[NavigateForwardActionKey.self] = newValue }
+    }
+
+    var canvasViewActions: CanvasViewActionsKey.Value? {
+        get { self[CanvasViewActionsKey.self] }
+        set { self[CanvasViewActionsKey.self] = newValue }
     }
 }

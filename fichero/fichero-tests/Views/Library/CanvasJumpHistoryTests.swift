@@ -137,3 +137,92 @@ struct CanvasJumpHistoryScopeGuardTests {
         }
     }
 }
+
+// MARK: - Menu wiring
+
+/// ⌘= / ⌘[ / ⌘] exist so the jump-cut is discoverable rather than a chord you
+/// have to be told about, and the section must not tease a user who is in List
+/// view. Only a source scan can see either property.
+struct CanvasCameraCommandGuardTests {
+    private func appSource(_ relativePath: String) throws -> String {
+        try String(contentsOf: AppSource.root().appendingPathComponent(relativePath), encoding: .utf8)
+    }
+
+    private var menuPath: String { "App/Menus/CanvasMenuCommands.swift" }
+
+    private let canvases = [
+        ["Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift",
+         "Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Gestures.swift"],
+        ["Views/Library/ViewModes/Canvas/3D/CanvasSpaceView.swift",
+         "Views/Library/ViewModes/Canvas/3D/CanvasSpaceView+Gestures.swift"],
+    ]
+
+    private func combined(_ paths: [String]) throws -> String {
+        try paths.map { try appSource($0) }.joined(separator: "\n")
+    }
+
+    @Test("the keys are the ones surveyed as free, on the commands they belong to")
+    func shortcutsAreBound() throws {
+        let source = try appSource(menuPath)
+        #expect(source.contains("Zoom to Fit"))
+        #expect(source.contains(".keyboardShortcut(\"=\", modifiers: [.command])"))
+        #expect(source.contains(".keyboardShortcut(\"[\", modifiers: [.command])"))
+        #expect(source.contains(".keyboardShortcut(\"]\", modifiers: [.command])"))
+    }
+
+    @Test("the Canvas section disables itself when no canvas is focused")
+    func sectionIsDisabledOffCanvas() throws {
+        // Dead-simple-UX: a control that cannot apply should not tease. The
+        // FocusedValue is nil outside a canvas, and every button follows the
+        // house disabled-when-nil pattern rather than relying on that alone.
+        let source = try appSource(menuPath)
+        #expect(source.contains("private var hasFocusedCanvas: Bool { canvasActions != nil }"))
+        #expect(source.components(separatedBy: ".disabled(!hasFocusedCanvas").count - 1 == 3)
+        // And the two history commands are dead until there is somewhere to go.
+        #expect(source.contains("canvasActions?.canJumpBack != true"))
+        #expect(source.contains("canvasActions?.canJumpForward != true"))
+    }
+
+    @Test("the section is in the View menu, where a view command belongs")
+    func sectionIsInTheViewMenu() throws {
+        #expect(try appSource("App/Menus/ViewMenuCommands.swift").contains("CanvasViewSection()"))
+    }
+
+    @Test("the payload compares FLAGS only — closures would republish every frame")
+    func equatableComparesFlagsOnly() throws {
+        // The ×31 "FocusedValue update tried to update multiple times per
+        // frame" fault in the 2026-08-19 log came from exactly this.
+        let source = try appSource("App/Menus/FocusedCommandButtons+FocusedValues.swift")
+        let tail = try #require(source.components(separatedBy: "struct CanvasViewActions").last)
+        let body = try #require(tail.components(separatedBy: "\nstruct ").first)
+        #expect(body.contains("lhs.canJumpBack == rhs.canJumpBack && lhs.canJumpForward == rhs.canJumpForward"))
+        #expect(!body.contains("lhs.zoomToFit"))
+    }
+
+    @Test("both canvases publish the commands and record poses at the jump sites")
+    func bothCanvasesPublish() throws {
+        for paths in canvases {
+            let source = try combined(paths)
+            #expect(source.contains("focusedSceneValue(\\.canvasViewActions, canvasCommandActions)"),
+                    "\(paths) does not publish its camera commands")
+            // Recorded on the jumps worth returning from — zoom-to-fit and the
+            // double-click focus — and NOWHERE else: a pose per pan frame would
+            // fill the stack with places nobody chose to go.
+            #expect(source.components(separatedBy: "jumpHistory.record(").count - 1 == 2,
+                    "\(paths) records a pose somewhere other than the two jump sites")
+            #expect(source.contains("jumpHistory.jumpBack(from: renderer.cameraSnapshot())"))
+            #expect(source.contains("jumpHistory.jumpForward(from: renderer.cameraSnapshot())"))
+        }
+    }
+
+    @Test("no fly: the camera cuts, and nothing animates it between poses")
+    func nothingFlies() throws {
+        // R10 is explicit. `restoreCamera` sets a pose outright; if a jump ever
+        // grows an easing path, this is where that decision has to be made
+        // rather than discovered.
+        for paths in canvases {
+            let source = try combined(paths)
+            #expect(!source.contains("withAnimation") || !source.contains("restoreCamera"))
+        }
+    }
+}

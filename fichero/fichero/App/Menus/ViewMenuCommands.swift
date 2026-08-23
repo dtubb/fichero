@@ -87,6 +87,8 @@ struct ViewMenuCommands: View {
 
         InspectorButton()
 
+        CanvasViewSection()
+
         PaneVisibilitySection()
 
         Divider()

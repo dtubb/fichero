@@ -14,9 +14,44 @@ extension CanvasSceneView {
             renderer.restoreCamera(snapshot)
             focusReturnSnapshot = nil
         } else {
+            // A double-click IS a jump, so it joins the history — ⌘[ gets you
+            // back even after the double-click's own return trip is spent.
+            jumpHistory.record(renderer.cameraSnapshot())
             focusReturnSnapshot = renderer.cameraSnapshot()
             renderer.focusZoom(on: id)
         }
+    }
+
+    // MARK: - Camera jumps (§16, R10 step 4)
+
+    /// What the View menu's Canvas section drives. Published only while a
+    /// canvas is focused, so the section disables itself everywhere else.
+    var canvasCommandActions: CanvasViewActions {
+        CanvasViewActions(
+            zoomToFit: zoomToFit,
+            jumpBack: jumpBack,
+            jumpForward: jumpForward,
+            canJumpBack: jumpHistory.canJumpBack,
+            canJumpForward: jumpHistory.canJumpForward
+        )
+    }
+
+    /// Frame the whole board. Records where the camera WAS, so ⌘[ returns.
+    func zoomToFit() {
+        jumpHistory.record(renderer.cameraSnapshot())
+        renderer.fit()
+    }
+
+    /// Walk back to the pose before the last jump — a cut, never a flight.
+    func jumpBack() {
+        guard let previous = jumpHistory.jumpBack(from: renderer.cameraSnapshot()) else { return }
+        renderer.restoreCamera(previous)
+    }
+
+    /// Undo a `jumpBack`.
+    func jumpForward() {
+        guard let next = jumpHistory.jumpForward(from: renderer.cameraSnapshot()) else { return }
+        renderer.restoreCamera(next)
     }
 
     /// Tap a card → select it through the controller (writes `selectedNodeId`).
@@ -90,5 +125,24 @@ extension CanvasSceneView {
                 dragStartScene = nil
                 dragOriginWorld = nil
             }
+    }
+
+    // MARK: - Marquee overlay
+    //
+    // Lives with the gesture that drives it, and out of the main file, which
+    // is at its file_length ceiling.
+
+    @ViewBuilder
+    var marqueeOverlay: some View {
+        if let rect = marqueeRect {
+            // SAME style as the icon grid's LibraryMarquee (#4601): the
+            // full-opacity stroke read darker than every other marquee.
+            Rectangle()
+                .fill(Color.accentColor.opacity(0.15))
+                .overlay(Rectangle().stroke(Color.accentColor.opacity(0.6), lineWidth: 1))
+                .frame(width: rect.width, height: rect.height)
+                .position(x: rect.midX, y: rect.midY)
+                .allowsHitTesting(false)
+        }
     }
 }

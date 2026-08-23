@@ -60,9 +60,44 @@ extension CanvasSpaceView {
             renderer.restoreCamera(snapshot)
             focusReturnSnapshot = nil
         } else {
+            // A double-click IS a jump, so it joins the history — ⌘[ gets you
+            // back even after the double-click's own return trip is spent.
+            jumpHistory.record(renderer.cameraSnapshot())
             focusReturnSnapshot = renderer.cameraSnapshot()
             renderer.focusZoom(on: id)
         }
+    }
+
+    // MARK: - Camera jumps (§16, R10 step 4)
+
+    /// What the View menu's Canvas section drives. Published only while a
+    /// canvas is focused, so the section disables itself everywhere else.
+    var canvasCommandActions: CanvasViewActions {
+        CanvasViewActions(
+            zoomToFit: zoomToFit,
+            jumpBack: jumpBack,
+            jumpForward: jumpForward,
+            canJumpBack: jumpHistory.canJumpBack,
+            canJumpForward: jumpHistory.canJumpForward
+        )
+    }
+
+    /// Frame the whole board. Records where the camera WAS, so ⌘[ returns.
+    func zoomToFit() {
+        jumpHistory.record(renderer.cameraSnapshot())
+        renderer.fit()
+    }
+
+    /// Walk back to the pose before the last jump — a cut, never a flight.
+    func jumpBack() {
+        guard let previous = jumpHistory.jumpBack(from: renderer.cameraSnapshot()) else { return }
+        renderer.restoreCamera(previous)
+    }
+
+    /// Undo a `jumpBack`.
+    func jumpForward() {
+        guard let next = jumpHistory.jumpForward(from: renderer.cameraSnapshot()) else { return }
+        renderer.restoreCamera(next)
     }
 
     var tapSelect: some Gesture {

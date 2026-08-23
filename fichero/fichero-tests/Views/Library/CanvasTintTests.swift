@@ -88,13 +88,15 @@ struct CanvasTintTests {
         #expect(raw.slot(for: "doc:b") == nil)
     }
 
-    @Test("the palette has a colour for every slot, and they are system colours")
+    @Test("every slot has a colour, and no slot can trap")
     func paletteCoversTheSlots() {
-        #expect(CanvasTintPainter.palette.count == CanvasTint.paletteSize)
-        // Indexing can't trap, whatever a slot says.
-        for slot in [-9, 0, 3, CanvasTint.paletteSize, 10_000] {
+        // Negative, in-range and far-out-of-range all resolve — a producer
+        // cannot crash the board with an arithmetic slip.
+        for slot in [-9, -1, 0, 3, CanvasTint.paletteSize, 10_000] {
             _ = CanvasTintPainter.color(forSlot: slot)
         }
+        // Slots wrap, so the palette is a cycle rather than a cliff.
+        #expect(CanvasTintPainter.color(forSlot: 0) == CanvasTintPainter.color(forSlot: CanvasTint.paletteSize))
     }
 
     // MARK: Colour-by modes
@@ -127,7 +129,7 @@ struct CanvasTintTests {
     }
 
     private func document(
-        id: String, parentId: String? = nil, status: Document.Status = .completed
+        id: String, parentId: String? = nil, status: Status = .completed
     ) -> Document {
         Document(id: id, parentId: parentId, docType: .page, name: id, status: status)
     }

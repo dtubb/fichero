@@ -28,13 +28,23 @@ enum CanvasTintPainter {
     /// ramps. Eight, matching `CanvasTint.paletteSize`: a legend the eye can
     /// hold beats a unique colour per value, and categorical colours stop being
     /// distinguishable past about this many.
-    static let palette: [PlatformColor] = [
-        .systemBlue, .systemOrange, .systemGreen, .systemPurple,
-        .systemTeal, .systemPink, .systemIndigo, .systemBrown
-    ]
-
-    static func color(forSlot slot: Int) -> PlatformColor {
-        palette[((slot % palette.count) + palette.count) % palette.count]
+    ///
+    /// `nonisolated`, and a switch rather than a stored array, for two reasons
+    /// that turn out to be one: a palette lookup is pure arithmetic over a
+    /// fixed list and has no business demanding the main actor, and a static
+    /// array of a non-Sendable colour type is exactly the kind of shared
+    /// mutable-looking state strict concurrency is right to object to.
+    nonisolated static func color(forSlot slot: Int) -> PlatformColor {
+        switch ((slot % CanvasTint.paletteSize) + CanvasTint.paletteSize) % CanvasTint.paletteSize {
+        case 0: .systemBlue
+        case 1: .systemOrange
+        case 2: .systemGreen
+        case 3: .systemPurple
+        case 4: .systemTeal
+        case 5: .systemPink
+        case 6: .systemIndigo
+        default: .systemBrown
+        }
     }
 
     /// Paint one card, or leave it at `fallback` (its kind tint) when the tint

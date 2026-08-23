@@ -64,6 +64,10 @@ struct CanvasSpaceView: View {
     @State private var zoomBaseline: Float = 0
     @State var optionHeld = false
 
+    /// Where this WINDOW has been looking (§16). View state: per window, saved
+    /// nowhere, never near the layout store.
+    @State var jumpHistory = CanvasJumpHistory<(lookAt: SIMD3<Float>, distance: Float)>()
+
     @State var draggingNodeId: String?
     @State var dragStartWorld: SIMD3<Double>?
 
@@ -225,6 +229,7 @@ struct CanvasSpaceView: View {
                 },
                 selectedNodeIds: $selectedNodeIds
             ))
+            .focusedSceneValue(\.canvasViewActions, canvasCommandActions)
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
