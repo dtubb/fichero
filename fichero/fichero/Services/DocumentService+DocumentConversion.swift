@@ -86,9 +86,9 @@ extension DocumentService {
         )
     }
 
-    /// Convert local DocType to generated DocType
-    // internal: called from DocumentService.swift — `private` is FILE-scoped
-    // and the 2026-08-23 file_length split moved the declaration here.
+    /// Convert local DocType to generated DocType.
+    /// internal: called from DocumentService.swift — `private` is FILE-scoped
+    /// and the 2026-08-23 file_length split moved the declaration here.
     func convertToGeneratedDocType(_ docType: DocType) -> Components.Schemas.DocType {
         switch docType {
         case .folder: return .folder

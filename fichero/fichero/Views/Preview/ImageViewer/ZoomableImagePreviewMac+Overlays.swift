@@ -65,4 +65,27 @@ extension ZoomableImagePreview {
         }
     }
 }
+
+extension ZoomableImagePreview {
+    // Moved from the main file 2026-08-23 (file/type length): same member.
+    var readerToolbar: some View {
+        ReaderToolbar(
+            pageNav: imagePageNav,
+            renditionNav: renditionNav,
+            scalePercent: Int(scale * 100),
+            zoomIn: zoomIn,
+            zoomOut: zoomOut,
+            fitToWindow: fitToWindow,
+            actualSize: actualSize,
+            magnifierEnabled: $magnifierEnabled,
+            textBoxesEnabled: $ocrBoxesEnabled,
+            loupeEnabled: $loupeEnabled,
+            loupeLocked: $loupeLocked,
+            loupeMagnification: $loupeMagnification,
+            isEditing: isEditing,
+            onAnnotate: requestAnnotation
+        )
+    }
+}
+
 #endif

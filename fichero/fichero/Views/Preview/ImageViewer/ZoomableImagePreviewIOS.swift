@@ -279,8 +279,10 @@ struct ZoomableImagePreview: View {
         guard !neighbors.isEmpty else { return }
         await storageService.prefetchDisplayImages(neighbors)
     }
+}
 
-    // MARK: - Zoom Actions
+// MARK: - Zoom actions (extension, 2026-08-23: type_body_length)
+extension ZoomableImagePreview {
 
     func zoomIn() {
         imageCoordinator?.markManualZoom()

@@ -71,7 +71,9 @@ struct ZoomableImagePreview: View {
     /// Annotation tools from the reader toolbar (#2458). Highlight/Note arm a
     /// region draw over the image; the resulting normalized box is persisted as
     /// a bounding-box annotation. Bookmark is a whole-image marker (no region).
-    private func requestAnnotation(_ tool: ReaderAnnotationTool) {
+    /// internal: the reader toolbar moved to +Overlays.swift (2026-08-23
+    /// file-length) and Swift's `private` is FILE-scoped.
+    func requestAnnotation(_ tool: ReaderAnnotationTool) {
         switch tool {
         case .highlight, .note:
             pendingAnnotationTool = tool
@@ -378,25 +380,6 @@ struct ZoomableImagePreview: View {
             canZoomIn: scale < maxScale,
             canZoomOut: scale > minScale
         ))
-    }
-
-    var readerToolbar: some View {
-        ReaderToolbar(
-            pageNav: imagePageNav,
-            renditionNav: renditionNav,
-            scalePercent: Int(scale * 100),
-            zoomIn: zoomIn,
-            zoomOut: zoomOut,
-            fitToWindow: fitToWindow,
-            actualSize: actualSize,
-            magnifierEnabled: $magnifierEnabled,
-            textBoxesEnabled: $ocrBoxesEnabled,
-            loupeEnabled: $loupeEnabled,
-            loupeLocked: $loupeLocked,
-            loupeMagnification: $loupeMagnification,
-            isEditing: isEditing,
-            onAnnotate: requestAnnotation
-        )
     }
 }
 
