@@ -78,6 +78,23 @@ struct PreviewSelectAllKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// The focused Reader's current lens, and the setter for it (R3).
+///
+/// The pane head and the View menu render the SAME value through this: one
+/// binding shown twice, never two switches that can disagree. Equatable on the
+/// VALUE only, the `FocusedSortField` shape — comparing the setter would
+/// republish on every body pass.
+struct FocusedReaderLens: Equatable {
+    let value: ReaderLens
+    let set: (ReaderLens) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.value == rhs.value }
+}
+
+struct ReaderLensKey: FocusedValueKey {
+    typealias Value = FocusedReaderLens
+}
+
 /// Actions that can be performed on the sidebar selection.
 ///
 /// Equatable returns `true` unconditionally: all instances constructed by
@@ -325,5 +342,10 @@ extension FocusedValues {
     var previewSelectAll: PreviewSelectAllKey.Value? {
         get { self[PreviewSelectAllKey.self] }
         set { self[PreviewSelectAllKey.self] = newValue }
+    }
+
+    var readerLens: ReaderLensKey.Value? {
+        get { self[ReaderLensKey.self] }
+        set { self[ReaderLensKey.self] = newValue }
     }
 }

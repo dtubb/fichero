@@ -82,7 +82,9 @@ enum ReaderNotesMode: String, CaseIterable, Identifiable {
     }
 }
 
-// The Reader's top-tab switcher is now the shared `SurfaceTabBar` (#3530) —
+// The Reader's top-tab switcher is now the pane head's lens selector (R3,
+// 2026-08-23): `ReaderTab` is INTERNAL vocabulary, mapped from `ReaderLens`
+// beside this file. Before that it was the shared `SurfaceTabBar` (#3530) —
 // the same icon-button row the Inspector uses — so both surfaces read as one
 // system. `ReaderTab` conforms to `SurfaceTab` above; the reader constructs
 // `SurfaceTabBar(tabs: ReaderTab.allCases, selection:)` at its call site. The
