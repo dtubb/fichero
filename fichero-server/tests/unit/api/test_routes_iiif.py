@@ -135,3 +135,53 @@ class TestIIIFPresentationExport:
             "conformsTo": "http://www.w3.org/TR/media-frags/",
             "value": "xywh=pct:10,20,30,40",
         }
+
+
+class TestFragmentSelectorFollowsTheDeclaredSpace:
+    """Media Fragments defines both forms; which is correct depends on space.
+
+    Emitting `pct:` for a rect already in pixels would put a silently wrong
+    region into an ARCHIVAL export — worse than a wrong crop on screen,
+    because it leaves the building as standards-compliant data that other
+    systems will trust.
+    """
+
+    def test_a_normalized_anchor_exports_percentages(self, client, db):
+        from fichero_server.models import Document
+        from fichero_server.models.anchors import SourceAnchor
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        doc = Document(name="p.jpg")
+        db.save(doc)
+        db.save(Annotation(
+            id="ann-pct", document_id=doc.id, kind=AnnotationKind.highlight,
+            anchor=SourceAnchor(document_id=doc.id, rect=[0.1, 0.2, 0.3, 0.4]),
+        ))
+
+        page = client.get(f"/api/documents/{doc.id}/annotations.jsonld").json()
+        target = {i["id"]: i for i in page["items"]}[
+            f"/api/documents/{doc.id}/annotations/ann-pct"
+        ]["target"]
+        assert target["selector"]["value"] == "xywh=pct:10,20,30,40"
+
+    def test_a_pixel_anchor_exports_pixels_not_percentages(self, client, db):
+        from fichero_server.models import Document
+        from fichero_server.models.anchors import AnchorSpace, SourceAnchor
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        doc = Document(name="p2.jpg")
+        db.save(doc)
+        db.save(Annotation(
+            id="ann-px", document_id=doc.id, kind=AnnotationKind.highlight,
+            anchor=SourceAnchor(
+                document_id=doc.id, rect=[72, 144, 200, 24],
+                space=AnchorSpace.pixel,
+            ),
+        ))
+
+        page = client.get(f"/api/documents/{doc.id}/annotations.jsonld").json()
+        target = {i["id"]: i for i in page["items"]}[
+            f"/api/documents/{doc.id}/annotations/ann-px"
+        ]["target"]
+        # NOT "pct:7200,14400,20000,2400" — which is what the old code emitted.
+        assert target["selector"]["value"] == "xywh=72,144,200,24"

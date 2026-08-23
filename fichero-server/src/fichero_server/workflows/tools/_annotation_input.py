@@ -29,6 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from fichero_server.models.knowledge import Annotation
     from fichero_server.models import Document
 
+from fichero_server.models.anchors import AnchorSpace
 from fichero_server.core.utf16_offsets import utf16_range_to_codepoint_range
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,17 @@ def crop_image(
     Useful for huge photographic plates / maps / scans where the
     annotated region is much smaller than the full image.
     """
+    if annotation.anchor is not None and annotation.anchor.space is not AnchorSpace.normalized:
+        # The maths below multiplies the rect by the frame, which is only
+        # meaningful for fractions. A pixel rect scaled that way lands far off
+        # the image and the crop would still "succeed" — so refuse. This
+        # returns None like every other failure here, and the caller already
+        # treats None as "no crop available".
+        logger.warning(
+            "crop skipped: anchor is in %s space, not normalized (annotation %s)",
+            annotation.anchor.space.value, annotation.id,
+        )
+        return None
     rect = annotation.anchor.rect if annotation.anchor else None
     if not rect or len(rect) != 4:
         return None
@@ -131,6 +143,13 @@ def crop_pdf_page(
             page = doc[page_idx]
         zoom = dpi / 72.0
         matrix = fitz.Matrix(zoom, zoom)
+        if annotation.anchor is not None and annotation.anchor.space is not AnchorSpace.normalized:
+            logger.warning(
+                "PDF region crop skipped: anchor is in %s space, not normalized "
+                "(annotation %s)",
+                annotation.anchor.space.value, annotation.id,
+            )
+            return None
         rect = annotation.anchor.rect if annotation.anchor else None
         if rect and len(rect) == 4:
             x, y, w, h = rect
