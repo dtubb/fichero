@@ -48,8 +48,15 @@ extension ZoomableImagePreview {
                     )
                 }
                 // OCR text boxes from the transcription pass (#4309),
-                // toggled from the reader toolbar.
-                if ocrBoxesEnabled, let ocrGeometry {
+                // toggled from the reader toolbar. FRAME GATE (2026-08-23,
+                // entry-scoped runs): a box set naming a rendition_id was
+                // measured on THAT rendition's pixels — drawing it over any
+                // other image places plausible boxes in the wrong frame, the
+                // same defect class as the misplaced spread band. nil means
+                // the document's own image; non-nil draws only when that
+                // exact rendition is what's on screen.
+                if ocrBoxesEnabled, let ocrGeometry,
+                   geometryFrameMatchesDisplay(ocrGeometry) {
                     OCRGeometryOverlay(
                         geometry: ocrGeometry,
                         visible: geometry.visible

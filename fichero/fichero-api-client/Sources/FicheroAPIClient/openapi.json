@@ -41066,7 +41066,7 @@
             "title": "Error"
           },
           "duration_ms": {
-            "type": "integer",
+            "type": "number",
             "nullable": true,
             "title": "Duration Ms"
           },
@@ -53468,6 +53468,11 @@
       },
       "NodeRegion": {
         "properties": {
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
+          },
           "rect": {
             "items": {
               "type": "number"
@@ -54066,6 +54071,11 @@
             "type": "string",
             "nullable": true,
             "title": "Source"
+          },
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
           },
           "metadata": {
             "additionalProperties": true,

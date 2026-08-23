@@ -46,7 +46,8 @@ extension DocumentService {
                 space: region.space?.rawValue,
                 confidence: region.confidence?.rawValue,
                 method: region.method,
-                note: region.note
+                note: region.note,
+                renditionId: region.renditionId
             )
         }
 

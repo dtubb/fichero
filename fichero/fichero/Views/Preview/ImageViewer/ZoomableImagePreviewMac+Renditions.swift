@@ -55,6 +55,29 @@ extension ZoomableImagePreview {
     /// rebuilt per sibling — which is exactly when it is needed.
     static var stickyRenditionRoleKey: String { "preview.stickyRenditionRole" }
 
+    /// The rendition whose PIXELS are on screen, or nil when the base image is.
+    var displayedRenditionId: String? {
+        guard renditionOverrideImage != nil,
+              renditions.indices.contains(renditionIndex) else { return nil }
+        return renditions[renditionIndex].id
+    }
+
+    /// Whether an OCR box set may be drawn over the current pixels — frames
+    /// must MATCH, not merely coexist (2026-08-23 entry-scoped runs):
+    /// - a nil-rendition set is in the document's own frame, valid on the base
+    ///   image and on any rendition that keeps that frame (!hasOwnFrame);
+    /// - a named set is valid only on that exact rendition.
+    /// Anything else is plausible boxes in the wrong frame — skip, never
+    /// approximate. (Compose-through-region comes with the ladder work.)
+    func geometryFrameMatchesDisplay(_ geometry: OCRGeometry) -> Bool {
+        guard let required = geometry.renditionId else {
+            guard renditionOverrideImage != nil,
+                  renditions.indices.contains(renditionIndex) else { return true }
+            return !renditions[renditionIndex].hasOwnFrame
+        }
+        return required == displayedRenditionId
+    }
+
     /// What the toolbar shows about the current rendition.
     ///
     /// `nil` when there is nothing worth saying — no service, no document, or

@@ -192,6 +192,22 @@ struct DocumentRegion: Codable, Hashable {
     var confidence: String?
     var method: String?
     var note: String?
+    /// Which RENDITION of the parent the rect was measured on (2026-08-23).
+    /// `nil` — the overwhelmingly common case — means the parent's own frame.
+    /// Non-nil means the rect is only valid on that rendition's pixels:
+    /// zooming/highlighting on the parent's base image with it would place a
+    /// plausible band in the wrong frame, so consumers must treat it like the
+    /// engine's `compose` does — refuse, don't approximate.
+    var renditionId: String?
+
+    /// True when the rect can be applied directly to the parent's own image —
+    /// the only case the preview's zoom/highlight paths may consume.
+    var isInParentFrame: Bool { renditionId == nil }
+
+    enum CodingKeys: String, CodingKey {
+        case rect, space, confidence, method, note
+        case renditionId = "rendition_id"
+    }
 }
 
 struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {

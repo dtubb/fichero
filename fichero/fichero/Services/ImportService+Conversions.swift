@@ -36,7 +36,8 @@ extension ImportService {
                     space: region.space?.rawValue,
                     confidence: region.confidence?.rawValue,
                     method: region.method,
-                    note: region.note
+                    note: region.note,
+                    renditionId: region.renditionId
                 )
             },
             status: convertFromGeneratedStatus(generated.status),

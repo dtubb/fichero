@@ -87,7 +87,11 @@ struct EntrySourcePreview: View {
                 // The PAGE's band on the spread, when the import recorded one
                 // (the Marshall drop folders stamp part regions) — so the
                 // zoom-out keeps pointing at where you came from.
-                highlightBoxes: spread != nil ? (source.regionInParent.map { [$0.rect] } ?? []) : region,
+                // Same frame gate: the page's band draws on the spread only
+                // when it was measured in the spread's own frame.
+                highlightBoxes: spread != nil
+                    ? (source.regionInParent.flatMap { $0.isInParentFrame ? [$0.rect] : nil } ?? [])
+                    : region,
                 onContainmentStep: { step in containmentStep(step, source: source) }
             )
             .id("entry-ladder-\(entry.id)-2")
@@ -145,7 +149,12 @@ struct EntrySourcePreview: View {
         sourceMetadata: [String: AnyCodable]
     ) -> [[Double]] {
         if let region = entry.regionInParent, region.rect.count == 4,
-           region.space ?? "normalized" == "normalized" {
+           region.space ?? "normalized" == "normalized",
+           // Frame gate (2026-08-23): a region measured on a NAMED rendition
+           // is only valid on that rendition's pixels — drawing it on the
+           // parent's base image is a plausible band in the wrong place (the
+           // misplaced spread-band bug's class). No highlight beats a lie.
+           region.isInParentFrame {
             return [region.rect]
         }
         return normalizedHighlight(bbox: entry.bbox, sourceMetadata: sourceMetadata)

@@ -41,9 +41,24 @@ struct OCRGeometry: Codable, Hashable {
     var provider: String
     var model: String?
     var boxes: [OCRGeometryBox]
+    /// Which PICTURE the whole box set was measured on (2026-08-23,
+    /// entry-scoped runs). `nil` means the document's own image — every
+    /// artifact written before today. Non-nil means every box is a fraction
+    /// of THAT rendition's frame (e.g. an entry's region crop) and must be
+    /// resolved through the node's `regionInParent` before drawing on the
+    /// parent image. On the SET, not per box: one result is measured on one
+    /// picture, and per-box would let boxes disagree about something that
+    /// cannot honestly differ. Treating this as ignorable provenance and
+    /// drawing anyway is the failure mode — plausible boxes, wrong frame.
+    var renditionId: String?
 
     var lineBoxes: [OCRGeometryBox] { boxes.filter { $0.level == "line" } }
     var wordBoxes: [OCRGeometryBox] { boxes.filter { $0.level == "word" } }
+
+    enum CodingKeys: String, CodingKey {
+        case text, provider, model, boxes
+        case renditionId = "rendition_id"
+    }
 }
 
 // MARK: - Generated-client mapping
@@ -55,6 +70,7 @@ extension OCRGeometry {
         self.text = generated.text ?? ""
         self.provider = generated.provider
         self.model = generated.model
+        self.renditionId = generated.renditionId
         self.boxes = (generated.boxes ?? []).map { box in
             OCRGeometryBox(
                 text: box.text,
