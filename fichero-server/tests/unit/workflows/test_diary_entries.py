@@ -59,7 +59,7 @@ def diary_db(tmp_path):
             document_id="page-1",
             artifact_type="transcription",
             content=PAGE_TEXT,
-            ocr_geometry=OCRGeometryResult(text=PAGE_TEXT, boxes=boxes, provider="test"),
+            ocr_geometry=OCRGeometryResult(text=PAGE_TEXT, boxes=boxes, provider="apple"),
         )
     )
     return db, page
@@ -123,14 +123,57 @@ class TestDiaryEntries:
         assert first.rect[1] + first.rect[3] <= second.rect[1]
 
     @pytest.mark.asyncio
-    async def test_the_union_is_marked_measured_not_nominal(self, diary_db):
-        """It is the union of OCR line boxes actually found on the page, not a
-        guess at where an entry might fall."""
+    async def test_apple_boxes_are_marked_measured(self, diary_db):
+        """Apple Vision DETECTS boxes from the pixels, so the union of them is
+        a measurement, not a guess at where an entry might fall."""
         db, page = diary_db
         with _split(TWO_ENTRIES):
             created = await split_page_into_entries(db, page, llm_config=None)
 
         assert created[0].region_in_parent.confidence is RegionConfidence.measured
+
+    @pytest.mark.asyncio
+    async def test_VLM_boxes_are_marked_nominal_not_measured(self, diary_db):
+        """`detect_regions` says it itself: "VLM boxes are claimed, not
+        measured". A model asked for boxes and answered; nothing verified them
+        against the pixels. Marking the resulting entry region `measured` would
+        make a guess indistinguishable from a measurement — the exact
+        distinction RegionConfidence exists to preserve."""
+        db, page = diary_db
+        artifact = db.query(Artifact, document_id=page.id)[0]
+        artifact.provider = "openrouter"
+        db.save(artifact)
+
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent.confidence is RegionConfidence.nominal
+
+    @pytest.mark.asyncio
+    async def test_the_region_names_where_its_numbers_came_from(self, diary_db):
+        """A region should carry WHERE its numbers came from, not merely how
+        they were combined."""
+        db, page = diary_db
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent.method == "diary-entry-word-union:apple"
+
+    @pytest.mark.asyncio
+    async def test_unknown_provenance_under_claims(self, diary_db):
+        """The safe default is to under-claim: a region wrongly marked
+        measured tells a reader the box was verified when nobody verified
+        it."""
+        db, page = diary_db
+        artifact = db.query(Artifact, document_id=page.id)[0]
+        artifact.provider = None
+        artifact.ocr_geometry.provider = "something-new"
+        db.save(artifact)
+
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert created[0].region_in_parent.confidence is RegionConfidence.nominal
 
     @pytest.mark.asyncio
     async def test_geometry_SURVIVES_a_page_with_no_pixel_dimensions(self, diary_db):

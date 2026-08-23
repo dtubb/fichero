@@ -122,18 +122,28 @@ def _normalized_iso(entry: DiaryEntry) -> str | None:
     return None
 
 
-def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any]]:
-    """The page's newest transcription geometry: (artifact content, boxes)."""
+def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any], str | None]:
+    """The page's newest transcription geometry: (content, boxes, provider).
+
+    The provider is returned because it decides how much the resulting region
+    is WORTH. Apple Vision detects boxes from the pixels; a VLM is ASKED for
+    them and answers — `detect_regions` says so itself ("VLM boxes are claimed,
+    not measured"). Collapsing both into `measured` would make a model's guess
+    indistinguishable from a measurement, which is the exact distinction
+    `RegionConfidence` exists to preserve.
+    """
     artifacts = db.query(Artifact, document_id=page.id) or []
     dated = sorted(
         (a for a in artifacts if a.ocr_geometry and a.ocr_geometry.boxes),
         key=lambda a: (a.created_at is None, a.created_at),
     )
     if not dated:
-        return "", []
+        return "", [], None
     newest = dated[-1]
-    return newest.ocr_geometry.text or newest.content or "", list(
-        newest.ocr_geometry.boxes
+    return (
+        newest.ocr_geometry.text or newest.content or "",
+        list(newest.ocr_geometry.boxes),
+        newest.provider or newest.ocr_geometry.provider,
     )
 
 
@@ -275,7 +285,29 @@ def _entry_spans(content: str, entries: list[DiaryEntry]) -> list[tuple[int, int
     return spans
 
 
-def _region_union(boxes: list[Any], span: tuple[int, int] | None) -> NodeRegion | None:
+#: Providers whose boxes are DETECTED from pixels rather than claimed by a
+#: model. Apple Vision measures; a VLM is asked and answers.
+_MEASURING_PROVIDERS = {"apple", "apple-vision", "vision"}
+
+
+def _region_confidence(provider: str | None) -> RegionConfidence:
+    """How much an entry region derived from these boxes is worth.
+
+    Unknown provenance is treated as NOMINAL rather than measured: the safe
+    default is to under-claim. A region wrongly marked `measured` tells a
+    reader the fold was verified when nobody verified it, and that is the
+    failure this vocabulary was introduced to stop.
+    """
+    if provider and provider.strip().casefold() in _MEASURING_PROVIDERS:
+        return RegionConfidence.measured
+    return RegionConfidence.nominal
+
+
+def _region_union(
+    boxes: list[Any],
+    span: tuple[int, int] | None,
+    provider: str | None = None,
+) -> NodeRegion | None:
     """Union of the OCR line boxes overlapping the entry's char span.
 
     The entry node's ``parent_id`` IS the page, so where the entry sits on that
@@ -315,8 +347,10 @@ def _region_union(boxes: list[Any], span: tuple[int, int] | None) -> NodeRegion 
             rect=[x0, y0, max(xs1) - x0, max(ys1) - y0],
             # The union of MEASURED OCR line boxes — not a nominal guess at
             # where an entry might fall.
-            confidence=RegionConfidence.measured,
-            method="diary-entry-ocr-union",
+            confidence=_region_confidence(provider),
+            # Name the source in the method, so a region carries WHERE its
+            # numbers came from and not merely how they were combined.
+            method=f"diary-entry-word-union:{(provider or 'unknown').strip().casefold()}",
         )
     except ValueError:
         # Malformed OCR geometry must not cost us the entry. The node is the
@@ -352,7 +386,7 @@ async def split_page_into_entries(
 
     ensure_diary_prototype(db, prototype_key)
 
-    geometry_content, boxes = _geometry_boxes(db, page)
+    geometry_content, boxes, geometry_provider = _geometry_boxes(db, page)
     spans = (
         _entry_spans(geometry_content, entries)
         if geometry_content and boxes
@@ -367,7 +401,7 @@ async def split_page_into_entries(
     created: list[Document] = []
     for index, entry in enumerate(entries, start=1):
         iso = _normalized_iso(entry)
-        region = _region_union(boxes, spans[index - 1])
+        region = _region_union(boxes, spans[index - 1], geometry_provider)
         body = _body_without_date_heading(entry.text, entry.date_text)
         node = Document(
             parent_id=page.id,
