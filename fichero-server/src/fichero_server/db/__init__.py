@@ -940,7 +940,6 @@ class Database(DatabaseEmbeddingMixin):
             DocumentNote,
             ImageEditChain,
             KnownLibrary,
-            Note as LegacyNote,
             ProviderRef,
             Run,
             SavedSearch,
@@ -992,7 +991,6 @@ class Database(DatabaseEmbeddingMixin):
             KnowledgeEntity,
             KnowledgeNote,
             KnowledgePredictionRun,
-            LegacyNote,
             LibraryEntityType,
             LibraryItemLink,
             Milestone,
@@ -1413,7 +1411,11 @@ class Database(DatabaseEmbeddingMixin):
         """
         if type(obj).__name__ == "KnowledgeEntity":
             self._validate_entity_parent(obj)
-        if type(obj).__name__ == "Note" and hasattr(obj, "body"):
+        # The `hasattr(obj, "body")` that used to guard this is gone with the
+        # duplicate type (2026-08-23): there was a second class named `Note`
+        # sharing this table, and duck-typing on `body` was how the save path
+        # told them apart. One `Note` now, so the name identifies it.
+        if type(obj).__name__ == "Note":
             self._validate_note_parent(obj)
         if type(obj).__name__ == "Milestone":
             self._validate_milestone_parent(obj)
@@ -1473,7 +1475,7 @@ class Database(DatabaseEmbeddingMixin):
             self._save_research_task_document(obj)
         if type(obj).__name__ == "ResearchStep":
             self._save_research_step_document(obj)
-        if type(obj).__name__ == "Note" and hasattr(obj, "body"):
+        if type(obj).__name__ == "Note":
             self._save_note_document(obj)
         if type(obj).__name__ == "Milestone":
             self._save_milestone_document(obj)
@@ -3054,7 +3056,7 @@ class Database(DatabaseEmbeddingMixin):
             self._delete_research_workspace_document(obj.id)
         if type(obj).__name__ in {"ResearchPlan", "ResearchTask", "ResearchStep"}:
             self._delete_research_content_document(obj.id)
-        if type(obj).__name__ == "Note" and hasattr(obj, "body"):
+        if type(obj).__name__ == "Note":
             self._delete_note_document(obj.id)
         if type(obj).__name__ == "Milestone":
             self._delete_milestone_document(obj.id)

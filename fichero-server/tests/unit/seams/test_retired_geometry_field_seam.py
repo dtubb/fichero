@@ -165,3 +165,55 @@ class TestTheDetectorActuallyFires:
     )
     def test_it_leaves_correct_code_alone(self, source):
         assert not _offenders_in(ast.parse(source), Path("sample.py"))
+
+
+class TestTheNoteCollisionStaysDead:
+    """Two live classes named `Note` (2026-08-23, folded on Daniel's ruling).
+
+    The table name is derived as "lowercase + s", so both claimed `notes`.
+    Reading a real note through `models.Note` raised a ValidationError, and
+    `routes/library/links.py` used exactly that to check a note exists before
+    linking — so linking to a note could not succeed. Nothing ever constructed
+    it. It folded into `Annotation(kind=note)`.
+
+    Reintroducing a second `Note` would silently recreate a shared-table
+    collision, which is the kind of thing that reads as harmless in a diff.
+    """
+
+    def test_models_no_longer_exports_a_second_note(self):
+        import fichero_server.models as models
+
+        assert not hasattr(models, "Note"), (
+            "`models.Note` is back. It shares the `notes` table with "
+            "`knowledge.Note` — two schemas, one table."
+        )
+
+    def test_the_surviving_note_is_the_one_people_have(self):
+        from fichero_server.models.knowledge import Note
+
+        assert "title" in Note.model_fields
+        assert "target_type" not in Note.model_fields
+
+    def test_links_validates_notes_against_the_surviving_type(self):
+        """The bug that proved the collision was real."""
+        from fichero_server.api.routes.library.links import _MODEL_FOR_TYPE
+
+        assert _MODEL_FOR_TYPE["note"].__module__.endswith("models.knowledge")
+
+    def test_annotation_can_carry_what_the_old_note_carried(self):
+        """The fold is only honest if the destination has room for the source:
+        a target document, free text, and a position."""
+        from fichero_server.models.anchors import AnchorSpace, SourceAnchor
+        from fichero_server.models.knowledge import Annotation, AnnotationKind
+
+        annotation = Annotation(
+            document_id="doc-1",
+            kind=AnnotationKind.note,
+            text="a note that used to be a models.Note",
+            anchor=SourceAnchor(
+                document_id="doc-1", rect=[10, 20, 30, 40], space=AnchorSpace.pixel
+            ),
+            metadata={"legacy_note_type": "correction"},
+        )
+        assert annotation.anchor.space is AnchorSpace.pixel
+        assert annotation.metadata["legacy_note_type"] == "correction"

@@ -43,7 +43,10 @@ from pydantic import BaseModel, Field
 
 from fichero_server.db import Database
 from fichero_server.knowledge._common import parse_kwarg_repr
+from fichero_server.models.anchors import AnchorSpace, SourceAnchor
 from fichero_server.models.knowledge import (
+    Annotation,
+    AnnotationKind,
     KnowledgeClaim,
     KnowledgeEntity,
     KnowledgeClaimLink,
@@ -1089,6 +1092,147 @@ class MigrationRunner:
                     validation["can_run"] = False
 
         return validation
+
+    def migrate_legacy_notes_to_annotations(
+        self,
+        dry_run: bool = False,
+        limit: int | None = None,
+    ) -> MigrationResult:
+        """Fold the old ``models.Note`` rows into ``Annotation(kind=note)``.
+
+        THE COLLISION THIS ENDS. Two different classes were both named ``Note``
+        and the table name is derived as "lowercase + s", so BOTH claimed the
+        table ``notes``:
+
+            models.Note            target_type / target_id / content / bbox
+            knowledge.Note         title / body / linked_document_ids / ...
+
+        They are not the same object and both were reachable. Measured
+        2026-08-23: reading a real note through ``models.Note`` raises a
+        ValidationError, because a ``knowledge.Note`` row has no
+        ``target_type``. That is not theoretical — ``routes/library/links.py``
+        used ``models.Note`` to validate that a note exists before linking to
+        it, so linking to a note could not succeed.
+
+        WHAT THIS ACTUALLY MOVES. Nothing constructs ``models.Note`` anywhere
+        in the codebase, so a current library has no rows of that shape. Old
+        builds could have written some, and the columns survive on the shared
+        table, so rows are identified by ``target_type IS NOT NULL`` rather
+        than assumed absent. On most libraries this is a no-op that says so.
+
+        Idempotent by construction: a converted row is DELETED from ``notes``
+        and its id is reused for the Annotation, so a second run finds nothing
+        and an interrupted run resumes cleanly. Re-running cannot duplicate.
+        """
+        result = MigrationResult(
+            migration_name="migrate_legacy_notes_to_annotations",
+            status=MigrationStatus.running,
+            dry_run=dry_run,
+        )
+
+        try:
+            columns = {
+                row[1]
+                for row in self.db.conn.execute("PRAGMA table_info('notes')").fetchall()
+            }
+            if "target_type" not in columns:
+                # The legacy columns were never created here, so there is
+                # nothing of that shape to find. Reported explicitly rather
+                # than as a silent zero.
+                result.status = MigrationStatus.completed
+                result.completed_at = utc_now()
+                result.details["reason"] = "no legacy target_type column on notes"
+                return result
+
+            sql = (
+                "SELECT id, target_type, target_id, content, note_type, bbox, "
+                "created_at, updated_at FROM notes WHERE target_type IS NOT NULL"
+            )
+            if limit:
+                sql += f" LIMIT {int(limit)}"
+            rows = self.db.conn.execute(sql).fetchall()
+
+            for row in rows:
+                (
+                    note_id, target_type, target_id, content,
+                    note_type, bbox, created_at, updated_at,
+                ) = row
+                try:
+                    if (target_type or "").lower() != "document":
+                        # An Artifact-targeted note has no home on Annotation,
+                        # which anchors to documents. Skipped and COUNTED, never
+                        # re-pointed at a document it was not about.
+                        result.skipped += 1
+                        result.details.setdefault("skipped_targets", []).append(
+                            f"{note_id}:{target_type}"
+                        )
+                        continue
+
+                    anchor = None
+                    if bbox and len(bbox) == 4:
+                        # The old field was documented as PIXEL ints, so it is
+                        # recorded as pixel space rather than silently read as
+                        # fractions — the defect this program removed.
+                        anchor = SourceAnchor(
+                            document_id=str(target_id),
+                            rect=[float(v) for v in bbox],
+                            space=AnchorSpace.pixel,
+                        )
+
+                    annotation = Annotation(
+                        id=note_id,
+                        document_id=str(target_id),
+                        kind=AnnotationKind.note,
+                        text=content,
+                        anchor=anchor,
+                        # `note_type` had values AnnotationKind has no member
+                        # for (question, flag, correction). Kept verbatim
+                        # rather than flattened onto the nearest kind, which
+                        # would silently reclassify a correction as a comment.
+                        metadata={"legacy_note_type": note_type} if note_type else {},
+                    )
+                    if created_at:
+                        annotation.created_at = created_at
+                    if updated_at:
+                        annotation.updated_at = updated_at
+
+                    if not dry_run:
+                        self.db.conn.execute(
+                            "DELETE FROM notes WHERE id = ?", [note_id]
+                        )
+                        self.db.save(annotation)
+                        self._log_mutation(
+                            entity_type="notes",
+                            entity_id=note_id,
+                            operation=MutationOperationType.delete,
+                            before_state={
+                                "target_type": target_type,
+                                "target_id": target_id,
+                                "content": content,
+                                "note_type": note_type,
+                            },
+                            after_state={"folded_into_annotation": note_id},
+                        )
+                    result.migrated += 1
+                except Exception as exc:  # noqa: BLE001 - per-row isolation
+                    result.failed += 1
+                    result.details.setdefault("failures", []).append(
+                        f"{note_id}: {exc}"
+                    )
+                    logger.warning("legacy note %s could not be folded: %s", note_id, exc)
+
+            result.status = MigrationStatus.completed
+            result.completed_at = utc_now()
+            if not rows:
+                result.details["reason"] = "no legacy models.Note rows present"
+            return result
+        except Exception as exc:  # noqa: BLE001 - migration boundary
+            result.status = MigrationStatus.failed
+            result.error_message = str(exc)
+            result.completed_at = utc_now()
+            logger.exception("migrate_legacy_notes_to_annotations failed")
+            return result
+
 
 
 # Legacy standalone migration function for backward compatibility
