@@ -33,7 +33,10 @@ func libraryStatusText(
     let single = noun ?? "item"
     // "entries", not "entrys" (Daniel's screenshot, 2026-08-23). English
     // plurals for the handful of nouns the status line actually names.
-    let plural = single.hasSuffix("y") && !single.hasSuffix("ey")
+    // Consonant + y → -ies ("entry" → "entries"); vowel + y just takes -s
+    // ("day" → "days"), which the earlier -ey carve-out got half right.
+    let beforeY = single.dropLast().last.map(String.init) ?? ""
+    let plural = single.hasSuffix("y") && !"aeiou".contains(beforeY)
         ? String(single.dropLast()) + "ies"
         : single + "s"
     if selectionCount > 0 {

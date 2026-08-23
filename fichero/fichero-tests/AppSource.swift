@@ -110,6 +110,19 @@ enum AppSource {
             .appendingPathComponent(name)
     }
 
+    /// A sweep URL made relative to a root, with BOTH sides symlink-resolved
+    /// first. `root()` resolves to the `/tmp` spelling (resolution strips
+    /// `/private`), but `FileManager.enumerator` hands back `/private/tmp/…` —
+    /// opposite normalizations, so a plain prefix strip under a snapshot
+    /// worktree mangles paths ("/privateViews/…") and every path-keyed
+    /// allowlist silently misses. One relativizer, resolved on both sides,
+    /// makes the strip spelling-proof.
+    static func relativePath(of url: URL, under root: URL) -> String {
+        url.resolvingSymlinksInPath().path.replacingOccurrences(
+            of: root.resolvingSymlinksInPath().path + "/", with: ""
+        )
+    }
+
     /// The text of an app source file, relative to the app target root.
     ///
     /// Failures are separated on purpose: a missing ROOT is `NotFound` above,

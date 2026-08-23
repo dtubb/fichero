@@ -151,7 +151,7 @@ struct WorkflowSelectionCallSiteTests {
                 ) ?? source.endIndex
                 let window = source[hit.upperBound..<windowEnd]
                 if !window.contains("selection:") {
-                    let relative = file.path.replacingOccurrences(of: root.path + "/", with: "")
+                    let relative = AppSource.relativePath(of: file, under: root)
                     untyped.append(relative)
                 }
                 searchRange = hit.upperBound..<source.endIndex

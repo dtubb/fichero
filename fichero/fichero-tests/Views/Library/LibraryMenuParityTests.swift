@@ -243,21 +243,23 @@ struct LibraryMenuParityTests {
         #expect(!insets.contains("if displayMode.group != .dataset"))
     }
 
-    // MARK: - EXPECTED DIVERGENCE (FILED, M1): two owners of ⌘A
+    // MARK: - RESOLVED (M1, 2026-08-23): one owner of ⌘A
 
-    @Test("⌘A has two implementations — filed finding M1")
-    func selectAllHasTwoOwners() throws {
-        // M1, for Daniel: the menu command selects `filteredDocuments`;
-        // CanvasKeyboardNav separately handles ⌘A over `nodeIds`. They disagree
-        // whenever the board is truncated by the render caps, and which answers
-        // depends on focus. One chord should have one owner.
+    @Test("⌘A has one owner — canvas defers to the menu command (M1 resolved)")
+    func selectAllHasOneOwner() throws {
+        // M1 was: the menu command selected `filteredDocuments` while
+        // CanvasKeyboardNav separately answered ⌘A over `nodeIds`, disagreeing
+        // whenever the board was truncated by render caps. Resolution: the
+        // canvas's private ⌘A was removed; the library's `selectAllIds`
+        // (visible-surface rule) is the single owner and the canvas only
+        // supplies which ids are visible.
         let menu = try code(at: "Views/Library/LibraryView+KeyboardShortcuts.swift")
         #expect(menu.contains("\\.librarySelectAll"))
         #expect(menu.contains("run: { selectAll() }"))
 
         let canvas = try code(at: "Views/Library/ViewModes/Canvas/CanvasKeyboardNav.swift")
-        #expect(canvas.contains("SelectionGrammar.selectAll(in: nodeIds)"),
-                "canvas ⌘A changed — M1 may be resolved; update this row")
+        #expect(!canvas.contains("SelectionGrammar.selectAll("),
+                "a private canvas ⌘A came back — M1 regressed; one chord, one owner")
     }
 
     @Test("menu-bar state is published once, for every mode alike")

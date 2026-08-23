@@ -147,12 +147,20 @@ extension ContentView {
     /// `navigableSiblings` above then keeps later steps inside the folder.
     private func navigateIntoFolder(_ folder: Document, forward: Bool) {
         Task { @MainActor in
+            // Same filter FolderContentsPreview uses — the folder's preview IS
+            // its first previewable child, so the sets must agree or the first
+            // step can land on an item the preview never showed.
             let kids = displayOrdered(
                 await documentStore.children(of: folder.id)
-                    .filter { $0.docType != .folder },
+                    .filter { $0.docType != .folder && !$0.isWorkflowNode },
                 folderId: folder.id
             )
-            guard let target = forward ? kids.first : kids.last else { return }
+            // The folder preview already shows kids.first: a forward step to it
+            // swaps identical pixels and reads as a dead swipe (Daniel: "same
+            // preview twice, then it moves to the second"). Forward therefore
+            // seeds PAST the shown child; backward still enters at the end.
+            let target = forward ? (kids.dropFirst().first ?? kids.first) : kids.last
+            guard let target else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 detailDocument = target
                 browserSelection = [target.id]

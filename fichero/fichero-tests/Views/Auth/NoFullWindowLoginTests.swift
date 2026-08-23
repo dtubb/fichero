@@ -30,7 +30,7 @@ struct NoFullWindowLoginTests {
         var sources: [(String, String)] = []
         for case let url as URL in enumerator where url.pathExtension == "swift" {
             let source = try String(contentsOf: url, encoding: .utf8)
-            let relative = url.path.replacingOccurrences(of: root.path + "/", with: "")
+            let relative = AppSource.relativePath(of: url, under: root)
             sources.append((relative, source))
         }
         #expect(!sources.isEmpty, "app source enumeration found nothing — root path drifted")
