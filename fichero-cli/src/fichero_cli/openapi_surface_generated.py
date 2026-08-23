@@ -888,8 +888,8 @@ def register_generated_openapi_commands(
     @target_app.command("create-an")
     def annotations_create_an_post(
         ctx: typer.Context,
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
         anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
         char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
         char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
@@ -919,8 +919,8 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/annotations"
             params = None
             payload = _build_json_payload({
+                "anchor": anchor,
                 "anchor_kind": anchor_kind,
-                "bbox": bbox,
                 "char_end": char_end,
                 "char_start": char_start,
                 "color": color,
@@ -945,8 +945,8 @@ def register_generated_openapi_commands(
                 "tags": tags,
                 "text": text,
             }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
-                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
@@ -977,7 +977,7 @@ def register_generated_openapi_commands(
     @target_app.command("ephemeral-crop-for-an-unsaved-region-no-persisted")
     def annotations_ephemeral_crop_for_an_unsaved_region_no_persisted_post(
         ctx: typer.Context,
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
         char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
         char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
         document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
@@ -991,7 +991,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/annotations/crop"
             params = None
             payload = _build_json_payload({
-                "bbox": bbox,
+                "anchor": anchor,
                 "char_end": char_end,
                 "char_start": char_start,
                 "document_id": document_id,
@@ -1000,7 +1000,7 @@ def register_generated_openapi_commands(
                 "page_label": page_label,
                 "text": text,
             }, {
-                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
@@ -1043,8 +1043,8 @@ def register_generated_openapi_commands(
     def annotations_patch_patch(
         ctx: typer.Context,
         annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
         anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
         char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
         char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
@@ -1071,8 +1071,8 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/annotations/{annotation_id}"
             params = None
             payload = _build_json_payload({
+                "anchor": anchor,
                 "anchor_kind": anchor_kind,
-                "bbox": bbox,
                 "char_end": char_end,
                 "char_start": char_start,
                 "color": color,
@@ -1094,8 +1094,8 @@ def register_generated_openapi_commands(
                 "tags": tags,
                 "text": text,
             }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
-                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
@@ -3304,7 +3304,7 @@ def register_generated_openapi_commands(
         quotation_kind: Optional[str] = typer.Option(None, "--quotation-kind", help="Request field: quotation_kind."),
         scribe_entity_id: Optional[str] = typer.Option(None, "--scribe-entity-id", help="Request field: scribe_entity_id."),
         scribe_name: Optional[str] = typer.Option(None, "--scribe-name", help="Request field: scribe_name."),
-        source_bbox: Optional[str] = typer.Option(None, "--source-bbox", help="Request field: source_bbox."),
+        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
         source_char_end: Optional[int] = typer.Option(None, "--source-char-end", help="Request field: source_char_end."),
         source_char_start: Optional[int] = typer.Option(None, "--source-char-start", help="Request field: source_char_start."),
         source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
@@ -3360,7 +3360,7 @@ def register_generated_openapi_commands(
                 "quotation_kind": quotation_kind,
                 "scribe_entity_id": scribe_entity_id,
                 "scribe_name": scribe_name,
-                "source_bbox": source_bbox,
+                "source_anchor": source_anchor,
                 "source_char_end": source_char_end,
                 "source_char_start": source_char_start,
                 "source_document_id": source_document_id,
@@ -3411,7 +3411,7 @@ def register_generated_openapi_commands(
                 "quotation_kind": {'type': 'string', 'enum': ['verbatim', 'paraphrase', 'indirect', 'inference', 'free_indirect'], 'title': 'QuotationKind', 'description': "How literally a claim reproduces its source text.\n\nPicks up the warrant strength: a verbatim quotation supports a stronger\nepistemic status than an inferred one. Defaults to ``paraphrase`` —\nthat's the realistic default for an LLM extractor that summarised the\nsource rather than copying it verbatim.", 'x-cli-required': False},
                 "scribe_entity_id": {'type': 'string', 'nullable': True, 'title': 'Scribe Entity Id', 'x-cli-required': False},
                 "scribe_name": {'type': 'string', 'nullable': True, 'title': 'Scribe Name', 'x-cli-required': False},
-                "source_bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Source Bbox', 'x-cli-required': False},
+                "source_anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "source_char_end": {'type': 'integer', 'nullable': True, 'title': 'Source Char End', 'x-cli-required': False},
                 "source_char_start": {'type': 'integer', 'nullable': True, 'title': 'Source Char Start', 'x-cli-required': False},
                 "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},

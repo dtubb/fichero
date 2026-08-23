@@ -340,7 +340,10 @@ struct EntityDigestContent: View {
                         HStack(spacing: 8) {
                             Image(systemName: doc.docType == .folder ? "folder" : "doc.text.image")
                                 .foregroundStyle(.secondary)
-                            Text(doc.name)
+                            // Not `doc.name` (#4416): a page child's name is
+                            // the engine's upload temp file — compose the
+                            // display title like every other surface.
+                            Text(docName(for: doc.id))
                                 .lineLimit(1)
                             Spacer()
                         }

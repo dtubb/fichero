@@ -270,7 +270,6 @@ struct CreateAnnotationIntent: AppIntent {
             pageLabel: pageLabel,
             charStart: nil,
             charEnd: nil,
-            bbox: nil,
             text: text?.isEmpty == false ? text : nil,
             rating: nil,
             color: nil,

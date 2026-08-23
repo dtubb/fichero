@@ -271,7 +271,7 @@ extension ClaimSummaryCard {
             charEnd: claim.sourceCharEnd,
             claimId: claim.id,
             excerpt: claim.sourceExcerpt,
-            bbox: claim.sourceBbox
+            bbox: claim.sourceAnchor?.rect
         )
     }
 

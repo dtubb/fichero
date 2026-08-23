@@ -180,6 +180,18 @@ struct LibraryItemDrag: Codable, Equatable, Transferable {
 }
 
 /// Main document model matching Python Document (Pydantic)
+/// Mirror of the engine's `NodeRegion` (Step 3): a rect that names its
+/// coordinate space instead of four bare numbers.
+struct DocumentRegion: Codable, Hashable {
+    /// `[x, y, width, height]`, fractions of the parent's frame when
+    /// `space == "normalized"` (the only space extractions write today).
+    var rect: [Double]
+    var space: String?
+    var confidence: Double?
+    var method: String?
+    var note: String?
+}
+
 struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     let id: String
     var parentId: String?
@@ -189,6 +201,10 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var path: String?
     var sequence: Int?
     var bbox: [Int]?
+    /// WHERE this node sits on its parent, as a typed region (Step 3 of the
+    /// bbox program, 2026-08-22). Normalized rect — no page-size dependency.
+    /// New extractions write ONLY this; `bbox` remains for pre-rename rows.
+    var regionInParent: DocumentRegion?
     var status: Status
     var metadata: [String: AnyCodable]
     var pageContent: String?
@@ -255,6 +271,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case path
         case sequence
         case bbox
+        case regionInParent = "region_in_parent"
         case status
         case metadata
         case pageContent = "page_content"
@@ -287,6 +304,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         path: String? = nil,
         sequence: Int? = nil,
         bbox: [Int]? = nil,
+        regionInParent: DocumentRegion? = nil,
         status: Status = .pending,
         metadata: [String: AnyCodable] = [:],
         pageContent: String? = nil,
@@ -317,6 +335,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.path = path
         self.sequence = sequence
         self.bbox = bbox
+        self.regionInParent = regionInParent
         self.status = status
         self.metadata = metadata
         self.pageContent = pageContent
@@ -353,6 +372,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.path = try container.decodeIfPresent(String.self, forKey: .path)
         self.sequence = try container.decodeIfPresent(Int.self, forKey: .sequence)
         self.bbox = try container.decodeIfPresent([Int].self, forKey: .bbox)
+        self.regionInParent = try container.decodeIfPresent(DocumentRegion.self, forKey: .regionInParent)
         self.status = try container.decode(Status.self, forKey: .status)
         self.metadata = try container.decode([String: AnyCodable].self, forKey: .metadata)
         self.pageContent = try container.decodeIfPresent(String.self, forKey: .pageContent)

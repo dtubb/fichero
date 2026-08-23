@@ -47,7 +47,20 @@ extension AnnotationService {
                 pageLabel: pageLabel,
                 charStart: charStart,
                 charEnd: charEnd,
-                bbox: bbox,
+                // Step 3 (bbox retirement): the wire takes a typed
+                // SourceAnchor. The one region-drawing caller (the PDF
+                // reader's drawn highlight) hands NORMALIZED page
+                // fractions on a document scope, so the anchor names the
+                // document and the space instead of shipping bare numbers.
+                anchor: bbox.map { rect in
+                    .init(
+                        documentId: documentId ?? pageId ?? folderId ?? "",
+                        pageId: pageId,
+                        space: .normalized,
+                        rect: rect
+                    )
+                },
+
                 text: text.isEmpty ? nil : text,
                 color: color,
                 tags: tags,

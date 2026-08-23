@@ -46,9 +46,13 @@ extension AnnotationService {
     /// substring. Powers `SourceSnippet` / the provenance popover.
     func cropRegion(_ request: SourceCropRequest) async throws -> SourceCrop? {
         syncLibraryPath()
+        // Step 3 (bbox retirement): the crop wire takes a typed anchor. The
+        // client's crop requests have always carried NORMALIZED fractions.
         let body = Components.Schemas.EphemeralCropRequest(
             documentId: request.documentId,
-            bbox: request.bbox,
+            anchor: request.bbox.map { rect in
+                .init(documentId: request.documentId, space: .normalized, rect: rect)
+            },
             charStart: request.charStart,
             charEnd: request.charEnd,
             pageIndex: request.pageIndex,

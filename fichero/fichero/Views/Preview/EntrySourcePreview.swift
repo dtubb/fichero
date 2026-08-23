@@ -22,10 +22,7 @@ struct EntrySourcePreview: View {
                 DocumentCanvas(
                     content: .imageStorageDisplay(documentId: source.id),
                     onNavigateToDocument: onNavigateToDocument,
-                    highlightBoxes: Self.normalizedHighlight(
-                        bbox: entry.bbox,
-                        sourceMetadata: source.metadata
-                    )
+                    highlightBoxes: Self.highlight(for: entry, sourceMetadata: source.metadata)
                 )
             } else if loadFailed {
                 // The reference is broken (source deleted, cross-library) —
@@ -64,6 +61,21 @@ struct EntrySourcePreview: View {
             return stamped
         }
         return entry.parentId
+    }
+
+    /// Step 3 (bbox retirement, 2026-08-22): new extractions write ONLY the
+    /// typed `region_in_parent` (already normalized — no page-size dependency,
+    /// which is exactly why entries on pages with no recorded size now get
+    /// regions at all). Pre-rename rows still carry pixel `bbox`; both render.
+    static func highlight(
+        for entry: Document,
+        sourceMetadata: [String: AnyCodable]
+    ) -> [[Double]] {
+        if let region = entry.regionInParent, region.rect.count == 4,
+           region.space ?? "normalized" == "normalized" {
+            return [region.rect]
+        }
+        return normalizedHighlight(bbox: entry.bbox, sourceMetadata: sourceMetadata)
     }
 
     /// `Document.bbox` pixel ints `[x, y, w, h]` → the overlay's normalized

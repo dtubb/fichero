@@ -35543,14 +35543,10 @@
             "nullable": true,
             "title": "Char End"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
             "nullable": true,
-            "title": "Bbox",
-            "description": "Bounding box [x, y, width, height] as fractions of source dimensions in [0, 1]."
+            "description": "Where this annotation points: the region and/or span, naming the rendition its coordinates belong to."
           },
           "anchor_kind": {
             "type": "string",
@@ -35713,13 +35709,9 @@
             "nullable": true,
             "title": "Char End"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "anchor_kind": {
             "type": "string",
@@ -35936,13 +35928,9 @@
             "nullable": true,
             "title": "Char End"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "anchor_kind": {
             "type": "string",
@@ -39894,13 +39882,9 @@
             "nullable": true,
             "title": "Source Char End"
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Bbox"
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "entity_ids": {
             "items": {
@@ -40804,13 +40788,9 @@
             "type": "string",
             "title": "Kind"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
           }
         },
         "type": "object",
@@ -41269,7 +41249,7 @@
             "title": "Script"
           },
           "source_anchor": {
-            "$ref": "#/components/schemas/ContentSourceAnchor"
+            "$ref": "#/components/schemas/SourceAnchor-Output"
           },
           "parent_representation_id": {
             "type": "string",
@@ -41419,42 +41399,6 @@
           "reviewed"
         ],
         "title": "ContentReviewState"
-      },
-      "ContentSourceAnchor": {
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "page_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Page Id"
-          },
-          "char_start": {
-            "type": "integer",
-            "nullable": true,
-            "title": "Char Start"
-          },
-          "char_end": {
-            "type": "integer",
-            "nullable": true,
-            "title": "Char End"
-          },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
-          }
-        },
-        "type": "object",
-        "required": [
-          "document_id"
-        ],
-        "title": "ContentSourceAnchor"
       },
       "ContradictionEvidence": {
         "properties": {
@@ -45558,13 +45502,9 @@
             "$ref": "#/components/schemas/AnnotationKind",
             "default": "highlight"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "char_start": {
             "type": "integer",
@@ -48771,14 +48711,10 @@
             "title": "Date Values",
             "description": "Structured temporal evidence ranges. Each value records basis/assertion type, confidence, and source anchoring."
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
             "nullable": true,
-            "title": "Source Bbox",
-            "description": "[x, y, width, height] in PDF page coordinates. Populated via PyMuPDF page.search(excerpt) for PDF-backed claims; None for text-only or when the search misses."
+            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to."
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType",
@@ -54458,13 +54394,9 @@
             "nullable": true,
             "title": "Source Excerpt"
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Bbox"
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
           },
           "source_char_start": {
             "type": "integer",
@@ -59264,14 +59196,10 @@
             "title": "Date Values",
             "description": "Structured temporal evidence ranges. Each value records basis/assertion type, confidence, and source anchoring."
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
             "nullable": true,
-            "title": "Source Bbox",
-            "description": "[x, y, width, height] in PDF page coordinates. Populated via PyMuPDF page.search(excerpt) for PDF-backed claims; None for text-only or when the search misses."
+            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to."
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType",
@@ -60820,6 +60748,150 @@
         ],
         "title": "SnapshotRestoreResponse"
       },
+      "SourceAnchor-Input": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
+          },
+          "space": {
+            "$ref": "#/components/schemas/AnchorSpace",
+            "default": "normalized"
+          },
+          "rect": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Rect"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Polygon"
+          },
+          "rotation": {
+            "type": "number",
+            "title": "Rotation",
+            "default": 0.0
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "granularity": {
+            "type": "string",
+            "nullable": true,
+            "title": "Granularity"
+          },
+          "refines": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "title": "SourceAnchor",
+        "description": "Where a record points on a page \u2014 the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one \"scroll to this\", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable \u2014 new writes must set it whenever the frame is not the node's own."
+      },
+      "SourceAnchor-Output": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
+          },
+          "space": {
+            "$ref": "#/components/schemas/AnchorSpace",
+            "default": "normalized"
+          },
+          "rect": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Rect"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Polygon"
+          },
+          "rotation": {
+            "type": "number",
+            "title": "Rotation",
+            "default": 0.0
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "granularity": {
+            "type": "string",
+            "nullable": true,
+            "title": "Granularity"
+          },
+          "refines": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "title": "SourceAnchor",
+        "description": "Where a record points on a page \u2014 the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one \"scroll to this\", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable \u2014 new writes must set it whenever the frame is not the node's own."
+      },
       "SourceAttribution": {
         "properties": {
           "source_id": {
@@ -61105,13 +61177,9 @@
             "nullable": true,
             "title": "Source Char End"
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Bbox"
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
           },
           "support_basis": {
             "$ref": "#/components/schemas/EvidenceBasis",

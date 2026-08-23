@@ -95,7 +95,8 @@ struct DocumentEqualityTests {
         let classified: Set<String> = [
             // compared
             "id", "parentId", "docType", "fileType", "name", "path",
-            "sequence", "bbox", "status", "excludeFromProcessing",
+            "sequence", "bbox", "regionInParent", "status",
+            "excludeFromProcessing", "excludeFromSearch",
             "isWorkspace", "childCount", "dateOriginal", "dateJdn",
             "sortOrder", "prototypeKey", "nodeKind", "aliasTargetId",
             "createdAt", "updatedAt", "expectedThumbnailPath",

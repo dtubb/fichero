@@ -59,7 +59,9 @@ enum ClaimSourceRequest {
         if let start = claim.sourceCharStart, let end = claim.sourceCharEnd, end > start {
             return .span
         }
-        if let bbox = claim.sourceBbox, bbox.count == 4 {
+        // Step 3 (bbox retirement): the wire field is a typed SourceAnchor
+        // that names its frame; the honest region check is its rect.
+        if let rect = claim.sourceAnchor?.rect, rect.count == 4 {
             return .region
         }
         return .pageOnly
@@ -88,7 +90,7 @@ enum ClaimSourceRequest {
             request.charStart = claim.sourceCharStart
             request.charEnd = claim.sourceCharEnd
         case .region:
-            request.bbox = claim.sourceBbox
+            request.bbox = claim.sourceAnchor?.rect
         case .pageOnly, .unknown:
             break
         }
