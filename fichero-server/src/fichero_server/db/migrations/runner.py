@@ -368,6 +368,14 @@ class MigrationRunner:
                     break
 
                 metadata = doc.metadata or {}
+                # KEEP. The 2026-08-23 dead-route sweep measured this as the
+                # ONLY live reader of `metadata["source_bbox"]` — nothing has
+                # written that key since the crop/split routes were converted.
+                # It looks deletable and is not: it reads what PRE-RENAME
+                # libraries already contain, which is exactly the
+                # reimport-compat the no-backfill ruling depends on. Deleting
+                # it would make an old library silently report zero
+                # unconvertible boxes instead of counting them.
                 if metadata.get("source_bbox"):
                     unconvertible_bbox += 1
 

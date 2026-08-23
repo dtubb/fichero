@@ -142,6 +142,25 @@ class NodeRegion(BaseModel):
 
     model_config = ConfigDict(from_attributes=True, extra="allow")
 
+    # OPEN QUESTION, filed for Daniel 2026-08-23 (workflow bbox audit).
+    #
+    # This has NO `rendition_id`, while `SourceAnchor` below has one AND a
+    # `rotation`. That asymmetry is deliberate and it is safe only while the
+    # rule holds: "same frame = rendition, different frame = node". If every
+    # rendition of a node shares its frame, normalized fractions are identical
+    # across all of them and naming one would be noise.
+    #
+    # The audit found the rule is not enforced. `rotate_images` and
+    # `auto_crop_border_images` persist RENDITIONS whose frame differs from the
+    # node's — a rotation swaps width and height, a crop removes borders — so
+    # "fractions of the parent" becomes ambiguous for a node that has both.
+    #
+    # Renditions now record `pixel_width`/`pixel_height` (they always had the
+    # fields; nothing filled them), so the invariant is at least CHECKABLE.
+    # Whether the answer is "regions name their rendition", "a reframing
+    # produces a node, not a rendition", or "renditions carry a transform back
+    # to the original frame" is a design call, not a worker's to make.
+
     #: ``[x, y, width, height]`` in the PARENT's frame.
     rect: list[float]
     space: AnchorSpace = AnchorSpace.normalized
