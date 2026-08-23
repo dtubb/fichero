@@ -27,7 +27,21 @@ METHOD. AST over `src/fichero_server` and `tests`, no text matching:
 
 1. every `ast.Call` keyword named `source_bbox` is flagged wherever it occurs;
 2. a keyword named `bbox` is flagged ONLY when the callee is one of the models
-   that retired it.
+   that retired it;
+3. every ATTRIBUTE READ of a retired name — `claim.source_bbox` — is flagged.
+
+Pass (3) was added after this scan passed clean while
+`test_claim_writer_preserves_source_bbox` was still failing: it asserted on
+`claim.source_bbox`, which is a read, not a construction. A guardrail that
+only watches the write side misses half the callers, and this one proved it
+by missing one on its first day.
+
+WHAT IS DELIBERATELY NOT FLAGGED: the STRING `"source_bbox"` as a dict key.
+That is the extractor's LLM payload vocabulary — `item.get("source_bbox")` in
+`extractors.py` is current, correct code that wraps the raw rect into a
+`SourceAnchor` at the boundary. Flagging the payload spelling would force a
+rename of the model's wire contract to satisfy a test about our own storage,
+which is the tail wagging the dog.
 
 Scoping (2) to those callees is the whole reason this is precise rather than
 noisy: `bbox` is still the correct, current field name on `OCRGeometryBox`,
@@ -70,6 +84,12 @@ def _callee_name(node: ast.Call) -> str | None:
 def _offenders_in(tree: ast.AST, path: Path) -> list[str]:
     found: list[str] = []
     for node in ast.walk(tree):
+        # Reads: `claim.source_bbox`. Note this is an ast.Attribute, NOT an
+        # ast.Constant — the string "source_bbox" used as a payload dict key
+        # is untouched on purpose.
+        if isinstance(node, ast.Attribute) and node.attr in ALWAYS_RETIRED:
+            found.append(f"{path}:{node.lineno}: read of .{node.attr}")
+            continue
         if not isinstance(node, ast.Call):
             continue
         callee = _callee_name(node)
@@ -121,6 +141,9 @@ class TestTheDetectorActuallyFires:
             "ColumnAnnotation(id='a', bbox=[0, 0, 1, 1])",
             "KnowledgeClaim(text='t', source_bbox=[0, 0, 1, 1])",
             "models.Annotation(bbox=[0, 0, 1, 1])",
+            # The read side — the form that slipped past the first version.
+            "assert claim.source_bbox == [0, 0, 1, 1]",
+            "value = support.source_bbox",
         ],
     )
     def test_it_catches_a_stale_construction(self, source):
@@ -135,6 +158,9 @@ class TestTheDetectorActuallyFires:
             # The successor spellings must never be flagged.
             "Annotation(document_id='d', anchor=SourceAnchor(rect=[0, 0, 1, 1]))",
             "Document(name='p', region_in_parent=NodeRegion(rect=[0, 0, 1, 1]))",
+            # The extractor's LLM payload vocabulary, which is current code.
+            'raw = item.get("source_bbox")',
+            'payload = {"source_bbox": [0, 0, 1, 1]}',
         ],
     )
     def test_it_leaves_correct_code_alone(self, source):
