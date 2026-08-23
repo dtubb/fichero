@@ -77,21 +77,29 @@ struct CanvasCardRotationGuardTests {
     /// The body of `makeCard` — where a decorative rotation would be added.
     private func makeCardBody() throws -> String {
         let source = try appSource("Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift")
-        guard let start = source.range(of: "private func makeCard(") else {
-            Issue.record("makeCard has been renamed — re-point this guard")
+        // Access-AGNOSTIC: `makeCard` widened from private to internal when op
+        // application moved to +Ops.swift, and a scan pinned to the literal
+        // "private func makeCard(" stopped finding it — then went quiet, since
+        // its assertions are negative and an empty body satisfies them all.
+        guard let start = source.range(of: "func makeCard(") else {
+            Issue.record("makeCard has been renamed or moved — re-point this guard")
             return ""
         }
         let rest = source[start.lowerBound...]
-        guard let end = rest.range(of: "\n    private func ", range: rest.index(rest.startIndex, offsetBy: 1)..<rest.endIndex) else {
-            return String(rest)
-        }
-        return String(rest[..<end.lowerBound])
+        let searchFrom = rest.index(rest.startIndex, offsetBy: 1)
+        let end = ["\n    private func ", "\n    func ", "\n    private static func ", "\n    // MARK:"]
+            .compactMap { rest.range(of: $0, range: searchFrom..<rest.endIndex)?.lowerBound }
+            .min() ?? rest.endIndex
+        return String(rest[..<end])
     }
 
     @Test("no card is built with an orientation")
     func cardsAreBuiltUnrotated() throws {
         let body = try makeCardBody()
+        // A scan that finds nothing satisfies every negative assertion below,
+        // so the window has to prove it read the real thing first.
         #expect(!body.isEmpty)
+        #expect(body.contains("ModelEntity("))
         #expect(!body.contains("orientation"))
         #expect(!body.contains("simd_quatf"))
         // The channel must not be re-opened through the layout row either: a

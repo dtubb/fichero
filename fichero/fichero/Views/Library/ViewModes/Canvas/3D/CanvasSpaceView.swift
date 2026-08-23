@@ -52,6 +52,10 @@ struct CanvasSpaceView: View {
     /// outside a search, and it moves nothing.
     var emphasis: CanvasEmphasis = .neutral
 
+    /// WHAT each card is, in colour (§20.3 Colour by) — the other re-encode
+    /// channel, produced by the host from document attributes.
+    var tint: CanvasTint = .neutral
+
     @Environment(\.undoManager) var undoManager
 
     @State var renderer = CanvasScene3DRenderer()
@@ -59,6 +63,10 @@ struct CanvasSpaceView: View {
     @State private var cameraBaseline: CGSize = .zero
     @State private var zoomBaseline: Float = 0
     @State var optionHeld = false
+
+    /// Where this WINDOW has been looking (§16). View state: per window, saved
+    /// nowhere, never near the layout store.
+    @State var jumpHistory = CanvasJumpHistory<(lookAt: SIMD3<Float>, distance: Float)>()
 
     @State var draggingNodeId: String?
     @State var dragStartWorld: SIMD3<Double>?
@@ -68,6 +76,11 @@ struct CanvasSpaceView: View {
     private static let maxRenderedPlaceables = 10_000
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
+
+    /// The §20.3 "Arrange by" axis, written by `CanvasArrangePicker`. Both
+    /// canvases READ this one key: they share a layout store, so a board they
+    /// disagree about is two different boards.
+    @AppStorage(CanvasArrangement.storageKey) private var arrangementRaw = CanvasArrangement.asFiled.rawValue
 
     private var renderableItems: [CanvasItemDisplay] {
         (itemStore?.items(for: scopeKey) ?? []).filter { $0.kind != .link }
@@ -114,13 +127,15 @@ struct CanvasSpaceView: View {
             // Pitch from the board's ACTUAL card extents, not the nominal
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
-            gridCell: gridCell
+            gridCell: gridCell,
+            arrangement: CanvasArrangement.stored(arrangementRaw)
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
         }
         state.selection = selectedNodeIds
         state.emphasis = emphasis
+        state.tint = tint
         return state
     }
 
@@ -214,6 +229,7 @@ struct CanvasSpaceView: View {
                 },
                 selectedNodeIds: $selectedNodeIds
             ))
+            .focusedSceneValue(\.canvasViewActions, canvasCommandActions)
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
@@ -244,6 +260,7 @@ struct CanvasSpaceView: View {
     /// identically to 2D (it IS the same controller).
     private var canvasToolbar: some View {
         HStack(spacing: 6) {
+            CanvasControlStrip()
             Menu {
                 Button("Note") { addItem(.note) }
                 Button("Quote") { addItem(.quote) }

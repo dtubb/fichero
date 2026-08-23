@@ -34,6 +34,15 @@ struct Canvas3DProjectionTests {
 @Suite("CanvasScene3DRenderer ops (#3104)")
 struct CanvasScene3DRendererTests {
 
+    /// The contract a `.move` op carries, since moves became ANIMATED
+    /// (2026-08-22, R10): **the model is immediately the truth; the view eases
+    /// toward it.** `placeablesById` holds the new position the instant `apply`
+    /// returns, while the entity's own transform is mid-flight — so a test that
+    /// reads `entity.position` right after a move is asking the view a question
+    /// only the model can answer.
+    ///
+    /// An INSERT is placed outright (there is nowhere to ease from), so entity
+    /// position is still the right thing to assert there.
     @Test("insert / move / remove yields the expected entity graph and xyz positions")
     func opsSequence() {
         let renderer = CanvasScene3DRenderer()
@@ -45,7 +54,10 @@ struct CanvasScene3DRendererTests {
         #expect(renderer.root.findEntity(named: "b") != nil)
 
         renderer.apply([.move(id: "a", position: SIMD3<Double>(5, 6, 7))])
-        #expect(renderer.root.findEntity(named: "a")?.position == SIMD3<Float>(5, 6, 7))
+        #expect(renderer.placeablesById["a"]?.position == SIMD3<Double>(5, 6, 7))
+        // The card is still there and still the same entity — a move must never
+        // become a rebuild, animated or not.
+        #expect(renderer.root.findEntity(named: "a") != nil)
 
         renderer.apply([.remove(id: "b")])
         #expect(renderer.root.findEntity(named: "b") == nil)
@@ -59,7 +71,10 @@ struct CanvasScene3DRendererTests {
         renderer.isDragSuppressed = { $0 == "a" }
 
         renderer.apply([.move(id: "a", position: SIMD3<Double>(9, 9, 9))])
-        #expect(renderer.root.findEntity(named: "a")?.position == SIMD3<Float>(0, 0, 0))   // unmoved
+        // Suppressed means the op is DROPPED, so neither the model nor the view
+        // moves — no animation is started either.
+        #expect(renderer.placeablesById["a"]?.position == SIMD3<Double>(0, 0, 0))
+        #expect(renderer.root.findEntity(named: "a")?.position == SIMD3<Float>(0, 0, 0))
     }
 
     @Test("reportedZoomScale rises as the camera flies in (drives CanvasDetailTier)")

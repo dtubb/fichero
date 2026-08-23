@@ -52,6 +52,10 @@ struct CanvasSceneView: View {
     /// outside a search, and it moves nothing.
     var emphasis: CanvasEmphasis = .neutral
 
+    /// WHAT each card is, in colour (§20.3 Colour by) — the other re-encode
+    /// channel, produced by the host from document attributes.
+    var tint: CanvasTint = .neutral
+
     // These three are internal, not private, for the same reason as the resize
     // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
     // FILE-scoped in Swift.
@@ -81,7 +85,9 @@ struct CanvasSceneView: View {
     // winning, Space pressed mid-drag, the window losing focus — so a @State
     // rect cleared only in .onEnded stayed painted. @GestureState resets on
     // end AND cancel, so the rectangle structurally cannot outlive the drag.
-    @GestureState private var marqueeRect: CGRect?
+    // Internal, not private: `marqueeOverlay` moved to +Gestures.swift (this
+    // file is at its file_length ceiling) and Swift's `private` is FILE-scoped.
+    @GestureState var marqueeRect: CGRect?
 
     // Resize-handle drag state (#4409). Internal, not private: the gesture that
     // reads it lives in `CanvasSceneView+Resize.swift` and Swift's `private` is
@@ -91,6 +97,11 @@ struct CanvasSceneView: View {
     @State var resizeLiveSize: CGSize?
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
+
+    /// The §20.3 "Arrange by" axis, written by `CanvasArrangePicker`. Both
+    /// canvases READ this one key: they share a layout store, so a board they
+    /// disagree about is two different boards.
+    @AppStorage(CanvasArrangement.storageKey) private var arrangementRaw = CanvasArrangement.asFiled.rawValue
 
     /// How many cards the board lays out — nodes plus the non-link items, the
     /// same sequence `CanvasSceneState.resolve` slots.
@@ -141,10 +152,12 @@ struct CanvasSceneView: View {
             // Pitch from the board's ACTUAL card extents, not the nominal
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
-            gridCell: gridCell
+            gridCell: gridCell,
+            arrangement: CanvasArrangement.stored(arrangementRaw)
         )
         state.selection = selectedNodeIds
         state.emphasis = emphasis
+        state.tint = tint
         return state
     }
 
@@ -239,6 +252,10 @@ struct CanvasSceneView: View {
             }
             #endif
             .overlay { marqueeOverlay }
+            // Same strip, same corner as 3D — one board, one place to say
+            // what it means.
+            .overlay(alignment: .topTrailing) { CanvasControlStrip().padding(8) }
+            .focusedSceneValue(\.canvasViewActions, canvasCommandActions)
             // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(
@@ -259,20 +276,6 @@ struct CanvasSceneView: View {
                 await layoutStore?.loadLayout(folderId: folderId)
                 await itemStore?.loadItems(folderId: folderId)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var marqueeOverlay: some View {
-        if let rect = marqueeRect {
-            // SAME style as the icon grid's LibraryMarquee (#4601): the
-            // full-opacity stroke read darker than every other marquee.
-            Rectangle()
-                .fill(Color.accentColor.opacity(0.15))
-                .overlay(Rectangle().stroke(Color.accentColor.opacity(0.6), lineWidth: 1))
-                .frame(width: rect.width, height: rect.height)
-                .position(x: rect.midX, y: rect.midY)
-                .allowsHitTesting(false)
         }
     }
 
@@ -309,6 +312,9 @@ struct CanvasSceneView: View {
 
     /// Where double-click zoom returns to; nil = not zoomed into a node.
     @State var focusReturnSnapshot: (position: SIMD3<Float>, scale: Float)?
+
+    /// Where this WINDOW has been looking (§16) — view state, saved nowhere.
+    @State var jumpHistory = CanvasJumpHistory<(position: SIMD3<Float>, scale: Float)>()
     /// Manual double-click detection INSIDE tapSelect (2026-08-22): a
     /// separate simultaneous TapGesture(count: 2) joined the gesture set and
     /// broke the exclusivity that let tapSelect's success suppress the

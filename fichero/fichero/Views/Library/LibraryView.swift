@@ -72,6 +72,10 @@ struct LibraryView: View {
     /// image?") and its relevance on the right. Empty outside search.
     var searchRowHits: [String: TransientSearchRowHit] = [:]
 
+    /// The §20.3 "Colour by" choice, written by `CanvasColourPicker` in the
+    /// canvas control strips and read here to build the tint channel.
+    @AppStorage(CanvasColourBy.storageKey) var canvasColourByRaw = CanvasColourBy.off.rawValue
+
     @State var searchText: String = ""
     /// Precomputed lowercased ⌘F search keys per docId (#3865). Rebuilt only when
     /// the document set changes, so keystroke filtering is a dict lookup, not a

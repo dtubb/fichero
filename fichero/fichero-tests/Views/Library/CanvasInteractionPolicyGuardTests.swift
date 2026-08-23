@@ -58,8 +58,14 @@ struct CanvasInteractionPolicyGuardTests {
         // CANCELLED gesture (a competing recognizer winning, Space mid-drag,
         // focus loss), so a @State rect cleared only in .onEnded stayed
         // painted. @GestureState resets on end AND cancel.
-        #expect(source.contains("@GestureState private var marqueeRect: CGRect?"))
+        // @GestureState is the property under test, not its access level: the
+        // 2026-08-22 file_length split moved `marqueeOverlay` into +Gestures,
+        // and Swift's `private` is FILE-scoped, so the rect had to widen. What
+        // must never come back is @State, which is what left ghost marquees on
+        // screen after a CANCELLED gesture.
+        #expect(source.contains("@GestureState var marqueeRect: CGRect?"))
         #expect(!source.contains("@State private var marqueeRect"))
+        #expect(!source.contains("@State var marqueeRect"))
         #expect(source.contains(".updating($marqueeRect)"))
     }
 

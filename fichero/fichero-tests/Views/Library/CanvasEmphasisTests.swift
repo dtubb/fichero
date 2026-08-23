@@ -164,7 +164,10 @@ struct CanvasEmphasisDiffTests {
             switch op {
             case .move, .resize, .updateContent, .insert, .remove:
                 Issue.record("emphasis produced a layout op: \(op)")
-            case .setEmphasis, .setSelection, .setEdges:
+            // Not layout ops. `.setTint` is a sibling re-encode channel: it is
+            // not what this test forbids, and `ops.count == 1` below is what
+            // catches it firing when nothing asked it to.
+            case .setEmphasis, .setSelection, .setEdges, .setTint:
                 continue
             }
         }
@@ -215,17 +218,27 @@ struct CanvasEmphasisWiringGuardTests {
         try String(contentsOf: AppSource.root().appendingPathComponent(relativePath), encoding: .utf8)
     }
 
+    /// Each renderer is a FILE SET, not a file: the 2026-08-22 split moved op
+    /// application into +Ops.swift. A guard that keeps reading only the main
+    /// file after a split still PASSES — on code it no longer contains — which
+    /// is the failure mode this suite has already been bitten by once tonight.
     private let renderers = [
-        "Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer.swift",
-        "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift",
+        ["Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer.swift",
+         "Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer+Ops.swift"],
+        ["Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift",
+         "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer+Ops.swift"],
     ]
+
+    private func combined(_ paths: [String]) throws -> String {
+        try paths.map { try appSource($0) }.joined(separator: "\n")
+    }
 
     @Test("both renderers handle setEmphasis through the shared painter")
     func bothRenderersPaintEmphasis() throws {
-        for path in renderers {
-            let source = try appSource(path)
-            #expect(source.contains("case .setEmphasis(let newEmphasis):"), "\(path) ignores emphasis")
-            #expect(source.contains("CanvasEmphasisPainter.apply("), "\(path) drew its own highlight")
+        for paths in renderers {
+            let source = try combined(paths)
+            #expect(source.contains("case .setEmphasis(let newEmphasis):"), "\(paths) ignores emphasis")
+            #expect(source.contains("CanvasEmphasisPainter.apply("), "\(paths) drew its own highlight")
         }
     }
 
@@ -247,11 +260,11 @@ struct CanvasEmphasisWiringGuardTests {
 
     @Test("emphasis never rebuilds a card — the #4409 rule, restated")
     func emphasisNeverReskins() throws {
-        for path in renderers {
-            let handler = try caseBody(try appSource(path), forCase: "case .setEmphasis")
+        for paths in renderers {
+            let handler = try caseBody(try combined(paths), forCase: "case .setEmphasis")
             #expect(!handler.isEmpty)
-            #expect(!handler.contains("reskinCard"), "\(path) rebuilds cards to highlight them")
-            #expect(!handler.contains("makeCard"), "\(path) rebuilds cards to highlight them")
+            #expect(!handler.contains("reskinCard"), "\(paths) rebuilds cards to highlight them")
+            #expect(!handler.contains("makeCard"), "\(paths) rebuilds cards to highlight them")
             // What it does instead, so the slice can't pass by being empty.
             #expect(handler.contains("CanvasEmphasisPainter.apply("))
         }
@@ -261,8 +274,8 @@ struct CanvasEmphasisWiringGuardTests {
     func caseSliceIsBounded() throws {
         // A guard whose scan window is wrong reports on code it was never
         // about, which is how this test suite lied once already.
-        for path in renderers {
-            let handler = try caseBody(try appSource(path), forCase: "case .setEmphasis")
+        for paths in renderers {
+            let handler = try caseBody(try combined(paths), forCase: "case .setEmphasis")
             #expect(!handler.contains("case .setSelection"))
             #expect(!handler.contains("func "))
         }
