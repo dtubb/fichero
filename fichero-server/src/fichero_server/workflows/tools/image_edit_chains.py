@@ -402,6 +402,12 @@ def _pixel_size(path: Path) -> tuple[int | None, int | None]:
 def _region_from_part(part: dict[str, Any], method: str) -> NodeRegion | None:
     """Normalize a part's pixel bbox against the frame it was cut from."""
     bbox = part.get("bbox")
+    # `rendition_id` is deliberately left unset here, and that is currently
+    # CORRECT rather than an omission: the split tools cut the document's own
+    # source file, so `source_size` IS the node's original frame and None
+    # means exactly that. This is the seam that must start setting it when a
+    # tool cuts from a RENDITION instead — the entry-scoped-run work, where a
+    # crop is taken from a rotated or enhanced picture.
     size = part.get("source_size")
     if not (isinstance(bbox, list) and len(bbox) == 4):
         return None

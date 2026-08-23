@@ -129,3 +129,51 @@ class TestConfidencePropagation:
 
     def test_no_regions_defaults_to_nominal(self):
         assert weakest_confidence() is RegionConfidence.nominal
+
+
+class TestRegionsNameTheFrameTheyWereMeasuredOn:
+    """`NodeRegion.rendition_id` (2026-08-23, Daniel's ruling).
+
+    Frames CHAIN: an image is cut to spreads, then pages, then rotated,
+    deskewed, background-removed, enhanced, and only then are entries
+    extracted. A rect measured somewhere along that chain is meaningless
+    without saying WHERE, so a region names its rendition for the same reason
+    an anchor already did.
+    """
+
+    def test_absent_by_default_so_existing_rows_stay_valid(self):
+        assert NodeRegion(rect=[0, 0, 1, 1]).rendition_id is None
+
+    def test_composing_refuses_an_inner_measured_on_a_rendition(self):
+        """A fraction of the ROTATED frame is not the same fraction of the
+        original. This module has no database, so it cannot resolve the
+        difference and must not compose past it."""
+        outer = NodeRegion(rect=[0.0, 0.0, 0.5, 1.0])
+        inner = NodeRegion(rect=[0.0, 0.0, 1.0, 0.5], rendition_id="rend-rotated")
+
+        with pytest.raises(ValueError, match="rend-rotated"):
+            compose(outer, inner)
+
+    def test_the_refusal_says_what_to_do_next(self):
+        outer = NodeRegion(rect=[0, 0, 1, 1])
+        inner = NodeRegion(rect=[0, 0, 1, 1], rendition_id="r1")
+        with pytest.raises(ValueError, match="Resolve it through"):
+            compose(outer, inner)
+
+    def test_an_outer_rendition_propagates_to_the_result(self):
+        """Collapsing two hops does not change WHICH PICTURE the answer is
+        about — the composed region still lives in outer's frame."""
+        outer = NodeRegion(rect=[0.0, 0.0, 0.5, 1.0], rendition_id="rend-enhanced")
+        inner = NodeRegion(rect=[0.0, 0.0, 1.0, 0.5])
+
+        assert compose(outer, inner).rendition_id == "rend-enhanced"
+
+    def test_the_ordinary_case_is_untouched(self):
+        """Neither side names a rendition: the overwhelmingly common shape and
+        it must compose exactly as before."""
+        outer = NodeRegion(rect=[0.0, 0.0, 0.5, 1.0])
+        inner = NodeRegion(rect=[0.0, 0.0, 1.0, 0.5])
+
+        composed = compose(outer, inner)
+        assert composed.rect == [0.0, 0.0, 0.5, 0.5]
+        assert composed.rendition_id is None
