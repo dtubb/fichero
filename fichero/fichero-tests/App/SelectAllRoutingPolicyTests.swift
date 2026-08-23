@@ -15,30 +15,45 @@ import Testing
 /// implements no `selectAll(_:)`. Nothing happened.
 struct SelectAllRoutingPolicyTests {
 
-    /// The whole policy as a table: (text editing, library has rows) → route.
+    /// The whole policy as a table: (text editing, focused surface) → route.
+    ///
+    /// The second input widened from a Bool to a surface on 2026-08-23 so the
+    /// inspector's lists could answer ⌘A too. Every row that existed before
+    /// that is still here, unchanged in meaning: `focusedSurface: .libraryRows`
+    /// is the old `libraryHasSelectableRows: true`, and nil is the old false —
+    /// which keeps `.none`'s fall-through, the load-bearing case, exactly as it
+    /// was.
     private struct Row {
         let rule: String
         let isTextEditing: Bool
-        let libraryHasSelectableRows: Bool
+        let focusedSurface: SelectAllSurface?
         let expected: SelectAllRoute
     }
 
     private static let table: [Row] = [
         Row(
             rule: "typing wins outright — ⌘A selects the text, never the library behind it",
-            isTextEditing: true, libraryHasSelectableRows: true, expected: .focusedTextEditor
+            isTextEditing: true, focusedSurface: .libraryRows, expected: .focusedTextEditor
         ),
         Row(
             rule: "typing wins even when no library is showing",
-            isTextEditing: true, libraryHasSelectableRows: false, expected: .focusedTextEditor
+            isTextEditing: true, focusedSurface: nil, expected: .focusedTextEditor
         ),
         Row(
             rule: "a focused library with rows selects its rows",
-            isTextEditing: false, libraryHasSelectableRows: true, expected: .libraryRows
+            isTextEditing: false, focusedSurface: .libraryRows, expected: .libraryRows
         ),
         Row(
-            rule: "no text focus and no focused library rows: decline, do not guess",
-            isTextEditing: false, libraryHasSelectableRows: false, expected: .none
+            rule: "no text focus and no focused surface: decline, do not guess",
+            isTextEditing: false, focusedSurface: nil, expected: .none
+        ),
+        Row(
+            rule: "a focused inspector list selects its own rows",
+            isTextEditing: false, focusedSurface: .inspectorList, expected: .inspectorList
+        ),
+        Row(
+            rule: "typing inside the inspector still wins — the caret owns ⌘A",
+            isTextEditing: true, focusedSurface: .inspectorList, expected: .focusedTextEditor
         ),
     ]
 
@@ -47,7 +62,7 @@ struct SelectAllRoutingPolicyTests {
         for row in Self.table {
             let route = SelectAllRoutingPolicy.route(
                 isTextEditing: row.isTextEditing,
-                libraryHasSelectableRows: row.libraryHasSelectableRows
+                focusedSurface: row.focusedSurface
             )
             #expect(route == row.expected, Comment(rawValue: row.rule))
         }
@@ -59,11 +74,11 @@ struct SelectAllRoutingPolicyTests {
     /// an empty typing undo stack.
     @Test("a focused text editor is never overridden by the library")
     func textEditingIsNeverOverridden() {
-        for libraryHasRows in [true, false] {
+        for surface: SelectAllSurface? in [.libraryRows, .inspectorList, nil] {
             #expect(
                 SelectAllRoutingPolicy.route(
                     isTextEditing: true,
-                    libraryHasSelectableRows: libraryHasRows
+                    focusedSurface: surface
                 ) == .focusedTextEditor
             )
         }
@@ -75,24 +90,27 @@ struct SelectAllRoutingPolicyTests {
     /// route that expresses "not ours" — it is a decision, not a failure.
     @Test("a focused reader routes to none so WebKit keeps its own select-all")
     func readerFallsThrough() {
-        // The reader publishes no library select-all action and is not an
-        // editable NSTextView, so both inputs are false.
+        // The reader publishes no select-all action and is not an editable
+        // NSTextView, so there is no focused surface and no text focus. This is
+        // the case the widening had to leave untouched: WebKit selects its own
+        // text only because this route declines.
         let route = SelectAllRoutingPolicy.route(
             isTextEditing: false,
-            libraryHasSelectableRows: false
+            focusedSurface: nil
         )
         #expect(route == .none)
     }
 
-    /// An empty library must not claim ⌘A: firing a select-all over zero rows
+    /// An empty surface must not claim ⌘A: firing a select-all over zero rows
     /// would swallow the key equivalent and leave a focused reader or web view
-    /// with nothing.
-    @Test("an empty library declines rather than selecting nothing loudly")
-    func emptyLibraryDeclines() {
+    /// with nothing. A surface with nothing to select publishes nil, which is
+    /// why "empty" and "not focused" are the same input.
+    @Test("an empty surface declines rather than selecting nothing loudly")
+    func emptySurfaceDeclines() {
         #expect(
             SelectAllRoutingPolicy.route(
                 isTextEditing: false,
-                libraryHasSelectableRows: false
+                focusedSurface: nil
             ) == .none
         )
     }
