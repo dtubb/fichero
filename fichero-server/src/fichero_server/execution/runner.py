@@ -1377,6 +1377,10 @@ async def _run_workflow_in_background(
             library_path=str(db.path.parent) if hasattr(db, "path") else "",
         )
         initial_state["workflow_id"] = request.workflow_id
+        # "Run it again for real" reaches the graph (2026-08-23). Same lesson
+        # as `request.selection` below: a field validated at the boundary and
+        # never put into the state is a field that does nothing.
+        initial_state["force_recompute"] = bool(request.force_recompute)
         # #4397/#4427: the typed selection is what the run is scoped to, so it
         # must reach the graph. Until this line NOTHING in the server read
         # `request.selection` — it was validated at the boundary and then

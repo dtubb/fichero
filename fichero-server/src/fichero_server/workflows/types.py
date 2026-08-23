@@ -277,6 +277,10 @@ class State(TypedDict):
 
     # Library context (required for source tools)
     library_path: str  # Path to .fichero library package
+    #: "Run it again for real" — every cache bypassed, including the ARTIFACT
+    #: cache. Declared as its own channel so LangGraph preserves it, the same
+    #: reason `selected_doc_ids` is declared.
+    force_recompute: bool
 
     # UI selection — document IDs selected when the user clicked Run
     selected_doc_ids: list[str]
