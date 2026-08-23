@@ -159,15 +159,10 @@ extension ContentView {
                 .help(showChatPane ? "Hide chat pane" : "Show chat pane")
             }
 
-            // RESIDENT search field, top right (Daniel's ruling 2026-08-19,
-            // #4604 Q10 — supersedes #4521's summoned field): always visible
-            // and expanded, never a toggle away. The magnifier is the MODE
-            // menu (Ask/Keyword + Hybrid/Semantic/Full Text merged — the two
-            // controls used to live in two different bars, #4604 §4.2). The
-            // reader's find bar deliberately stays bottom (ruling Q9 split).
-            ToolbarItem(id: ContentToolbarID.searchToggle, placement: .automatic) {
-                toolbarSearchField
-            }
+            // The resident search field MOVED to the inspector-section
+            // toolbar (ContentView+InspectorContainer, 2026-08-23): Daniel
+            // wants it RIGHT of the inspector toggle, and the content section
+            // always renders left of the inspector section.
         }
 
         // Sort and filter used to sit here, outside the split-pane block, with

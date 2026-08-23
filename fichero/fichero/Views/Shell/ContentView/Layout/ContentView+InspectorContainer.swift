@@ -66,6 +66,15 @@ extension ContentView {
                             inspectorToggleButton
                         }
                     }
+                    // Search RIGHT of the inspector toggle (Daniel, 2026-08-23:
+                    // "search button at the top should be to the right of the
+                    // document inspector button"). Mounting it in the same
+                    // inspector-section toolbar, after the toggle, is the only
+                    // way to sit right of it — the content section always
+                    // renders left of the inspector section.
+                    ToolbarItem(id: ContentToolbarID.searchToggle, placement: .primaryAction) {
+                        toolbarSearchField
+                    }
                 }
                 .inspectorColumnWidth(
                     min: CGFloat(ContentView.inspectorMinWidth),

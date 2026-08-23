@@ -17,7 +17,10 @@ struct RunComparisonSide: Equatable {
     let workflowName: String
     let status: String
     let error: String?
-    let durationMs: Int?
+    // Double, not Int: the engine reports fractional milliseconds
+    // (duration_ms: number since 2026-08-23 — the int coercion 500'd every
+    // Compare Runs before that).
+    let durationMs: Double?
     let artifactCount: Int
     let stepsTotal: Int
     let stepsFailed: Int
