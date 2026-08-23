@@ -35,3 +35,19 @@ struct ReaderPreviewLinkingTests {
         #expect(wordBoxes(intersecting: 0..<5, in: spanless).isEmpty)
     }
 }
+
+// Cross-document anchoring (2026-08-23): the reader shows an ENTRY, the
+// preview shows its source PAGE — the ids never match, so the selection's
+// TEXT locates it in the page's transcript.
+extension ReaderPreviewLinkingTests {
+    @Test("selected text anchors in the page transcript, UTF-16 offsets")
+    func textAnchor() {
+        let page = "At Dredge No 4 all day. Bedenbacker, electrician, hurt this afternoon."
+        let range = geometryRange(of: "Bedenbacker, electrician", in: page)
+        #expect(range == 24..<48)
+        // Case/diacritic-insensitive; a lie-proof nil for the unfindable.
+        #expect(geometryRange(of: "BEDENBACKER, ELECTRICIAN", in: page) == 24..<48)
+        #expect(geometryRange(of: "not on this page", in: page) == nil)
+        #expect(geometryRange(of: "at", in: page) == nil)  // < 3 chars = too ambiguous
+    }
+}

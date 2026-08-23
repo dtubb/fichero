@@ -140,6 +140,12 @@ struct DocumentTextReader: View {
             loadAnnotations()
         }
         .onChange(of: annotationStore?.changeToken) { _, _ in loadAnnotations() }
+        // Reader → preview word linking (2026-08-23): this surface is what an
+        // ENTRY reads through, so it must post like PageContentPane does —
+        // the selection's TEXT anchors it in the source page's transcript.
+        .onChange(of: selectionRange) { _, newRange in
+            postReaderSelection(newRange, documentId: document.id, content: displayText)
+        }
     }
 
     // MARK: - Annotations

@@ -113,16 +113,28 @@ extension ZoomableImagePreview {
     /// selection, or a geometry set measured on a different frame all clear —
     /// stale word lights are the same lie as a stale highlight band.
     func handleReaderTextSelection(_ note: Notification) {
-        guard let docId = note.userInfo?["documentId"] as? String,
-              docId == documentId,
+        guard let geometry = ocrGeometry,
+              geometryFrameMatchesDisplay(geometry),
+              let docId = note.userInfo?["documentId"] as? String,
               let start = note.userInfo?["charStart"] as? Int,
-              let end = note.userInfo?["charEnd"] as? Int,
-              let geometry = ocrGeometry,
-              geometryFrameMatchesDisplay(geometry) else {
+              let end = note.userInfo?["charEnd"] as? Int else {
             if !linkedSelectionBoxes.isEmpty { linkedSelectionBoxes = [] }
             return
         }
-        linkedSelectionBoxes = wordBoxes(intersecting: start..<end, in: geometry)
+        if docId == documentId {
+            linkedSelectionBoxes = wordBoxes(intersecting: start..<end, in: geometry)
+            return
+        }
+        // Different document: the reader usually shows an ENTRY while this
+        // preview shows its source PAGE. The selection's TEXT anchors it in
+        // the page's own transcript; unfindable text clears rather than
+        // guesses.
+        if let text = note.userInfo?["text"] as? String,
+           let range = geometryRange(of: text, in: geometry.text) {
+            linkedSelectionBoxes = wordBoxes(intersecting: range, in: geometry)
+        } else if !linkedSelectionBoxes.isEmpty {
+            linkedSelectionBoxes = []
+        }
     }
 }
 

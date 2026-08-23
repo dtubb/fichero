@@ -180,16 +180,11 @@ struct PageContentPane: View {
         // Resync when an annotation.* change event lands (create/delete/edit).
         .onChange(of: selectionRange) { _, newRange in
             // Reader → preview word linking (Daniel, 2026-08-23): the
-            // selection travels as char offsets; the preview intersects them
-            // with its word geometry and lights the words on the page.
-            var info: [String: Any] = ["documentId": pageDoc?.id ?? ""]
-            if let newRange {
-                info["charStart"] = newRange.lowerBound
-                info["charEnd"] = newRange.upperBound
-            }
-            NotificationCenter.default.post(
-                name: .readerTextSelection, object: nil, userInfo: info
-            )
+            // selection travels as char offsets AND as its text — the reader
+            // often shows an ENTRY while the preview shows its source PAGE,
+            // so the ids never match and the text is what anchors the
+            // selection in the page's own transcript.
+            postReaderSelection(newRange, documentId: pageDoc?.id, content: pageContent)
         }
         .onChange(of: annotationStore.changeToken) { _, _ in
             loadAnnotations()
