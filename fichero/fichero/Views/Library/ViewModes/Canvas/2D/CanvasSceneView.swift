@@ -52,6 +52,10 @@ struct CanvasSceneView: View {
     /// outside a search, and it moves nothing.
     var emphasis: CanvasEmphasis = .neutral
 
+    /// WHAT each card is, in colour (§20.3 Colour by) — the other re-encode
+    /// channel, produced by the host from document attributes.
+    var tint: CanvasTint = .neutral
+
     // These three are internal, not private, for the same reason as the resize
     // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
     // FILE-scoped in Swift.
@@ -151,6 +155,7 @@ struct CanvasSceneView: View {
         )
         state.selection = selectedNodeIds
         state.emphasis = emphasis
+        state.tint = tint
         return state
     }
 
@@ -245,12 +250,9 @@ struct CanvasSceneView: View {
             }
             #endif
             .overlay { marqueeOverlay }
-            // The same control, same corner as the 3D canvas — one board, one
-            // place to re-arrange it.
-            .overlay(alignment: .topTrailing) {
-                CanvasArrangePicker()
-                    .padding(8)
-            }
+            // The same strip, same corner as the 3D canvas — one board, one
+            // place to say what it means.
+            .overlay(alignment: .topTrailing) { CanvasControlStrip().padding(8) }
             // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(

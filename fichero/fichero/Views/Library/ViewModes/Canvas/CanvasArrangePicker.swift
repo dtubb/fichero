@@ -53,3 +53,20 @@ extension CanvasArrangement {
         CanvasArrangement(rawValue: rawValue) ?? .asFiled
     }
 }
+
+// MARK: - The control strip
+
+/// §20.3's control strip: the pickers that decide what the board says.
+///
+/// One view, used by BOTH canvases, so a control cannot exist in one and not
+/// the other. Two of the four today — Arrange (moves cards) and Colour by
+/// (never does); Depth joins when z has a second variable to carry, and
+/// Highlight when an entity picker lands on top of `CanvasEmphasis`.
+struct CanvasControlStrip: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            CanvasArrangePicker()
+            CanvasColourPicker()
+        }
+    }
+}

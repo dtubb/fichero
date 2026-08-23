@@ -64,6 +64,18 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
 
+    /// WHAT each card is, in colour (§20.3 Colour by). Held for the same
+    /// reason as `emphasis`: a card inserted or reskinned while a colouring is
+    /// live must arrive already coloured.
+    var tint: CanvasTint = .neutral
+
+    /// Whether a card currently carries a page image — a textured card keeps
+    /// its page, so the tint yields to legibility (see `CanvasTintPainter`).
+    func isTextured(_ id: String) -> Bool {
+        guard detailTier >= .thumbnail, let placeable = placeablesById[id] else { return false }
+        return sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) } != nil
+    }
+
     /// Seconds a `.move` animates for, set per diff by `apply`.
     private var moveDuration = CanvasMoveAnimation.feedbackDuration
 
@@ -234,51 +246,6 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     // MARK: - Op application (granular; never a rebuild)
 
-    private func applyOne(_ operation: CanvasSceneOp) {
-        switch operation {
-        case .insert(let placeable):
-            placeablesById[placeable.id] = placeable
-            let card = makeCard(placeable)
-            CanvasEmphasisPainter.apply(emphasis, to: card, id: placeable.id)
-            placeablesRoot.addChild(card)
-        case .move(let id, let position):
-            // Don't fight a local drag: a store echo for the dragged id is skipped
-            // (the isDragSuppressed seam); every other move repositions in place.
-            guard isDragSuppressed?(id) != true else { return }
-            placeablesById[id]?.position = position
-            // ANIMATED, as 2D already was (R10: the cards move, the camera
-            // cuts): a re-arrange is the information, and it only reads if you
-            // can follow it. `move(to:)` animates an existing entity's
-            // transform — no mesh, no material, no rebuild at any frame.
-            if let entity = placeablesRoot.findEntity(named: id) {
-                var transform = entity.transform
-                transform.translation = Canvas3DProjection.scenePosition(position)
-                entity.move(to: transform, relativeTo: entity.parent, duration: moveDuration)
-            }
-        case .resize(let id, let size):
-            placeablesById[id]?.size = size
-            reskinCard(id)
-        case .updateContent(let id):
-            reskinCard(id)
-        case .remove(let id):
-            placeablesById[id] = nil
-            placeablesRoot.findEntity(named: id)?.removeFromParent()
-        case .setEdges(let edges):
-            rebuildEdges(edges)
-        case .setSelection(let newSelection):
-            // No card is touched. This used to `reskinCard` the symmetric
-            // difference, destroying and rebuilding a textured card just to
-            // add or remove an outline — #4409's blue flash (#4409).
-            selection = newSelection
-        case .setEmphasis(let newEmphasis):
-            // Also NOTHING happens to the cards' geometry or materials: the
-            // painter sets an OpacityComponent, so a live search never rebuilds
-            // a textured card (#4409, restated for this channel).
-            emphasis = newEmphasis
-            CanvasEmphasisPainter.apply(newEmphasis, to: placeablesRoot)
-        }
-    }
-
     // MARK: - Cards
 
     static let defaultCardSize = CGSize(width: 0.8, height: 0.6)
@@ -313,7 +280,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         )
         let entity = ModelEntity(
             mesh: mesh,
-            materials: [SimpleMaterial(color: baseColor(for: placeable.content), isMetallic: false)]
+            materials: [SimpleMaterial(color: cardColor(for: placeable), isMetallic: false)]
         )
         entity.name = placeable.id
         entity.position = Canvas3DProjection.scenePosition(placeable.position)
@@ -330,7 +297,17 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         return entity
     }
 
-    private func baseColor(for content: CanvasContent) -> PlatformColor {
+    /// The colour a card is built with: the tint channel's answer when it has
+    /// one, else the card's kind tint — which IS the default "colour by kind",
+    /// not a competing encoding.
+    func cardColor(for placeable: CanvasPlaceable) -> PlatformColor {
+        tint.slot(for: placeable.id).map(CanvasTintPainter.color(forSlot:))
+            ?? baseColor(for: placeable.content)
+    }
+
+    // Internal, not private: the op-application extension needs it to repaint
+    // a card when the colouring changes, and Swift's `private` is FILE-scoped.
+    func baseColor(for content: CanvasContent) -> PlatformColor {
         switch content {
         case .node(let node): return SpaceTheme.materialColor(for: node.nodeType)
         case .item(let item): return Self.itemColor(for: item.kind)

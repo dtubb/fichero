@@ -52,6 +52,10 @@ struct CanvasSpaceView: View {
     /// outside a search, and it moves nothing.
     var emphasis: CanvasEmphasis = .neutral
 
+    /// WHAT each card is, in colour (§20.3 Colour by) — the other re-encode
+    /// channel, produced by the host from document attributes.
+    var tint: CanvasTint = .neutral
+
     @Environment(\.undoManager) var undoManager
 
     @State var renderer = CanvasScene3DRenderer()
@@ -127,6 +131,7 @@ struct CanvasSpaceView: View {
         }
         state.selection = selectedNodeIds
         state.emphasis = emphasis
+        state.tint = tint
         return state
     }
 
@@ -250,7 +255,7 @@ struct CanvasSpaceView: View {
     /// identically to 2D (it IS the same controller).
     private var canvasToolbar: some View {
         HStack(spacing: 6) {
-            CanvasArrangePicker()
+            CanvasControlStrip()
             Menu {
                 Button("Note") { addItem(.note) }
                 Button("Quote") { addItem(.quote) }

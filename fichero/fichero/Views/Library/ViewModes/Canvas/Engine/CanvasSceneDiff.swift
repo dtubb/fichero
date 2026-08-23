@@ -22,6 +22,9 @@ enum CanvasSceneOp: Equatable {
     /// geometry — and it must never turn into a rebuild, or a live search would
     /// destroy and re-create 2,228 textured cards per keystroke (#4409).
     case setEmphasis(CanvasEmphasis)
+    /// WHAT each card is, in colour. Re-encodes in place like `.setEmphasis`,
+    /// and moves nothing (§13.2).
+    case setTint(CanvasTint)
 }
 
 enum CanvasSceneDiff {
@@ -63,6 +66,9 @@ enum CanvasSceneDiff {
         }
         if old.emphasis != new.emphasis {
             ops.append(.setEmphasis(new.emphasis))
+        }
+        if old.tint != new.tint {
+            ops.append(.setTint(new.tint))
         }
 
         return ops

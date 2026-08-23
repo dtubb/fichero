@@ -90,6 +90,22 @@ extension LibraryView {
         )
     }
 
+    /// The active colouring, as canvas tint (§20.3 Colour by).
+    ///
+    /// The producer lives here for the same reason the search-emphasis one
+    /// does: what a folder or a status IS belongs to the host, and the channel
+    /// only ever sees `placeable id → palette slot`. Document ids cross into
+    /// placeable ids here.
+    var canvasTint: CanvasTint {
+        let mode = CanvasColourBy.stored(canvasColourByRaw)
+        guard mode != .off else { return .neutral }
+        let values = documentStore.currentDocuments.reduce(into: [String: String]()) { map, document in
+            guard let value = mode.value(for: document) else { return }
+            map[SpatialLibraryProjector.nodeId(forDocument: document.id)] = value
+        }
+        return CanvasTint.byValue(values)
+    }
+
     @ViewBuilder
     var spaceModeView: some View {
         if featureManager.isCanvasRealityKit3DEnabled {
@@ -103,7 +119,8 @@ extension LibraryView {
                 folderScopeId: folderId ?? wholeLibraryRoomId,
                 containerIds: canvasContainerIds,
                 moveIntoContainer: moveCanvasNodeIntoContainer,
-                emphasis: canvasSearchEmphasis
+                emphasis: canvasSearchEmphasis,
+                tint: canvasTint
             )
             .contextMenu { canvasContextMenu() }
         } else {
@@ -141,7 +158,8 @@ extension LibraryView {
                 containerIds: canvasContainerIds,
                 moveIntoContainer: moveCanvasNodeIntoContainer,
                 storageService: activeLibraryReference?.storageService,
-                emphasis: canvasSearchEmphasis
+                emphasis: canvasSearchEmphasis,
+                tint: canvasTint
             )
             .contextMenu { canvasContextMenu() }
         } else {

@@ -291,10 +291,19 @@ struct CanvasArrangeWiringGuardTests {
         "Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift",
         "Views/Library/ViewModes/Canvas/3D/CanvasSpaceView.swift",
     ]
+    /// FILE SETS — op application lives in +Ops.swift since the 2026-08-22
+    /// split, and a guard reading only the main file would pass by reading
+    /// nothing.
     private let renderers = [
-        "Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer.swift",
-        "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift",
+        ["Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer.swift",
+         "Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer+Ops.swift"],
+        ["Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift",
+         "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer+Ops.swift"],
     ]
+
+    private func combined(_ paths: [String]) throws -> String {
+        try paths.map { try appSource($0) }.joined(separator: "\n")
+    }
 
     @Test("both canvases read the ONE persisted arrangement and show the picker")
     func bothCanvasesShareTheArrangement() throws {
@@ -308,10 +317,10 @@ struct CanvasArrangeWiringGuardTests {
 
     @Test("both renderers ANIMATE a move, through the shared duration")
     func bothRenderersAnimate() throws {
-        for path in renderers {
-            let source = try appSource(path)
-            #expect(source.contains("CanvasMoveAnimation.duration(for: ops)"), "\(path) picked its own timing")
-            #expect(source.contains("duration: moveDuration"), "\(path) teleports cards")
+        for paths in renderers {
+            let source = try combined(paths)
+            #expect(source.contains("CanvasMoveAnimation.duration(for: ops)"), "\(paths) picked its own timing")
+            #expect(source.contains("duration: moveDuration"), "\(paths) teleports cards")
             // The 3D teleport this replaced: a bare position assignment.
             #expect(!source.contains("?.position = Canvas3DProjection.scenePosition(position)"))
         }
@@ -321,9 +330,11 @@ struct CanvasArrangeWiringGuardTests {
     func orderingIsNotForkedIntoAView() throws {
         // Date and Entity arrive later (build-order step 8); they must come
         // through CanvasArrangement, not a sort inside a renderer or a view.
-        for path in canvases + renderers {
-            let source = try appSource(path)
-            #expect(!source.contains(".sorted {"), "\(path) sorts a board outside CanvasArrangement")
+        for path in canvases {
+            #expect(!(try appSource(path)).contains(".sorted {"), "\(path) sorts a board outside CanvasArrangement")
+        }
+        for paths in renderers {
+            #expect(!(try combined(paths)).contains(".sorted {"), "\(paths) sorts a board outside CanvasArrangement")
         }
     }
 }

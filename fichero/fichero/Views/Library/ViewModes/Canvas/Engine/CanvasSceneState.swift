@@ -67,6 +67,9 @@ struct CanvasSceneState: Equatable {
     /// Neutral by default, and never part of position resolution — emphasis
     /// moves nothing (R10).
     var emphasis: CanvasEmphasis = .neutral
+    /// WHAT each card is, said in colour — the other re-encode channel. Hue and
+    /// strength stay separate so neither number means two things.
+    var tint: CanvasTint = .neutral
 
     static let empty = CanvasSceneState(placeables: [], edges: [], selection: [])
 }
