@@ -212,7 +212,15 @@ final class DocumentKGPaneRouteTests: XCTestCase {
         XCTAssertTrue(source.contains("shouldRefreshBootstrapScript"))
         XCTAssertTrue(source.contains("context.coordinator.bootstrapScript(forceRefresh: true)"))
         XCTAssertFalse(source.contains("let script = DocumentKGPaneRoute.bootstrapScript("))
-        XCTAssertFalse(source.contains("webView.evaluateJavaScript(script)"))
+        // 8912621ff (perf audit 2026-08-19): the macOS coordinator DOES call
+        // `webView.evaluateJavaScript(script)` again — but behind a dedupe
+        // guard, so the cross-process call fires only when the script actually
+        // changed, which is the property the old blanket ban was protecting.
+        XCTAssertTrue(
+            source.contains("script != lastInjectedBootstrapScript else { return }"),
+            "the bootstrap injection lost its dedupe guard — every SwiftUI " +
+            "update pass would fire a cross-process WebKit call again"
+        )
     }
 
     func testScrollSyncUsesMeasuredTranscriptPageAnchors() {

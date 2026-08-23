@@ -85,13 +85,20 @@ final class CanvasPanInputParityTests: XCTestCase {
             of: try AppSource.text("Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift")
         )
 
-        // Scroll and touch both call the same entry point.
+        // Scroll and touch both call the same entry point. (Matched on the
+        // call name, not the full argument list — the macOS caller wraps its
+        // arguments across lines since the 2026-08-20 raw-delta mapping.)
         XCTAssertEqual(
-            source.components(separatedBy: "scrollPanCamera(by: delta, in: geo.size)").count - 1,
+            source.components(separatedBy: "scrollPanCamera(").count - 1,
             2,
             "scroll and touch must feed the same camera entry point"
         )
-        XCTAssertTrue(source.contains("Canvas2DProjection.cameraPanDelta"))
+        // The conversion itself lives with the camera members, split to
+        // CanvasSceneView+Camera.swift on 2026-08-20 (type_body_length).
+        let camera = Self.code(
+            of: try AppSource.text("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Camera.swift")
+        )
+        XCTAssertTrue(camera.contains("Canvas2DProjection.cameraPanDelta"))
     }
 
     /// The 3D view derives its right/up basis and speed ONCE, so the drag path

@@ -14,7 +14,14 @@ final class ToolbarSearchRoutingTests: XCTestCase {
 
     private static let actionsSource = "Views/Shell/ContentView/Actions/ContentView+ActionsImport.swift"
     private static let creationSource = "Views/Sidebar/Components/SidebarCreationHandlers.swift"
-    private static let resultsSource = "Views/Shell/ContentView/ContentView+SearchResults.swift"
+    /// The results surface was split on 2026-08-21 (type_body_length): logic
+    /// stayed in ContentView+SearchResults.swift, the bar UI moved to
+    /// ContentView+SearchResultsBar.swift. The seams these tests pin live
+    /// across both, so "the results source" is the concatenated pair.
+    private static func resultsSurface() throws -> String {
+        try appSource("Views/Shell/ContentView/ContentView+SearchResults.swift")
+            + appSource("Views/Shell/ContentView/ContentView+SearchResultsBar.swift")
+    }
 
     func testResultsBarErasesInsetTypeAtContentRouterBoundary() throws {
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Navigation.swift")
@@ -23,7 +30,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     }
 
     func testResultsBarKeepsAStableRootAcrossTheActiveFlip() throws {
-        let source = try Self.appSource(Self.resultsSource)
+        let source = try Self.resultsSurface()
 
         // Crash regression (2026-07-27): the inset's erased content must keep
         // ONE concrete root across the query start/clear flip. A bare
@@ -41,7 +48,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     }
 
     func testCompilationFailureDetailRemainsReadable() throws {
-        let source = try Self.appSource(Self.resultsSource)
+        let source = try Self.resultsSurface()
 
         XCTAssertTrue(source.contains(".lineLimit(4)"))
         XCTAssertTrue(source.contains(".textSelection(.enabled)"))
@@ -113,7 +120,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     }
 
     func testExplicitSaveSearchPathIsPreserved() throws {
-        let source = try Self.appSource(Self.resultsSource)
+        let source = try Self.resultsSurface()
 
         // Removing the implicit save must not remove the explicit one — it
         // now lives on the transient results bar (#4106/S2 slice B).
@@ -124,7 +131,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
 
     func testSavedSearchesRunThroughTheTransientPath() throws {
         let sidebarSource = try Self.appSource("Views/Sidebar/Sections/SidebarView+SelectionHandling.swift")
-        let resultsSource = try Self.appSource(Self.resultsSource)
+        let resultsSource = try Self.resultsSurface()
 
         // Selecting a saved search must not resurrect a search mode — it
         // seeds the toolbar field and runs the same transient pipeline.
@@ -134,7 +141,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     }
 
     func testFolderScopeRoutesThroughTheEngineFilter() throws {
-        let resultsSource = try Self.appSource(Self.resultsSource)
+        let resultsSource = try Self.resultsSurface()
         let storeSource = try Self.appSource("Models/SearchStore.swift")
 
         // #4107/S3: folder scope is the engine's folder_id filter (which
@@ -161,7 +168,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
 
     func testRealParametersReachTheEngine() throws {
         let storeSource = try Self.appSource("Models/SearchStore.swift")
-        let resultsSource = try Self.appSource(Self.resultsSource)
+        let resultsSource = try Self.resultsSurface()
 
         // #4112/S8: the 0.55 relevance floor is restored (minScore: 0.0
         // defeated the engine's noise threshold, #1054), and the type/sort
@@ -177,7 +184,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
 
     func testCompilationRunsOnExplicitSubmitOnlyAndIsAlwaysShown() throws {
         let actionsSource = try Self.appSource(Self.actionsSource)
-        let resultsSource = try Self.appSource(Self.resultsSource)
+        let resultsSource = try Self.resultsSurface()
 
         // #4116/#4117 UI halves: the explicit submit compiles in Ask mode
         // (the default) and searches raw text in Keyword mode; saved
@@ -191,7 +198,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     }
 
     func testAIFirstFieldAndChatTheSearch() throws {
-        let resultsSource = try Self.appSource(Self.resultsSource)
+        let resultsSource = try Self.resultsSurface()
         let layoutSource = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
 
         // #4117 asked for the mode to be a native `.searchScopes` scope.
@@ -205,9 +212,11 @@ final class ToolbarSearchRoutingTests: XCTestCase {
             layoutSource.contains(".searchScopes("),
             "#4407: .searchScopes on the split view is what drew the full-width bar."
         )
-        let miniToolbar = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
-        XCTAssertTrue(miniToolbar.contains("searchModeMenu"))
-        XCTAssertTrue(miniToolbar.contains("searchFieldMode.wrappedValue = .ask"))
+        // The field's mode menu moved to ContentView+ToolbarSearch.swift and
+        // binds through the raw value (1b6bb8e85's guardrail-clean splits).
+        let toolbarSearch = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
+        XCTAssertTrue(toolbarSearch.contains("searchModeMenu"))
+        XCTAssertTrue(toolbarSearch.contains("searchFieldModeRaw = mode.rawValue"))
         // Chat-the-search: the result set becomes the conversation's scope,
         // through the SAME router the sidebar chat entry uses.
         XCTAssertTrue(resultsSource.contains("func openChatWithSearchResults"))
@@ -216,7 +225,7 @@ final class ToolbarSearchRoutingTests: XCTestCase {
     }
 
     func testArtifactHitsPresentInTheResultsBar() throws {
-        let resultsSource = try Self.appSource(Self.resultsSource)
+        let resultsSource = try Self.resultsSurface()
 
         // #4118 UI half: the transient search requests all four legs and the
         // bar presents typed hits (badge + snippet, click opens the owning
@@ -227,13 +236,25 @@ final class ToolbarSearchRoutingTests: XCTestCase {
         // three non-document legs now share `SearchHitSection` and one
         // document-opening seam takes an id rather than a typed artifact hit.
         XCTAssertTrue(resultsSource.contains("include: [.content, .entities, .claims, .artifacts]"))
-        XCTAssertTrue(resultsSource.contains("SearchHitPresentation.artifactRows(stats.artifactHits)"))
+        // Ruling change (2026-08-19, #4118): no separate hit LIST — every leg
+        // resolves to its parent document and joins the grid as a node, so
+        // artifact/entity/claim hits are clickable/saveable like any other.
+        // SearchHitPresentation.artifactRows was that list's renderer; its
+        // return would be the regression now.
+        XCTAssertTrue(resultsSource.contains("static func hitDocumentIds("))
+        XCTAssertTrue(resultsSource.contains("stats.artifactHits.map(\\.documentId)"))
+        XCTAssertTrue(resultsSource.contains("stats.entityHits.compactMap(\\.sourceDocumentIds?.first)"))
+        XCTAssertTrue(resultsSource.contains("stats.claimHits.compactMap(\\.sourceDocumentId)"))
+        XCTAssertFalse(
+            resultsSource.contains("SearchHitPresentation.artifactRows"),
+            "a separate hit list above the library is the pre-#4118 shape"
+        )
         XCTAssertTrue(resultsSource.contains("func openHitDocument"))
         XCTAssertTrue(resultsSource.contains("navigateToDocument(doc)"))
     }
 
     func testTransientResultsRerunOnLibraryChanges() throws {
-        let source = try Self.appSource(Self.resultsSource)
+        let source = try Self.resultsSurface()
 
         // A document.* change bumps SearchStore.changeToken (#3249); the
         // results bar re-runs the active query so stale hits never linger.

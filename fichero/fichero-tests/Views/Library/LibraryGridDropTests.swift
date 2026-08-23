@@ -157,8 +157,10 @@ final class LibraryContextMenuParityTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Views/Library/LibraryView+ContextMenu.swift"),
             encoding: .utf8
         )
-        XCTAssertTrue(sidebar.contains("RunWorkflowSubmenuItems(workflows:"))
-        XCTAssertTrue(grid.contains("RunWorkflowSubmenuItems(workflows:"))
+        // Matched on the call name alone — the grid call site wraps its
+        // arguments across lines since the run-scope work (2026-08-21).
+        XCTAssertTrue(sidebar.contains("RunWorkflowSubmenuItems("))
+        XCTAssertTrue(grid.contains("RunWorkflowSubmenuItems("))
         XCTAssertFalse(sidebar.contains("func workflowMenuItems("))
         XCTAssertFalse(grid.contains("func workflowSubmenuItems("))
     }

@@ -172,7 +172,9 @@ final class ContentPaneInternalDragImportGuardTests: XCTestCase {
             "reading the payload after resolving a URL is the #4123-caused ordering bug again"
         )
         XCTAssertTrue(
-            body.contains("case .internalItems, .internalEntities, .unreadableInternal:"),
+            // `.internalArtifacts` joined the refusal set on 2026-08-21
+            // (5e906feca, drop-to-promote) — artifact drags are in-app too.
+            body.contains("case .internalItems, .internalEntities, .internalArtifacts, .unreadableInternal:"),
             "an in-app drag whose id could not be read must be refused, never imported"
         )
     }
