@@ -215,9 +215,14 @@ extension ContentView {
             + documentStore.childrenCache.values.flatMap { $0 }
         var docsById: [String: Document] = [:]
         for doc in pool where docsById[doc.id] == nil { docsById[doc.id] = doc }
+        // Document-order primary, never Set.first (2026-08-09 rule 2) — the
+        // guardrail caught exactly that here.
+        let primaryId = shellPrimarySelectionId(
+            in: browserSelection, orderedBy: documentStore.currentDocuments
+        ) ?? browserSelection.compactMap { docsById[$0] }.map(\.id).sorted().first
         let members = displayOrdered(
             browserSelection.compactMap { docsById[$0] },
-            folderId: docsById[browserSelection.first ?? ""]?.parentId
+            folderId: primaryId.flatMap { docsById[$0]?.parentId }
         )
         guard let primary = members.first else { return nil }
         detailDocument = primary
