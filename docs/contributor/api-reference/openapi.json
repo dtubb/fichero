@@ -42565,6 +42565,14 @@
             "title": "Attributed Only",
             "default": false
           },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Ids"
+          },
           "filters": {
             "items": {
               "$ref": "#/components/schemas/DatasetFilter"

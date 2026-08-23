@@ -162,6 +162,9 @@ extension LibraryView {
             DatasetModeView(
                 renderer: renderer,
                 folderId: folderId,
+                // Under an active search, data views show ONLY the hits —
+                // `documents` IS the result set then (#4118 swap upstream).
+                searchHitIds: activeSearchQuery != nil ? documents.map(\.id) : nil,
                 documentService: service,
                 entityService: scopedLibraryReference?.entityService,
                 onOpen: { row in

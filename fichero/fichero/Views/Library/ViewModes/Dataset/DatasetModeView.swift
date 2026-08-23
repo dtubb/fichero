@@ -11,6 +11,9 @@ struct DatasetModeView: View {
     /// (Daniel 2026-08-14); this shell only hosts the shared load + status.
     let renderer: DatasetRenderer
     let folderId: String?
+    /// Active search's hit ids; nil = no search. Scopes the dataset query so
+    /// data views show ONLY hits (the "91 results over 4,237 items" defect).
+    var searchHitIds: [String]?
     let documentService: DocumentService
     /// Nil disables editing (previews, closed library) — read-only is an
     /// honest state, not an error.
@@ -66,8 +69,8 @@ struct DatasetModeView: View {
         // Fill the pane like every other library view mode (Daniel: "not
         // the right height like the other library views").
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: folderId) {
-            await store.load(folderId: folderId, service: documentService)
+        .task(id: "\(folderId ?? "")|\(searchHitIds.map { "\($0.count)-\($0.hashValue)" } ?? "nosearch")") {
+            await store.load(folderId: folderId, searchHitIds: searchHitIds, service: documentService)
         }
         // ONE router from selection to the other panes (2026-08-16, Daniel:
         // "changing selection in grid view doesn't change preview or reader
@@ -98,7 +101,7 @@ struct DatasetModeView: View {
             // last event.
             try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled else { return }
-            await store.load(folderId: folderId, service: documentService)
+            await store.load(folderId: folderId, searchHitIds: searchHitIds, service: documentService)
         }
     }
 

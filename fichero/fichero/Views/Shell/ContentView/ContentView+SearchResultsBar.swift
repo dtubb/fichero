@@ -147,6 +147,11 @@ extension ContentView {
             Text("\(total) result\(total == 1 ? "" : "s") for “\(query)”")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                // ONE line, truncating — in a narrow pane this wrapped into a
+                // one-character vertical column ("9 1 r e s u l t s…",
+                // Daniel 2026-08-22), same class as the editor's "S h".
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 
