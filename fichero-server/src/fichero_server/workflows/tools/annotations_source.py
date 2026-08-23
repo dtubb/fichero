@@ -164,10 +164,10 @@ async def annotations_source_tool(
         crop_bytes: bytes | None = None
         crop_text_val: str | None = None
         crop_kind = "unknown"
-        if doc.path and ann.bbox and suffix == ".pdf":
+        if doc.path and ann.anchor and ann.anchor.rect and suffix == ".pdf":
             crop_bytes = crop_pdf_page(doc.path, ann)
             crop_kind = "pdf_region_png"
-        elif doc.path and ann.bbox and suffix in {
+        elif doc.path and ann.anchor and ann.anchor.rect and suffix in {
             ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".heic",
         }:
             crop_bytes = crop_image(doc.path, ann)

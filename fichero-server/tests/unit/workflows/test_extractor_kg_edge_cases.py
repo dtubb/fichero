@@ -898,7 +898,11 @@ def test_claim_writer_cleans_escaped_text_and_deletion_markers(db, container_doc
     assert claim.text == 'Rosario contains La parte "limpia".'
 
 
-def test_claim_writer_preserves_source_bbox(db, container_doc):
+def test_claim_writer_preserves_source_anchor(db, container_doc):
+    """The extractor PAYLOAD still spells it `source_bbox` — that is the LLM's
+    wire vocabulary and is deliberately unchanged. What must not survive is a
+    bare rect on the stored claim: it is wrapped into a `SourceAnchor` at the
+    boundary so the coordinates name a space and a document."""
     from fichero_server.models.knowledge import KnowledgeClaim
     from fichero_server.workflows.tools.extractors import _SECTIONS, _write_kg_rows
 
@@ -910,7 +914,9 @@ def test_claim_writer_preserves_source_bbox(db, container_doc):
         container_doc.id,
     )
     claim = db.query(KnowledgeClaim, source_document_id=container_doc.id)[0]
-    assert claim.source_bbox == [0.1, 0.2, 0.3, 0.4]
+    assert claim.source_anchor is not None
+    assert claim.source_anchor.rect == [0.1, 0.2, 0.3, 0.4]
+    assert claim.source_anchor.document_id == container_doc.id
 
 
 def test_hermeneutics_stage_persists_svo_claim(db, container_doc):

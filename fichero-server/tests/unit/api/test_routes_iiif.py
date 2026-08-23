@@ -7,6 +7,7 @@ pattern: actual paths are at /api/iiif/iiif/...
 
 from PIL import Image
 
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import Annotation, AnnotationKind
 from fichero_server.models import Document, DocType, FileType
 
@@ -100,7 +101,9 @@ class TestIIIFPresentationExport:
                 id="ann-box",
                 document_id=doc.id,
                 kind=AnnotationKind.highlight,
-                bbox=[0.1, 0.2, 0.3, 0.4],
+                anchor=SourceAnchor(
+                    document_id=doc.id, rect=[0.1, 0.2, 0.3, 0.4]
+                ),
             )
         )
 

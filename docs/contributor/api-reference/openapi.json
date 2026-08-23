@@ -8990,7 +8990,7 @@
           "documents"
         ],
         "summary": "Get Children",
-        "description": "Get child documents.",
+        "description": "Get child documents.\n\nA diary folder legitimately holds two kinds of thing: openings (spreads\nwhose pages moved beneath them) and whole pages that were never split. So\n\"the folder's children\" is an ambiguous question and only the caller knows\nwhich tier it means (Daniel, 2026-08-22: \"I want to be able to show\nspreads, or show single pages\").\n\n`level` defaults to `stored`, so every existing caller sees exactly what it\nsaw before.",
         "operationId": "get_children_api_documents__doc_id__children_get",
         "parameters": [
           {
@@ -9038,6 +9038,17 @@
               "title": "Sort Direction"
             },
             "description": "'asc' or 'desc'"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/NodeLevel",
+              "description": "Which tier to return. 'stored' (default) is the tree as held \u2014 openings AND whole pages side by side. 'content' looks THROUGH containers to their pages, passing un-split pages through unchanged.",
+              "default": "stored"
+            },
+            "description": "Which tier to return. 'stored' (default) is the tree as held \u2014 openings AND whole pages side by side. 'content' looks THROUGH containers to their pages, passing un-split pages through unchanged."
           }
         ],
         "responses": {
@@ -53491,6 +53502,15 @@
         ],
         "title": "NodeDef",
         "type": "object"
+      },
+      "NodeLevel": {
+        "type": "string",
+        "enum": [
+          "stored",
+          "content"
+        ],
+        "title": "NodeLevel",
+        "description": "Which tier of the tree to return."
       },
       "NodeModelApplyPatch": {
         "properties": {

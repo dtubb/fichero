@@ -29,8 +29,10 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from fichero_server.db import Database, db_manager
+from fichero_server.db.node_levels import resolve_workflow_targets
 from fichero_server.histdate import parse_historical_date
 from fichero_server.llm import LLMConfig, chat_structured
+from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.models import Artifact, DocType, Document, Status
 from fichero_server.models.knowledge import (
     ClassificationDimension,
@@ -226,29 +228,21 @@ def _entry_spans(content: str, entries: list[DiaryEntry]) -> list[tuple[int, int
     return spans
 
 
-def _page_pixel_size(page: Document) -> tuple[int, int] | None:
-    """The page image's pixel dimensions from its metadata — the scale that
-    turns normalized OCR geometry into ``Document.bbox`` pixel ints."""
-    for source in (page.metadata or {}, page.source_metadata or {}):
-        width, height = source.get("width"), source.get("height")
-        try:
-            width_px, height_px = int(width), int(height)
-        except (TypeError, ValueError):
-            continue
-        if width_px > 0 and height_px > 0:
-            return width_px, height_px
-    return None
+def _region_union(boxes: list[Any], span: tuple[int, int] | None) -> NodeRegion | None:
+    """Union of the OCR line boxes overlapping the entry's char span.
 
+    The entry node's ``parent_id`` IS the page, so where the entry sits on that
+    page is exactly ``region_in_parent`` — the one field for that fact.
 
-def _bbox_union(
-    boxes: list[Any],
-    span: tuple[int, int] | None,
-    pixel_size: tuple[int, int] | None,
-) -> tuple[int, int, int, int] | None:
-    """Union of the normalized [x, y, w, h] line boxes whose char span
-    overlaps the entry span, scaled to page pixels (``Document.bbox`` is
-    pixel ints). No page dimensions → no bbox, recorded honestly."""
-    if span is None or pixel_size is None:
+    This used to scale the union DOWN into ``Document.bbox`` pixel ints, which
+    needed the page's pixel dimensions and returned None without them. The OCR
+    boxes are already normalized, so the conversion only ever lost information:
+    entries whose page carried no width/height in metadata were given no
+    geometry at all despite the geometry being right there. Keeping it
+    normalized removes the conversion, the helper that fed it, and that entire
+    failure mode.
+    """
+    if span is None:
         return None
     xs0: list[float] = []
     ys0: list[float] = []
@@ -269,13 +263,21 @@ def _bbox_union(
     if not xs0:
         return None
     x0, y0 = min(xs0), min(ys0)
-    width_px, height_px = pixel_size
-    return (
-        round(x0 * width_px),
-        round(y0 * height_px),
-        round((max(xs1) - x0) * width_px),
-        round((max(ys1) - y0) * height_px),
-    )
+    try:
+        return NodeRegion(
+            rect=[x0, y0, max(xs1) - x0, max(ys1) - y0],
+            # The union of MEASURED OCR line boxes — not a nominal guess at
+            # where an entry might fall.
+            confidence=RegionConfidence.measured,
+            method="diary-entry-ocr-union",
+        )
+    except ValueError:
+        # Malformed OCR geometry must not cost us the entry. The node is the
+        # transcript; the region is a convenience. Losing the node would lose
+        # the text, and guessing a rect would be the defect this program
+        # removes — so: node yes, region no, recorded in `bbox_basis`.
+        logger.warning("diary entry OCR union rejected for span %s", span)
+        return None
 
 
 async def split_page_into_entries(
@@ -304,7 +306,6 @@ async def split_page_into_entries(
     ensure_diary_prototype(db, prototype_key)
 
     geometry_content, boxes = _geometry_boxes(db, page)
-    pixel_size = _page_pixel_size(page)
     spans = (
         _entry_spans(geometry_content, entries)
         if geometry_content and boxes
@@ -319,7 +320,7 @@ async def split_page_into_entries(
     created: list[Document] = []
     for index, entry in enumerate(entries, start=1):
         iso = _normalized_iso(entry)
-        bbox = _bbox_union(boxes, spans[index - 1], pixel_size)
+        region = _region_union(boxes, spans[index - 1])
         body = _body_without_date_heading(entry.text, entry.date_text)
         node = Document(
             parent_id=page.id,
@@ -331,7 +332,7 @@ async def split_page_into_entries(
             sequence=index,
             status=Status.completed,
             page_content=body,
-            bbox=bbox,
+            region_in_parent=region,
             prototype_key=prototype_key,
             attributes={"date": iso} if iso else {},
             metadata={
@@ -340,7 +341,9 @@ async def split_page_into_entries(
                 "source_document_name": page.name,
                 "date_text": entry.date_text,
                 "date_parsed": iso is not None,
-                "bbox_basis": "ocr_geometry" if bbox else ("no_page_dimensions" if pixel_size is None else "none"),
+                # "no_page_dimensions" is gone: a normalized region never
+                # needed the page's pixel size, so that outcome cannot occur.
+                "bbox_basis": "ocr_geometry" if region else "none",
             },
         )
         db.save(node)
@@ -420,15 +423,17 @@ async def diary_entries(
     ).strip() or DEFAULT_PROTOTYPE_KEY
 
     raw_documents = inputs.get("documents") or state.get("documents") or []
+    # Resolve containers to the pages inside them (2026-08-22). Handed an
+    # OPENING, this tool used to treat the spread as a page: it transcribed two
+    # pages as one blob and anchored every entry to the spread's frame. A
+    # container is not a unit of work.
+    pages = resolve_workflow_targets(db, raw_documents)
     created: list[Document] = []
     lines: list[str] = []
     errors: list[str] = []
-    for raw in raw_documents:
-        doc_id = raw.get("id") if isinstance(raw, dict) else None
-        page = db.get(Document, doc_id) if doc_id else None
-        if page is None:
-            errors.append(f"document {doc_id!r} not found")
-            continue
+    if not pages and raw_documents:
+        errors.append(f"{len(raw_documents)} selected document(s) resolved to no pages")
+    for page in pages:
         try:
             entries = await split_page_into_entries(
                 db, page, llm_config, prototype_key=prototype_key
@@ -438,7 +443,7 @@ async def diary_entries(
             continue
         created.extend(entries)
         for node in entries:
-            marker = "▣" if node.bbox else "·"
+            marker = "▣" if node.region_in_parent else "·"
             lines.append(f"{marker} {node.name} — {page.name}")
 
     summary = "\n".join(lines) if lines else "No entries created"

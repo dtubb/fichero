@@ -46,9 +46,53 @@ extension LibraryView {
         // too, acts on the library list.
         LibraryRowAttributesButton(raw: $rowAttributesRaw)
 
+        libraryLevelToggle
+
         librarySortMenu
 
         libraryFilterToggleButton
+    }
+
+    /// Spreads ↔ Pages (2026-08-22). Daniel: "I want to be able to show
+    /// spreads, or show single pages."
+    ///
+    /// A diary folder legitimately holds BOTH — openings whose two pages moved
+    /// beneath them, and pages that were never split — so the folder's
+    /// contents are a genuinely ambiguous question that only the reader can
+    /// answer. It sits with sort and filter because it acts on this list and
+    /// only this list, the same rule the rest of this bar encodes.
+    ///
+    /// Always shown, like sort. It is a VIEW MODE, not a contextual action:
+    /// the reader's answer to "spreads or pages" is a standing preference, and
+    /// a control that appears and disappears as they move between folders is
+    /// harder to find than one that is simply always there.
+    ///
+    /// Deliberately NOT hidden when a folder has no containers. Deciding that
+    /// client-side would mean either hard-coding "opening" — the exact thing
+    /// the engine-side resolver avoids by reading a prototype attribute — or
+    /// guessing from child counts, which mis-fires on a PDF whose pages the
+    /// engine will not expand. A wrong guess would hide the control in folders
+    /// where it works, or show a dead one where it does not.
+    @ViewBuilder
+    var libraryLevelToggle: some View {
+        Menu {
+            ForEach(LibraryLevel.allCases) { level in
+                Button {
+                    Task { await documentStore.setLibraryLevel(level) }
+                } label: {
+                    Label(level.title, systemImage: level.systemImage)
+                    if documentStore.libraryLevel == level {
+                        Image(systemName: "checkmark")
+                    }
+                }
+                .accessibilityLabel(level.help)
+            }
+        } label: {
+            Image(systemName: documentStore.libraryLevel.systemImage)
+        }
+        .menuIndicator(.hidden)
+        .help(documentStore.libraryLevel.help)
+        .accessibilityIdentifier("libraryLevelToggle")
     }
 
     /// Drives `libraryToolbar` — the SAME sort model the View menu, the table

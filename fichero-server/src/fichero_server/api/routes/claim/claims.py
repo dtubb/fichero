@@ -6,6 +6,7 @@ providing a clean separation from the broader knowledge graph functionality.
 
 from __future__ import annotations
 
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.core.timeutil import utc_now
 import re
 from typing import Annotated, Any
@@ -166,7 +167,7 @@ class ClaimPatchRequest(BaseModel):
     source_ref: str | None = None
     source_char_start: int | None = None
     source_char_end: int | None = None
-    source_bbox: list[float] | None = None
+    source_anchor: SourceAnchor | None = None
     entity_ids: list[str] | None = None
     curation_state: ClaimCurationState | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -338,7 +339,11 @@ def _validate_claim_references(db: Database, data: dict[str, Any]) -> None:
             )
 
 
-def _apply_claim_patch(claim: KnowledgeClaim, data: dict[str, Any]) -> None:
+def _apply_claim_patch(
+    claim: KnowledgeClaim,
+    data: dict[str, Any],
+    typed: dict[str, Any] | None = None,
+) -> None:
     """Apply patch fields and keep canonical SVO fields consistent."""
     from fichero_server.knowledge._common import canonical_verb
 
@@ -354,7 +359,15 @@ def _apply_claim_patch(claim: KnowledgeClaim, data: dict[str, Any]) -> None:
     if "object_phrase" in data and "svo_object" not in data:
         data["svo_object"] = data.get("object_phrase")
 
+    # `data` comes from `model_dump()`, which flattens nested models to
+    # dicts. Assigning those back would leave the claim holding a dict
+    # where a model belongs, so `claim.source_anchor.rect` raises
+    # AttributeError until the row is reloaded. `typed` carries the
+    # request's validated attributes; keys DERIVED above (svo_verb,
+    # predicate_canonical) are not on the request and fall back to `data`.
     for key, value in data.items():
+        if typed is not None and key in typed:
+            value = typed[key]
         setattr(claim, key, value)
     claim.updated_at = utc_now()
 
@@ -508,7 +521,7 @@ def patch_claim_impl(
     prior_identity = claim_identity_snapshot(claim)
     data = request.model_dump(exclude_unset=True)
     _validate_claim_references(db, data)
-    _apply_claim_patch(claim, data)
+    _apply_claim_patch(claim, data, typed={k: getattr(request, k) for k in data})
 
     # A patch that only touches, say, curation_state has not corrected any
     # reading, so it leaves no superseded entry — the guard must fire on

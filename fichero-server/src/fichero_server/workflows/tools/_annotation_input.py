@@ -69,7 +69,8 @@ def crop_image(
     Useful for huge photographic plates / maps / scans where the
     annotated region is much smaller than the full image.
     """
-    if not annotation.bbox or len(annotation.bbox) != 4:
+    rect = annotation.anchor.rect if annotation.anchor else None
+    if not rect or len(rect) != 4:
         return None
     try:
         from PIL import Image
@@ -81,7 +82,7 @@ def crop_image(
         return None
     try:
         with Image.open(path) as img:
-            x, y, w, h = annotation.bbox
+            x, y, w, h = rect
             iw, ih = img.size
             # Denormalize from [0,1] fractions to pixel coordinates.
             px = int(x * iw)
@@ -102,7 +103,7 @@ def crop_pdf_page(
     annotation: "Annotation",
     dpi: int = 144,
 ) -> bytes | None:
-    """Render a PDF page region (bounded by annotation.bbox) as PNG bytes.
+    """Render a PDF page region (bounded by the annotation's anchor) as PNG bytes.
 
     Looks up the page number from ``annotation.page_label`` (parsed
     out of strings like "Page 14" → 13 zero-indexed). When no bbox
@@ -130,8 +131,9 @@ def crop_pdf_page(
             page = doc[page_idx]
         zoom = dpi / 72.0
         matrix = fitz.Matrix(zoom, zoom)
-        if annotation.bbox and len(annotation.bbox) == 4:
-            x, y, w, h = annotation.bbox
+        rect = annotation.anchor.rect if annotation.anchor else None
+        if rect and len(rect) == 4:
+            x, y, w, h = rect
             rect = page.rect
             # Denormalize from [0,1] fractions to PDF point coordinates.
             px = x * rect.width
@@ -184,7 +186,7 @@ def annotation_crops_for_document(
             continue
 
         # Image / PDF path: prefer bbox crop when present.
-        if ann.bbox and document.path:
+        if ann.anchor and ann.anchor.rect and document.path:
             suffix = Path(document.path).suffix.lower()
             if suffix == ".pdf":
                 png = crop_pdf_page(document.path, ann)

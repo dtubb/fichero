@@ -21,6 +21,7 @@ from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.routes.ingest.iiif import build_document_annotation_page
 from fichero_server.db import Database
+from fichero_server.db.node_levels import NodeLevel, resolve_level
 from fichero_server.models.knowledge import (
     Annotation,
     ClassificationDimension,
@@ -1021,9 +1022,28 @@ async def get_children(
         None, description="Optional server-side ordering; only 'document_date'."
     ),
     sort_direction: str = Query("asc", description="'asc' or 'desc'"),
+    level: NodeLevel = Query(
+        NodeLevel.stored,
+        description=(
+            "Which tier to return. 'stored' (default) is the tree as held — "
+            "openings AND whole pages side by side. 'content' looks THROUGH "
+            "containers to their pages, passing un-split pages through "
+            "unchanged."
+        ),
+    ),
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
-    """Get child documents."""
+    """Get child documents.
+
+    A diary folder legitimately holds two kinds of thing: openings (spreads
+    whose pages moved beneath them) and whole pages that were never split. So
+    "the folder's children" is an ambiguous question and only the caller knows
+    which tier it means (Daniel, 2026-08-22: "I want to be able to show
+    spreads, or show single pages").
+
+    `level` defaults to `stored`, so every existing caller sees exactly what it
+    saw before.
+    """
     with perf_span(
         "library.get_children",
         logger=logger,
@@ -1045,7 +1065,15 @@ async def get_children(
                 parent_id=normalized_id,
             )
             rows = _ordered_by_sort_order(rows)
-            return _apply_listing_sort(rows, sort_by, sort_direction)
+            rows = _apply_listing_sort(rows, sort_by, sort_direction)
+            # Resolved AFTER sorting so a container is replaced in place and
+            # the folder keeps the order the user was just looking at.
+            return resolve_level(
+                db, rows, level,
+                children_of=lambda doc: _filter_resolvable_documents(
+                    db, _list_documents(db, parent_id=doc.id), parent_id=doc.id
+                ),
+            )
 
         children = await asyncio.to_thread(_fetch)
         perf["normalized_id"] = normalized_id

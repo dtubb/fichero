@@ -1,8 +1,8 @@
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models import (
     ContentRepresentation,
     ContentRepresentationKind,
     ContentRepresentationRevision,
-    ContentSourceAnchor,
 )
 from fichero_server.actions.registry import ActionContext, registry
 import fichero_server.api.routes.document.content_representations  # noqa: F401
@@ -13,7 +13,7 @@ def test_representation_and_revision_persist(db):
         document_id="doc-1",
         kind=ContentRepresentationKind.transcription,
         content="diplomatic source",
-        source_anchor=ContentSourceAnchor(document_id="doc-1", page_id="page-1", char_start=2, char_end=8),
+        source_anchor=SourceAnchor(document_id="doc-1", page_id="page-1", char_start=2, char_end=8),
     )
     db.save(representation)
     revision = ContentRepresentationRevision(
@@ -31,7 +31,7 @@ def test_revision_action_preserves_source_representation(db):
         document_id="doc-1",
         kind=ContentRepresentationKind.transcription,
         content="immutable source",
-        source_anchor=ContentSourceAnchor(document_id="doc-1"),
+        source_anchor=SourceAnchor(document_id="doc-1"),
     )
     db.save(representation)
     result = registry.invoke(
@@ -50,7 +50,7 @@ def test_representation_read_routes(client, db):
         document_id="doc-api",
         kind=ContentRepresentationKind.markdown,
         content="# source",
-        source_anchor=ContentSourceAnchor(document_id="doc-api"),
+        source_anchor=SourceAnchor(document_id="doc-api"),
     )
     db.save(representation)
     response = client.get(f"/api/content-representations/document/{representation.document_id}")

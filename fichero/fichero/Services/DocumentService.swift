@@ -257,12 +257,30 @@ extension DocumentService {
     ///     pre-existing behaviour, not a missing argument.
     /// - Returns: Array of child documents, in the order the server returned
     ///   them. Callers must not re-sort a server-ordered result.
-    func getChildren(_ parentId: String, sort: ListingSort? = nil) async throws -> [Document] {
-        logger.info("Fetching children of: \(parentId) sort: \(sort?.field ?? "default")")
+    /// - Parameter level: Which TIER to fetch. `nil` means the engine default
+    ///     (`stored`), so existing callers — notably the sidebar, which is a
+    ///     tree browser and must show the structure as held — keep their
+    ///     behaviour without passing anything.
+    func getChildren(
+        _ parentId: String,
+        sort: ListingSort? = nil,
+        level: LibraryLevel? = nil
+    ) async throws -> [Document] {
+        logger.info(
+            "Fetching children of: \(parentId) sort: \(sort?.field ?? "default") level: \(level?.wireValue ?? "default")"
+        )
 
+        // The engine owns the resolution; this only names the tier. Deriving
+        // the tier client-side would be a second implementation free to
+        // disagree with the server's — which is precisely how the library came
+        // to show spreads while workflows ran on them.
         let response = try await client.api.getChildrenApiDocumentsDocIdChildrenGet(.init(
             path: .init(docId: parentId),
-            query: .init(sortBy: sort?.field, sortDirection: sort?.direction)
+            query: .init(
+                sortBy: sort?.field,
+                sortDirection: sort?.direction,
+                level: level.flatMap { Components.Schemas.NodeLevel(rawValue: $0.wireValue) }
+            )
         ))
 
         switch response {
