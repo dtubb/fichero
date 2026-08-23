@@ -260,8 +260,29 @@ extension ContentView {
         }
     }
 
+    /// A multi-selection with nothing "in hand" (the fan is showing,
+    /// detailDocument nil — icon and dataset views land here): seed the walk
+    /// from the selection's document-order primary so ←/→ starts rotating
+    /// instead of dying in the guard (Daniel, 2026-08-23: "if three icons are
+    /// selected I can't seem to rotate between them").
+    private func seededCurrentDocument() -> Document? {
+        if let detailDocument { return detailDocument }
+        guard browserSelection.count > 1 else { return nil }
+        let pool = documentStore.currentDocuments
+            + documentStore.childrenCache.values.flatMap { $0 }
+        var docsById: [String: Document] = [:]
+        for doc in pool where docsById[doc.id] == nil { docsById[doc.id] = doc }
+        let members = displayOrdered(
+            browserSelection.compactMap { docsById[$0] },
+            folderId: docsById[browserSelection.first ?? ""]?.parentId
+        )
+        guard let primary = members.first else { return nil }
+        detailDocument = primary
+        return primary
+    }
+
     func navigateSiblingPrevious() {
-        guard let current = detailDocument else { return }
+        guard let current = seededCurrentDocument() else { return }
         if isPlainFolder(current) {
             navigateIntoFolder(current, forward: false)
             return
@@ -278,7 +299,7 @@ extension ContentView {
 
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
     func navigateSiblingNext() {
-        guard let current = detailDocument else { return }
+        guard let current = seededCurrentDocument() else { return }
         if isPlainFolder(current) {
             navigateIntoFolder(current, forward: true)
             return
