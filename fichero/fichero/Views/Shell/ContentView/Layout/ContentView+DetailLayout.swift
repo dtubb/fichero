@@ -85,7 +85,10 @@ extension ContentView {
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
         if stackDocuments.count > 1 {
-            MultiSelectionPreviewStack(documents: stackDocuments)
+            MultiSelectionPreviewStack(
+                documents: stackDocuments,
+                frontDocumentId: detailDocument?.id
+            )
                 .overlay { paneFocusIndicator(for: .preview) }
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
                 .frame(maxWidth: .infinity)
@@ -223,7 +226,10 @@ extension ContentView {
                 if stackDocuments.count > 1 {
                     // Finder's stacked multi-selection preview (#95): the fan
                     // + count, not a silent preview of only the primary.
-                    MultiSelectionPreviewStack(documents: stackDocuments)
+                    MultiSelectionPreviewStack(
+                        documents: stackDocuments,
+                        frontDocumentId: detailDocument?.id
+                    )
                 } else if let pdfDocumentId = detailPDFDocumentId {
                     PDFReadingView(
                         document: pageFocusDocument ?? detailDocument,

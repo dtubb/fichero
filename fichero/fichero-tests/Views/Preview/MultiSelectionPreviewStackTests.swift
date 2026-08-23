@@ -38,3 +38,20 @@ struct MultiSelectionPreviewStackTests {
         #expect(stackRotationDegrees(forCardAt: 2) != 0)
     }
 }
+
+// Rotation within a selection (Daniel, 2026-08-23): the front card follows
+// detailDocument; the fan re-orders cyclically and the selection is untouched.
+extension MultiSelectionPreviewStackTests {
+    @Test("the front card follows frontId, cyclic order preserved")
+    func rotationToFront() {
+        #expect(stackOrder(docs, frontId: "b").map(\.id) == ["b", "c", "a"])
+        #expect(stackOrder(docs, frontId: "c").map(\.id) == ["c", "a", "b"])
+    }
+
+    @Test("a nil, unknown, or already-front id changes nothing")
+    func rotationIdentity() {
+        #expect(stackOrder(docs, frontId: nil).map(\.id) == ["a", "b", "c"])
+        #expect(stackOrder(docs, frontId: "ghost").map(\.id) == ["a", "b", "c"])
+        #expect(stackOrder(docs, frontId: "a").map(\.id) == ["a", "b", "c"])
+    }
+}
