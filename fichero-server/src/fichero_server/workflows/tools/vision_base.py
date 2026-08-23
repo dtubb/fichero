@@ -2438,6 +2438,7 @@ async def process_vision(
     save_to_db: bool = True,
     save_to_file_flag: bool = False,
     return_boxes: bool = False,
+    force_return_boxes: bool = False,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     # Applied to the final LLM text BEFORE any save (#4329). Lets a markup
@@ -2853,7 +2854,7 @@ async def process_vision(
                         f"return_boxes needs the LLM vision path; this run used "
                         f"vision_mode={vision_mode!r}"
                     )
-                elif not _supports_return_boxes(effective_config):
+                elif not (force_return_boxes or _supports_return_boxes(effective_config)):
                     _boxes_unsupported_reason = (
                         f"{getattr(effective_config, 'provider', 'unknown')}/"
                         f"{getattr(effective_config, 'model', 'unknown')} cannot "
