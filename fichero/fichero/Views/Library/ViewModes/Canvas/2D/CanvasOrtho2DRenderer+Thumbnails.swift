@@ -9,6 +9,8 @@ extension CanvasOrtho2DRenderer {
     /// the main file, which is at its file_length ceiling.
     func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
+        // The rebuilt entity starts flat; the reload below re-adds it.
+        texturedIds.remove(id)
         placeablesRoot.findEntity(named: id)?.removeFromParent()
         let card = makeCard(placeable)
         // A rebuilt card is a NEW entity carrying none of the old one's
@@ -35,6 +37,7 @@ extension CanvasOrtho2DRenderer {
                     reskinCard(entity.name)
                 } else {
                     entity.model?.materials = [UnlitMaterial(texture: texture)]
+                    texturedIds.insert(entity.name)
                 }
             } catch {
                 log.debug("canvas thumbnail load failed for \(sourceId, privacy: .public)")
@@ -51,4 +54,21 @@ extension CanvasOrtho2DRenderer {
             }
         }
     }
+
+    /// Fetch textures for every card that has none — the zoom-in catch-up.
+    ///
+    /// Called when the detail tier RISES past `.thumbnail`, because cards take
+    /// their texture at build time and a reconcile with no changes builds
+    /// nothing. Bounded by the same tier gate as `makeCard`, so a zoomed-out
+    /// board still issues zero requests.
+    func loadMissingThumbnails() {
+        for (id, placeable) in placeablesById {
+            guard !texturedIds.contains(id),
+                  let sourceId = sourceId(of: placeable),
+                  let entity = placeablesRoot.findEntity(named: id) as? ModelEntity
+            else { continue }
+            loadThumbnail(sourceId: sourceId, into: entity)
+        }
+    }
+
 }

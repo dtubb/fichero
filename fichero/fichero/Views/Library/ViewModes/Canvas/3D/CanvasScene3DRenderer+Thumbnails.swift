@@ -19,6 +19,7 @@ extension CanvasScene3DRenderer {
                     reskinCard(entity.name)
                 } else {
                     entity.model?.materials = [UnlitMaterial(texture: texture)]
+                    texturedIds.insert(entity.name)
                 }
             } catch {
                 // Say WHY (perf audit 2026-08-19: 1,500 silent failures in
@@ -45,4 +46,21 @@ extension CanvasScene3DRenderer {
               let sourceId = node.sourceId, !sourceId.isEmpty else { return nil }
         return sourceId
     }
+
+    /// Fetch textures for every card that has none — the zoom-in catch-up.
+    ///
+    /// Called when the detail tier RISES past `.thumbnail`, because cards take
+    /// their texture at build time and a reconcile with no changes builds
+    /// nothing. Bounded by the same tier gate as `makeCard`, so a zoomed-out
+    /// board still issues zero requests.
+    func loadMissingThumbnails() {
+        for (id, placeable) in placeablesById {
+            guard !texturedIds.contains(id),
+                  let sourceId = sourceId(of: placeable),
+                  let entity = placeablesRoot.findEntity(named: id) as? ModelEntity
+            else { continue }
+            loadThumbnail(sourceId: sourceId, into: entity)
+        }
+    }
+
 }

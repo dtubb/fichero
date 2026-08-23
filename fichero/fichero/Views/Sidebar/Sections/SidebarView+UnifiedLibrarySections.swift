@@ -240,4 +240,27 @@ extension SidebarView {
 
         return items
     }
+
+    // MARK: - ⌘A over the sidebar (Daniel, 2026-08-23)
+
+    /// The destinations ⌘A selects in the sidebar: the CURRENT library's
+    /// visible rows, in the order they are drawn — **never across libraries**
+    /// (Daniel's ruling; several libraries open at once is the normal state,
+    /// and a chord that reached all of them would select things the user
+    /// cannot see and did not open).
+    ///
+    /// VISIBLE has two halves and both matter: the library's disclosure group
+    /// must be expanded, and the rows are the same `flattenedLibraryItems` the
+    /// view renders — so a feature-gated bucket that draws no rows contributes
+    /// no destinations either.
+    var currentLibraryVisibleDestinations: [SidebarDestination] {
+        guard let libraryId = libraryManager.currentLibraryId,
+              sidebarState.isLibraryExpanded(libraryId),
+              let library = libraryManager.getLibrary(id: libraryId),
+              let header = filteredLibraryHeaders.first(where: { $0.libraryId == libraryId })
+        else { return [] }
+        let buckets = unifiedLibraryBuckets(for: header, library: library, libraryId: libraryId)
+        return flattenedLibraryItems(libraryId: libraryId, buckets: buckets).map(\.destination)
+    }
+
 }

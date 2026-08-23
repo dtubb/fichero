@@ -72,8 +72,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// Whether a card currently carries a page image — a textured card keeps
     /// its page, so the tint yields to legibility (see `CanvasTintPainter`).
     func isTextured(_ id: String) -> Bool {
-        guard detailTier >= .thumbnail, let placeable = placeablesById[id] else { return false }
-        return sourceId(of: placeable).flatMap { CanvasCardGeometry.knownAspect(forSourceId: $0) } != nil
+        texturedIds.contains(id)
     }
 
     /// Seconds a `.move` animates for, set per diff by `apply`. Internal, not
@@ -109,7 +108,25 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// cannot fire before the placeables it is meant to frame exist.
     var needsFitOnNextContent = false
 
-    var detailTier: CanvasDetailTier = .thumbnail
+    var detailTier: CanvasDetailTier = .thumbnail {
+        didSet {
+            // Zooming IN has to fetch what the glyph tier skipped. Cards are
+            // only given a texture when they are BUILT, and a reconcile that
+            // changes nothing builds nothing — so a board framed at .glyph
+            // stayed flat colour no matter how far the user then zoomed in
+            // (Daniel, live 2026-08-23: "all cards are blue rectangles").
+            guard detailTier >= .thumbnail, oldValue < .thumbnail else { return }
+            loadMissingThumbnails()
+        }
+    }
+
+    /// Ids whose card currently CARRIES a page texture.
+    ///
+    /// Not derivable from `CanvasCardGeometry.knownAspect`: the memo says a
+    /// texture was measured once, which stays true after a rebuild that left
+    /// the new card flat. Tracking the entity's actual state is what makes
+    /// "which cards still need one" answerable.
+    var texturedIds: Set<String> = []
     var onIntent: ((CanvasIntent) -> Void)?
     var isDragSuppressed: ((String) -> Bool)?
     /// The CURRENT library's storage service — the texture cache's fallback
@@ -253,6 +270,8 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
+        // The rebuilt entity starts flat; the reload below re-adds it.
+        texturedIds.remove(id)
         placeablesRoot.findEntity(named: id)?.removeFromParent()
         let card = makeCard(placeable)
         // A rebuilt card is a NEW entity, so it carries none of the old one's

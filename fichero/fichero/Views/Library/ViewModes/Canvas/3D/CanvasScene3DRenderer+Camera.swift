@@ -68,6 +68,12 @@ extension CanvasScene3DRenderer {
         distance = CanvasZoomRange.clamp(
             value, arrangementSpan: arrangementSpan, itemExtent: Self.itemExtent
         )
+        // The tier follows the zoom HERE, not only when a SwiftUI update pass
+        // happens to re-read it: this renderer is a plain class, so a pinch
+        // that only moves `distance` republishes nothing. Without this a
+        // zoom-in could leave every card at the glyph tier — flat colour, no
+        // textures (Daniel, live 2026-08-23).
+        detailTier = CanvasDetailTier.forZoomScale(reportedZoomScale)
         updateCamera()
     }
 

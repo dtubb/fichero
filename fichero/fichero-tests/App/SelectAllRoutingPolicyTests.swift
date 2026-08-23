@@ -55,6 +55,18 @@ struct SelectAllRoutingPolicyTests {
             rule: "typing inside the inspector still wins — the caret owns ⌘A",
             isTextEditing: true, focusedSurface: .inspectorList, expected: .focusedTextEditor
         ),
+        Row(
+            rule: "a focused sidebar selects the current library's visible rows",
+            isTextEditing: false, focusedSurface: .sidebarRows, expected: .sidebarRows
+        ),
+        Row(
+            rule: "a focused preview over an image selects the whole image",
+            isTextEditing: false, focusedSurface: .previewImage, expected: .previewImage
+        ),
+        Row(
+            rule: "renaming in the sidebar still gives ⌘A to the caret",
+            isTextEditing: true, focusedSurface: .sidebarRows, expected: .focusedTextEditor
+        ),
     ]
 
     @Test("the ⌘A routing table")
@@ -74,7 +86,7 @@ struct SelectAllRoutingPolicyTests {
     /// an empty typing undo stack.
     @Test("a focused text editor is never overridden by the library")
     func textEditingIsNeverOverridden() {
-        for surface: SelectAllSurface? in [.libraryRows, .inspectorList, nil] {
+        for surface: SelectAllSurface? in [.libraryRows, .inspectorList, .sidebarRows, .previewImage, nil] {
             #expect(
                 SelectAllRoutingPolicy.route(
                     isTextEditing: true,

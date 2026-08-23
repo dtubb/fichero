@@ -29,6 +29,7 @@ extension CanvasOrtho2DRenderer {
             reskinCard(id)
         case .remove(let id):
             placeablesById[id] = nil
+            texturedIds.remove(id)
             placeablesRoot.findEntity(named: id)?.removeFromParent()
         case .setEdges(let edges):
             rebuildEdges(edges)

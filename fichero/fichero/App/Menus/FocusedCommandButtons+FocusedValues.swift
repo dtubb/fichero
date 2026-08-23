@@ -68,6 +68,16 @@ struct InspectorSelectAllKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// The sidebar answering ⌘A over the CURRENT library's visible rows.
+struct SidebarSelectAllKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+/// The preview answering ⌘A by selecting the whole image.
+struct PreviewSelectAllKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
 /// Actions that can be performed on the sidebar selection.
 ///
 /// Equatable returns `true` unconditionally: all instances constructed by
@@ -305,5 +315,15 @@ extension FocusedValues {
     var inspectorSelectAll: InspectorSelectAllKey.Value? {
         get { self[InspectorSelectAllKey.self] }
         set { self[InspectorSelectAllKey.self] = newValue }
+    }
+
+    var sidebarSelectAll: SidebarSelectAllKey.Value? {
+        get { self[SidebarSelectAllKey.self] }
+        set { self[SidebarSelectAllKey.self] = newValue }
+    }
+
+    var previewSelectAll: PreviewSelectAllKey.Value? {
+        get { self[PreviewSelectAllKey.self] }
+        set { self[PreviewSelectAllKey.self] = newValue }
     }
 }
