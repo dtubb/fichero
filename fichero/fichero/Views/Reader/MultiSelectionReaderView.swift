@@ -49,7 +49,7 @@ struct MultiSelectionReaderView: View {
         HStack(spacing: 6) {
             Image(systemName: "doc.text")
                 .foregroundStyle(.secondary)
-            Text(doc.name)
+            Text(DocumentTitle.displayName(for: doc))
                 .font(.headline)
             Spacer()
         }
