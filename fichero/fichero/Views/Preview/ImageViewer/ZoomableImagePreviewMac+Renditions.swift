@@ -1,6 +1,25 @@
 #if os(macOS)
 import SwiftUI
 
+/// Which rendition a page OPENS on (Daniel, 2026-08-23: "background removed is
+/// the best one, so default to that. it's background removed < enhanced <
+/// page"). The sticky role wins — a reader who flipped to a rendition stays in
+/// that KIND across left/right sibling steps ("if I'm in background removed, I
+/// see that as I go left and right") — then the quality ranking, then the
+/// engine's order (index 0, primary first). File scope so tests run off-main.
+func preferredRenditionIndex(in renditions: [DocumentRendition], stickyRole: String?) -> Int {
+    if let stickyRole,
+       let idx = renditions.firstIndex(where: { $0.role == stickyRole }) {
+        return idx
+    }
+    for role in ["background_removed", "enhanced"] {
+        if let idx = renditions.firstIndex(where: { $0.role == role }) {
+            return idx
+        }
+    }
+    return 0
+}
+
 extension ZoomableImagePreview {
     /// Load this page's renditions (2026-08-20 bbox review).
     ///
@@ -21,7 +40,20 @@ extension ZoomableImagePreview {
         // model, but it should never become a step in a flip sequence.
         await renditionService.load(documentId: documentId)
         renditions = renditionService.displayable(documentId: documentId)
+        // Land on the preferred rendition, not blindly on engine-index 0: the
+        // reader's current KIND is sticky across sibling steps, and a fresh
+        // page opens on the best available (background removed > enhanced >
+        // original). Selection only — flipRendition fetches the pixels.
+        let sticky = UserDefaults.standard.string(forKey: Self.stickyRenditionRoleKey)
+        let preferred = preferredRenditionIndex(in: renditions, stickyRole: sticky)
+        if preferred != 0 {
+            flipRendition(to: preferred, recordSticky: false)
+        }
     }
+
+    /// UserDefaults, not @State: the sticky KIND must survive the view being
+    /// rebuilt per sibling — which is exactly when it is needed.
+    static var stickyRenditionRoleKey: String { "preview.stickyRenditionRole" }
 
     /// What the toolbar shows about the current rendition.
     ///
@@ -50,12 +82,20 @@ extension ZoomableImagePreview {
     /// arrow keys land first, the swipe gesture layers on the same call).
     /// Left/right stays sibling-page navigation. Fetch, decode off-main,
     /// swap in place — the same no-blank-frame contract as page flips.
-    func flipRendition(to targetIndex: Int) {
+    /// `recordSticky` is false for the automatic landing in `loadRenditions` —
+    /// only a USER flip may change which kind follows them across siblings.
+    func flipRendition(to targetIndex: Int, recordSticky: Bool = true) {
         guard let documentId, let renditionService,
               renditions.indices.contains(targetIndex),
               targetIndex != renditionIndex else { return }
         let target = renditions[targetIndex]
-        PreviewSwapAnimation.park(.renditionFlip(forward: targetIndex > renditionIndex))
+        if recordSticky {
+            UserDefaults.standard.set(target.role, forKey: Self.stickyRenditionRoleKey)
+            // Only a user flip parks the flip animation; the automatic landing
+            // rides the page-step swap already in flight — parking here too
+            // would double-animate every sibling step.
+            PreviewSwapAnimation.park(.renditionFlip(forward: targetIndex > renditionIndex))
+        }
         renditionIndex = targetIndex
         Task {
             do {
