@@ -279,6 +279,13 @@ struct ReaderTranscriptWrapTests {
             .replacingOccurrences(of: "overflow-wrap: anywhere;", with: "")
             .replacingOccurrences(of: "overflow-x: hidden;", with: "overflow-x: visible;")
             .replacingOccurrences(of: "max-width: 100%;", with: "")
+            // And force layout: with `content-visibility: auto` the article can
+            // race the harness — WKWebView sometimes skips its layout before
+            // the measurement runs, and the control reads intrinsic sizes
+            // instead of the overflow it exists to demonstrate (flaked
+            // 2026-08-22: identical trees, divergent verdicts). The control
+            // tests the WRAP rules; render-skipping is not under test.
+            .replacingOccurrences(of: "content-visibility: auto;", with: "")
 
         let measured = try await Self.measure(
             Self.transcriptPage(css: preFixCSS, body: Self.unbreakableOCRLine), width: 200)
