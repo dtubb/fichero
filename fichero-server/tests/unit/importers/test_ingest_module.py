@@ -1798,7 +1798,13 @@ class TestTextExtraction:
                 assert doc.name == "sample.pdf"
                 assert doc.file_type == FileType.pdf
                 assert doc.metadata.get("text_extracted")
-                assert len(doc.page_content) > 0  # Should have some content
+                # RULING CHANGE (2026-08-23): pages are the ONE home for text.
+                # When page children carried text the container SHEDS its
+                # concatenated duplicate; when they did not, it keeps its own.
+                if doc.metadata.get("transcript_source") == "pages":
+                    assert doc.page_content in (None, "")
+                else:
+                    assert len(doc.page_content) > 0
 
     def test_pdf_creates_page_children_with_named_page_labels(self, tmp_path):
         """Importing a labeled PDF stamps each child page with the PDF's own label.
@@ -2293,3 +2299,50 @@ class TestMimetypesSandboxInit:
         # The built-in table answers the types this importer cares about.
         assert mimetypes.guess_type("a.jpg")[0] == "image/jpeg"
         assert mimetypes.guess_type("a.pdf")[0] == "application/pdf"
+
+
+class TestParentTextLivesOnPages:
+    """Daniel's ruling (2026-08-23): pages are the ONE home for text. The
+    container used to keep a full concatenated duplicate — the 1s editor
+    beachball on big documents, and a double index in search."""
+
+    def _ingest(self, tmp_path, pages):
+        from unittest.mock import patch, MagicMock
+        from fichero_server.importers.ingest import ingest_file, IngestMode
+
+        file_path = _make_pdf(tmp_path, "diary.pdf", len(pages))
+        saved: list = []
+
+        class FakeDB:
+            def save(self, doc): saved.append(doc)
+            def get(self, *_a, **_k): return None
+            def embed(self, *_a, **_k): return True
+
+        with patch("fichero_server.bookmarks.create_bookmark", return_value=None), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.extract_pdf_pages_subprocess",
+                 return_value=[
+                     {"page_number": i + 1, "content": c, "is_blank": not c}
+                     for i, c in enumerate(pages)
+                 ],
+             ), \
+             patch(
+                 "fichero_server.loaders.kreuzberg_cache.kreuzberg_pdf_usable",
+                 return_value=True,
+             ):
+            parent = ingest_file(file_path, mode=IngestMode.LINK, extract_text=True, db=FakeDB())
+        return parent
+
+    def test_pdf_parent_sheds_its_duplicate_text(self, tmp_path):
+        parent = self._ingest(tmp_path, ["First page text", "Second page text"])
+        assert parent.page_content in (None, ""), (
+            "the container kept the concatenated duplicate"
+        )
+        assert parent.metadata.get("transcript_source") == "pages"
+
+    def test_pdf_with_textless_pages_keeps_its_own_text(self, tmp_path):
+        # A scan whose page extraction produced nothing must NOT lose the
+        # container-level text (e.g. a sidecar transcript): clearing it there
+        # would delete the only copy.
+        parent = self._ingest(tmp_path, ["", ""])
+        assert parent.metadata.get("transcript_source") != "pages"

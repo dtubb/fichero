@@ -440,15 +440,34 @@ def ingest_file(
         # (#885)
         _save_pending_artifacts(doc, db)
 
-        # Create embedding for search (only when text extraction succeeded)
-        if auto_embed and doc.page_content:
-            db.embed(doc)
-
         # PDFs are containers of pages. Create a child Document for each page
         # so workflows (transcribe, extract, etc.) can fan out per-page and
         # each page is searchable on its own.
         if file_type == FileType.pdf and not text_extraction_failed:
-            _create_pdf_page_children(doc, content_path, db, auto_embed=auto_embed)
+            created_pages = _create_pdf_page_children(
+                doc, content_path, db, auto_embed=auto_embed
+            )
+            def _page_text(page: object) -> str:
+                if isinstance(page, dict):
+                    return (page.get("content") or "").strip()
+                return (getattr(page, "page_content", None) or "").strip()
+
+            if any(_page_text(page) for page in created_pages or []):
+                # Pages are the ONE home for text (Daniel's ruling,
+                # 2026-08-23): the container used to keep a full concatenated
+                # duplicate — which the editor loaded whole (the 1s beachball
+                # on big documents) and search indexed twice. The reader
+                # composes its transcript from pages; a PDF whose page
+                # extraction produced nothing keeps its own text below.
+                doc.page_content = None
+                doc.metadata["transcript_source"] = "pages"
+                db.save(doc)
+
+        # Create embedding for search — AFTER the container decision above, so
+        # a PDF whose text now lives on its pages never leaves a stale
+        # container vector behind (the pages embedded themselves).
+        if auto_embed and doc.page_content:
+            db.embed(doc)
 
         _touch_ancestor_documents(db, doc.parent_id)
 

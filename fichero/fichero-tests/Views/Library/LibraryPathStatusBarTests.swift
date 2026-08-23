@@ -54,3 +54,14 @@ struct LibraryPathStatusBarTests {
         #expect(crumbs.count <= 3)
     }
 }
+
+extension LibraryPathStatusBarTests {
+    // "425 entrys" (Daniel's screenshot, 2026-08-23).
+    @Test("y-nouns pluralize as -ies")
+    func yNounsPluralizeAsIES() {
+        #expect(libraryStatusText(selectionCount: 0, itemCount: 425, noun: "entry") == "425 entries")
+        #expect(libraryStatusText(selectionCount: 1, itemCount: 425, noun: "entry") == "1 of 425 entries selected")
+        #expect(libraryStatusText(selectionCount: 0, itemCount: 2, noun: "day") == "2 days")
+        #expect(libraryStatusText(selectionCount: 0, itemCount: 1, noun: "entry") == "1 entry")
+    }
+}

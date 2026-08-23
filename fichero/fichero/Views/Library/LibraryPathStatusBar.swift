@@ -31,7 +31,11 @@ func libraryStatusText(
     detail: String? = nil
 ) -> String {
     let single = noun ?? "item"
-    let plural = single + "s"
+    // "entries", not "entrys" (Daniel's screenshot, 2026-08-23). English
+    // plurals for the handful of nouns the status line actually names.
+    let plural = single.hasSuffix("y") && !single.hasSuffix("ey")
+        ? String(single.dropLast()) + "ies"
+        : single + "s"
     if selectionCount > 0 {
         let counted = noun.map { _ in "\(selectionCount) of \(itemCount) \(plural) selected" }
             ?? "\(selectionCount) of \(itemCount) selected"
