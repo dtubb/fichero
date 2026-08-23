@@ -77,7 +77,10 @@ struct CanvasSpaceView: View {
     /// Internal, not private: `LibraryView.renderedSpaceDocumentIds` reads it so
     /// ⌘A covers exactly what this view renders. One constant, one meaning of
     /// "visible" — duplicating the bound is how the two would drift.
-    static let maxRenderedPlaceables = 10_000
+    // nonisolated: a View static inherits MainActor under the macOS 26 SDK and
+    // SIGTRAPs any off-main Swift Testing suite that reads it (#4201) — the
+    // ⌘A visible-surface tests read this cap.
+    nonisolated static let maxRenderedPlaceables = 10_000
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 

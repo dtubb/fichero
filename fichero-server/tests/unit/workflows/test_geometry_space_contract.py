@@ -27,10 +27,14 @@ class TestTheGuardTakesEitherGeometry:
     """Both types are read the same way by callers, so both must be checkable."""
 
     def test_a_normalized_region_passes(self):
-        require_normalized(NodeRegion(rect=[0, 0, 1, 1]), "region")
+        # Not raising IS the behaviour; the explicit assert states it.
+        assert require_normalized(NodeRegion(rect=[0, 0, 1, 1]), "region") is None
 
     def test_a_normalized_anchor_passes(self):
-        require_normalized(SourceAnchor(document_id="d", rect=[0, 0, 1, 1]), "anchor")
+        assert (
+            require_normalized(SourceAnchor(document_id="d", rect=[0, 0, 1, 1]), "anchor")
+            is None
+        )
 
     def test_a_pixel_anchor_is_refused(self):
         anchor = SourceAnchor(
