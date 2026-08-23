@@ -69,6 +69,11 @@ struct CanvasSpaceView: View {
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 
+    /// The §20.3 "Arrange by" axis, written by `CanvasArrangePicker`. Both
+    /// canvases READ this one key: they share a layout store, so a board they
+    /// disagree about is two different boards.
+    @AppStorage(CanvasArrangement.storageKey) private var arrangementRaw = CanvasArrangement.asFiled.rawValue
+
     private var renderableItems: [CanvasItemDisplay] {
         (itemStore?.items(for: scopeKey) ?? []).filter { $0.kind != .link }
     }
@@ -114,7 +119,8 @@ struct CanvasSpaceView: View {
             // Pitch from the board's ACTUAL card extents, not the nominal
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
-            gridCell: gridCell
+            gridCell: gridCell,
+            arrangement: CanvasArrangement.stored(arrangementRaw)
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
@@ -244,6 +250,7 @@ struct CanvasSpaceView: View {
     /// identically to 2D (it IS the same controller).
     private var canvasToolbar: some View {
         HStack(spacing: 6) {
+            CanvasArrangePicker()
             Menu {
                 Button("Note") { addItem(.note) }
                 Button("Quote") { addItem(.quote) }

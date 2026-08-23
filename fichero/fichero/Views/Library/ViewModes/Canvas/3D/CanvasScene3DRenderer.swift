@@ -64,6 +64,9 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
 
+    /// Seconds a `.move` animates for, set per diff by `apply`.
+    private var moveDuration = CanvasMoveAnimation.feedbackDuration
+
     /// WHICH cards matter right now — a search's heat map or an entity
     /// highlight. Held so a card INSERTED while emphasis is live is painted on
     /// arrival instead of staying bright until the next emphasis change.
@@ -115,6 +118,9 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     // MARK: - CanvasSceneRenderer
 
     func apply(_ ops: [CanvasSceneOp]) {
+        // Cards moving TOGETHER are a transition to watch; one echoing in from
+        // another window is feedback (R10 / §20.2).
+        moveDuration = CanvasMoveAnimation.duration(for: ops)
         for operation in ops { applyOne(operation) }
         if !ops.isEmpty { refreshSelectionDecoration() }
     }
@@ -240,7 +246,15 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
             // (the isDragSuppressed seam); every other move repositions in place.
             guard isDragSuppressed?(id) != true else { return }
             placeablesById[id]?.position = position
-            placeablesRoot.findEntity(named: id)?.position = Canvas3DProjection.scenePosition(position)
+            // ANIMATED, as 2D already was (R10: the cards move, the camera
+            // cuts): a re-arrange is the information, and it only reads if you
+            // can follow it. `move(to:)` animates an existing entity's
+            // transform — no mesh, no material, no rebuild at any frame.
+            if let entity = placeablesRoot.findEntity(named: id) {
+                var transform = entity.transform
+                transform.translation = Canvas3DProjection.scenePosition(position)
+                entity.move(to: transform, relativeTo: entity.parent, duration: moveDuration)
+            }
         case .resize(let id, let size):
             placeablesById[id]?.size = size
             reskinCard(id)

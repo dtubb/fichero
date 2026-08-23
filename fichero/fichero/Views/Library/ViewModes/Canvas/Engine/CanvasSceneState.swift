@@ -104,8 +104,13 @@ extension CanvasSceneState {
         layoutRows: [CanvasItemLayout],
         items: [CanvasItemDisplay],
         defaultPlacement: CanvasDefaultPlacement = .backendPosition,
-        gridCell: CGSize = CanvasGridPlacement.nominalCell
+        gridCell: CGSize = CanvasGridPlacement.nominalCell,
+        arrangement: CanvasArrangement = .asFiled
     ) -> CanvasSceneState {
+        // Which slot each card takes. `.asFiled` returns the walk order below,
+        // so the default board is byte-for-byte what it was before arrangements
+        // existed — pinned by `asFiledMatchesThePreArrangementOrder`.
+        let arrangedSlots = CanvasArrangement.slotIndices(arrangement, nodes: nodes, items: items)
         let rowsById = Dictionary(layoutRows.map { ($0.itemId, $0) }, uniquingKeysWith: { _, latest in latest })
 
         var placeables: [CanvasPlaceable] = []
@@ -121,7 +126,7 @@ extension CanvasSceneState {
         // Nodes: saved row wins, else the chosen default.
         for node in nodes {
             let row = rowsById[node.id]
-            let gridSlot = slot
+            let gridSlot = arrangedSlots[node.id] ?? slot
             slot += 1
             let position = row.map { SIMD3<Double>($0.x, $0.y, $0.z) }
                 ?? nodeDefaultPosition(node, slot: gridSlot, placement: defaultPlacement, cell: gridCell)
@@ -139,7 +144,7 @@ extension CanvasSceneState {
         // Non-link items: saved row wins, else the chosen default.
         var cascadeIndex = 0
         for item in items where item.kind != .link {
-            let gridSlot = slot
+            let gridSlot = arrangedSlots[item.id] ?? slot
             slot += 1
             let position: SIMD3<Double>
             if let row = rowsById[item.id] {

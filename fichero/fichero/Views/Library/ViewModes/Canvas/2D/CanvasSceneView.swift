@@ -92,6 +92,11 @@ struct CanvasSceneView: View {
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 
+    /// The §20.3 "Arrange by" axis, written by `CanvasArrangePicker`. Both
+    /// canvases READ this one key: they share a layout store, so a board they
+    /// disagree about is two different boards.
+    @AppStorage(CanvasArrangement.storageKey) private var arrangementRaw = CanvasArrangement.asFiled.rawValue
+
     /// How many cards the board lays out — nodes plus the non-link items, the
     /// same sequence `CanvasSceneState.resolve` slots.
     private var placeableCount: Int {
@@ -141,7 +146,8 @@ struct CanvasSceneView: View {
             // Pitch from the board's ACTUAL card extents, not the nominal
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
-            gridCell: gridCell
+            gridCell: gridCell,
+            arrangement: CanvasArrangement.stored(arrangementRaw)
         )
         state.selection = selectedNodeIds
         state.emphasis = emphasis
@@ -239,6 +245,12 @@ struct CanvasSceneView: View {
             }
             #endif
             .overlay { marqueeOverlay }
+            // The same control, same corner as the 3D canvas — one board, one
+            // place to re-arrange it.
+            .overlay(alignment: .topTrailing) {
+                CanvasArrangePicker()
+                    .padding(8)
+            }
             // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(

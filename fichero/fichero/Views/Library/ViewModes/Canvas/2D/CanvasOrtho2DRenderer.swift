@@ -53,6 +53,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
 
+    /// Seconds a `.move` animates for, set per diff by `apply`.
+    private var moveDuration = CanvasMoveAnimation.feedbackDuration
+
     /// WHICH cards matter right now — a search's heat map or an entity
     /// highlight. Held so a card inserted while emphasis is live is painted on
     /// arrival, not left bright until the next emphasis change.
@@ -103,6 +106,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     // MARK: - CanvasSceneRenderer
 
     func apply(_ ops: [CanvasSceneOp]) {
+        // Cards moving TOGETHER are a transition to watch; one echoing in from
+        // another window is feedback (R10 / §20.2).
+        moveDuration = CanvasMoveAnimation.duration(for: ops)
         for operation in ops { applyOne(operation) }
         // Decoration is derived from the cards, so it settles ONCE after the
         // whole op list rather than per-op: a batch that moves three selected
@@ -252,7 +258,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
             if let entity = placeablesRoot.findEntity(named: id) {
                 var transform = entity.transform
                 transform.translation = Canvas2DProjection.scenePosition(position)
-                entity.move(to: transform, relativeTo: entity.parent, duration: 0.18)
+                entity.move(to: transform, relativeTo: entity.parent, duration: moveDuration)
             }
         case .resize(let id, let size):
             placeablesById[id]?.size = size
