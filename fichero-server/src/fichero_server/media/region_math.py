@@ -37,13 +37,37 @@ _CONFIDENCE_RANK: dict[RegionConfidence, int] = {
 }
 
 
-def _require_normalized(region: NodeRegion, what: str) -> None:
-    if region.space is not AnchorSpace.normalized:
+def require_normalized(geometry, what: str) -> None:
+    """Refuse to treat a rect as fractions unless it says it IS fractions.
+
+    Takes anything carrying a ``space`` — ``NodeRegion`` or ``SourceAnchor`` —
+    because both are read the same way by callers that multiply a rect by a
+    frame's width and height, and both can now be in pixel space.
+
+    That generality is the point. Before the anchor consolidation,
+    ``Annotation.bbox`` was validated into [0, 1], so "these are fractions"
+    was true by construction and no consumer had to check. Adding ``space``
+    made a pixel rect REPRESENTABLE, and every consumer that multiplies by a
+    dimension inherited a way to be silently, enormously wrong: a PDF rect at
+    x=72 points, scaled as though 72 were a fraction, lands 44,000 points off
+    the page.
+
+    Raising is deliberate. There is no safe default here — guessing normalized
+    crops the wrong region and reports success, which is precisely the failure
+    this whole program exists to remove.
+    """
+    space = getattr(geometry, "space", None)
+    if space is not AnchorSpace.normalized:
+        got = getattr(space, "value", space)
         raise ValueError(
-            f"{what} must be in normalized space to compose, got {region.space.value}. "
+            f"{what} must be in normalized space to compose, got {got}. "
             "Convert with the frame's pixel dimensions first — mixing spaces "
             "silently is exactly the bug this module exists to prevent."
         )
+
+
+#: Kept as the old private name so existing call sites read unchanged.
+_require_normalized = require_normalized
 
 
 def weakest_confidence(*regions: NodeRegion) -> RegionConfidence:

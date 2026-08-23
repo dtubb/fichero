@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fichero_server.models.anchors import AnchorSpace
 from fichero_server.api.routes.document.renditions import IMAGE_MEDIA_TYPES
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -175,10 +176,22 @@ def _annotation_target(doc: Document, ann: Annotation) -> dict[str, Any]:
     region_selector: dict[str, Any] | None = None
     if rect and len(rect) == 4:
         x, y, width, height = rect
+        # Media Fragments defines BOTH forms, and which one is correct depends
+        # on the space the anchor declares. Emitting `pct:` for a rect that is
+        # already in pixels would put a silently wrong region into an archival
+        # export — worse than a wrong crop on screen, because it leaves the
+        # building as standards-compliant data somebody else will trust.
+        if ann.anchor and ann.anchor.space is AnchorSpace.pixel:
+            value = f"xywh={x:g},{y:g},{width:g},{height:g}"
+        else:
+            value = (
+                f"xywh=pct:{x * 100:g},{y * 100:g},"
+                f"{width * 100:g},{height * 100:g}"
+            )
         region_selector = {
             "type": "FragmentSelector",
             "conformsTo": "http://www.w3.org/TR/media-frags/",
-            "value": f"xywh=pct:{x * 100:g},{y * 100:g},{width * 100:g},{height * 100:g}",
+            "value": value,
         }
 
     target: dict[str, Any] = {

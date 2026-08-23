@@ -179,11 +179,14 @@ def persist_workflow_renditions(
                 report["unmatched_outputs"].append(str(output))
                 continue
 
+            width, height = _pixel_size(stored)
             rendition = Rendition(
                 document_id=doc.id,
                 role=role,
                 path=str(stored),
                 produced_from=str(output),
+                pixel_width=width,
+                pixel_height=height,
                 # NOT primary. A workflow producing a new rendition must not
                 # silently change what the reader opens on — that is the
                 # user's call, and a pass that quietly reassigns the primary
@@ -352,12 +355,15 @@ def persist_workflow_child_regions(
                 image_provenance=parent.image_provenance,
             )
             db.save(child)
+            child_width, child_height = _pixel_size(stored)
             db.save(
                 Rendition(
                     document_id=child.id,
                     role=role,
                     path=str(stored),
                     produced_from=str(output),
+                    pixel_width=child_width,
+                    pixel_height=child_height,
                     is_primary=True,
                     producer_tool=str(state.get("tool_name") or ""),
                     producer_run_id=str(state.get("run_id") or ""),
@@ -367,6 +373,30 @@ def persist_workflow_child_regions(
             report["children"].append({"document_id": child.id, "parent_id": parent.id})
 
     return report
+
+
+def _pixel_size(path: Path) -> tuple[int | None, int | None]:
+    """The stored image's own frame, or (None, None) if it cannot be read.
+
+    A rendition that does not record its pixel dimensions cannot be checked
+    against the node it belongs to, and the whole "same frame = rendition,
+    different frame = node" rule becomes unverifiable — a rotated rendition
+    (width and height swapped) is then indistinguishable from a same-frame
+    one, and any child region measured against "the parent" is ambiguous.
+    `Rendition` has carried these two fields all along; nothing filled them.
+
+    Unreadable dimensions are recorded as absent, never guessed: an unknown
+    frame is a fact, and inventing one would recreate the defect this program
+    removes.
+    """
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            return image.width, image.height
+    except Exception as exc:  # pragma: no cover - depends on the stored file
+        logger.warning("could not read pixel size of %s: %s", path, exc)
+        return None, None
 
 
 def _region_from_part(part: dict[str, Any], method: str) -> NodeRegion | None:
