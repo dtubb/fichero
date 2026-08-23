@@ -30,7 +30,10 @@ extension LibraryView {
             // suffix so a context-menu on a child still targets its doc.
             if let firstId = primaryNodeId(in: items),
                let doc = filteredDocuments.first(where: { $0.id == documentId(forNodeId: firstId) }) {
-                documentContextMenu(for: doc)
+                // Deferred to OPEN time like Icon, List and Columns (#4544):
+                // Table was the one browse mode still building its menu on
+                // every render pass.
+                SidebarDeferredMenuContent { documentContextMenu(for: doc) }
             }
         }
         .onTapGesture(count: 2) {

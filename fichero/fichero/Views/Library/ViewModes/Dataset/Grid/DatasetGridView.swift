@@ -118,29 +118,19 @@ struct DatasetGridView: View {
                 }
             }
             .contextMenu(forSelectionType: DatasetPage.Row.ID.self) { ids in
-                Button("Open") {
-                    if let id = ids.first, let row = row(id) { onOpen(row) }
-                }
-                Button("Show Source Page") {
-                    if let id = ids.first, let row = row(id), row.parentId != nil {
-                        onOpenSource(row)
-                    }
-                }
-                if !workflows.isEmpty && !ids.isEmpty {
-                    Divider()
-                    // The Finder rule: the batch applies when it includes the
-                    // clicked rows; the Table hands us the effective ids.
-                    let targets = Array(ids)
-                    Menu("Run Workflow") {
-                        if targets.count > 1 {
-                            Text("Runs on \(targets.count) entries")
-                            Divider()
-                        }
-                        RunWorkflowSubmenuItems(workflows: workflows) { workflowId, provider, model in
-                            onRunWorkflow(workflowId, targets, provider, model)
-                        }
-                    }
-                }
+                // The ONE dataset row menu. The Table hands us the effective
+                // ids, which is already the Finder rule (the batch applies when
+                // it includes the clicked rows), so they ARE the targets.
+                DatasetRowMenu(
+                    rows: ids.compactMap(row),
+                    targets: Array(ids),
+                    canEditDate: false,
+                    documentService: documentService,
+                    workflows: workflows,
+                    onOpen: onOpen,
+                    onOpenSource: onOpenSource,
+                    onRunWorkflow: onRunWorkflow
+                )
             } primaryAction: { ids in
                 if let id = ids.first, let row = row(id) { onOpen(row) }
             }

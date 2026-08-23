@@ -35,9 +35,22 @@ struct DatasetModeView: View {
     var workflows: [WorkflowSidebarItem] = []
     var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
+    /// The selection — SHARED with the library shell, not private to this
+    /// view (Daniel's ruling, 2026-08-23: "visible surface, always").
+    ///
+    /// It used to be `@State private`, which meant the bottom bar's Delete and
+    /// Run Workflow, and the menu bar's ⌘A and Delete, acted on the browser's
+    /// selection — invisible in a dataset mode and not what the user had
+    /// picked — while the context menu two inches away acted on the row they
+    /// clicked. Same verb, same screen, different target set. Bound upward,
+    /// every surface targets what the user can see, and the existing
+    /// single-selection router keeps driving preview/reader/inspector.
+    ///
+    /// The same shape the canvases already use (see LibraryView's note that
+    /// "Canvas/spatial selection is NOT separate state").
+    @Binding var selection: Set<String>
+
     @State private var store = DatasetModeStore()
-    /// Card selection — the batch a context-menu run targets.
-    @State private var selection: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -261,13 +274,23 @@ struct DatasetModeView: View {
                 )
             case .timeline:
                 DatasetTimelineView(store: store, selection: $selection,
-                                    onOpen: onOpen, onOpenSource: onOpenSource)
+                                    onOpen: onOpen, onOpenSource: onOpenSource,
+                                    documentService: documentService,
+                                    workflows: workflows,
+                                    onRunWorkflow: onRunWorkflow)
             case .calendar:
                 DatasetCalendarView(store: store, entityService: entityService,
                                     selection: $selection,
-                                    onOpen: onOpen, onOpenSource: onOpenSource)
+                                    onOpen: onOpen, onOpenSource: onOpenSource,
+                                    documentService: documentService,
+                                    workflows: workflows,
+                                    onRunWorkflow: onRunWorkflow)
             case .map:
-                DatasetMapView(store: store, onOpen: onOpen)
+                DatasetMapView(store: store, onOpen: onOpen,
+                               onOpenSource: onOpenSource,
+                               documentService: documentService,
+                               workflows: workflows,
+                               onRunWorkflow: onRunWorkflow)
             }
         }
     }

@@ -121,55 +121,24 @@ struct DatasetCardsView: View {
         selection.contains(row.id) ? Array(selection) : [row.id]
     }
 
-    @ViewBuilder
+    /// The ONE dataset row menu — see `DatasetRowMenu`. Cards was the fullest
+    /// of the five private copies; every verb it had now comes from there, so
+    /// the other four gained them rather than each being taught separately.
     private func cardMenu(_ row: DatasetPage.Row) -> some View {
-        Button("Open") { onOpen(row) }
-        if row.parentId != nil {
-            Button("Show Source Page") { onOpenSource(row) }
-        }
-        if store.attributeForRole["date"] != nil, entityService != nil {
-            Button("Edit Date…") {
+        DatasetRowMenu(
+            rows: [row],
+            targets: workflowTargets(for: row),
+            canEditDate: store.attributeForRole["date"] != nil && entityService != nil,
+            documentService: documentService,
+            workflows: workflows,
+            onOpen: onOpen,
+            onOpenSource: onOpenSource,
+            onEditDate: { row in
                 dateDraft = store.dateValue(of: row) ?? ""
                 dateEditRow = row
-            }
-        }
-        // Exclusion parity with the library views (user, 2026-08-19): cards
-        // are nodes like any other row, so bulk curation must work here too.
-        if let documentService {
-            let targets = workflowTargets(for: row)
-            Divider()
-            Button("Exclude from Processing") {
-                Task { _ = try? await documentService.batchExclude(
-                    documentIds: targets, excluded: true, scope: .processing) }
-            }
-            Button("Exclude from Search") {
-                Task { _ = try? await documentService.batchExclude(
-                    documentIds: targets, excluded: true, scope: .search) }
-            }
-            Button("Include Everywhere") {
-                Task {
-                    _ = try? await documentService.batchExclude(
-                        documentIds: targets, excluded: false, scope: .processing)
-                    _ = try? await documentService.batchExclude(
-                        documentIds: targets, excluded: false, scope: .search)
-                }
-            }
-        }
-        if !workflows.isEmpty {
-            Divider()
-            let targets = workflowTargets(for: row)
-            Menu("Run Workflow") {
-                if targets.count > 1 {
-                    // Scope stated BEFORE the click, same as the sidebar and
-                    // library menus (2026-08-15).
-                    Text("Runs on \(targets.count) entries")
-                    Divider()
-                }
-                RunWorkflowSubmenuItems(workflows: workflows) { workflowId, provider, model in
-                    onRunWorkflow(workflowId, targets, provider, model)
-                }
-            }
-        }
+            },
+            onRunWorkflow: onRunWorkflow
+        )
     }
 
     private func commitDateEdit() {
