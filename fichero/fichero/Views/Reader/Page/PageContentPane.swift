@@ -178,6 +178,19 @@ struct PageContentPane: View {
             loadAnnotations()
         }
         // Resync when an annotation.* change event lands (create/delete/edit).
+        .onChange(of: selectionRange) { _, newRange in
+            // Reader → preview word linking (Daniel, 2026-08-23): the
+            // selection travels as char offsets; the preview intersects them
+            // with its word geometry and lights the words on the page.
+            var info: [String: Any] = ["documentId": pageDoc?.id ?? ""]
+            if let newRange {
+                info["charStart"] = newRange.lowerBound
+                info["charEnd"] = newRange.upperBound
+            }
+            NotificationCenter.default.post(
+                name: .readerTextSelection, object: nil, userInfo: info
+            )
+        }
         .onChange(of: annotationStore.changeToken) { _, _ in
             loadAnnotations()
         }

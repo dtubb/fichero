@@ -32,6 +32,7 @@ extension ZoomableImagePreview {
 
     func handleDocumentIDChanged() {
         isDrawingRegion = false
+        linkedSelectionBoxes = []
         loadAnnotations()
     }
 
@@ -104,6 +105,24 @@ extension ZoomableImagePreview {
         if isLocked && !wasLocked {
             lockedPosition = cursorPosition
         }
+    }
+
+    /// Reader → preview word linking (Daniel, 2026-08-23): the reader's text
+    /// selection arrives as char offsets; intersect with this page's word
+    /// geometry and light the words. Cleared selection, another document's
+    /// selection, or a geometry set measured on a different frame all clear —
+    /// stale word lights are the same lie as a stale highlight band.
+    func handleReaderTextSelection(_ note: Notification) {
+        guard let docId = note.userInfo?["documentId"] as? String,
+              docId == documentId,
+              let start = note.userInfo?["charStart"] as? Int,
+              let end = note.userInfo?["charEnd"] as? Int,
+              let geometry = ocrGeometry,
+              geometryFrameMatchesDisplay(geometry) else {
+            if !linkedSelectionBoxes.isEmpty { linkedSelectionBoxes = [] }
+            return
+        }
+        linkedSelectionBoxes = wordBoxes(intersecting: start..<end, in: geometry)
     }
 }
 

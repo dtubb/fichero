@@ -37,6 +37,22 @@ extension ZoomableImagePreview {
                             .allowsHitTesting(false)
                     }
                 }
+                // Words lit by the READER's text selection (2026-08-23
+                // linking) — sharper than the entry wash so the specific
+                // words read against it.
+                ForEach(Array(linkedSelectionBoxes.enumerated()), id: \.offset) { _, box in
+                    if let rect = BoundingBoxGeometry.viewRect(
+                        normalized: box,
+                        in: geometry.drawnFrame.size,
+                        visible: geometry.visible
+                    ) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.accentColor.opacity(0.28))
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                            .allowsHitTesting(false)
+                    }
+                }
                 // Saved bounding boxes + the region-draw layer (#2458).
                 // Shown whenever there are boxes or the tool is armed.
                 if !regionBoxes.isEmpty || isDrawingRegion {

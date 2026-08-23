@@ -206,6 +206,9 @@ struct ZoomableImagePreview: View {
     // Full-resolution source image fetched lazily when zoom exceeds 1.5× (#2427).
     @State var highResImage: NSImage?
     @State var isLoadingHighRes = false
+    /// Word boxes lit by the READER's text selection (2026-08-23 linking) —
+    /// transient, cleared when the selection clears or the item changes.
+    @State var linkedSelectionBoxes: [[Double]] = []
 
     // Zoom actions live in ZoomableImagePreviewMac+ZoomActions.swift and the
     // opening-zoom rule in PreviewInitialZoomPolicy.swift (moved/extracted to
@@ -324,6 +327,9 @@ struct ZoomableImagePreview: View {
         .task(id: documentId) { await loadRenditions() }
         .onAppear { handleViewAppeared() }
         .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
+        .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
+            handleReaderTextSelection(note)
+        }
         .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
         .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
         .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
