@@ -6,6 +6,8 @@ fallback for ranges Vision cannot map.
 """
 from fichero_server.workflows.tools.vision_base import (
     VisionOCRBox,
+    _is_duplicate_line,
+    _strip_bands,
     _unmatched_reference_bands,
     _interpolated_word_bbox,
     _line_coverage_gaps,
@@ -137,3 +139,26 @@ def test_adjacent_misses_merge_into_one_band():
     )
     bands = _unmatched_reference_bands(reference, detected)
     assert len(bands) == 1
+
+
+# --- Strip tiling + dedupe (the smaller-chunks base pass, 2026-08-23) ---
+
+
+def test_strips_cover_the_page_with_overlap():
+    bands = _strip_bands()
+    assert bands[0][0] == 0.0 and bands[-1][1] == 1.0
+    for (_, bottom), (top, _) in zip(bands, bands[1:]):
+        assert top < bottom, "adjacent strips must overlap"
+
+
+def test_same_line_from_a_strip_is_a_duplicate():
+    kept = [_line("Told him we would stop", 0.20)]
+    again = _line("TOLD him, we would stop", 0.21)   # case+punct noise, same place
+    assert _is_duplicate_line(again, kept)
+
+
+def test_same_text_far_away_is_not_a_duplicate():
+    # Ledger pages repeat phrases ("at Dredge No 4") on different days.
+    kept = [_line("at Dredge No 4 all day", 0.15)]
+    later = _line("at Dredge No 4 all day", 0.70)
+    assert not _is_duplicate_line(later, kept)

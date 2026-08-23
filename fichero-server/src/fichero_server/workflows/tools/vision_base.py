@@ -550,6 +550,41 @@ def _unmatched_reference_bands(
     return merged[:max_bands]
 
 
+def _strip_bands(count: int = 3, overlap: float = 0.08) -> list[tuple[float, float]]:
+    """Systematic overlapping horizontal strips (Daniel's smaller-chunks
+    strategy, promoted from hunch to base pass 2026-08-23): every strip is
+    OCR'd at ~``count``× effective glyph size, independent of any heuristic
+    about where a miss might be. Overlap so a line on a boundary is whole in
+    at least one strip."""
+    if count < 2:
+        return []
+    stride = 1.0 / count
+    return [
+        (max(0.0, index * stride - overlap), min(1.0, (index + 1) * stride + overlap))
+        for index in range(count)
+    ]
+
+
+def _is_duplicate_line(candidate: Any, kept: list[Any]) -> bool:
+    """Same text (probe-normalized) landing at the same vertical position —
+    the strip/band passes re-read lines the base pass already has, and
+    without this the overlay would double-draw every one of them."""
+    probe = _normalized_probe(candidate.text or "")
+    if not probe:
+        return True
+    c_top = candidate.bbox[1]
+    c_bottom = c_top + candidate.bbox[3]
+    for line in kept:
+        if _normalized_probe(line.text or "") != probe:
+            continue
+        top = line.bbox[1]
+        bottom = top + line.bbox[3]
+        inter = min(c_bottom, bottom) - max(c_top, top)
+        if inter > 0.5 * min(candidate.bbox[3], line.bbox[3]):
+            return True
+    return False
+
+
 def _rebase_geometry_reading_order(
     line_boxes: list["VisionOCRBox"],
     word_boxes: list["VisionOCRBox"],
@@ -1290,6 +1325,16 @@ def _vision_ocr_cgimage_with_geometry(
                 else:
                     deduped.append(band)
             gaps = deduped
+        # The systematic strips run regardless — coverage first, heuristics
+        # (tall gaps, transcript anchors) on top for the targeted retries.
+        gaps = gaps + _strip_bands()
+        merged_bands: list[tuple[float, float]] = []
+        for band in sorted(gaps):
+            if merged_bands and band[0] <= merged_bands[-1][1]:
+                merged_bands[-1] = (merged_bands[-1][0], max(merged_bands[-1][1], band[1]))
+            else:
+                merged_bands.append(band)
+        gaps = merged_bands
         if not gaps:
             return base
         width = CGImageGetWidth(cg_image)
@@ -1321,9 +1366,20 @@ def _vision_ocr_cgimage_with_geometry(
                 box.bbox = [x, band_top + y * band_height, w, h * band_height]
             # Char offsets from the band run are provisional — the rebase
             # below regenerates every span from the merged reading order.
-            lines.extend(band.line_boxes)
-            words.extend(band.word_boxes)
-            recovered += len(band.line_boxes)
+            # DEDUPE against what the page pass (and earlier bands) already
+            # hold: strips re-read everything, and a duplicate line would
+            # double-draw and double-count in every span consumer.
+            for line in band.line_boxes:
+                if _is_duplicate_line(line, lines):
+                    continue
+                lines.append(line)
+                start, end = line.char_start, line.char_end
+                if start is not None and end is not None:
+                    words.extend(
+                        w2 for w2 in band.word_boxes
+                        if w2.char_start is not None and start <= w2.char_start < end
+                    )
+                recovered += 1
         if recovered == 0:
             return base
         logger.info(
