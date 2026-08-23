@@ -156,6 +156,32 @@ private struct StorageDisplayImageCanvas: View {
     @State private var loadGeneration = 0
 
     var body: some View {
+        VStack(spacing: 0) {
+            interimContent
+            // The reader toolbar mounts inside ZoomableImagePreview only once
+            // the display image exists — every earlier frame (thumbnail,
+            // skeleton, error) had NO bottom bar, so the bar "flipped in" when
+            // the original arrived (Daniel, 2026-08-23). An inert ReaderToolbar
+            // of identical geometry holds the bottom edge until then; the real
+            // one replaces it in place with no jump.
+            if image == nil {
+                Divider()
+                ReaderToolbar(
+                    pageNav: nil,
+                    scalePercent: 100,
+                    zoomIn: {}, zoomOut: {}, fitToWindow: {}, actualSize: {}
+                )
+                .disabled(true)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Cross-fade the branch swap as the loaded image replaces the skeleton.
+        .animation(FrameAnimation.crossfade, value: image == nil)
+        .task(id: documentId) { await loadImage() }
+    }
+
+    @ViewBuilder
+    private var interimContent: some View {
         ZStack {
             if image != nil {
                 DocumentCanvas(
@@ -223,9 +249,6 @@ private struct StorageDisplayImageCanvas: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // Cross-fade the branch swap as the loaded image replaces the skeleton.
-        .animation(FrameAnimation.crossfade, value: image == nil)
-        .task(id: documentId) { await loadImage() }
     }
 
     private func loadImage() async {
