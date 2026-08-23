@@ -2065,6 +2065,35 @@ async def _propagate_to_page_children(
                             **(page_data or {}),
                             "episode_id": page_episode_ids[page_idx],
                         }
+                    # Stamp WHICH picture these boxes were measured on. If this
+                    # node was processed on its own region crop, the boxes are
+                    # fractions of the crop, not of the page — a renderer that
+                    # assumed otherwise would spread an entry's boxes across the
+                    # whole page. One lookup here, rather than threading a
+                    # rendition id through every provider-specific parser, none
+                    # of which know renditions exist.
+                    _page_geometry = (
+                        page_geometries[page_idx]
+                        if page_geometries and page_idx < len(page_geometries)
+                        else None
+                    )
+                    if _page_geometry is not None:
+                        try:
+                            from fichero_server.media.region_crops import (
+                                existing_region_crop,
+                            )
+
+                            _crop = existing_region_crop(db, page_doc)
+                            if _crop is not None:
+                                if hasattr(_page_geometry, "rendition_id"):
+                                    _page_geometry.rendition_id = _crop.id
+                                elif isinstance(_page_geometry, dict):
+                                    _page_geometry["rendition_id"] = _crop.id
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "could not stamp geometry frame for %s: %s",
+                                page_doc.id, exc,
+                            )
                     if matched:
                         art = matched[0]
                         art.content = artifact_content

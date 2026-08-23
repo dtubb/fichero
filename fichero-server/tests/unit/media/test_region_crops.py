@@ -190,3 +190,45 @@ class TestRefusals:
 
         with pytest.raises(RegionCropUnavailable, match="empty at the parent's size"):
             materialize_region_crop(db, entry, test_package)
+
+
+class TestTheGeometryFrameContract:
+    """A box set must say WHICH picture it was measured on.
+
+    When a tool runs on a region node it is handed that node's crop, so its
+    boxes are fractions of the CROP and not of the page. A renderer that
+    assumed otherwise would spread an entry's boxes across the whole page —
+    which looks like a plausible result rather than an obvious bug.
+    """
+
+    def test_the_result_can_name_its_rendition(self):
+        from fichero_server.media.ocr_geometry import OCRGeometryResult
+
+        assert "rendition_id" in OCRGeometryResult.model_fields
+
+    def test_it_defaults_to_the_documents_own_image(self):
+        """None is what every result written before entry-scoped runs means,
+        so old artifacts keep rendering exactly as they do now."""
+        from fichero_server.media.ocr_geometry import OCRGeometryResult
+
+        assert OCRGeometryResult(provider="apple").rendition_id is None
+
+    def test_the_frame_belongs_to_the_SET_not_each_box(self):
+        """All boxes in one result were measured on one picture; putting the
+        frame on every box would let them disagree."""
+        from fichero_server.media.ocr_geometry import OCRGeometryBox
+
+        assert "rendition_id" not in OCRGeometryBox.model_fields
+
+    def test_a_crop_is_findable_for_stamping(self, db, tmp_path, test_package):
+        """The lookup the vision path uses to stamp the frame — one call,
+        rather than threading a rendition id through provider parsers that do
+        not know renditions exist."""
+        from fichero_server.media.region_crops import existing_region_crop
+
+        page = _page(db, tmp_path)
+        entry = _entry(db, page, [0.0, 0.0, 1.0, 0.5])
+        assert existing_region_crop(db, entry) is None
+
+        crop = materialize_region_crop(db, entry, test_package)
+        assert existing_region_crop(db, entry).id == crop.id
