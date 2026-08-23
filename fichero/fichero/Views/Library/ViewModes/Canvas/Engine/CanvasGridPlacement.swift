@@ -126,6 +126,38 @@ enum CanvasGridPlacement {
         position(index: index, columns: columns, cell: nominalCell)
     }
 
+    /// The column count both canvases fall back to when the viewport says
+    /// nothing usable — the 2026-08-20 shared default, kept as the floor of the
+    /// derivation below rather than as a second, competing rule.
+    static let defaultColumns = 10
+
+    /// Columns for a board of `itemCount` cards, chosen so the BOARD'S ASPECT
+    /// approximates the VIEWPORT'S (§18.1 defect 3: 2,228 pages rendered as a
+    /// narrow vertical ribbon in a wide window, so most of the field was off
+    /// screen in one axis and the shape carried no information).
+    ///
+    /// THE one shared derivation. It deliberately takes no camera and no
+    /// world-per-point: 2D is orthographic and 3D orbits, so anything measured
+    /// through a camera would give the two canvases DIFFERENT boards from the
+    /// same folder — and they share a layout store, so they must show the same
+    /// board (user, 2026-08-20). Viewport aspect plus item count is renderer-
+    /// independent, so both call sites cannot drift.
+    ///
+    /// The algebra: with `c` columns the board is `c · cellWidth` wide and
+    /// `(n / c) · cellHeight` tall, so matching the viewport's aspect `a` means
+    /// `c = sqrt(n · a · cellHeight / cellWidth)`.
+    static func sharedColumnCount(itemCount: Int, viewportSize: CGSize, cell: CGSize? = nil) -> Int {
+        let pitch = cell ?? nominalCell
+        let width = Double(viewportSize.width), height = Double(viewportSize.height)
+        guard itemCount > 0 else { return defaultColumns }
+        guard width.isFinite, height.isFinite, width > 0, height > 0 else { return defaultColumns }
+        let aspect = width / height
+        let columns = (Double(itemCount) * aspect * Double(pitch.height) / Double(pitch.width)).squareRoot()
+        // Never wider than the board has cards (a 4-card folder in a wide window
+        // is one row, not a row with empty slots), never narrower than one.
+        return min(max(Int(columns.rounded()), 1), itemCount)
+    }
+
     /// How many columns fit across `worldWidth` world units. At least one, so a
     /// hairline-thin viewport still lays cards out in a column instead of
     /// stacking them.

@@ -86,15 +86,12 @@ struct CanvasSceneView: View {
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
 
-    /// The current scene resolved from the shared stores (canonical world space),
-    /// with the single selection mirrored into the scene's selection set. Reading
-    /// the stores here ties re-render (→ reconcile) to their change stream.
-    ///
-    /// Row-less placeables are laid into a spaced GRID rather than taking their
-    /// backend default (#4290): the projector's defaults sit on the XZ plane, and
-    /// this renderer drops z, so every card in a folder collapsed onto the line
-    /// `y = 0` — one row, cards on top of each other, and drops resolving as
-    /// links against their own neighbours instead of as moves.
+    /// How many cards the board lays out — nodes plus the non-link items, the
+    /// same sequence `CanvasSceneState.resolve` slots.
+    private var placeableCount: Int {
+        nodes.count + (itemStore?.items(for: scopeKey) ?? []).filter { $0.kind != .link }.count
+    }
+
     /// The default grid's cell pitch, from the page aspects loaded so far
     /// (§18.1 defect 4). Aspects arrive as textures load, so a board of
     /// row-less cards can re-flow ONCE as they land — the same class of re-flow
@@ -108,6 +105,15 @@ struct CanvasSceneView: View {
         )
     }
 
+    /// The current scene resolved from the shared stores (canonical world space),
+    /// with the single selection mirrored into the scene's selection set. Reading
+    /// the stores here ties re-render (→ reconcile) to their change stream.
+    ///
+    /// Row-less placeables are laid into a spaced GRID rather than taking their
+    /// backend default (#4290): the projector's defaults sit on the XZ plane, and
+    /// this renderer drops z, so every card in a folder collapsed onto the line
+    /// `y = 0` — one row, cards on top of each other, and drops resolving as
+    /// links against their own neighbours instead of as moves.
     private func resolvedState(in viewportSize: CGSize) -> CanvasSceneState {
         var state = CanvasSceneState.resolve(
             nodes: nodes,
@@ -115,11 +121,17 @@ struct CanvasSceneView: View {
             links: links,
             layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
             items: itemStore?.items(for: scopeKey) ?? [],
-            // TEN columns, identical in 2D and 3D (user, 2026-08-20): one
-            // shared default so the two canvases show the SAME board — they
-            // already share the layout store, so a move in one is a move in
-            // the other; the default must match too.
-            defaultPlacement: .grid(columns: 10),
+            // Columns from the ONE shared derivation, identical in 2D and 3D
+            // (user, 2026-08-20: one shared default so the two canvases show
+            // the SAME board — they already share the layout store, so a move
+            // in one is a move in the other). Viewport-derived now (§18.1
+            // defect 3), but derived in a single renderer-independent place so
+            // the two canvases still cannot drift apart.
+            defaultPlacement: .grid(
+                columns: CanvasGridPlacement.sharedColumnCount(
+                    itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
+                )
+            ),
             // Pitch from the board's ACTUAL card extents, not the nominal
             // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
             // area, so a double-spread is 1.22 wide and needs the room.
@@ -127,18 +139,6 @@ struct CanvasSceneView: View {
         )
         state.selection = selectedNodeIds
         return state
-    }
-
-    /// Columns for the default grid, measured at the camera's FIT scale — not its
-    /// live one, so zooming never re-flows the board under the pointer.
-    private func gridColumns(in viewportSize: CGSize) -> Int {
-        CanvasGridPlacement.columnCount(
-            viewportSize: viewportSize,
-            worldPerPoint: Canvas2DProjection.worldPerPoint(
-                orthoScale: CanvasOrtho2DRenderer.defaultOrthoScale,
-                viewHeight: viewportSize.height
-            )
-        )
     }
 
     var body: some View {
