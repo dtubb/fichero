@@ -112,7 +112,10 @@ struct CanvasSelectionVisualGuardTests {
         let source = try hostSource()
         // A resize starts on a HANDLE, so `draggingNodeId` stays nil and the
         // background gesture's existing guard does not cover it.
-        #expect(source.contains("guard resizeHandle == nil else { marqueeRect = nil; return }"))
+        // Ghost-marquee fix (2026-08-22): the marquee is @GestureState now, so
+        // the resize stand-down is the combined guard in .updating rather than
+        // an explicit nil assignment.
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {"))
         #expect(source.contains("if resizeHandle == nil, draggingNodeId == nil, !spaceHeld"))
     }
 

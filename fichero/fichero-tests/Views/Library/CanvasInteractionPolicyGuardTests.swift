@@ -27,7 +27,9 @@ struct CanvasInteractionPolicyGuardTests {
     @Test("panning requires Space; it is no longer what a plain drag does")
     func panRequiresModifier() throws {
         let source = try appSource(sceneViewPath)
-        #expect(source.contains("if spaceHeld {"))
+        // Shape changed with the ghost-marquee fix (2026-08-22): pan moved to
+        // .onChanged behind a positive spaceHeld guard; the policy is the same.
+        #expect(source.contains("draggingNodeId == nil, spaceHeld else { return }"))
         #expect(source.contains("panCamera(by:"))
         // The old policy read `if shiftHeld { marquee } else { pan }` — a plain
         // drag panning. Nothing may reintroduce an unmodified pan.
@@ -43,7 +45,22 @@ struct CanvasInteractionPolicyGuardTests {
     @Test("the pan/marquee gesture stands down while a card drag is live")
     func panDoesNotFightTheCardDrag() throws {
         let source = try appSource(sceneViewPath)
-        #expect(source.contains("guard draggingNodeId == nil else { marqueeRect = nil; return }"))
+        // Both halves stand down: the marquee (.updating) resets its rect and
+        // the pan (.onChanged) returns while a card drag or resize is live.
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {"))
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, spaceHeld else { return }"))
+    }
+
+    @Test("the marquee rect cannot outlive a cancelled drag")
+    func marqueeRectResetsOnCancel() throws {
+        let source = try appSource(sceneViewPath)
+        // Ghost-marquee fix (2026-08-22): SwiftUI never calls .onEnded on a
+        // CANCELLED gesture (a competing recognizer winning, Space mid-drag,
+        // focus loss), so a @State rect cleared only in .onEnded stayed
+        // painted. @GestureState resets on end AND cancel.
+        #expect(source.contains("@GestureState private var marqueeRect: CGRect?"))
+        #expect(!source.contains("@State private var marqueeRect"))
+        #expect(source.contains(".updating($marqueeRect)"))
     }
 
     @Test("Space is a visible mode: a cursor change, on a focusable canvas")

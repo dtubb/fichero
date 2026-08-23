@@ -70,7 +70,12 @@ struct CanvasSceneView: View {
     // drag marquees whether or not it's held, so there is nothing to consult.
     @State var optionHeld = false
     @State private var spaceHeld = false
-    @State private var marqueeRect: CGRect?
+    // @GestureState, not @State (ghost-marquee fix, 2026-08-22): SwiftUI
+    // never calls .onEnded on a CANCELLED gesture — a competing recognizer
+    // winning, Space pressed mid-drag, the window losing focus — so a @State
+    // rect cleared only in .onEnded stayed painted. @GestureState resets on
+    // end AND cancel, so the rectangle structurally cannot outlive the drag.
+    @GestureState private var marqueeRect: CGRect?
 
     // Resize-handle drag state (#4409). Internal, not private: the gesture that
     // reads it lives in `CanvasSceneView+Resize.swift` and Swift's `private` is
@@ -122,10 +127,16 @@ struct CanvasSceneView: View {
     var body: some View {
         GeometryReader { geo in
             RealityView { content in
+                // BEFORE the first reconcile (first-load fix, 2026-08-22, same
+                // as CanvasSpaceView): configureController runs in `.task`,
+                // after this closure — cards built here otherwise fetch with a
+                // nil service and fall back to the global library.
+                renderer.storageService = storageService
                 content.add(renderer.camera)
                 content.add(renderer.root)
                 renderer.reconcile(to: resolvedState(in: geo.size))
             } update: { _ in
+                renderer.storageService = storageService
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
                 renderer.reconcile(to: resolvedState(in: geo.size))
             }
@@ -311,22 +322,29 @@ struct CanvasSceneView: View {
     /// below is decided rather than racing whichever handler SwiftUI runs first.
     private func panOrMarquee(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 6)
-            .onChanged { value in
+            .updating($marqueeRect) { value, state, _ in
                 // A live resize is a drag too, and it starts on a handle rather
                 // than on a card — so `draggingNodeId` is nil and the marquee
                 // would rubber-band across the board while the user resizes.
-                guard resizeHandle == nil else { marqueeRect = nil; return }
-                guard draggingNodeId == nil else { marqueeRect = nil; return }
-                if spaceHeld {
-                    panCamera(by: value.translation, in: size)
-                } else {
-                    marqueeRect = Canvas2DProjection.marqueeRect(
+                guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {
+                    state = nil
+                    return
+                }
+                state = Canvas2DProjection.marqueeRect(
+                    from: value.startLocation, to: value.location
+                )
+            }
+            .onChanged { value in
+                guard resizeHandle == nil, draggingNodeId == nil, spaceHeld else { return }
+                panCamera(by: value.translation, in: size)
+            }
+            .onEnded { value in
+                // marqueeRect is already reset here (@GestureState), so the
+                // commit rect is recomputed from the gesture's own value.
+                if resizeHandle == nil, draggingNodeId == nil, !spaceHeld {
+                    let rect = Canvas2DProjection.marqueeRect(
                         from: value.startLocation, to: value.location
                     )
-                }
-            }
-            .onEnded { _ in
-                if resizeHandle == nil, draggingNodeId == nil, !spaceHeld, let rect = marqueeRect {
                     // ⇧/⌘ held while rubber-banding ADDS to the selection
                     // (#4436) — read at .onEnded, the moment the marquee
                     // commits, exactly as the tap path reads them.
@@ -335,7 +353,6 @@ struct CanvasSceneView: View {
                         modifiers: CanvasInteractionController.liveSelectionModifiers()
                     ))
                 }
-                marqueeRect = nil
                 panBaseline = .zero
             }
     }

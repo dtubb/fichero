@@ -112,10 +112,17 @@ struct CanvasSpaceView: View {
     private var scene: some View {
         GeometryReader { geo in
             RealityView { content in
+                // BEFORE the first reconcile (first-load fix, 2026-08-22):
+                // `configureController()` runs in `.task`, which fires after
+                // this closure — cards built here fetched thumbnails with a
+                // nil service, fell back to the global library, 404'd, and
+                // sat out a retry wait before the right library was asked.
+                renderer.storageService = storageService
                 content.add(renderer.camera)
                 content.add(renderer.root)
                 renderer.reconcile(to: resolvedState)
             } update: { _ in
+                renderer.storageService = storageService
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
                 renderer.reconcile(to: resolvedState)
             }

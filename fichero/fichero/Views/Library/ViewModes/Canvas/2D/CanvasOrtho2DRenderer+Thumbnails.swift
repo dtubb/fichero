@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Page-thumbnail textures (split for file_length, 2026-08-20)
 
 extension CanvasOrtho2DRenderer {
-    func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 4) {
+    func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 12) {
         Task { @MainActor in
             do {
                 // The CURRENT library's storage (user, live 2026-08-19): the
@@ -28,6 +28,9 @@ extension CanvasOrtho2DRenderer {
                 // Fresh imports 404 until their thumbnail generates moments
                 // later — retry so the card doesn't stay a placeholder until
                 // the next full reconcile.
+                // 12 tries ≈ 5 minutes (Daniel: "loads many and then stops",
+                // and 3D on a fresh import gave up before derivatives
+                // landed) — enough tail for a full import's thumbnail wave.
                 if retriesLeft > 0 {
                     try? await Task.sleep(for: .seconds(25))
                     loadThumbnail(sourceId: sourceId, into: entity, retriesLeft: retriesLeft - 1)

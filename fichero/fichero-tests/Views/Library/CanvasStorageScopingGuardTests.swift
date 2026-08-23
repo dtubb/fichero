@@ -64,8 +64,34 @@ final class CanvasStorageScopingGuardTests: XCTestCase {
         let source = try Self.appSources(inDirectory: "Views/Library")
         XCTAssertEqual(
             source.components(separatedBy: "storageService: activeLibraryReference?.storageService").count - 1,
-            2,
-            "Both SpaceSceneView and Spatial2DCanvas must receive the ACTIVE library's storage (#4160)."
+            4,
+            "All four canvas surfaces — CanvasSpaceView/SpaceSceneView (3D) and " +
+            "CanvasSceneView/Spatial2DCanvas (2D, RealityKit-ortho flag on/off) — " +
+            "must receive the ACTIVE library's storage (#4160; count grew with the " +
+            "#3083 RealityKit renderers)."
         )
+    }
+
+    func testRenderersGetTheStorageBeforeTheFirstReconcile() throws {
+        // First-load fix (2026-08-22): configureController runs in `.task`,
+        // AFTER the RealityView make closure builds the first cards — so the
+        // renderer must be handed the service inside the closure itself, or
+        // the first thumbnail wave fetches from the global-library fallback,
+        // 404s, and sits out a retry wait.
+        for path in [
+            "Views/Library/ViewModes/Canvas/3D/CanvasSpaceView.swift",
+            "Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift"
+        ] {
+            let source = try Self.appSource(path)
+            let firstAssign = try XCTUnwrap(
+                source.range(of: "renderer.storageService = storageService"),
+                "\(path) never hands the renderer its storage"
+            )
+            let firstReconcile = try XCTUnwrap(source.range(of: "renderer.reconcile(to:"))
+            XCTAssertTrue(
+                firstAssign.lowerBound < firstReconcile.lowerBound,
+                "\(path): the first reconcile builds cards before the renderer has storage"
+            )
+        }
     }
 }

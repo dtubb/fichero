@@ -22,7 +22,7 @@ extension Notification.Name {
 final class SiblingSwipeScrollView: NSScrollView {
     private var accumulatedX: CGFloat = 0
     private var accumulatedY: CGFloat = 0
-    private var horizontalIntent = false
+    private var firedThisGesture = false
     private static let threshold: CGFloat = 60
 
     override func scrollWheel(with event: NSEvent) {
@@ -43,18 +43,31 @@ final class SiblingSwipeScrollView: NSScrollView {
         if canPanHorizontally || canPanVertically {
             super.scrollWheel(with: event)
         }
-        switch event.phase {
-        case .began:
+        // Flaky-swipe fix (Daniel, 2026-08-21: "doesn't always let you swipe
+        // up or down"). Two causes, both timing:
+        //   * intent was classified at .began from the FIRST event's deltas,
+        //     which are often (0, 0) — a coin-flip start misrouted the axis;
+        //   * a quick FLICK delivers most of its distance as MOMENTUM events,
+        //     which were never accumulated — so slow deliberate drags worked
+        //     and fast natural ones under-counted the 60pt threshold.
+        // Now the axis is read from the totals at evaluation time, momentum
+        // keeps accumulating, and the swipe fires at whichever end (gesture
+        // or momentum) first crosses the threshold — once per gesture.
+        if event.phase == .began {
             accumulatedX = 0
             accumulatedY = 0
-            horizontalIntent = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
-        case .changed:
+            firedThisGesture = false
+        }
+        if event.phase == .changed || event.momentumPhase == .changed {
             accumulatedX += event.scrollingDeltaX
             accumulatedY += event.scrollingDeltaY
-        case .ended:
+        }
+        if event.phase == .ended || event.momentumPhase == .ended, !firedThisGesture {
+            let horizontalIntent = abs(accumulatedX) > abs(accumulatedY)
             if horizontalIntent, !canPanHorizontally, abs(accumulatedX) > Self.threshold {
                 // Natural scrolling: fingers left → negative deltaX → NEXT,
                 // matching Preview.app's page grammar.
+                firedThisGesture = true
                 NotificationCenter.default.post(
                     name: .previewSiblingSwipe,
                     object: accumulatedX < 0 ? 1 : -1
@@ -64,16 +77,16 @@ final class SiblingSwipeScrollView: NSScrollView {
                 // pan-first rule: a vertically-overflowing zoom keeps native
                 // scrolling; the flip engages only when there is nothing to
                 // pan. Fingers up → negative deltaY → NEXT rendition.
+                firedThisGesture = true
                 NotificationCenter.default.post(
                     name: .previewRenditionSwipe,
                     object: accumulatedY < 0 ? 1 : -1
                 )
             }
+        }
+        if event.momentumPhase == .ended {
             accumulatedX = 0
             accumulatedY = 0
-            horizontalIntent = false
-        default:
-            break
         }
     }
 }

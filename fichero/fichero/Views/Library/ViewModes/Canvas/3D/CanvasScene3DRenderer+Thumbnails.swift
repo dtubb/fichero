@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Page-thumbnail textures (split for file_length, 2026-08-20)
 
 extension CanvasScene3DRenderer {
-    func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 4) {
+    func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 12) {
         Task { @MainActor in
             do {
                 let texture = try await SpaceTextureCache.shared.texture(
@@ -27,6 +27,9 @@ extension CanvasScene3DRenderer {
                 log.error(
                     "space thumbnail load failed for \(sourceId, privacy: .public): \(error.localizedDescription)"
                 )
+                // 12 tries ≈ 5 minutes (Daniel: "loads many and then stops",
+                // and 3D on a fresh import gave up before derivatives
+                // landed) — enough tail for a full import's thumbnail wave.
                 if retriesLeft > 0 {
                     try? await Task.sleep(for: .seconds(25))
                     loadThumbnail(sourceId: sourceId, into: entity, retriesLeft: retriesLeft - 1)
