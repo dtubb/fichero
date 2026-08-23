@@ -248,7 +248,8 @@ struct CanvasTintWiringGuardTests {
 
     @Test("a textured card keeps its page — legibility outranks the encoding")
     func texturedCardsAreNotTinted() throws {
-        let painter = try appSource("Views/Library/ViewModes/Canvas/Engine/CanvasTintPainter.swift")
+        let painter = try // Channels/ since the 2026-08-23 folder-organization regroup.
+        appSource("Views/Library/ViewModes/Canvas/Engine/Channels/CanvasTintPainter.swift")
         #expect(painter.contains("guard !isTextured else { return }"))
         for paths in renderers {
             #expect(try combined(paths).contains("isTextured: isTextured("))

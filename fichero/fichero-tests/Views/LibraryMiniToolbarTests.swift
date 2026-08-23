@@ -187,16 +187,22 @@ struct LibraryMiniToolbarTests {
         #expect(toolbarSearch.contains("var toolbarSearchField"))
         #expect(toolbarSearch.contains("TextField(\"Search your library\""))
 
-        let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        // The old toggle's ToolbarItem ID survives — reused to MOUNT the
-        // resident field — so the honest pin is on the summon STATE being
-        // gone, not on the ID string.
-        #expect(toolbar.contains("toolbarSearchField"))
-        #expect(!toolbar.contains(".searchable("))
-        #expect(
-            !toolbar.contains("setSearchFieldVisible"),
-            "the #4521 summon state is back — #4604 made the field resident"
+        // The field MOUNTS in the inspector-section toolbar since 2026-08-23
+        // (Daniel: right of the inspector toggle; the content section always
+        // renders left of the inspector section). The honest pin is still on
+        // the summon STATE being gone, now checked in both homes.
+        let inspector = try Self.appSource(
+            "Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"
         )
+        #expect(inspector.contains("toolbarSearchField"))
+        let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
+        #expect(!toolbar.contains(".searchable("))
+        for source in [toolbar, inspector] {
+            #expect(
+                !source.contains("setSearchFieldVisible"),
+                "the #4521 summon state is back — #4604 made the field resident"
+            )
+        }
     }
 
     /// Dismissing the chrome exits transient-search presentation through the
