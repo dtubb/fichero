@@ -229,14 +229,42 @@ struct CanvasEmphasisWiringGuardTests {
         }
     }
 
+    /// One `case` body out of an `applyOne` switch.
+    ///
+    /// It ends at the next case OR at the switch's own closing brace, whichever
+    /// comes first. Slicing only on the next case was wrong in the way that
+    /// matters: `.setEmphasis` is the LAST case, so the window ran past the
+    /// switch and swallowed the methods below it — including `reskinCard`,
+    /// which rebuilds a card quite legitimately. The guard then failed on code
+    /// it was never about.
+    private func caseBody(_ source: String, forCase marker: String) throws -> String {
+        let tail = try #require(source.components(separatedBy: marker).last)
+        let end = ["\n        case ", "\n        }"]
+            .compactMap { tail.range(of: $0)?.lowerBound }
+            .min() ?? tail.endIndex
+        return String(tail[..<end])
+    }
+
     @Test("emphasis never rebuilds a card — the #4409 rule, restated")
     func emphasisNeverReskins() throws {
         for path in renderers {
-            let source = try appSource(path)
-            let handler = try #require(source.components(separatedBy: "case .setEmphasis").last)
-                .components(separatedBy: "\n        case ").first ?? ""
+            let handler = try caseBody(try appSource(path), forCase: "case .setEmphasis")
+            #expect(!handler.isEmpty)
             #expect(!handler.contains("reskinCard"), "\(path) rebuilds cards to highlight them")
             #expect(!handler.contains("makeCard"), "\(path) rebuilds cards to highlight them")
+            // What it does instead, so the slice can't pass by being empty.
+            #expect(handler.contains("CanvasEmphasisPainter.apply("))
+        }
+    }
+
+    @Test("the slice really is one case body — the selection case is excluded")
+    func caseSliceIsBounded() throws {
+        // A guard whose scan window is wrong reports on code it was never
+        // about, which is how this test suite lied once already.
+        for path in renderers {
+            let handler = try caseBody(try appSource(path), forCase: "case .setEmphasis")
+            #expect(!handler.contains("case .setSelection"))
+            #expect(!handler.contains("func "))
         }
     }
 

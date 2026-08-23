@@ -455,9 +455,25 @@ struct CanvasGridCellPitchTests {
 
     @Test("a mixed board is sized by its widest AND its tallest card")
     func mixedBoardTakesBothExtremes() {
-        let mixed = CanvasGridPlacement.cell(forAspects: [2.0, 0.5, 1.33, 1.0])
-        #expect(abs(Double(mixed.width) - Double(CanvasGridPlacement.cell(forAspects: [2.0]).width)) < 1e-9)
-        #expect(abs(Double(mixed.height) - Double(CanvasGridPlacement.cell(forAspects: [0.5]).height)) < 1e-9)
+        // ONE gutter, from the widest card, on both axes — the whitespace reads
+        // square, which is what `nominalGutter` pins. So a mixed board's ROW
+        // pitch is its tallest extent plus the WIDEST card's gutter, and it is
+        // deliberately NOT equal to the pitch that card would get on a board of
+        // its own (that board's widest card is narrower, so its gutter is
+        // smaller). Composing the expectation from the extents rather than from
+        // another cell is what says which rule is in force.
+        let aspects = [2.0, 0.5, 1.33, 1.0]
+        let mixed = CanvasGridPlacement.cell(forAspects: aspects)
+        let extents = CanvasGridPlacement.cardExtents(forAspects: aspects)
+        let gutter = CanvasGridPlacement.gutterFraction * Double(extents.width)
+
+        #expect(abs(Double(extents.width) - Double(CanvasGridPlacement.cardExtents(forAspects: [2.0]).width)) < 1e-9)
+        #expect(abs(Double(extents.height) - Double(CanvasGridPlacement.cardExtents(forAspects: [0.5]).height)) < 1e-9)
+        #expect(abs(Double(mixed.width) - (Double(extents.width) + gutter)) < 1e-9)
+        #expect(abs(Double(mixed.height) - (Double(extents.height) + gutter)) < 1e-9)
+        // The same gutter on both axes: pitch minus extent is one number.
+        #expect(abs((Double(mixed.width) - Double(extents.width))
+                        - (Double(mixed.height) - Double(extents.height))) < 1e-9)
     }
 
     @Test("an empty or nonsense aspect list falls back to the nominal cell")
