@@ -98,9 +98,11 @@ final class MenuShortcutBoundaryTests: XCTestCase {
         let source = try Self.appSource("FicheroApp.swift")
         XCTAssertTrue(source.contains("SelectAllButton()"))
         XCTAssertTrue(
-            source.contains("CommandGroup(after: .pasteboard)"),
-            "Select All is added after the system pasteboard group; replacing that group "
-                + "would take over Cut/Copy/Paste too (#4376)."
+            source.contains("CommandGroup(replacing: .textEditing)"),
+            "Select All REPLACES the .textEditing group (2026-08-23): adding after "
+                + ".pasteboard left the system's own Select All beside ours — two rows, "
+                + "one disabled. .textEditing carries Select All (and Find, which this "
+                + "app's search surfaces own themselves), NOT Cut/Copy/Paste."
         )
     }
 

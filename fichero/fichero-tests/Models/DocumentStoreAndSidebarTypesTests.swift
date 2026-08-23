@@ -67,8 +67,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let prefetch = try Self.appSource("Models/DocumentStore+SidebarPrefetch.swift")
         // Root load prefetches so top-level folders show chevrons before a click.
         XCTAssertTrue(store.contains("prefetchChildContainerChildren(of: collections)"))
-        // Expanding a folder caches its children AND one level deeper.
-        XCTAssertTrue(prefetch.contains("cacheSidebarChildren(of: document)"))
+        // Expanding a folder REFRESHES its children (2026-08-23: a sparse
+        // early fetch is not forever) AND still prefetches one level deeper.
+        XCTAssertTrue(prefetch.contains("fetchSidebarChildren(of: document)"))
         XCTAssertTrue(prefetch.contains("prefetchChildContainerChildren(of: children)"))
         // Only containers are prefetched — leaf rows have nothing to reveal.
         // (The batching refactor moved the guard from a `for … where` clause
