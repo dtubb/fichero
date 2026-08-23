@@ -302,6 +302,13 @@ struct ImageWithCursorTracking: NSViewRepresentable {
             } else {
                 coordinator.needsInitialCenter = true
             }
+            // Re-measure the overlay geometry HERE (entry-highlight fix,
+            // 2026-08-23): this completion runs after updateNSView's trailing
+            // re-measure, and the fit it just applied does not reliably fire
+            // boundsDidChange (the recorded 2026-08-21 gap) — so the overlay
+            // kept the PREVIOUS item's frame and the entry highlight drew
+            // scaled and displaced against a stale drawnFrame.
+            coordinator.updateVisibleRect()
         }
     }
 
@@ -454,6 +461,9 @@ extension ImageWithCursorTracking {
             }
             centerImage(scrollView: scrollView, imageView: imageView)
             if scrollView.alphaValue < 1 { scrollView.alphaValue = 1 }
+            // Same re-measure as the async completion: the fit this branch
+            // applies is exactly the auto-fit boundsDidChange misses.
+            coordinator.updateVisibleRect()
         } else if let url {
             // Decode the new page OFF the main thread (#3864). The previous
             // page stays visible until the ready image swaps in fitted, in one
@@ -488,6 +498,8 @@ extension ImageWithCursorTracking {
         // The binding write lands a turn later — park the value so the
         // magnification↔scale sync doesn't snap back to the stale scale.
         coordinator.pendingProgrammaticScale = preservedMagnification
+        // Third of the three image-swap endpoints — same stale-geometry class.
+        coordinator.updateVisibleRect()
         Task { @MainActor in
             self.scale = preservedMagnification
         }

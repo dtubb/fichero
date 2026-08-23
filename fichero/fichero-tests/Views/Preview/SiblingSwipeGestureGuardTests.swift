@@ -47,3 +47,27 @@ struct SiblingSwipeGestureGuardTests {
         #expect(source.contains("firedThisGesture = false"))
     }
 }
+
+/// Every image-SWAP endpoint re-measures the overlay geometry
+/// (entry-highlight fix, 2026-08-23): the async load completion runs after
+/// updateNSView's trailing re-measure, and the auto-fit it applies does not
+/// reliably fire boundsDidChange — so the highlight drew against the
+/// PREVIOUS item's frame, scaled and displaced.
+struct ImageSwapGeometryGuardTests {
+    @Test("all three swap endpoints call updateVisibleRect")
+    func swapEndpointsRemeasure() throws {
+        let url = try AppSource.root().appendingPathComponent(
+            "Views/Preview/ImageViewer/CursorTracking/ImageWithCursorTrackingMac.swift"
+        )
+        let source = try String(contentsOf: url, encoding: .utf8)
+        // updateNSView's two trailing calls + the three swap endpoints
+        // (async load completion, sync override fit, same-item pixel swap).
+        // COUNTED, not just present: losing any one reintroduces one stale
+        // path while the others keep looking fixed.
+        let calls = source.components(separatedBy: "updateVisibleRect()").count - 1
+        #expect(
+            calls >= 5,
+            "an image-swap endpoint lost its geometry re-measure (\(calls) calls)"
+        )
+    }
+}
