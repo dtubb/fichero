@@ -159,10 +159,10 @@ extension ContentView {
         // layout and window root.
         adaptiveSplittablePane(storageKey: "reading") {
             if readerStack.count > 1 {
-                AnyView(PaneEmptyStateView(
-                    reason: "\(readerStack.count) Items Selected",
-                    systemImage: "square.on.square"
-                ))
+                // All N selected transcripts, archival order + headers
+                // (Daniel's ruling, 2026-08-23) — replaces the honest-but-empty
+                // "N Items Selected" state. AnyView stays load-bearing (#4331).
+                AnyView(MultiSelectionReaderView(documents: readerStack))
             } else {
                 AnyView(ReadingPaneView(
                     liveDocument: detailDocument,
