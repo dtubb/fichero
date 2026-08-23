@@ -171,15 +171,25 @@ def _body_without_date_heading(text: str, date_text: str) -> str:
     return text.strip()
 
 
-def _normalized_with_offsets(content: str) -> tuple[str, list[int]]:
+#: Punctuation the ledger's PRINTED date headers vary on between the page and
+#: the OCR of the page: the stationery prints "SUNDAY. JANUARY 8. 1933" while
+#: transcripts write "SUNDAY, JANUARY 8, 1933" — same heading, different
+#: separators. Dropped on BOTH sides of the heading match, never for body text.
+_HEADING_PUNCTUATION = ".,;:"
+
+
+def _normalized_with_offsets(
+    content: str, *, drop_punctuation: bool = False
+) -> tuple[str, list[int]]:
     """Whitespace-collapsed copy of ``content`` plus, per normalized char,
     its RAW offset — so a match in the normalized text maps back to the
-    geometry's own coordinates."""
+    geometry's own coordinates. With ``drop_punctuation`` the heading
+    separators vanish too (see ``_HEADING_PUNCTUATION``)."""
     chars: list[str] = []
     offsets: list[int] = []
     previous_space = True
     for index, ch in enumerate(content):
-        if ch.isspace():
+        if ch.isspace() or (drop_punctuation and ch in _HEADING_PUNCTUATION):
             if previous_space:
                 continue
             chars.append(" ")
@@ -202,27 +212,64 @@ def _entry_spans(content: str, entries: list[DiaryEntry]) -> list[tuple[int, int
     genuinely absent still gets None — recorded, never guessed."""
     spans: list[tuple[int, int] | None] = []
     haystack, offsets = _normalized_with_offsets(content)
+    # Heading search runs punctuation-blind on BOTH sides (2026-08-23): the
+    # stationery prints "SUNDAY. JANUARY 8. 1933", transcripts write commas,
+    # and the strict match lost the anchor over a period.
+    bare_haystack, bare_offsets = _normalized_with_offsets(content, drop_punctuation=True)
+    # Case-blind too: the stationery sets headings in CAPS, the transcript
+    # writes "Wednesday, January 11" — the second-largest miss class on the
+    # real corpus after punctuation.
+    bare_haystack = bare_haystack.casefold()
     cursor = 0
+    bare_cursor = 0
     starts: list[int | None] = []
     for entry in entries:
-        prefix = " ".join(entry.text.split())[:24]
         found: int | None = None
-        if prefix:
-            probe = prefix
+        # The PRINTED date heading first (2026-08-23, "not all the entries
+        # have them"): entry text is split from the LLM vision transcript,
+        # but the geometry is OCR — and on handwritten pages the OCR mangles
+        # every cursive line ("Watching laboratory…" came back "dealing
+        # elenty else use t"), so a body-prefix match failed for 128 of 201
+        # entries. The typeset date header is the one line OCR reads
+        # reliably, and structurally an entry IS the band from its heading
+        # to the next — so the heading is the anchor, the prefix the
+        # fallback.
+        heading = " ".join(
+            ch for ch in entry.date_text.split() if ch
+        )
+        heading = " ".join(
+            "".join(c for c in heading if c not in _HEADING_PUNCTUATION).split()
+        ).casefold()[:24]
+        if heading:
+            probe = heading
             while len(probe) >= 8:
-                index = haystack.find(probe, cursor)
+                index = bare_haystack.find(probe, bare_cursor)
                 if index >= 0:
-                    found = offsets[index]
-                    cursor = index + 1
+                    found = bare_offsets[index]
+                    bare_cursor = index + 1
                     break
                 probe = probe[: len(probe) - 4]
+        if found is None:
+            prefix = " ".join(entry.text.split())[:24]
+            if prefix:
+                probe = prefix
+                while len(probe) >= 8:
+                    index = haystack.find(probe, cursor)
+                    if index >= 0:
+                        found = offsets[index]
+                        cursor = index + 1
+                        break
+                    probe = probe[: len(probe) - 4]
         starts.append(found)
     for position, start in enumerate(starts):
         if start is None:
             spans.append(None)
             continue
+        # RAW length, not normalized (2026-08-23): starts are raw offsets,
+        # and the normalized haystack is shorter — the old default cut the
+        # LAST entry's span short of the page's trailing boxes.
         next_start = next(
-            (s for s in starts[position + 1:] if s is not None), len(haystack)
+            (s for s in starts[position + 1:] if s is not None), len(content)
         )
         spans.append((start, max(next_start, start + 1)))
     return spans

@@ -264,3 +264,102 @@ class TestDiaryEntries:
         db.save(blank)
         with _split(TWO_ENTRIES), pytest.raises(ValueError, match="no transcript"):
             await split_page_into_entries(db, blank, llm_config=None)
+
+
+class TestHeadingAnchoredRegions:
+    """The Marshall failure mode (2026-08-23): entries are split from the LLM
+    vision transcript, but the geometry is Apple OCR — and on handwritten
+    pages the OCR mangles every cursive line, so a body-prefix match found
+    nothing for 128 of 201 real entries. The typeset date heading is the one
+    line the OCR reads reliably, so it anchors the span; body prefixes stay
+    as the fallback."""
+
+    OCR_TEXT = (
+        "SATURDAY. JANUARY 7. 1933\n"
+        "dealing elenty else use t\n"        # OCR's rendering of the cursive body
+        "In afternon went t Bridge\n"
+        "SUNDAY. JANUARY 8. 1933\n"
+        "MONDAY. JANUARY 9. 1933\n"
+        "at ta yuelta ofice\n"                # more mangled cursive
+    )
+
+    def _boxes(self):
+        rows = []
+        cursor = 0
+        y = 0.05
+        for line in self.OCR_TEXT.splitlines():
+            rows.append(OCRGeometryBox(
+                text=line, bbox=[0.1, y, 0.7, 0.05],
+                char_start=cursor, char_end=cursor + len(line),
+            ))
+            cursor += len(line) + 1
+            y += 0.15
+        return rows
+
+    def _page_and_db(self, tmp_path):
+        db = Database(path=tmp_path / "h.duckdb")
+        page = Document(
+            id="page-h", name="part_2", doc_type=DocType.file,
+            # The LLM transcript the split runs on — CLEAN text the OCR never produced.
+            page_content=(
+                "SATURDAY, JANUARY 7, 1933\nWatching laboratory clean up at\n"
+                "SUNDAY, JANUARY 8, 1933\n"
+                "MONDAY, JANUARY 9, 1933\nAt La Vuelta office\n"
+            ),
+            metadata={},
+        )
+        db.save(page)
+        db.save(Artifact(
+            document_id="page-h", artifact_type="transcription", content=self.OCR_TEXT,
+            ocr_geometry=OCRGeometryResult(text=self.OCR_TEXT, boxes=self._boxes(), provider="test"),
+        ))
+        return db, page
+
+    ENTRIES = [
+        DiaryEntry(date_text="SATURDAY, JANUARY 7, 1933", date_iso="1933-01-07",
+                   text="Watching laboratory clean up at\nIn afternoon went to Bridge No.4"),
+        DiaryEntry(date_text="SUNDAY, JANUARY 8, 1933", date_iso="1933-01-08",
+                   text="SUNDAY, JANUARY 8, 1933"),
+        DiaryEntry(date_text="MONDAY, JANUARY 9, 1933", date_iso="1933-01-09",
+                   text="At La Vuelta office"),
+    ]
+
+    @pytest.mark.asyncio
+    async def test_every_entry_gets_a_region_via_its_printed_heading(self, tmp_path):
+        db, page = self._page_and_db(tmp_path)
+        with _split(self.ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+        assert len(created) == 3
+        for node in created:
+            assert node.region_in_parent is not None, (
+                f"{node.name} lost its region — the heading anchor regressed "
+                "to body-prefix-only matching (mangled-OCR failure mode)"
+            )
+        # Bands are ordered down the page, heading to heading.
+        tops = [n.region_in_parent.rect[1] for n in created]
+        assert tops == sorted(tops)
+        # Jan 7's band covers its heading AND its (mangled) body lines but
+        # stops before Jan 8's heading.
+        jan7 = created[0].region_in_parent.rect
+        jan8_top = created[1].region_in_parent.rect[1]
+        assert jan7[1] + jan7[3] <= jan8_top + 1e-6
+
+    @pytest.mark.asyncio
+    async def test_punctuation_difference_alone_never_loses_the_anchor(self, tmp_path):
+        # Same data, but the transcript's headings use commas while the OCR
+        # printed periods — the exact Marshall stationery difference.
+        db, page = self._page_and_db(tmp_path)
+        with _split(self.ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+        assert all(n.metadata.get("bbox_basis") == "ocr_geometry" for n in created)
+
+    @pytest.mark.asyncio
+    async def test_last_entry_span_reaches_the_pages_trailing_boxes(self, tmp_path):
+        db, page = self._page_and_db(tmp_path)
+        with _split(self.ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+        # Jan 9's band must include the mangled body line BELOW its heading —
+        # the old span end used the NORMALIZED length as a RAW offset and cut
+        # the last entry short of the page's trailing boxes.
+        jan9 = created[2].region_in_parent.rect
+        assert jan9[1] + jan9[3] >= 0.80, f"last entry's band stops at {jan9[1] + jan9[3]}"
