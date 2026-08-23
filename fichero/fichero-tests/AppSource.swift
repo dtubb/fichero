@@ -70,7 +70,13 @@ enum AppSource {
     /// A `StaticString` parameter would make the walk untestable at the exact
     /// property it exists to guarantee.
     static func root(from filePath: String = #filePath) throws -> URL {
-        let start = URL(fileURLWithPath: filePath)
+        // Resolve symlinks FIRST (2026-08-22): on macOS /tmp is a symlink to
+        // /private/tmp, so a checkout gated from a snapshot worktree under
+        // /tmp handed #filePath one spelling while directory sweeps produced
+        // the other — prefix-stripping then mangled paths ("/privateViews/…")
+        // and sweep tests failed on location, not on code. One resolution
+        // here makes every path-scanning test snapshot-safe.
+        let start = URL(fileURLWithPath: filePath).resolvingSymlinksInPath()
         var directory = start.deletingLastPathComponent()
 
         while directory.path != "/" {
