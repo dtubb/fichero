@@ -17,7 +17,7 @@ enum AnnotationSourceNavigation {
             pageLabel: annotation.pageLabel,
             charStart: annotation.charStart,
             charEnd: annotation.charEnd,
-            bbox: annotation.bbox
+            bbox: annotation.regionRect
         )
     }
 }

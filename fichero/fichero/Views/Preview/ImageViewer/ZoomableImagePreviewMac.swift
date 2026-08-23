@@ -113,7 +113,7 @@ struct ZoomableImagePreview: View {
         guard let documentId else { return [] }
         return annotationStore.annotations
             .filter { ($0.documentId == documentId || $0.pageId == documentId) && $0.hasRegion }
-            .compactMap(\.bbox)
+            .compactMap(\.regionRect)
     }
 
     func loadAnnotations() {

@@ -23,7 +23,16 @@ extension AnnotationService {
             pageLabel: generated.pageLabel,
             charStart: generated.charStart,
             charEnd: generated.charEnd,
-            bbox: generated.anchor?.rect,
+            bbox: nil,
+            anchor: generated.anchor.map { anchor in
+                AnnotationAnchor(
+                    rect: anchor.rect,
+                    space: anchor.space?.rawValue,
+                    renditionId: anchor.renditionId,
+                    charStart: anchor.charStart,
+                    charEnd: anchor.charEnd
+                )
+            },
             kind: AnnotationKind(rawValue: generated.kind.rawValue) ?? .unknown,
             text: generated.text,
             rating: generated.rating,
@@ -48,7 +57,16 @@ extension AnnotationService {
             pageLabel: generated.pageLabel,
             charStart: generated.charStart,
             charEnd: generated.charEnd,
-            bbox: generated.anchor?.rect,
+            bbox: nil,
+            anchor: generated.anchor.map { anchor in
+                AnnotationAnchor(
+                    rect: anchor.rect,
+                    space: anchor.space?.rawValue,
+                    renditionId: anchor.renditionId,
+                    charStart: anchor.charStart,
+                    charEnd: anchor.charEnd
+                )
+            },
             kind: AnnotationKind(rawValue: generated.kind.rawValue) ?? .unknown,
             text: generated.text,
             rating: generated.rating,
