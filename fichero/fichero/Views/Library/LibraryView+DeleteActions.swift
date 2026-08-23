@@ -149,7 +149,21 @@ extension LibraryView {
     }
 
     /// The ordered ids ⌘A covers, per view mode.
+    ///
+    /// Every branch answers ONE question — what is this surface SHOWING?
+    /// (Daniel, 2026-08-23: "select all visible in the surface"; the same
+    /// ruling that made the dataset selection shared.) A mode whose visible set
+    /// differs from `filteredDocuments` has to say so here, or ⌘A quietly
+    /// selects rows the user cannot see: the dataset renderers filter by date
+    /// and prototype in their own store, and the 3D board renders a bounded
+    /// prefix of a large scope.
     var selectAllIds: [String] {
+        if displayMode.group == .dataset {
+            return datasetVisibleIds
+        }
+        if displayMode == .space {
+            return renderedSpaceDocumentIds
+        }
         if isShowingEntitiesCollection {
             return filteredEntities.map { entitySelectionId(for: $0) }
         }
@@ -164,5 +178,17 @@ extension LibraryView {
             return visibleOutlineRowIds
         }
         return filteredDocuments.map(\.id)
+    }
+
+    /// The documents the 3D board is actually rendering.
+    ///
+    /// A large scope renders a bounded prefix and says so in a banner, so ⌘A
+    /// covers the prefix — "1,500 selected" over a folder of 2,228 is the cap
+    /// advertising itself, which is the honest answer rather than a mismatch to
+    /// smooth over. The bound is read from the renderer that applies it, so the
+    /// two cannot disagree about what "visible" means.
+    var renderedSpaceDocumentIds: [String] {
+        let rendered = libraryProjection.nodes.prefix(CanvasSpaceView.maxRenderedPlaceables)
+        return rendered.compactMap { SpatialLibraryProjector.documentId(fromNodeId: $0.id) }
     }
 }
