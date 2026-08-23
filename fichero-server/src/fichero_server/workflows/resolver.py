@@ -75,19 +75,6 @@ def resolve_inputs(
             logger.warning("Failed to resolve %s=%s: %s", param, source, e)
             resolved[param] = None
 
-    # "Run it again for real" (2026-08-23). `force_ocr` is the existing
-    # per-tool primitive for exactly this — it bypasses the text-already-present
-    # check, the PDF text-layer shortcut AND the artifact cache — but it was
-    # only ever reachable as node config, so a user could not ask for it at run
-    # level. Setting it here means every vision tool honours a forced run
-    # without 23 call sites learning a new parameter.
-    #
-    # It does NOT override an explicit node config: a node deliberately set to
-    # force_ocr=False stays that way, because a run-level convenience should
-    # not silently overrule a choice someone made about a specific node.
-    if state.get("force_recompute") and "force_ocr" not in resolved:
-        resolved["force_ocr"] = True
-
     return resolved
 
 
