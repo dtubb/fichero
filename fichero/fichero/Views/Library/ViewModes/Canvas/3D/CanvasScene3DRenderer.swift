@@ -5,12 +5,13 @@ import RealityKit
 import simd
 import SwiftUI
 
-// MARK: - RealityKit perspective-3D renderer (#3104)
+// MARK: - RealityKit 3D renderer (#3104)
 
-/// The 3D 'Space' renderer — the perspective twin of `CanvasOrtho2DRenderer`.
+/// The 3D 'Space' renderer — the orbiting twin of `CanvasOrtho2DRenderer`.
 /// Same #3103 contract, same shared `CanvasInteractionController`, so 2D and 3D
 /// behave identically (selection / drag / persist / CRUD); the ONLY differences
-/// are renderer-local: a `PerspectiveCamera` with orbit/pan/zoom, the full xyz
+/// are renderer-local: an orbit/pan/zoom camera (ORTHOGRAPHIC for boards since
+/// §18.1 defect 1, perspective still reachable via `projection`), the full xyz
 /// projection (z USED, via `Canvas3DProjection`), and cylinder connectors.
 ///
 /// Supersedes the internals of #3088's `SpaceSceneView`: scene content is driven
@@ -37,7 +38,24 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     let decorator = CanvasSelectionDecorator(
         showsHandles: false, accentColor: .controlAccentColorCompat3D
     )
-    let camera = PerspectiveCamera()
+    /// A plain `Entity`, not a `PerspectiveCamera`: which camera component it
+    /// carries is the shell's choice (`projection`), and swapping components on
+    /// one entity keeps the orbit rig — position, look-at, distance — untouched.
+    let camera = Entity()
+
+    /// How the board is projected. ORTHOGRAPHIC by default (§18.1 defect 1):
+    /// zoomed out to a whole diary, a perspective camera rendered 2,228 cards
+    /// as a tapering wedge — two identical pages at different depths came out
+    /// different sizes, so nothing could be compared and the field's shape was
+    /// an artifact of the camera rather than of the data.
+    ///
+    /// Perspective stays available, on the SHELL and not on the arrangement,
+    /// because it is exactly right for the panel-sequence and station-walk
+    /// shells §18.1 reserves it for — there depth carries the sequence and
+    /// foreshortening is the cue. Those shells are not built here.
+    var projection: CanvasCameraProjection = .orthographic {
+        didSet { if projection != oldValue { updateCamera() } }
+    }
 
     /// Internal rather than private, as are `placeablesRoot` and `decorator`:
     /// the selection half of this renderer lives in
