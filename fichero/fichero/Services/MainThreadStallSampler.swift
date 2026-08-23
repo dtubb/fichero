@@ -16,7 +16,10 @@ import os
 // as an interrupted-syscall error on the main thread — one more reason this
 // stays gated.
 
-private let stallBacktraceMax = 64
+// 192, not 64 (2026-08-23): a SwiftUI/AttributeGraph update stack easily
+// runs past 64 frames before the first app symbol, so the 2026-08-23 scroll
+// stalls logged twelve framework frames and no culprit.
+private let stallBacktraceMax = 192
 // Deliberately nonisolated and unsafe: a signal handler can take neither
 // locks nor actors. There is one writer — the handler, on the stalled main
 // thread — and one reader, the watcher, which waits on the ready flag before
@@ -203,10 +206,16 @@ final class MainThreadStallSampler: @unchecked Sendable {
         } else {
             interrupted = Array(lines.dropFirst(4))  // handler ≈ 4 frames deep
         }
-        // Prefer the app's frames; keep system frames only when nothing else
-        // survives (a pure-AppKit stall is still an answer).
-        let appFrames = interrupted.filter { $0.contains("Fichero") }
-        return Array((appFrames.isEmpty ? interrupted : appFrames).prefix(12))
+        // BOTH halves of the answer (2026-08-23): the top frames say what was
+        // expensive, the app frames say who asked. The old either/or lost one
+        // side every time — a stall with app frames hid the framework cost,
+        // and a deep framework stall printed twelve SwiftUI lines and no
+        // culprit. Print the top of the interrupted stack, then every app
+        // frame not already shown (backtrace_symbols' index prefix keeps the
+        // original depth readable).
+        let top = Array(interrupted.prefix(8))
+        let appFrames = interrupted.dropFirst(8).filter { $0.contains("Fichero") }
+        return top + Array(appFrames.prefix(8))
     }
 
     private func record(latency: TimeInterval, at date: Date, frames: [String] = []) {
