@@ -36555,6 +36555,16 @@
             "$ref": "#/components/schemas/OCRGeometryResult",
             "nullable": true
           },
+          "region_count": {
+            "type": "integer",
+            "title": "Region Count",
+            "default": 0
+          },
+          "geometry_rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Geometry Rendition Id"
+          },
           "version": {
             "type": "integer",
             "title": "Version"
@@ -46001,6 +46011,11 @@
           "skip_cache": {
             "type": "boolean",
             "title": "Skip Cache",
+            "default": false
+          },
+          "force_recompute": {
+            "type": "boolean",
+            "title": "Force Recompute",
             "default": false
           },
           "provider_override": {
