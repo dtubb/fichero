@@ -54,13 +54,19 @@ struct LibraryMiniToolbarTests {
 
     // MARK: - …and arrived in one container
 
-    @Test("all three controls live in the one library mini toolbar")
+    @Test("the mini toolbar keeps sort and filter; search moved to the window toolbar")
     func allThreeLiveInOneContainer() throws {
+        // #4604 (2026-08-19) SUPERSEDED #4521's summoned field: search is a
+        // RESIDENT top-right window field (ContentView+ToolbarSearch.swift),
+        // so the mini toolbar keeps the two library-scoped controls only.
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("var libraryMiniToolbar"))
-        #expect(mini.contains("librarySearchField"))
         #expect(mini.contains("var librarySortMenu"))
         #expect(mini.contains("var libraryFilterToggleButton"))
+        #expect(
+            !mini.contains("librarySearchField"),
+            "a second search field in the mini toolbar would compete with the #4604 resident one"
+        )
     }
 
     /// One container, mounted once per edge — not one per control.
@@ -167,24 +173,30 @@ struct LibraryMiniToolbarTests {
         #expect(library.contains("if Self.miniToolbarPlacement == .bottom"))
     }
 
-    // MARK: - Summoned search (#4521)
+    // MARK: - Resident search (#4604, superseding the #4521 summon)
 
-    /// The search field is summoned, not resident: the mini toolbar renders
-    /// it only while `searchFieldVisible` is on, and a toolbar toggle exists
-    /// to turn it on — without the toggle, conditional chrome would make
-    /// search unreachable.
-    @Test("the search field is summoned by a toolbar toggle, not resident")
+    /// #4521 made the field summoned by a toolbar toggle. #4604 (2026-08-19)
+    /// reversed that: the search field is RESIDENT, top-right in the window
+    /// toolbar, with the mode menu on the magnifier — no toggle, no
+    /// conditional chrome, and still deliberately NOT `.searchable` (which
+    /// attaches to a navigation container: the #4407 three-pane span and the
+    /// duplicate-.searchable crash class).
+    @Test("the search field is resident in the window toolbar, not summoned")
     func searchFieldIsSummonedNotResident() throws {
-        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
-        #expect(mini.contains("if searchFieldVisible.wrappedValue {"))
+        let toolbarSearch = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
+        #expect(toolbarSearch.contains("var toolbarSearchField"))
+        #expect(toolbarSearch.contains("TextField(\"Search your library\""))
 
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.searchToggle"))
-        #expect(toolbar.contains("setSearchFieldVisible($0)"))
-        // Deliberately NOT `.searchable`: it attaches to a navigation
-        // container (the #4407 three-pane span, and the duplicate-.searchable
-        // crash class). The summon state is plain per-window storage instead.
+        // The old toggle's ToolbarItem ID survives — reused to MOUNT the
+        // resident field — so the honest pin is on the summon STATE being
+        // gone, not on the ID string.
+        #expect(toolbar.contains("toolbarSearchField"))
         #expect(!toolbar.contains(".searchable("))
+        #expect(
+            !toolbar.contains("setSearchFieldVisible"),
+            "the #4521 summon state is back — #4604 made the field resident"
+        )
     }
 
     /// Dismissing the chrome exits transient-search presentation through the

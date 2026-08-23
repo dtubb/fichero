@@ -100,9 +100,18 @@ struct CanvasZoomRangeTests {
 
     @Test("the renderer no longer clamps to fixed constants")
     func rendererUsesDerivedBounds() throws {
-        let url = try AppSource.root()
-            .appendingPathComponent("Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift")
-        let source = try String(contentsOf: url, encoding: .utf8)
+        // Camera members split to +Camera.swift on 2026-08-20
+        // (type_body_length) — the clamp call moved with them; scan both.
+        let root = try AppSource.root()
+        let source = try String(
+            contentsOf: root.appendingPathComponent(
+                "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift"
+            ), encoding: .utf8
+        ) + String(
+            contentsOf: root.appendingPathComponent(
+                "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer+Camera.swift"
+            ), encoding: .utf8
+        )
 
         #expect(source.contains("CanvasZoomRange.clamp("))
         #expect(!source.contains("minDistance: Float = 2.2"))

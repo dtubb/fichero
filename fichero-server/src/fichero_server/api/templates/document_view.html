@@ -160,7 +160,13 @@
                website scrolls instantly in Safari. The intrinsic-size hint
                keeps the scrollbar honest before a page is first laid out. */
             content-visibility: auto;
-            contain-intrinsic-size: auto 480px;
+            /* BLOCK axis only. The shorthand (`contain-intrinsic-size: auto
+               480px`) also stamped 480px as the intrinsic WIDTH, so every
+               offscreen page reported 480px wide inside a 200px pane and the
+               reader grew a horizontal scrollbar (ReaderTranscriptWrapTests
+               caught it at 120-400pt). The inline size must keep coming from
+               layout. */
+            contain-intrinsic-block-size: auto 480px;
             /* Definite max width tied to the pane (#4385) so layout can never
                resolve the page to its content width. */
             max-width: 100%;

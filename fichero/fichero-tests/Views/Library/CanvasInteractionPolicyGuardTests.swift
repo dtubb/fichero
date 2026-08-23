@@ -65,11 +65,16 @@ struct CanvasInteractionPolicyGuardTests {
 
     @Test("Space is a visible mode: a cursor change, on a focusable canvas")
     func spaceHasAnAffordance() throws {
+        // applyPanCursor's body moved to CanvasSceneView+Camera.swift in the
+        // 2026-08-20 split; the wiring (.onChange caller) stays in the host.
         let source = try appSource(sceneViewPath)
+            + appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Camera.swift")
         #expect(source.contains("applyPanCursor"))
         #expect(source.contains("NSCursor.openHand"))
-        // `.onKeyPress` only fires on a focused view.
-        #expect(source.contains(".focusable()"))
+        // `.onKeyPress` only fires on a focused view; `.focusable()` moved
+        // into the shared CanvasKeyboardNav modifier the host applies.
+        let keyboardNav = try appSource("Views/Library/ViewModes/Canvas/CanvasKeyboardNav.swift")
+        #expect(keyboardNav.contains(".focusable()"))
     }
 
     @Test("the shared modifier tracker observes Space without swallowing it")

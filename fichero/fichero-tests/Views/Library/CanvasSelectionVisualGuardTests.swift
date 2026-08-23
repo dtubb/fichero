@@ -42,7 +42,10 @@ struct CanvasSelectionVisualGuardTests {
     /// type, split only for file length, so a guard about the view should not
     /// care which half a line landed in.
     private func hostSource() throws -> String {
+        // Gestures split out on 2026-08-22 (ghost-marquee rework) — the
+        // decoration guards live there now; the host is all three files.
         try appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift")
+            + appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Gestures.swift")
             + appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Resize.swift")
     }
 

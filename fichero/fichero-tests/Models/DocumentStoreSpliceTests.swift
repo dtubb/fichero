@@ -19,8 +19,10 @@ struct DocumentStoreSpliceTests {
         DocumentStore(apiClient: APIClient())
     }
 
-    private func doc(_ id: String, parent: String? = nil, name: String? = nil) -> Document {
-        Document(id: id, parentId: parent, docType: .file, name: name ?? id)
+    private func doc(
+        _ id: String, parent: String? = nil, name: String? = nil, docType: DocType = .file
+    ) -> Document {
+        Document(id: id, parentId: parent, docType: docType, name: name ?? id)
     }
 
     @Test("a new root document joins collections")
@@ -76,18 +78,35 @@ struct DocumentStoreSpliceTests {
     // makes the row visible. The cost — `collections` transiently holding
     // non-roots until the next `loadCollections()` — is the lesser evil: the
     // pollution is invisible, a missing row is not.
-    @Test("a child of a CLOSED folder still reaches the sidebar, via collections")
+    @Test("a CONTAINER child of a CLOSED folder still reaches the sidebar, via collections")
     func childOfUnloadedParentIsDeliveredViaCollections() {
         let store = store()
-        store.collections = [doc("folder", name: "Folder")]
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
 
-        store.spliceDocument(doc("file-1", parent: "folder"))
+        // CONTAINERS only (perf audit 2026-08-19): the sidebar renders
+        // folders/groups, so only container rows take this delivery route.
+        store.spliceDocument(doc("sub", parent: "folder", docType: .folder))
 
         #expect(store.childrenCache["folder"] == nil, "the closed folder is still unfetched")
         #expect(
-            store.collections.map(\.id) == ["folder", "file-1"],
+            store.collections.map(\.id) == ["folder", "sub"],
             "the row must be visible somewhere — collections is the only container left"
         )
+    }
+
+    /// The other half of the 2026-08-19 narrowing: a PAGE/FILE inside an
+    /// unexpanded folder gains nothing from the sidebar delivery — a
+    /// 1,100-page import used to pump every page row into `collections` and
+    /// re-run the whole-tree rebuild once a second.
+    @Test("a FILE child of a CLOSED folder does not pollute collections")
+    func fileChildOfUnloadedParentStaysOut() {
+        let store = store()
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
+
+        store.spliceDocument(doc("file-1", parent: "folder"))
+
+        #expect(store.childrenCache["folder"] == nil)
+        #expect(store.collections.map(\.id) == ["folder"])
     }
 
     @Test("an existing row is patched in place, not duplicated")

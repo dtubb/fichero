@@ -69,37 +69,32 @@ struct ActivityStoreTests {
         #expect(store.refreshToken == before)
     }
 
-    @Test("applyActivityEvent increments refreshToken once per event")
-    func applyActivityEventIncrementsToken() {
+    /// RULING CHANGE (perf audit 2026-08-19): refreshToken is DEBOUNCED. A
+    /// running workflow emits several frames per second, and a synchronous
+    /// per-event bump fanned out to ~10 GET /api/activity per second across
+    /// the sidebar, activity pane and pending-status poll. One bump per burst
+    /// carries the same "something changed" signal, so the old per-event pins
+    /// (== before + 1 synchronously, duplicates == first + 2) now describe
+    /// the defect, not the behavior.
+    @Test("an activity burst bumps refreshToken once, after the debounce window")
+    func activityBurstBumpsTokenOnce() async throws {
         let store = makeStore()
         let before = store.refreshToken
-        let event = ActivityItem(
-            id: "act-1",
-            type: "workflow_started",
-            level: "info",
-            timestamp: "2026-06-25T12:00:00Z",
-            message: "Started",
-            threadId: "thread-1"
-        )
-        store.applyActivityEvent(event)
+        for index in 1...3 {
+            store.applyActivityEvent(ActivityItem(
+                id: "act-\(index)",
+                type: "workflow_started",
+                level: "info",
+                timestamp: "2026-06-25T12:00:00Z",
+                message: "Started",
+                threadId: "thread-1"
+            ))
+        }
+        // Synchronously: nothing yet — the bump rides the trailing debounce.
+        #expect(store.refreshToken == before)
+        // ReloadDebouncer's trailing delay is 300ms (maxWait 1s); wait past it.
+        try await Task.sleep(for: .milliseconds(700))
         #expect(store.refreshToken == before + 1)
-    }
-
-    @Test("duplicate activity events each bump refreshToken")
-    func duplicateActivityEventsBumpEveryTime() {
-        let store = makeStore()
-        let event = ActivityItem(
-            id: "act-1",
-            type: "workflow_completed",
-            level: "info",
-            timestamp: "2026-06-25T12:00:01Z",
-            message: "Completed",
-            threadId: "thread-1"
-        )
-        let first = store.refreshToken
-        store.applyActivityEvent(event)
-        store.applyActivityEvent(event)
-        #expect(store.refreshToken == first + 2)
     }
 
     // MARK: Folded change frames (#3159 / #2479)

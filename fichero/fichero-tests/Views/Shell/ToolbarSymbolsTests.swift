@@ -164,9 +164,12 @@ struct ToolbarSymbolsTests {
             !layout.contains(".searchable("),
             "window-level search came back — it belongs to the library mini toolbar (#4407)"
         )
-        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
-        #expect(mini.contains("TextField(\"Search\", text:"))
-        #expect(!mini.contains("Ask your library"))
+        // #4604: the field is resident in the window toolbar now; its
+        // placeholder names the scope ("Search your library"), and the old
+        // "Ask your library" phrasing stays retired.
+        let field = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
+        #expect(field.contains("TextField(\"Search your library\", text:"))
+        #expect(!field.contains("Ask your library"))
     }
 
     // MARK: - #4362 mini-toolbar placement

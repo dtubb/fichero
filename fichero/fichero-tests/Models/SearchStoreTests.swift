@@ -80,7 +80,7 @@ struct SearchStoreTests {
     }
 
     @Test("document change events invalidate cached search state through a token")
-    func changeEventsAdvanceToken() throws {
+    func changeEventsAdvanceToken() async throws {
         let store = makeStore()
         let data = try JSONSerialization.data(withJSONObject: ["type": "document.updated"])
         let event = try JSONDecoder().decode(ChangeEvent.self, from: data)
@@ -89,6 +89,12 @@ struct SearchStoreTests {
         store.apply(event)
 
         #expect(store.changeDomains == ["document"])
-        #expect(store.changeToken == 2)
+        // RULING CHANGE (perf audit 2026-08-19): the token bump is DEBOUNCED —
+        // an hour-long import emitting document.updated ~2/sec used to re-run
+        // the full 4-leg transient search per event. A burst coalesces to ONE
+        // bump after the trailing window; "results may be stale" needs no more.
+        #expect(store.changeToken == 0)
+        try await Task.sleep(for: .milliseconds(700))
+        #expect(store.changeToken == 1)
     }
 }
