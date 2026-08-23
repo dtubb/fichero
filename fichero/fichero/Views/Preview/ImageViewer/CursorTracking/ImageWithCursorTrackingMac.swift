@@ -58,7 +58,11 @@ struct ImageWithCursorTracking: NSViewRepresentable {
         // a light-grey field behind the page). underPageBackground is the
         // system's "behind a document" color in both appearances — the same
         // ground Preview.app uses.
-        scrollView.backgroundColor = .underPageBackgroundColor
+        // windowBackgroundColor, not underPage (Daniel, 2026-08-23: "grey
+        // background of preview is too grey … the black background [should be]
+        // a bit subtler"): lighter grey in light mode, softer than near-black
+        // in dark — the Preview.app-like ground in both appearances.
+        scrollView.backgroundColor = .windowBackgroundColor
         scrollView.scrollerStyle = .overlay  // Auto-hiding overlay scrollers like Preview.app
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.alphaValue = 0  // Hidden until first center to prevent flash

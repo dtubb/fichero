@@ -293,7 +293,7 @@ struct ZoomableImagePreview: View {
                         .frame(height: CGFloat(panelHeight))
                     }
                 }
-                .background(Color(nsColor: .underPageBackgroundColor))
+                .background(Color(nsColor: .windowBackgroundColor))
 
                 // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active.
                 // The visible window starts at (0,0,0,0) before layout completes,
