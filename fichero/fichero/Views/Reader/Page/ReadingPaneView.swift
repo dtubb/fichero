@@ -123,98 +123,19 @@ struct ReadingPaneView: View {
                 PaneFilterBar(placement: .bottom) { readerFindBar }
             }
 
-            // Bottom-anchored mini-toolbar (#3060 / #2670): close/title/zoom/pin
-            // now sit at the bottom, matching every other pane bar.
-            // Layout: [× close] [icon] [title] [spacer] | [split buttons] [pin]
-            Divider()
-            MiniToolbar(content: {
-                // × close: collapses split when inside one, hides whole pane otherwise.
-                let isInSplit = splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
-                if onClose != nil || isInSplit {
-                    Button {
-                        closePane()
-                    } label: {
-                        // `xmark`, not `xmark.circle.fill` (#4360): the circled
-                        // fill is the platform's clear-a-text-field affordance
-                        // and the reader find bar uses it for exactly that —
-                        // closing a pane must not wear the same glyph.
-                        Image(systemName: ToolbarSymbols.closePane)
-                            .foregroundStyle(.secondary)
-                            .readerIconTarget()
-                    }
-                    .buttonStyle(.plain)
-                    .help(isInSplit ? "Close this split" : "Close reading pane")
-                    .accessibilityLabel(isInSplit ? "Close this split" : "Close reading pane")
-
-                    Divider().frame(height: 16)
-                }
-
-                Image(systemName: "text.book.closed")
-                    .imageScale(.small)
-                    .foregroundStyle(.secondary)
-                Text(effectiveDocument?.name ?? "Views")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                // The view switcher (Transcript/Digest/Graph/Claims/Timeline/
-                // Map) is NOT a row of icons in this mini-toolbar anymore
-                // (#2432). The mini-toolbar carries reader ACTIONS only (zoom).
-                // Representation switching lives in the main window toolbar /
-                // View menu, driven by the `documentRepresentation` focused
-                // value that `DocumentKGSurface` publishes — `activeTab` below
-                // is updated through that path.
-
-                Spacer(minLength: 0)
-
-                ViewThatFits(in: .horizontal) {
-                    zoomControls
-                    zoomMenu
-                }
-
-                Spacer(minLength: 0)
-            }, trailing: {
-                // Pin — far right, after split buttons.
-                Divider().frame(height: 16)
-
-                Button {
-                    if isPinned {
-                        isPinned = false
-                    } else {
-                        pinnedDocument = liveDocument
-                        pinnedActivePageNumber = liveActivePageNumber
-                        pinnedPageCount = livePageCount
-                        isPinned = true
-                    }
-                } label: {
-                    Image(systemName: isPinned ? "pin.fill" : ToolbarSymbols.pin)
-                        .imageScale(.small)
-                        .readerIconTarget()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-                .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
-                .accessibilityLabel(isPinned ? "Unpin, follow current selection" : "Pin to current document")
-            })
-            // Active-surface indicator (#3579): accent hairline on the toolbar
-            // strip when this pane is the active one. Additive overlay — flips
-            // one pane's fill, no relayout.
-            .overlay(alignment: .top) {
-                Rectangle()
-                    .fill(isActiveSurface ? Color.accentColor : Color.clear)
-                    .frame(height: 2)
-            }
-            // Title-bar "Open in New Tab/Window" (#3582). Right-click the reader's
-            // toolbar to pop THIS document out — the browser-tab metaphor. Reuses
-            // the shared OpenInMenuItems; disabled implicitly when no document.
-            .contextMenu {
-                if let docId = effectiveDocument?.id {
-                    OpenInMenuItems(
-                        openInNewTab: { openThisDocumentInNewWindow(docId, asTab: true) },
-                        openInNewWindow: { openThisDocumentInNewWindow(docId, asTab: false) }
-                    )
-                }
-            }
+            // The bottom bar PERSISTS as the pane's one bottom host (Daniel,
+            // 2026-08-23): find/filter live IN it (the PaneFilterBar above is
+            // that bar) and future controls are added to it, never stacked as
+            // a second row. The pane CHROME — close, pin, split, zoom — lives
+            // in the floating PaneHead at the top.
+        }
+        // Active-surface indicator (#3579): accent hairline along the pane's
+        // top edge when this pane is the active one. Additive overlay — flips
+        // one pane's fill, no relayout.
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(isActiveSurface ? Color.accentColor : Color.clear)
+                .frame(height: 2)
         }
         // A direct click anywhere in this pane makes it the active surface
         // (#3579). simultaneousGesture runs alongside PDF/WebKit hit-testing so
@@ -300,16 +221,97 @@ struct ReadingPaneView: View {
         if onClose != nil || splitAxisActions != nil {
             closeAction = { self.closePane() }
         }
-        let head = PaneHead<PaneKindSelector<ReaderLens>, EmptyView, EmptyView>(
+        let head = PaneHead<PaneKindSelector<ReaderLens>, AnyView, EmptyView>(
             crumbs: readerCrumbs,
             onClose: closeAction,
             selector: { self.readerSelector },
-            controls: { EmptyView() },
+            // AnyView is the type-checker guard this call site already needed
+            // twice ("failed to produce diagnostic") — bounded, not inferred.
+            controls: { AnyView(self.readerHeadControls) },
             tools: { EmptyView() }
         )
         // The menu bar shows the SAME lens list, reading this publication —
         // one binding rendered twice, never a second switch (R3).
-        return head.focusedSceneValue(\.readerLens, publishedReaderLens)
+        return head
+            .focusedSceneValue(\.readerLens, publishedReaderLens)
+            // Reader zoom is menu-command only (Daniel, 2026-08-23): the same
+            // ⌘+/⌘−/⌘0 commands the preview uses drive `webZoom` here. The
+            // preview's own publication wins whenever an image view is the
+            // focused scene value's source — standard focused-value shadowing.
+            .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
+                zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
+                zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
+                actualSize: { webZoom = 1.0 },
+                zoomToFit: { webZoom = 1.0 },
+                canZoomIn: webZoom < 3.0,
+                canZoomOut: webZoom > 0.5
+            ))
+            // "Open in New Tab/Window" (#3582) followed the chrome up from the
+            // retired bottom bar: right-click the HEAD to pop this document out.
+            .contextMenu {
+                if let docId = effectiveDocument?.id {
+                    OpenInMenuItems(
+                        openInNewTab: { openThisDocumentInNewWindow(docId, asTab: true) },
+                        openInNewWindow: { openThisDocumentInNewWindow(docId, asTab: false) }
+                    )
+                }
+            }
+    }
+
+    /// The head's right capsule: the Xcode-style split "+" menu, then pin —
+    /// pin stays far right. NO zoom controls (Daniel, 2026-08-23): reader
+    /// zoom is a menu command (⌘+/⌘−/⌘0), published as the shared
+    /// `imageZoomActions` focused value below.
+    @ViewBuilder
+    private var readerHeadControls: some View {
+        if let actions = splitAxisActions {
+            splitPlusMenu(actions)
+            Divider().frame(height: PaneHeadMetrics.dividerHeight)
+        }
+        readerPinButton
+    }
+
+    /// One "+" that offers the split options (Daniel, 2026-08-23: "a plus like
+    /// in Xcode that you can click on and get options").
+    private func splitPlusMenu(_ actions: SplitAxisActions) -> some View {
+        Menu {
+            Button(
+                actions.hasVertical
+                    ? (actions.paneCount == 3 ? "Remove Vertical Split" : "Add Third Vertical Pane")
+                    : "Split Left / Right"
+            ) { actions.onToggleVertical() }
+            Button(
+                actions.hasHorizontal
+                    ? (actions.paneCount == 3 ? "Remove Horizontal Split" : "Add Third Horizontal Pane")
+                    : "Split Top / Bottom"
+            ) { actions.onToggleHorizontal() }
+        } label: {
+            Image(systemName: "plus")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Split this pane")
+        .accessibilityLabel("Split this pane")
+    }
+
+    private var readerPinButton: some View {
+        Button {
+            if isPinned {
+                isPinned = false
+            } else {
+                pinnedDocument = liveDocument
+                pinnedActivePageNumber = liveActivePageNumber
+                pinnedPageCount = livePageCount
+                isPinned = true
+            }
+        } label: {
+            Image(systemName: isPinned ? "pin.fill" : ToolbarSymbols.pin)
+                .imageScale(.small)
+        }
+        .buttonStyle(.borderless)
+        .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
+        .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
+        .accessibilityLabel(isPinned ? "Unpin, follow current selection" : "Pin to current document")
     }
 
     /// The pane's title line IS its breadcrumb (R1), not "Reader" — and it is

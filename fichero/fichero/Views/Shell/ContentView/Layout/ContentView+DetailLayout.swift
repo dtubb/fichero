@@ -16,10 +16,10 @@ extension ContentView {
             // the tiny screen and doesn't fit, so it's hidden — the reader gets
             // the full height (#2811). macOS reports a regular/nil size class, so
             // the chrome always renders there.
-            if horizontalSizeClass != .compact {
-                detailTabStrip
-                Divider()
-            }
+            // The detail tab strip is RETIRED (Daniel, 2026-08-23): the
+            // selected item reads from the top dynamic island, and "open in
+            // new tab" returns on the real tab bar when that exists. Panes
+            // carry their own PaneHead — no second chrome row above them.
             centerContent
             // NO window-wide status bar any more (Daniel #106-108,
             // 2026-08-09: "we want the status bar just on the library") —
@@ -31,34 +31,6 @@ extension ContentView {
         // column bounds. Without this outer clip, inner split panes can still
         // paint under the shell sidebar or past the left window edge (#3336).
         .clipped()
-    }
-
-    private var detailTabStrip: some View {
-        HStack(spacing: 8) {
-            Label {
-                Text(toolbarTitle)
-                    .font(.subheadline)
-                    .lineLimit(1)
-            } icon: {
-                Image(systemName: toolbarIcon)
-            }
-            .labelStyle(.titleAndIcon)
-
-            Spacer(minLength: 8)
-
-            Button {
-                WindowOpener.open(libraryId: windowState.libraryId, asTab: true, using: openWindow)
-            } label: {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .help("Open current library in new tab")
-            .accessibilityLabel("Open current library in new tab")
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 32)
-        .background(.bar)
     }
 
     // detailStatusPathBar is RETIRED (Daniel #106-108) — see the comment at

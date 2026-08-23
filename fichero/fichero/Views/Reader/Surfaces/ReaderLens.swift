@@ -18,7 +18,7 @@ import SwiftUI
 ///
 /// **Where each lens lives** — the file layout tells the same story:
 /// - `page`, `notes` → `Views/Reader/Page/` (`ReadingPaneView+Tabs`)
-/// - `transcript`, `statements` → `Views/Reader/Knowledge/DocumentKGWebPane`
+/// - `statements` → `Views/Reader/Knowledge/DocumentKGWebPane`
 ///   (WebKit, over the engine's assembled document view)
 /// - `entities`, `claims`, `graph`, `timeline`, `map` →
 ///   `Views/Reader/Knowledge/DocumentKGSurface` native sub-modes
@@ -28,8 +28,11 @@ import SwiftUI
 /// user-facing list, two internal switches, no third source of truth.
 enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     /// The multi-page WebKit transcript — the whole point of the Reader.
+    /// There is NO separate "Transcript" lens (Daniel, 2026-08-23: "Transcript
+    /// vs Page — what's the difference?" — there was none; both rendered the
+    /// same WebKit transcript, and the Transcript row even landed on Entities
+    /// because the knowledge surface clamps `.transcript` as stale).
     case page
-    case transcript
     /// `KGSurfaceTab.digest`'s user-facing name: the SVO statements (#3765).
     case statements
     case entities
@@ -44,7 +47,6 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .page: "Page"
-        case .transcript: "Transcript"
         case .statements: "Statements"
         case .entities: "Entities"
         case .claims: "Claims"
@@ -58,7 +60,6 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     var icon: String {
         switch self {
         case .page: "doc.text.image"
-        case .transcript: "text.alignleft"
         case .statements: "text.quote"
         case .entities: "circle.grid.2x2"
         case .claims: "quote.bubble"
@@ -74,7 +75,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .page: .page
         case .notes: .notes
-        case .transcript, .statements, .entities, .claims, .graph, .timeline, .map: .knowledge
+        case .statements, .entities, .claims, .graph, .timeline, .map: .knowledge
         }
     }
 
@@ -83,7 +84,6 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
     var representation: KGSurfaceTab? {
         switch self {
         case .page, .notes: nil
-        case .transcript: .transcript
         case .statements: .digest
         case .entities: .entities
         case .claims: .claims

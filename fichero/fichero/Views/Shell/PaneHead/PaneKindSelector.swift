@@ -24,10 +24,14 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            // Icon ONLY (Daniel, 2026-08-23): the kind never spells its name —
+            // "no need to say reader or library, that can be icons". The name
+            // survives for assistive tech and the hover help.
             Label(kindTitle, systemImage: kindIcon)
                 .font(.callout.weight(.medium))
-                .labelStyle(.titleAndIcon)
+                .labelStyle(.iconOnly)
                 .accessibilityLabel("Pane kind: \(kindTitle)")
+                .help(kindTitle)
 
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 

@@ -35,6 +35,9 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// breadcrumb).
     let crumbs: [String]
     var onClose: (() -> Void)?
+    /// Crumb click navigates WITHIN this pane (ruling 2026-08-23): index into
+    /// `crumbs` of the tapped ancestor. `nil` renders the crumbs as plain text.
+    var onCrumb: ((Int) -> Void)?
     /// The two-level kind ▾ / lens ▾ control.
     @ViewBuilder var selector: () -> Selector
     /// The few controls that always apply to this pane kind.
@@ -79,20 +82,48 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         }
     }
 
-    /// Truncates from the LEADING edge: the tail identifies, the head is
-    /// inferable. `.layoutPriority` keeps the crumb from being squeezed to
+    /// Adaptive (ruling 2026-08-23): the full chain when the pane is wide
+    /// enough, ONLY the leaf when it isn't — never a mid-string ellipsis.
+    /// Segments are clickable when `onCrumb` is wired; clicks navigate within
+    /// THIS pane. `.layoutPriority` keeps the crumb from being squeezed to
     /// nothing by the fixed capsules on either side.
     @ViewBuilder
     private var breadcrumbCapsule: some View {
         if !crumbs.isEmpty {
             capsule {
-                Text(crumbs.joined(separator: " › "))
-                    .font(.callout)
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .accessibilityLabel(crumbs.joined(separator: ", "))
+                ViewThatFits(in: .horizontal) {
+                    fullCrumbRow
+                    crumbSegment(at: crumbs.count - 1)
+                }
+                .accessibilityLabel(crumbs.joined(separator: ", "))
             }
             .layoutPriority(1)
+        }
+    }
+
+    private var fullCrumbRow: some View {
+        HStack(spacing: 4) {
+            ForEach(crumbs.indices, id: \.self) { index in
+                if index > 0 {
+                    Text("›").font(.callout).foregroundStyle(.secondary)
+                }
+                crumbSegment(at: index)
+            }
+        }
+    }
+
+    /// One crumb: a button when navigation is wired (ancestors steer this
+    /// pane), plain text otherwise. The leaf renders as text either way —
+    /// you are already there.
+    @ViewBuilder
+    private func crumbSegment(at index: Int) -> some View {
+        let label = Text(crumbs[index]).font(.callout).lineLimit(1)
+        if let onCrumb, index < crumbs.count - 1 {
+            Button { onCrumb(index) } label: { label }
+                .buttonStyle(.borderless)
+                .help("Go to \(crumbs[index])")
+        } else {
+            label
         }
     }
 
@@ -116,13 +147,15 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     }
 
     /// ONE capsule treatment, so every zone reads as the same material floating
-    /// over the content rather than three different chrome ideas.
+    /// over the content rather than three different chrome ideas. Native Tahoe
+    /// glass (S1, 2026-08-23): `.glassEffect` like every other floating bar
+    /// (BottomActionBar, MiniToolbar) — the opaque `.regularMaterial` + stroke
+    /// read as "too large, not translucent, not standard".
     private func capsule<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content()
             .padding(.horizontal, PaneHeadMetrics.capsulePadding)
             .padding(.vertical, PaneHeadMetrics.capsuleVerticalPadding)
-            .background(.regularMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(.separator.opacity(0.5), lineWidth: 0.5))
+            .glassEffect(.regular, in: Capsule())
     }
 }
 
@@ -131,7 +164,7 @@ enum PaneHeadMetrics {
     static let inset: CGFloat = 8
     static let rowSpacing: CGFloat = 6
     static let capsuleSpacing: CGFloat = 8
-    static let capsulePadding: CGFloat = 10
-    static let capsuleVerticalPadding: CGFloat = 5
+    static let capsulePadding: CGFloat = 8
+    static let capsuleVerticalPadding: CGFloat = 3
     static let dividerHeight: CGFloat = 14
 }
