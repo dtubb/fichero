@@ -63,6 +63,8 @@ extension ContentView {
             // hint, so hint==.content is "the library is the active pane".
             isPaneFocused: focusedPane == .content || paneFocusHint == .content,
             displayMode: viewDisplayMode,
+            availableDisplayModes: availableViewDisplayModes,
+            onChangeDisplayMode: { updateViewDisplayMode($0) },
             folderId: sidebarSelectionState.selectedItemId,
             onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
             onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },

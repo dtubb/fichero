@@ -24,7 +24,12 @@ struct LibraryView: View {
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
     var isPaneFocused: Bool = false
-    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
+    let displayMode: ViewDisplayMode  // Universal view mode, shown in the pane head
+    /// The modes this window can offer, for the head's lens menu (Daniel,
+    /// 2026-08-23: the view-mode picker leaves the window toolbar).
+    var availableDisplayModes: [ViewDisplayMode] = ViewDisplayMode.allCases
+    /// Routes a lens pick through ContentView's one mode-change seam.
+    var onChangeDisplayMode: ((ViewDisplayMode) -> Void)?
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area

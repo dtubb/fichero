@@ -77,6 +77,9 @@ extension LibraryView {
         VStack(spacing: 0) {
             libraryContent
         }
+            // The library's floating head (Daniel, 2026-08-23): view-mode
+            // picker + breadcrumb, same grammar and components as the reader.
+            .overlay(alignment: .top) { libraryPaneHead }
             // No-silent-fallback (F7): if this library's change stream drops, say
             // so with a pill above the content instead of quietly showing stale
             // rows. Reserving real space keeps the first row from peeking

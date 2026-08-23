@@ -101,11 +101,8 @@ extension ContentView {
         // hidden (#2813).
         if supportsReadingWorkspace
             && !Self.shouldUseCompactNavigationFlow(horizontalSizeClass: horizontalSizeClass) {
-            if showViewModePicker && availableViewDisplayModes.count > 1 {
-                ToolbarItem(id: ContentToolbarID.viewDisplayMode, placement: .automatic) {
-                    viewDisplayModeMenu
-                }
-            }
+            // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it
+            // is the library pane head's lens now (LibraryView+PaneHead).
 
             // ONE group, not three loose items (#4374). Six controls of three
             // different kinds used to sit in a single undifferentiated
@@ -197,50 +194,6 @@ extension ContentView {
     // act on the library list, not the window.
 
     /// How library items are shown. This is a LIBRARY control by the same rule
-    /// that moved sort and filter, so it belongs in the mini toolbar too — but
-    /// it still renders from `contentPaneToolbarContent`, because the display
-    /// mode is also what the reading workspace switches between. Moving it is
-    /// tracked with the rest of #4374; until then it stays declared beside its
-    /// one use, so the symbol and its call site cannot drift apart again.
-    private var viewDisplayModeMenu: some View {
-        Menu {
-            // Deferred to menu-OPEN (the stall sampler attributed 217ms
-            // main-thread stalls to this menu's body, 2026-08-08 night):
-            // toolbar menu content is evaluated on window render, and the
-            // #4575 per-folder branch JSON-decodes the folder-mode map on
-            // every evaluation. Same mechanism as the row context menus
-            // (#4544) — one cheap struct init per render, the real work at
-            // open time.
-            SidebarDeferredMenuContent {
-                // Three sections (Daniel 2026-08-14): Finder-style browsing,
-                // the dataset renderers, and the canvases — sectioned from
-                // the enum's own grouping so the menu can't drift from it.
-                ForEach(ViewDisplayMode.Group.allCases, id: \.rawValue) { group in
-                    let modes = availableViewDisplayModes.filter { $0.group == group }
-                    if !modes.isEmpty {
-                        Section(group.rawValue) {
-                            ForEach(modes) { mode in
-                                Button {
-                                    updateViewDisplayMode(mode)
-                                } label: {
-                                    Label(mode.label, systemImage: mode.icon)
-                                }
-                            }
-                        }
-                    }
-                }
-                // NO per-folder items (Daniel's final #4575 ruling,
-                // 2026-08-09: the mode never changes with the folder —
-                // "confusing to have things jumping around"). The mode is one
-                // choice per window; the restore in
-                // handleSidebarSelectionChange is gone with this menu.
-            }
-        } label: {
-            Label(viewDisplayMode.label, systemImage: viewDisplayMode.icon)
-        }
-        .help("Choose how library items are shown")
-    }
-
     /// Native `Toggle` — the system's on-state on the toolbar glass replaces
     /// the old hand-rolled highlight helper (a rounded rect with a painted
     /// primary-tint fill), which was a custom approximation of exactly this
