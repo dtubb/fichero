@@ -45,6 +45,20 @@ class ArtifactResponse(BaseModel):
     # Typed OCR/transcription geometry (word/line boxes + text spans, #4309).
     # None for artifacts whose producing pass had no geometry.
     ocr_geometry: Optional[OCRGeometryResult] = None
+    #: How many boxes this artifact holds, and WHICH PICTURE they belong to —
+    #: always present, even on list responses where `ocr_geometry` is omitted
+    #: for size (#4309). Without them the client cannot say "12 regions" or
+    #: decide whether it may draw them, so clicking a Detect Regions artifact
+    #: could only ever select it.
+    #:
+    #: A count is not derivable from a null geometry, and "null" is exactly
+    #: what a list response carries — so the count has to be computed here or
+    #: the client must fetch every artifact to learn there was nothing to show.
+    region_count: int = 0
+    #: Mirrors `ocr_geometry.rendition_id`. Lifted to the top level so the list
+    #: can be filtered and labelled by frame without shipping the boxes.
+    #: None means the document's own image.
+    geometry_rendition_id: Optional[str] = None
     version: int
     provider: Optional[str] = None
     model: Optional[str] = None
@@ -116,6 +130,13 @@ def _artifact_response(
         content=artifact.content,
         data=artifact.data,
         ocr_geometry=artifact.ocr_geometry if include_geometry else None,
+        # Counted from the artifact itself, NOT from the field above: that one
+        # is deliberately None on list responses, and reading the count off it
+        # would report 0 regions for every artifact in the list.
+        region_count=len(artifact.ocr_geometry.boxes) if artifact.ocr_geometry else 0,
+        geometry_rendition_id=(
+            artifact.ocr_geometry.rendition_id if artifact.ocr_geometry else None
+        ),
         version=artifact.version,
         provider=artifact.provider,
         model=artifact.model,
