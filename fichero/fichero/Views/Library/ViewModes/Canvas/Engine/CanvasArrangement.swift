@@ -1,4 +1,9 @@
 import Foundation
+import OSLog
+
+private let canvasArrangementLogger = Logger(
+    subsystem: "app.fichero.fichero", category: "CanvasArrangement"
+)
 
 // MARK: - Arrange by — the one axis that MOVES cards (§20.3, §25.4 step 3)
 
@@ -131,9 +136,25 @@ enum CanvasArrangement: String, CaseIterable, Identifiable, Sendable {
             }
         }
 
-        return Dictionary(
-            uniqueKeysWithValues: ordered.enumerated().map { ($0.element.id, $0.offset) }
-        )
+        // FIRST wins, never a trap (2026-08-23 crash, sidebar ⌘A in 3D):
+        // `uniqueKeysWithValues:` asserts on ANY duplicate id, and a sidebar
+        // select-all can project the same document twice (two sidebar paths —
+        // an alias, a saved-search hit). The earliest slot is the one the
+        // board already drew, so a duplicate must not move the card on
+        // screen. The upstream duplicate is logged so it stays a finding,
+        // not an accepted state.
+        var slots: [String: Int] = [:]
+        slots.reserveCapacity(ordered.count)
+        for (offset, entry) in ordered.enumerated() {
+            if slots[entry.id] != nil {
+                canvasArrangementLogger.error(
+                    "duplicate placeable id reached slotIndices: \(entry.id, privacy: .public)"
+                )
+                continue
+            }
+            slots[entry.id] = offset
+        }
+        return slots
     }
 
     /// Kind order for `.type`: the pages first, because a diary folder is
