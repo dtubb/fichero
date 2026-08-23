@@ -140,6 +140,25 @@ struct DocumentInspectorEntitiesTab: View {
             syncSelectionToFocusedEntity()
         }
         .onChange(of: hiddenKindsCSV) { _, _ in recomputeGrouped() }
+        // ⌘A over THIS list when the inspector has focus (Daniel, 2026-08-23:
+        // one chord, one owner, acting on the focused surface). Published, not
+        // handled locally: `SelectAllButton` owns the chord and asks who has
+        // focus — a private handler here would be the canvas's mistake again.
+        // Through SelectionGrammar so ⌘A leaves a usable anchor behind, the
+        // same rule the library follows (#4377).
+        .focusedSceneValue(
+            \.inspectorSelectAll,
+            FocusedLibraryAction(
+                isEnabled: !orderedEntities.isEmpty,
+                run: {
+                    let all = SelectionGrammar.selectAll(
+                        in: orderedEntities.map(\.stableInspectorId)
+                    )
+                    entitySelection = all.selection
+                    entitySelectionAnchor = all.anchor
+                }
+            )
+        )
         .alert(
             pendingMergePlan.map {
                 "Merge \($0.entityCount) entities into \"\($0.survivorName)\"?"

@@ -53,6 +53,21 @@ struct CanvasViewActionsKey: FocusedValueKey {
     typealias Value = CanvasViewActions
 }
 
+/// Which PANE holds focus, published by the shell.
+///
+/// ⌘A needs this because the select-all publications are scene-scoped: the
+/// library publishes whenever a library pane is in the focused scene, whether
+/// or not the user's last click went to the inspector. "Who published" cannot
+/// decide precedence; "who has focus" can.
+struct FocusedPaneKindKey: FocusedValueKey {
+    typealias Value = PaneFocus
+}
+
+/// A selectable list in the inspector answering ⌘A over its own rows.
+struct InspectorSelectAllKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
 /// Actions that can be performed on the sidebar selection.
 ///
 /// Equatable returns `true` unconditionally: all instances constructed by
@@ -280,5 +295,15 @@ extension FocusedValues {
     var canvasViewActions: CanvasViewActionsKey.Value? {
         get { self[CanvasViewActionsKey.self] }
         set { self[CanvasViewActionsKey.self] = newValue }
+    }
+
+    var focusedPaneKind: FocusedPaneKindKey.Value? {
+        get { self[FocusedPaneKindKey.self] }
+        set { self[FocusedPaneKindKey.self] = newValue }
+    }
+
+    var inspectorSelectAll: InspectorSelectAllKey.Value? {
+        get { self[InspectorSelectAllKey.self] }
+        set { self[InspectorSelectAllKey.self] = newValue }
     }
 }

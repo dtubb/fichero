@@ -120,4 +120,77 @@ struct SelectAllVisibleSurfaceTests {
         #expect(!shortcuts.contains("filteredDocuments.isEmpty"),
                 "enablement asks a different question than selectAllIds answers")
     }
+
+    // MARK: - Slice C: the policy widened without touching the fall-through
+
+    @Test("precedence comes from FOCUS, not from who published")
+    func precedenceComesFromFocus() throws {
+        // The publications are scene-scoped, so the library's is live whenever
+        // a library pane is on screen — including while the inspector has
+        // focus. Deciding by "who published" would hand every ⌘A to the
+        // library forever.
+        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        #expect(button.contains("@FocusedValue(\\.focusedPaneKind)"))
+        #expect(button.contains("private var focusedSurface: SelectAllSurface?"))
+        #expect(button.contains("case .inspector:"))
+
+        let shell = try code(at: "Views/Shell/ContentView/Layout/ContentView+RootLayout.swift")
+        #expect(shell.contains("focusedSceneValue(\\.focusedPaneKind, focusedPane ?? paneFocusHint)"),
+                "the shell stopped publishing which pane has focus")
+    }
+
+    @Test("the library stays the default owner when no pane hint exists")
+    func libraryRemainsTheDefault() throws {
+        // The widening must not change a plain library window's behaviour: no
+        // hint at all still routes to the library.
+        let button = try code(at: "App/Menus/FocusedCommandButtons+SelectAll.swift")
+        let tail = try #require(button.components(separatedBy: "private var focusedSurface").last)
+        let body = try #require(tail.components(separatedBy: "\n    }").first)
+        #expect(body.contains("default:"))
+        #expect(body.contains("librarySelectAll?.isEnabled == true ? .libraryRows : nil"))
+    }
+
+    // MARK: - Slice D: what publishes, and what deliberately does not
+
+    @Test("the inspector's entity list publishes a select-all")
+    func inspectorListPublishes() throws {
+        let tab = try code(at: "Views/Inspector/Knowledge/Entities/DocumentInspectorEntitiesTab.swift")
+        #expect(tab.contains("\\.inspectorSelectAll"))
+        // Through the grammar, so ⌘A leaves a usable anchor (#4377) — the same
+        // rule the library follows.
+        #expect(tab.contains("SelectionGrammar.selectAll("))
+        #expect(tab.contains("entitySelectionAnchor = all.anchor"))
+        // Published, not handled: a local .onKeyPress here would be the
+        // canvas's mistake in a new pane.
+        #expect(!tab.contains("onKeyPress(.init(\"a\")"))
+    }
+
+    /// RECORDED ABSENCES. Two surfaces in the ruling publish nothing, and that
+    /// is the finding rather than a gap to paper over — a select-all needs
+    /// something to select, and inventing one to fill a matrix cell would ship
+    /// a command that lies.
+    @Test("the image editor publishes nothing, because it has no selection")
+    func imageEditorHasNothingToSelect() throws {
+        // If the editor ever grows a selection concept, this test is what says
+        // the publication is now missing rather than absent by design.
+        let editor = try code(at: "Views/Preview/ImageEditor/ImageEditorView+Canvas.swift")
+        #expect(!editor.contains("selectAll"), "the image editor grew a selection — publish it")
+        #expect(!editor.contains("inspectorSelectAll"))
+    }
+
+    @Test("the sidebar publishes nothing yet, and the reason is recorded")
+    func sidebarPublicationIsScopedNotForgotten() throws {
+        // The sidebar HAS multi-selection (`List(selection: Set<SidebarDestination>)`
+        // committed through `applySidebarSelectionProposal`), so ⌘A is
+        // implementable there — but it has no single ordered list of the
+        // destinations currently visible, only per-section flattenings. Making
+        // one is a sidebar-side change with its own ordering decisions
+        // (libraries, folders, workflows, smart items), so it is scoped rather
+        // than guessed. This test pins BOTH halves: the seam exists, and
+        // nothing publishes yet.
+        let components = try code(at: "Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        #expect(components.contains("func applySidebarSelectionProposal"))
+        #expect(!components.contains("\\.sidebarSelectAll"),
+                "the sidebar now publishes — give it a route and update this row")
+    }
 }

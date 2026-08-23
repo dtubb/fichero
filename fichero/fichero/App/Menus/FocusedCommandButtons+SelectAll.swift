@@ -22,6 +22,8 @@ import SwiftUI
 @MainActor
 struct SelectAllButton: View {
     @FocusedValue(\.librarySelectAll) private var librarySelectAll
+    @FocusedValue(\.inspectorSelectAll) private var inspectorSelectAll
+    @FocusedValue(\.focusedPaneKind) private var focusedPane
 
     var body: some View {
         Button("Select All") {
@@ -37,8 +39,26 @@ struct SelectAllButton: View {
     private var route: SelectAllRoute {
         SelectAllRoutingPolicy.route(
             isTextEditing: FocusedTextResponder.isEditing,
-            libraryHasSelectableRows: librarySelectAll?.isEnabled == true
+            focusedSurface: focusedSurface
         )
+    }
+
+    /// The surface that both HOLDS focus and has rows to select.
+    ///
+    /// Both halves are required. A publication alone is not focus — these are
+    /// scene-scoped, so the library's is live whenever a library pane is on
+    /// screen — and focus alone is not rows, since an empty list must decline
+    /// so the key equivalent can fall through.
+    private var focusedSurface: SelectAllSurface? {
+        switch focusedPane {
+        case .inspector:
+            return inspectorSelectAll?.isEnabled == true ? .inspectorList : nil
+        default:
+            // The library is the default owner, as it was before the inspector
+            // could answer: no pane hint at all still means the library, which
+            // is what keeps a plain library window behaving exactly as it did.
+            return librarySelectAll?.isEnabled == true ? .libraryRows : nil
+        }
     }
 
     private func performSelectAll() {
@@ -52,6 +72,8 @@ struct SelectAllButton: View {
             FocusedTextResponder.selectAll()
         case .libraryRows:
             librarySelectAll?.run()
+        case .inspectorList:
+            inspectorSelectAll?.run()
         }
     }
 }
