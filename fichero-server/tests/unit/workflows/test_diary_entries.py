@@ -545,3 +545,103 @@ class TestFlicker:
             await split_page_into_entries(db, page, llm_config=None)
 
         assert db.get(Document, first[1].id).deleted_at is not None
+
+
+class TestWhichFrameTheBoxesAreIn:
+    """The consumer audit's two openers.
+
+    `_geometry_boxes` picks the newest artifact with boxes. That is correct
+    today by CONSTRUCTION rather than by checking, and the reasoning is worth
+    pinning so a later change to either side cannot quietly break it.
+    """
+
+    @staticmethod
+    def _artifact(db, page, rendition_id, created_at, text="a b"):
+        from fichero_server.media.ocr_geometry import OCRGeometryBox
+
+        artifact = Artifact(
+            document_id=page.id,
+            artifact_type="regions",
+            content=text,
+            version=1,
+            reviewed=False,
+            provider="apple",
+            ocr_geometry=OCRGeometryResult(
+                provider="apple",
+                text=text,
+                rendition_id=rendition_id,
+                boxes=[
+                    OCRGeometryBox(
+                        text="a", bbox=[0.1, 0.1, 0.2, 0.05],
+                        char_start=0, char_end=1,
+                    )
+                ],
+            ),
+        )
+        artifact.created_at = created_at
+        db.save(artifact)
+        return artifact
+
+    def test_the_documents_OWN_frame_is_preferred(self, diary_db):
+        """Not "newest wins" when frames differ — own-frame wins, because it
+        is the only one guaranteed commensurable with the page."""
+        from fichero_server.workflows.tools.diary_entries import _geometry_boxes
+
+        db, page = diary_db
+        self._artifact(db, page, "rend-rotated", "2030-01-01T00:00:00Z", "newer")
+
+        content, boxes, _ = _geometry_boxes(db, page)
+
+        assert boxes, "the page's own-frame geometry is still there"
+        assert "newer" not in content
+
+    def test_a_crop_framed_set_is_USABLE_when_it_is_the_only_one(self, diary_db):
+        """The correct-by-construction case, stated. An artifact's
+        rendition_id names a rendition OF ITS OWN DOCUMENT; for a region node
+        that is its crop, and the crop IS the node's extent — so crop-fractions
+        and node-fractions are the same numbers."""
+        from fichero_server.workflows.tools.diary_entries import _geometry_boxes
+
+        db, page = diary_db
+        for artifact in db.query(Artifact, document_id=page.id):
+            db.delete(artifact)
+        self._artifact(db, page, "rend-crop", "2030-01-01T00:00:00Z", "cropped")
+
+        content, boxes, _ = _geometry_boxes(db, page)
+
+        assert boxes
+        assert "cropped" in content
+
+    def test_TWO_disagreeing_frames_are_REFUSED_not_date_sorted(self, diary_db):
+        """Sorting incommensurable frames by date silently picks one, and the
+        caller cannot tell which it got — the entries would be laid out
+        against a picture nobody chose. Same argument as `compose` refusing to
+        mix frames."""
+        from fichero_server.workflows.tools.diary_entries import _geometry_boxes
+
+        db, page = diary_db
+        for artifact in db.query(Artifact, document_id=page.id):
+            db.delete(artifact)
+        self._artifact(db, page, "rend-crop", "2030-01-01T00:00:00Z")
+        self._artifact(db, page, "rend-rotated", "2030-01-02T00:00:00Z")
+
+        content, boxes, provider = _geometry_boxes(db, page)
+
+        assert (content, boxes, provider) == ("", [], None)
+
+    @pytest.mark.asyncio
+    async def test_a_refusal_costs_REGIONS_not_entries(self, diary_db):
+        """Better blank than wrong. Refusing the geometry must not refuse the
+        WORK: the entries are still created, they simply get no region."""
+        db, page = diary_db
+        for artifact in db.query(Artifact, document_id=page.id):
+            db.delete(artifact)
+        self._artifact(db, page, "rend-a", "2030-01-01T00:00:00Z")
+        self._artifact(db, page, "rend-b", "2030-01-02T00:00:00Z")
+
+        with _split(TWO_ENTRIES):
+            created = await split_page_into_entries(db, page, llm_config=None)
+
+        assert len(created) == 2, "the entries survive a geometry refusal"
+        assert all(node.region_in_parent is None for node in created)
+        assert created[0].metadata["bbox_basis"] == "none"

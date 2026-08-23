@@ -1,43 +1,67 @@
-"""Option-held run: recompute everything, ignore every cache.
+"""What a re-run redoes, and what it may reuse.
 
-Daniel re-ran a page and Transcribe reported "completed in 0ms". There WAS a
-`skip_cache` flag on the run request — but it bypasses the LangGraph
-node-result cache, not the ARTIFACT cache in vision_base. Two different caches,
-and the one a user would reach for did not reach the one that short-circuited.
+Daniel re-ran a page: Transcribe said "completed in 0ms" and he had no way to
+know whether anything happened. Then, running the Detect Regions workflow: "if
+we rerun region it should redo it."
 
-`force_ocr` is the existing per-tool primitive for exactly this: it bypasses
-the text-already-present check, the PDF text-layer shortcut AND the artifact
-cache. It was only reachable as node config, so it could not be asked for at
-run level.
+Two different intents, and conflating them gives you only bad options —
+"reuse everything and report 0ms", or "redo everything including a
+transcription nobody asked to redo".
+
+  explicit run   the workflow's TERMINAL deliverable redoes its work;
+                 upstream dependencies may still reuse. That is what reuse is
+                 FOR — a transcription feeding a regions pass should not be
+                 redone to satisfy a regions re-run.
+  forced run     Option-held: everything recomputes, no exceptions.
 """
 
 from __future__ import annotations
 
-from fichero_server.workflows.resolver import resolve_inputs
+from fichero_server.workflows.builder import _should_recompute
+
+EXITS = {"exit_node_ids": {"detect", "split"}}
 
 
-class TestAForcedRunReachesTheTools:
-    def test_force_ocr_is_set_when_the_run_is_forced(self):
-        resolved = resolve_inputs({}, {"force_recompute": True})
-        assert resolved["force_ocr"] is True
+class TestTheTerminalDeliverableRedoesItsWork:
+    def test_an_exit_node_recomputes_on_an_ordinary_run(self):
+        assert _should_recompute({}, "detect", "detect_regions", EXITS) is True
 
-    def test_an_ordinary_run_is_untouched(self):
-        """The common path must not silently start forcing OCR — that would
-        turn every run into minutes of recomputation."""
-        assert "force_ocr" not in resolve_inputs({}, {"force_recompute": False})
-        assert "force_ocr" not in resolve_inputs({}, {})
+    def test_an_upstream_dependency_may_still_reuse(self):
+        """The whole point of reuse: a transcription feeding a regions pass is
+        not redone to satisfy a regions re-run."""
+        assert _should_recompute({}, "transcribe", "transcribe", EXITS) is False
+
+    def test_a_workflow_with_no_exits_recorded_forces_nothing(self):
+        assert _should_recompute({}, "detect", "detect_regions", {}) is False
+        assert _should_recompute({}, "detect", "detect_regions", None) is False
 
 
-class TestExplicitNodeConfigWins:
-    def test_a_node_set_to_false_stays_false(self):
-        """A run-level convenience must not overrule a choice someone made
-        about a specific node."""
-        resolved = resolve_inputs({"force_ocr": False}, {"force_recompute": True})
-        assert resolved["force_ocr"] is False
+class TestAForcedRunOverridesEverything:
+    def test_force_recomputes_an_upstream_node_too(self):
+        state = {"force_recompute": True}
+        assert _should_recompute(state, "transcribe", "transcribe", EXITS) is True
 
-    def test_a_node_set_to_true_stays_true(self):
-        resolved = resolve_inputs({"force_ocr": True}, {"force_recompute": False})
-        assert resolved["force_ocr"] is True
+    def test_force_works_even_with_no_exit_information(self):
+        assert _should_recompute({"force_recompute": True}, "n", "transcribe", {}) is True
+
+    def test_force_overrides_the_passthrough_exemption(self):
+        """Option-held means everything. A passthrough tool has nothing to
+        recompute, but the flag must not be silently ignored either."""
+        state = {"force_recompute": True}
+        assert _should_recompute(state, "agg", "aggregate", EXITS) is True
+
+
+class TestAPassthroughExitIsNotTheDeliverable:
+    """A fan-in aggregator sitting after the real tool would make "exit" the
+    wrong node — the thing the user wanted redone is upstream of it."""
+
+    def test_an_aggregator_exit_does_not_count_as_the_deliverable(self):
+        exits = {"exit_node_ids": {"agg"}}
+        assert _should_recompute({}, "agg", "aggregate", exits) is False
+
+    def test_a_real_tool_at_the_exit_does(self):
+        exits = {"exit_node_ids": {"agg"}}
+        assert _should_recompute({}, "agg", "detect_regions", exits) is True
 
 
 class TestTheTwoFlagsAreDistinct:
@@ -55,4 +79,4 @@ class TestTheTwoFlagsAreDistinct:
         assert fields["force_recompute"].default is False
 
     def test_skip_cache_alone_does_not_force(self):
-        assert "force_ocr" not in resolve_inputs({}, {"skip_cache": True})
+        assert _should_recompute({"skip_cache": True}, "transcribe", "transcribe", EXITS) is False

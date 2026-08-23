@@ -142,12 +142,46 @@ def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any], str |
     `RegionConfidence` exists to preserve.
     """
     artifacts = db.query(Artifact, document_id=page.id) or []
+    candidates = [a for a in artifacts if a.ocr_geometry and a.ocr_geometry.boxes]
+    if not candidates:
+        return "", [], None
+
+    # WHICH FRAME ARE THESE BOXES IN? (2026-08-23 consumer audit.)
+    #
+    # This works today by CONSTRUCTION rather than by checking, and the
+    # reasoning is worth stating because it is not obvious: an artifact's
+    # `rendition_id` names a rendition OF THE DOCUMENT IT BELONGS TO. For a
+    # region node, that rendition is its own crop — and the crop IS the node's
+    # extent, so crop-fractions and node-fractions are the same numbers. Spans
+    # measured against them are therefore already page-relative.
+    #
+    # That equivalence breaks the moment two artifacts on one page disagree
+    # about their frame — one measured on the base image, another on a rotated
+    # rendition whose width and height are swapped. Sorting those by DATE
+    # silently picks a frame, and the caller cannot tell which it got: the
+    # entries would be laid out against a picture nobody chose.
+    #
+    # So: prefer the document's own frame, and REFUSE rather than choose when
+    # the candidates are incommensurable. Same argument as `compose` refusing
+    # to mix frames instead of picking one.
+    own_frame = [a for a in candidates if not a.ocr_geometry.rendition_id]
+    if own_frame:
+        candidates = own_frame
+    else:
+        frames = {a.ocr_geometry.rendition_id for a in candidates}
+        if len(frames) > 1:
+            logger.warning(
+                "page %s carries geometry in %d different frames (%s) and none "
+                "in its own — refusing to pick one by date. Entries get no "
+                "regions rather than regions against a picture nobody chose.",
+                page.id, len(frames), ", ".join(sorted(str(f) for f in frames)),
+            )
+            return "", [], None
+
     dated = sorted(
-        (a for a in artifacts if a.ocr_geometry and a.ocr_geometry.boxes),
+        candidates,
         key=lambda a: (a.created_at is None, a.created_at),
     )
-    if not dated:
-        return "", [], None
     newest = dated[-1]
     return (
         newest.ocr_geometry.text or newest.content or "",
