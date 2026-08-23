@@ -334,3 +334,34 @@ extension SidebarView {
         }
     }
 }
+
+// MARK: - Reveal in sidebar (2026-08-23)
+
+extension Notification.Name {
+    /// Ask the sidebar to expand, load, and select the row for a document —
+    /// posted by the relaunch-restore path (and usable by any future
+    /// "Reveal in Sidebar" verb). userInfo: `documentId`.
+    static let sidebarRevealDocument = Notification.Name("sidebarRevealDocument")
+}
+
+extension SidebarView {
+    /// Expand the ancestor chain, LOAD each level so the row exists, then
+    /// select through the same proposal seam a click uses. Tries each open
+    /// library — `sidebarRevealPath` answers nil for a library that does not
+    /// know the document.
+    func revealDocument(_ documentId: String) async {
+        for library in libraryManager.openLibraries {
+            let store = library.documentStore
+            guard let path = await store.sidebarRevealPath(to: documentId) else { continue }
+            for ancestor in path {
+                sidebarState.expandedItems.insert(ancestor.id)
+            }
+            for ancestor in path {
+                await store.cacheSidebarChildren(of: ancestor)
+            }
+            applySidebarSelectionProposal([.document(documentId)])
+            return
+        }
+        sidebarViewLogger.info("revealDocument: \(documentId) not found in any open library")
+    }
+}

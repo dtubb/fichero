@@ -144,6 +144,18 @@ extension ContentView {
         // sidebarSelectionId returns nil for "activity" with no run ID; use the
         // fixed tag so the Activity row stays highlighted after relaunch (#648).
         sidebarSelectionState.selectedItemId = restoredId ?? (storedViewModeType == "activity" ? "activity-browser" : nil)
+        // Setting the id highlights a row that EXISTS; a restored nested
+        // folder's row usually doesn't yet (ancestors unexpanded, children
+        // unloaded — Daniel, 2026-08-23: "sidebar should have the appropriate
+        // folder selected, once library loads"). The reveal expands the
+        // chain, loads each level, and selects through the click seam.
+        if storedViewModeType == "library", let itemId = storedViewModeItemId, !itemId.isEmpty {
+            NotificationCenter.default.post(
+                name: .sidebarRevealDocument,
+                object: nil,
+                userInfo: ["documentId": Self.stripPrefix(itemId, prefix: "doc:")]
+            )
+        }
     }
 
     /// Handles `.onChange(of: documentStore.currentDocuments)`.
