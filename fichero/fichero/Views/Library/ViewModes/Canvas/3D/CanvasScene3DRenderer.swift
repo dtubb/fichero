@@ -63,6 +63,12 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// FILE-scoped, so an extension in another file cannot see it.
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
+
+    /// WHICH cards matter right now — a search's heat map or an entity
+    /// highlight. Held so a card INSERTED while emphasis is live is painted on
+    /// arrival instead of staying bright until the next emphasis change.
+    var emphasis: CanvasEmphasis = .neutral
+
     private var appliedState = CanvasSceneState.empty
 
     // Orbit camera state (renderer-local, ported from the proven #3088 rig).
@@ -226,7 +232,9 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         switch operation {
         case .insert(let placeable):
             placeablesById[placeable.id] = placeable
-            placeablesRoot.addChild(makeCard(placeable))
+            let card = makeCard(placeable)
+            CanvasEmphasisPainter.apply(emphasis, to: card, id: placeable.id)
+            placeablesRoot.addChild(card)
         case .move(let id, let position):
             // Don't fight a local drag: a store echo for the dragged id is skipped
             // (the isDragSuppressed seam); every other move repositions in place.
@@ -248,6 +256,12 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
             // difference, destroying and rebuilding a textured card just to
             // add or remove an outline — #4409's blue flash (#4409).
             selection = newSelection
+        case .setEmphasis(let newEmphasis):
+            // Also NOTHING happens to the cards' geometry or materials: the
+            // painter sets an OpacityComponent, so a live search never rebuilds
+            // a textured card (#4409, restated for this channel).
+            emphasis = newEmphasis
+            CanvasEmphasisPainter.apply(newEmphasis, to: placeablesRoot)
         }
     }
 
@@ -258,7 +272,13 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
         placeablesRoot.findEntity(named: id)?.removeFromParent()
-        placeablesRoot.addChild(makeCard(placeable))
+        let card = makeCard(placeable)
+        // A rebuilt card is a NEW entity, so it carries none of the old one's
+        // components — without this, a card that reskins mid-search (its
+        // thumbnail landing, a resize) would come back at full strength while
+        // its dimmed neighbours stayed dim.
+        CanvasEmphasisPainter.apply(emphasis, to: card, id: id)
+        placeablesRoot.addChild(card)
     }
 
     private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {

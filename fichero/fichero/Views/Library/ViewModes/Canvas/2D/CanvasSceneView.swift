@@ -46,6 +46,12 @@ struct CanvasSceneView: View {
     /// canvas renders colored placeholders (user, live 2026-08-19).
     var storageService: StorageService?
 
+    /// WHICH cards matter right now — the active search's score-weighted heat
+    /// map today, an entity highlight when a picker lands (§25.4 step 2). One
+    /// channel, so the two can never grow different visual languages. Neutral
+    /// outside a search, and it moves nothing.
+    var emphasis: CanvasEmphasis = .neutral
+
     // These three are internal, not private, for the same reason as the resize
     // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
     // FILE-scoped in Swift.
@@ -138,6 +144,7 @@ struct CanvasSceneView: View {
             gridCell: gridCell
         )
         state.selection = selectedNodeIds
+        state.emphasis = emphasis
         return state
     }
 

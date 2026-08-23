@@ -63,6 +63,10 @@ struct CanvasSceneState: Equatable {
     var placeables: [CanvasPlaceable]
     var edges: [CanvasEdge]
     var selection: Set<String>
+    /// WHICH cards matter right now (a search's heat map, an entity highlight).
+    /// Neutral by default, and never part of position resolution — emphasis
+    /// moves nothing (R10).
+    var emphasis: CanvasEmphasis = .neutral
 
     static let empty = CanvasSceneState(placeables: [], edges: [], selection: [])
 }

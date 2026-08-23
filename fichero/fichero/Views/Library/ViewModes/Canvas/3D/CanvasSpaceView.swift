@@ -36,6 +36,7 @@ struct CanvasSpaceView: View {
     var layoutStore: CanvasLayoutStore?
     /// The CURRENT library's storage service for thumbnail textures (#4160).
     var storageService: StorageService?
+
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
     /// Container spatial node ids (folder / workspace) from LibraryView — drives
@@ -44,6 +45,12 @@ struct CanvasSpaceView: View {
     /// Move a dragged node into a container (→ audited `document.move`), wired by
     /// LibraryView. `(nodeId, containerNodeId)`.
     var moveIntoContainer: (String, String) -> Void = { _, _ in }
+
+    /// WHICH cards matter right now — the active search's score-weighted heat
+    /// map today, an entity highlight when a picker lands (§25.4 step 2). One
+    /// channel, so the two can never grow different visual languages. Neutral
+    /// outside a search, and it moves nothing.
+    var emphasis: CanvasEmphasis = .neutral
 
     @Environment(\.undoManager) var undoManager
 
@@ -113,6 +120,7 @@ struct CanvasSpaceView: View {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
         }
         state.selection = selectedNodeIds
+        state.emphasis = emphasis
         return state
     }
 

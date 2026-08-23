@@ -52,6 +52,12 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// trade `LibraryView+CanvasModes.swift` made when #4353 forced that split.
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
+
+    /// WHICH cards matter right now — a search's heat map or an entity
+    /// highlight. Held so a card inserted while emphasis is live is painted on
+    /// arrival, not left bright until the next emphasis change.
+    var emphasis: CanvasEmphasis = .neutral
+
     /// Live card size while a resize handle is being dragged — visual feedback
     /// only, cleared by the `.resize` op the release persists. Stored here
     /// because an extension cannot hold state; used from
@@ -234,7 +240,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         switch operation {
         case .insert(let placeable):
             placeablesById[placeable.id] = placeable
-            placeablesRoot.addChild(makeCard(placeable))
+            let card = makeCard(placeable)
+            CanvasEmphasisPainter.apply(emphasis, to: card, id: placeable.id)
+            placeablesRoot.addChild(card)
         case .move(let id, let position):
             // Don't fight a local drag (#3084): a store echo for the id being
             // dragged is skipped; every other move animates to the new spot so a
@@ -267,6 +275,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
             // granularity. `refreshSelectionDecoration` (called once by
             // `apply`) redraws the frames instead.
             selection = newSelection
+        case .setEmphasis(let newEmphasis):
+            // Also nothing to the cards themselves: an OpacityComponent, so a
+            // live search never rebuilds a textured card (#4409, this channel).
+            emphasis = newEmphasis
+            CanvasEmphasisPainter.apply(newEmphasis, to: placeablesRoot)
         }
     }
 
@@ -274,13 +287,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     static let defaultCardSize = CGSize(width: 1.0, height: 0.75)
 
-    func reskinCard(_ id: String) {
-        guard let placeable = placeablesById[id] else { return }
-        placeablesRoot.findEntity(named: id)?.removeFromParent()
-        placeablesRoot.addChild(makeCard(placeable))
-    }
-
-    private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
+    // Internal, not private: `reskinCard` lives in the +Thumbnails file (this
+    // one is at its file_length ceiling) and Swift's `private` is FILE-scoped.
+    func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let (width, height) = cardDimensions(placeable)
         let mesh = MeshResource.generatePlane(width: width, height: height, cornerRadius: min(width, height) * 0.08)
         let entity = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: baseColor(for: placeable.content))])
