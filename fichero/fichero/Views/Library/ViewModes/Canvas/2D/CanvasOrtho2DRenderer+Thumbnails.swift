@@ -4,6 +4,19 @@ import SwiftUI
 // MARK: - Page-thumbnail textures (split for file_length, 2026-08-20)
 
 extension CanvasOrtho2DRenderer {
+    /// Rebuild ONE card in place — the texture-driven path (a loaded page's true
+    /// aspect, a resize). Lives beside the loader that triggers it, and out of
+    /// the main file, which is at its file_length ceiling.
+    func reskinCard(_ id: String) {
+        guard let placeable = placeablesById[id] else { return }
+        placeablesRoot.findEntity(named: id)?.removeFromParent()
+        let card = makeCard(placeable)
+        // A rebuilt card is a NEW entity carrying none of the old one's
+        // components — else a card reskinning mid-search comes back bright.
+        CanvasEmphasisPainter.apply(emphasis, to: card, id: id)
+        placeablesRoot.addChild(card)
+    }
+
     func loadThumbnail(sourceId: String, into entity: ModelEntity, retriesLeft: Int = 12) {
         Task { @MainActor in
             do {

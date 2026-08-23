@@ -18,6 +18,10 @@ enum CanvasSceneOp: Equatable {
     /// Edges are rebuilt wholesale — cheap and few, matching both current impls.
     case setEdges([CanvasEdge])
     case setSelection(Set<String>)
+    /// WHICH cards matter now. Like `.setSelection`, it touches no card's
+    /// geometry — and it must never turn into a rebuild, or a live search would
+    /// destroy and re-create 2,228 textured cards per keystroke (#4409).
+    case setEmphasis(CanvasEmphasis)
 }
 
 enum CanvasSceneDiff {
@@ -56,6 +60,9 @@ enum CanvasSceneDiff {
         }
         if old.selection != new.selection {
             ops.append(.setSelection(new.selection))
+        }
+        if old.emphasis != new.emphasis {
+            ops.append(.setEmphasis(new.emphasis))
         }
 
         return ops

@@ -30,6 +30,15 @@ enum CanvasCardGeometry {
         knownAspects[sourceId]
     }
 
+    /// Every aspect known for these sources — the board's actual shape spread,
+    /// which is what grid pitch has to clear (§18.1 defect 4: a 2.0-aspect
+    /// spread is 1.22 wide, not the nominal 1.0). Sources whose texture has not
+    /// loaded contribute nothing; `CanvasGridPlacement.cell(forAspects:)` folds
+    /// the nominal aspect in on its own, so an empty result is the nominal cell.
+    static func knownAspects(forSourceIds sourceIds: [String]) -> [Double] {
+        sourceIds.compactMap { knownAspects[$0].map(Double.init) }
+    }
+
     #if canImport(RealityKit)
     /// Memoize the aspect of a loaded page texture. Returns true when this
     /// CHANGES what's stored — the caller reskins the card exactly once and

@@ -5,12 +5,13 @@ import RealityKit
 import simd
 import SwiftUI
 
-// MARK: - RealityKit perspective-3D renderer (#3104)
+// MARK: - RealityKit 3D renderer (#3104)
 
-/// The 3D 'Space' renderer — the perspective twin of `CanvasOrtho2DRenderer`.
+/// The 3D 'Space' renderer — the orbiting twin of `CanvasOrtho2DRenderer`.
 /// Same #3103 contract, same shared `CanvasInteractionController`, so 2D and 3D
 /// behave identically (selection / drag / persist / CRUD); the ONLY differences
-/// are renderer-local: a `PerspectiveCamera` with orbit/pan/zoom, the full xyz
+/// are renderer-local: an orbit/pan/zoom camera (ORTHOGRAPHIC for boards since
+/// §18.1 defect 1, perspective still reachable via `projection`), the full xyz
 /// projection (z USED, via `Canvas3DProjection`), and cylinder connectors.
 ///
 /// Supersedes the internals of #3088's `SpaceSceneView`: scene content is driven
@@ -37,7 +38,24 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     let decorator = CanvasSelectionDecorator(
         showsHandles: false, accentColor: .controlAccentColorCompat3D
     )
-    let camera = PerspectiveCamera()
+    /// A plain `Entity`, not a `PerspectiveCamera`: which camera component it
+    /// carries is the shell's choice (`projection`), and swapping components on
+    /// one entity keeps the orbit rig — position, look-at, distance — untouched.
+    let camera = Entity()
+
+    /// How the board is projected. ORTHOGRAPHIC by default (§18.1 defect 1):
+    /// zoomed out to a whole diary, a perspective camera rendered 2,228 cards
+    /// as a tapering wedge — two identical pages at different depths came out
+    /// different sizes, so nothing could be compared and the field's shape was
+    /// an artifact of the camera rather than of the data.
+    ///
+    /// Perspective stays available, on the SHELL and not on the arrangement,
+    /// because it is exactly right for the panel-sequence and station-walk
+    /// shells §18.1 reserves it for — there depth carries the sequence and
+    /// foreshortening is the cue. Those shells are not built here.
+    var projection: CanvasCameraProjection = .orthographic {
+        didSet { if projection != oldValue { updateCamera() } }
+    }
 
     /// Internal rather than private, as are `placeablesRoot` and `decorator`:
     /// the selection half of this renderer lives in
@@ -45,6 +63,12 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// FILE-scoped, so an extension in another file cannot see it.
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
+
+    /// WHICH cards matter right now — a search's heat map or an entity
+    /// highlight. Held so a card INSERTED while emphasis is live is painted on
+    /// arrival instead of staying bright until the next emphasis change.
+    var emphasis: CanvasEmphasis = .neutral
+
     private var appliedState = CanvasSceneState.empty
 
     // Orbit camera state (renderer-local, ported from the proven #3088 rig).
@@ -208,7 +232,9 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         switch operation {
         case .insert(let placeable):
             placeablesById[placeable.id] = placeable
-            placeablesRoot.addChild(makeCard(placeable))
+            let card = makeCard(placeable)
+            CanvasEmphasisPainter.apply(emphasis, to: card, id: placeable.id)
+            placeablesRoot.addChild(card)
         case .move(let id, let position):
             // Don't fight a local drag: a store echo for the dragged id is skipped
             // (the isDragSuppressed seam); every other move repositions in place.
@@ -230,6 +256,12 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
             // difference, destroying and rebuilding a textured card just to
             // add or remove an outline — #4409's blue flash (#4409).
             selection = newSelection
+        case .setEmphasis(let newEmphasis):
+            // Also NOTHING happens to the cards' geometry or materials: the
+            // painter sets an OpacityComponent, so a live search never rebuilds
+            // a textured card (#4409, restated for this channel).
+            emphasis = newEmphasis
+            CanvasEmphasisPainter.apply(newEmphasis, to: placeablesRoot)
         }
     }
 
@@ -240,7 +272,13 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     func reskinCard(_ id: String) {
         guard let placeable = placeablesById[id] else { return }
         placeablesRoot.findEntity(named: id)?.removeFromParent()
-        placeablesRoot.addChild(makeCard(placeable))
+        let card = makeCard(placeable)
+        // A rebuilt card is a NEW entity, so it carries none of the old one's
+        // components — without this, a card that reskins mid-search (its
+        // thumbnail landing, a resize) would come back at full strength while
+        // its dimmed neighbours stayed dim.
+        CanvasEmphasisPainter.apply(emphasis, to: card, id: id)
+        placeablesRoot.addChild(card)
     }
 
     private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {

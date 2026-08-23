@@ -6,7 +6,6 @@ import SwiftUI
 
 extension CanvasSceneView {
 
-
     /// One toggle for both routes — double-click AND the context menu's
     /// "Zoom to Card" (touch-reachability: iPad has no double-click, so the
     /// action must exist on a route touch can reach).
