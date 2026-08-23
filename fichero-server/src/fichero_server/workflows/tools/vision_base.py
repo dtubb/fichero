@@ -395,6 +395,42 @@ def _vision_candidate_bbox_for_range(candidate: Any, text_range: Any) -> Any:
     return None
 
 
+def _utf16_range(text: str, start: int, end: int) -> tuple[int, int]:
+    """Map Python code-point offsets to the UTF-16 (start, length) NSRange
+    wants. Vision's candidates are NSStrings, and passing code-point offsets
+    shifted every range after the first non-BMP or composed character —
+    `boundingBoxForRange:` then returned nil and the word silently lost its
+    box (the 2026-08-23 "~70% of words have boxes" report; the diaries are
+    full of Spanish place names)."""
+    u16_start = len(text[:start].encode("utf-16-le")) // 2
+    u16_len = len(text[start:end].encode("utf-16-le")) // 2
+    return u16_start, u16_len
+
+
+def _interpolated_word_bbox(
+    line_bbox: list[float], start: int, end: int, line_length: int
+) -> list[float]:
+    """A word box DERIVED from its line box by proportional char slicing.
+
+    Vision returns nil from ``boundingBoxForRange:`` whenever the requested
+    range crosses its internal glyph segmentation — routine on handwriting,
+    where its "words" are not whitespace tokens. Dropping the word made
+    coverage structurally incomplete; a proportional slice of the line's own
+    measured box is coarse on a proportional face but HONEST about where the
+    word sits, and it is marked by ``confidence=None`` (absent = not
+    measured, #4394) so a consumer can always tell derived from measured.
+    ``line_bbox`` is top-left-origin normalized, as stored."""
+    x, y, w, h = line_bbox
+    fraction_start = start / max(line_length, 1)
+    fraction_end = end / max(line_length, 1)
+    return [
+        x + w * fraction_start,
+        y,
+        max(w * (fraction_end - fraction_start), 0.0),
+        h,
+    ]
+
+
 def _vision_text_range(start: int, length: int) -> Any:
     try:
         from Foundation import NSMakeRange
@@ -426,27 +462,40 @@ def _vision_word_boxes(
     *,
     page_index: int | None = None,
     char_offset: int | None = None,
+    line_bbox: list[float] | None = None,
 ) -> list[VisionOCRBox]:
     """Build per-word geometry from a recognized text candidate.
 
     ``char_offset`` is the line's starting offset inside the page's full OCR
     text; word spans are recorded relative to that full text (#4309).
+    ``line_bbox`` (top-left-origin, as stored) feeds the interpolated
+    fallback when Vision cannot map a range — see ``_interpolated_word_bbox``.
     """
     boxes: list[VisionOCRBox] = []
     confidence = _vision_candidate_confidence(candidate)
     for match in re.finditer(r"\S+", text):
+        u16_start, u16_len = _utf16_range(text, match.start(), match.end())
         bbox = _vision_candidate_bbox_for_range(
             candidate,
-            _vision_text_range(match.start(), match.end() - match.start()),
+            _vision_text_range(u16_start, u16_len),
         )
         bbox_list = _vision_bbox_from_rect(bbox)
-        if bbox_list is None:
+        if bbox_list is not None:
+            word_bbox = _vision_flip_bbox_to_top_left(bbox_list)
+            word_confidence = confidence
+        elif line_bbox is not None:
+            word_bbox = _interpolated_word_bbox(
+                line_bbox, match.start(), match.end(), len(text)
+            )
+            # Absent, not zero (#4394): this box was DERIVED, not measured.
+            word_confidence = None
+        else:
             continue
         boxes.append(
             VisionOCRBox(
                 text=match.group(0),
-                bbox=_vision_flip_bbox_to_top_left(bbox_list),
-                confidence=confidence,
+                bbox=word_bbox,
+                confidence=word_confidence,
                 page_index=page_index,
                 char_start=(
                     char_offset + match.start() if char_offset is not None else None
@@ -505,6 +554,11 @@ def _vision_geometry_from_results(
                         line_text,
                         page_index=page_index,
                         char_offset=line_offset,
+                        line_bbox=(
+                            _vision_flip_bbox_to_top_left(line_bbox)
+                            if line_bbox is not None
+                            else None
+                        ),
                     )
                 )
             char_cursor += len(line_text) + 1  # +1 for the joining "\n"
