@@ -87,7 +87,12 @@ struct CanvasInteractionPolicyGuardTests {
     @Test("the 2D canvas asks for the grid default, and the camera frames it")
     func canvasUsesGridDefault() throws {
         let source = try appSource(sceneViewPath)
-        #expect(source.contains("defaultPlacement: .grid(columns:"))
+        // §18.1 defect 3 (2026-08-22): the column count now comes from the ONE
+        // shared viewport derivation, so the call wraps across lines — pin the
+        // derivation itself, which is also the stronger property (2D and 3D
+        // cannot drift apart).
+        #expect(source.contains("defaultPlacement: .grid("))
+        #expect(source.contains("CanvasGridPlacement.sharedColumnCount("))
         #expect(source.contains("needsFitOnNextContent = true"))
     }
 }

@@ -80,7 +80,7 @@ struct SearchStoreTests {
     }
 
     @Test("document change events invalidate cached search state through a token")
-    func changeEventsAdvanceToken() async throws {
+    func changeEventsAdvanceToken() throws {
         let store = makeStore()
         let data = try JSONSerialization.data(withJSONObject: ["type": "document.updated"])
         let event = try JSONDecoder().decode(ChangeEvent.self, from: data)
@@ -91,10 +91,22 @@ struct SearchStoreTests {
         #expect(store.changeDomains == ["document"])
         // RULING CHANGE (perf audit 2026-08-19): the token bump is DEBOUNCED —
         // an hour-long import emitting document.updated ~2/sec used to re-run
-        // the full 4-leg transient search per event. A burst coalesces to ONE
-        // bump after the trailing window; "results may be stale" needs no more.
+        // the full 4-leg transient search per event. Synchronously nothing
+        // lands; the burst coalesces to one bump after the trailing window
+        // (timing owned by ReloadDebouncerWaitTests — the pure wait() math;
+        // a live-clock wait here raced the two runners and flaked).
         #expect(store.changeToken == 0)
-        try await Task.sleep(for: .milliseconds(700))
-        #expect(store.changeToken == 1)
+        let url = try AppSource.root().appendingPathComponent("Models/SearchStore.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let body = source
+            .components(separatedBy: "func apply(_ event: ChangeEvent)")[1]
+            .components(separatedBy: "\n    func ")[0]
+        #expect(body.contains("changeDebouncer.schedule"))
+        // Same order rule as the activity store: the only bump is inside the
+        // scheduled closure, never synchronously on the event path.
+        let scheduleAt = try #require(body.range(of: "changeDebouncer.schedule"))
+        if let bumpAt = body.range(of: "changeToken &+= 1") {
+            #expect(scheduleAt.lowerBound < bumpAt.lowerBound)
+        }
     }
 }
