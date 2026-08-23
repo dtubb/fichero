@@ -25,19 +25,30 @@ import SwiftUI
 /// Preview.app model. The head grows DOWNWARD, so nothing reflows sideways when
 /// it opens.
 ///
-/// ponytail: crumbs render as text today. Daniel wants parent crumbs as proxy
-/// ICONS with chevrons that expand on hover, icons-only when tight — deliberately
-/// not built yet, so the first version is one honest thing rather than two
-/// half-built ones.
+/// One segment of a pane's breadcrumb title — a node with a face (Daniel,
+/// 2026-08-23: "crumbs need icons that match sidebar and library").
+struct PaneCrumb: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let icon: String
+    /// `false` renders as plain text (e.g. a root the pane cannot navigate to).
+    var isNavigable: Bool = true
+}
+
 struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// The path to what this pane is showing — "Marshall Diaries v4 › Inbox ›
     /// 1933", NEVER the pane's type name (R1: the title line IS the
     /// breadcrumb).
-    let crumbs: [String]
+    let crumbs: [PaneCrumb]
     var onClose: (() -> Void)?
-    /// Crumb click navigates WITHIN this pane (ruling 2026-08-23): index into
-    /// `crumbs` of the tapped ancestor. `nil` renders the crumbs as plain text.
-    var onCrumb: ((Int) -> Void)?
+    /// Crumb click navigates WITHIN this pane (ruling 2026-08-23). `nil`
+    /// renders the crumbs as plain text.
+    var onCrumb: ((PaneCrumb) -> Void)?
+    /// The Xcode jump-bar grammar (Daniel, 2026-08-23): every segment —
+    /// including the CURRENT one — is a menu of that node's children, so you
+    /// can dive down as well as climb up. Sync so the menu can render; feed
+    /// it from a cache.
+    var crumbChildren: ((PaneCrumb) -> [PaneCrumb])?
     /// The two-level kind ▾ / lens ▾ control.
     @ViewBuilder var selector: () -> Selector
     /// The few controls that always apply to this pane kind.
@@ -84,18 +95,31 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
 
     /// Adaptive (ruling 2026-08-23): the full chain when the pane is wide
     /// enough, ONLY the leaf when it isn't — never a mid-string ellipsis.
-    /// Segments are clickable when `onCrumb` is wired; clicks navigate within
-    /// THIS pane. `.layoutPriority` keeps the crumb from being squeezed to
-    /// nothing by the fixed capsules on either side.
+    /// Right-click always shows the FULL path (so the collapsed form loses
+    /// nothing); segments navigate on click and list their children as a
+    /// menu, Xcode jump-bar style. `.layoutPriority` keeps the crumb from
+    /// being squeezed to nothing by the fixed capsules on either side.
     @ViewBuilder
     private var breadcrumbCapsule: some View {
         if !crumbs.isEmpty {
             capsule {
                 ViewThatFits(in: .horizontal) {
                     fullCrumbRow
-                    crumbSegment(at: crumbs.count - 1)
+                    crumbSegment(crumbs[crumbs.count - 1], isLeaf: true)
                 }
-                .accessibilityLabel(crumbs.joined(separator: ", "))
+                .accessibilityLabel(crumbs.map(\.name).joined(separator: ", "))
+            }
+            .contextMenu {
+                // The whole ancestry, top-down — reachable even when the
+                // capsule has collapsed to the leaf.
+                ForEach(crumbs) { crumb in
+                    Button {
+                        onCrumb?(crumb)
+                    } label: {
+                        Label(crumb.name, systemImage: crumb.icon)
+                    }
+                    .disabled(onCrumb == nil || !crumb.isNavigable)
+                }
             }
             .layoutPriority(1)
         }
@@ -103,25 +127,50 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
 
     private var fullCrumbRow: some View {
         HStack(spacing: 4) {
-            ForEach(crumbs.indices, id: \.self) { index in
+            ForEach(Array(crumbs.enumerated()), id: \.element.id) { index, crumb in
                 if index > 0 {
                     Text("›").font(.callout).foregroundStyle(.secondary)
                 }
-                crumbSegment(at: index)
+                crumbSegment(crumb, isLeaf: index == crumbs.count - 1)
             }
         }
     }
 
-    /// One crumb: a button when navigation is wired (ancestors steer this
-    /// pane), plain text otherwise. The leaf renders as text either way —
-    /// you are already there.
+    /// One crumb. With navigation wired: a menu of the node's children
+    /// (click = go there), whose primary click navigates to the node itself —
+    /// the Xcode jump bar. Without children: a plain navigate button. Without
+    /// wiring: text.
     @ViewBuilder
-    private func crumbSegment(at index: Int) -> some View {
-        let label = Text(crumbs[index]).font(.callout).lineLimit(1)
-        if let onCrumb, index < crumbs.count - 1 {
-            Button { onCrumb(index) } label: { label }
-                .buttonStyle(.borderless)
-                .help("Go to \(crumbs[index])")
+    private func crumbSegment(_ crumb: PaneCrumb, isLeaf: Bool) -> some View {
+        let label = Label(crumb.name, systemImage: crumb.icon)
+            .font(.callout)
+            .labelStyle(.titleAndIcon)
+            .lineLimit(1)
+            .foregroundStyle(isLeaf ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+        if let onCrumb, crumb.isNavigable {
+            let children = crumbChildren?(crumb) ?? []
+            if children.isEmpty {
+                Button { onCrumb(crumb) } label: { label }
+                    .buttonStyle(.borderless)
+                    .help("Go to \(crumb.name)")
+            } else {
+                Menu {
+                    ForEach(children) { child in
+                        Button {
+                            onCrumb(child)
+                        } label: {
+                            Label(child.name, systemImage: child.icon)
+                        }
+                    }
+                } label: {
+                    label
+                } primaryAction: {
+                    onCrumb(crumb)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Go to \(crumb.name) — hold for its contents")
+            }
         } else {
             label
         }
@@ -167,4 +216,20 @@ enum PaneHeadMetrics {
     static let capsulePadding: CGFloat = 8
     static let capsuleVerticalPadding: CGFloat = 3
     static let dividerHeight: CGFloat = 14
+}
+
+extension PaneCrumb {
+    /// The face a document wears everywhere — matches the sidebar/library rows
+    /// so a crumb is recognisably the same node (Daniel, 2026-08-23).
+    static func icon(for doc: Document) -> String {
+        if doc.docType == .folder { return doc.isWorkspace ? "square.grid.2x2" : "folder" }
+        if doc.docType == .page { return doc.fileType == .image ? "photo" : "doc.richtext" }
+        if doc.fileType == .pdf { return "doc.richtext" }
+        if doc.fileType == .image { return "photo" }
+        return "doc.text"
+    }
+
+    init(_ doc: Document) {
+        self.init(id: doc.id, name: DocumentTitle.displayName(for: doc), icon: Self.icon(for: doc))
+    }
 }

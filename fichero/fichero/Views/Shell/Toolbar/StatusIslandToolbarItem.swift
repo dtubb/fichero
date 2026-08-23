@@ -1,17 +1,16 @@
 import Foundation
 import SwiftUI
 
-/// Xcode-style center status island (#4036 follow-up): ONE `.principal`
-/// toolbar element — [engine button] [message area] [activity button] — that
+/// Xcode-style center status island (#4036 follow-up): the MESSAGE area that
 /// says what the app is doing (starting the engine, connecting to libraries,
-/// importing, running workflows, errors) beside the window title, instead of
-/// scattering a spinner in the leading zone and an activity pill after the
-/// view-mode icons.
+/// importing, running workflows, errors, the selection) beside the window
+/// title.
 ///
-/// The flanking buttons are the EXISTING `EngineStatusToolbarItem` and
-/// `ActivityStatusToolbarItem` views hosted unchanged — each keeps its own
-/// popover (connection diagnosis + Retry; activity list). This view only adds
-/// the layout shell and the aggregated message text.
+/// The engine and activity buttons are NOT in here (Daniel, 2026-08-23: "the
+/// island must separate from server status and activity — they're all in one
+/// right now"): `EngineStatusToolbarItem` and `ActivityStatusToolbarItem` are
+/// their own toolbar items, so each gets its own Liquid Glass section and its
+/// own popover.
 ///
 /// Hosted by ONE unconditionally-declared `ToolbarItem` (#3163 guard: only
 /// CONTENT varies with state, the item itself never appears/disappears).
@@ -30,11 +29,13 @@ struct StatusIslandToolbarItem: View {
     /// multi-selection is being built the island says "N selected" — the
     /// count is the thing the user is actively producing.
     let selectionCount: Int
+    /// How many items the browsed set holds — "3 of 151 selected" (Daniel,
+    /// 2026-08-23: the island mirrors the accurate bottom-bar count, once).
+    let selectionTotal: Int
     @Binding var importError: String?
 
     var body: some View {
         HStack(spacing: 8) {
-            EngineStatusToolbarItem()
             // A live folder import replaces the generic message with real
             // numbers and a Cancel — the island is where the user looks first,
             // and "importing…" with no count is what #4203 is about.
@@ -64,13 +65,6 @@ struct StatusIslandToolbarItem: View {
             } else {
                 message
             }
-            ActivityStatusToolbarItem(
-                isImporting: isImporting,
-                importProgress: importProgress,
-                libraryId: libraryId,
-                libraryName: libraryName,
-                importError: $importError
-            )
         }
         // No painted background (#4360). On macOS 26 the toolbar itself wraps
         // this principal item in the system's Liquid Glass; the old
@@ -101,7 +95,8 @@ struct StatusIslandToolbarItem: View {
             importProgress: importProgress,
             backendWorkLabel: activityStore.backendWork.map(Self.label(for:)),
             runningWorkflows: executionObserver.activeExecutions.count,
-            selectionCount: selectionCount
+            selectionCount: selectionCount,
+            selectionTotal: selectionTotal
         )
         return Text(status.text)
             .font(.subheadline)
@@ -156,7 +151,7 @@ struct StatusIslandMessage: Equatable {
         "Importing…",
         "Running 1 workflow…",
         "Running 99 workflows…",
-        "9,999 selected"
+        "9,999 of 9,999 selected"
     ]
 
     /// The short form of a string the app did not author.
@@ -213,7 +208,8 @@ struct StatusIslandMessage: Equatable {
         importProgress: String?,
         backendWorkLabel: String?,
         runningWorkflows: Int,
-        selectionCount: Int = 0
+        selectionCount: Int = 0,
+        selectionTotal: Int = 0
     ) -> StatusIslandMessage {
         switch enginePhase {
         case .portConflict, .authRejected, .unreachable, .failed:
@@ -235,7 +231,12 @@ struct StatusIslandMessage: Equatable {
         // chatter, but never an error or a live import. A SINGLE selection is
         // the app's normal state and stays quiet.
         if selectionCount > 1 {
-            return .init(text: "\(selectionCount.formatted()) selected", isError: false)
+            // "3 of 151 selected" — the same statement the library's bottom
+            // bar makes, so the two can never disagree (Daniel, 2026-08-23).
+            let text = selectionTotal >= selectionCount
+                ? "\(selectionCount.formatted()) of \(selectionTotal.formatted()) selected"
+                : "\(selectionCount.formatted()) selected"
+            return .init(text: text, isError: false)
         }
         if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         if runningWorkflows > 0 {

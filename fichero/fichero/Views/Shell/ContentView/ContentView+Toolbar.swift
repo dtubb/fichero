@@ -363,9 +363,26 @@ extension ContentView {
                         libraryId: windowState.libraryId,
                         libraryName: windowState.library?.displayName ?? "Library",
                         selectionCount: browserSelection.count,
+                        selectionTotal: documentStore.currentDocuments.count,
                         importError: $importError
                     )
                 }
+            }
+            // Engine + activity are their OWN items (Daniel, 2026-08-23: the
+            // island must separate from server status and activity): each gets
+            // its own Liquid Glass section instead of fusing into the island's
+            // capsule. Unconditionally declared, content-only variance (#3163).
+            ToolbarItem(id: ContentToolbarID.engineStatus, placement: .principal) {
+                EngineStatusToolbarItem()
+            }
+            ToolbarItem(id: ContentToolbarID.activityStatus, placement: .principal) {
+                ActivityStatusToolbarItem(
+                    isImporting: isImporting,
+                    importProgress: importProgress,
+                    libraryId: windowState.libraryId,
+                    libraryName: windowState.library?.displayName ?? "Library",
+                    importError: $importError
+                )
             }
         }
     }

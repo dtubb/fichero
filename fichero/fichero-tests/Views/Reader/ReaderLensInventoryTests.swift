@@ -35,10 +35,13 @@ struct ReaderLensInventoryTests {
         #expect(titles.contains("Node Graph"))
         #expect(titles.contains("Map"))
         // And the rest of the built inventory, so a future edit cannot quietly
-        // drop one back to menu-only.
-        for expected in ["Page", "Transcript", "Statements", "Entities", "Claims", "Timeline", "Notes"] {
+        // drop one back to menu-only. Transcript is NOT here (2026-08-23):
+        // Page IS the multi-page transcript, and the separate row landed on
+        // Entities via the knowledge surface's stale-value clamp.
+        for expected in ["Page", "Statements", "Entities", "Claims", "Timeline", "Notes"] {
             #expect(titles.contains(expected), "\(expected) fell out of the lens list")
         }
+        #expect(!titles.contains("Transcript"), "the duplicate Transcript lens came back")
     }
 
     @Test("Translation is absent, because it does not exist")

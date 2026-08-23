@@ -31,20 +31,9 @@ extension ContentView {
             // the engine's upload temp name, so it read `fichero_upload_…pdf`
             // where the sidebar read `18590129.pdf`.
             if let page = activeLocationDocument, page.docType == .page {
-                // One pass over currentDocuments with a Set — the old
-                // `filter { first(where:) }` was O(selection × library) per
-                // title evaluation (stall audit #4602).
-                let selectedIds = Set(browserSelection)
-                let selectedPages = documentStore.currentDocuments.filter {
-                    selectedIds.contains($0.id) && $0.docType == .page
-                }
-                viewName = DocumentTitle.windowTitle(
-                    leaf: page,
-                    parent: document,
-                    selectedPageCount: selectedPages.count,
-                    // #4586: images are images; "pages" only for real PDF pages.
-                    selectionNoun: DocumentTitle.selectionNoun(for: selectedPages)
-                )
+                // No count composition (Daniel, 2026-08-23): the title names
+                // WHERE you are; the island owns "N of M selected".
+                viewName = DocumentTitle.windowTitle(leaf: page, parent: document)
             } else if let document {
                 viewName = DocumentTitle.displayName(for: document)
             } else {

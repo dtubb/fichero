@@ -67,10 +67,13 @@ struct ReadingPaneView: View {
     // visualisation (2026-07-14, #3765 Q6).
     @State var activeTab: KGSurfaceTab = .entities
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
-    /// (2026-07-11 design). Per-window via @SceneStorage. Page hosts the REAL
-    /// multi-page WebKit transcript (#3765); the old "reader reads the source
-    /// first" note is retired — the source lives in Preview, never here.
-    @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.page.rawValue
+    /// (2026-07-11 design). Per-PANE @State (Daniel, 2026-08-23: two split
+    /// readers must switch lenses independently — @SceneStorage is per WINDOW,
+    /// so one pane's change dragged its sibling). Page hosts the REAL
+    /// multi-page WebKit transcript (#3765).
+    /// ponytail: the lens no longer survives relaunch; per-pane persistence
+    /// needs pane-identity keys, add with the saved-workspaces program.
+    @State private var readerTabRaw = ReaderTab.page.rawValue
     var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .page }
     /// The pane head's lens — ONE user-facing value over the two internal
     /// enums (R3). Setting it writes both, so the head, the menu bar and the
@@ -224,6 +227,19 @@ struct ReadingPaneView: View {
         let head = PaneHead<PaneKindSelector<ReaderLens>, AnyView, EmptyView>(
             crumbs: readerCrumbs,
             onClose: closeAction,
+            // Crumb click = reveal that node in the sidebar, which selects it
+            // through the same seam a click uses — the pane follows. The
+            // jump-bar child menus read the store's children cache.
+            onCrumb: { crumb in
+                NotificationCenter.default.post(
+                    name: .sidebarRevealDocument,
+                    object: nil,
+                    userInfo: ["documentId": crumb.id]
+                )
+            },
+            crumbChildren: { crumb in
+                (documentStore.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
+            },
             selector: { self.readerSelector },
             // AnyView is the type-checker guard this call site already needed
             // twice ("failed to produce diagnostic") — bounded, not inferred.
@@ -258,60 +274,26 @@ struct ReadingPaneView: View {
             }
     }
 
-    /// The head's right capsule: the Xcode-style split "+" menu, then pin —
-    /// pin stays far right. NO zoom controls (Daniel, 2026-08-23): reader
-    /// zoom is a menu command (⌘+/⌘−/⌘0), published as the shared
+    /// The head's right capsule: the shared "+" chrome menu (split options
+    /// with pin inside — Daniel, 2026-08-23). NO zoom controls: reader zoom
+    /// is a menu command (⌘+/⌘−/⌘0), published as the shared
     /// `imageZoomActions` focused value below.
     @ViewBuilder
     private var readerHeadControls: some View {
-        if let actions = splitAxisActions {
-            splitPlusMenu(actions)
-            Divider().frame(height: PaneHeadMetrics.dividerHeight)
-        }
-        readerPinButton
-    }
-
-    /// One "+" that offers the split options (Daniel, 2026-08-23: "a plus like
-    /// in Xcode that you can click on and get options").
-    private func splitPlusMenu(_ actions: SplitAxisActions) -> some View {
-        Menu {
-            Button(
-                actions.hasVertical
-                    ? (actions.paneCount == 3 ? "Remove Vertical Split" : "Add Third Vertical Pane")
-                    : "Split Left / Right"
-            ) { actions.onToggleVertical() }
-            Button(
-                actions.hasHorizontal
-                    ? (actions.paneCount == 3 ? "Remove Horizontal Split" : "Add Third Horizontal Pane")
-                    : "Split Top / Bottom"
-            ) { actions.onToggleHorizontal() }
-        } label: {
-            Image(systemName: "plus")
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help("Split this pane")
-        .accessibilityLabel("Split this pane")
-    }
-
-    private var readerPinButton: some View {
-        Button {
-            if isPinned {
-                isPinned = false
-            } else {
-                pinnedDocument = liveDocument
-                pinnedActivePageNumber = liveActivePageNumber
-                pinnedPageCount = livePageCount
-                isPinned = true
-            }
-        } label: {
-            Image(systemName: isPinned ? "pin.fill" : ToolbarSymbols.pin)
-                .imageScale(.small)
-        }
-        .buttonStyle(.borderless)
-        .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-        .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
-        .accessibilityLabel(isPinned ? "Unpin, follow current selection" : "Pin to current document")
+        PaneChromeMenu(
+            splitActions: splitAxisActions,
+            isPinned: Binding(
+                get: { isPinned },
+                set: { pin in
+                    if pin {
+                        pinnedDocument = liveDocument
+                        pinnedActivePageNumber = liveActivePageNumber
+                        pinnedPageCount = livePageCount
+                    }
+                    isPinned = pin
+                }
+            )
+        )
     }
 
     /// The pane's title line IS its breadcrumb (R1), not "Reader" — and it is
@@ -327,16 +309,24 @@ struct ReadingPaneView: View {
     /// icons with chevrons, expanding on hover) are a later slice; the capsule
     /// truncates from the leading edge until then, so a deep path still shows
     /// the part that identifies it.
-    private var readerCrumbs: [String] {
+    private var readerCrumbs: [PaneCrumb] {
         guard let document = effectiveDocument else { return [] }
         let ancestry = libraryPathCrumbs(
             anchorId: document.id,
             resolve: { documentStore.resolveDocument($0) }
-        ).map(\.name)
+        )
         // The library is the root crumb: a path that starts at a folder does
         // not say WHICH library's Inbox you are in, and several are open at
-        // once in the normal case.
-        return ([libraryName].compactMap { $0 }) + (ancestry.isEmpty ? [document.name] : ancestry)
+        // once in the normal case. Not navigable from a reader (yet).
+        var crumbs: [PaneCrumb] = []
+        if let libraryName {
+            crumbs.append(PaneCrumb(
+                id: "library-root", name: libraryName,
+                icon: ToolbarSymbols.breadcrumbLibrary, isNavigable: false
+            ))
+        }
+        crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)
+        return crumbs
     }
 
     /// The library the read document belongs to, for the root crumb.
