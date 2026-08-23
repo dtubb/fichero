@@ -27,12 +27,27 @@ struct TransparencyCheckerboardTests {
         return reds
     }
 
+    /// A real RGBA bitmap, not a drawing-handler image: the production
+    /// detection keys on `representations.hasAlpha`, which an NSCustomImageRep
+    /// (what the drawing-handler initializer produces) does not report — the
+    /// viewer's real inputs are decoded bitmap reps, so the fixture must be one.
     private func solidImage(white: CGFloat, alpha: CGFloat) -> NSImage {
-        NSImage(size: NSSize(width: 32, height: 32), flipped: false) { rect in
-            NSColor(white: white, alpha: alpha).setFill()
-            rect.fill()
-            return true
-        }
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 32, pixelsHigh: 32,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+            isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        )!
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        // .copy, not sourceOver: writes the EXACT rgba including alpha 0 —
+        // fresh bitmap memory is not guaranteed zeroed.
+        NSColor(white: white, alpha: alpha).setFill()
+        NSRect(x: 0, y: 0, width: 32, height: 32).fill(using: .copy)
+        NSGraphicsContext.restoreGraphicsState()
+        let image = NSImage(size: NSSize(width: 32, height: 32))
+        image.addRepresentation(rep)
+        return image
     }
 
     @Test func transparentImageGetsCheckerGround() {
