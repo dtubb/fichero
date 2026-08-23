@@ -463,7 +463,7 @@ struct CanvasGridCellPitchTests {
     @Test("an empty or nonsense aspect list falls back to the nominal cell")
     func degenerateAspects() {
         let nominal = CanvasGridPlacement.nominalCell
-        for aspects in [[Double](), [0], [-2], [.nan], [.infinity], [0, -1, .nan]] {
+        for aspects in [[Double](), [0], [-2], [Double.nan], [Double.infinity], [0, -1, Double.nan]] {
             let cell = CanvasGridPlacement.cell(forAspects: aspects)
             #expect(abs(Double(cell.width) - Double(nominal.width)) < 1e-9)
             #expect(abs(Double(cell.height) - Double(nominal.height)) < 1e-9)

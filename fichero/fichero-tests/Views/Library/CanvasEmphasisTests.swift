@@ -63,7 +63,7 @@ struct CanvasEmphasisTests {
     @Test("weights are clamped, and nonsense is dropped rather than rendered")
     func weightsAreSanitised() {
         let emphasis = CanvasEmphasis(weights: [
-            "doc:over": 4, "doc:under": -2, "doc:nan": .nan, "doc:inf": .infinity, "doc:ok": 0.5,
+            "doc:over": 4, "doc:under": -2, "doc:nan": Double.nan, "doc:inf": Double.infinity, "doc:ok": 0.5,
         ])
         #expect(emphasis.strength(for: "doc:over") == 1)
         #expect(emphasis.strength(for: "doc:under") == CanvasEmphasis.weakestMatchStrength)
@@ -115,7 +115,7 @@ struct CanvasEmphasisTests {
         // A non-finite score is dropped before the range is measured — one NaN
         // must not flatten every real score to the bottom of the scale.
         let mixed = CanvasEmphasis.scoreWeighted(
-            scores: ["doc:a": 0.6, "doc:b": 0.9, "doc:bad": .nan, "doc:worse": .infinity]
+            scores: ["doc:a": 0.6, "doc:b": 0.9, "doc:bad": Double.nan, "doc:worse": Double.infinity]
         )
         #expect(mixed.strength(for: "doc:b") == 1)
         #expect(mixed.strength(for: "doc:a") == CanvasEmphasis.weakestMatchStrength)
@@ -126,7 +126,7 @@ struct CanvasEmphasisTests {
         #expect(negative.strength(for: "doc:b") == 1)
         #expect(negative.strength(for: "doc:a") == CanvasEmphasis.weakestMatchStrength)
 
-        #expect(CanvasEmphasis.scoreWeighted(scores: ["doc:a": .nan]) == .neutral)
+        #expect(CanvasEmphasis.scoreWeighted(scores: ["doc:a": Double.nan]) == .neutral)
     }
 }
 

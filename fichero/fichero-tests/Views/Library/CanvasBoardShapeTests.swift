@@ -80,9 +80,11 @@ struct CanvasBoardShapeTests {
 
     @Test("a degenerate viewport falls back to the shared default, never zero")
     func degenerateViewportFallsBack() {
+        // CGFloat.nan spelled out: a bare `.nan` inside the CGSize init is
+        // ambiguous between the CGFloat and Double overloads.
         let sizes = [CGSize.zero, CGSize(width: 1_600, height: 0), CGSize(width: 0, height: 900),
-                     CGSize(width: -100, height: 900), CGSize(width: .nan, height: 900),
-                     CGSize(width: .infinity, height: 900)]
+                     CGSize(width: -100, height: 900), CGSize(width: CGFloat.nan, height: 900),
+                     CGSize(width: CGFloat.infinity, height: 900)]
         for size in sizes {
             #expect(CanvasGridPlacement.sharedColumnCount(itemCount: 500, viewportSize: size)
                         == CanvasGridPlacement.defaultColumns)
