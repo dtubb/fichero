@@ -99,7 +99,8 @@ extension CanvasSceneState {
         links: [SpatialLink],
         layoutRows: [CanvasItemLayout],
         items: [CanvasItemDisplay],
-        defaultPlacement: CanvasDefaultPlacement = .backendPosition
+        defaultPlacement: CanvasDefaultPlacement = .backendPosition,
+        gridCell: CGSize = CanvasGridPlacement.nominalCell
     ) -> CanvasSceneState {
         let rowsById = Dictionary(layoutRows.map { ($0.itemId, $0) }, uniquingKeysWith: { _, latest in latest })
 
@@ -119,7 +120,7 @@ extension CanvasSceneState {
             let gridSlot = slot
             slot += 1
             let position = row.map { SIMD3<Double>($0.x, $0.y, $0.z) }
-                ?? nodeDefaultPosition(node, slot: gridSlot, placement: defaultPlacement)
+                ?? nodeDefaultPosition(node, slot: gridSlot, placement: defaultPlacement, cell: gridCell)
             placeables.append(
                 CanvasPlaceable(
                     id: node.id,
@@ -145,7 +146,7 @@ extension CanvasSceneState {
                     position = cascadePosition(cascadeIndex)
                     cascadeIndex += 1
                 case .grid(let columns):
-                    position = CanvasGridPlacement.position(index: gridSlot, columns: columns)
+                    position = CanvasGridPlacement.position(index: gridSlot, columns: columns, cell: gridCell)
                 }
             }
             placeables.append(
@@ -198,13 +199,13 @@ extension CanvasSceneState {
     /// values are laid out on the XZ plane and the 2D projection drops z — which
     /// is precisely how a whole folder ended up on one line (#4290).
     private static func nodeDefaultPosition(
-        _ node: SpatialNode, slot: Int, placement: CanvasDefaultPlacement
+        _ node: SpatialNode, slot: Int, placement: CanvasDefaultPlacement, cell: CGSize
     ) -> SIMD3<Double> {
         switch placement {
         case .backendPosition:
             return SIMD3<Double>(node.positionX, node.positionY, node.positionZ)
         case .grid(let columns):
-            return CanvasGridPlacement.position(index: slot, columns: columns)
+            return CanvasGridPlacement.position(index: slot, columns: columns, cell: cell)
         }
     }
 

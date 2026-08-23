@@ -69,6 +69,19 @@ struct CanvasSpaceView: View {
     private var isTruncated: Bool { nodes.count + renderableItems.count > Self.maxRenderedPlaceables }
     private var isEmpty: Bool { nodes.isEmpty && (itemStore?.items(for: scopeKey).isEmpty ?? true) }
 
+    /// The default grid's cell pitch, from the page aspects loaded so far
+    /// (§18.1 defect 4). Aspects arrive as textures load, so a board of
+    /// row-less cards can re-flow ONCE as they land — the same class of re-flow
+    /// as resizing the window, and bounded the same way: a saved row always
+    /// wins, so nothing the user has placed ever moves.
+    private var gridCell: CGSize {
+        CanvasGridPlacement.cell(
+            forAspects: CanvasCardGeometry.knownAspects(
+                forSourceIds: nodes.compactMap(\.sourceId)
+            )
+        )
+    }
+
     private var resolvedState: CanvasSceneState {
         var state = CanvasSceneState.resolve(
             nodes: nodes,
@@ -82,7 +95,11 @@ struct CanvasSpaceView: View {
             // different from 2D. Columns follow the ceil(sqrt(n)) convention
             // the Arrange-in-Grid button and the backend `grid` strategy
             // already use; saved rows still win over the default.
-            defaultPlacement: .grid(columns: 10)
+            defaultPlacement: .grid(columns: 10),
+            // Pitch from the board's ACTUAL card extents, not the nominal
+            // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
+            // area, so a double-spread is 1.22 wide and needs the room.
+            gridCell: gridCell
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))

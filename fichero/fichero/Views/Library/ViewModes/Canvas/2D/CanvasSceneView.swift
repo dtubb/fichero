@@ -95,6 +95,19 @@ struct CanvasSceneView: View {
     /// this renderer drops z, so every card in a folder collapsed onto the line
     /// `y = 0` — one row, cards on top of each other, and drops resolving as
     /// links against their own neighbours instead of as moves.
+    /// The default grid's cell pitch, from the page aspects loaded so far
+    /// (§18.1 defect 4). Aspects arrive as textures load, so a board of
+    /// row-less cards can re-flow ONCE as they land — the same class of re-flow
+    /// as resizing the window, and bounded the same way: a saved row always
+    /// wins, so nothing the user has placed ever moves.
+    private var gridCell: CGSize {
+        CanvasGridPlacement.cell(
+            forAspects: CanvasCardGeometry.knownAspects(
+                forSourceIds: nodes.compactMap(\.sourceId)
+            )
+        )
+    }
+
     private func resolvedState(in viewportSize: CGSize) -> CanvasSceneState {
         var state = CanvasSceneState.resolve(
             nodes: nodes,
@@ -106,7 +119,11 @@ struct CanvasSceneView: View {
             // shared default so the two canvases show the SAME board — they
             // already share the layout store, so a move in one is a move in
             // the other; the default must match too.
-            defaultPlacement: .grid(columns: 10)
+            defaultPlacement: .grid(columns: 10),
+            // Pitch from the board's ACTUAL card extents, not the nominal
+            // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
+            // area, so a double-spread is 1.22 wide and needs the room.
+            gridCell: gridCell
         )
         state.selection = selectedNodeIds
         return state
