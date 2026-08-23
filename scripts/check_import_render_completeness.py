@@ -42,7 +42,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PY_MODELS = ROOT / "fichero-server" / "src" / "fichero_server" / "models" / "__init__.py"
-DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentService.swift"
+# The decoder switches moved to the +DocumentConversion split (2026-08-23,
+# the DocumentService file-length split). A guard that names a file is coupled
+# to that file: this went red the moment the declaration moved, which is the
+# audit trigger working — repoint it when the function moves, never loosen it.
+DECODER = ROOT / "fichero" / "fichero" / "Services" / "DocumentService+DocumentConversion.swift"
 RULE_DOC = "docs/contributor/architecture/fichero/reform_masterplan_2026-06.md"
 
 # Engine enum  ->  the Swift decoder switch that classifies it into a renderer.
