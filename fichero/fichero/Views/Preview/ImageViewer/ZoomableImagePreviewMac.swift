@@ -18,6 +18,9 @@ struct ZoomableImagePreview: View {
     /// over `url` for display — the URL is still used as a stable identity key
     /// but image data comes from this override (#1402).
     var renderedImage: NSImage?
+    /// The rendition `renderedImage`'s pixels already ARE (preferred-first
+    /// canvas path, 2026-08-24) — loadRenditions lands here without a fetch.
+    var renderedRenditionId: String?
     /// Optional callback fired when the user steps to a sibling image. macOS
     /// relies on the window-level sibling navigation (#593); the parameter is
     /// kept for API parity with the iOS overlay buttons (#2420).
@@ -45,6 +48,7 @@ struct ZoomableImagePreview: View {
         url: URL? = nil,
         documentId: String? = nil,
         renderedImage: NSImage? = nil,
+        renderedRenditionId: String? = nil,
         onNavigateToDocument: ((String) -> Void)? = nil,
         isEditing: Binding<Bool>? = nil,
         highlightBoxes: [[Double]] = [],
@@ -54,6 +58,7 @@ struct ZoomableImagePreview: View {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
+        self.renderedRenditionId = renderedRenditionId
         self.onNavigateToDocument = onNavigateToDocument
         self.isEditing = isEditing
         self.highlightBoxes = highlightBoxes

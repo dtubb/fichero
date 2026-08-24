@@ -35,8 +35,11 @@ struct DocumentCanvas: View {
     enum Content {
         /// A backend storage display image, resolved by document id.
         case imageStorageDisplay(documentId: String)
-        /// A backend-rendered PlatformImage (editor mode — may be nil while loading).
-        case imageRendered(image: PlatformImage?, documentId: String)
+        /// A backend-rendered PlatformImage (editor mode — may be nil while
+        /// loading). `renditionId` names the rendition those pixels ARE when
+        /// the preferred-first path fetched them (2026-08-24) — the preview
+        /// then lands its flip index there without re-fetching.
+        case imageRendered(image: PlatformImage?, documentId: String, renditionId: String? = nil)
         /// A PDF document at a given page index.
         case pdf(documentId: String, pageIndex: Int)
         /// A text/Markdown representation (#2264) — e.g. a `convert` artifact.
@@ -83,10 +86,11 @@ struct DocumentCanvas: View {
                 focusRegion: focusRegion,
                 onContainmentStep: onContainmentStep
             )
-        case .imageRendered(let nsImage, let docId):
+        case .imageRendered(let nsImage, let docId, let renditionId):
             ZoomableImagePreview(
                 documentId: docId,
                 renderedImage: nsImage,
+                renderedRenditionId: renditionId,
                 onNavigateToDocument: onNavigateToDocument,
                 isEditing: isEditing,
                 highlightBoxes: highlightBoxes,
@@ -148,7 +152,11 @@ private struct StorageDisplayImageCanvas: View {
     /// Optional: hosts without a store (isolated previews) skip the
     /// grant-prompt path; the degraded-thumbnail capsule still renders.
     @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    @Environment(RenditionService.self) private var renditionService: RenditionService?
     @State private var image: PlatformImage?
+    /// The rendition whose pixels `image` holds, when the preferred-first
+    /// path won — handed down so the preview does NOT re-fetch them.
+    @State private var renderedRenditionId: String?
     @State private var loadError: Error?
     /// Monotonic token: each load claims a generation and only the latest may
     /// publish. Guards the rapid page-flip race — an older page's slower fetch
@@ -185,7 +193,11 @@ private struct StorageDisplayImageCanvas: View {
         ZStack {
             if image != nil {
                 DocumentCanvas(
-                    content: .imageRendered(image: image, documentId: documentId),
+                    content: .imageRendered(
+                        image: image,
+                        documentId: documentId,
+                        renditionId: renderedRenditionId
+                    ),
                     onNavigateToDocument: onNavigateToDocument,
                     isEditing: isEditing,
                     highlightBoxes: highlightBoxes,
@@ -262,9 +274,39 @@ private struct StorageDisplayImageCanvas: View {
         let claimed = loadGeneration
         loadError = nil
         do {
+            // PREFERRED RENDITION FIRST (Daniel, 2026-08-24: "it should just
+            // load background removed"): a sibling step used to fetch the
+            // base display image, show it, and THEN the preview fetched the
+            // sticky rendition and swapped again — three images per swipe.
+            // Resolve the preference before any pixel fetch; the base
+            // display is now the FALLBACK, not a step.
+            if let renditionService {
+                _ = await renditionService.load(documentId: documentId)
+                let displayable = renditionService.displayable(documentId: documentId)
+                let sticky = UserDefaults.standard.string(
+                    forKey: ZoomableImagePreview.stickyRenditionRoleKey
+                )
+                let preferred = preferredRenditionIndex(in: displayable, stickyRole: sticky)
+                // Index 0 is the engine's primary — the base display image
+                // serves that (cheaper, cached). Only a preferred FLIP
+                // target is worth the rendition fetch here.
+                if preferred != 0, displayable.indices.contains(preferred) {
+                    let target = displayable[preferred]
+                    let data = try await renditionService.contentData(
+                        documentId: documentId, renditionId: target.id
+                    )
+                    if let loaded = PlatformImage(data: data) {
+                        guard claimed == loadGeneration else { return }
+                        image = loaded
+                        renderedRenditionId = target.id
+                        return
+                    }
+                }
+            }
             let loaded = try await storageService.getDisplayPlatformImage(documentId)
             guard claimed == loadGeneration else { return }  // a newer flip won
             image = loaded
+            renderedRenditionId = nil
         } catch {
             guard claimed == loadGeneration else { return }
             // A failed load must not silently keep showing the WRONG page.

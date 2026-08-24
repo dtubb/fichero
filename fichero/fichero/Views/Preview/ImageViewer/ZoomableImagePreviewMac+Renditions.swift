@@ -66,7 +66,16 @@ extension ZoomableImagePreview {
         // original). Selection only — flipRendition fetches the pixels.
         let sticky = UserDefaults.standard.string(forKey: Self.stickyRenditionRoleKey)
         let preferred = preferredRenditionIndex(in: renditions, stickyRole: sticky)
-        if preferred != 0 {
+        // Preferred-first (2026-08-24): when the canvas already fetched the
+        // preferred rendition's pixels, LAND there — index, override image,
+        // no second fetch, no third visible swap per sibling step.
+        if let renderedRenditionId,
+           renditions.indices.contains(preferred),
+           renditions[preferred].id == renderedRenditionId {
+            renditionIndex = preferred
+            renditionOverrideImage = renderedImage
+            if let renderedImage { imageSize = renderedImage.size }
+        } else if preferred != 0 {
             flipRendition(to: preferred, recordSticky: false)
         }
     }
