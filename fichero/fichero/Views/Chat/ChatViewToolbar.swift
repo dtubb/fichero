@@ -152,7 +152,7 @@ private struct ChatConversationMenu: View, Equatable {
     }
 }
 
-private struct ChatModelPicker: View, Equatable {
+struct ChatModelPicker: View, Equatable {
     let providers: [LLMProvider]
     @Binding var selectedProvider: String
     @Binding var selectedModel: String

@@ -60,25 +60,24 @@ struct DatasetModeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                if store.isLoading { ProgressView().controlSize(.small) }
-                if let editError = store.editErrorText {
-                    Label(editError, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
+            // NO count header (Daniel, 2026-08-23): "425 items" told nobody
+            // anything and painted an opaque band behind the floating head.
+            // Loading/error keep a slot only while they have something to say.
+            if store.isLoading || store.editErrorText != nil {
+                HStack {
+                    if store.isLoading { ProgressView().controlSize(.small) }
+                    if let editError = store.editErrorText {
+                        Label(editError, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                if let page = store.page {
-                    Text("\(page.total) item\(page.total == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                Divider()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            Divider()
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             if store.page?.rows.isEmpty == false {

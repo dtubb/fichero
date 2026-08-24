@@ -32,55 +32,15 @@ struct ChatErrorView: View {
     }
 }
 
-/// Empty state view for new conversations
+/// Empty state for a new conversation: NOTHING (Daniel, 2026-08-23:
+/// "everyone knows what a chat view is", and chat is not just documents —
+/// it drives MCP tools and builds workflows, so no blurb narrows it).
 struct ChatEmptyStateView: View {
     @Binding var inputText: String
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-
-            Text("Chat with your documents")
-                .font(.headline)
-
-            Text("Ask questions about your documents and get answers with source citations.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 300)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Try asking:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                ForEach(sampleQuestions, id: \.self) { question in
-                    Button {
-                        inputText = question
-                    } label: {
-                        Text(question)
-                            .font(.subheadline)
-                            .foregroundColor(.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding()
-            .background(Color(.controlBackgroundColor))
-            .cornerRadius(8)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
-    }
-
-    private var sampleQuestions: [String] {
-        [
-            "What are the main themes in these documents?",
-            "Summarize the key points from the letters",
-            "Find mentions of specific people or places"
-        ]
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

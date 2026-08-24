@@ -170,7 +170,9 @@ extension ContentView {
             }(),
             selectedDocuments: $chatSelectedDocuments,
             attachContext: chatAttachContext,
-            onConversationUpdated: { refreshConversations() }
+            onConversationUpdated: { refreshConversations() },
+            // X on the chat head hides the pane — the toolbar toggle's seam.
+            onClosePane: { setChatPaneVisible(false) }
         )
     }
 }

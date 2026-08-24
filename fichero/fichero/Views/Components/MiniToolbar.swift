@@ -79,9 +79,10 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     // bar on top (#2309).
     @Environment(\.splitAxisActions) private var splitActions
 
-    private var shouldShowSplitButtons: Bool {
-        horizontalSizeClass != .compact
-    }
+    // Split controls moved to the pane HEAD's "+" menu (Daniel, 2026-08-23:
+    // the bottom-right split icons were a second owner). The environment
+    // injection stays wired for the head; this bar no longer draws them.
+    private var shouldShowSplitButtons: Bool { false }
 
     init(@ViewBuilder content: () -> Content, @ViewBuilder trailing: () -> Trailing) {
         self.content = content()

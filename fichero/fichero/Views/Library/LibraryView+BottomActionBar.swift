@@ -57,6 +57,14 @@ extension LibraryView {
                     libraryMiniToolbar
                 } overflowMenu: {
                     bottomBarOverflowMenu
+                    // The sort/filter cluster survives narrow widths here
+                    // (Daniel, 2026-08-23: "we want them there") — the
+                    // metadata POPOVER stays inline-only, a popover row
+                    // inside a menu would be inert.
+                    Divider()
+                    librarySortMenu
+                    libraryLevelToggle
+                    libraryFilterToggleButton
                 }
                 .padding(.horizontal, 10)
                 .frame(height: bottomBarHeight)

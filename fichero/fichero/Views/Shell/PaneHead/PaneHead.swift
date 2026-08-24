@@ -153,17 +153,26 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             }
             .contextMenu {
                 // The whole ancestry, top-down — reachable even when the
-                // capsule has collapsed to the leaf.
-                ForEach(crumbs) { crumb in
+                // capsule has collapsed to the leaf. DEFERRED to open: menu
+                // content is otherwise evaluated on every render, per head
+                // (the librarySortMenu 1250ms stall class).
+                SidebarDeferredMenuContent {
+                    contextMenuRows
+                }
+            }
+            .layoutPriority(1)
+        }
+    }
+
+    @ViewBuilder
+    private var contextMenuRows: some View {
+        ForEach(crumbs) { crumb in
                     Button {
                         onCrumb?(crumb)
                     } label: {
                         Label(crumb.name, systemImage: crumb.icon)
                     }
                     .disabled(onCrumb == nil || !crumb.isNavigable)
-                }
-            }
-            .layoutPriority(1)
         }
     }
 
@@ -275,11 +284,15 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                     .help("Go to \(crumb.name)")
             } else {
                 Menu {
-                    ForEach(children) { child in
-                        Button {
-                            onCrumb(child)
-                        } label: {
-                            Label(child.name, systemImage: child.icon)
+                    // Deferred: children rows build when the menu opens,
+                    // not on every head render.
+                    SidebarDeferredMenuContent {
+                        ForEach(children) { child in
+                            Button {
+                                onCrumb(child)
+                            } label: {
+                                Label(child.name, systemImage: child.icon)
+                            }
                         }
                     }
                 } label: {

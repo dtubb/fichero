@@ -82,6 +82,12 @@ struct ChatView: View {
     /// Saved-workspace store (#3533) — a chat is ephemeral until saved on-demand.
     @Environment(WorkspaceStore.self) var workspaceStore
 
+    /// Pin = stay on THIS conversation (Daniel, 2026-08-23): switching and
+    /// new-chat are refused while pinned.
+    @State private var isConversationPinned = false
+    /// Hides the chat pane — the host's seam; nil hides the X.
+    var onClosePane: (() -> Void)?
+
     /// Per-window chat tab (#3532), like the document inspector's @SceneStorage.
     @SceneStorage("chat.surfaceTab") private var chatTabRaw = ChatSurfaceTab.conversation.rawValue
     private var chatTab: ChatSurfaceTab { ChatSurfaceTab(rawValue: chatTabRaw) ?? .conversation }
@@ -101,17 +107,34 @@ struct ChatView: View {
         )
     }
 
-    /// The chat's floating head: [chat icon : lens] [conversation crumb].
-    /// No X yet — the pane host owns chat visibility and passes no seam.
+    /// The chat's floating head: [X : chat icon : lens] [conversation crumb —
+    /// its jump-bar menu lists the other conversations] [+ / pin].
     private var chatPaneHead: some View {
         PaneHead<PaneKindSelector<ChatSurfaceTab>, EmptyView, EmptyView>(
             crumbs: [PaneCrumb(
                 id: currentConversation.id,
                 name: currentConversation.title,
-                icon: "bubble.left.and.bubble.right.fill",
-                isNavigable: false
+                icon: "bubble.left.and.bubble.right.fill"
             )],
-            onClose: nil,
+            onClose: onClosePane,
+            // Pin = stay on THIS conversation: switching is refused while
+            // pinned (the guard in switchConversation).
+            isPinned: $isConversationPinned,
+            onCrumb: { crumb in
+                guard !isConversationPinned,
+                      let conversation = visibleConversations.first(where: { $0.id == crumb.id })
+                else { return }
+                switchConversation(conversation)
+            },
+            crumbChildren: { _ in
+                visibleConversations.map { conversation in
+                    PaneCrumb(
+                        id: conversation.id,
+                        name: conversation.title,
+                        icon: "bubble.left.and.bubble.right"
+                    )
+                }
+            },
             selector: { self.chatSelector },
             controls: { EmptyView() },
             tools: { EmptyView() }
@@ -124,7 +147,8 @@ struct ChatView: View {
         attachContext: ChatAttachContext = .empty,
         conversationFolderPath: String? = nil,
         researchProject: ResearchProject? = nil,
-        onConversationUpdated: (() -> Void)? = nil
+        onConversationUpdated: (() -> Void)? = nil,
+        onClosePane: (() -> Void)? = nil
     ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
@@ -132,25 +156,16 @@ struct ChatView: View {
         self.conversationFolderPath = conversationFolderPath
         self.researchProject = researchProject
         self.onConversationUpdated = onConversationUpdated
+        self.onClosePane = onClosePane
         self._currentConversation = State(initialValue: conversation ?? Conversation())
     }
 
     var body: some View {
         VStack(spacing: 0) {
             // View-specific toolbar at top (conversation switcher / provider).
-            ChatViewToolbar(
-                conversationTitle: currentConversation.title,
-                conversations: visibleConversations,
-                onSelectConversation: switchConversation,
-                implicitScopeLabel: attachContext.implicitScopeLabel,
-                selectedDocumentsCount: selectedDocuments.count,
-                onClearDocuments: { selectedDocuments.removeAll() },
-                providers: providers,
-                selectedProvider: $selectedProvider,
-                selectedModel: $selectedModel,
-                onNewChat: startNewChat
-            )
-
+            // The old top toolbar row is GONE (Daniel, 2026-08-23): the head
+            // is first. New-chat + model live in the bottom mini toolbar;
+            // conversation switching is the crumb's jump-bar menu.
             // The tab bar is GONE (Daniel, 2026-08-23): the chat's surfaces
             // are lenses in the shared PaneHead, floating over the content —
             // the same grammar as the reader and the library.
@@ -320,9 +335,21 @@ struct ChatView: View {
     /// the user saves it as a persistent workspace node (#3547 backend).
     private var chatBottomBar: some View {
         MiniToolbar {
-            Text(chatBottomStatus)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // New chat leads the bar (Daniel, 2026-08-23: "a plus on left,
+            // the model to use, save as workspace on right" — no message
+            // count, nobody cares).
+            Button {
+                startNewChat()
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderless)
+            .help("New chat")
+            .accessibilityLabel("New chat")
+            .disabled(isConversationPinned)
+
+            chatModelMenu
+
             Spacer(minLength: 0)
             Button {
                 saveAsWorkspace()
@@ -339,6 +366,18 @@ struct ChatView: View {
         }
     }
 
+    /// The model choice, compact, in the bottom bar (Daniel, 2026-08-23:
+    /// "the model to use" lives down here, not in a top row). The SAME
+    /// picker the old toolbar used — shared, not rewritten.
+    private var chatModelMenu: some View {
+        ChatModelPicker(
+            providers: providers,
+            selectedProvider: $selectedProvider,
+            selectedModel: $selectedModel
+        )
+        .equatable()
+    }
+
     /// Persist the current conversation as a workspace via the store (#3533).
     private func saveAsWorkspace() {
         guard let conversationId = backendConversationId else { return }
@@ -351,24 +390,6 @@ struct ChatView: View {
         }
     }
 
-    private var chatBottomStatus: String {
-        switch chatTab {
-        case .conversation:
-            let count = currentConversation.messages.count
-            return "\(count) message\(count == 1 ? "" : "s")"
-        case .sources:
-            let count = selectedDocuments.count
-            return count == 0 ? "No sources pinned" : "\(count) source\(count == 1 ? "" : "s")"
-        case .plan:
-            return researchProject == nil ? "Not a workspace yet" : "Plan"
-        case .knowledge:
-            let summary = ConversationKnowledgeSummary.summarize(currentConversation)
-            if summary.isEmpty { return "No knowledge used" }
-            return "\(summary.entityReferences) entity · \(summary.claimReferences) claim references"
-        case .compare:
-            return "Compare agents / models"
-        }
-    }
 
     /// Composer pin menu (#2449 hybrid step 3): the chat is already grounded on
     /// the current view implicitly, so this menu PINS a scope that persists as you
