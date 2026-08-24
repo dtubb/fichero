@@ -12,6 +12,7 @@ struct AIProviderAddModelsSheet: View {
 
     @State private var selectedModel: ModelInfo?
     @State private var isAdding = false
+    @State private var addError: String?
 
     // For HuggingFace, show the full browser
     @State private var selectedHFModel: HFModelInfo?
@@ -41,6 +42,19 @@ struct AIProviderAddModelsSheet: View {
                 }
             }
             .navigationTitle("Add Model to \(provider.name)")
+            // A rejected add must be SEEN — swallowing it into a log line is
+            // how "we added a model and it wasn't saved" happens (Ann,
+            // 2026-08-24). The sheet stays open with the reason.
+            .safeAreaInset(edge: .bottom) {
+                if let addError {
+                    Text(addError)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 6)
+                }
+            }
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -66,6 +80,7 @@ struct AIProviderAddModelsSheet: View {
 
     private func addModel() {
         isAdding = true
+        addError = nil
 
         Task {
             do {
@@ -88,6 +103,7 @@ struct AIProviderAddModelsSheet: View {
                 dismiss()
             } catch {
                 logger.error("Add model failed: \(String(describing: error))")
+                addError = "Couldn't add the model: \(error.localizedDescription)"
             }
             isAdding = false
         }

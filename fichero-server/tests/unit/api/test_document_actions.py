@@ -288,6 +288,12 @@ class TestDocumentMoveAction:
         assert audit.action_name == "document.move"
         assert audit.before["parent_id"] == old_parent.id
         assert spy_emit[-1][1]["type"] == "document.updated"
+        # The event names BOTH parents, not just the moved doc: each parent's
+        # child_count changed, and the sidebar chevron/spinner read it (Ann,
+        # 2026-08-24: the old parent kept child_count ≥ 1 with no children —
+        # permanent spinner and a phantom row).
+        moved_event_ids = spy_emit[-1][1]["document_ids"]
+        assert set(moved_event_ids) == {doc.id, old_parent.id, new_parent.id}
 
         # (b) undo -> restore reverts parent_id to the original
         inv = _invoke_inverse(db, result.audit_id, ctx)

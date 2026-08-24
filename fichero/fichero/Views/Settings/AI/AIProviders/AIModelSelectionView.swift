@@ -43,6 +43,7 @@ struct AIModelSelectionView: View {
     @State private var models: [ModelInfo] = []
     @State private var isLoading = true
     @State private var loadError: String?
+    @State private var addError: String?
     @State private var searchText = ""
     @State private var sortOrder: ModelSortOrder = .recommended
     @State private var filters = ModelFilters()
@@ -240,6 +241,18 @@ struct AIModelSelectionView: View {
                 .listStyle(.plain)
             }
         }
+        // An immediate-mode add that fails must be SEEN, not just logged
+        // (Ann, 2026-08-24: "we added a model and it wasn't saved").
+        .safeAreaInset(edge: .bottom) {
+            if let addError {
+                Text(addError)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 6)
+            }
+        }
         .task {
             guard !Task.isCancelled else { return }
             await loadModels()
@@ -271,6 +284,7 @@ struct AIModelSelectionView: View {
     }
 
     private func addModel(_ model: ModelInfo) {
+        addError = nil
         Task {
             do {
                 _ = try await providerService.addModel(
@@ -282,6 +296,7 @@ struct AIModelSelectionView: View {
                 onModelAdded()
             } catch {
                 logger.error("Add model failed: \(String(describing: error))")
+                addError = "Couldn't add \(model.modelId): \(error.localizedDescription)"
             }
         }
     }

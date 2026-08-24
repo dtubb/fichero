@@ -3133,13 +3133,24 @@ def _action_move_document(
     db: Database, params: DocumentMoveParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     doc, before = move_document_impl(db, params.doc_id, params.parent_id)
+    # A move changes BOTH parents' child_count, and the sidebar's disclosure
+    # chevron/spinner read that count. Emitting only the moved doc left the
+    # old parent lying (Ann, 2026-08-24: folder moved out of Inbox → Inbox
+    # kept child_count ≥ 1 with no children → permanent spinner + phantom
+    # row). Name both parents so every window re-fetches them. Same shape as
+    # the #4205 parents work.
+    affected_ids = [doc.id]
+    old_parent_id = (before or {}).get("parent_id")
+    for parent_id in (old_parent_id, params.parent_id):
+        if parent_id and parent_id not in affected_ids:
+            affected_ids.append(parent_id)
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[doc.id],
         before=before,
         after=doc.model_dump(mode="json"),
         emit_type="document.updated",
-        document_ids=[doc.id],
+        document_ids=affected_ids,
         emit_fn=_emit_document_change_spec,
     )
     return doc.model_dump(mode="json"), spec

@@ -70,6 +70,18 @@ extension LibraryView {
             .onChange(of: windowState.workflowPickerRequestToken) {
                 showWorkflowPicker = true
             }
+            // Warm the run-menu provider cache from the PANE's lifecycle, not
+            // the Menu's .onAppear: AppKit snapshots a context menu at open,
+            // so a cache loaded by the menu itself always rendered one open
+            // stale (Ann, 2026-08-24: newly added provider missing on first
+            // right-click).
+            .task {
+                let chatService = libraryManager
+                    .getLibrary(id: windowState.libraryId)?
+                    .chatService
+                    ?? libraryManager.globalLibrary?.chatService
+                await workflowRunProviderCache.ensureLoaded(chatService: chatService)
+            }
         // No toolbar .searchable here — ContentView owns the single GLOBAL
         // toolbar search (files), which already routes to runToolbarSearch. A
         // second .searchable in this window is a duplicate com.apple.SwiftUI.search

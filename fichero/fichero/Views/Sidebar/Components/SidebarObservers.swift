@@ -98,7 +98,14 @@ extension SidebarView {
         withObservationTracking {
             _ = store.collections
             _ = store.currentDocuments
+            // childrenCache is @ObservationIgnored, so reading it registers NO
+            // dependency — a change-stream splice that lands rows ONLY there
+            // (Ann's folder-drop on Inbox, 2026-08-24: import succeeded, no
+            // chevron ever appeared) never woke this observer. `revision` is
+            // the store's designated observable proxy for exactly those
+            // ignored containers; track it.
             _ = store.childrenCache
+            _ = store.revision
         } onChange: {
             Task { @MainActor in
                 // #3862: currentDocuments (and status overrides on collections)

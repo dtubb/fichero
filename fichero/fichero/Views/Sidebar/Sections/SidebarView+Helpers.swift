@@ -30,6 +30,11 @@ func sidebarTreeRowHash(_ doc: Document) -> Int {
     hasher.combine(doc.sequence)
     hasher.combine(doc.docType)
     hasher.combine(doc.fileType)
+    // childCount decides the disclosure chevron (SidebarItem.isExpandable);
+    // omitting it meant a parent going 0→1 children could never move the
+    // signature, so the tree skipped its rebuild (Ann's Inbox drop,
+    // 2026-08-24).
+    hasher.combine(doc.childCount)
     // Structure drives PDF outline rows; ids catch a re-parse that keeps the
     // same count.
     hasher.combine(doc.structure.count)
