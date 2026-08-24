@@ -111,31 +111,54 @@ extension DocumentStore {
     /// (2026-08-16), and a cycle in bad data must degrade to a short path,
     /// never a hang.
     func sidebarRevealPath(to id: String) async -> [Document]? {
-        func resolve(_ docId: String) async -> Document? {
-            if let cached = currentDocuments.first(where: { $0.id == docId }) { return cached }
-            if let cached = childrenCache.values.lazy
-                .compactMap({ $0.first(where: { $0.id == docId }) }).first { return cached }
-            return try? await documentService.getDocument(docId)
+        // CACHE-ONLY walk first: answers with zero network when the rows are
+        // already loaded (relaunch reveal while the engine is still booting).
+        // A CYCLE degrades to the partial chain here — malformed data, and
+        // the 50GB scar (2026-08-16) says never hand it to a loop again.
+        func cached(_ docId: String) -> Document? {
+            if let hit = currentDocuments.first(where: { $0.id == docId }) { return hit }
+            return childrenCache.values.lazy
+                .compactMap({ $0.first(where: { $0.id == docId }) }).first
         }
-        guard var current = await resolve(id) else { return nil }
-        var chain: [Document] = []
-        var visited: Set<String> = [id]
-        for _ in 0..<32 {
-            guard let parentId = current.parentId, !parentId.isEmpty,
-                  !visited.contains(parentId),
-                  let parent = await resolve(parentId) else { break }
-            visited.insert(parentId)
-            chain.append(parent)
-            current = parent
+        if let anchor = cached(id) {
+            var chain: [Document] = []
+            var visited: Set<String> = [id]
+            var current = anchor
+            var incomplete = false
+            for _ in 0..<32 {
+                guard let parentId = current.parentId, !parentId.isEmpty else { break }
+                guard !visited.contains(parentId) else { break }  // cycle → partial
+                guard let parent = cached(parentId) else { incomplete = true; break }
+                visited.insert(parentId)
+                chain.append(parent)
+                current = parent
+            }
+            if !incomplete { return chain.reversed() }
         }
-        return chain.reversed()
+        // Consumer 2 of the outline endpoint (Mandate 1): when the cache
+        // doesn't know the whole chain, the server walks it ONCE —
+        // cycle-guarded, root-first — instead of the old per-ancestor
+        // getDocument loop. nil keeps its contract: "this store does not
+        // know the doc", so a multi-library caller can try the next library.
+        do {
+            let outline = try await documentService.getDocumentView(id)
+            outlineCache[id] = outline
+            return outline.ancestors
+        } catch {
+            return nil
+        }
     }
 
     private func fetchSidebarChildren(of document: Document) async -> [Document]? {
         do {
-            return applyStatusOverrides(
-                try await fetchWithRetry { try await self.documentService.getChildren(document.id) }
-            )
+            // Consumer 3 (Mandate 1): the sidebar's STORED-tier children from
+            // the outline endpoint — the same answer getChildren gave, plus
+            // the ancestors ride along free and warm the crumb cache.
+            let outline = try await fetchWithRetry {
+                try await self.documentService.getDocumentView(document.id, level: .stored)
+            }
+            outlineCache[document.id] = outline
+            return applyStatusOverrides(outline.children)
         } catch {
             if error.isCancellationError { return nil }   // superseded — not a failure
             logger.error("cacheSidebarChildren failed: \(error.localizedDescription)")
