@@ -11,7 +11,16 @@ extension LibraryView {
     private var displayModeBinding: Binding<ViewDisplayMode> {
         Binding(
             get: { displayMode },
-            set: { onChangeDisplayMode?($0) }
+            set: { mode in
+                if isSecondarySplitPane {
+                    // A split's secondary pane keeps its OWN mode (Daniel,
+                    // 2026-08-23: choosing 3D in one must not flip both).
+                    paneDisplayModeOverride = mode
+                } else {
+                    paneDisplayModeOverride = nil
+                    onChangeDisplayMode?(mode)
+                }
+            }
         )
     }
 

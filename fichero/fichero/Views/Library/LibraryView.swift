@@ -24,10 +24,17 @@ struct LibraryView: View {
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
     var isPaneFocused: Bool = false
-    let displayMode: ViewDisplayMode  // Universal view mode, shown in the pane head
+    /// The WINDOW's mode — the default a pane starts from.
+    let defaultDisplayMode: ViewDisplayMode
     /// The modes this window can offer, for the head's lens menu (Daniel,
     /// 2026-08-23: the view-mode picker leaves the window toolbar).
     var availableDisplayModes: [ViewDisplayMode] = ViewDisplayMode.allCases
+    /// Per-PANE mode override (Daniel, 2026-08-23: "if you choose one
+    /// library as 3D both become 3D" — the window value is shared, so a
+    /// secondary split pane keeps its own choice here).
+    @State var paneDisplayModeOverride: ViewDisplayMode?
+    /// What THIS pane shows: its own override, else the window's mode.
+    var displayMode: ViewDisplayMode { paneDisplayModeOverride ?? defaultDisplayMode }
     /// Routes a lens pick through ContentView's one mode-change seam.
     var onChangeDisplayMode: ((ViewDisplayMode) -> Void)?
     /// Hides the library list pane (the toolbar toggle's seam). nil when

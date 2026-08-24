@@ -259,7 +259,7 @@ extension LibraryView {
             selection: .constant(Set<String>()),
             detailDocument: .constant(nil),
             viewMode: .constant(.icons),
-            displayMode: .icon,
+            defaultDisplayMode: .icon,
             folderId: nil
         )
     )
@@ -279,7 +279,7 @@ extension LibraryView {
             selection: .constant(Set<String>()),
             detailDocument: .constant(nil),
             viewMode: .constant(.icons),
-            displayMode: .icon,
+            defaultDisplayMode: .icon,
             folderId: nil
         )
     )

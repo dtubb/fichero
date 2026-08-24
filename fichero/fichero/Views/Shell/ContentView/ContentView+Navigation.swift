@@ -63,7 +63,7 @@ extension ContentView {
             // accent-bar-with-white. Every pane tap already writes the
             // hint, so hint==.content is "the library is the active pane".
             isPaneFocused: focusedPane == .content || paneFocusHint == .content,
-            displayMode: viewDisplayMode,
+            defaultDisplayMode: viewDisplayMode,
             availableDisplayModes: availableViewDisplayModes,
             onChangeDisplayMode: { updateViewDisplayMode($0) },
             // X on the library head = hide the library list pane, the same
