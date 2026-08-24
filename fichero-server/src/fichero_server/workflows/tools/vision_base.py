@@ -2500,6 +2500,43 @@ def _substitute_region_crops(
     return substituted
 
 
+def _frame_true_background_removed_path(
+    library_path: str, doc_id: str | None
+) -> str | None:
+    """Absolute path of the doc's background_removed rendition, IF it is the
+    node's own frame and its bytes exist — else None.
+
+    ``transform is None`` is the Rendition contract for "identical frame:
+    anchors pass straight through", which is exactly the guarantee the OCR
+    geometry needs. A cropped/deskewed rendition (transform set) is refused
+    here; consuming it correctly is the bbox program's frame-identity work.
+    Failure is always None, never an exception — the caller falls back to
+    the original pixels.
+    """
+    if not library_path or not doc_id:
+        return None
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.models import Rendition
+
+        db = db_manager.get_database(library_path)
+        renditions = db.query(Rendition, document_id=str(doc_id))
+    except Exception:
+        return None
+    for rendition in renditions:
+        if (
+            rendition.role == "background_removed"
+            and rendition.transform is None
+            and rendition.materialized
+        ):
+            candidate = Path(rendition.path)
+            if not candidate.is_absolute():
+                candidate = Path(library_path) / rendition.path
+            if candidate.exists():
+                return str(candidate)
+    return None
+
+
 async def process_vision(
     files: list[str],
     documents: list[dict],
@@ -3261,8 +3298,22 @@ async def process_vision(
                                 parts.append(t)
                         text = "\n\n".join(parts)
                 else:
+                    # Faint pencil reads dramatically better with the page
+                    # noise stripped (2026-08-24 eval on Marshall IMG_005:
+                    # near-total word recall on the background_removed
+                    # rendition vs ~2/3 on the original). A rendition with
+                    # transform=None IS the node's frame by contract, so the
+                    # normalized boxes stay valid everywhere.
+                    _ocr_path = _frame_true_background_removed_path(
+                        library_path, doc_id_for_file
+                    ) or file_path
+                    if _ocr_path != file_path:
+                        logger.info(
+                            "Apple Vision: using background_removed rendition for %s",
+                            Path(file_path).name,
+                        )
                     _vision_result = await apple_vision_ocr_with_geometry_async(
-                        file_path,
+                        _ocr_path,
                         language,
                         # The page's existing transcript anchors the recovery
                         # of lines Vision misses at ordinary spacing.
