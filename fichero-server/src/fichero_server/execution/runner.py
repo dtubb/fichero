@@ -1881,8 +1881,11 @@ async def _run_workflow_in_background(
                 },
             )
             if completed_count:
+                # Status bookkeeping, NOT a result count (S7, 2026-08-23:
+                # "Marked 2 documents" after Detect Regions read as the run's
+                # output). Say what it is.
                 await log_execution(
-                    f"Marked {completed_count} document(s) completed"
+                    f"Run settled — {completed_count} document(s) marked done processing"
                 )
             # The document.updated change-stream broadcast lives inside
             # complete_run_documents (centralised so both the main and batch
