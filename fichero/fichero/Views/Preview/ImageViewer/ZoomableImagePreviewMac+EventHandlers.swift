@@ -34,12 +34,21 @@ extension ZoomableImagePreview {
         isDrawingRegion = false
         linkedSelectionBoxes = []
         loadAnnotations()
+        // S6: the NEXT image fits whole (zoom-to-fit, both axes) — stepping
+        // siblings at the previous zoom left tall items overflowing.
+        pendingFitOnNextImage = true
     }
 
     func handleRenderedImageChanged(_ newImg: NSImage?) {
         if let img = newImg {
             image = img
             imageSize = img.size
+            if pendingFitOnNextImage {
+                pendingFitOnNextImage = false
+                // Async: the scroll view needs the new documentView bounds
+                // before the fit math sees them.
+                DispatchQueue.main.async { fitToWindow() }
+            }
             // Boxes survive a page step (Daniel, 2026-08-21: "they should
             // still be shown on the next page — you have to click to hide
             // and show them again"): the geometry fetch racing the sibling

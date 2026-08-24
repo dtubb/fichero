@@ -189,6 +189,10 @@ struct ZoomableImagePreview: View {
     @State var renditionOverrideImage: NSImage?
 
     @State var scale: CGFloat = 1.0
+    /// S6 (Daniel, 2026-08-23): a sibling step resets to FIT-ALL — a tall
+    /// item must not arrive overflowing at the previous item's scale. Armed
+    /// on document change, consumed when the new image lands.
+    @State var pendingFitOnNextImage = false
     @State var minScale: CGFloat = 0.01
     @State var maxScale: CGFloat = 10.0
     @State var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Current cursor position over image
