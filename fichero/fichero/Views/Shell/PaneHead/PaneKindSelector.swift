@@ -20,6 +20,10 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     let lenses: [Lens]
     let lensTitle: (Lens) -> String
     let lensIcon: (Lens) -> String
+    /// Optional section grouping (title, members) — the library's view menu
+    /// keeps its browse/dataset/canvas sections (Daniel, 2026-08-23). Empty →
+    /// one flat list.
+    var lensSections: [(String, [Lens])] = []
     @Binding var lens: Lens
 
     var body: some View {
@@ -36,12 +40,25 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
             Menu {
-                Picker("View", selection: $lens) {
-                    ForEach(lenses) { option in
-                        Label(lensTitle(option), systemImage: lensIcon(option)).tag(option)
+                if lensSections.isEmpty {
+                    Picker("View", selection: $lens) {
+                        ForEach(lenses) { option in
+                            Label(lensTitle(option), systemImage: lensIcon(option)).tag(option)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } else {
+                    ForEach(Array(lensSections.enumerated()), id: \.offset) { _, section in
+                        Section(section.0) {
+                            Picker("View", selection: $lens) {
+                                ForEach(section.1) { option in
+                                    Label(lensTitle(option), systemImage: lensIcon(option)).tag(option)
+                                }
+                            }
+                            .pickerStyle(.inline)
+                        }
                     }
                 }
-                .pickerStyle(.inline)
             } label: {
                 Label(lensTitle(lens), systemImage: lensIcon(lens))
                     .font(.callout)

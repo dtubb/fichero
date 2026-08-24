@@ -23,12 +23,18 @@ extension LibraryView {
             lenses: availableDisplayModes,
             lensTitle: { (mode: ViewDisplayMode) in mode.label },
             lensIcon: { (mode: ViewDisplayMode) in mode.icon },
+            // The three sections the toolbar menu had (browse / dataset /
+            // canvas), from the enum's own grouping so the menu cannot drift.
+            lensSections: ViewDisplayMode.Group.allCases.compactMap { group in
+                let modes = availableDisplayModes.filter { $0.group == group }
+                return modes.isEmpty ? nil : (group.rawValue, modes)
+            },
             lens: displayModeBinding
         )
     }
 
     var libraryPaneHead: some View {
-        PaneHead<PaneKindSelector<ViewDisplayMode>, AnyView, EmptyView>(
+        PaneHead<PaneKindSelector<ViewDisplayMode>, EmptyView, EmptyView>(
             crumbs: libraryHeadCrumbs,
             onClose: onClosePane,
             onCrumb: { crumb in
@@ -42,17 +48,11 @@ extension LibraryView {
                 (documentStore.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
             },
             selector: { self.librarySelector },
-            controls: { AnyView(self.libraryHeadControls) },
+            controls: { EmptyView() },
             tools: { EmptyView() }
         )
     }
 
-    @ViewBuilder
-    private var libraryHeadControls: some View {
-        // No pin binding yet: pinning a library pane (to a folder / library)
-        // has no plumbing, and a dead control is the menu lying.
-        PaneChromeMenu(splitActions: nil, isPinned: nil)
-    }
 
     private var libraryHeadCrumbs: [PaneCrumb] {
         var crumbs: [PaneCrumb] = []
@@ -62,7 +62,8 @@ extension LibraryView {
                 id: "library-root",
                 name: library.displayName,
                 icon: ToolbarSymbols.breadcrumbLibrary,
-                isNavigable: false
+                isNavigable: false,
+                tint: .accentColor
             ))
         }
         // `folderId` is the sidebar item id, which prefixes documents "doc:".

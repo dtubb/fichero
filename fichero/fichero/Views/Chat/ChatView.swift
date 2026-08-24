@@ -89,6 +89,35 @@ struct ChatView: View {
         Binding(get: { chatTab }, set: { chatTabRaw = $0.rawValue })
     }
 
+    /// Explicitly typed (the reader's type-checker rule applied here).
+    private var chatSelector: PaneKindSelector<ChatSurfaceTab> {
+        PaneKindSelector(
+            kindTitle: "Chat",
+            kindIcon: "bubble.left.and.bubble.right",
+            lenses: ChatSurfaceTab.allCases,
+            lensTitle: { (tab: ChatSurfaceTab) in tab.title },
+            lensIcon: { (tab: ChatSurfaceTab) in tab.icon },
+            lens: chatTabBinding
+        )
+    }
+
+    /// The chat's floating head: [chat icon : lens] [conversation crumb].
+    /// No X yet — the pane host owns chat visibility and passes no seam.
+    private var chatPaneHead: some View {
+        PaneHead<PaneKindSelector<ChatSurfaceTab>, EmptyView, EmptyView>(
+            crumbs: [PaneCrumb(
+                id: currentConversation.id,
+                name: currentConversation.title,
+                icon: "bubble.left.and.bubble.right",
+                isNavigable: false
+            )],
+            onClose: nil,
+            selector: { self.chatSelector },
+            controls: { EmptyView() },
+            tools: { EmptyView() }
+        )
+    }
+
     init(
         conversation: Conversation?,
         selectedDocuments: Binding<Set<String>>,
@@ -122,22 +151,19 @@ struct ChatView: View {
                 onNewChat: startNewChat
             )
 
-            // Shared top-tab chrome (#3532): Conversation / Sources / Knowledge.
-            SurfaceTabBar(
-                tabs: ChatSurfaceTab.allCases,
-                selection: chatTabBinding,
-                accessibilityID: "chatSurfaceTabBar"
-            )
-
-            Divider()
-
-            switch chatTab {
-            case .conversation: conversationTabContent
-            case .sources: sourcesTabContent
-            case .plan: planTabContent
-            case .knowledge: knowledgeTabContent
-            case .compare: compareTabContent
+            // The tab bar is GONE (Daniel, 2026-08-23): the chat's surfaces
+            // are lenses in the shared PaneHead, floating over the content —
+            // the same grammar as the reader and the library.
+            Group {
+                switch chatTab {
+                case .conversation: conversationTabContent
+                case .sources: sourcesTabContent
+                case .plan: planTabContent
+                case .knowledge: knowledgeTabContent
+                case .compare: compareTabContent
+                }
             }
+            .overlay(alignment: .top) { chatPaneHead }
 
             Divider()
             chatBottomBar

@@ -224,9 +224,10 @@ struct ReadingPaneView: View {
         if onClose != nil || splitAxisActions != nil {
             closeAction = { self.closePane() }
         }
-        let head = PaneHead<PaneKindSelector<ReaderLens>, AnyView, EmptyView>(
+        let head = PaneHead<PaneKindSelector<ReaderLens>, EmptyView, EmptyView>(
             crumbs: readerCrumbs,
             onClose: closeAction,
+            isPinned: readerPinBinding,
             // Crumb click = reveal that node in the sidebar, which selects it
             // through the same seam a click uses — the pane follows. The
             // jump-bar child menus read the store's children cache.
@@ -241,9 +242,7 @@ struct ReadingPaneView: View {
                 (documentStore.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
             },
             selector: { self.readerSelector },
-            // AnyView is the type-checker guard this call site already needed
-            // twice ("failed to produce diagnostic") — bounded, not inferred.
-            controls: { AnyView(self.readerHeadControls) },
+            controls: { EmptyView() },
             tools: { EmptyView() }
         )
         // The menu bar shows the SAME lens list, reading this publication —
@@ -274,25 +273,21 @@ struct ReadingPaneView: View {
             }
     }
 
-    /// The head's right capsule: the shared "+" chrome menu (split options
-    /// with pin inside — Daniel, 2026-08-23). NO zoom controls: reader zoom
-    /// is a menu command (⌘+/⌘−/⌘0), published as the shared
-    /// `imageZoomActions` focused value below.
-    @ViewBuilder
-    private var readerHeadControls: some View {
-        PaneChromeMenu(
-            splitActions: splitAxisActions,
-            isPinned: Binding(
-                get: { isPinned },
-                set: { pin in
-                    if pin {
-                        pinnedDocument = liveDocument
-                        pinnedActivePageNumber = liveActivePageNumber
-                        pinnedPageCount = livePageCount
-                    }
-                    isPinned = pin
+    /// Pinning freezes this pane on its current view (Daniel, 2026-08-23);
+    /// the shared head renders the pin menu from this binding. NO zoom
+    /// controls in the head: reader zoom is a menu command (⌘+/⌘−/⌘0) via
+    /// the shared `imageZoomActions` focused value below.
+    private var readerPinBinding: Binding<Bool> {
+        Binding(
+            get: { isPinned },
+            set: { pin in
+                if pin {
+                    pinnedDocument = liveDocument
+                    pinnedActivePageNumber = liveActivePageNumber
+                    pinnedPageCount = livePageCount
                 }
-            )
+                isPinned = pin
+            }
         )
     }
 
@@ -322,7 +317,7 @@ struct ReadingPaneView: View {
         if let libraryName {
             crumbs.append(PaneCrumb(
                 id: "library-root", name: libraryName,
-                icon: ToolbarSymbols.breadcrumbLibrary, isNavigable: false
+                icon: ToolbarSymbols.breadcrumbLibrary, isNavigable: false, tint: .accentColor
             ))
         }
         crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)

@@ -46,7 +46,50 @@ extension ContentView {
         // Splittable (h/v) image / canvas viewer — #2276.
         adaptiveSplittablePane(storageKey: "canvas") {
             widescreenCanvasPaneContent
+                // The preview's floating head (Daniel, 2026-08-23): same
+                // grammar and components as reader/library/chat.
+                .overlay(alignment: .top) { previewPaneHead }
         }
+    }
+
+    /// Explicitly typed (the reader's type-checker rule applied here).
+    private var previewSelector: PaneKindSelector<PreviewLens> {
+        PaneKindSelector(
+            kindTitle: "Preview",
+            kindIcon: ToolbarSymbols.previewPane,
+            lenses: PreviewLens.allCases,
+            lensTitle: { (lens: PreviewLens) in lens.title },
+            lensIcon: { (lens: PreviewLens) in lens.icon },
+            lens: .constant(PreviewLens.source)
+        )
+    }
+
+    private var previewPaneHead: some View {
+        var crumbs: [PaneCrumb] = []
+        if let doc = detailDocument {
+            let ancestry = libraryPathCrumbs(
+                anchorId: doc.id,
+                resolve: { documentStore.resolveDocument($0) }
+            )
+            crumbs = ancestry.isEmpty ? [PaneCrumb(doc)] : ancestry.map(PaneCrumb.init)
+        }
+        return PaneHead<PaneKindSelector<PreviewLens>, EmptyView, EmptyView>(
+            crumbs: crumbs,
+            onClose: { setPaneVisible(.canvas, false) },
+            onCrumb: { crumb in
+                NotificationCenter.default.post(
+                    name: .sidebarRevealDocument,
+                    object: nil,
+                    userInfo: ["documentId": crumb.id]
+                )
+            },
+            crumbChildren: { crumb in
+                (documentStore.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
+            },
+            selector: { self.previewSelector },
+            controls: { EmptyView() },
+            tools: { EmptyView() }
+        )
     }
 
     @ViewBuilder
