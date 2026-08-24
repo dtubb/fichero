@@ -97,3 +97,21 @@ struct CanvasColourPicker: View {
         .help("Colour by \(colourBy.wrappedValue.label)")
     }
 }
+
+/// Titled overflow-submenu twin of `CanvasColourPicker` — same key, same rows.
+struct CanvasColourPickerMenu: View {
+    @AppStorage(CanvasColourBy.storageKey) private var raw = CanvasColourBy.off.rawValue
+
+    var body: some View {
+        Menu("Colour By") {
+            Picker("", selection: Binding(
+                get: { CanvasColourBy.stored(raw) }, set: { raw = $0.rawValue }
+            )) {
+                ForEach(CanvasColourBy.allCases) { option in
+                    Label(option.label, systemImage: option.icon).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+        }
+    }
+}

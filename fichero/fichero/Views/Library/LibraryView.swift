@@ -134,6 +134,10 @@ struct LibraryView: View {
     /// The data views' own selection numbers for the status line (nil in
     /// browse modes) — reported by DatasetModeView.
     @State var datasetSelectionStatus: DatasetSelectionStatus?
+    /// The dataset facets' store — pane-owned (2026-08-24) so the ONE bottom
+    /// bar's cluster and the renderer act on the same state. Per pane
+    /// instance, like the split state: split panes keep independent facets.
+    @State var datasetStore = DatasetModeStore()
     /// What a dataset renderer is SHOWING, in view order — what ⌘A covers in
     /// those modes (Daniel, 2026-08-23: "visible surface, always"). Empty
     /// outside them.

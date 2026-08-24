@@ -117,6 +117,12 @@ final class DatasetModeStore {
                 loaded = Self.withLocalDayBins(loaded, dateOf: { $0.dateIso })
             }
             page = loaded
+            // The store outlives folder/renderer switches now (owned by the
+            // pane since 2026-08-24): a type filter naming a prototype the
+            // new page doesn't have would silently show zero rows.
+            if let filtered = prototypeFilter, !availablePrototypes.contains(filtered) {
+                prototypeFilter = nil
+            }
         } catch is CancellationError {
             // A superseded load (view re-render, scope change) cancels the
             // in-flight request — that's routine, not a failure. Showing it

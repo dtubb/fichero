@@ -70,3 +70,25 @@ struct CanvasControlStrip: View {
         }
     }
 }
+
+/// The strip's overflow-menu mirror (2026-08-24): at narrow widths the
+/// channels used to vanish entirely — the missing half of the one-bottom-bar
+/// rule. Same pickers, titled, as submenus.
+struct CanvasControlStripMenu: View {
+    @AppStorage(CanvasArrangement.storageKey) private var arrangementRaw = CanvasArrangement.asFiled.rawValue
+
+    var body: some View {
+        Menu("Arrange By") {
+            Picker("", selection: Binding(
+                get: { CanvasArrangement.stored(arrangementRaw) },
+                set: { arrangementRaw = $0.rawValue }
+            )) {
+                ForEach(CanvasArrangement.allCases) { option in
+                    Label(option.label, systemImage: option.icon).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+        }
+        CanvasColourPickerMenu()
+    }
+}

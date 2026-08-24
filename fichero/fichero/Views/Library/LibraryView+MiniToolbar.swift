@@ -48,6 +48,12 @@ extension LibraryView {
             CanvasControlStrip()
         }
 
+        // Dataset facets (Daniel, 2026-08-24: "I want it all in the one at
+        // the bottom") — shown only while the dataset has rows.
+        if displayMode.group == .dataset, datasetStore.page?.rows.isEmpty == false {
+            DatasetFilterCluster(store: datasetStore)
+        }
+
         // Xcode-console-style metadata popover (#18): which optional
         // attributes list rows display. Sits with sort/filter because it,
         // too, acts on the library list.

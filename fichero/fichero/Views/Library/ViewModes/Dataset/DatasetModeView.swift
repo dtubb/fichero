@@ -56,7 +56,10 @@ struct DatasetModeView: View {
     /// "Canvas/spatial selection is NOT separate state").
     @Binding var selection: Set<String>
 
-    @State private var store = DatasetModeStore()
+    /// Owned by LibraryView since 2026-08-24 (the one-bottom-bar fold): the
+    /// bar's facet cluster and this renderer act on the SAME store. This view
+    /// still drives its lifecycle (the load/debounce tasks below).
+    let store: DatasetModeStore
 
     var body: some View {
         VStack(spacing: 0) {
@@ -80,9 +83,8 @@ struct DatasetModeView: View {
             }
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if store.page?.rows.isEmpty == false {
-                datasetFilterBar
-            }
+            // The facet bar moved into the library's ONE bottom bar
+            // (DatasetFilterCluster, Daniel 2026-08-24) — no second row.
         }
         // Fill the pane like every other library view mode (Daniel: "not
         // the right height like the other library views").
@@ -144,100 +146,6 @@ struct DatasetModeView: View {
         onSelectionStatus(DatasetSelectionStatus(
             count: selected.count, total: rows.count, noun: noun, detail: detail
         ))
-    }
-
-    /// The facet strip for the rows THIS pane renders — the control lives
-    /// with the surface it acts on (#4407 rule; the library mini toolbar's
-    /// sort/filter act on the list view, not on these renderers). Dates +
-    /// Type today; the entity facet joins here once entries carry entity
-    /// links (task #31 spec).
-    @ViewBuilder
-    private var datasetFilterBar: some View {
-        PaneFilterBar(placement: .bottom) {
-            Menu {
-                ForEach(DatasetDateFilter.allCases) { choice in
-                    Button {
-                        store.dateFilter = choice
-                    } label: {
-                        Text(choice.rawValue)
-                        if store.dateFilter == choice {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            } label: {
-                Label(
-                    store.dateFilter == .all ? "Dates" : store.dateFilter.rawValue,
-                    systemImage: "calendar.badge.checkmark"
-                )
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Show all rows, only dated rows, or only undated rows")
-
-            Menu {
-                ForEach(DatasetModeStore.TextDetail.allCases) { choice in
-                    Button {
-                        store.textDetail = choice
-                    } label: {
-                        Text(choice.rawValue)
-                        if store.textDetail == choice {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            } label: {
-                Label("Text", systemImage: "text.alignleft")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Show the excerpt or the full entry text on cards")
-
-            if store.availablePrototypes.count > 1 {
-                Menu {
-                    Button {
-                        store.prototypeFilter = nil
-                    } label: {
-                        Text("All Types")
-                        if store.prototypeFilter == nil {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                    Divider()
-                    ForEach(store.availablePrototypes, id: \.self) { key in
-                        Button {
-                            store.prototypeFilter = key
-                        } label: {
-                            Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
-                            if store.prototypeFilter == key {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                } label: {
-                    Label("Type", systemImage: "tag")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Show only rows of one document type")
-            }
-
-            Spacer(minLength: 8)
-
-            if store.dateFilter != .all || store.prototypeFilter != nil {
-                Text("\(store.visibleRows.count) of \(store.page?.rows.count ?? 0)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                Button("Clear") {
-                    store.dateFilter = .all
-                    store.prototypeFilter = nil
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Clear dataset filters")
-            }
-        }
     }
 
     @ViewBuilder
