@@ -127,19 +127,18 @@ struct DocumentTitleTests {
     /// the breadcrumb also appends a page label is what produced the doubling.
     @Test("the window title names the page once and only the page")
     func windowTitleNamesThePageOnce() {
-        let title = DocumentTitle.windowTitle(leaf: page(), parent: pdf(), selectedPageCount: 1)
+        let title = DocumentTitle.windowTitle(leaf: page(), parent: pdf())
 
         #expect(title == "Page 1")
         #expect(title.components(separatedBy: "Page").count - 1 == 1)
         #expect(!title.contains("—"), "the path belongs to the breadcrumb, not the title")
     }
 
-    /// A multi-page selection reports the count, still without a filename.
-    @Test("a multi-page selection reports its count")
-    func multiPageSelectionReportsCount() {
-        let title = DocumentTitle.windowTitle(leaf: page(), parent: pdf(), selectedPageCount: 4)
-        #expect(title == "4 pages")
-        #expect(!title.contains("fichero_upload"))
+    /// The count branch is GONE (Daniel, 2026-08-23): the title names WHERE
+    /// you are; the island owns "N images selected".
+    @Test("a multi-selection does not rewrite the title")
+    func multiSelectionDoesNotRewriteTheTitle() {
+        #expect(DocumentTitle.windowTitle(leaf: page(), parent: pdf()) == "Page 1")
     }
 
     @Test("no selection at all still produces something honest")
@@ -751,22 +750,4 @@ struct DocumentTitleTests {
         #expect(!breadcrumb.contains("Segment(name: $0.name"))
         #expect(!breadcrumb.contains("path.insert(doc.name"))
     }
-    // MARK: - Selection noun (#4586)
-
-    @Test("image-backed page rows count as images, PDF pages as pages, mixed as items")
-    func selectionNounFollowsContent() {
-        let imagePage = Document(id: "i1", docType: .page, fileType: .image, name: "IMG_001")
-        let pdfPage = Document(id: "p1", docType: .page, name: "page 1")
-        #expect(DocumentTitle.selectionNoun(for: [imagePage, imagePage]) == "images")
-        #expect(DocumentTitle.selectionNoun(for: [pdfPage, pdfPage]) == "pages")
-        #expect(DocumentTitle.selectionNoun(for: [imagePage, pdfPage]) == "items")
-        #expect(DocumentTitle.selectionNoun(for: []) == "items")
-    }
-
-    @Test("windowTitle counts a multi-selection in its own noun")
-    func windowTitleUsesSelectionNoun() {
-        #expect(DocumentTitle.windowTitle(
-            leaf: nil, selectedPageCount: 6, selectionNoun: "images") == "6 images")
-    }
-
 }

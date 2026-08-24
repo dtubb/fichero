@@ -324,14 +324,12 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(buildersSource.contains("detailShellColumn"))
         XCTAssertTrue(contentSource.contains("var body: some View"))
         XCTAssertTrue(buildersSource.contains("var detailShellColumn: some View"))
-        XCTAssertTrue(buildersSource.contains("detailTabStrip"))
-        // The location path bar + pane breadcrumb strip are RETIRED (#4102
-        // dedupe): the path renders only in the toolbar's principal
-        // breadcrumb; the bottom bar is Finder-style selection status.
+        // The detail tab strip is DELETED (Daniel, 2026-08-23): panes carry
+        // their own PaneHead; the island reports the selection; new-tab
+        // returns with the real tab bar. Every strip stays gone:
+        XCTAssertFalse(buildersSource.contains("detailTabStrip"))
         XCTAssertFalse(buildersSource.contains("detailLocationPathBar"))
         XCTAssertFalse(buildersSource.contains("breadcrumbBar"))
-        XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
-        XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
         XCTAssertTrue(workspaceRootSource.contains("AdaptiveAppleShellHost"))
     }
 

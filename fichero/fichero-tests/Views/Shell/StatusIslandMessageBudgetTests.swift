@@ -101,7 +101,17 @@ struct StatusIslandMessageBudgetTests {
                         #expect(
                             island.text.count <= StatusIslandMessage.budget,
                             "over budget: \(island.text)")
-                        #expect(!island.text.isEmpty)
+                        // Quiet idle is EMPTY by design (Daniel, 2026-08-23:
+                        // "it said ready on launch, don't need that"). Only
+                        // the phases the island OWNS a line for must speak —
+                        // .ready/.setupNeeded fall through to idle even with
+                        // an access error (the engine button carries those).
+                        switch phase {
+                        case .setupNeeded, .ready:
+                            break
+                        default:
+                            #expect(!island.text.isEmpty, "silent failure state: \(String(describing: phase))")
+                        }
                     }
                 }
             }

@@ -112,8 +112,11 @@ struct PaneHeadWiringGuardTests {
         // as "not standard"; the float is the glass capsule itself.
         #expect(head.contains(".glassEffect(.regular, in: Capsule())"))
         let reader = try code(at: "Views/Reader/Page/ReadingPaneView.swift")
-        // Over the content, not stacked above it: content scrolls under.
-        #expect(reader.contains(".overlay(alignment: .top) { paneHead }"))
+        // safeAreaInset since 2026-08-23: the first row starts BELOW the
+        // head while scrolled content still passes under the glass — and the
+        // inset height is CONSTANT (see PaneHeadMetrics.barHeight, the 15s
+        // lazy-list re-layout stall).
+        #expect(reader.contains(".safeAreaInset(edge: .top, spacing: 0) { paneHead }"))
     }
 
     @Test("the reader's tab bar is gone — those three are lenses now")
