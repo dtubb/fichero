@@ -20,6 +20,8 @@ from __future__ import annotations
 import contextvars
 import logging
 import os
+import tempfile
+from pathlib import Path
 from typing import Any
 
 import duckdb
@@ -145,6 +147,27 @@ def pin_utc_session(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnectio
     return conn
 
 
+# Per-connection buffer-pool cap (the 2026-08-22 Air OOM): DuckDB's default is
+# 80% OF PHYSICAL RAM PER DATABASE, and the app routinely holds 4+ open at
+# once (per-library packages + global + app.duckdb) — a structural overcommit
+# on any machine. Spills go to disk instead. Override for a beefy box via env.
+DUCKDB_MEMORY_LIMIT_ENV = "FICHERO_DUCKDB_MEMORY_LIMIT"
+DEFAULT_DUCKDB_MEMORY_LIMIT = "1.5GB"
+
+
+def apply_memory_limit(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
+    """Cap this connection's memory and point its spill at the temp dir."""
+    limit = os.environ.get(DUCKDB_MEMORY_LIMIT_ENV, DEFAULT_DUCKDB_MEMORY_LIMIT)
+    try:
+        conn.execute(f"SET memory_limit='{limit}'")
+        conn.execute(
+            "SET temp_directory=?", [str(Path(tempfile.gettempdir()) / "fichero-duckdb-spill")]
+        )
+    except Exception as exc:  # pragma: no cover - setting unsupported
+        logger.warning("Could not cap DuckDB memory (%s): %s", limit, exc)
+    return conn
+
+
 def connect_utc(database: Any = ":memory:", **kwargs: Any) -> duckdb.DuckDBPyConnection:
     """``duckdb.connect`` with the session timezone pinned to UTC.
 
@@ -154,7 +177,7 @@ def connect_utc(database: Any = ":memory:", **kwargs: Any) -> duckdb.DuckDBPyCon
     wrapping it here counts every query the app issues without touching any
     of the ~100 call sites that use `self.conn.execute(...)`.
     """
-    conn = pin_utc_session(duckdb.connect(database, **kwargs))
+    conn = apply_memory_limit(pin_utc_session(duckdb.connect(database, **kwargs)))
     if _counting_enabled():
         return _QueryCountingConnection(conn)  # type: ignore[return-value]
     return conn

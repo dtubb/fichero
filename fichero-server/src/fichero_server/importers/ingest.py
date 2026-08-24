@@ -1514,7 +1514,12 @@ def ingest_folder(
                     _touch_ancestor_documents(db, saved_parent_id)
 
         for doc, source_key, checksum in saved:
-            documents.append(doc)
+            # RETAIN LIGHT (the 2026-08-22 Air OOM, mechanism 3): holding
+            # every Document WITH its extracted page_content kept a whole
+            # 39k-file folder's text in RAM after ingest finished. Callers
+            # consume ids (the route's document_ids; queue_derivatives
+            # re-reads from the DB), so the retained copy drops the text.
+            documents.append(doc.model_copy(update={"page_content": None}))
             actual_checksum = (doc.metadata or {}).get("checksum")
             existing_hashes.add(
                 (
@@ -1622,7 +1627,8 @@ def ingest_folder(
                             f"File changed while being ingested: {file_path}"
                         )
 
-                documents.append(doc)
+                # Same retain-light rule as the batch path above.
+                documents.append(doc.model_copy(update={"page_content": None}))
                 actual_checksum = (doc.metadata or {}).get("checksum")
                 existing_hashes.add(
                     (

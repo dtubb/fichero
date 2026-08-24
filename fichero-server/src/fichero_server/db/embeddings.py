@@ -25,6 +25,11 @@ from fichero_server.models.anchors import SourceAnchor
 
 logger = logging.getLogger(__name__)
 
+# Passages per ONNX forward pass. 64 × 512-char windows keeps the peak in the
+# tens of MB while staying batch-efficient; the 2026-08-22 import pushed
+# thousands per call and the Air's jetsam killed the engine three times.
+_EMBED_SLICE = 64
+
 # Default embedding model (FastEmbed - no scikit-learn dependency).
 #
 # NOTE: The default stays pinned to multilingual-e5-large until Fichero has an
@@ -875,7 +880,15 @@ class DatabaseEmbeddingMixin:
         self._ensure_embedder()
         model_name = getattr(self, "_embedding_model_name", None) or self._get_embedding_model_name()
         formatted = [format_for_model(model_name, text, role) for text in texts]
-        embeddings = list(self._embedder.embed(formatted))
+        # BOUNDED slices, never one giant forward pass (the 2026-08-22 Air
+        # OOM: a multi-MB page_content splits into thousands of passages, and
+        # pushing them through e5-large in one embed() call spikes the
+        # tokenizer + activation peak — which onnxruntime's arena then keeps
+        # forever. Two derivative workers doubled it. Same vectors out, same
+        # order; only the peak is capped.)
+        embeddings: list = []
+        for start in range(0, len(formatted), _EMBED_SLICE):
+            embeddings.extend(self._embedder.embed(formatted[start : start + _EMBED_SLICE]))
         return [_l2_normalize(_vector_to_list(e)) for e in embeddings]
 
     async def _embed_text_async(
