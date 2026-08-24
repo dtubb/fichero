@@ -63,7 +63,6 @@ extension LibraryView {
         )
     }
 
-
     private var libraryHeadCrumbs: [PaneCrumb] {
         var crumbs: [PaneCrumb] = []
         if let libraryId = LibraryManager.shared.currentLibraryId,

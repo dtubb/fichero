@@ -268,31 +268,6 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     static let defaultCardSize = CGSize(width: 0.8, height: 0.6)
 
-    func reskinCard(_ id: String) {
-        guard let placeable = placeablesById[id] else { return }
-        // The rebuilt entity starts flat; the reload below re-adds it.
-        texturedIds.remove(id)
-        placeablesRoot.findEntity(named: id)?.removeFromParent()
-        let card = makeCard(placeable)
-        // A rebuilt card is a NEW entity, so it carries none of the old one's
-        // components — without this, a card that reskins mid-search (its
-        // thumbnail landing, a resize) would come back at full strength while
-        // its dimmed neighbours stayed dim.
-        CanvasEmphasisPainter.apply(emphasis, to: card, id: id)
-        placeablesRoot.addChild(card)
-        // S12 (2026-08-23): the FIRST texture triggers an aspect-reskin, and
-        // the rebuilt card starts flat — but makeCard only fetches at
-        // thumbnail tier, so after fit() zoomed out to .glyph the texture
-        // was thrown away and `texturedIds` forgot it ("textures absent on
-        // first render, appear after zoom"). A known aspect PROVES a texture
-        // was measured (it's in the cache), so hand it back to the rebuilt
-        // card regardless of tier — the reload is a cache hit.
-        if let src = sourceId(of: placeable),
-           CanvasCardGeometry.knownAspect(forSourceId: src) != nil {
-            loadThumbnail(sourceId: src, into: card)
-        }
-    }
-
     // Internal, not private: the op-application extension (+Ops.swift) needs
     // it and Swift's `private` is FILE-scoped — the same trade documented on
     // CanvasSceneView's split state.

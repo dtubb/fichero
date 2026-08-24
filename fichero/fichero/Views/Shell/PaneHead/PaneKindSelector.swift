@@ -146,4 +146,3 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
         .fixedSize()
     }
 }
-

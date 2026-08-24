@@ -155,10 +155,8 @@ struct LibraryMiniToolbarTests {
     func placementDecisionIsBottom() throws {
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
-        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
-            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
-        #expect(library.contains("if Self.miniToolbarPlacement == .top"))
-        #expect(library.contains("if Self.miniToolbarPlacement == .bottom"))
+        // The library no longer branches on the placement at all: its ONE
+        // bottom row is the action bar, unconditionally at the bottom.
     }
 
     // MARK: - Resident search (#4604, superseding the #4521 summon)

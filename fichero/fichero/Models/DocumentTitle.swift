@@ -92,7 +92,6 @@ enum DocumentTitle {
         return displayName(for: leaf, parent: parent)
     }
 
-
     /// Shorten a long name for a length-constrained surface, keeping the start
     /// and the extension so `NCM_Diary_19240101-…pdf` stays identifiable.
     ///
