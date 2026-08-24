@@ -1406,6 +1406,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     renditions,
     notes,
     sources,
+    view as document_view,
 )
 from fichero_server.api.routes.entity import (  # noqa: E402
     entities,
@@ -1498,6 +1499,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (library_items.router, "/api", ["library-items"]),
     (claims.router, "/api", ["claims"]),
     (documents.router, "/api/documents", ["documents"]),
+    # Mandate 1 (2026-08-24): the ONE outline endpoint — ancestors + node +
+    # level-aware children + attachment summary in one response.
+    (document_view.router, "/api/documents", ["documents"]),
     # Datasets Stage 2 (spec §3/§4): the one renderer query — grid paging,
     # typed filters, date bins, facet counts — over attribute JSON.
     (dataset.router, "/api/documents", ["documents"]),

@@ -2991,6 +2991,34 @@
       },
       {
         "method": "GET",
+        "path": "/documents/{doc_id}/view",
+        "operation_id": "get_document_view_api_documents__doc_id__view_get",
+        "summary": "Get Document View",
+        "path_params": [
+          "doc_id"
+        ],
+        "query_params": [
+          {
+            "name": "attachments",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "children",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "level",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "DocumentViewResponse"
+      },
+      {
+        "method": "GET",
         "path": "/documents/{doc_id}/workflow-runs",
         "operation_id": "get_document_workflow_runs_api_documents__doc_id__workflow_runs_get",
         "summary": "Get workflow provenance for a document",

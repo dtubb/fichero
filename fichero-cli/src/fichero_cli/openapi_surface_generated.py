@@ -4406,6 +4406,25 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-view")
+    def documents_get_view_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        attachments: Optional[bool] = typer.Option(None, "--attachments/--no-attachments", help="Query parameter: attachments."),
+        children: Optional[bool] = typer.Option(None, "--children/--no-children", help="Query parameter: children."),
+        level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
+    ) -> None:
+        """Get Document View (GET /api/documents/{doc_id}/view)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/view"
+            params = {
+                "attachments": attachments,
+                "children": children,
+                "level": level,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("get-workflow-provenance-for-a")
     def documents_get_workflow_provenance_for_a_get(
         ctx: typer.Context,

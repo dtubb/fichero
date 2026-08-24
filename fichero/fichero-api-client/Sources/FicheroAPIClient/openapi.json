@@ -10271,6 +10271,87 @@
         }
       }
     },
+    "/api/documents/{doc_id}/view": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Document View",
+        "description": "One response for 'where am I, what's in here, what does it have'.",
+        "operationId": "get_document_view_api_documents__doc_id__view_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/NodeLevel",
+              "description": "Which tier `children` returns. 'stored' (default) is the tree as held \u2014 the sidebar's STRUCTURAL view (ruled 2026-08-24); 'content' looks through containers to their pages, the grid's view.",
+              "default": "stored"
+            },
+            "description": "Which tier `children` returns. 'stored' (default) is the tree as held \u2014 the sidebar's STRUCTURAL view (ruled 2026-08-24); 'content' looks through containers to their pages, the grid's view."
+          },
+          {
+            "name": "children",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include the children list.",
+              "default": true,
+              "title": "Children"
+            },
+            "description": "Include the children list."
+          },
+          {
+            "name": "attachments",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include the anchor's attachment summary.",
+              "default": true,
+              "title": "Attachments"
+            },
+            "description": "Include the anchor's attachment summary."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentViewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id exists"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/dataset/query": {
       "post": {
         "tags": [
@@ -44097,6 +44178,74 @@
         "type": "object",
         "title": "DocumentUpdate",
         "description": "Request model for updating a document."
+      },
+      "DocumentViewAttachments": {
+        "properties": {
+          "renditions": {
+            "items": {
+              "$ref": "#/components/schemas/Rendition"
+            },
+            "type": "array",
+            "title": "Renditions"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactResponse"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          },
+          "annotation_count": {
+            "type": "integer",
+            "title": "Annotation Count"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "renditions",
+          "artifacts",
+          "annotation_count",
+          "entity_count"
+        ],
+        "title": "DocumentViewAttachments",
+        "description": "What the anchor document HAS \u2014 the attachment summary consumers read\ninstead of fanning out to the renditions/artifacts/annotations routes."
+      },
+      "DocumentViewResponse": {
+        "properties": {
+          "ancestors": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Ancestors"
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "attachments": {
+            "$ref": "#/components/schemas/DocumentViewAttachments",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "ancestors",
+          "document",
+          "children"
+        ],
+        "title": "DocumentViewResponse",
+        "description": "One document's whole neighbourhood: where it sits, what it holds,\nwhat hangs off it."
       },
       "DownloadStartedResponse": {
         "properties": {
