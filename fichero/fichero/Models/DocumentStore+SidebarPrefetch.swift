@@ -21,11 +21,11 @@ extension DocumentStore {
     /// is a separate question from the one it was filed to answer.
     func loadSidebarChildren(of document: Document) async {
         // Expansion REFRESHES (2026-08-23, Daniel: sidebar showed 3 children
-        // while the grid showed 151): `cacheSidebarChildren` is cache-FIRST,
-        // so a sparse early fetch — taken while an import was still writing —
-        // became permanent for the session. An explicit expand is a user
-        // asking "what's in here NOW"; answer with a fetch, keep the cache
-        // for the chevron prefetch where stale-but-instant is the point.
+        // while the grid showed 151). The cache-first helper below made a
+        // sparse early fetch permanent for the session; an explicit expand
+        // is the user asking what is in here NOW, so it answers with a fetch
+        // and leaves the cache to the chevron prefetch, where stale but
+        // instant is the point.
         if let fresh = await fetchSidebarChildren(of: document),
            childrenCache[document.id] != fresh {
             childrenCache[document.id] = fresh
