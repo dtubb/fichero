@@ -285,11 +285,11 @@ struct CanvasEmphasisWiringGuardTests {
     func reskinRepaintsEmphasis() throws {
         // A rebuilt entity carries none of the old one's components, so a card
         // whose thumbnail lands mid-search would come back bright among dimmed
-        // neighbours. 2D's reskin lives in its +Thumbnails file (the main one
-        // is at its file_length ceiling); 3D's is still in the renderer.
+        // neighbours. BOTH reskins live in their +Thumbnails files now (each
+        // main renderer sits at its file_length ceiling).
         let reskinHomes = [
             "Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer+Thumbnails.swift",
-            "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer.swift",
+            "Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer+Thumbnails.swift",
         ]
         for path in reskinHomes {
             let source = try appSource(path)
