@@ -99,12 +99,33 @@ class TestIngestDefaultExtractText:
         fake_db.save.side_effect = _save
         docs = ingest_folder(tmp_path, db=fake_db, create_collection=False)
         assert len(docs) == 1
-        # Extraction is proven on the SAVED row; the RETURNED copy sheds
-        # page_content deliberately (the 2026-08-22 Air OOM: retaining a
-        # 39k-file folder's extracted text in RAM outlived the ingest).
+        # The retention rule is THRESHOLDED (2026-08-24, gate red): the
+        # returned docs are a contract (the import route hands them to the
+        # client), so ordinary content SURVIVES — only oversized text (the
+        # OCR/PDF megatexts that ballooned the 2026-08-22 Air import) sheds.
         assert saved_docs[0].page_content is not None
-        assert docs[0].page_content is None
-        assert "extract this sentence" in (saved_docs[0].page_content or "")
+        assert docs[0].page_content == saved_docs[0].page_content
+        assert "extract this sentence" in (docs[0].page_content or "")
+
+    @patch("fichero_server.bookmarks.create_bookmark", return_value=None)
+    def test_folder_ingest_sheds_oversized_text_from_the_returned_copy(
+        self, _mock_bookmark, tmp_path
+    ):
+        md = tmp_path / "mega.md"
+        md.write_text("x" * 150_000, encoding="utf-8")
+        fake_db = MagicMock()
+        saved_docs = []
+
+        def _save(doc, auto_embed=False):
+            if not getattr(doc, "id", None):
+                doc.id = f"doc-{len(saved_docs)+1}"
+            saved_docs.append(doc)
+
+        fake_db.save.side_effect = _save
+        docs = ingest_folder(tmp_path, db=fake_db, create_collection=False)
+        assert len(docs) == 1
+        assert saved_docs[0].page_content is not None  # DB keeps everything
+        assert docs[0].page_content is None            # RAM copy sheds the megatext
 
     @patch("fichero_server.bookmarks.create_bookmark", return_value=None)
     def test_folder_ingest_skips_unchanged_files_by_hash(self, _mock_bookmark, tmp_path):

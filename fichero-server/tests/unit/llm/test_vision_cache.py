@@ -28,6 +28,12 @@ def _make_config(provider: str = "openai", model: str = "gpt-4o") -> MagicMock:
     cfg = MagicMock()
     cfg.provider = provider
     cfg.model = model
+    # Sampling params joined the cache key (2026-08-24: the empty-response
+    # retry raises max_tokens precisely to get a different answer, and the
+    # old key replayed the cached failure). A bare MagicMock here is not
+    # JSON-serializable, so pin real values like a real LLMConfig carries.
+    cfg.max_tokens = 2048
+    cfg.temperature = 0.1
     return cfg
 
 
