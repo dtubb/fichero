@@ -30,23 +30,36 @@ struct PaneChromeMenu: View {
                 }
                 if let actions = splitActions {
                     if isPinned != nil { Divider() }
-                    // Named by the AXIS of the divider (Daniel, 2026-08-23).
-                    Button(
-                        actions.hasVertical
-                            ? (actions.paneCount == 3 ? "Remove Vertical Split" : "Add Third Vertical Pane")
-                            : "Split Vertical"
-                    ) { actions.onToggleVertical() }
-                    Button(
-                        actions.hasHorizontal
-                            ? (actions.paneCount == 3 ? "Remove Horizontal Split" : "Add Third Horizontal Pane")
-                            : "Split Horizontal"
-                    ) { actions.onToggleHorizontal() }
+                    // ADDITIONS only (Daniel, 2026-08-23): the "+" never
+                    // removes a split — the pane's X collapses it. Named by
+                    // the divider's axis, wearing the old bottom-bar glyphs.
+                    if !(actions.hasVertical && actions.paneCount == 3) {
+                        Button {
+                            actions.onToggleVertical()
+                        } label: {
+                            Label(
+                                actions.hasVertical ? "Add Third Vertical Pane" : "Split Vertical",
+                                systemImage: ToolbarSymbols.splitVertical
+                            )
+                        }
+                    }
+                    if !(actions.hasHorizontal && actions.paneCount == 3) {
+                        Button {
+                            actions.onToggleHorizontal()
+                        } label: {
+                            Label(
+                                actions.hasHorizontal ? "Add Third Horizontal Pane" : "Split Horizontal",
+                                systemImage: ToolbarSymbols.splitHorizontal
+                            )
+                        }
+                    }
                 }
             } label: {
                 Image(systemName: isPinned?.wrappedValue == true ? "pin.fill" : "plus")
                     .foregroundStyle(isPinned?.wrappedValue == true ? Color.accentColor : Color.secondary)
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
             .help("Pin or split this pane")
             .accessibilityLabel("Pane options")

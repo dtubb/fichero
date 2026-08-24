@@ -40,6 +40,9 @@ enum PaneFocus: Hashable {
 // - ContentView+Actions: Action handlers and business logic
 // - ContentView+Persistence: State serialization for @SceneStorage
 struct ContentView: View {
+    /// The preview pane's lens (Daniel, 2026-08-23: "preview and edit").
+    /// Never changes WHICH document shows, only how.
+    @State var previewLens: PreviewLens = .preview
     #if os(macOS)
     static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
     static let defaultColumnVisibilityRaw: Int = 2 // .all

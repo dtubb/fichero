@@ -48,7 +48,7 @@ extension ContentView {
             widescreenCanvasPaneContent
                 // The preview's floating head (Daniel, 2026-08-23): same
                 // grammar and components as reader/library/chat.
-                .overlay(alignment: .top) { previewPaneHead }
+                .safeAreaInset(edge: .top, spacing: 0) { previewPaneHead }
         }
     }
 
@@ -60,7 +60,7 @@ extension ContentView {
             lenses: PreviewLens.allCases,
             lensTitle: { (lens: PreviewLens) in lens.title },
             lensIcon: { (lens: PreviewLens) in lens.icon },
-            lens: .constant(PreviewLens.source)
+            lens: $previewLens
         )
     }
 
@@ -107,7 +107,7 @@ extension ContentView {
                 .overlay { paneFocusIndicator(for: .preview) }
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
                 .frame(maxWidth: .infinity)
-        } else if let pdfDocumentId = detailPDFDocumentId {
+        } else if let pdfDocumentId = detailPDFDocumentId, previewLens == .preview {
             PDFPageWithToolbar(
                 documentId: pdfDocumentId,
                 pageIndex: selectedPageIndex,
@@ -245,7 +245,7 @@ extension ContentView {
                         documents: stackDocuments,
                         frontDocumentId: detailDocument?.id
                     )
-                } else if let pdfDocumentId = detailPDFDocumentId {
+                } else if let pdfDocumentId = detailPDFDocumentId, previewLens == .preview {
                     PDFReadingView(
                         document: pageFocusDocument ?? detailDocument,
                         pdfDocumentId: pdfDocumentId,

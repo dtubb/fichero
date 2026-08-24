@@ -27,6 +27,16 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     @Binding var lens: Lens
 
     var body: some View {
+        // Adaptive (Daniel, 2026-08-23): when the pane is tight the lens
+        // collapses to its ICON — the head can always be two glyphs on the
+        // left, one crumb icon in the middle, one glyph on the right.
+        ViewThatFits(in: .horizontal) {
+            selectorRow(lensIconOnly: false)
+            selectorRow(lensIconOnly: true)
+        }
+    }
+
+    private func selectorRow(lensIconOnly: Bool) -> some View {
         HStack(spacing: 6) {
             // Icon ONLY (Daniel, 2026-08-23): the kind never spells its name —
             // "no need to say reader or library, that can be icons". The name
@@ -39,7 +49,12 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
 
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
-            Menu {
+            lensMenu(iconOnly: lensIconOnly)
+        }
+    }
+
+    private func lensMenu(iconOnly: Bool) -> some View {
+        Menu {
                 if lensSections.isEmpty {
                     Picker("View", selection: $lens) {
                         ForEach(lenses) { option in
@@ -59,14 +74,26 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                         }
                     }
                 }
-            } label: {
-                Label(lensTitle(lens), systemImage: lensIcon(lens))
-                    .font(.callout)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityLabel("View: \(lensTitle(lens))")
-            .help("Choose what this pane shows")
+        } label: {
+            Label(lensTitle(lens), systemImage: lensIcon(lens))
+                .font(.callout)
+                .labelStyle(iconOnly ? AnyLabelStyle(.iconOnly) : AnyLabelStyle(.titleAndIcon))
         }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .accessibilityLabel("View: \(lensTitle(lens))")
+        .help("Choose what this pane shows")
+    }
+}
+
+/// Type-erased label style so one Menu label can flip icon-only under
+/// ViewThatFits without duplicating the menu content.
+private struct AnyLabelStyle: LabelStyle {
+    private let make: (Configuration) -> AnyView
+    init(_ style: some LabelStyle) {
+        make = { AnyView(style.makeBody(configuration: $0)) }
+    }
+    func makeBody(configuration: Configuration) -> some View {
+        make(configuration)
     }
 }

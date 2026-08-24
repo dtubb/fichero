@@ -82,21 +82,38 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 capsule { tools() }
             }
         }
-        .padding(PaneHeadMetrics.inset)
+        .padding(.vertical, PaneHeadMetrics.inset)
+        .padding(.leading, PaneHeadMetrics.inset)
+        // Extra trailing room (Daniel, 2026-08-23): the "+" must not sit
+        // over a scroll bar when the pane has one.
+        .padding(.trailing, PaneHeadMetrics.trailingInset)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// True while this pane sits inside an active split — X then collapses
+    /// THAT split (one at a time), never the whole pane kind (Daniel,
+    /// 2026-08-23: "left X should close that split, not all of that type").
+    private var isInSplit: Bool {
+        splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
     }
 
     private var identityCapsule: some View {
         capsule {
             HStack(spacing: 6) {
-                if let onClose {
-                    Button(action: onClose) {
+                if onClose != nil || isInSplit {
+                    Button {
+                        if let actions = splitAxisActions, isInSplit {
+                            actions.onCollapseSplit()
+                        } else {
+                            onClose?()
+                        }
+                    } label: {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.semibold))
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("Close pane")
-                    .help("Close this pane")
+                    .accessibilityLabel(isInSplit ? "Close this split" : "Close pane")
+                    .help(isInSplit ? "Close this split" : "Close this pane")
                     Divider().frame(height: PaneHeadMetrics.dividerHeight)
                 }
                 selector()
@@ -260,6 +277,8 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
 /// Shared metrics — one place, so the capsules cannot drift apart.
 enum PaneHeadMetrics {
     static let inset: CGFloat = 8
+    /// Trailing edge clears the scroll bar (Daniel, 2026-08-23).
+    static let trailingInset: CGFloat = 20
     static let rowSpacing: CGFloat = 6
     static let capsuleSpacing: CGFloat = 8
     static let capsulePadding: CGFloat = 8

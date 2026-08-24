@@ -163,7 +163,7 @@ struct ChatView: View {
                 case .compare: compareTabContent
                 }
             }
-            .overlay(alignment: .top) { chatPaneHead }
+            .safeAreaInset(edge: .top, spacing: 0) { chatPaneHead }
 
             Divider()
             chatBottomBar

@@ -120,7 +120,11 @@ struct ReadingPaneView: View {
                 // Notes SurfaceTabBar: those three are lenses now, alongside
                 // the five knowledge surfaces that were reachable only from the
                 // menu bar (Daniel, 2026-08-23).
-                .overlay(alignment: .top) { paneHead }
+                // safeAreaInset, not overlay (Daniel, 2026-08-23: "first
+                // row needs more margin — it's under the icons"): the first
+                // row starts BELOW the head, while scrolled content still
+                // passes under the glass.
+                .safeAreaInset(edge: .top, spacing: 0) { paneHead }
 
             if MiniToolbarPlacement.preferredForReader == .bottom {
                 PaneFilterBar(placement: .bottom) { readerFindBar }
@@ -220,10 +224,9 @@ struct ReadingPaneView: View {
     /// and the modifier chained on a named value: the inferred form collapsed
     /// the type checker twice ("failed to produce diagnostic").
     private var paneHead: some View {
-        var closeAction: (() -> Void)?
-        if onClose != nil || splitAxisActions != nil {
-            closeAction = { self.closePane() }
-        }
+        // The head collapses splits itself; onClose is only the whole-pane
+        // hide. (closePane stays for the toolbar/menu paths.)
+        let closeAction = onClose
         let head = PaneHead<PaneKindSelector<ReaderLens>, EmptyView, EmptyView>(
             crumbs: readerCrumbs,
             onClose: closeAction,
