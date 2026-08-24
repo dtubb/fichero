@@ -3530,6 +3530,11 @@ async def process_vision(
                     retry_config = dataclasses.replace(
                         effective_config,
                         max_tokens=max(8192, effective_config.max_tokens * 2),
+                        # A default-reasoning model can drown ANY cap (run 3:
+                        # the 8192 retry burned 8193). Disable reasoning
+                        # outright on the retry — the answer channel is what
+                        # we're here for.
+                        reasoning_effort="disabled",
                     )
                     text = await _vision_resilient(
                         lambda: vision(

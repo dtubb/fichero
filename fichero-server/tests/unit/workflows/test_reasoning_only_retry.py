@@ -90,9 +90,11 @@ def test_empty_response_retries_with_a_raised_token_ceiling(tmp_path, monkeypatc
     Image.new("RGB", (24, 24), "white").save(image)
 
     caps_seen: list[int] = []
+    efforts_seen: list[str | None] = []
 
     async def fake_vision(*, images, prompt, config, language=None, **kwargs):
         caps_seen.append(config.max_tokens)
+        efforts_seen.append(config.reasoning_effort)
         return "" if len(caps_seen) == 1 else GOLD
 
     monkeypatch.setattr(llm_module, "vision", fake_vision)
@@ -111,3 +113,6 @@ def test_empty_response_retries_with_a_raised_token_ceiling(tmp_path, monkeypatc
     assert result["texts"] == [GOLD]
     assert len(caps_seen) == 2
     assert caps_seen[1] >= max(8192, caps_seen[0] * 2)
+    # And reasoning is explicitly DISABLED on the retry — a default-reasoning
+    # model drowns any cap (run 3, 2026-08-24: the 8192 retry burned 8193).
+    assert efforts_seen[1] == "disabled"

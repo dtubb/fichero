@@ -4145,6 +4145,13 @@ def _build_langchain_model(config: LLMConfig) -> Any:
             # via the `reasoning` extra_body field — works for Claude
             # (thinking) and gpt-5/o-series (reasoning_effort) alike.
             kwargs["extra_body"] = {"reasoning": {"effort": effort}}
+        elif effort == "disabled":
+            # EXPLICIT off, not merely unset: models that reason BY DEFAULT
+            # (qwen3.6-plus, 2026-08-24) burn any max_tokens budget in the
+            # reasoning channel and return empty content — output=8193 against
+            # an 8192 cap. "disabled" is the empty-retry's escape hatch; a
+            # no-op for models that don't reason unprompted.
+            kwargs["extra_body"] = {"reasoning": {"enabled": False}}
         # Strip `parallel_tool_calls` / `disable_parallel_tool_use` from the
         # outgoing body so function_calling structured output survives the
         # OpenRouter→Bedrock-Claude route (#1802). See
