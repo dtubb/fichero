@@ -11,6 +11,7 @@ enum ContentToolbarID {
     static let activityStatus = "fichero.activityStatus"
     static let viewDisplayMode = "fichero.viewDisplayMode"
     static let breadcrumb = "fichero.breadcrumb"
+    static let workflowSuggest = "fichero.workflowSuggest"
     static let searchToggle = "fichero.searchToggle"
 }
 
@@ -274,10 +275,18 @@ extension ContentView {
             // Engine + activity are their OWN items (Daniel, 2026-08-23: the
             // island must separate from server status and activity): each gets
             // its own Liquid Glass section instead of fusing into the island's
-            // capsule. Unconditionally declared, content-only variance (#3163).
+            // capsule. ToolbarSpacer is what actually BREAKS the glass group —
+            // adjacent items share one capsule without it (Daniel's 2026-08-24
+            // screenshot: still fused). Unconditional, content-only variance.
+            ToolbarSpacer(.fixed, placement: .principal)
+            ToolbarItem(id: ContentToolbarID.workflowSuggest, placement: .principal) {
+                workflowSuggestButton
+            }
+            ToolbarSpacer(.fixed, placement: .principal)
             ToolbarItem(id: ContentToolbarID.engineStatus, placement: .principal) {
                 EngineStatusToolbarItem()
             }
+            ToolbarSpacer(.fixed, placement: .principal)
             ToolbarItem(id: ContentToolbarID.activityStatus, placement: .principal) {
                 ActivityStatusToolbarItem(
                     isImporting: isImporting,
@@ -288,6 +297,26 @@ extension ContentView {
                 )
             }
         }
+    }
+
+    /// V1 of the smart workflow chip (Daniel, 2026-08-24: "give us some
+    /// buttons of logical workflows to run"): a bolt beside the island opens
+    /// the SAME picker the bottom bar's bolt does, scoped to the selection.
+    /// The suggestion INTELLIGENCE (what the selection HAS → which workflow)
+    /// arrives as an outline-endpoint consumer.
+    @ViewBuilder
+    var workflowSuggestButton: some View {
+        Button {
+            NotificationCenter.default.post(name: .ficheroShowWorkflowPicker, object: nil)
+        } label: {
+            Label("Run Workflow", systemImage: "bolt")
+                .labelStyle(.iconOnly)
+        }
+        .disabled(browserSelection.isEmpty)
+        .help(browserSelection.isEmpty
+              ? "Select items to run a workflow on"
+              : "Run a workflow on the \(browserSelection.count) selected item(s)")
+        .accessibilityLabel("Run a workflow on the selection")
     }
 
     func syncFocusedDocumentSelection(_ document: Document?) {
