@@ -257,6 +257,16 @@ extension ContentView {
                         selectionCount: browserSelection.count,
                         selectionTotal: documentStore.currentDocuments.count,
                         selectionLabel: inspectorDocument.map { DocumentTitle.displayName(for: $0) },
+                        selectionIcon: inspectorDocument.map { PaneCrumb.icon(for: $0) },
+                        selectionNoun: {
+                            let ids = Set(browserSelection)
+                            let docs = documentStore.currentDocuments.filter { ids.contains($0.id) }
+                            guard !docs.isEmpty else { return "items" }
+                            if docs.allSatisfy({ $0.fileType == .image }) { return "images" }
+                            if docs.allSatisfy({ $0.docType == .page }) { return "pages" }
+                            if docs.allSatisfy({ $0.docType == .folder }) { return "folders" }
+                            return "items"
+                        }(),
                         importError: $importError
                     )
                 }

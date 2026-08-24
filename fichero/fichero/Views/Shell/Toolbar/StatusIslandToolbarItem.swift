@@ -35,6 +35,10 @@ struct StatusIslandToolbarItem: View {
     /// The single selection's display name — the island names THE ITEM, not
     /// the library view (Daniel, 2026-08-23).
     let selectionLabel: String?
+    /// The selection's glyph (single) and the noun a multi-selection counts
+    /// in ("2 images selected" — no totals, Daniel, bedtime 2026-08-23).
+    let selectionIcon: String?
+    let selectionNoun: String
     @Binding var importError: String?
 
     var body: some View {
@@ -100,13 +104,23 @@ struct StatusIslandToolbarItem: View {
             runningWorkflows: executionObserver.activeExecutions.count,
             selectionCount: selectionCount,
             selectionTotal: selectionTotal,
-            selectionLabel: selectionLabel
+            selectionLabel: selectionLabel,
+            selectionNoun: selectionNoun
         )
-        return Text(status.text)
-            .font(.subheadline)
-            .foregroundStyle(status.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
-            .lineLimit(1)
-            .truncationMode(.tail)
+        // Icon + standard body type (Daniel, bedtime 2026-08-23): the island
+        // wears the selection's glyph and the system's standard size; a quiet
+        // app shows NOTHING rather than "Ready".
+        return HStack(spacing: 5) {
+            if !status.text.isEmpty, let selectionIcon, selectionCount >= 1, !status.isError {
+                Image(systemName: selectionIcon)
+                    .foregroundStyle(Color.accentColor)
+            }
+            Text(status.text)
+                .font(.body)
+                .foregroundStyle(status.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
             // The width `StatusIslandMessage.budget` was derived from (#4366).
             // Named rather than inlined so the two cannot drift: widen the
             // island and the budget test tells you to re-derive the character
@@ -151,11 +165,10 @@ struct StatusIslandMessage: Equatable {
     /// progress line) are not in here; they cannot be written short in advance,
     /// so they go through `shortForm(_:)` instead.
     static let authoredMessages: [String] = [
-        "Ready",
         "Importing…",
         "Running 1 workflow…",
         "Running 99 workflows…",
-        "9,999 of 9,999 selected"
+        "9,999 documents selected"
     ]
 
     /// The short form of a string the app did not author.
@@ -214,7 +227,8 @@ struct StatusIslandMessage: Equatable {
         runningWorkflows: Int,
         selectionCount: Int = 0,
         selectionTotal: Int = 0,
-        selectionLabel: String? = nil
+        selectionLabel: String? = nil,
+        selectionNoun: String = "items"
     ) -> StatusIslandMessage {
         switch enginePhase {
         case .portConflict, .authRejected, .unreachable, .failed:
@@ -236,12 +250,9 @@ struct StatusIslandMessage: Equatable {
         // chatter, but never an error or a live import. A SINGLE selection is
         // the app's normal state and stays quiet.
         if selectionCount > 1 {
-            // "3 of 151 selected" — the same statement the library's bottom
-            // bar makes, so the two can never disagree (Daniel, 2026-08-23).
-            let text = selectionTotal >= selectionCount
-                ? "\(selectionCount.formatted()) of \(selectionTotal.formatted()) selected"
-                : "\(selectionCount.formatted()) selected"
-            return .init(text: text, isError: false)
+            // "2 images selected" (Daniel, bedtime 2026-08-23) — the noun,
+            // never a total.
+            return .init(text: "\(selectionCount.formatted()) \(selectionNoun) selected", isError: false)
         }
         // ONE selection: the island names the ITEM (Daniel, 2026-08-23) —
         // what is selected, not which view shows it.
@@ -255,6 +266,8 @@ struct StatusIslandMessage: Equatable {
                 : "Running \(runningWorkflows) workflows…"
             return .init(text: text, isError: false)
         }
-        return .init(text: "Ready", isError: false)
+        // Quiet idle shows NOTHING (Daniel: "it said ready on launch,
+        // don't need that").
+        return .init(text: "", isError: false)
     }
 }
