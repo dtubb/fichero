@@ -82,12 +82,16 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 capsule { tools() }
             }
         }
-        .padding(.vertical, PaneHeadMetrics.inset)
         .padding(.leading, PaneHeadMetrics.inset)
         // Extra trailing room (Daniel, 2026-08-23): the "+" must not sit
         // over a scroll bar when the pane has one.
         .padding(.trailing, PaneHeadMetrics.trailingInset)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // CONSTANT height (2026-08-23 live, the 15s stall): the head mounts
+        // as a top safe-area inset, and a height that moves with crumb
+        // content re-lays out EVERY row of the lazy list beneath it on each
+        // selection click. The tools row keeps the base height and floats.
+        .frame(maxWidth: .infinity, minHeight: PaneHeadMetrics.barHeight,
+               maxHeight: PaneHeadMetrics.barHeight, alignment: .leading)
     }
 
     /// True while this pane sits inside an active split — X then collapses
@@ -142,6 +146,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                     AnyView(iconOnlyCrumbRow)
                     AnyView(ellipsisCrumbRow)
                     AnyView(crumbSegment(crumbs[crumbs.count - 1], isLeaf: true))
+                    AnyView(truncatedLeaf)
                     AnyView(leafIconOnly)
                 }
                 .accessibilityLabel(crumbs.map(\.name).joined(separator: ", "))
@@ -213,6 +218,24 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 Text("›").font(.caption).foregroundStyle(.secondary)
                 crumbSegment(crumbs[crumbs.count - 1], isLeaf: true)
             }
+        }
+    }
+
+    /// Name-with-ellipsis floor (Daniel, 2026-08-23: "don't just do the
+    /// icon" while there is room): the leaf's icon + its name truncated to a
+    /// fixed cap, so a long folder name shortens before it vanishes.
+    @ViewBuilder
+    private var truncatedLeaf: some View {
+        if let leaf = crumbs.last {
+            HStack(spacing: 4) {
+                Image(systemName: leaf.icon).foregroundStyle(leaf.tint)
+                Text(leaf.name)
+                    .font(.callout)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 140)
+            }
+            .help(leaf.name)
         }
     }
 
@@ -313,6 +336,9 @@ enum PaneHeadMetrics {
     static let inset: CGFloat = 8
     /// Trailing edge clears the scroll bar (Daniel, 2026-08-23).
     static let trailingInset: CGFloat = 20
+    /// The head's ONE height — constant so the safe-area inset never moves
+    /// (a moving inset re-lays out the whole lazy list beneath it).
+    static let barHeight: CGFloat = 40
     static let rowSpacing: CGFloat = 6
     static let capsuleSpacing: CGFloat = 8
     static let capsulePadding: CGFloat = 8

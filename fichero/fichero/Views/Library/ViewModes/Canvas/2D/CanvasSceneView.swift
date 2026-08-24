@@ -254,7 +254,9 @@ struct CanvasSceneView: View {
             .overlay { marqueeOverlay }
             // Same strip, same corner as 3D — one board, one place to say
             // what it means.
-            .overlay(alignment: .topTrailing) { CanvasControlStrip().padding(8) }
+            // Arrange/Colour-by moved to the library's ONE bottom bar
+            // (Daniel, 2026-08-23): they filter/colourise, so they live with
+            // sort and filter, not floating over the board.
             .focusedSceneValue(\.canvasViewActions, canvasCommandActions)
             // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
             // grammar (user, 2026-08-19).

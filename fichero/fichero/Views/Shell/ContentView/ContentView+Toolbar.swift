@@ -237,71 +237,10 @@ extension ContentView {
             // stays unconditionally declared — only its CONTENT varies (#3163).
             // Its message-length contract (#4366) is unchanged by the move.
             ToolbarItem(id: ContentToolbarID.breadcrumb, placement: .principal) {
-                let libraryName: String? = {
-                    guard case .library(let doc) = viewMode, doc != nil else { return nil }
-                    return LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName
-                }()
-
+                // NO location breadcrumb here any more (Daniel, 2026-08-23):
+                // every pane carries its own crumb, so the island answers only
+                // "what is selected" (focus-tracking is a candidate addition).
                 HStack(spacing: 10) {
-                    HStack(spacing: 4) {
-                        if let libraryName {
-                            HStack(spacing: 3) {
-                                Image(systemName: ToolbarSymbols.breadcrumbLibrary)
-                                    .imageScale(.small)
-                                Text(libraryName)
-                                    .font(.subheadline)
-                                    .lineLimit(1)
-                                    .layoutPriority(1)
-                                    // Middle-truncate (Daniel #176): a long
-                                    // name must never push toolbar icons out.
-                                    .truncationMode(.middle)
-                                    .frame(maxWidth: 200)
-                            }
-                            .foregroundStyle(.secondary)
-
-                            // Compact chevron so the separator can't be read as the
-                            // Forward button's `chevron.forward` (#4360).
-                            Image(systemName: ToolbarSymbols.breadcrumbSeparator)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-
-                        HStack(spacing: 3) {
-                            Image(systemName: toolbarIcon)
-                                .imageScale(.small)
-                            Text(toolbarTitle)
-                                .font(.headline)
-                                .lineLimit(1)
-                                // The NAME wins the space fight (#184: 'I…ox'
-                                // — the title was crushed to four characters
-                                // while the island had room to spare).
-                                .layoutPriority(2)
-                                // CAPPED + middle-truncated (Daniel #176, live:
-                                // a 70-char archival folder name swallowed the
-                                // whole toolbar and the trailing icons with
-                                // it). An ellipsis mid-name loses the least —
-                                // archival names front-load the year and
-                                // back-load the distinguishing tail.
-                                // ponytail: fixed cap; a window-relative cap
-                                // needs GeometryReader plumbing into toolbar
-                                // content — upgrade if 380pt misfits a size.
-                                .truncationMode(.middle)
-                                .frame(maxWidth: 460)
-                        }
-                        .foregroundStyle(.primary)
-                    }
-                    // HUG the content (Daniel, 2026-08-10 #220: "this is too
-                    // wide the island… spacing between icons and chevron and
-                    // next is too much"): the per-text maxWidth caps (#176)
-                    // are EXPANDING frames under the toolbar's generous
-                    // proposal, so short names centered in wide frames read
-                    // as giant gaps. fixedSize proposes nil width, which
-                    // makes every frame(maxWidth:) hug its text (still
-                    // capped and middle-truncated for long names), and the
-                    // island shrinks to what it actually says. The edge
-                    // padding gives the leading icon room from the capsule.
-                    .fixedSize(horizontal: true, vertical: false)
-                    .padding(.horizontal, 6)
                     // No painted lozenge (#4360): the toolbar's own Liquid Glass
                     // carries this principal item; the old low-opacity primary
                     // fill was a hand-rolled approximation of that material.

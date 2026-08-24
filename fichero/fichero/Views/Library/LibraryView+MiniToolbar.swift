@@ -41,6 +41,13 @@ extension LibraryView {
 
         Spacer(minLength: 8)
 
+        // Canvas channels (Daniel, 2026-08-23): Arrange + Colour-by act on
+        // what the board SHOWS, so they sit in the one bottom bar with sort
+        // and filter — only while a canvas mode is up.
+        if displayMode.group == .canvas {
+            CanvasControlStrip()
+        }
+
         // Xcode-console-style metadata popover (#18): which optional
         // attributes list rows display. Sits with sort/filter because it,
         // too, acts on the library list.

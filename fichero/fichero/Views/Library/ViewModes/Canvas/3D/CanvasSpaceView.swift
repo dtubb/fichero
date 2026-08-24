@@ -267,8 +267,10 @@ struct CanvasSpaceView: View {
     /// ALL through the shared `CanvasInteractionController`, so 3D CRUD behaves
     /// identically to 2D (it IS the same controller).
     private var canvasToolbar: some View {
-        HStack(spacing: 6) {
-            CanvasControlStrip()
+        // VERTICAL, top-right going down (Daniel, 2026-08-23): spatial
+        // manipulation is the right-edge capsule stack; Arrange/Colour-by
+        // moved to the library's bottom bar with the other filters.
+        VStack(spacing: 6) {
             Menu {
                 Button("Note") { addItem(.note) }
                 Button("Quote") { addItem(.quote) }
