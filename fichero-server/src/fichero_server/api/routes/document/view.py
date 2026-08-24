@@ -38,6 +38,7 @@ from fichero_server.core.perf import perf_span
 
 from .artifacts import ArtifactResponse, _artifact_response
 from .documents import (
+    _apply_listing_sort,
     _batched_children_of,
     _filter_resolvable_documents,
     _get_document_row,
@@ -133,6 +134,15 @@ async def get_document_view(
     attachments: bool = Query(
         True, description="Include the anchor's attachment summary."
     ),
+    sort_by: str | None = Query(
+        None,
+        description=(
+            "Optional server-side child ordering; only 'document_date' "
+            "(#3322 — same contract as /children, so the grid can migrate "
+            "without losing its listing sort)."
+        ),
+    ),
+    sort_direction: str = Query("asc", description="'asc' or 'desc'"),
     db: Database = Depends(get_library_database),
 ) -> DocumentViewResponse:
     """One response for 'where am I, what's in here, what does it have'."""
@@ -162,6 +172,9 @@ async def get_document_view(
                     level,
                     children_of=_batched_children_of(db, rows),
                 )
+                # AFTER level resolution, same as /children: the tier decides
+                # WHICH rows exist before the ordering decides their order.
+                child_rows = _apply_listing_sort(child_rows, sort_by, sort_direction)
                 child_rows = _with_child_counts(db, child_rows)
 
             return DocumentViewResponse(
