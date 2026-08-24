@@ -324,7 +324,7 @@ struct ReadingPaneView: View {
         var crumbs: [PaneCrumb] = []
         if let libraryName {
             crumbs.append(PaneCrumb(
-                id: "library-root", name: libraryName,
+                id: "library-root", title: libraryName,
                 icon: "books.vertical.fill", isNavigable: false, tint: .accentColor
             ))
         }

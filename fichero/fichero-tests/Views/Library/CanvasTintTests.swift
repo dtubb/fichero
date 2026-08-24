@@ -258,9 +258,14 @@ struct CanvasTintWiringGuardTests {
 
     @Test("both canvases show the strip and forward the one produced tint")
     func bothCanvasesShareTheStrip() throws {
+        // The strip moved to the library's ONE bottom bar (Daniel,
+        // 2026-08-23) — shared there, not duplicated per canvas; the tint
+        // channel still reaches both boards.
+        let bar = try appSource("Views/Library/LibraryView+MiniToolbar.swift")
+        #expect(bar.contains("CanvasControlStrip()"))
         for path in canvases {
             let source = try appSource(path)
-            #expect(source.contains("CanvasControlStrip()"), "\(path) has no control strip")
+            #expect(!source.contains("CanvasControlStrip()"), "\(path) grew its own strip back")
             #expect(source.contains("state.tint = tint"))
         }
         let host = try appSource("Views/Library/LibraryView+CanvasModes.swift")

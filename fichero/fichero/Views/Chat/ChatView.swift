@@ -113,7 +113,7 @@ struct ChatView: View {
         PaneHead<PaneKindSelector<ChatSurfaceTab>, EmptyView, EmptyView>(
             crumbs: [PaneCrumb(
                 id: currentConversation.id,
-                name: currentConversation.title,
+                title: currentConversation.title,
                 icon: "bubble.left.and.bubble.right.fill"
             )],
             onClose: onClosePane,
@@ -130,7 +130,7 @@ struct ChatView: View {
                 visibleConversations.map { conversation in
                     PaneCrumb(
                         id: conversation.id,
-                        name: conversation.title,
+                        title: conversation.title,
                         icon: "bubble.left.and.bubble.right"
                     )
                 }

@@ -70,7 +70,7 @@ extension LibraryView {
            let library = LibraryManager.shared.getLibrary(id: libraryId) {
             crumbs.append(PaneCrumb(
                 id: "library-root",
-                name: library.displayName,
+                title: library.displayName,
                 icon: "books.vertical.fill",
                 isNavigable: false,
                 tint: .accentColor

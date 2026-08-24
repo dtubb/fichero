@@ -379,8 +379,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let menuSource = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
 
         XCTAssertTrue(toolbarSource.contains("placement: .principal"))
-        XCTAssertTrue(toolbarSource.contains("LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName"))
-        XCTAssertTrue(toolbarSource.contains("Text(libraryName)"))
+        // The library-name crumb LEFT the toolbar (Daniel, 2026-08-23):
+        // panes carry their own crumbs; the island answers the selection.
         XCTAssertTrue(menuSource.contains("Show Library Browser"))
         XCTAssertTrue(menuSource.contains("Hide Library Browser"))
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))

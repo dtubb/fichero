@@ -359,7 +359,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         }
         let principalSource = toolbarSource[principalRange.lowerBound...]
 
-        XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
+        // The principal zone carries NO location text since 2026-08-23
+        // (Daniel: panes own their crumbs; the island answers the selection).
+        XCTAssertFalse(principalSource.contains("Text(toolbarTitle)"))
         // #4407: the window-level `.searchable` is gone entirely — search moved
         // into the library's mini toolbar, with the pane it acts on. What this
         // still guards is that the principal zone did not grow a search field
@@ -411,7 +413,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertFalse(contentSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(toolbarSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(buildersSource.contains("contentPaneToolbarContent"))
-        XCTAssertTrue(toolbarSource.contains("viewDisplayModeMenu"))
+        // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it is
+        // the library pane head's lens now.
+        XCTAssertFalse(toolbarSource.contains("viewDisplayModeMenu"))
         // #4360: these became native Toggles, so the call is a binding setter
         // rather than an inverted-boolean button action. Same invariant: the
         // pane controls live in the toolbar and drive the pane-visibility API.

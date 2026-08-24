@@ -29,7 +29,9 @@ import SwiftUI
 /// 2026-08-23: "crumbs need icons that match sidebar and library").
 struct PaneCrumb: Identifiable, Equatable {
     let id: String
-    let name: String
+    /// The DISPLAY title — already composed through DocumentTitle; never a
+    /// raw storage name (the #4416 sweep).
+    let title: String
     let icon: String
     /// `false` renders as plain text (e.g. a root the pane cannot navigate to).
     var isNavigable: Bool = true
@@ -149,7 +151,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                     AnyView(truncatedLeaf)
                     AnyView(leafIconOnly)
                 }
-                .accessibilityLabel(crumbs.map(\.name).joined(separator: ", "))
+                .accessibilityLabel(crumbs.map(\.title).joined(separator: ", "))
             }
             .contextMenu {
                 // The whole ancestry, top-down — reachable even when the
@@ -170,7 +172,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                     Button {
                         onCrumb?(crumb)
                     } label: {
-                        Label(crumb.name, systemImage: crumb.icon)
+                        Label(crumb.title, systemImage: crumb.icon)
                     }
                     .disabled(onCrumb == nil || !crumb.isNavigable)
         }
@@ -202,13 +204,13 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                         Image(systemName: crumb.icon).foregroundStyle(crumb.tint)
                     }
                     .buttonStyle(.borderless)
-                    .help(crumb.name)
-                    .accessibilityLabel(crumb.name)
+                    .help(crumb.title)
+                    .accessibilityLabel(crumb.title)
                 } else {
                     Image(systemName: crumb.icon)
                         .foregroundStyle(crumb.tint)
-                        .help(crumb.name)
-                        .accessibilityLabel(crumb.name)
+                        .help(crumb.title)
+                        .accessibilityLabel(crumb.title)
                 }
             }
         }
@@ -221,7 +223,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             HStack(spacing: 3) {
                 Image(systemName: first.icon)
                     .foregroundStyle(first.tint)
-                    .help(first.name)
+                    .help(first.title)
                 Text("›").font(.caption).foregroundStyle(.secondary)
                 Text("…").font(.caption).foregroundStyle(.secondary)
                 Text("›").font(.caption).foregroundStyle(.secondary)
@@ -238,13 +240,13 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         if let leaf = crumbs.last {
             HStack(spacing: 4) {
                 Image(systemName: leaf.icon).foregroundStyle(leaf.tint)
-                Text(leaf.name)
+                Text(leaf.title)
                     .font(.callout)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .frame(maxWidth: 140)
             }
-            .help(leaf.name)
+            .help(leaf.title)
         }
     }
 
@@ -255,8 +257,8 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         if let leaf = crumbs.last {
             Image(systemName: leaf.icon)
                 .foregroundStyle(leaf.tint)
-                .help(leaf.name)
-                .accessibilityLabel(leaf.name)
+                .help(leaf.title)
+                .accessibilityLabel(leaf.title)
         }
     }
 
@@ -271,7 +273,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         let label = HStack(spacing: 4) {
             Image(systemName: crumb.icon)
                 .foregroundStyle(crumb.tint)
-            Text(crumb.name)
+            Text(crumb.title)
                 .foregroundStyle(isLeaf ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
         }
             .font(.callout)
@@ -281,7 +283,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             if children.isEmpty {
                 Button { onCrumb(crumb) } label: { label }
                     .buttonStyle(.borderless)
-                    .help("Go to \(crumb.name)")
+                    .help("Go to \(crumb.title)")
             } else {
                 Menu {
                     // Deferred: children rows build when the menu opens,
@@ -291,7 +293,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                             Button {
                                 onCrumb(child)
                             } label: {
-                                Label(child.name, systemImage: child.icon)
+                                Label(child.title, systemImage: child.icon)
                             }
                         }
                     }
@@ -302,7 +304,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help("Go to \(crumb.name) — hold for its contents")
+                .help("Go to \(crumb.title) — hold for its contents")
             }
         } else {
             label
@@ -380,7 +382,7 @@ extension PaneCrumb {
     init(_ doc: Document) {
         self.init(
             id: doc.id,
-            name: DocumentTitle.displayName(for: doc),
+            title: DocumentTitle.displayName(for: doc),
             icon: Self.icon(for: doc),
             tint: Self.tint(for: doc)
         )
@@ -390,14 +392,14 @@ extension PaneCrumb {
 #Preview("PaneHead crumb menus") {
     PaneHead<EmptyView, EmptyView, EmptyView>(
         crumbs: [
-            PaneCrumb(id: "a", name: "Marshall Diaries v4", icon: "books.vertical.fill", tint: .accentColor),
-            PaneCrumb(id: "b", name: "Inbox", icon: "folder.fill", tint: .accentColor),
-            PaneCrumb(id: "c", name: "Jan 10 1933", icon: "photo.fill")
+            PaneCrumb(id: "a", title: "Marshall Diaries v4", icon: "books.vertical.fill", tint: .accentColor),
+            PaneCrumb(id: "b", title: "Inbox", icon: "folder.fill", tint: .accentColor),
+            PaneCrumb(id: "c", title: "Jan 10 1933", icon: "photo.fill")
         ],
         onClose: {},
         onCrumb: { _ in },
         crumbChildren: { _ in
-            [PaneCrumb(id: "x", name: "Child", icon: "doc.text.fill")]
+            [PaneCrumb(id: "x", title: "Child", icon: "doc.text.fill")]
         },
         selector: { EmptyView() },
         controls: { EmptyView() },

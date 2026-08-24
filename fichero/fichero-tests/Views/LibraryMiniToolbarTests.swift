@@ -70,35 +70,25 @@ struct LibraryMiniToolbarTests {
     }
 
     /// One container, mounted once per edge — not one per control.
-    @Test("the container is mounted exactly once per edge")
-    func containerIsMountedOncePerEdge() throws {
+    @Test("the cluster lives ONLY inside the one bottom action bar")
+    func clusterLivesInTheActionBar() throws {
+        // ONE bottom row (Daniel, 2026-08-23): no PaneFilterBar mount for the
+        // library cluster on either edge — the action bar's adaptive row
+        // hosts it (inline when wide, overflow menu when narrow).
         let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
             ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
-        #expect(
-            library.components(separatedBy: "PaneFilterBar(placement: .top) { libraryMiniToolbar }")
-                .count - 1 == 1
-        )
-        #expect(
-            library.components(separatedBy: "PaneFilterBar(placement: .bottom) { libraryMiniToolbar }")
-                .count - 1 == 1
-        )
+        #expect(!library.contains("PaneFilterBar(placement: .top) { libraryMiniToolbar }"))
+        #expect(!library.contains("PaneFilterBar(placement: .bottom) { libraryMiniToolbar }"))
+        let bar = try Self.appSource("Views/Library/LibraryView+BottomActionBar.swift")
+        #expect(bar.contains("libraryMiniToolbar"))
+        #expect(bar.contains("librarySortMenu"))
     }
 
-    /// It uses the SAME shared container and the SAME platform decision as the
-    /// reader's find bar — the bar that was already correctly scoped, and the
-    /// reason the window-spanning one looked wrong beside it.
-    @Test("it reuses the reader's container and placement decision")
-    func itReusesTheReadersModel() throws {
-        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
-        #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
-
-        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
-            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
-        #expect(library.contains("PaneFilterBar("))
-
-        // The reader still owns its own find bar — unchanged, and still the model.
+    /// The reader keeps its find bar in the shared container at the shared
+    /// bottom placement (its .top branch is Mac-dead by the one decision).
+    @Test("the reader keeps the shared find-bar container")
+    func readerKeepsTheSharedContainer() throws {
         let reader = try Self.appSource("Views/Reader/Page/ReadingPaneView.swift")
-        #expect(reader.contains("PaneFilterBar(placement: .top) { readerFindBar }"))
         #expect(reader.contains("PaneFilterBar(placement: .bottom) { readerFindBar }"))
     }
 
@@ -148,23 +138,21 @@ struct LibraryMiniToolbarTests {
         try #require(pieces.count > 1, "bottomInsetContent declaration not found")
         let body = pieces[1]
             .components(separatedBy: "\n    }")[0]
-        let mini = body.range(of: "libraryMiniToolbar")
+        // ONE persistent row since 2026-08-23: the transient ⌘F reveal sits
+        // above the action bar, which hosts the whole cluster.
         let filter = body.range(of: "filterBarView")
-        let status = body.range(of: "libraryBottomActionBar")
-        #expect(mini != nil)
+        let bar = body.range(of: "libraryBottomActionBar")
         #expect(filter != nil)
-        #expect(status != nil)
-        if let mini, let filter, let status {
-            #expect(mini.lowerBound < filter.lowerBound, "the pane's control sits nearest its rows")
-            #expect(filter.lowerBound < status.lowerBound, "the status row is outermost")
+        #expect(bar != nil)
+        if let filter, let bar {
+            #expect(filter.lowerBound < bar.lowerBound, "the reveal sits above the one bar")
         }
     }
 
-    /// The top/bottom question for Mac mini toolbars is Daniel's to decide and
-    /// is explicitly deferred (#4424) — this change must not have quietly
-    /// answered it. The placement still comes from the one shared decision.
-    @Test("the placement decision is untouched and still shared with the reader")
-    func placementDecisionIsUntouched() throws {
+    /// ANSWERED 2026-08-23 (supersedes the #4424 deferral): bottom, for every
+    /// pane — one shared decision, one shared value.
+    @Test("the placement decision is bottom, shared with the reader")
+    func placementDecisionIsBottom() throws {
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
         let library = // LibraryView.swift was split 2026-08-13; scan all four parts.

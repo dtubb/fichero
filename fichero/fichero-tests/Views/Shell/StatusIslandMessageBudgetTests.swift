@@ -202,21 +202,22 @@ struct StatusIslandMessageBudgetTests {
             "  \n  padded and newlined  \n  ",
         ]
         for monster in monsters {
+            // Quiet idle (`resolve()`) is legitimately EMPTY since 2026-08-23
+            // — every state that says something must fit and be non-blank.
             let candidates = [
                 resolve(importError: monster),
                 resolve(isImporting: true, importProgress: monster),
                 resolve(backendWorkLabel: monster),
                 resolve(enginePhase: .failed(diagnosis: "x"), engineStatusTitle: "Can't connect to server"),
                 resolve(runningWorkflows: 99),
-                resolve(),
             ]
             for candidate in candidates {
                 #expect(
                     candidate.text.count <= StatusIslandMessage.budget,
                     "over budget: \(candidate.text)")
-                // Never an empty island either — blank reads as "fine".
                 #expect(!candidate.text.isEmpty)
             }
+            #expect(resolve().text.isEmpty)
         }
     }
 

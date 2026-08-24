@@ -312,15 +312,15 @@ struct CanvasArrangeWiringGuardTests {
 
     @Test("both canvases read the ONE persisted arrangement and show the picker")
     func bothCanvasesShareTheArrangement() throws {
+        // The strip lives in the library's ONE bottom bar since 2026-08-23
+        // (shared by construction — one mount serves both canvases); each
+        // canvas still reads the ONE persisted arrangement.
+        let bar = try appSource("Views/Library/LibraryView+MiniToolbar.swift")
+        #expect(bar.contains("CanvasControlStrip()"))
         for path in canvases {
             let source = try appSource(path)
             #expect(source.contains("@AppStorage(CanvasArrangement.storageKey)"), "\(path) forked the choice")
             #expect(source.contains("arrangement: CanvasArrangement.stored(arrangementRaw)"))
-            // Through the shared strip since Colour-by landed — so the guard
-            // asserts the strip is present AND that the strip still carries the
-            // arrangement picker, which is the property (both canvases can
-            // re-arrange), not the spelling.
-            #expect(source.contains("CanvasControlStrip()"), "\(path) has no control strip")
         }
     }
 

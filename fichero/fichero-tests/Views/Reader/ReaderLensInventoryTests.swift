@@ -59,7 +59,10 @@ struct ReaderLensInventoryTests {
         // Every knowledge sub-mode the app implements is reachable — this is
         // the assertion that fails when a new KGSurfaceTab is added without a
         // lens, which is exactly how Graph and Map became menu-only.
-        #expect(Set(representations) == Set(KGSurfaceTab.allCases),
+        // .transcript is deliberately lens-less (2026-08-23): Content IS the
+        // multi-page transcript, and the knowledge surface clamps .transcript
+        // as stale. Everything else stays reachable.
+        #expect(Set(representations) == Set(KGSurfaceTab.allCases).subtracting([.transcript]),
                 "a built knowledge surface has no lens — it is menu-bar-only again")
     }
 
@@ -172,13 +175,16 @@ struct PaneHeadWiringGuardTests {
         #expect(reader.contains("private var libraryName: String?"))
     }
 
-    @Test("the crumb capsule truncates from the LEADING edge")
-    func crumbsTruncateFromTheHead() throws {
-        // A deep path's tail identifies it; its head is inferable. Proxy-icon
-        // collapse is a later slice, so truncation is what keeps a long path
-        // readable until then.
+    @Test("the crumb degrades by the ladder, never a mid-string ellipsis")
+    func crumbsDegradeByTheLadder() throws {
+        // 2026-08-23 rulings: full chain → icon ancestors → root › … › leaf
+        // → truncated leaf name → leaf icon alone. ViewThatFits picks the
+        // rung; the only text truncation left is the leaf-name floor.
         let head = try code(at: "Views/Shell/PaneHead/PaneHead.swift")
-        #expect(head.contains(".truncationMode(.head)"))
+        #expect(head.contains("iconOnlyCrumbRow"))
+        #expect(head.contains("ellipsisCrumbRow"))
+        #expect(head.contains("truncatedLeaf"))
+        #expect(head.contains("leafIconOnly"))
         #expect(head.contains(".lineLimit(1)"))
     }
 }
