@@ -171,12 +171,21 @@ struct ToolbarGroupingTests {
     /// fourth claimant still fails here instead of at runtime. Each carries
     /// a DISTINCT id (the #3163 crash class is duplicate identifiers, not
     /// multiple placements).
-    @Test("exactly three toolbar items claim .principal, each with its own id")
-    func exactlyThreePrincipalItems() throws {
+    @Test("exactly four toolbar ITEMS claim .principal, each with its own id, separated by spacers")
+    func exactlyFourPrincipalItems() throws {
+        // C10 (2026-08-24): the ⚡ workflow chip joined the principal zone,
+        // and ToolbarSpacer(.fixed) sits between every pair — the spacers are
+        // what actually break the Liquid Glass capsule groups, so they claim
+        // .principal too and are counted separately from the ITEMS.
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        let principals = source.components(separatedBy: "placement: .principal").count - 1
-        #expect(principals == 3, Comment(rawValue: "\(principals) items claim .principal"))
-        for id in ["ContentToolbarID.breadcrumb", "ContentToolbarID.engineStatus", "ContentToolbarID.activityStatus"] {
+        let principalItems = source.components(separatedBy: "placement: .principal").count - 1
+        let spacers = source.components(separatedBy: "ToolbarSpacer(.fixed, placement: .principal)").count - 1
+        #expect(principalItems - spacers == 4, Comment(rawValue: "\(principalItems - spacers) items claim .principal (\(spacers) spacers)"))
+        #expect(spacers == 3, Comment(rawValue: "\(spacers) fixed spacers — one between each adjacent pair"))
+        for id in [
+            "ContentToolbarID.breadcrumb", "ContentToolbarID.workflowSuggest",
+            "ContentToolbarID.engineStatus", "ContentToolbarID.activityStatus"
+        ] {
             #expect(source.contains("ToolbarItem(id: \(id), placement: .principal)"))
         }
     }

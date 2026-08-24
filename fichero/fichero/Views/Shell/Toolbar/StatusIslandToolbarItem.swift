@@ -247,13 +247,13 @@ struct StatusIslandMessage: Equatable {
         // should say working on processing… it's not clear to her that it's
         // working"). The selection is usually the very thing being processed,
         // so echoing its count during a run reads as "nothing happened".
+        if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         if runningWorkflows > 0 {
             let text = runningWorkflows == 1
                 ? "Running 1 workflow…"
                 : "Running \(runningWorkflows) workflows…"
             return .init(text: text, isError: false)
         }
-        if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         // Photos grammar (#29/#138): a multi-selection in progress is what the
         // user is actively doing when nothing is running.
         if selection.count > 1 {

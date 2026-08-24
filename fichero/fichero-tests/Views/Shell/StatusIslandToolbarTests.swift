@@ -43,11 +43,24 @@ struct StatusIslandToolbarTests {
 
     @Test("live work outranks the selection (Ann 2026-08-24: '98 selected' hid the run)")
     func liveWorkOutranksSelection() {
+        // Backend work keeps its OWN precedence over the workflow count (it
+        // carries a %); both sit above the selection now.
         let status = StatusIslandMessage.resolve(
             enginePhase: .ready, engineStatusTitle: "Connected",
             importError: nil, isImporting: false, importProgress: nil,
             backendWorkLabel: "Embedding — 40%", runningWorkflows: 3,
             selection: StatusIslandSelection(count: 12, noun: "images")
+        )
+        #expect(status == StatusIslandMessage(text: "Embedding — 40%", isError: false))
+    }
+
+    @Test("running workflows outrank the selection when no backend label exists")
+    func workflowsOutrankSelection() {
+        let status = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: nil, runningWorkflows: 3,
+            selection: StatusIslandSelection(count: 98, noun: "images")
         )
         #expect(status == StatusIslandMessage(text: "Running 3 workflows…", isError: false))
     }
