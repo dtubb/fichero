@@ -2,6 +2,34 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.08.24
+
+The reliability build. Paleography transcription now survives the models'
+own habits: a draft model that hides its answer inside an unclosed
+thinking block gets one clean retry without the thinking preamble; a
+model that burns its whole token budget reasoning gets a retry with a
+raised ceiling and reasoning disabled; and the response cache no longer
+stores empty answers or replays them across runs — the failure cascades
+that killed whole ensemble runs are gone, verified end-to-end on a 1700
+notarial protocol.
+
+The library tells the truth faster. A folder dropped on Inbox grows its
+disclosure chevron immediately; moving a folder out no longer leaves a
+permanent spinner and a phantom row (the move event now names both
+parents). Adding an AI model can't be silently lost any more — clicking
+a model row adds it on the spot, failures show in red, and a provider
+awaiting its API key appears disabled in the run menu instead of
+vanishing. The status island reports live work over a stale selection
+count, in its own glass capsule beside a one-click workflow chip.
+
+Panes keep maturing: colorized, draggable breadcrumbs; preferred
+renditions load first (no more flash-through); the dataset views share
+one bottom toolbar; split state is per-slot. Under the hood, one outline
+endpoint now answers "where am I, what's in here, what does it have" for
+every tree consumer, folder listings dropped an N+1 query (2.4s → 0.4s),
+and zero-byte drops are refused at both the client and the engine
+instead of minting hollow documents.
+
 ## 2026.08.22
 
 The bounding-box build. A page's alternative pixels — archival original,
