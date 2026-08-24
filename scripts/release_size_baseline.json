@@ -4,11 +4,11 @@
     "note": "manually updated"
   },
   "release.app_bundle": {
-    "bytes": 1562395199,
-    "note": "tightened from 1562420780 bytes"
+    "bytes": 1565618253,
+    "note": "manually updated"
   },
   "release.dmg": {
-    "bytes": 567858544,
-    "note": "tightened from 567944158 bytes"
+    "bytes": 569207490,
+    "note": "manually updated"
   }
 }
