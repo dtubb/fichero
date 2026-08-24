@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - The shared ancestor walk (relocated 2026-08-24)
 //
@@ -38,4 +39,25 @@ func libraryPathCrumbs(
         hops += 1
     }
     return crumbs
+}
+
+/// The crumb → row-drag bridge (Daniel, 2026-08-24): a crumb exports the
+/// SAME payload its library row does, so it drops anywhere a row can.
+@MainActor
+func paneCrumbDragPayload(_ crumb: PaneCrumb, store: DocumentStore, libraryId: UUID) -> LibraryItemDrag? {
+    guard let doc = store.resolveDocument(crumb.id) else { return nil }
+    let kind: LibraryItemDrag.Kind = switch doc.docType {
+    case .page: .page
+    case .group: .group
+    default: .document
+    }
+    return LibraryItemDrag(
+        kind: kind,
+        id: doc.id,
+        documentId: doc.id,
+        text: doc.pageContent?.isEmpty == false ? doc.pageContent ?? doc.name : doc.name,
+        libraryId: libraryId,
+        name: doc.name,
+        pageIndex: kind == .page ? max(0, (doc.sequence ?? 1) - 1) : nil
+    )
 }

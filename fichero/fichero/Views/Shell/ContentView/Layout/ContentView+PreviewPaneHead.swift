@@ -52,6 +52,9 @@ extension ContentView {
                     ?? documentStore.childrenCache[crumb.id]
                     ?? []).map(PaneCrumb.init)
             },
+            crumbDragPayload: { crumb in
+                paneCrumbDragPayload(crumb, store: documentStore, libraryId: windowState.libraryId)
+            },
             selector: { self.previewSelector },
             controls: { EmptyView() },
             tools: { EmptyView() }

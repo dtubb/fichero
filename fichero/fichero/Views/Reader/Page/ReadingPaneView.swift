@@ -254,6 +254,11 @@ struct ReadingPaneView: View {
                     ?? documentStore.childrenCache[crumb.id]
                     ?? []).map(PaneCrumb.init)
             },
+            crumbDragPayload: { crumb in
+                LibraryManager.shared.currentLibraryId.flatMap {
+                    paneCrumbDragPayload(crumb, store: documentStore, libraryId: $0)
+                }
+            },
             selector: { self.readerSelector },
             controls: { EmptyView() },
             tools: { EmptyView() }

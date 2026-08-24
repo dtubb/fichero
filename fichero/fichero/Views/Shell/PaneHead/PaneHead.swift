@@ -42,6 +42,10 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// can dive down as well as climb up. Sync so the menu can render; feed
     /// it from a cache.
     var crumbChildren: ((PaneCrumb) -> [PaneCrumb])?
+    /// Drag payload for a crumb (Daniel, 2026-08-24: "each should be drag
+    /// and droppable") — the SAME LibraryItemDrag a library row exports, so
+    /// a crumb drops anywhere a row does. nil disables dragging.
+    var crumbDragPayload: ((PaneCrumb) -> LibraryItemDrag?)?
     /// The two-level kind ▾ / lens ▾ control.
     @ViewBuilder var selector: () -> Selector
     /// The few controls that always apply to this pane kind.
@@ -253,6 +257,16 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// wiring: text.
     @ViewBuilder
     private func crumbSegment(_ crumb: PaneCrumb, isLeaf: Bool) -> some View {
+        if let payload = crumbDragPayload?(crumb) {
+            crumbSegmentCore(crumb, isLeaf: isLeaf)
+                .draggable(payload)
+        } else {
+            crumbSegmentCore(crumb, isLeaf: isLeaf)
+        }
+    }
+
+    @ViewBuilder
+    private func crumbSegmentCore(_ crumb: PaneCrumb, isLeaf: Bool) -> some View {
         // Icon carries the row's sidebar colour; only the TEXT dims on
         // ancestors — the coloured glyph is what makes the node recognisable.
         let label = HStack(spacing: 4) {
@@ -287,7 +301,14 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 } primaryAction: {
                     onCrumb(crumb)
                 }
-                .menuStyle(.borderlessButton)
+                // .button + .plain, NOT .borderlessButton (Daniel, 2026-08-24
+                // "should have colorized icons"): the popup-button chrome
+                // TEMPLATES the label, flattening every crumb tint to
+                // monochrome — the plain button renders the SwiftUI label
+                // as-is, colours intact.
+                .menuStyle(.button)
+                .buttonStyle(.plain)
+                .menuIndicator(.hidden)
                 .fixedSize()
                 .help("Go to \(crumb.title) — hold for its contents")
             }
