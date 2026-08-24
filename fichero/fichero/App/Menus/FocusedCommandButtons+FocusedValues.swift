@@ -243,10 +243,23 @@ struct NavigateForwardActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// The READER's zoom, on its own key (2026-08-24): sharing imageZoomActions
+/// with the preview meant two publishers whenever both panes were mounted —
+/// the "FocusedValue update tried to update multiple times per frame" fault.
+/// The menu prefers the image preview's actions and falls back to these.
+struct ReaderZoomActionsKey: FocusedValueKey {
+    typealias Value = ImageZoomActions
+}
+
 extension FocusedValues {
     var imageZoomActions: ImageZoomActionsKey.Value? {
         get { self[ImageZoomActionsKey.self] }
         set { self[ImageZoomActionsKey.self] = newValue }
+    }
+
+    var readerZoomActions: ReaderZoomActionsKey.Value? {
+        get { self[ReaderZoomActionsKey.self] }
+        set { self[ReaderZoomActionsKey.self] = newValue }
     }
 
     var sidebarActions: SidebarActionsKey.Value? {

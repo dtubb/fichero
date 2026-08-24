@@ -250,25 +250,21 @@ struct ReadingPaneView: View {
         )
         // The menu bar shows the SAME lens list, reading this publication —
         // one binding rendered twice, never a second switch (R3).
-        // Reader zoom is menu-command only (⌘+/⌘−/⌘0). Published ONLY while
-        // this pane is the active surface (the preview shares the key — two
-        // publishers is the multiple-times-per-frame fault). The OPTIONAL
-        // overload keeps the view's structural identity stable: an if/else
-        // here rebuilt the whole reader subtree on every pane click
-        // (2026-08-23 live: 1-2s metadata-instantiation stalls).
+        // Reader zoom is menu-command only (⌘+/⌘−/⌘0), on the reader's OWN
+        // key (2026-08-24): sharing the preview's key meant two publishers
+        // whenever both panes were mounted — the multiple-times-per-frame
+        // fault survived the active-surface gating. One key, one publisher;
+        // the menu prefers the preview's actions and falls back to these.
         return head
             .focusedSceneValue(\.readerLens, publishedReaderLens)
-            .focusedSceneValue(
-                \.imageZoomActions,
-                isActiveSurface ? ImageZoomActions(
-                    zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
-                    zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
-                    actualSize: { webZoom = 1.0 },
-                    zoomToFit: { webZoom = 1.0 },
-                    canZoomIn: webZoom < 3.0,
-                    canZoomOut: webZoom > 0.5
-                ) : nil
-            )
+            .focusedSceneValue(\.readerZoomActions, ImageZoomActions(
+                zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
+                zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
+                actualSize: { webZoom = 1.0 },
+                zoomToFit: { webZoom = 1.0 },
+                canZoomIn: webZoom < 3.0,
+                canZoomOut: webZoom > 0.5
+            ))
             // "Open in New Tab/Window" (#3582) followed the chrome up from the
             // retired bottom bar: right-click the HEAD to pop this document out.
             .contextMenu {
