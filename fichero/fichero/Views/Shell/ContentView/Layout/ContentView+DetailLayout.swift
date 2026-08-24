@@ -85,6 +85,10 @@ extension ContentView {
         return PaneHead<PaneKindSelector<PreviewLens>, EmptyView, EmptyView>(
             crumbs: crumbs,
             onClose: { setPaneVisible(.canvas, false) },
+            isPinned: Binding(
+                get: { pinnedPreviewDocument != nil },
+                set: { pin in pinnedPreviewDocument = pin ? shown : nil }
+            ),
             onCrumb: { crumb in
                 NotificationCenter.default.post(
                     name: .sidebarRevealDocument,
@@ -106,9 +110,22 @@ extension ContentView {
         let stackDocuments = previewStackDocuments(
             selection: browserSelection, in: selectedDocuments
         )
+        // Pinned: frozen on the captured document, whatever the selection
+        // does (Daniel, 2026-08-23: pin = pin to current view).
+        if let pinned = pinnedPreviewDocument {
+            EditorView(
+                document: pinned,
+                showHeader: false,
+                onPDFPageIndexChange: { _ in },
+                onNavigateToDocument: { _ in },
+                selectedDocumentIDs: []
+            )
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+            .overlay { paneFocusIndicator(for: .preview) }
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
-        if stackDocuments.count > 1 {
+        } else if stackDocuments.count > 1 {
             MultiSelectionPreviewStack(
                 documents: stackDocuments,
                 frontDocumentId: detailDocument?.id

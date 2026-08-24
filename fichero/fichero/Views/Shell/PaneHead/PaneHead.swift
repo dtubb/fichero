@@ -372,10 +372,10 @@ extension PaneCrumb {
         return "doc.text.fill"
     }
 
-    /// Sidebar colour rules: containers wear the accent, leaves stay quiet.
-    static func tint(for doc: Document) -> Color {
-        doc.docType == .folder || doc.isWorkspace ? .accentColor : .secondary
-    }
+    /// Sidebar colour rules (Daniel, 2026-08-23: "colorized like in
+    /// sidebar / library view"): the sidebar tints EVERY library item's
+    /// glyph with the accent, so crumbs do too.
+    static func tint(for doc: Document) -> Color { .accentColor }
 
     init(_ doc: Document) {
         self.init(

@@ -33,7 +33,19 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
         ViewThatFits(in: .horizontal) {
             selectorRow(lensIconOnly: false)
             selectorRow(lensIconOnly: true)
+            // Narrowest rung (Daniel, 2026-08-23): kind and lens COLLAPSE
+            // into one control — the kind icon opens the lens menu.
+            mergedSelector
         }
+    }
+
+    private var mergedSelector: some View {
+        lensMenuContent {
+            Label(kindTitle, systemImage: kindIcon)
+                .font(.callout.weight(.medium))
+                .labelStyle(.iconOnly)
+        }
+        .help("\(kindTitle) — choose what this pane shows")
     }
 
     private func selectorRow(lensIconOnly: Bool) -> some View {
@@ -54,6 +66,26 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     }
 
     private func lensMenu(iconOnly: Bool) -> some View {
+        lensMenuContent {
+            // Two literal branches, not an erased LabelStyle: calling
+            // makeBody by hand read Label's internal spacing environment
+            // outside an installed view (the Optional<CGFloat> fault storm,
+            // 2026-08-23 live).
+            if iconOnly {
+                Label(lensTitle(lens), systemImage: lensIcon(lens))
+                    .font(.callout)
+                    .labelStyle(.iconOnly)
+            } else {
+                Label(lensTitle(lens), systemImage: lensIcon(lens))
+                    .font(.callout)
+                    .labelStyle(.titleAndIcon)
+            }
+        }
+        .accessibilityLabel("View: \(lensTitle(lens))")
+        .help("Choose what this pane shows")
+    }
+
+    private func lensMenuContent<L: View>(@ViewBuilder label: () -> L) -> some View {
         Menu {
                 if lensSections.isEmpty {
                     Picker("View", selection: $lens) {
@@ -78,24 +110,10 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                     }
                 }
         } label: {
-            // Two literal branches, not an erased LabelStyle: calling
-            // makeBody by hand read Label's internal spacing environment
-            // outside an installed view (the Optional<CGFloat> fault storm,
-            // 2026-08-23 live).
-            if iconOnly {
-                Label(lensTitle(lens), systemImage: lensIcon(lens))
-                    .font(.callout)
-                    .labelStyle(.iconOnly)
-            } else {
-                Label(lensTitle(lens), systemImage: lensIcon(lens))
-                    .font(.callout)
-                    .labelStyle(.titleAndIcon)
-            }
+            label()
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .accessibilityLabel("View: \(lensTitle(lens))")
-        .help("Choose what this pane shows")
     }
 }
 

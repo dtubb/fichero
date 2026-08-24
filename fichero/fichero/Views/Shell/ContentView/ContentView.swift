@@ -39,10 +39,21 @@ enum PaneFocus: Hashable {
 // - ContentView+Navigation: Content routing based on AppViewMode
 // - ContentView+Actions: Action handlers and business logic
 // - ContentView+Persistence: State serialization for @SceneStorage
+/// The frozen library view a pin captures (Daniel, 2026-08-23).
+struct PinnedLibraryScope {
+    let documents: [Document]
+    let folderId: String?
+}
+
 struct ContentView: View {
     /// The preview pane's lens (Daniel, 2026-08-23: "preview and edit").
     /// Never changes WHICH document shows, only how.
     @State var previewLens: PreviewLens = .preview
+    /// Preview pin (Daniel: every pane pins to its current view): non-nil
+    /// freezes the preview on this document while selection moves on.
+    @State var pinnedPreviewDocument: Document?
+    /// Library pin: freezes the browsed set + folder while the sidebar moves.
+    @State var pinnedLibrary: PinnedLibraryScope?
     #if os(macOS)
     static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
     static let defaultColumnVisibilityRaw: Int = 2 // .all

@@ -33,6 +33,9 @@ struct LibraryView: View {
     /// Hides the library list pane (the toolbar toggle's seam). nil when
     /// hiding is refused (last visible pane) — the head then shows no X.
     var onClosePane: (() -> Void)?
+    /// Pin to current view (Daniel, 2026-08-23): the host freezes/thaws the
+    /// browsed set. nil hides the pin row.
+    var isPanePinned: Binding<Bool>?
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area
