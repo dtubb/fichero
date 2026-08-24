@@ -48,6 +48,23 @@ extension SidebarView {
         default:
             let item = cachedItem(id: destination.serializedID)
             if item == nil {
+                // S10 (2026-08-23): a DOCUMENT click whose id misses the
+                // sidebar item index must still route — dropping it left the
+                // content pane on the PARENT folder, which read as "clicking
+                // the item selected its parent" and made run-workflow scope
+                // to every sibling. The stores still know the document, so
+                // resolve through them and route the SAME id.
+                if case .document(let docId) = destination {
+                    for library in libraryManager.openLibraries {
+                        if let doc = library.documentStore.resolveDocument(docId) {
+                            sidebarViewLogger.warning(
+                                "Selection \(docId, privacy: .public) missed the item index — routed via the document store"
+                            )
+                            routeDocumentSelection(doc, libraryId: library.id)
+                            return
+                        }
+                    }
+                }
                 // LOUD (workflow-routing bug): a click that resolves to
                 // nothing routes NOTHING — the pane silently keeps its
                 // previous mode, which reads as "it doesn't open the editor".
