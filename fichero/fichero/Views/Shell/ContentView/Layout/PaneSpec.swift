@@ -48,12 +48,25 @@ struct PaneSpec: Identifiable, Equatable {
 /// Injected per pane SLOT so the head's kind icon can switch what the slot
 /// hosts (Daniel, 2026-08-23: "clicking on the view type icon should let us
 /// change what it is"). nil = the pane is not hosted in a switchable slot.
+///
+/// EQUATABLE BY SLOT ID (2026-08-24, the morning slowness): a bare closure
+/// in the environment is never equal to itself, so every parent render read
+/// as an environment CHANGE and re-walked the whole pane subtree — the
+/// EnvironmentBox/copyItems stall storm in the live log. The closure
+/// captures only the slot id, so identity by id is exact.
+struct PaneKindSwitcher: Equatable {
+    let slotId: String
+    let switchKind: @MainActor (PaneSpec.Kind) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.slotId == rhs.slotId }
+}
+
 private struct PaneKindSwitcherKey: EnvironmentKey {
-    static let defaultValue: (@MainActor (PaneSpec.Kind) -> Void)? = nil
+    static let defaultValue: PaneKindSwitcher? = nil
 }
 
 extension EnvironmentValues {
-    var paneKindSwitcher: (@MainActor (PaneSpec.Kind) -> Void)? {
+    var paneKindSwitcher: PaneKindSwitcher? {
         get { self[PaneKindSwitcherKey.self] }
         set { self[PaneKindSwitcherKey.self] = newValue }
     }
@@ -150,9 +163,9 @@ extension ContentView {
         )
         return AnyView(
             kindContent(for: effective)
-                .environment(\.paneKindSwitcher) { newKind in
+                .environment(\.paneKindSwitcher, PaneKindSwitcher(slotId: spec.id) { newKind in
                     paneKindOverrides[spec.id] = newKind == spec.kind ? nil : newKind
-                }
+                })
         )
     }
 

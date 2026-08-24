@@ -4,7 +4,19 @@ import SwiftUI
 
 /// Injected by SplittablePane so MiniToolbar can render the split buttons
 /// inside its own bar rather than requiring a separate top bar.
-struct SplitAxisActions: @unchecked Sendable {
+/// Equatable on the VALUE fields (2026-08-24): the closures capture the same
+/// pane state, so only the flags/counts distinguish instances — without this
+/// every render republished a "new" environment value and invalidated every
+/// reader beneath (the same fault class as ImageZoomActions' ×31 republish).
+struct SplitAxisActions: Equatable, @unchecked Sendable {
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.hasVertical == rhs.hasVertical
+            && lhs.hasHorizontal == rhs.hasHorizontal
+            && lhs.paneCount == rhs.paneCount
+            && lhs.verticalCount == rhs.verticalCount
+            && lhs.horizontalCount == rhs.horizontalCount
+    }
+
     let hasVertical: Bool
     let hasHorizontal: Bool
     let paneCount: Int

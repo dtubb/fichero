@@ -75,7 +75,7 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
             Menu {
                 ForEach(PaneSpec.Kind.allCases, id: \.rawValue) { kind in
                     Button {
-                        paneKindSwitcher(kind)
+                        paneKindSwitcher.switchKind(kind)
                     } label: {
                         Label(kind.title, systemImage: kind.icon)
                     }
