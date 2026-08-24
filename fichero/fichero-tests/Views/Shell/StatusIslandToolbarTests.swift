@@ -41,12 +41,23 @@ struct StatusIslandToolbarTests {
 
     // MARK: - Photos-style selection indicator (#29 / Daniel #138)
 
-    @Test("a multi-selection counts in its noun, outranking background work")
-    func multiSelectionOutranksBackgroundWork() {
+    @Test("live work outranks the selection (Ann 2026-08-24: '98 selected' hid the run)")
+    func liveWorkOutranksSelection() {
         let status = StatusIslandMessage.resolve(
             enginePhase: .ready, engineStatusTitle: "Connected",
             importError: nil, isImporting: false, importProgress: nil,
             backendWorkLabel: "Embedding — 40%", runningWorkflows: 3,
+            selection: StatusIslandSelection(count: 12, noun: "images")
+        )
+        #expect(status == StatusIslandMessage(text: "Running 3 workflows…", isError: false))
+    }
+
+    @Test("a multi-selection counts in its noun when nothing is running")
+    func multiSelectionCountsWhenIdle() {
+        let status = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: nil, runningWorkflows: 0,
             selection: StatusIslandSelection(count: 12, noun: "images")
         )
         #expect(status == StatusIslandMessage(text: "12 images selected", isError: false))

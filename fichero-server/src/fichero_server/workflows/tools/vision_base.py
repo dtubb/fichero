@@ -40,6 +40,7 @@ from fichero_server.media.ocr_geometry import (
     geometry_unavailable,
     parse_vlm_geometry,
 )
+from fichero_server.workflows.tools.transcription_output import TranscriptionCommentaryError
 from fichero_server.workflows.types import PortDef, DataType
 
 # Pre-import macOS Vision/Quartz framework symbols at module load on the
@@ -3547,7 +3548,34 @@ async def process_vision(
                 and not _llm_multipage  # multipage already sanitized per page
                 and (text or "").strip()
             ):
-                text = postprocess_text(text)
+                try:
+                    text = postprocess_text(text)
+                except TranscriptionCommentaryError:
+                    # The thinking preamble asked the model to delimit its
+                    # reasoning and answer after it — a protocol weak models
+                    # fail wholesale (gemini-3.1-flash-lite: 11/12 files,
+                    # Ann's paleography run 2026-08-24, everything inside an
+                    # unclosed <think>). The refusal is correct; the RECOVERY
+                    # is to drop the preamble and let the model just answer.
+                    # One retry, sanitized again — still commentary → the
+                    # original loud failure stands.
+                    if not thinking_preamble or image_uri is None:
+                        raise
+                    logger.warning(
+                        "Transcription came back reasoning-only for %s; "
+                        "retrying once WITHOUT the thinking preamble",
+                        Path(file_path).name,
+                    )
+                    bare_prompt = final_prompt[len(thinking_preamble):]
+                    text = await _vision_resilient(
+                        lambda: vision(
+                            images=[image_uri],
+                            prompt=bare_prompt,
+                            config=effective_config,
+                            language=language,
+                        )
+                    )
+                    text = postprocess_text(text)
                 parsed = parse_output(text, output_format, output_options)
                 if reference_values:
                     parsed = apply_reference_matching(parsed, reference_values)

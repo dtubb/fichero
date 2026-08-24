@@ -242,10 +242,20 @@ struct StatusIslandMessage: Equatable {
         // app-authored and short by construction.
         if let importError { return .init(text: shortForm(importError), isError: true) }
         if isImporting { return .init(text: shortForm(importProgress ?? "Importing…"), isError: false) }
+        // LIVE WORK outranks the selection (Ann, 2026-08-24: she ran a
+        // workflow on 98 files and the island kept saying "98 selected" — "it
+        // should say working on processing… it's not clear to her that it's
+        // working"). The selection is usually the very thing being processed,
+        // so echoing its count during a run reads as "nothing happened".
+        if runningWorkflows > 0 {
+            let text = runningWorkflows == 1
+                ? "Running 1 workflow…"
+                : "Running \(runningWorkflows) workflows…"
+            return .init(text: text, isError: false)
+        }
+        if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         // Photos grammar (#29/#138): a multi-selection in progress is what the
-        // user is actively doing — it outranks background work and workflow
-        // chatter, but never an error or a live import. A SINGLE selection is
-        // the app's normal state and stays quiet.
+        // user is actively doing when nothing is running.
         if selection.count > 1 {
             // "2 images selected" (Daniel, bedtime 2026-08-23) — the noun,
             // never a total.
@@ -255,13 +265,6 @@ struct StatusIslandMessage: Equatable {
         // what is selected, not which view shows it.
         if selection.count == 1, let label = selection.label, !label.isEmpty {
             return .init(text: shortForm(label), isError: false)
-        }
-        if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
-        if runningWorkflows > 0 {
-            let text = runningWorkflows == 1
-                ? "Running 1 workflow…"
-                : "Running \(runningWorkflows) workflows…"
-            return .init(text: text, isError: false)
         }
         // Quiet idle shows NOTHING (Daniel: "it said ready on launch,
         // don't need that").
