@@ -65,7 +65,10 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                 } else {
                     ForEach(Array(lensSections.enumerated()), id: \.offset) { _, section in
                         Section(section.0) {
-                            Picker("View", selection: $lens) {
+                            // Empty picker label: a named one renders as a
+                            // SECOND header under the section's (the
+                            // Browse/View doubling, 2026-08-23 live).
+                            Picker("", selection: $lens) {
                                 ForEach(section.1) { option in
                                     Label(lensTitle(option), systemImage: lensIcon(option)).tag(option)
                                 }

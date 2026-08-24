@@ -132,14 +132,17 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         if !crumbs.isEmpty {
             capsule {
                 ViewThatFits(in: .horizontal) {
-                    fullCrumbRow
                     // Degradation ladder (Daniel, 2026-08-23): ancestors to
                     // ICONS → middle ancestors to an ellipsis → leaf name →
                     // leaf icon alone. X and + never yield their space.
-                    iconOnlyCrumbRow
-                    ellipsisCrumbRow
-                    crumbSegment(crumbs[crumbs.count - 1], isLeaf: true)
-                    leafIconOnly
+                    // AnyView per rung is LOAD-BEARING (the #4331 rule): five
+                    // menu-bearing candidates composed one generic type deep
+                    // enough to stall on metadata instantiation.
+                    AnyView(fullCrumbRow)
+                    AnyView(iconOnlyCrumbRow)
+                    AnyView(ellipsisCrumbRow)
+                    AnyView(crumbSegment(crumbs[crumbs.count - 1], isLeaf: true))
+                    AnyView(leafIconOnly)
                 }
                 .accessibilityLabel(crumbs.map(\.name).joined(separator: ", "))
             }

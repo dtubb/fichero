@@ -250,25 +250,25 @@ struct ReadingPaneView: View {
         )
         // The menu bar shows the SAME lens list, reading this publication —
         // one binding rendered twice, never a second switch (R3).
-        let withLens = head.focusedSceneValue(\.readerLens, publishedReaderLens)
         // Reader zoom is menu-command only (⌘+/⌘−/⌘0). Published ONLY while
-        // this pane is the active surface: the preview publishes the same
-        // key, and two simultaneous publishers is the "FocusedValue update
-        // tried to update multiple times per frame" fault (2026-08-23 live).
-        return Group {
-            if isActiveSurface {
-                withLens.focusedSceneValue(\.imageZoomActions, ImageZoomActions(
+        // this pane is the active surface (the preview shares the key — two
+        // publishers is the multiple-times-per-frame fault). The OPTIONAL
+        // overload keeps the view's structural identity stable: an if/else
+        // here rebuilt the whole reader subtree on every pane click
+        // (2026-08-23 live: 1-2s metadata-instantiation stalls).
+        return head
+            .focusedSceneValue(\.readerLens, publishedReaderLens)
+            .focusedSceneValue(
+                \.imageZoomActions,
+                isActiveSurface ? ImageZoomActions(
                     zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
                     zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
                     actualSize: { webZoom = 1.0 },
                     zoomToFit: { webZoom = 1.0 },
                     canZoomIn: webZoom < 3.0,
                     canZoomOut: webZoom > 0.5
-                ))
-            } else {
-                withLens
-            }
-        }
+                ) : nil
+            )
             // "Open in New Tab/Window" (#3582) followed the chrome up from the
             // retired bottom bar: right-click the HEAD to pop this document out.
             .contextMenu {
