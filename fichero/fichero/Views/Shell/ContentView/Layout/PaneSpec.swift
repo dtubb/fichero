@@ -13,11 +13,29 @@ import SwiftUI
 /// (#4331: four incidents on 2026-08-11 alone, all rooted in this routing's
 /// branch product type).
 struct PaneSpec: Identifiable, Equatable {
-    enum Kind: String {
+    enum Kind: String, CaseIterable {
         case library
         case preview
         case reading
         case chat
+
+        var title: String {
+            switch self {
+            case .library: "Library"
+            case .preview: "Preview"
+            case .reading: "Reader"
+            case .chat: "Chat"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .library: "books.vertical"
+            case .preview: "photo"
+            case .reading: "book"
+            case .chat: "bubble.left.and.bubble.right"
+            }
+        }
     }
 
     let kind: Kind
@@ -25,6 +43,20 @@ struct PaneSpec: Identifiable, Equatable {
     var fixedWidth: CGFloat?
 
     var id: String { kind.rawValue }
+}
+
+/// Injected per pane SLOT so the head's kind icon can switch what the slot
+/// hosts (Daniel, 2026-08-23: "clicking on the view type icon should let us
+/// change what it is"). nil = the pane is not hosted in a switchable slot.
+private struct PaneKindSwitcherKey: EnvironmentKey {
+    static let defaultValue: (@MainActor (PaneSpec.Kind) -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    var paneKindSwitcher: (@MainActor (PaneSpec.Kind) -> Void)? {
+        get { self[PaneKindSwitcherKey.self] }
+        set { self[PaneKindSwitcherKey.self] = newValue }
+    }
 }
 
 extension ContentView {
@@ -108,7 +140,23 @@ extension ContentView {
 
     /// One pane's content — AnyView by construction: each pane's generic
     /// ends at its own boundary instead of multiplying into the row's.
+    /// The SLOT's kind can be overridden (Daniel, 2026-08-23): any slot can
+    /// host any pane kind, switched from its head's kind icon; multiple
+    /// instances of a kind may coexist.
     private func paneContent(for spec: PaneSpec) -> AnyView {
+        let effective = PaneSpec(
+            kind: paneKindOverrides[spec.id] ?? spec.kind,
+            fixedWidth: spec.fixedWidth
+        )
+        return AnyView(
+            kindContent(for: effective)
+                .environment(\.paneKindSwitcher) { newKind in
+                    paneKindOverrides[spec.id] = newKind == spec.kind ? nil : newKind
+                }
+        )
+    }
+
+    private func kindContent(for spec: PaneSpec) -> AnyView {
         switch spec.kind {
         case .library:
             return AnyView(

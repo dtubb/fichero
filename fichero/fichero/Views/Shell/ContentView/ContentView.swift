@@ -54,6 +54,9 @@ struct ContentView: View {
     @State var pinnedPreviewDocument: Document?
     /// Library pin: freezes the browsed set + folder while the sidebar moves.
     @State var pinnedLibrary: PinnedLibraryScope?
+    /// Per-slot pane-kind overrides (Daniel, 2026-08-23): a slot can host
+    /// any pane kind; nil entry = the plan's own kind.
+    @State var paneKindOverrides: [String: PaneSpec.Kind] = [:]
     #if os(macOS)
     static let defaultColumnVisibility: NavigationSplitViewVisibility = .all
     static let defaultColumnVisibilityRaw: Int = 2 // .all

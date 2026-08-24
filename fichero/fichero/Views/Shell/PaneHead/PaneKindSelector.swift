@@ -10,13 +10,16 @@ import SwiftUI
 /// view there, and a single list of every lens in the app would be twenty rows
 /// that only make sense in pairs.
 ///
-/// The kind menu is a placeholder in step 1 — only the Reader adopts the head
-/// so far, so it renders the current kind without offering a change. R3's
-/// mutation across kinds lands when the other panes adopt, and stubbing the
-/// menu now would be a control that lies.
+/// With a `paneKindSwitcher` in the environment (injected per SLOT by the
+/// pane row), the kind icon is a working menu — R3's mutation across kinds.
+/// Without one (a pane hosted outside a switchable slot), it renders as a
+/// plain label rather than a menu that lies.
 struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     let kindTitle: String
     let kindIcon: String
+    /// Injected by the pane slot: when present, the kind icon is a MENU that
+    /// switches what the slot hosts (Daniel, 2026-08-23).
+    @Environment(\.paneKindSwitcher) private var paneKindSwitcher
     let lenses: [Lens]
     let lensTitle: (Lens) -> String
     let lensIcon: (Lens) -> String
@@ -40,6 +43,8 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     }
 
     private var mergedSelector: some View {
+        // ponytail: the merged rung keeps the LENS menu; kind switching at
+        // the narrowest width goes through the pane's right-click/full head.
         lensMenuContent {
             Label(kindTitle, systemImage: kindIcon)
                 .font(.callout.weight(.medium))
@@ -50,18 +55,43 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
 
     private func selectorRow(lensIconOnly: Bool) -> some View {
         HStack(spacing: 6) {
-            // Icon ONLY (Daniel, 2026-08-23): the kind never spells its name —
-            // "no need to say reader or library, that can be icons". The name
-            // survives for assistive tech and the hover help.
-            Label(kindTitle, systemImage: kindIcon)
-                .font(.callout.weight(.medium))
-                .labelStyle(.iconOnly)
-                .accessibilityLabel("Pane kind: \(kindTitle)")
-                .help(kindTitle)
+            kindControl
 
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
 
             lensMenu(iconOnly: lensIconOnly)
+        }
+    }
+
+    /// Icon ONLY (Daniel, 2026-08-23): the kind never spells its name. With
+    /// a slot switcher present, clicking it changes what the slot hosts —
+    /// the control that makes a pane's type mutable in place (R3).
+    @ViewBuilder
+    private var kindControl: some View {
+        let label = Label(kindTitle, systemImage: kindIcon)
+            .font(.callout.weight(.medium))
+            .labelStyle(.iconOnly)
+        if let paneKindSwitcher {
+            Menu {
+                ForEach(PaneSpec.Kind.allCases, id: \.rawValue) { kind in
+                    Button {
+                        paneKindSwitcher(kind)
+                    } label: {
+                        Label(kind.title, systemImage: kind.icon)
+                    }
+                }
+            } label: {
+                label
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel("Pane kind: \(kindTitle) — click to change")
+            .help("\(kindTitle) — click to change this pane")
+        } else {
+            label
+                .accessibilityLabel("Pane kind: \(kindTitle)")
+                .help(kindTitle)
         }
     }
 
