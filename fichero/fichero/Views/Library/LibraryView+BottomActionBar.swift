@@ -52,6 +52,9 @@ extension LibraryView {
                     essentialBarButtons
                 } secondary: {
                     secondaryBarButtons
+                    // The sort/filter/metadata cluster folded in (Daniel,
+                    // 2026-08-23: one bottom mini toolbar, not stacked rows).
+                    libraryMiniToolbar
                 } overflowMenu: {
                     bottomBarOverflowMenu
                 }

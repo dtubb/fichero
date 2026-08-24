@@ -75,9 +75,19 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
                     }
                 }
         } label: {
-            Label(lensTitle(lens), systemImage: lensIcon(lens))
-                .font(.callout)
-                .labelStyle(iconOnly ? AnyLabelStyle(.iconOnly) : AnyLabelStyle(.titleAndIcon))
+            // Two literal branches, not an erased LabelStyle: calling
+            // makeBody by hand read Label's internal spacing environment
+            // outside an installed view (the Optional<CGFloat> fault storm,
+            // 2026-08-23 live).
+            if iconOnly {
+                Label(lensTitle(lens), systemImage: lensIcon(lens))
+                    .font(.callout)
+                    .labelStyle(.iconOnly)
+            } else {
+                Label(lensTitle(lens), systemImage: lensIcon(lens))
+                    .font(.callout)
+                    .labelStyle(.titleAndIcon)
+            }
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
@@ -86,14 +96,3 @@ struct PaneKindSelector<Lens: Hashable & Identifiable>: View {
     }
 }
 
-/// Type-erased label style so one Menu label can flip icon-only under
-/// ViewThatFits without duplicating the menu content.
-private struct AnyLabelStyle: LabelStyle {
-    private let make: (Configuration) -> AnyView
-    init(_ style: some LabelStyle) {
-        make = { AnyView(style.makeBody(configuration: $0)) }
-    }
-    func makeBody(configuration: Configuration) -> some View {
-        make(configuration)
-    }
-}

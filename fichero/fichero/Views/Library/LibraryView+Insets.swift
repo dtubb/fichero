@@ -142,46 +142,16 @@ extension LibraryView {
     ///   3. the bottom action/status bar — the outermost thing, beneath all of it
     var bottomInsetContent: some View {
         VStack(spacing: 0) {
-            if Self.miniToolbarPlacement == .bottom {
-                PaneFilterBar(placement: .bottom) { libraryMiniToolbar }
-            }
+            // ONE persistent bottom row (Daniel, 2026-08-23): the action bar
+            // hosts the sort/filter/metadata cluster too. The quick-filter
+            // field stays a transient reveal above it (⌘F).
             if featureManager.isLibraryFilterToolbarEnabled && showFilterBar {
                 filterBarView
             }
             libraryBottomActionBar
-            // Finder's path bar + status line, scoped to THIS pane (Daniel
-            // #106-108: "we want the status bar just on the library" — the
-            // old window-wide detailStatusPathBar spanned every pane).
-            LibraryPathStatusBar(
-                crumbs: libraryPathCrumbs(
-                    anchorId: pathBarAnchorId,
-                    resolve: { documentStore.resolveDocument($0) }
-                ),
-                // In DATA modes the status speaks the dataset's language
-                // ("1 of 160 dates selected — January 14, 1918"), fed by the
-                // renderer's own selection — the browser's counts describe a
-                // list the user is not looking at (2026-08-16).
-                statusText: {
-                    if displayMode.group == .dataset, let dataset = datasetSelectionStatus {
-                        return libraryStatusText(
-                            selectionCount: dataset.count,
-                            itemCount: dataset.total,
-                            noun: dataset.noun,
-                            detail: dataset.detail
-                        )
-                    }
-                    return libraryStatusText(
-                        selectionCount: selection.count,
-                        itemCount: isShowingEntitiesCollection
-                            ? filteredEntities.count : filteredDocuments.count
-                    )
-                }(),
-                onNavigate: { doc in onNavigateInto(doc) },
-                // #4591: a crumb drags exactly like its library row, and
-                // right-clicks open the same document context menu.
-                dragPayload: { doc in libraryItemDrag(for: doc) },
-                crumbMenu: { doc in documentContextMenu(for: doc) }
-            )
+            // The Finder-style path bar + status line are GONE (Daniel,
+            // 2026-08-23): the breadcrumb lives in the pane HEAD, and status
+            // ("N of M selected") lives in the toolbar's dynamic island.
         }
     }
 

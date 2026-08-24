@@ -93,11 +93,6 @@ extension LibraryView {
             // bar makes, from the same place, so the two panes agree. Because
             // it is an inset on THIS view it resizes with the library pane and
             // disappears with it, which window chrome could never do.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if Self.miniToolbarPlacement == .top {
-                    PaneFilterBar(placement: .top) { libraryMiniToolbar }
-                }
-            }
             // Closes the sidebar-click interval opened in `handleSelectionChange`
             // (#4228). See `InteractionProfile.Phase.selectionToContent` for what
             // this end point does and does not measure.

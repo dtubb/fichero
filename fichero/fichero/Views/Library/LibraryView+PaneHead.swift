@@ -61,7 +61,7 @@ extension LibraryView {
             crumbs.append(PaneCrumb(
                 id: "library-root",
                 name: library.displayName,
-                icon: ToolbarSymbols.breadcrumbLibrary,
+                icon: "books.vertical.fill",
                 isNavigable: false,
                 tint: .accentColor
             ))

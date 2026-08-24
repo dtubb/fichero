@@ -289,12 +289,14 @@ enum PaneHeadMetrics {
 extension PaneCrumb {
     /// The face a document wears everywhere — matches the sidebar/library rows
     /// so a crumb is recognisably the same node (Daniel, 2026-08-23).
+    /// SOLID variants (Daniel, 2026-08-23: "solid icons not just outline")
+    /// — the filled glyphs carry their tint better at crumb size.
     static func icon(for doc: Document) -> String {
-        if doc.docType == .folder { return doc.isWorkspace ? "square.grid.2x2" : "folder" }
-        if doc.docType == .page { return doc.fileType == .image ? "photo" : "doc.richtext" }
-        if doc.fileType == .pdf { return "doc.richtext" }
-        if doc.fileType == .image { return "photo" }
-        return "doc.text"
+        if doc.docType == .folder { return doc.isWorkspace ? "square.grid.2x2.fill" : "folder.fill" }
+        if doc.docType == .page { return doc.fileType == .image ? "photo.fill" : "doc.richtext.fill" }
+        if doc.fileType == .pdf { return "doc.richtext.fill" }
+        if doc.fileType == .image { return "photo.fill" }
+        return "doc.text.fill"
     }
 
     /// Sidebar colour rules: containers wear the accent, leaves stay quiet.

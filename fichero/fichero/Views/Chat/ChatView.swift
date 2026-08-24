@@ -108,7 +108,7 @@ struct ChatView: View {
             crumbs: [PaneCrumb(
                 id: currentConversation.id,
                 name: currentConversation.title,
-                icon: "bubble.left.and.bubble.right",
+                icon: "bubble.left.and.bubble.right.fill",
                 isNavigable: false
             )],
             onClose: nil,

@@ -320,7 +320,7 @@ struct ReadingPaneView: View {
         if let libraryName {
             crumbs.append(PaneCrumb(
                 id: "library-root", name: libraryName,
-                icon: ToolbarSymbols.breadcrumbLibrary, isNavigable: false, tint: .accentColor
+                icon: "books.vertical.fill", isNavigable: false, tint: .accentColor
             ))
         }
         crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)
