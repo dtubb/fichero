@@ -19,8 +19,6 @@ struct AddProviderSheet: View {
     @State var step: Int = 1  // 1 = choose, 2 = configure, 3 = models
     @State var addedProvider: Components.Schemas.ProviderResponse?  // The provider we just added
     @State var selectedModelForStep3: ModelInfo?  // Selected model in step 3
-    @State var isAddingModel = false
-    @State var addModelError: String?  // Shown in the step-3 footer, never log-only
 
     @Environment(ProviderAPIService.self) var providerService
 

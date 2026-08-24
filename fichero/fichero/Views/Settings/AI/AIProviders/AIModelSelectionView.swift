@@ -44,6 +44,7 @@ struct AIModelSelectionView: View {
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var addError: String?
+    @State private var addedModelIds: Set<String> = []
     @State private var searchText = ""
     @State private var sortOrder: ModelSortOrder = .recommended
     @State private var filters = ModelFilters()
@@ -231,7 +232,11 @@ struct AIModelSelectionView: View {
             } else {
                 List {
                     ForEach(filteredModels) { model in
-                        ModelInfoRow(model: model, isSelected: selectedModel?.modelId == model.modelId) {
+                        ModelInfoRow(
+                            model: model,
+                            isSelected: selectedModel?.modelId == model.modelId,
+                            isAdded: addedModelIds.contains(model.modelId)
+                        ) {
                             handleModelTap(model)
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -293,6 +298,7 @@ struct AIModelSelectionView: View {
                     name: model.fullName,
                     isDefault: false
                 )
+                addedModelIds.insert(model.modelId)
                 onModelAdded()
             } catch {
                 logger.error("Add model failed: \(String(describing: error))")
