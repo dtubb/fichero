@@ -97,6 +97,13 @@ extension LibraryView {
             // (#4228). See `InteractionProfile.Phase.selectionToContent` for what
             // this end point does and does not measure.
             .task(id: folderId) { InteractionProfile.end(.selectionToContent, detail: folderId ?? "nil") }
+            // Mandate 1, consumer 1: the folder's outline feeds the head's
+            // crumb chain + jump menus from ONE fetch.
+            .task(id: folderId) {
+                if let anchor = folderId.map({ $0.hasPrefix("doc:") ? String($0.dropFirst(4)) : $0 }) {
+                    await documentStore.loadOutline(for: anchor)
+                }
+            }
             // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
             // library list pane. Narrows the rows currently shown client-side
             // (binds `searchText`, which drives `filteredDocuments`) — distinct

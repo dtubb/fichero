@@ -834,3 +834,48 @@ extension DocumentService {
         }
     }
 }
+
+// MARK: - The outline endpoint (Mandate 1, 2026-08-24)
+
+/// One document's whole neighbourhood, from ONE request — the response the
+/// five per-view tree constructions migrate onto (consumer 1: crumbs).
+struct DocumentOutline: Equatable {
+    let ancestors: [Document]
+    let document: Document
+    let children: [Document]
+}
+
+extension DocumentService {
+    /// GET /documents/{id}/view — ancestors root-first, level-aware children.
+    /// Attachments are skipped here until their first consumer (the Content
+    /// representations submenu) lands; asking for them would be paying for
+    /// payload nothing reads yet.
+    func getDocumentView(
+        _ id: String,
+        level: LibraryLevel? = nil
+    ) async throws -> DocumentOutline {
+        let response = try await client.api.getDocumentViewApiDocumentsDocIdViewGet(.init(
+            path: .init(docId: id),
+            query: .init(
+                level: level.flatMap { Components.Schemas.NodeLevel(rawValue: $0.wireValue) },
+                attachments: false
+            )
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return DocumentOutline(
+                ancestors: try body.ancestors.map { try convertToDocument($0) },
+                document: try convertToDocument(body.document),
+                children: try body.children.map { try convertToDocument($0) }
+            )
+        case .notFound:
+            throw DocumentServiceError.notFound(id)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+}

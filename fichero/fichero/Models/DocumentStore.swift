@@ -284,6 +284,13 @@ final class DocumentStore {
     }
     // MARK: - Loading Collections
 
+    /// The outline cache (Mandate 1, 2026-08-24): one entry per anchor id,
+    /// fed by GET /documents/{id}/view. Crumbs read ancestors + children from
+    /// here; the change stream evicts touched neighbourhoods. Keyed by the
+    /// anchor's id at the STORED tier (the structural ruling) until a second
+    /// tier consumer needs a (id, level) key.
+    @ObservationIgnored var outlineCache: [String: DocumentOutline] = [:]
+
     /// Cache for `sidebarDocuments` (computed in DocumentStore+Helpers).
     /// @ObservationIgnored — it is a memo, and tracking it would re-render
     /// observers for a bookkeeping write. Stored here because @Observable

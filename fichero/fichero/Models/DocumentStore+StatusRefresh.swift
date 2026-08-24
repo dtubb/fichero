@@ -183,6 +183,15 @@ extension DocumentStore {
         for kids in childrenCache.values {
             if let doc = kids.first(where: { $0.id == documentId }) { return doc }
         }
+        // The outline cache knows whole neighbourhoods (Mandate 1) — this is
+        // what ends the crumbs-lose-the-middle-ancestor class: a deep
+        // anchor's parents arrive with its outline even when no list view
+        // ever loaded them.
+        for entry in outlineCache.values {
+            if entry.document.id == documentId { return entry.document }
+            if let doc = entry.ancestors.first(where: { $0.id == documentId }) { return doc }
+            if let doc = entry.children.first(where: { $0.id == documentId }) { return doc }
+        }
         return nil
     }
 

@@ -175,6 +175,9 @@ extension DocumentStore: ObservableDomainStore {
         if changed.collections { collections = nextCollections }
         if changed.currentDocuments { currentDocuments = nextCurrent }
         if changed.childrenCache { childrenCache = nextChildren }
+        // Outline freshness (Mandate 1, approved v1 rule): a touched document
+        // evicts its neighbourhood; the next crumb read refetches.
+        evictOutlines(touching: docs)
 
         // Publish which rows this batch touched, and make sure `revision`
         // moved (#4318): `childrenCache` and `collections` are

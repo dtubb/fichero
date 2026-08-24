@@ -55,7 +55,9 @@ extension LibraryView {
                 )
             },
             crumbChildren: { crumb in
-                (documentStore.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
+                (documentStore.outline(for: crumb.id)?.children
+                    ?? documentStore.childrenCache[crumb.id]
+                    ?? []).map(PaneCrumb.init)
             },
             selector: { self.librarySelector },
             controls: { EmptyView() },

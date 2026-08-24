@@ -49,6 +49,13 @@ extension ContentView {
                 // The preview's floating head (Daniel, 2026-08-23): same
                 // grammar and components as reader/library/chat.
                 .safeAreaInset(edge: .top, spacing: 0) { previewPaneHead }
+                // Mandate 1, consumer 1: the shown item's outline feeds the
+                // head's crumb chain (entry → page → spread parents included).
+                .task(id: detailDocument?.id) {
+                    if let id = detailDocument?.id {
+                        await documentStore.loadOutline(for: id)
+                    }
+                }
         }
     }
 

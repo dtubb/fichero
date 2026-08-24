@@ -175,6 +175,14 @@ struct ReadingPaneView: View {
             )
         }
         .onChange(of: effectiveDocument?.id) { _, _ in trackedRunPages = [] }
+        // Mandate 1, consumer 1: ONE fetch brings the anchor's whole
+        // neighbourhood — the crumb chain stops losing middle ancestors the
+        // moment this lands in the store's caches.
+        .task(id: effectiveDocument?.id) {
+            if let id = effectiveDocument?.id {
+                await documentStore.loadOutline(for: id)
+            }
+        }
     }
 
     /// True when this pane instance is the window's active surface (#3579).
@@ -242,7 +250,9 @@ struct ReadingPaneView: View {
                 )
             },
             crumbChildren: { crumb in
-                (documentStore.childrenCache[crumb.id] ?? []).map(PaneCrumb.init)
+                (documentStore.outline(for: crumb.id)?.children
+                    ?? documentStore.childrenCache[crumb.id]
+                    ?? []).map(PaneCrumb.init)
             },
             selector: { self.readerSelector },
             controls: { EmptyView() },
