@@ -38,6 +38,7 @@ from fichero_server.core.perf import perf_span
 
 from .artifacts import ArtifactResponse, _artifact_response
 from .documents import (
+    _batched_children_of,
     _filter_resolvable_documents,
     _get_document_row,
     _list_documents,
@@ -159,11 +160,7 @@ async def get_document_view(
                     db,
                     rows,
                     level,
-                    children_of=lambda doc: _filter_resolvable_documents(
-                        db,
-                        _list_documents(db, parent_id=doc.id),
-                        parent_id=doc.id,
-                    ),
+                    children_of=_batched_children_of(db, rows),
                 )
                 child_rows = _with_child_counts(db, child_rows)
 

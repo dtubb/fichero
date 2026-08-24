@@ -376,6 +376,26 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     return items
 
 
+def _batched_children_of(db: Database, rows: list[Document]):
+    """One committed IN-query prefetches every listed container's children —
+    resolve_level's per-container callable then answers from the dict.
+    2026-08-24: the content tier for a 152-child folder ran ~75 sequential
+    per-container queries and cost 2.4s of the sidebar-click wait.
+    """
+    prefetched: dict[str, list[Document]] = {row.id: [] for row in rows}
+    for child in db.query_in_committed(Document, "parent_id", [row.id for row in rows]):
+        if child.parent_id in prefetched:
+            prefetched[child.parent_id].append(child)
+
+    def children_of(doc: Document) -> list[Document]:
+        kids = _filter_document_visibility(
+            prefetched.get(doc.id, []), include_deleted=False, only_deleted=False
+        )
+        return _filter_resolvable_documents(db, kids, parent_id=doc.id)
+
+    return children_of
+
+
 def _get_document_row(
     db: Database, doc_id: str, *, include_deleted: bool = False
 ) -> Document | None:
@@ -1070,9 +1090,7 @@ async def get_children(
             # the folder keeps the order the user was just looking at.
             return resolve_level(
                 db, rows, level,
-                children_of=lambda doc: _filter_resolvable_documents(
-                    db, _list_documents(db, parent_id=doc.id), parent_id=doc.id
-                ),
+                children_of=_batched_children_of(db, rows),
             )
 
         children = await asyncio.to_thread(_fetch)
