@@ -27,9 +27,12 @@ struct ChatInputView<Leading: View>: View {
         HStack(spacing: 12) {
             leading
 
-            TextField("Ask a question about your documents...", text: $inputText, axis: .vertical)
+            // No "about your documents" (Daniel, 2026-08-23): chat drives
+            // MCP tools and builds workflows too. Taller at rest — a compose
+            // area, not a search field.
+            TextField("", text: $inputText, axis: .vertical)
                 .textFieldStyle(.plain)
-                .lineLimit(1...5)
+                .lineLimit(3...8)
                 .onSubmit {
                     onSend()
                 }

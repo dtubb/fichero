@@ -350,6 +350,23 @@ struct ChatView: View {
 
             chatModelMenu
 
+            // The grounding indicator (Daniel, 2026-08-23: "indicate context
+            // is provided with current selection somehow") — the eye follows
+            // the current view; the pin counts dropped-in documents.
+            if let scope = attachContext.implicitScopeLabel {
+                Label(scope, systemImage: "eye")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .help("Grounded on your current view: \(scope)")
+            }
+            if !selectedDocuments.isEmpty {
+                Label("\(selectedDocuments.count)", systemImage: "pin.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .help("\(selectedDocuments.count) document(s) attached to this chat")
+            }
+
             Spacer(minLength: 0)
             Button {
                 saveAsWorkspace()
