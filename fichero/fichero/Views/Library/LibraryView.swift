@@ -30,6 +30,9 @@ struct LibraryView: View {
     var availableDisplayModes: [ViewDisplayMode] = ViewDisplayMode.allCases
     /// Routes a lens pick through ContentView's one mode-change seam.
     var onChangeDisplayMode: ((ViewDisplayMode) -> Void)?
+    /// Hides the library list pane (the toolbar toggle's seam). nil when
+    /// hiding is refused (last visible pane) — the head then shows no X.
+    var onClosePane: (() -> Void)?
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area

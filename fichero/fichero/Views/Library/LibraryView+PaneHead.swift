@@ -30,7 +30,7 @@ extension LibraryView {
     var libraryPaneHead: some View {
         PaneHead<PaneKindSelector<ViewDisplayMode>, AnyView, EmptyView>(
             crumbs: libraryHeadCrumbs,
-            onClose: nil,
+            onClose: onClosePane,
             onCrumb: { crumb in
                 NotificationCenter.default.post(
                     name: .sidebarRevealDocument,

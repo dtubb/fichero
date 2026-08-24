@@ -46,7 +46,7 @@ enum ReaderLens: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .page: "Page"
+        case .page: "Content"
         case .statements: "Statements"
         case .entities: "Entities"
         case .claims: "Claims"

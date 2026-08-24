@@ -38,7 +38,7 @@ struct ReaderLensInventoryTests {
         // drop one back to menu-only. Transcript is NOT here (2026-08-23):
         // Page IS the multi-page transcript, and the separate row landed on
         // Entities via the knowledge surface's stale-value clamp.
-        for expected in ["Page", "Statements", "Entities", "Claims", "Timeline", "Notes"] {
+        for expected in ["Content", "Statements", "Entities", "Claims", "Timeline", "Notes"] {
             #expect(titles.contains(expected), "\(expected) fell out of the lens list")
         }
         #expect(!titles.contains("Transcript"), "the duplicate Transcript lens came back")
@@ -108,7 +108,9 @@ struct PaneHeadWiringGuardTests {
     @Test("the head floats over the content — no opaque bar (R7)")
     func headFloats() throws {
         let head = try code(at: "Views/Shell/PaneHead/PaneHead.swift")
-        #expect(head.contains(".background(.regularMaterial, in: Capsule())"))
+        // Native Tahoe glass since 2026-08-23 (S1): the opaque material read
+        // as "not standard"; the float is the glass capsule itself.
+        #expect(head.contains(".glassEffect(.regular, in: Capsule())"))
         let reader = try code(at: "Views/Reader/Page/ReadingPaneView.swift")
         // Over the content, not stacked above it: content scrolls under.
         #expect(reader.contains(".overlay(alignment: .top) { paneHead }"))

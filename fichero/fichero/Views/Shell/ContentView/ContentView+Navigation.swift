@@ -65,6 +65,11 @@ extension ContentView {
             displayMode: viewDisplayMode,
             availableDisplayModes: availableViewDisplayModes,
             onChangeDisplayMode: { updateViewDisplayMode($0) },
+            // X on the library head = hide the library list pane, the same
+            // seam as the toolbar toggle; absent when it's the last pane.
+            onClosePane: LibraryPaneToggleModel(paneVisibility: paneVisibility).canHide
+                ? { withAnimation(FrameAnimation.snappy) { setLibraryPaneVisible(false) } }
+                : nil,
             folderId: sidebarSelectionState.selectedItemId,
             onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
             onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
