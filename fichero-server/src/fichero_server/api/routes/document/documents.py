@@ -1935,6 +1935,17 @@ async def import_file(
             file,
             content_length=request.headers.get("content-length"),
         )
+        # A zero-byte upload is a failed read at the SOURCE — a drag whose
+        # provider promised data and delivered none (the "Document" node of
+        # 2026-08-23: AppKit names an unnamed empty representation literally
+        # "Document", and accepting it minted a permanent hollow node the
+        # thumbnail pipeline re-fails on forever). Refuse loudly; never
+        # ingest nothing.
+        if temp_path.stat().st_size == 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Empty upload refused: {file.filename!r} contained no data",
+            )
         result = await asyncio.to_thread(
             registry.invoke,
             db,

@@ -184,6 +184,24 @@ enum ExternalFileDropLoader {
                     return
                 }
                 externalDropLoaderLogger.debug("      loadFileRepresentation(\(typeIdentifier)) temp URL: \(temporaryURL.path)")
+                // An EMPTY materialized representation is a failed read, not a
+                // file: a provider that promises data and writes zero bytes
+                // produced the nameless "Document" node of 2026-08-23 (AppKit
+                // names an unnamed representation literally "Document").
+                // Importing it mints a hollow document; the honest outcome is
+                // "couldn't read the dropped item".
+                let size = (try? temporaryURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                guard size > 0 else {
+                    externalDropLoaderLogger.warning(
+                        "      loadFileRepresentation(\(typeIdentifier)) wrote an EMPTY file — treating as unreadable"
+                    )
+                    continuation.resume(throwing: NSError(
+                        domain: "ExternalFileDrop",
+                        code: -5,
+                        userInfo: [NSLocalizedDescriptionKey: "Provider materialized an empty representation"]
+                    ))
+                    return
+                }
                 do {
                     continuation.resume(returning: try stabilizedCopy(of: temporaryURL))
                 } catch {
