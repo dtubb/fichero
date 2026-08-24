@@ -95,7 +95,6 @@ struct ChatView: View {
         Binding(get: { chatTab }, set: { chatTabRaw = $0.rawValue })
     }
 
-
     init(
         conversation: Conversation?,
         selectedDocuments: Binding<Set<String>>,

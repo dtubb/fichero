@@ -64,8 +64,10 @@ extension LibraryView {
     var body: some View {
         withKeyboardShortcuts(eventWiredContent)
             // The island's bolt (v1 suggest chip) opens THIS pane's picker —
-            // same sheet, same batch path as the bottom bar's bolt.
-            .onReceive(NotificationCenter.default.publisher(for: .ficheroShowWorkflowPicker)) { _ in
+            // same sheet, same batch path as the bottom bar's bolt. Direct
+            // @Observable seam (§6b): the toolbar bumps the token, this pane
+            // reacts to the change.
+            .onChange(of: windowState.workflowPickerRequestToken) {
                 showWorkflowPicker = true
             }
         // No toolbar .searchable here — ContentView owns the single GLOBAL
@@ -278,11 +280,4 @@ extension LibraryView {
             // instantly, not slide in cascading from the top.
             .transaction(value: folderId) { $0.animation = nil }
     }
-}
-
-
-extension Notification.Name {
-    /// Posted by the toolbar's workflow chip (2026-08-24); the library pane
-    /// presents its existing WorkflowPickerSheet in response.
-    static let ficheroShowWorkflowPicker = Notification.Name("ficheroShowWorkflowPicker")
 }

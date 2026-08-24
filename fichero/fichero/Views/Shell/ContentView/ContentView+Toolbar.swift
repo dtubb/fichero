@@ -255,19 +255,20 @@ extension ContentView {
                         importProgress: importProgress,
                         libraryId: windowState.libraryId,
                         libraryName: windowState.library?.displayName ?? "Library",
-                        selectionCount: browserSelection.count,
-                        selectionTotal: documentStore.currentDocuments.count,
-                        selectionLabel: inspectorDocument.map { DocumentTitle.displayName(for: $0) },
-                        selectionIcon: inspectorDocument.map { PaneCrumb.icon(for: $0) },
-                        selectionNoun: {
-                            let ids = Set(browserSelection)
-                            let docs = documentStore.currentDocuments.filter { ids.contains($0.id) }
-                            guard !docs.isEmpty else { return "items" }
-                            if docs.allSatisfy({ $0.fileType == .image }) { return "images" }
-                            if docs.allSatisfy({ $0.docType == .page }) { return "pages" }
-                            if docs.allSatisfy({ $0.docType == .folder }) { return "folders" }
-                            return "items"
-                        }(),
+                        selection: StatusIslandSelection(
+                            count: browserSelection.count,
+                            label: inspectorDocument.map { DocumentTitle.displayName(for: $0) },
+                            icon: inspectorDocument.map { PaneCrumb.icon(for: $0) },
+                            noun: {
+                                let ids = Set(browserSelection)
+                                let docs = documentStore.currentDocuments.filter { ids.contains($0.id) }
+                                guard !docs.isEmpty else { return "items" }
+                                if docs.allSatisfy({ $0.fileType == .image }) { return "images" }
+                                if docs.allSatisfy({ $0.docType == .page }) { return "pages" }
+                                if docs.allSatisfy({ $0.docType == .folder }) { return "folders" }
+                                return "items"
+                            }()
+                        ),
                         importError: $importError
                     )
                 }
@@ -307,7 +308,7 @@ extension ContentView {
     @ViewBuilder
     var workflowSuggestButton: some View {
         Button {
-            NotificationCenter.default.post(name: .ficheroShowWorkflowPicker, object: nil)
+            windowState.workflowPickerRequestToken += 1
         } label: {
             Label("Run Workflow", systemImage: "bolt")
                 .labelStyle(.iconOnly)

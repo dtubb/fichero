@@ -35,7 +35,7 @@ struct StatusIslandToolbarTests {
             importProgress: importProgress,
             backendWorkLabel: backendWorkLabel,
             runningWorkflows: runningWorkflows,
-            selectionCount: selectionCount
+            selection: StatusIslandSelection(count: selectionCount)
         )
     }
 
@@ -47,7 +47,7 @@ struct StatusIslandToolbarTests {
             enginePhase: .ready, engineStatusTitle: "Connected",
             importError: nil, isImporting: false, importProgress: nil,
             backendWorkLabel: "Embedding — 40%", runningWorkflows: 3,
-            selectionCount: 12, selectionNoun: "images"
+            selection: StatusIslandSelection(count: 12, noun: "images")
         )
         #expect(status == StatusIslandMessage(text: "12 images selected", isError: false))
     }
@@ -58,7 +58,7 @@ struct StatusIslandToolbarTests {
             enginePhase: .ready, engineStatusTitle: "Connected",
             importError: nil, isImporting: false, importProgress: nil,
             backendWorkLabel: nil, runningWorkflows: 0,
-            selectionCount: 1, selectionLabel: "January 1, 1933"
+            selection: StatusIslandSelection(count: 1, label: "January 1, 1933")
         )
         #expect(status == StatusIslandMessage(text: "January 1, 1933", isError: false))
     }
