@@ -66,7 +66,8 @@ extension LibraryView {
                                     identity: IconCellIdentity(
                                         document: doc,
                                         scale: iconViewScale,
-                                        isRenaming: renamingDocumentId == doc.id
+                                        isRenaming: renamingDocumentId == doc.id,
+                                        showsName: LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
                                     ),
                                     isSelected: selection.contains(doc.id),
                                     tint: selectionTint
@@ -79,7 +80,8 @@ extension LibraryView {
                                         isRenaming: renamingDocumentId == doc.id,
                                         editingName: $editingName,
                                         onCommitRename: commitRename,
-                                        onCancelRename: cancelRename
+                                        onCancelRename: cancelRename,
+                                        showsName: LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
                                     )
                                 }
                                 .equatable()

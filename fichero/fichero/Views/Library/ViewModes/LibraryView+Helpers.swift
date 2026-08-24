@@ -34,6 +34,8 @@ struct IconCellIdentity: Equatable, Sendable {
     let document: Document
     let scale: Double
     var isRenaming: Bool = false
+    /// Part of identity so the metadata Name toggle repaints tiles.
+    var showsName: Bool = true
 }
 
 /// Equatable identity for a Miller column row — everything the row renders
