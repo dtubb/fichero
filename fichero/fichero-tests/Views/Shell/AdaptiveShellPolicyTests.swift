@@ -324,14 +324,12 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertTrue(buildersSource.contains("detailShellColumn"))
         XCTAssertTrue(contentSource.contains("var body: some View"))
         XCTAssertTrue(buildersSource.contains("var detailShellColumn: some View"))
-        XCTAssertTrue(buildersSource.contains("detailTabStrip"))
-        // The location path bar + pane breadcrumb strip are RETIRED (#4102
-        // dedupe): the path renders only in the toolbar's principal
-        // breadcrumb; the bottom bar is Finder-style selection status.
+        // The detail tab strip is DELETED (Daniel, 2026-08-23): panes carry
+        // their own PaneHead; the island reports the selection; new-tab
+        // returns with the real tab bar. Every strip stays gone:
+        XCTAssertFalse(buildersSource.contains("detailTabStrip"))
         XCTAssertFalse(buildersSource.contains("detailLocationPathBar"))
         XCTAssertFalse(buildersSource.contains("breadcrumbBar"))
-        XCTAssertTrue(buildersSource.contains("detailStatusPathBar"))
-        XCTAssertTrue(buildersSource.contains("WindowOpener.open(libraryId: windowState.libraryId, asTab: true"))
         XCTAssertTrue(workspaceRootSource.contains("AdaptiveAppleShellHost"))
     }
 
@@ -361,7 +359,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         }
         let principalSource = toolbarSource[principalRange.lowerBound...]
 
-        XCTAssertTrue(principalSource.contains("Text(toolbarTitle)"))
+        // The principal zone carries NO location text since 2026-08-23
+        // (Daniel: panes own their crumbs; the island answers the selection).
+        XCTAssertFalse(principalSource.contains("Text(toolbarTitle)"))
         // #4407: the window-level `.searchable` is gone entirely — search moved
         // into the library's mini toolbar, with the pane it acts on. What this
         // still guards is that the principal zone did not grow a search field
@@ -413,7 +413,9 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertFalse(contentSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(toolbarSource.contains("contentPaneToolbarContent"))
         XCTAssertTrue(buildersSource.contains("contentPaneToolbarContent"))
-        XCTAssertTrue(toolbarSource.contains("viewDisplayModeMenu"))
+        // The view-mode picker LEFT the toolbar (Daniel, 2026-08-23): it is
+        // the library pane head's lens now.
+        XCTAssertFalse(toolbarSource.contains("viewDisplayModeMenu"))
         // #4360: these became native Toggles, so the call is a binding setter
         // rather than an inverted-boolean button action. Same invariant: the
         // pane controls live in the toolbar and drive the pane-visibility API.

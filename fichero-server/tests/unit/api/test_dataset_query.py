@@ -292,3 +292,33 @@ class TestDatasetQuery:
             db=dataset_db,
         )
         assert result["total"] == 0
+
+    # Search scoping (Daniel 2026-08-22): a data view under an active search
+    # must show ONLY the hits — the "91 results over 4,237 items" defect.
+    @pytest.mark.asyncio
+    async def test_ids_scope_constrains_rows(self, dataset_db):
+        result = await dataset_query(
+            DatasetQuery(parent_id="folder", ids=["d1"], limit=500),
+            db=dataset_db,
+        )
+        assert result["total"] == 1
+        assert [row["id"] for row in result["rows"]] == ["d1"]
+
+    @pytest.mark.asyncio
+    async def test_empty_ids_scope_matches_nothing_never_all(self, dataset_db):
+        # Zero search hits = zero rows. An empty scope that fell through to
+        # "unscoped" would resurrect the whole-folder listing under a search.
+        result = await dataset_query(
+            DatasetQuery(parent_id="folder", ids=[], limit=500),
+            db=dataset_db,
+        )
+        assert result["total"] == 0
+        assert result["rows"] == []
+
+    @pytest.mark.asyncio
+    async def test_none_ids_is_unscoped(self, dataset_db):
+        scoped = await dataset_query(
+            DatasetQuery(parent_id="folder", ids=None, limit=500), db=dataset_db
+        )
+        assert scoped["total"] >= 2
+

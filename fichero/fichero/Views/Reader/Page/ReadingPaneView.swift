@@ -67,13 +67,25 @@ struct ReadingPaneView: View {
     // visualisation (2026-07-14, #3765 Q6).
     @State var activeTab: KGSurfaceTab = .entities
     /// The reader's top-level tab (Page/Knowledge/Notes) — the reader IA fold
-    /// (2026-07-11 design). Per-window via @SceneStorage. Page hosts the REAL
-    /// multi-page WebKit transcript (#3765); the old "reader reads the source
-    /// first" note is retired — the source lives in Preview, never here.
-    @SceneStorage("reader.topTab") private var readerTabRaw = ReaderTab.page.rawValue
+    /// (2026-07-11 design). Per-PANE @State (Daniel, 2026-08-23: two split
+    /// readers must switch lenses independently — @SceneStorage is per WINDOW,
+    /// so one pane's change dragged its sibling). Page hosts the REAL
+    /// multi-page WebKit transcript (#3765).
+    /// ponytail: the lens no longer survives relaunch; per-pane persistence
+    /// needs pane-identity keys, add with the saved-workspaces program.
+    @State private var readerTabRaw = ReaderTab.page.rawValue
     var readerTab: ReaderTab { ReaderTab(rawValue: readerTabRaw) ?? .page }
-    private var readerTabBinding: Binding<ReaderTab> {
-        Binding(get: { readerTab }, set: { readerTabRaw = $0.rawValue })
+    /// The pane head's lens — ONE user-facing value over the two internal
+    /// enums (R3). Setting it writes both, so the head, the menu bar and the
+    /// restored scene state cannot disagree about what is showing.
+    var readerLensBinding: Binding<ReaderLens> {
+        Binding(
+            get: { ReaderLens.lens(for: readerTab, representation: activeTab) },
+            set: { lens in
+                readerTabRaw = lens.tab.rawValue
+                if let representation = lens.representation { activeTab = representation }
+            }
+        )
     }
 
     var effectiveDocument: Document? { isPinned ? pinnedDocument : liveDocument }
@@ -93,12 +105,6 @@ struct ReadingPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Shared top-tab chrome (Page/Knowledge/Notes) — the same
-            // SurfaceTabBar icon row the Inspector uses (#3530), fixed over the
-            // WebKit/native content beneath (reader IA fold, 2026-07-11).
-            SurfaceTabBar(tabs: ReaderTab.allCases, selection: readerTabBinding)
-            Divider()
-
             // In-reader find (#4338): the shared filter bar hosts the find
             // field — match count + prev/next drive the WebKit highlight. Its
             // edge is the component's ONE platform decision (#4362): top on the
@@ -109,103 +115,34 @@ struct ReadingPaneView: View {
             }
 
             readerTabContent
+                // R1/R7: the head floats OVER the content's top edge — no grey
+                // bar, content scrolls under. It replaces the Page/Knowledge/
+                // Notes SurfaceTabBar: those three are lenses now, alongside
+                // the five knowledge surfaces that were reachable only from the
+                // menu bar (Daniel, 2026-08-23).
+                // safeAreaInset, not overlay (Daniel, 2026-08-23: "first
+                // row needs more margin — it's under the icons"): the first
+                // row starts BELOW the head, while scrolled content still
+                // passes under the glass.
+                .safeAreaInset(edge: .top, spacing: 0) { paneHead }
 
             if MiniToolbarPlacement.preferredForReader == .bottom {
                 PaneFilterBar(placement: .bottom) { readerFindBar }
             }
 
-            // Bottom-anchored mini-toolbar (#3060 / #2670): close/title/zoom/pin
-            // now sit at the bottom, matching every other pane bar.
-            // Layout: [× close] [icon] [title] [spacer] | [split buttons] [pin]
-            Divider()
-            MiniToolbar(content: {
-                // × close: collapses split when inside one, hides whole pane otherwise.
-                let isInSplit = splitAxisActions.map { $0.hasVertical || $0.hasHorizontal } ?? false
-                if onClose != nil || isInSplit {
-                    Button {
-                        closePane()
-                    } label: {
-                        // `xmark`, not `xmark.circle.fill` (#4360): the circled
-                        // fill is the platform's clear-a-text-field affordance
-                        // and the reader find bar uses it for exactly that —
-                        // closing a pane must not wear the same glyph.
-                        Image(systemName: ToolbarSymbols.closePane)
-                            .foregroundStyle(.secondary)
-                            .readerIconTarget()
-                    }
-                    .buttonStyle(.plain)
-                    .help(isInSplit ? "Close this split" : "Close reading pane")
-                    .accessibilityLabel(isInSplit ? "Close this split" : "Close reading pane")
-
-                    Divider().frame(height: 16)
-                }
-
-                Image(systemName: "text.book.closed")
-                    .imageScale(.small)
-                    .foregroundStyle(.secondary)
-                Text(effectiveDocument?.name ?? "Views")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                // The view switcher (Transcript/Digest/Graph/Claims/Timeline/
-                // Map) is NOT a row of icons in this mini-toolbar anymore
-                // (#2432). The mini-toolbar carries reader ACTIONS only (zoom).
-                // Representation switching lives in the main window toolbar /
-                // View menu, driven by the `documentRepresentation` focused
-                // value that `DocumentKGSurface` publishes — `activeTab` below
-                // is updated through that path.
-
-                Spacer(minLength: 0)
-
-                ViewThatFits(in: .horizontal) {
-                    zoomControls
-                    zoomMenu
-                }
-
-                Spacer(minLength: 0)
-            }, trailing: {
-                // Pin — far right, after split buttons.
-                Divider().frame(height: 16)
-
-                Button {
-                    if isPinned {
-                        isPinned = false
-                    } else {
-                        pinnedDocument = liveDocument
-                        pinnedActivePageNumber = liveActivePageNumber
-                        pinnedPageCount = livePageCount
-                        isPinned = true
-                    }
-                } label: {
-                    Image(systemName: isPinned ? "pin.fill" : ToolbarSymbols.pin)
-                        .imageScale(.small)
-                        .readerIconTarget()
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(isPinned ? Color.accentColor : Color.secondary)
-                .help(isPinned ? "Unpin — follow current selection" : "Pin to current document")
-                .accessibilityLabel(isPinned ? "Unpin, follow current selection" : "Pin to current document")
-            })
-            // Active-surface indicator (#3579): accent hairline on the toolbar
-            // strip when this pane is the active one. Additive overlay — flips
-            // one pane's fill, no relayout.
-            .overlay(alignment: .top) {
-                Rectangle()
-                    .fill(isActiveSurface ? Color.accentColor : Color.clear)
-                    .frame(height: 2)
-            }
-            // Title-bar "Open in New Tab/Window" (#3582). Right-click the reader's
-            // toolbar to pop THIS document out — the browser-tab metaphor. Reuses
-            // the shared OpenInMenuItems; disabled implicitly when no document.
-            .contextMenu {
-                if let docId = effectiveDocument?.id {
-                    OpenInMenuItems(
-                        openInNewTab: { openThisDocumentInNewWindow(docId, asTab: true) },
-                        openInNewWindow: { openThisDocumentInNewWindow(docId, asTab: false) }
-                    )
-                }
-            }
+            // The bottom bar PERSISTS as the pane's one bottom host (Daniel,
+            // 2026-08-23): find/filter live IN it (the PaneFilterBar above is
+            // that bar) and future controls are added to it, never stacked as
+            // a second row. The pane CHROME — close, pin, split, zoom — lives
+            // in the floating PaneHead at the top.
+        }
+        // Active-surface indicator (#3579): accent hairline along the pane's
+        // top edge when this pane is the active one. Additive overlay — flips
+        // one pane's fill, no relayout.
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(isActiveSurface ? Color.accentColor : Color.clear)
+                .frame(height: 2)
         }
         // A direct click anywhere in this pane makes it the active surface
         // (#3579). simultaneousGesture runs alongside PDF/WebKit hit-testing so
@@ -238,6 +175,14 @@ struct ReadingPaneView: View {
             )
         }
         .onChange(of: effectiveDocument?.id) { _, _ in trackedRunPages = [] }
+        // Mandate 1, consumer 1: ONE fetch brings the anchor's whole
+        // neighbourhood — the crumb chain stops losing middle ancestors the
+        // moment this lands in the store's caches.
+        .task(id: effectiveDocument?.id) {
+            if let id = effectiveDocument?.id {
+                await documentStore.loadOutline(for: id)
+            }
+        }
     }
 
     /// True when this pane instance is the window's active surface (#3579).
@@ -259,4 +204,154 @@ struct ReadingPaneView: View {
     private func revealInTranscript() {
         if readerTab != .page { readerTabRaw = ReaderTab.page.rawValue }
     }
+
+    /// Explicitly typed and extracted (2026-08-23 gate red): the combined
+    /// generic inference — key-paths-as-functions + three @ViewBuilder slots +
+    /// the Binding — collapsed the type checker at this call site ("failed to
+    /// produce diagnostic"). Bounded sub-expressions are the LibraryWindow.body
+    /// rule applied here.
+    private var readerSelector: PaneKindSelector<ReaderLens> {
+        PaneKindSelector(
+            kindTitle: "Reader",
+            kindIcon: "book",
+            lenses: ReaderLens.allCases,
+            lensTitle: { (lens: ReaderLens) in lens.title },
+            lensIcon: { (lens: ReaderLens) in lens.icon },
+            lens: readerLensBinding
+        )
+    }
+
+    private var publishedReaderLens: FocusedReaderLens {
+        FocusedReaderLens(
+            value: readerLensBinding.wrappedValue,
+            set: { readerLensBinding.wrappedValue = $0 }
+        )
+    }
+
+    /// The pane's floating head (R1/R3/R5/R7). Generic parameters SPELLED OUT
+    /// and the modifier chained on a named value: the inferred form collapsed
+    /// the type checker twice ("failed to produce diagnostic").
+    private var paneHead: some View {
+        // The head collapses splits itself; onClose is only the whole-pane
+        // hide. (closePane stays for the toolbar/menu paths.)
+        let closeAction = onClose
+        let head = PaneHead<PaneKindSelector<ReaderLens>, EmptyView, EmptyView>(
+            crumbs: readerCrumbs,
+            onClose: closeAction,
+            isPinned: readerPinBinding,
+            // Crumb click = reveal that node in the sidebar, which selects it
+            // through the same seam a click uses — the pane follows. The
+            // jump-bar child menus read the store's children cache.
+            onCrumb: { crumb in
+                NotificationCenter.default.post(
+                    name: .sidebarRevealDocument,
+                    object: nil,
+                    userInfo: ["documentId": crumb.id]
+                )
+            },
+            crumbChildren: { crumb in
+                (documentStore.outline(for: crumb.id)?.children
+                    ?? documentStore.childrenCache[crumb.id]
+                    ?? []).map(PaneCrumb.init)
+            },
+            crumbDragPayload: { crumb in
+                LibraryManager.shared.currentLibraryId.flatMap {
+                    paneCrumbDragPayload(crumb, store: documentStore, libraryId: $0)
+                }
+            },
+            selector: { self.readerSelector },
+            controls: { EmptyView() },
+            tools: { EmptyView() }
+        )
+        // The menu bar shows the SAME lens list, reading this publication —
+        // one binding rendered twice, never a second switch (R3).
+        // Reader zoom is menu-command only (⌘+/⌘−/⌘0), on the reader's OWN
+        // key (2026-08-24): sharing the preview's key meant two publishers
+        // whenever both panes were mounted — the multiple-times-per-frame
+        // fault survived the active-surface gating. One key, one publisher;
+        // the menu prefers the preview's actions and falls back to these.
+        return head
+            .focusedSceneValue(\.readerLens, publishedReaderLens)
+            .focusedSceneValue(\.readerZoomActions, ImageZoomActions(
+                zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
+                zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
+                actualSize: { webZoom = 1.0 },
+                zoomToFit: { webZoom = 1.0 },
+                canZoomIn: webZoom < 3.0,
+                canZoomOut: webZoom > 0.5
+            ))
+            // "Open in New Tab/Window" (#3582) followed the chrome up from the
+            // retired bottom bar: right-click the HEAD to pop this document out.
+            .contextMenu {
+                if let docId = effectiveDocument?.id {
+                    OpenInMenuItems(
+                        openInNewTab: { openThisDocumentInNewWindow(docId, asTab: true) },
+                        openInNewWindow: { openThisDocumentInNewWindow(docId, asTab: false) }
+                    )
+                }
+            }
+    }
+
+    /// Pinning freezes this pane on its current view (Daniel, 2026-08-23);
+    /// the shared head renders the pin menu from this binding. NO zoom
+    /// controls in the head: reader zoom is a menu command (⌘+/⌘−/⌘0) via
+    /// the shared `imageZoomActions` focused value below.
+    private var readerPinBinding: Binding<Bool> {
+        Binding(
+            get: { isPinned },
+            set: { pin in
+                if pin {
+                    pinnedDocument = liveDocument
+                    pinnedActivePageNumber = liveActivePageNumber
+                    pinnedPageCount = livePageCount
+                }
+                isPinned = pin
+            }
+        )
+    }
+
+    /// The pane's title line IS its breadcrumb (R1), not "Reader" — and it is
+    /// the FULL ancestry (Daniel, 2026-08-23: "it's important"):
+    /// "Marshall Diaries v4 › Inbox › 1933".
+    ///
+    /// Through `libraryPathCrumbs`, the walk the library's path bar already
+    /// uses — root-first, cycle-guarded, depth-capped. A second ancestor walk
+    /// for the same question is how two surfaces come to disagree about where
+    /// you are.
+    ///
+    /// ponytail: names today. Daniel's proxy-icon crumbs (parents collapse to
+    /// icons with chevrons, expanding on hover) are a later slice; the capsule
+    /// truncates from the leading edge until then, so a deep path still shows
+    /// the part that identifies it.
+    private var readerCrumbs: [PaneCrumb] {
+        guard let document = effectiveDocument else { return [] }
+        let ancestry = libraryPathCrumbs(
+            anchorId: document.id,
+            resolve: { documentStore.resolveDocument($0) }
+        )
+        // The library is the root crumb: a path that starts at a folder does
+        // not say WHICH library's Inbox you are in, and several are open at
+        // once in the normal case. Not navigable from a reader (yet).
+        var crumbs: [PaneCrumb] = []
+        if let libraryName {
+            crumbs.append(PaneCrumb(
+                id: "library-root", title: libraryName,
+                icon: "books.vertical.fill", isNavigable: false, tint: .accentColor
+            ))
+        }
+        crumbs += ancestry.isEmpty ? [PaneCrumb(document)] : ancestry.map(PaneCrumb.init)
+        return crumbs
+    }
+
+    /// The library the read document belongs to, for the root crumb.
+    ///
+    /// `Document` carries no library id — the current library IS the reading
+    /// context, the same assumption the path bar and the sidebar reveal make.
+    private var libraryName: String? {
+        guard let libraryId = LibraryManager.shared.currentLibraryId,
+              let library = LibraryManager.shared.getLibrary(id: libraryId)
+        else { return nil }
+        return library.displayName
+    }
+
 }

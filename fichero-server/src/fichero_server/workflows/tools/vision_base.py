@@ -40,6 +40,7 @@ from fichero_server.media.ocr_geometry import (
     geometry_unavailable,
     parse_vlm_geometry,
 )
+from fichero_server.workflows.tools.transcription_output import TranscriptionCommentaryError
 from fichero_server.workflows.types import PortDef, DataType
 
 # Pre-import macOS Vision/Quartz framework symbols at module load on the
@@ -395,6 +396,259 @@ def _vision_candidate_bbox_for_range(candidate: Any, text_range: Any) -> Any:
     return None
 
 
+def _utf16_range(text: str, start: int, end: int) -> tuple[int, int]:
+    """Map Python code-point offsets to the UTF-16 (start, length) NSRange
+    wants. Vision's candidates are NSStrings, and passing code-point offsets
+    shifted every range after the first non-BMP or composed character —
+    `boundingBoxForRange:` then returned nil and the word silently lost its
+    box (the 2026-08-23 "~70% of words have boxes" report; the diaries are
+    full of Spanish place names)."""
+    u16_start = len(text[:start].encode("utf-16-le")) // 2
+    u16_len = len(text[start:end].encode("utf-16-le")) // 2
+    return u16_start, u16_len
+
+
+def _interpolated_word_bbox(
+    line_bbox: list[float], start: int, end: int, line_length: int
+) -> list[float]:
+    """A word box DERIVED from its line box by proportional char slicing.
+
+    Vision returns nil from ``boundingBoxForRange:`` whenever the requested
+    range crosses its internal glyph segmentation — routine on handwriting,
+    where its "words" are not whitespace tokens. Dropping the word made
+    coverage structurally incomplete; a proportional slice of the line's own
+    measured box is coarse on a proportional face but HONEST about where the
+    word sits, and it is marked by ``confidence=None`` (absent = not
+    measured, #4394) so a consumer can always tell derived from measured.
+    ``line_bbox`` is top-left-origin normalized, as stored."""
+    x, y, w, h = line_bbox
+    fraction_start = start / max(line_length, 1)
+    fraction_end = end / max(line_length, 1)
+    return [
+        x + w * fraction_start,
+        y,
+        max(w * (fraction_end - fraction_start), 0.0),
+        h,
+    ]
+
+
+def _line_coverage_gaps(
+    line_boxes: list[Any],
+    *,
+    min_gap_factor: float = 1.6,
+    max_bands: int = 6,
+) -> list[tuple[float, float]]:
+    """Vertical bands BETWEEN detected lines big enough to hold missed ones.
+
+    Apple Vision routinely returns NO observation for a faint cursive line
+    (2026-08-23, "Went to Condoto this morning" — transcript has it, geometry
+    doesn't). A gap taller than ``min_gap_factor`` × the median detected line
+    height is where such a line would live; the escalation pass re-OCRs just
+    that crop, where the glyphs are proportionally larger. INTERNAL gaps
+    only — page margins are usually honest emptiness. Top-origin normalized
+    coordinates in and out.
+    """
+    heights = sorted(
+        b.bbox[3] for b in line_boxes
+        if getattr(b, "bbox", None) and len(b.bbox) == 4 and b.bbox[3] > 0
+    )
+    if len(heights) < 2:
+        return []
+    median_height = heights[len(heights) // 2]
+    min_gap = median_height * min_gap_factor
+    rows = sorted(
+        (b.bbox[1], b.bbox[1] + b.bbox[3])
+        for b in line_boxes
+        if getattr(b, "bbox", None) and len(b.bbox) == 4
+    )
+    gaps: list[tuple[float, float]] = []
+    cursor = rows[0][1]
+    for top, bottom in rows[1:]:
+        if top - cursor >= min_gap:
+            # Half a line of context each side so ascenders/descenders that
+            # straddle the band edge are not cut mid-glyph.
+            pad = median_height / 2
+            gaps.append((max(0.0, cursor - pad), min(1.0, top + pad)))
+        cursor = max(cursor, bottom)
+    return gaps[:max_bands]
+
+
+def _normalized_probe(text: str) -> str:
+    """Whitespace-collapsed, punctuation-stripped, case-folded — the same
+    tolerances the diary heading matcher earned on this corpus."""
+    kept = "".join(ch if ch not in ".,;:" else " " for ch in text)
+    return " ".join(kept.split()).casefold()
+
+
+def _unmatched_reference_bands(
+    reference_text: str,
+    line_boxes: list[Any],
+    *,
+    max_bands: int = 6,
+) -> list[tuple[float, float]]:
+    """Bands where the TRANSCRIPT proves a line the OCR missed.
+
+    The gap pass only sees tall emptiness; a missed line at ordinary spacing
+    ("way down." — 2026-08-23) leaves no gap. But the page already HAS a
+    transcript, and a transcript line with no fuzzy match in the OCR text is
+    provably missed. Its nearest transcript NEIGHBOURS that did match give
+    the band: from the matched line above to the matched line below,
+    regardless of how tight the spacing is. Top-origin normalized out.
+    """
+    boxes = [
+        b for b in line_boxes
+        if getattr(b, "bbox", None) and len(b.bbox) == 4 and (b.text or "").strip()
+    ]
+    if not boxes or not reference_text.strip():
+        return []
+    heights = sorted(b.bbox[3] for b in boxes if b.bbox[3] > 0)
+    pad = (heights[len(heights) // 2] if heights else 0.02) / 2
+
+    ocr_haystack = _normalized_probe("\n".join(b.text for b in boxes))
+
+    def match_box(reference_line: str) -> Any | None:
+        probe = _normalized_probe(reference_line)[:24]
+        while len(probe) >= 8:
+            if probe in ocr_haystack:
+                for b in boxes:
+                    if probe in _normalized_probe(b.text):
+                        return b
+                # Matched across a line join — treat as matched, unanchored.
+                return None
+            probe = probe[:-4]
+        return "MISS"
+
+    reference_lines = [ln for ln in reference_text.splitlines() if len(_normalized_probe(ln)) >= 8]
+    anchors: list[Any] = [match_box(ln) for ln in reference_lines]
+
+    bands: list[tuple[float, float]] = []
+    for index, anchor_box in enumerate(anchors):
+        if anchor_box != "MISS":
+            continue
+        above = next(
+            (a for a in reversed(anchors[:index]) if a not in ("MISS", None)), None
+        )
+        below = next(
+            (a for a in anchors[index + 1:] if a not in ("MISS", None)), None
+        )
+        if above is None or below is None:
+            # No anchor on one side — the margin stays honest emptiness.
+            continue
+        top = above.bbox[1] + above.bbox[3]
+        bottom = below.bbox[1]
+        if bottom <= top:
+            continue
+        bands.append((max(0.0, top - pad), min(1.0, bottom + pad)))
+
+    # Merge overlaps so adjacent misses share one crop.
+    bands.sort()
+    merged: list[tuple[float, float]] = []
+    for band in bands:
+        if merged and band[0] <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], band[1]))
+        else:
+            merged.append(band)
+    return merged[:max_bands]
+
+
+def _strip_bands(count: int = 3, overlap: float = 0.08) -> list[tuple[float, float]]:
+    """Systematic overlapping horizontal strips (Daniel's smaller-chunks
+    strategy, promoted from hunch to base pass 2026-08-23): every strip is
+    OCR'd at ~``count``× effective glyph size, independent of any heuristic
+    about where a miss might be. Overlap so a line on a boundary is whole in
+    at least one strip."""
+    if count < 2:
+        return []
+    stride = 1.0 / count
+    return [
+        (max(0.0, index * stride - overlap), min(1.0, (index + 1) * stride + overlap))
+        for index in range(count)
+    ]
+
+
+def _is_duplicate_line(candidate: Any, kept: list[Any]) -> bool:
+    """Same text (probe-normalized) landing at the same vertical position —
+    the strip/band passes re-read lines the base pass already has, and
+    without this the overlay would double-draw every one of them."""
+    probe = _normalized_probe(candidate.text or "")
+    if not probe:
+        return True
+    c_top = candidate.bbox[1]
+    c_bottom = c_top + candidate.bbox[3]
+    for line in kept:
+        if _normalized_probe(line.text or "") != probe:
+            continue
+        top = line.bbox[1]
+        bottom = top + line.bbox[3]
+        inter = min(c_bottom, bottom) - max(c_top, top)
+        if inter > 0.5 * min(candidate.bbox[3], line.bbox[3]):
+            return True
+    return False
+
+
+def _rebase_geometry_reading_order(
+    line_boxes: list["VisionOCRBox"],
+    word_boxes: list["VisionOCRBox"],
+) -> tuple[str, list["VisionOCRBox"], list["VisionOCRBox"]]:
+    """Rebuild page text + char offsets from ALL lines, sorted by position.
+
+    The escalation pass recovers lines from MID-page, so appending their text
+    would scramble reading order — and every char-span consumer (entry
+    matching, span→region resolution) indexes into the page text. Sort every
+    line by (page, y, x), regenerate the text, and re-base each line's and
+    each word's span; a word's offset within its line is preserved exactly.
+    """
+    def sort_key(box: "VisionOCRBox"):
+        y = box.bbox[1] if box.bbox and len(box.bbox) == 4 else 0.0
+        x = box.bbox[0] if box.bbox and len(box.bbox) == 4 else 0.0
+        return (box.page_index or 0, round(y, 4), x)
+
+    ordered = sorted(line_boxes, key=sort_key)
+    words_by_line: dict[int, list[VisionOCRBox]] = {}
+    for word in word_boxes:
+        words_by_line.setdefault(id(_owning_line(word, line_boxes)), []).append(word)
+
+    new_lines: list[VisionOCRBox] = []
+    new_words: list[VisionOCRBox] = []
+    pieces: list[str] = []
+    cursor = 0
+    for line in ordered:
+        text = line.text or ""
+        start = cursor
+        pieces.append(text)
+        old_start = line.char_start
+        new_lines.append(dataclasses.replace(
+            line, char_start=start, char_end=start + len(text)
+        ))
+        for word in words_by_line.get(id(line), []):
+            if word.char_start is not None and old_start is not None:
+                relative = word.char_start - old_start
+                span = (word.char_end or word.char_start) - word.char_start
+                new_words.append(dataclasses.replace(
+                    word,
+                    char_start=start + relative,
+                    char_end=start + relative + span,
+                ))
+            else:
+                new_words.append(word)
+        cursor = start + len(text) + 1  # the joining newline
+    return "\n".join(pieces), new_lines, new_words
+
+
+def _owning_line(word: "VisionOCRBox", lines: list["VisionOCRBox"]) -> "VisionOCRBox | None":
+    """The line whose char span contains this word's — spans, not geometry,
+    because the interpolated fallback derives word rects FROM line rects and
+    a geometric test would be circular."""
+    if word.char_start is None:
+        return None
+    for line in lines:
+        if line.char_start is None or line.char_end is None:
+            continue
+        if line.char_start <= word.char_start < line.char_end:
+            return line
+    return None
+
+
 def _vision_text_range(start: int, length: int) -> Any:
     try:
         from Foundation import NSMakeRange
@@ -426,27 +680,40 @@ def _vision_word_boxes(
     *,
     page_index: int | None = None,
     char_offset: int | None = None,
+    line_bbox: list[float] | None = None,
 ) -> list[VisionOCRBox]:
     """Build per-word geometry from a recognized text candidate.
 
     ``char_offset`` is the line's starting offset inside the page's full OCR
     text; word spans are recorded relative to that full text (#4309).
+    ``line_bbox`` (top-left-origin, as stored) feeds the interpolated
+    fallback when Vision cannot map a range — see ``_interpolated_word_bbox``.
     """
     boxes: list[VisionOCRBox] = []
     confidence = _vision_candidate_confidence(candidate)
     for match in re.finditer(r"\S+", text):
+        u16_start, u16_len = _utf16_range(text, match.start(), match.end())
         bbox = _vision_candidate_bbox_for_range(
             candidate,
-            _vision_text_range(match.start(), match.end() - match.start()),
+            _vision_text_range(u16_start, u16_len),
         )
         bbox_list = _vision_bbox_from_rect(bbox)
-        if bbox_list is None:
+        if bbox_list is not None:
+            word_bbox = _vision_flip_bbox_to_top_left(bbox_list)
+            word_confidence = confidence
+        elif line_bbox is not None:
+            word_bbox = _interpolated_word_bbox(
+                line_bbox, match.start(), match.end(), len(text)
+            )
+            # Absent, not zero (#4394): this box was DERIVED, not measured.
+            word_confidence = None
+        else:
             continue
         boxes.append(
             VisionOCRBox(
                 text=match.group(0),
-                bbox=_vision_flip_bbox_to_top_left(bbox_list),
-                confidence=confidence,
+                bbox=word_bbox,
+                confidence=word_confidence,
                 page_index=page_index,
                 char_start=(
                     char_offset + match.start() if char_offset is not None else None
@@ -505,6 +772,11 @@ def _vision_geometry_from_results(
                         line_text,
                         page_index=page_index,
                         char_offset=line_offset,
+                        line_bbox=(
+                            _vision_flip_bbox_to_top_left(line_bbox)
+                            if line_bbox is not None
+                            else None
+                        ),
                     )
                 )
             char_cursor += len(line_text) + 1  # +1 for the joining "\n"
@@ -845,6 +1117,7 @@ def apple_vision_ocr(image_path: str, language: str = "en") -> str:
 def apple_vision_ocr_with_geometry(
     image_path: str,
     language: str = "en",
+    reference_text: str | None = None,
 ) -> VisionOCRResult:
     """Extract text and normalized Apple Vision geometry from image or PDF.
 
@@ -951,7 +1224,9 @@ def apple_vision_ocr_with_geometry(
                     f"{effective_path}"
                 )
 
-            return _vision_ocr_cgimage_with_geometry(cg_image, language)
+            return _vision_ocr_cgimage_with_geometry(
+                cg_image, language, reference_text=reference_text
+            )
 
     except ImportError as e:
         msg = f"Apple Vision not available: {e}"
@@ -980,6 +1255,7 @@ def _vision_ocr_cgimage_with_geometry(
     language: str = "en",
     *,
     page_index: int | None = None,
+    reference_text: str | None = None,
 ) -> VisionOCRResult:
     """Run Vision OCR on a CGImage and return the recognized text.
 
@@ -1021,6 +1297,99 @@ def _vision_ocr_cgimage_with_geometry(
         geometry = _vision_geometry_from_results(results, page_index=page_index)
         return geometry if geometry.text else None
 
+    def _escalate_gaps(base: VisionOCRResult) -> VisionOCRResult:
+        """Re-OCR the vertical bands Vision returned nothing for.
+
+        The band crop makes the glyphs proportionally larger — the same
+        pass that missed a faint cursive line at page scale routinely reads
+        it at band scale (Daniel's smaller-chunks hunch, applied only where
+        a line is provably missing). Recovered boxes are MEASURED (Vision
+        measured them, just on a crop); everything is re-sorted into reading
+        order so char-span consumers stay coherent.
+        """
+        from Quartz import (  # noqa: PLC0415
+            CGImageCreateWithImageInRect,
+            CGImageGetHeight,
+            CGImageGetWidth,
+            CGRectMake,
+        )
+        gaps = _line_coverage_gaps(base.line_boxes)
+        # Transcript-anchored bands catch what the gap heuristic cannot: a
+        # missed line at ORDINARY spacing, provable because the page's
+        # existing transcript names it (2026-08-23, "way down.").
+        if reference_text:
+            gaps = gaps + _unmatched_reference_bands(reference_text, base.line_boxes)
+            deduped: list[tuple[float, float]] = []
+            for band in sorted(gaps):
+                if deduped and band[0] <= deduped[-1][1]:
+                    deduped[-1] = (deduped[-1][0], max(deduped[-1][1], band[1]))
+                else:
+                    deduped.append(band)
+            gaps = deduped
+        # The systematic strips run regardless — coverage first, heuristics
+        # (tall gaps, transcript anchors) on top for the targeted retries.
+        gaps = gaps + _strip_bands()
+        merged_bands: list[tuple[float, float]] = []
+        for band in sorted(gaps):
+            if merged_bands and band[0] <= merged_bands[-1][1]:
+                merged_bands[-1] = (merged_bands[-1][0], max(merged_bands[-1][1], band[1]))
+            else:
+                merged_bands.append(band)
+        gaps = merged_bands
+        if not gaps:
+            return base
+        width = CGImageGetWidth(cg_image)
+        height = CGImageGetHeight(cg_image)
+        lines = list(base.line_boxes)
+        words = list(base.word_boxes)
+        recovered = 0
+        for band_top, band_bottom in gaps:
+            band_height = band_bottom - band_top
+            if band_height <= 0:
+                continue
+            crop = CGImageCreateWithImageInRect(
+                cg_image,
+                CGRectMake(0, band_top * height, width, band_height * height),
+            )
+            if crop is None:
+                continue
+            request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
+            request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
+            request.setRecognitionLanguages_([lang])
+            handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(crop, None)
+            success, _error = handler.performRequests_error_([request], None)
+            results = request.results() if success else None
+            if not results:
+                continue
+            band = _vision_geometry_from_results(results, page_index=page_index)
+            for box in band.line_boxes + band.word_boxes:
+                x, y, w, h = box.bbox
+                box.bbox = [x, band_top + y * band_height, w, h * band_height]
+            # Char offsets from the band run are provisional — the rebase
+            # below regenerates every span from the merged reading order.
+            # DEDUPE against what the page pass (and earlier bands) already
+            # hold: strips re-read everything, and a duplicate line would
+            # double-draw and double-count in every span consumer.
+            for line in band.line_boxes:
+                if _is_duplicate_line(line, lines):
+                    continue
+                lines.append(line)
+                start, end = line.char_start, line.char_end
+                if start is not None and end is not None:
+                    words.extend(
+                        w2 for w2 in band.word_boxes
+                        if w2.char_start is not None and start <= w2.char_start < end
+                    )
+                recovered += 1
+        if recovered == 0:
+            return base
+        logger.info(
+            "Gap escalation recovered %d line(s) across %d band(s)",
+            recovered, len(gaps),
+        )
+        text, lines, words = _rebase_geometry_reading_order(lines, words)
+        return VisionOCRResult(text=text, line_boxes=lines, word_boxes=words)
+
     # Try Accurate first
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
@@ -1028,7 +1397,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Accurate")
     if geometry is not None:
-        return geometry
+        return _escalate_gaps(geometry)
 
     # Retry with Fast if Accurate returned empty
     logger.info("Retrying with Fast recognition level")
@@ -1038,7 +1407,7 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Fast")
     if geometry is not None:
-        return geometry
+        return _escalate_gaps(geometry)
 
     # Both attempts returned empty
     msg = f"Vision OCR returned empty even at Fast level (lang={language})"
@@ -1226,10 +1595,12 @@ async def apple_vision_ocr_pdf_page_geometry_async(
 
 
 async def apple_vision_ocr_with_geometry_async(
-    image_path: str, language: str = "en"
+    image_path: str, language: str = "en", reference_text: str | None = None
 ) -> VisionOCRResult:
     """Async wrapper for Apple Vision OCR that keeps geometry (#4309)."""
-    return await asyncio.to_thread(apple_vision_ocr_with_geometry, image_path, language)
+    return await asyncio.to_thread(
+        apple_vision_ocr_with_geometry, image_path, language, reference_text
+    )
 
 
 def _apple_geometry_result(result: VisionOCRResult) -> OCRGeometryResult | None:
@@ -1695,6 +2066,36 @@ async def _propagate_to_page_children(
                             **(page_data or {}),
                             "episode_id": page_episode_ids[page_idx],
                         }
+                    # Stamp WHICH picture these boxes were measured on. If this
+                    # node was processed on its own region crop, the boxes are
+                    # fractions of the crop, not of the page — a renderer that
+                    # assumed otherwise would spread an entry's boxes across the
+                    # whole page. One lookup here, rather than threading a
+                    # rendition id through every provider-specific parser, none
+                    # of which know renditions exist.
+                    _page_geometry = (
+                        page_geometries[page_idx]
+                        if page_geometries and page_idx < len(page_geometries)
+                        else None
+                    )
+                    if _page_geometry is not None:
+                        # NOT wrapped in a broad except on purpose. If the
+                        # frame cannot be determined, the artifact would save
+                        # with no rendition_id — which by OMISSION claims the
+                        # boxes are in the document's own frame, and the client
+                        # would draw an entry's boxes across the whole page.
+                        # A silent failure here produces exactly the wrong-frame
+                        # bug this field exists to prevent, so it must surface.
+                        from fichero_server.media.region_crops import (
+                            existing_region_crop,
+                        )
+
+                        _crop = existing_region_crop(db, page_doc)
+                        if _crop is not None:
+                            if hasattr(_page_geometry, "rendition_id"):
+                                _page_geometry.rendition_id = _crop.id
+                            elif isinstance(_page_geometry, dict):
+                                _page_geometry["rendition_id"] = _crop.id
                     if matched:
                         art = matched[0]
                         art.content = artifact_content
@@ -2036,6 +2437,69 @@ def _write_joined_page_content(
     return failures
 
 
+
+def _substitute_region_crops(
+    files: list[str], documents: list[dict], library_path: str
+) -> list[str]:
+    """Swap in each region node's own crop, keeping index alignment exact.
+
+    Returns a NEW list of the same length. A document that is not a band, or
+    that already owns its pixels, keeps its original file untouched.
+
+    A crop that cannot be made honestly leaves the original file in place and
+    logs why. That is deliberate: refusing to run at all would turn "we cannot
+    narrow this to the entry" into a failed run, when the tool can still do
+    useful work on the page — but it must be VISIBLE, never silent, because
+    the result then covers more than the caller asked for.
+    """
+    if not documents or not library_path:
+        return list(files)
+
+    substituted = list(files)
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.media.region_crops import (
+            RegionCropUnavailable,
+            materialize_region_crop,
+        )
+        from fichero_server.models import Document as _Document
+
+        db = db_manager.get_database(library_path)
+    except Exception as exc:  # pragma: no cover - environment
+        logger.warning("region-crop substitution unavailable: %s", exc)
+        return substituted
+
+    for index, doc in enumerate(documents):
+        if index >= len(substituted):
+            break
+        doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
+        if not doc_id:
+            continue
+        try:
+            document = db.get(_Document, doc_id)
+            if document is None or document.region_in_parent is None:
+                continue
+            rendition = materialize_region_crop(db, document, library_path)
+            if rendition is not None and rendition.path:
+                substituted[index] = rendition.path
+                logger.info(
+                    "entry-scoped run: %s will be processed on its own crop",
+                    doc_id,
+                )
+        except RegionCropUnavailable as exc:
+            # The EXPECTED failure, and the only one that is safe to absorb:
+            # `materialize_region_crop` funnels every internal problem into
+            # this type, so anything else reaching here is a genuine bug.
+            # Catching those too would hide a real defect behind a log line —
+            # the #4395 shape — so they are deliberately left to propagate.
+            logger.warning(
+                "entry-scoped run declined for %s — the tool will run on the "
+                "FULL parent image instead: %s",
+                doc_id, exc,
+            )
+    return substituted
+
+
 async def process_vision(
     files: list[str],
     documents: list[dict],
@@ -2068,6 +2532,7 @@ async def process_vision(
     save_to_db: bool = True,
     save_to_file_flag: bool = False,
     return_boxes: bool = False,
+    force_return_boxes: bool = False,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     # Applied to the final LLM text BEFORE any save (#4329). Lets a markup
@@ -2483,7 +2948,7 @@ async def process_vision(
                         f"return_boxes needs the LLM vision path; this run used "
                         f"vision_mode={vision_mode!r}"
                     )
-                elif not _supports_return_boxes(effective_config):
+                elif not (force_return_boxes or _supports_return_boxes(effective_config)):
                     _boxes_unsupported_reason = (
                         f"{getattr(effective_config, 'provider', 'unknown')}/"
                         f"{getattr(effective_config, 'model', 'unknown')} cannot "
@@ -2797,7 +3262,11 @@ async def process_vision(
                         text = "\n\n".join(parts)
                 else:
                     _vision_result = await apple_vision_ocr_with_geometry_async(
-                        file_path, language
+                        file_path,
+                        language,
+                        # The page's existing transcript anchors the recovery
+                        # of lines Vision misses at ordinary spacing.
+                        reference_text=existing_text or None,
                     )
                     text = _vision_result.text
                     page_geometry = _apple_geometry_result(_vision_result)
@@ -3051,11 +3520,27 @@ async def process_vision(
                     f"retrying once before declaring failure"
                 )
                 try:
+                    # A NATIVE-reasoning model (qwen3.6-plus, 2026-08-24) can
+                    # burn the entire max_tokens budget in its reasoning
+                    # channel and hand back EMPTY content — the log signature
+                    # is output ≈ max_tokens exactly. Retrying with the same
+                    # cap fails identically, so the retry raises the ceiling;
+                    # a genuinely empty page still comes back empty and fails
+                    # loudly below.
+                    retry_config = dataclasses.replace(
+                        effective_config,
+                        max_tokens=max(8192, effective_config.max_tokens * 2),
+                        # A default-reasoning model can drown ANY cap (run 3:
+                        # the 8192 retry burned 8193). Disable reasoning
+                        # outright on the retry — the answer channel is what
+                        # we're here for.
+                        reasoning_effort="disabled",
+                    )
                     text = await _vision_resilient(
                         lambda: vision(
                             images=[image_uri],
                             prompt=final_prompt,
-                            config=effective_config,
+                            config=retry_config,
                             language=language,
                         )
                     )
@@ -3079,7 +3564,34 @@ async def process_vision(
                 and not _llm_multipage  # multipage already sanitized per page
                 and (text or "").strip()
             ):
-                text = postprocess_text(text)
+                try:
+                    text = postprocess_text(text)
+                except TranscriptionCommentaryError:
+                    # The thinking preamble asked the model to delimit its
+                    # reasoning and answer after it — a protocol weak models
+                    # fail wholesale (gemini-3.1-flash-lite: 11/12 files,
+                    # Ann's paleography run 2026-08-24, everything inside an
+                    # unclosed <think>). The refusal is correct; the RECOVERY
+                    # is to drop the preamble and let the model just answer.
+                    # One retry, sanitized again — still commentary → the
+                    # original loud failure stands.
+                    if not thinking_preamble or image_uri is None:
+                        raise
+                    logger.warning(
+                        "Transcription came back reasoning-only for %s; "
+                        "retrying once WITHOUT the thinking preamble",
+                        Path(file_path).name,
+                    )
+                    bare_prompt = final_prompt[len(thinking_preamble):]
+                    text = await _vision_resilient(
+                        lambda: vision(
+                            images=[image_uri],
+                            prompt=bare_prompt,
+                            config=effective_config,
+                            language=language,
+                        )
+                    )
+                    text = postprocess_text(text)
                 parsed = parse_output(text, output_format, output_options)
                 if reference_values:
                     parsed = apply_reference_matching(parsed, reference_values)
@@ -3550,6 +4062,21 @@ async def process_vision(
         finally:
             _vision_activity_db_path.reset(activity_scope)
 
+    # ENTRY-SCOPED RUNS (2026-08-23): give region nodes their own pixels.
+    #
+    # `files[i]` is paired POSITIONALLY with `documents[i]`. For a node that is
+    # a band of its parent — a diary entry — `files[i]` is the whole page, so
+    # running a tool "on the entry" runs it on everything around the entry too.
+    #
+    # This rewrites the list ELEMENT-WISE. It cannot change the length, and
+    # that is the entire reason for its shape: a filter or a comprehension that
+    # dropped an entry would shift every later file against its document and
+    # mis-pair the whole batch silently. Rewriting in place cannot do that.
+    #
+    # Anything that is not a region node is left exactly as it was, so the
+    # ordinary page path is untouched.
+    files = _substitute_region_crops(files, documents, library_path)
+
     _schedule_window = max(VISION_FAN_OUT_CONCURRENCY * 8, 32)
     for _start in range(0, len(files), _schedule_window):
         _chunk = files[_start : _start + _schedule_window]
@@ -3598,12 +4125,30 @@ async def process_vision(
     # For single file, return the value directly; for multiple, return list
     single_value = values[0] if len(values) == 1 else values
 
+    # WHAT THIS RUN ACTUALLY DID (2026-08-23). The per-file skip-if-done path
+    # already recorded {"cached": True} and the artifact it reused; nothing
+    # aggregated it, so a node that reused everything reported the same bare
+    # "completed in 0ms" as a node that did the work in no time. Those are
+    # different facts and a reader could not tell them apart.
+    #
+    # A run has to be narratable from its log alone — Daniel re-ran a page,
+    # saw 0ms, and had no way to learn whether anything happened.
+    _reused = [r for r in results if isinstance(r, dict) and r.get("cached")]
+    _reused_artifacts = [
+        a for a in artifact_ids if a
+    ] if len(_reused) == len(results) and results else []
+
     return {
         "text": "\n\n".join(texts),
         "value": single_value,
         "texts": texts,
         "values": values,
         "results": results,
+        # Counts, not booleans: a partial reuse (3 of 5 pages cached) is the
+        # common shape and "cached: true/false" cannot express it.
+        "reused_count": len(_reused),
+        "processed_count": len(results) - len(_reused),
+        "reused_artifact_ids": _reused_artifacts,
         # Canonical records port for workflow edges (e.g.
         # transcribe.records -> extract_all.records). Keep the legacy
         # page_records key for callers that read it directly.

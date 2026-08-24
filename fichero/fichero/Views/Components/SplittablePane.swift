@@ -4,10 +4,26 @@ import SwiftUI
 
 /// Injected by SplittablePane so MiniToolbar can render the split buttons
 /// inside its own bar rather than requiring a separate top bar.
-struct SplitAxisActions: @unchecked Sendable {
+/// Equatable on the VALUE fields (2026-08-24): the closures capture the same
+/// pane state, so only the flags/counts distinguish instances — without this
+/// every render republished a "new" environment value and invalidated every
+/// reader beneath (the same fault class as ImageZoomActions' ×31 republish).
+struct SplitAxisActions: Equatable, @unchecked Sendable {
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.hasVertical == rhs.hasVertical
+            && lhs.hasHorizontal == rhs.hasHorizontal
+            && lhs.paneCount == rhs.paneCount
+            && lhs.verticalCount == rhs.verticalCount
+            && lhs.horizontalCount == rhs.horizontalCount
+    }
+
     let hasVertical: Bool
     let hasHorizontal: Bool
     let paneCount: Int
+    /// Per-axis counts (2026-08-24, the 2×2 grid): `paneCount` is the max
+    /// and cannot gate per-axis menu rows once both axes are live.
+    var verticalCount: Int = 1
+    var horizontalCount: Int = 1
     let onToggleVertical: () -> Void
     let onToggleHorizontal: () -> Void
     let onCollapseSplit: () -> Void
@@ -71,30 +87,37 @@ struct SplitPaneState {
         max(verticalPaneCount, horizontalPaneCount)
     }
 
+    /// Both axes at once — the 2×2 grid (Daniel, 2026-08-23: "I should be
+    /// able to split a pane so we have two vertical and two horizontal —
+    /// when I try, it deletes the other").
+    var isGrid: Bool { hasVertical && hasHorizontal }
+
     mutating func toggleVertical() {
-        horizontalPaneCount = 1
-        verticalPaneCount = cyclePaneCount(verticalPaneCount)
+        // Splitting one axis no longer DELETES the other. In a grid each
+        // axis caps at 2 (2×2); third panes stay a single-axis affair.
+        verticalPaneCount = cyclePaneCount(verticalPaneCount, otherAxisActive: hasHorizontal)
+        if verticalPaneCount > 2 && hasHorizontal { verticalPaneCount = 2 }
     }
 
     mutating func toggleHorizontal() {
-        verticalPaneCount = 1
-        horizontalPaneCount = cyclePaneCount(horizontalPaneCount)
+        horizontalPaneCount = cyclePaneCount(horizontalPaneCount, otherAxisActive: hasVertical)
+        if horizontalPaneCount > 2 && hasVertical { horizontalPaneCount = 2 }
     }
 
     mutating func collapseOnePane() {
-        if verticalPaneCount > 1 {
-            verticalPaneCount -= 1
-            return
-        }
         if horizontalPaneCount > 1 {
             horizontalPaneCount -= 1
+            return
+        }
+        if verticalPaneCount > 1 {
+            verticalPaneCount -= 1
         }
     }
 
-    private func cyclePaneCount(_ count: Int) -> Int {
+    private func cyclePaneCount(_ count: Int, otherAxisActive: Bool) -> Int {
         switch count {
         case 1: return 2
-        case 2: return 3
+        case 2: return otherAxisActive ? 1 : 3
         default: return 1
         }
     }
@@ -179,6 +202,8 @@ struct SplittablePane<Content: View>: View {
             hasVertical: splitState.hasVertical,
             hasHorizontal: splitState.hasHorizontal,
             paneCount: splitState.paneCount,
+            verticalCount: splitState.verticalPaneCount,
+            horizontalCount: splitState.horizontalPaneCount,
             onToggleVertical: toggleVertical,
             onToggleHorizontal: toggleHorizontal,
             onCollapseSplit: collapseSplit
@@ -189,12 +214,73 @@ struct SplittablePane<Content: View>: View {
 
     @ViewBuilder
     private var splitContainer: some View {
-        if splitState.hasVertical {
+        if splitState.isGrid {
+            gridSplitContainer
+        } else if splitState.hasVertical {
             verticalSplitContainer
         } else if splitState.hasHorizontal {
             horizontalSplitContainer
         } else {
             splitPane(isSecondary: false)
+        }
+    }
+
+    // MARK: 2×2 grid (both axes)
+
+    /// Both rows share ONE column divider binding, so the grid stays a grid
+    /// (Xcode's editor-grid look) instead of two independently-torn rows.
+    @ViewBuilder
+    private var gridSplitContainer: some View {
+        GeometryReader { proxy in
+            let availableWidth = proxy.size.width > 0
+                ? Double(proxy.size.width) : verticalPrimaryExtent + 248
+            let availableHeight = proxy.size.height > 0
+                ? Double(proxy.size.height) : horizontalPrimaryExtent + 248
+            let minimumWidth = 240.0
+            let minimumHeight = 160.0
+            let maxPrimaryWidth = max(minimumWidth, availableWidth - 8 - minimumWidth)
+            let maxPrimaryHeight = max(minimumHeight, availableHeight - 8 - minimumHeight)
+            let primaryWidth = CGFloat(clamp(verticalPrimaryExtent, lower: minimumWidth, upper: maxPrimaryWidth))
+            let primaryHeight = CGFloat(clamp(horizontalPrimaryExtent, lower: minimumHeight, upper: maxPrimaryHeight))
+
+            VStack(spacing: 0) {
+                gridRow(primaryWidth: primaryWidth, maxPrimaryWidth: maxPrimaryWidth,
+                        minimumWidth: minimumWidth, isTopRow: true)
+                    .frame(maxWidth: .infinity).frame(height: primaryHeight)
+
+                ResizableDivider(
+                    width: $horizontalPrimaryExtent,
+                    minWidth: minimumHeight,
+                    maxWidth: maxPrimaryHeight,
+                    edge: .leading,
+                    axis: .vertical
+                )
+
+                gridRow(primaryWidth: primaryWidth, maxPrimaryWidth: maxPrimaryWidth,
+                        minimumWidth: minimumWidth, isTopRow: false)
+                    .frame(maxWidth: .infinity, minHeight: CGFloat(minimumHeight), maxHeight: .infinity)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func gridRow(primaryWidth: CGFloat, maxPrimaryWidth: Double,
+                         minimumWidth: Double, isTopRow: Bool) -> some View {
+        HStack(spacing: 0) {
+            splitPane(isSecondary: !isTopRow)
+                .frame(width: primaryWidth)
+
+            ResizableDivider(
+                width: $verticalPrimaryExtent,
+                minWidth: minimumWidth,
+                maxWidth: maxPrimaryWidth,
+                edge: .leading
+            )
+
+            splitPane(isSecondary: true)
+                .frame(minWidth: CGFloat(minimumWidth), maxWidth: .infinity)
         }
     }
 

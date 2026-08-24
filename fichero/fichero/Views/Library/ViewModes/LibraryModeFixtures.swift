@@ -65,7 +65,7 @@ enum LibraryPreviewFixtures {
                 detailDocument: .constant(nil),
                 viewMode: .constant(layout),
                 isPaneFocused: true,
-                displayMode: displayMode,
+                defaultDisplayMode: displayMode,
                 folderId: nil
             )
         )

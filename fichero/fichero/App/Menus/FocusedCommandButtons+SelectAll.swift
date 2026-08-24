@@ -22,6 +22,10 @@ import SwiftUI
 @MainActor
 struct SelectAllButton: View {
     @FocusedValue(\.librarySelectAll) private var librarySelectAll
+    @FocusedValue(\.inspectorSelectAll) private var inspectorSelectAll
+    @FocusedValue(\.focusedPaneKind) private var focusedPane
+    @FocusedValue(\.sidebarSelectAll) private var sidebarSelectAll
+    @FocusedValue(\.previewSelectAll) private var previewSelectAll
 
     var body: some View {
         Button("Select All") {
@@ -37,8 +41,37 @@ struct SelectAllButton: View {
     private var route: SelectAllRoute {
         SelectAllRoutingPolicy.route(
             isTextEditing: FocusedTextResponder.isEditing,
-            libraryHasSelectableRows: librarySelectAll?.isEnabled == true
+            focusedSurface: focusedSurface
         )
+    }
+
+    /// The surface that both HOLDS focus and has rows to select.
+    ///
+    /// Both halves are required. A publication alone is not focus — these are
+    /// scene-scoped, so the library's is live whenever a library pane is on
+    /// screen — and focus alone is not rows, since an empty list must decline
+    /// so the key equivalent can fall through.
+    private var focusedSurface: SelectAllSurface? {
+        switch focusedPane {
+        case .inspector:
+            return inspectorSelectAll?.isEnabled == true ? .inspectorList : nil
+        case .sidebar:
+            return sidebarSelectAll?.isEnabled == true ? .sidebarRows : nil
+        case .preview:
+            return previewSelectAll?.isEnabled == true ? .previewImage : nil
+        case .reading:
+            // DELIBERATELY nil: the reader is WebKit and selecting its text is
+            // the web view's own job, so this route declines and the key
+            // equivalent falls through. Spelled out rather than left to the
+            // default branch, because "the reader works" was previously an
+            // accident of the library's enablement rather than a decision.
+            return nil
+        default:
+            // The library is the default owner, as it was before the inspector
+            // could answer: no pane hint at all still means the library, which
+            // is what keeps a plain library window behaving exactly as it did.
+            return librarySelectAll?.isEnabled == true ? .libraryRows : nil
+        }
     }
 
     private func performSelectAll() {
@@ -52,6 +85,12 @@ struct SelectAllButton: View {
             FocusedTextResponder.selectAll()
         case .libraryRows:
             librarySelectAll?.run()
+        case .inspectorList:
+            inspectorSelectAll?.run()
+        case .sidebarRows:
+            sidebarSelectAll?.run()
+        case .previewImage:
+            previewSelectAll?.run()
         }
     }
 }

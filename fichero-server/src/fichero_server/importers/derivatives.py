@@ -215,15 +215,33 @@ def _embed_document_tree(doc: Document, db: "Database") -> str | None:
                 "Deferred embed failed for %s: %s", target.id, exc
             )
     if targets:
+        # chars + rss make the 951s-for-"1 target" case explicable at a
+        # glance (the 2026-08-22 Air OOM: one target hid thousands of
+        # passages) and give the death-by-memory ramp a visible slope.
+        total_chars = sum(len(t.page_content or "") for t in targets)
         logger.info(
             "derivatives.embed doc=%s targets=%d embedded=%d failed=%d "
-            "elapsed_ms=%d",
+            "elapsed_ms=%d chars=%d rss_mb=%d",
             doc.id, len(targets), embedded, failures,
             int((_time.monotonic() - started) * 1000),
+            total_chars, _current_rss_mb(),
         )
     if failures:
         return f"{failures} of {len(targets)} embeds failed"
     return None
+
+
+def _current_rss_mb() -> int:
+    """This process's resident set, in MB — the one number the three
+    2026-08-22 silent deaths never logged."""
+    try:
+        import resource
+
+        # ru_maxrss is BYTES on macOS, KB on Linux.
+        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return int(peak / (1 << 20)) if peak > (1 << 30) else int(peak / 1024)
+    except Exception:  # pragma: no cover - platform without resource
+        return -1
 
 
 def _open_stage_db(library: str, doc_id: str) -> "tuple[Database, Document] | None":

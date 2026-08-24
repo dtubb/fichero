@@ -22,59 +22,31 @@ extension AddProviderSheet {
 
             Divider()
 
-            // Embed the model browser content with select mode (same as Add Model sheet)
+            // Click-to-add (Daniel, 2026-08-24: "we don't need to click
+            // Done"). The staged select-then-confirm flow is what lost Ann's
+            // Gemini model — a highlighted row read as "added" and the
+            // default-action Done discarded it. Immediate mode adds on the
+            // row click, the row grows a green check, and a failed add shows
+            // in red inside the browser.
             if let provider = addedProvider {
                 AIModelSelectionView(
                     providerType: provider.providerType,
                     providerId: provider.id,
-                    selectionMode: .select,
+                    selectionMode: .immediate,
                     selectedModel: $selectedModelForStep3,
-                    onModelAdded: {
-                        // Clear selection after adding
-                        selectedModelForStep3 = nil
-                    }
+                    onModelAdded: {}
                 )
             }
 
             Divider()
 
-            // Footer with Add Model and Done buttons
             HStack {
                 Spacer()
-
-                Button("Add Model") {
-                    addModelInStep3()
-                }
-                .disabled(selectedModelForStep3 == nil || isAddingModel)
-
-                Button("Done") {
-                    dismiss()
-                }
-                .keyboardShortcut(.defaultAction)
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-        }
-    }
-
-    func addModelInStep3() {
-        guard let model = selectedModelForStep3, let provider = addedProvider else { return }
-        isAddingModel = true
-
-        Task { @MainActor in
-            do {
-                _ = try await providerService.addModel(
-                    providerId: provider.id,
-                    modelId: model.modelId,
-                    name: model.fullName,
-                    isDefault: false
-                )
-                selectedModelForStep3 = nil
-                isAddingModel = false
-            } catch {
-                addProviderLogger.error("Add model failed: \(String(describing: error))")
-                isAddingModel = false
-            }
         }
     }
 }

@@ -2,6 +2,8 @@
 
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
+# anchors.py imports nothing from the project, so this cannot cycle.
+from fichero_server.models.anchors import SourceAnchor
 from enum import Enum
 from uuid import uuid4
 
@@ -584,7 +586,12 @@ class SourceSupport(BaseModel):
     source_excerpt: str | None = None
     source_char_start: int | None = None
     source_char_end: int | None = None
-    source_bbox: list[float] | None = None
+    #: WHERE on the page this evidence sits, as the shared anchor
+    #: (2026-08-22). Was a bare `source_bbox` naming no frame and no
+    #: coordinate space. `source_char_start`/`source_char_end` above stay for
+    #: now — they are the #913 substrate read directly in several places, and
+    #: folding them into the anchor is the next retirement, not this one.
+    source_anchor: SourceAnchor | None = None
     support_basis: EvidenceBasis = EvidenceBasis.asserted
     support_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     date_values: list[EvidentialDateRange] = Field(default_factory=list)
@@ -1363,10 +1370,31 @@ class Annotation(BaseModel):
     # Sub-page anchors (reuse #913 substrate).
     char_start: int | None = None
     char_end: int | None = None
-    # Image / PDF region as [x, y, width, height] fractions in [0, 1].
-    bbox: list[float] | None = Field(
+    # WHERE this annotation points, as the shared anchor (2026-08-22).
+    #
+    # This was a bare `bbox: list[float]` whose description said "fractions of
+    # source dimensions" — and "source" was never defined. That is the exact
+    # defect this whole program exists to remove: four numbers that never name
+    # the pixel frame they are fractions OF. A highlight drawn on an enhanced,
+    # deskewed rendition was stored indistinguishably from one drawn on the
+    # archival original, so it could be redrawn over the wrong pixels and
+    # nothing in the record could tell.
+    #
+    # `SourceAnchor` carries `rendition_id`, so a user's highlight can finally
+    # say which frame it was drawn on — the same guarantee the OCR boxes got.
+    # It also brings `granularity`, `polygon` for regions a rectangle cannot
+    # express, and `refines` for a span WITHIN a region, which is what the W3C
+    # export needs to emit `refinedBy` instead of a flat "any of these" list.
+    #
+    # `char_start`/`char_end` above stay for now: they are the #913 substrate
+    # that predates anchors and are read directly in several places. The anchor
+    # can carry them too; unifying that is the next retirement, not this one.
+    anchor: SourceAnchor | None = Field(
         default=None,
-        description="Bounding box [x, y, width, height] as fractions of source dimensions in [0, 1].",
+        description=(
+            "Where this annotation points: the region and/or span, naming the "
+            "rendition its coordinates belong to."
+        ),
     )
     # How this annotation is anchored to its source — lets the reader render the
     # right control (text highlight vs image box vs a paragraph checkmark) and
@@ -1403,10 +1431,10 @@ class Annotation(BaseModel):
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
-    @field_validator("bbox")
-    @classmethod
-    def validate_bbox(cls, value: list[float] | None) -> list[float] | None:
-        return validate_annotation_bbox(value)
+    # The bbox validator is gone with the field: `SourceAnchor` validates its
+    # own rect by construction, so the rule is now enforced everywhere an
+    # anchor exists rather than on this one model — which was the original
+    # complaint (the invariant was written down and applied to 1 of 6 fields).
 
     @field_validator("color")
     @classmethod
@@ -1593,14 +1621,20 @@ class KnowledgeClaim(BaseModel):
             "basis/assertion type, confidence, and source anchoring."
         ),
     )
-    source_bbox: list[float] | None = Field(
+    source_anchor: SourceAnchor | None = Field(
         default=None,
         description=(
-            "[x, y, width, height] in PDF page coordinates. Populated "
-            "via PyMuPDF page.search(excerpt) for PDF-backed claims; "
-            "None for text-only or when the search misses."
+            "Where this claim's evidence sits on the page, naming the "
+            "coordinate space and the rendition it belongs to."
         ),
     )
+    # Was `source_bbox: list[float]`, documented as "[x, y, width, height] in
+    # PDF PAGE COORDINATES" — i.e. PIXELS, while Annotation's bbox next door
+    # was normalized fractions. Two fields spelled the same way in two
+    # different coordinate spaces, neither of them declaring which: the same
+    # defect as the unnamed frame, one level down. `SourceAnchor.space` states
+    # it, so a PyMuPDF search result records `space=pixel` honestly instead of
+    # being silently read as a fraction.
     # --- multi-source ---
     source_type: SourceType = SourceType.document
     source_ids: list[str] = Field(default_factory=list)  # additional source doc IDs

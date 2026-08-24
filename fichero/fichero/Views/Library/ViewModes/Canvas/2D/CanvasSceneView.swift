@@ -46,6 +46,16 @@ struct CanvasSceneView: View {
     /// canvas renders colored placeholders (user, live 2026-08-19).
     var storageService: StorageService?
 
+    /// WHICH cards matter right now — the active search's score-weighted heat
+    /// map today, an entity highlight when a picker lands (§25.4 step 2). One
+    /// channel, so the two can never grow different visual languages. Neutral
+    /// outside a search, and it moves nothing.
+    var emphasis: CanvasEmphasis = .neutral
+
+    /// WHAT each card is, in colour (§20.3 Colour by) — the other re-encode
+    /// channel, produced by the host from document attributes.
+    var tint: CanvasTint = .neutral
+
     // These three are internal, not private, for the same reason as the resize
     // state above: `CanvasSceneView+Resize.swift` needs them and `private` is
     // FILE-scoped in Swift.
@@ -70,7 +80,14 @@ struct CanvasSceneView: View {
     // drag marquees whether or not it's held, so there is nothing to consult.
     @State var optionHeld = false
     @State private var spaceHeld = false
-    @State private var marqueeRect: CGRect?
+    // @GestureState, not @State (ghost-marquee fix, 2026-08-22): SwiftUI
+    // never calls .onEnded on a CANCELLED gesture — a competing recognizer
+    // winning, Space pressed mid-drag, the window losing focus — so a @State
+    // rect cleared only in .onEnded stayed painted. @GestureState resets on
+    // end AND cancel, so the rectangle structurally cannot outlive the drag.
+    // Internal, not private: `marqueeOverlay` moved to +Gestures.swift (this
+    // file is at its file_length ceiling) and Swift's `private` is FILE-scoped.
+    @GestureState var marqueeRect: CGRect?
 
     // Resize-handle drag state (#4409). Internal, not private: the gesture that
     // reads it lives in `CanvasSceneView+Resize.swift` and Swift's `private` is
@@ -80,6 +97,30 @@ struct CanvasSceneView: View {
     @State var resizeLiveSize: CGSize?
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
+
+    /// The §20.3 "Arrange by" axis, written by `CanvasArrangePicker`. Both
+    /// canvases READ this one key: they share a layout store, so a board they
+    /// disagree about is two different boards.
+    @AppStorage(CanvasArrangement.storageKey) private var arrangementRaw = CanvasArrangement.asFiled.rawValue
+
+    /// How many cards the board lays out — nodes plus the non-link items, the
+    /// same sequence `CanvasSceneState.resolve` slots.
+    private var placeableCount: Int {
+        nodes.count + (itemStore?.items(for: scopeKey) ?? []).filter { $0.kind != .link }.count
+    }
+
+    /// The default grid's cell pitch, from the page aspects loaded so far
+    /// (§18.1 defect 4). Aspects arrive as textures load, so a board of
+    /// row-less cards can re-flow ONCE as they land — the same class of re-flow
+    /// as resizing the window, and bounded the same way: a saved row always
+    /// wins, so nothing the user has placed ever moves.
+    private var gridCell: CGSize {
+        CanvasGridPlacement.cell(
+            forAspects: CanvasCardGeometry.knownAspects(
+                forSourceIds: nodes.compactMap(\.sourceId)
+            )
+        )
+    }
 
     /// The current scene resolved from the shared stores (canonical world space),
     /// with the single selection mirrored into the scene's selection set. Reading
@@ -97,35 +138,42 @@ struct CanvasSceneView: View {
             links: links,
             layoutRows: layoutStore?.layout(for: scopeKey) ?? [],
             items: itemStore?.items(for: scopeKey) ?? [],
-            // TEN columns, identical in 2D and 3D (user, 2026-08-20): one
-            // shared default so the two canvases show the SAME board — they
-            // already share the layout store, so a move in one is a move in
-            // the other; the default must match too.
-            defaultPlacement: .grid(columns: 10)
+            // Columns from the ONE shared derivation, identical in 2D and 3D
+            // (user, 2026-08-20: one shared default so the two canvases show
+            // the SAME board — they already share the layout store, so a move
+            // in one is a move in the other). Viewport-derived now (§18.1
+            // defect 3), but derived in a single renderer-independent place so
+            // the two canvases still cannot drift apart.
+            defaultPlacement: .grid(
+                columns: CanvasGridPlacement.sharedColumnCount(
+                    itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
+                )
+            ),
+            // Pitch from the board's ACTUAL card extents, not the nominal
+            // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
+            // area, so a double-spread is 1.22 wide and needs the room.
+            gridCell: gridCell,
+            arrangement: CanvasArrangement.stored(arrangementRaw)
         )
         state.selection = selectedNodeIds
+        state.emphasis = emphasis
+        state.tint = tint
         return state
-    }
-
-    /// Columns for the default grid, measured at the camera's FIT scale — not its
-    /// live one, so zooming never re-flows the board under the pointer.
-    private func gridColumns(in viewportSize: CGSize) -> Int {
-        CanvasGridPlacement.columnCount(
-            viewportSize: viewportSize,
-            worldPerPoint: Canvas2DProjection.worldPerPoint(
-                orthoScale: CanvasOrtho2DRenderer.defaultOrthoScale,
-                viewHeight: viewportSize.height
-            )
-        )
     }
 
     var body: some View {
         GeometryReader { geo in
             RealityView { content in
+                // BEFORE the first reconcile (first-load fix, 2026-08-22, same
+                // as CanvasSpaceView): configureController runs in `.task`,
+                // after this closure — cards built here otherwise fetch with a
+                // nil service and fall back to the global library.
+                renderer.storageService = storageService
                 content.add(renderer.camera)
                 content.add(renderer.root)
                 renderer.reconcile(to: resolvedState(in: geo.size))
             } update: { _ in
+                renderer.storageService = storageService
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
                 renderer.reconcile(to: resolvedState(in: geo.size))
             }
@@ -140,7 +188,6 @@ struct CanvasSceneView: View {
             .highPriorityGesture(resizeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(nodeDrag(in: geo.size), isEnabled: !spaceHeld)
             .highPriorityGesture(tapSelect)
-            .simultaneousGesture(doubleTapZoom)
             .onReceive(NotificationCenter.default.publisher(for: .canvasFocusZoomToggle)) { note in
                 guard let id = note.object as? String else { return }
                 toggleFocusZoom(on: id)
@@ -205,6 +252,12 @@ struct CanvasSceneView: View {
             }
             #endif
             .overlay { marqueeOverlay }
+            // Same strip, same corner as 3D — one board, one place to say
+            // what it means.
+            // Arrange/Colour-by moved to the library's ONE bottom bar
+            // (Daniel, 2026-08-23): they filter/colourise, so they live with
+            // sort and filter, not floating over the board.
+            .focusedSceneValue(\.canvasViewActions, canvasCommandActions)
             // Arrow keys pan, ⌘A selects all — the shared canvas keyboard
             // grammar (user, 2026-08-19).
             .modifier(CanvasKeyboardNav(
@@ -225,20 +278,6 @@ struct CanvasSceneView: View {
                 await layoutStore?.loadLayout(folderId: folderId)
                 await itemStore?.loadItems(folderId: folderId)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var marqueeOverlay: some View {
-        if let rect = marqueeRect {
-            // SAME style as the icon grid's LibraryMarquee (#4601): the
-            // full-opacity stroke read darker than every other marquee.
-            Rectangle()
-                .fill(Color.accentColor.opacity(0.15))
-                .overlay(Rectangle().stroke(Color.accentColor.opacity(0.6), lineWidth: 1))
-                .frame(width: rect.width, height: rect.height)
-                .position(x: rect.midX, y: rect.midY)
-                .allowsHitTesting(false)
         }
     }
 
@@ -276,6 +315,16 @@ struct CanvasSceneView: View {
     /// Where double-click zoom returns to; nil = not zoomed into a node.
     @State var focusReturnSnapshot: (position: SIMD3<Float>, scale: Float)?
 
+    /// Where this WINDOW has been looking (§16) — view state, saved nowhere.
+    @State var jumpHistory = CanvasJumpHistory<(position: SIMD3<Float>, scale: Float)>()
+    /// Manual double-click detection INSIDE tapSelect (2026-08-22): a
+    /// separate simultaneous TapGesture(count: 2) joined the gesture set and
+    /// broke the exclusivity that let tapSelect's success suppress the
+    /// background-clear tap — every click selected and was instantly wiped
+    /// ("you can't single click on an item"). One gesture, no interplay.
+    @State var lastTapNodeId: String?
+    @State var lastTapAt: Date = .distantPast
+
     // MARK: - Gestures
 
     func draggedWorld(
@@ -305,22 +354,29 @@ struct CanvasSceneView: View {
     /// below is decided rather than racing whichever handler SwiftUI runs first.
     private func panOrMarquee(in size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 6)
-            .onChanged { value in
+            .updating($marqueeRect) { value, state, _ in
                 // A live resize is a drag too, and it starts on a handle rather
                 // than on a card — so `draggingNodeId` is nil and the marquee
                 // would rubber-band across the board while the user resizes.
-                guard resizeHandle == nil else { marqueeRect = nil; return }
-                guard draggingNodeId == nil else { marqueeRect = nil; return }
-                if spaceHeld {
-                    panCamera(by: value.translation, in: size)
-                } else {
-                    marqueeRect = Canvas2DProjection.marqueeRect(
+                guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {
+                    state = nil
+                    return
+                }
+                state = Canvas2DProjection.marqueeRect(
+                    from: value.startLocation, to: value.location
+                )
+            }
+            .onChanged { value in
+                guard resizeHandle == nil, draggingNodeId == nil, spaceHeld else { return }
+                panCamera(by: value.translation, in: size)
+            }
+            .onEnded { value in
+                // marqueeRect is already reset here (@GestureState), so the
+                // commit rect is recomputed from the gesture's own value.
+                if resizeHandle == nil, draggingNodeId == nil, !spaceHeld {
+                    let rect = Canvas2DProjection.marqueeRect(
                         from: value.startLocation, to: value.location
                     )
-                }
-            }
-            .onEnded { _ in
-                if resizeHandle == nil, draggingNodeId == nil, !spaceHeld, let rect = marqueeRect {
                     // ⇧/⌘ held while rubber-banding ADDS to the selection
                     // (#4436) — read at .onEnded, the moment the marquee
                     // commits, exactly as the tap path reads them.
@@ -329,7 +385,6 @@ struct CanvasSceneView: View {
                         modifiers: CanvasInteractionController.liveSelectionModifiers()
                     ))
                 }
-                marqueeRect = nil
                 panBaseline = .zero
             }
     }

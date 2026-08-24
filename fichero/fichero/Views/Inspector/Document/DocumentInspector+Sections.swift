@@ -14,22 +14,39 @@ extension DocumentInspector {
         case .notes:
             DocumentNotesTab(document: doc)
         case .interpretations:
-            DocumentInterpretationsTab(document: doc)
+            withInspectorBar(doc) { DocumentInterpretationsTab(document: doc) }
         case .entities:
-            entitiesTab(for: doc)
+            withInspectorBar(doc) { entitiesTab(for: doc) }
         case .knowledgeGraph:
             knowledgeGraphTab(for: doc)
         case .citations:
             CitationsInspectorPane(document: doc)
         case .related:
-            DocumentInspectorRelatedTab(
-                document: doc,
-                onNavigateToSource: onNavigateToSource
-            )
+            withInspectorBar(doc) {
+                DocumentInspectorRelatedTab(
+                    document: doc,
+                    onNavigateToSource: onNavigateToSource
+                )
+            }
         case .edits:
-            editsTab(for: doc)
+            withInspectorBar(doc) { editsTab(for: doc) }
         case .info:
-            infoTab(for: doc)
+            withInspectorBar(doc) { infoTab(for: doc) }
+        }
+    }
+
+    /// EVERY inspector sub-pane carries the shared bottom mini toolbar
+    /// (Daniel, 2026-08-23: "sometimes has one, sometimes doesn't, different
+    /// heights — should be consistent"). Panes with their own bar (Artifacts,
+    /// Notes, Annotations, KG, Citations) keep it; the rest get this shell
+    /// with the document as the status line.
+    @ViewBuilder
+    private func withInspectorBar<C: View>(_ doc: Document, @ViewBuilder _ content: () -> C) -> some View {
+        VStack(spacing: 0) {
+            content()
+            InspectorBottomMiniToolbar(statusText: DocumentTitle.displayName(for: doc)) {
+                EmptyView()
+            }
         }
     }
 
@@ -37,7 +54,7 @@ extension DocumentInspector {
     private func contentTab(for doc: Document) -> some View {
         // Source section = a Content / Outline mode toggle (#3440). The native
         // document Outline is a hierarchy mode within Source, not a new tab.
-        SourceSectionView(document: doc)
+        withInspectorBar(doc) { SourceSectionView(document: doc) }
     }
 
     @ViewBuilder

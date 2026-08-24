@@ -12,7 +12,11 @@ struct ImagePreviewMenuCommands: View {
 
     // MARK: - Focused Values
 
-    @FocusedValue(\.imageZoomActions) private var zoomActions
+    @FocusedValue(\.imageZoomActions) private var imageZoom
+    @FocusedValue(\.readerZoomActions) private var readerZoom
+    /// The preview's actions win when an image view is up; the reader's
+    /// carry the same commands otherwise (2026-08-24 key split).
+    private var zoomActions: ImageZoomActions? { imageZoom ?? readerZoom }
     private var hasActiveImagePreview: Bool { zoomActions != nil }
 
     // MARK: - Storage

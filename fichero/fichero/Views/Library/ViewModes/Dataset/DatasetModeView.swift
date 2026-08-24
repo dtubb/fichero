@@ -11,6 +11,9 @@ struct DatasetModeView: View {
     /// (Daniel 2026-08-14); this shell only hosts the shared load + status.
     let renderer: DatasetRenderer
     let folderId: String?
+    /// Active search's hit ids; nil = no search. Scopes the dataset query so
+    /// data views show ONLY hits (the "91 results over 4,237 items" defect).
+    var searchHitIds: [String]?
     let documentService: DocumentService
     /// Nil disables editing (previews, closed library) — read-only is an
     /// honest state, not an error.
@@ -29,45 +32,65 @@ struct DatasetModeView: View {
     /// night: "select them, and then run svo on them"). Empty hides the menu.
     /// Feeds the pane's status line the DATASET's numbers and nouns.
     var onSelectionStatus: (DatasetSelectionStatus) -> Void = { _ in }
+    /// The rows this renderer is SHOWING, in view order — what ⌘A covers here.
+    /// Published upward for the same reason the selection is (Daniel,
+    /// 2026-08-23: "visible surface, always"): the dataset filters by date and
+    /// prototype in its own store, so the library's document list is not what
+    /// the user is looking at.
+    var onVisibleIds: ([String]) -> Void = { _ in }
     var workflows: [WorkflowSidebarItem] = []
     var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
-    @State private var store = DatasetModeStore()
-    /// Card selection — the batch a context-menu run targets.
-    @State private var selection: Set<String> = []
+    /// The selection — SHARED with the library shell, not private to this
+    /// view (Daniel's ruling, 2026-08-23: "visible surface, always").
+    ///
+    /// It used to be `@State private`, which meant the bottom bar's Delete and
+    /// Run Workflow, and the menu bar's ⌘A and Delete, acted on the browser's
+    /// selection — invisible in a dataset mode and not what the user had
+    /// picked — while the context menu two inches away acted on the row they
+    /// clicked. Same verb, same screen, different target set. Bound upward,
+    /// every surface targets what the user can see, and the existing
+    /// single-selection router keeps driving preview/reader/inspector.
+    ///
+    /// The same shape the canvases already use (see LibraryView's note that
+    /// "Canvas/spatial selection is NOT separate state").
+    @Binding var selection: Set<String>
+
+    /// Owned by LibraryView since 2026-08-24 (the one-bottom-bar fold): the
+    /// bar's facet cluster and this renderer act on the SAME store. This view
+    /// still drives its lifecycle (the load/debounce tasks below).
+    let store: DatasetModeStore
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                if store.isLoading { ProgressView().controlSize(.small) }
-                if let editError = store.editErrorText {
-                    Label(editError, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .lineLimit(1)
+            // NO count header (Daniel, 2026-08-23): "425 items" told nobody
+            // anything and painted an opaque band behind the floating head.
+            // Loading/error keep a slot only while they have something to say.
+            if store.isLoading || store.editErrorText != nil {
+                HStack {
+                    if store.isLoading { ProgressView().controlSize(.small) }
+                    if let editError = store.editErrorText {
+                        Label(editError, systemImage: "exclamationmark.triangle")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                if let page = store.page {
-                    Text("\(page.total) item\(page.total == 1 ? "" : "s")")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                Divider()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            Divider()
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            if store.page?.rows.isEmpty == false {
-                datasetFilterBar
-            }
+            // The facet bar moved into the library's ONE bottom bar
+            // (DatasetFilterCluster, Daniel 2026-08-24) — no second row.
         }
         // Fill the pane like every other library view mode (Daniel: "not
         // the right height like the other library views").
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task(id: folderId) {
-            await store.load(folderId: folderId, service: documentService)
+        .task(id: "\(folderId ?? "")|\(searchHitIds.map { "\($0.count)-\($0.hashValue)" } ?? "nosearch")") {
+            await store.load(folderId: folderId, searchHitIds: searchHitIds, service: documentService)
         }
         // ONE router from selection to the other panes (2026-08-16, Daniel:
         // "changing selection in grid view doesn't change preview or reader
@@ -85,10 +108,10 @@ struct DatasetModeView: View {
             else { return }
             onOpen(row)
         }
-        .onChange(of: store.dateFilter) { _, _ in reportSelectionStatus() }
-        .onChange(of: store.prototypeFilter) { _, _ in reportSelectionStatus() }
+        .onChange(of: store.dateFilter) { _, _ in reportVisible() }
+        .onChange(of: store.prototypeFilter) { _, _ in reportVisible() }
         .onChange(of: store.isLoading) { _, loading in
-            if !loading { reportSelectionStatus() }
+            if !loading { reportVisible() }
         }
         .task(id: refreshToken) {
             // Skip the mount tick — the folderId task above owns first load.
@@ -98,8 +121,16 @@ struct DatasetModeView: View {
             // last event.
             try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled else { return }
-            await store.load(folderId: folderId, service: documentService)
+            await store.load(folderId: folderId, searchHitIds: searchHitIds, service: documentService)
         }
+    }
+
+    /// Status AND the visible-id list travel together: they answer the same
+    /// question ("what is this renderer showing?") and drifting apart would put
+    /// ⌘A and the status line on different row sets.
+    private func reportVisible() {
+        reportSelectionStatus()
+        onVisibleIds(store.orderedVisibleRows.map(\.id))
     }
 
     /// The dataset's numbers in the dataset's language: rows that carry
@@ -115,100 +146,6 @@ struct DatasetModeView: View {
         onSelectionStatus(DatasetSelectionStatus(
             count: selected.count, total: rows.count, noun: noun, detail: detail
         ))
-    }
-
-    /// The facet strip for the rows THIS pane renders — the control lives
-    /// with the surface it acts on (#4407 rule; the library mini toolbar's
-    /// sort/filter act on the list view, not on these renderers). Dates +
-    /// Type today; the entity facet joins here once entries carry entity
-    /// links (task #31 spec).
-    @ViewBuilder
-    private var datasetFilterBar: some View {
-        PaneFilterBar(placement: .bottom) {
-            Menu {
-                ForEach(DatasetDateFilter.allCases) { choice in
-                    Button {
-                        store.dateFilter = choice
-                    } label: {
-                        Text(choice.rawValue)
-                        if store.dateFilter == choice {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            } label: {
-                Label(
-                    store.dateFilter == .all ? "Dates" : store.dateFilter.rawValue,
-                    systemImage: "calendar.badge.checkmark"
-                )
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Show all rows, only dated rows, or only undated rows")
-
-            Menu {
-                ForEach(DatasetModeStore.TextDetail.allCases) { choice in
-                    Button {
-                        store.textDetail = choice
-                    } label: {
-                        Text(choice.rawValue)
-                        if store.textDetail == choice {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            } label: {
-                Label("Text", systemImage: "text.alignleft")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help("Show the excerpt or the full entry text on cards")
-
-            if store.availablePrototypes.count > 1 {
-                Menu {
-                    Button {
-                        store.prototypeFilter = nil
-                    } label: {
-                        Text("All Types")
-                        if store.prototypeFilter == nil {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                    Divider()
-                    ForEach(store.availablePrototypes, id: \.self) { key in
-                        Button {
-                            store.prototypeFilter = key
-                        } label: {
-                            Text(key.replacingOccurrences(of: "_", with: " ").capitalized)
-                            if store.prototypeFilter == key {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                } label: {
-                    Label("Type", systemImage: "tag")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help("Show only rows of one document type")
-            }
-
-            Spacer(minLength: 8)
-
-            if store.dateFilter != .all || store.prototypeFilter != nil {
-                Text("\(store.visibleRows.count) of \(store.page?.rows.count ?? 0)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                Button("Clear") {
-                    store.dateFilter = .all
-                    store.prototypeFilter = nil
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Clear dataset filters")
-            }
-        }
     }
 
     @ViewBuilder
@@ -258,13 +195,23 @@ struct DatasetModeView: View {
                 )
             case .timeline:
                 DatasetTimelineView(store: store, selection: $selection,
-                                    onOpen: onOpen, onOpenSource: onOpenSource)
+                                    onOpen: onOpen, onOpenSource: onOpenSource,
+                                    documentService: documentService,
+                                    workflows: workflows,
+                                    onRunWorkflow: onRunWorkflow)
             case .calendar:
                 DatasetCalendarView(store: store, entityService: entityService,
                                     selection: $selection,
-                                    onOpen: onOpen, onOpenSource: onOpenSource)
+                                    onOpen: onOpen, onOpenSource: onOpenSource,
+                                    documentService: documentService,
+                                    workflows: workflows,
+                                    onRunWorkflow: onRunWorkflow)
             case .map:
-                DatasetMapView(store: store, onOpen: onOpen)
+                DatasetMapView(store: store, onOpen: onOpen,
+                               onOpenSource: onOpenSource,
+                               documentService: documentService,
+                               workflows: workflows,
+                               onRunWorkflow: onRunWorkflow)
             }
         }
     }

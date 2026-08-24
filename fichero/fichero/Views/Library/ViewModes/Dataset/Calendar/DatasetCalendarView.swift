@@ -14,6 +14,10 @@ struct DatasetCalendarView: View {
     @Binding var selection: Set<String>
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
+    /// Nil = exclusion items hidden (previews, closed library).
+    var documentService: DocumentService?
+    var workflows: [WorkflowSidebarItem] = []
+    var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
     /// "YYYY-MM" currently shown; seeded from the first binned month.
     @State private var month: String = ""
@@ -252,20 +256,30 @@ struct DatasetCalendarView: View {
     }
 
     @ViewBuilder
+    /// The ONE dataset row menu — a day cell targets the day's rows, so the
+    /// batch a verb applies to is the whole cell rather than one entry.
     private func dayCellMenu(_ rows: [DatasetPage.Row]) -> some View {
-        ForEach(rows) { row in
-            Button("Open \(row.name)") { onOpen(row) }
-        }
-        if let first = rows.first, first.parentId != nil {
-            Button("Show Source Page") { onOpenSource(first) }
-        }
-        if entityService != nil, store.attributeForRole["date"] != nil,
-           let first = rows.first {
-            Button("Edit Date…") {
-                draftDate = store.dateValue(of: first) ?? ""
-                editingRow = first
-            }
-        }
+        DatasetRowMenu(
+            rows: rows,
+            targets: cellTargets(rows),
+            canEditDate: entityService != nil && store.attributeForRole["date"] != nil,
+            documentService: documentService,
+            workflows: workflows,
+            onOpen: onOpen,
+            onOpenSource: onOpenSource,
+            onEditDate: { row in
+                draftDate = store.dateValue(of: row) ?? ""
+                editingRow = row
+            },
+            onRunWorkflow: onRunWorkflow
+        )
+    }
+
+    /// The Finder rule for a day cell: if the click lands inside the current
+    /// selection the batch IS the selection, else it is the day.
+    private func cellTargets(_ rows: [DatasetPage.Row]) -> [String] {
+        let ids = rows.map(\.id)
+        return ids.contains(where: selection.contains) ? Array(selection) : ids
     }
 }
 

@@ -53,6 +53,34 @@ enum AnnotationKind: String, Codable, CaseIterable, Identifiable {
 /// in source coordinates). Decoded from the backend `Annotation` schema. Every field
 /// beyond `id` / `documentId` / `kind` is treated as optional so a not-yet-wired
 /// backend field never breaks decoding.
+/// Mirror of the engine's `SourceAnchor` as annotations carry it (Step 3 of
+/// the bbox program): WHERE the annotation points, naming the rendition and
+/// the coordinate space its rect belongs to — never four bare numbers.
+struct AnnotationAnchor: Codable, Hashable {
+    var rect: [Double]?
+    /// "normalized" | "pixel". Only normalized rects may be drawn as
+    /// fractions of a frame; a pixel rect scaled as a fraction lands
+    /// thousands of points off the page.
+    var space: String?
+    var renditionId: String?
+    var charStart: Int?
+    var charEnd: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case rect
+        case space
+        case renditionId = "rendition_id"
+        case charStart = "char_start"
+        case charEnd = "char_end"
+    }
+
+    /// The rect, only when it is honestly drawable as fractions.
+    var normalizedRect: [Double]? {
+        guard let rect, rect.count == 4, space ?? "normalized" == "normalized" else { return nil }
+        return rect
+    }
+}
+
 struct DocumentAnnotation: Codable, Identifiable, Hashable {
     let id: String
     let documentId: String?
@@ -62,7 +90,10 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
     var pageLabel: String?
     var charStart: Int?
     var charEnd: Int?
+    /// LEGACY read-compat only (pre-rename rows); every current annotation
+    /// carries `anchor`. New code reads `regionRect`, never this.
     var bbox: [Double]?
+    var anchor: AnnotationAnchor?
     var kind: AnnotationKind
     var text: String?
     var rating: Int?
@@ -85,6 +116,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         case charStart = "char_start"
         case charEnd = "char_end"
         case bbox
+        case anchor
         case kind
         case text
         case rating
@@ -109,6 +141,11 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         charStart = try container.decodeIfPresent(Int.self, forKey: .charStart)
         charEnd = try container.decodeIfPresent(Int.self, forKey: .charEnd)
         bbox = try container.decodeIfPresent([Double].self, forKey: .bbox)
+        // The 2026-08-23 regression: the engine moved to a typed anchor and
+        // this hand-written decoder — invisible to the regen — kept decoding
+        // only the retired field. Annotations were WRITTEN with anchors and
+        // read back without them; every symptom was a valid nil.
+        anchor = try container.decodeIfPresent(AnnotationAnchor.self, forKey: .anchor)
         kind = try container.decodeIfPresent(AnnotationKind.self, forKey: .kind) ?? .unknown
         text = try container.decodeIfPresent(String.self, forKey: .text)
         rating = try container.decodeIfPresent(Int.self, forKey: .rating)
@@ -122,8 +159,12 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
     }
 
+    /// The drawable region: the typed anchor's rect when it names normalized
+    /// space, else the legacy pixel-era `bbox` (pre-rename rows only).
+    var regionRect: [Double]? { anchor?.normalizedRect ?? bbox }
+
     /// True when the annotation carries an image/PDF region (`[x, y, width, height]`).
-    var hasRegion: Bool { (bbox?.count ?? 0) >= 4 }
+    var hasRegion: Bool { (regionRect?.count ?? 0) >= 4 }
 
     /// True when the annotation carries a text span.
     var hasSpan: Bool { charStart != nil && charEnd != nil }
@@ -143,6 +184,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         charStart: Int? = nil,
         charEnd: Int? = nil,
         bbox: [Double]? = nil,
+        anchor: AnnotationAnchor? = nil,
         kind: AnnotationKind = .note,
         text: String? = nil,
         rating: Int? = nil,
@@ -164,6 +206,7 @@ struct DocumentAnnotation: Codable, Identifiable, Hashable {
         self.charStart = charStart
         self.charEnd = charEnd
         self.bbox = bbox
+        self.anchor = anchor
         self.kind = kind
         self.text = text
         self.rating = rating

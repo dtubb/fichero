@@ -15,6 +15,9 @@ struct DocumentThumbnailView: View {
     var editingName: Binding<String> = .constant("")
     var onCommitRename: () -> Void = {}
     var onCancelRename: () -> Void = {}
+    /// Metadata toggle (Daniel, 2026-08-23): icon view can hide the name.
+    /// Renaming still shows the field regardless.
+    var showsName: Bool = true
 
     /// The SQUARE image well, at scale 1 (Daniel's Finder screenshots,
     /// 2026-08-09: 'all icons should be square (a squircle) so the icon
@@ -233,7 +236,7 @@ struct DocumentThumbnailView: View {
                     onCommit: onCommitRename,
                     onCancel: onCancelRename
                 )
-            } else {
+            } else if showsName {
                 // `pageThumbnailLabel ?? name` still fell through to the
                 // storage name for a page with no sequence (#4416).
                 Text(DocumentTitle.displayName(for: document))

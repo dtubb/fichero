@@ -37,6 +37,22 @@ extension ZoomableImagePreview {
                             .allowsHitTesting(false)
                     }
                 }
+                // Words lit by the READER's text selection (2026-08-23
+                // linking) — sharper than the entry wash so the specific
+                // words read against it.
+                ForEach(Array(linkedSelectionBoxes.enumerated()), id: \.offset) { _, box in
+                    if let rect = BoundingBoxGeometry.viewRect(
+                        normalized: box,
+                        in: geometry.drawnFrame.size,
+                        visible: geometry.visible
+                    ) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.accentColor.opacity(0.28))
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                            .allowsHitTesting(false)
+                    }
+                }
                 // Saved bounding boxes + the region-draw layer (#2458).
                 // Shown whenever there are boxes or the tool is armed.
                 if !regionBoxes.isEmpty || isDrawingRegion {
@@ -48,8 +64,15 @@ extension ZoomableImagePreview {
                     )
                 }
                 // OCR text boxes from the transcription pass (#4309),
-                // toggled from the reader toolbar.
-                if ocrBoxesEnabled, let ocrGeometry {
+                // toggled from the reader toolbar. FRAME GATE (2026-08-23,
+                // entry-scoped runs): a box set naming a rendition_id was
+                // measured on THAT rendition's pixels — drawing it over any
+                // other image places plausible boxes in the wrong frame, the
+                // same defect class as the misplaced spread band. nil means
+                // the document's own image; non-nil draws only when that
+                // exact rendition is what's on screen.
+                if ocrBoxesEnabled, let ocrGeometry,
+                   geometryFrameMatchesDisplay(ocrGeometry) {
                     OCRGeometryOverlay(
                         geometry: ocrGeometry,
                         visible: geometry.visible
@@ -65,4 +88,27 @@ extension ZoomableImagePreview {
         }
     }
 }
+
+extension ZoomableImagePreview {
+    // Moved from the main file 2026-08-23 (file/type length): same member.
+    var readerToolbar: some View {
+        ReaderToolbar(
+            pageNav: imagePageNav,
+            renditionNav: renditionNav,
+            scalePercent: Int(scale * 100),
+            zoomIn: zoomIn,
+            zoomOut: zoomOut,
+            fitToWindow: fitToWindow,
+            actualSize: actualSize,
+            magnifierEnabled: $magnifierEnabled,
+            textBoxesEnabled: $ocrBoxesEnabled,
+            loupeEnabled: $loupeEnabled,
+            loupeLocked: $loupeLocked,
+            loupeMagnification: $loupeMagnification,
+            isEditing: isEditing,
+            onAnnotate: requestAnnotation
+        )
+    }
+}
+
 #endif

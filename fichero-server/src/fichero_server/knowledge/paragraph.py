@@ -11,6 +11,7 @@ from typing import Sequence
 
 from pydantic import BaseModel, Field
 
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.knowledge._common import order_statement_parts, render_statement
 from fichero_server.models.knowledge import KnowledgeClaim
 
@@ -42,7 +43,7 @@ class ParagraphCitation(BaseModel):
     source_document_id: str
     source_page_label: str | None = None
     source_excerpt: str | None = None
-    source_bbox: list[float] | None = None
+    source_anchor: SourceAnchor | None = None
     source_char_start: int | None = None
     source_char_end: int | None = None
 
@@ -215,7 +216,7 @@ def _citation_for_claim(marker_index: int, claim: KnowledgeClaim) -> ParagraphCi
         source_document_id=claim.source_document_id,
         source_page_label=claim.source_page_label,
         source_excerpt=claim.source_excerpt or claim.text,
-        source_bbox=claim.source_bbox,
+        source_anchor=claim.source_anchor,
         source_char_start=claim.source_char_start,
         source_char_end=claim.source_char_end,
     )

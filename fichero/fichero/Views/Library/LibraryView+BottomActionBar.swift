@@ -52,12 +52,39 @@ extension LibraryView {
                     essentialBarButtons
                 } secondary: {
                     secondaryBarButtons
+                    // The sort/filter/metadata cluster folded in (Daniel,
+                    // 2026-08-23: one bottom mini toolbar, not stacked rows).
+                    libraryMiniToolbar
                 } overflowMenu: {
                     bottomBarOverflowMenu
+                    // The sort/filter cluster survives narrow widths here
+                    // (Daniel, 2026-08-23: "we want them there") — the
+                    // metadata POPOVER stays inline-only, a popover row
+                    // inside a menu would be inert.
+                    Divider()
+                    librarySortMenu
+                    libraryLevelToggle
+                    libraryFilterToggleButton
+                    // Mode clusters reachable at narrow widths too (the gap
+                    // the consolidation design named): dataset facets and the
+                    // canvas channels as titled submenus.
+                    if displayMode.group == .dataset {
+                        Divider()
+                        DatasetFilterClusterMenu(store: datasetStore)
+                    }
+                    if displayMode.group == .canvas {
+                        Divider()
+                        CanvasControlStripMenu()
+                    }
                 }
                 .padding(.horizontal, 10)
                 .frame(height: bottomBarHeight)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
+                // ONE control size for the whole bar (Daniel, 2026-08-24:
+                // the +/− size is the right one; the sort/metadata cluster
+                // rendered .regular). Environment value — every child
+                // inherits; the per-button repeats are deleted.
+                .controlSize(.small)
+                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 8))
             }
         }
         // The ONE picker presenter for every import affordance in this view
@@ -97,7 +124,6 @@ extension LibraryView {
                 .accessibilityLabel("New Folder")
         }
         .buttonStyle(.borderless)
-        .controlSize(.small)
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Create a new folder")
@@ -109,7 +135,6 @@ extension LibraryView {
                 .accessibilityLabel("Delete")
         }
         .buttonStyle(.borderless)
-        .controlSize(.small)
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Delete selection")
@@ -129,7 +154,6 @@ extension LibraryView {
                 .accessibilityLabel("Import")
         }
         .buttonStyle(.borderless)
-        .controlSize(.small)
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Import files")
@@ -152,7 +176,6 @@ extension LibraryView {
                 .accessibilityLabel("Export BibTeX")
         }
         .buttonStyle(.borderless)
-        .controlSize(.small)
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Export selection as BibTeX")
@@ -166,7 +189,6 @@ extension LibraryView {
                 .accessibilityLabel("Run Workflow")
         }
         .buttonStyle(.borderless)
-        .controlSize(.small)
         .frame(minWidth: bottomBarTouchTarget, minHeight: bottomBarTouchTarget)
         .contentShape(Rectangle())
         .help("Run workflow on selection")

@@ -230,3 +230,28 @@ class TestRefusalsAndIdempotence:
         )
 
         assert db.query(Rendition, document_id=parent.id) == []
+
+
+def test_idempotent_rerun_narrates_reuse_not_a_false_warning():
+    """S11 (2026-08-23): a re-run whose parts all exist must say 'already
+    split', never '8 file(s) written but no rendition was attached'."""
+    from fichero_server.workflows.tools.image_edit_chains import describe_no_effect
+
+    message = describe_no_effect(
+        ["a.jpg"],
+        ["p1.jpg", "p2.jpg"],
+        {"renditions": [], "already_children": 2},
+    )
+    assert message is not None
+    assert "already split" in message
+    assert "no rendition was attached" not in message
+
+
+def test_fresh_run_with_no_children_still_warns():
+    from fichero_server.workflows.tools.image_edit_chains import describe_no_effect
+
+    message = describe_no_effect(
+        ["a.jpg"], ["p1.jpg"], {"renditions": [], "already_children": 0}
+    )
+    assert message is not None
+    assert "no rendition was attached" in message

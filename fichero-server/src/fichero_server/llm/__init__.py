@@ -167,6 +167,12 @@ def _vision_cache_key(config: "LLMConfig", prompt: str, images: list[str]) -> st
         "model": config.model,
         "prompt": prompt,
         "images": [_img_digest(img) for img in images],
+        # Sampling params are part of the call's identity: the empty-response
+        # retry raises max_tokens precisely to get a DIFFERENT answer, and
+        # without these in the key it replayed the cached failure in 2ms
+        # (qwen3.6-plus, 2026-08-24).
+        "max_tokens": config.max_tokens,
+        "temperature": config.temperature,
     }
     return hashlib.sha256(json.dumps(key_obj, sort_keys=True).encode()).hexdigest()
 
@@ -2501,11 +2507,17 @@ async def vision(
         )
     result = _strip_outer_code_fences(response.content)
 
-    with _LLM_RESULT_CACHE_LOCK:
-        if len(_LLM_RESULT_CACHE) >= _LLM_RESULT_CACHE_MAX:
-            oldest = next(iter(_LLM_RESULT_CACHE))
-            del _LLM_RESULT_CACHE[oldest]
-        _LLM_RESULT_CACHE[_cache_key] = result
+    # NEVER cache an empty answer: it is a failure shape (reasoning burn,
+    # safety refusal, truncation), and caching it poisons every later retry
+    # AND every later RUN with an instant replay of the failure — Ann's
+    # ensemble re-runs were failing from cache in 1s without a single
+    # provider call (2026-08-24).
+    if isinstance(result, str) and result.strip():
+        with _LLM_RESULT_CACHE_LOCK:
+            if len(_LLM_RESULT_CACHE) >= _LLM_RESULT_CACHE_MAX:
+                oldest = next(iter(_LLM_RESULT_CACHE))
+                del _LLM_RESULT_CACHE[oldest]
+            _LLM_RESULT_CACHE[_cache_key] = result
     return result
 
 
@@ -4133,6 +4145,13 @@ def _build_langchain_model(config: LLMConfig) -> Any:
             # via the `reasoning` extra_body field — works for Claude
             # (thinking) and gpt-5/o-series (reasoning_effort) alike.
             kwargs["extra_body"] = {"reasoning": {"effort": effort}}
+        elif effort == "disabled":
+            # EXPLICIT off, not merely unset: models that reason BY DEFAULT
+            # (qwen3.6-plus, 2026-08-24) burn any max_tokens budget in the
+            # reasoning channel and return empty content — output=8193 against
+            # an 8192 cap. "disabled" is the empty-retry's escape hatch; a
+            # no-op for models that don't reason unprompted.
+            kwargs["extra_body"] = {"reasoning": {"enabled": False}}
         # Strip `parallel_tool_calls` / `disable_parallel_tool_use` from the
         # outgoing body so function_calling structured output survives the
         # OpenRouter→Bedrock-Claude route (#1802). See

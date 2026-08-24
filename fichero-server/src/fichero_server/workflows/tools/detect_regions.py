@@ -49,6 +49,19 @@ DETECT_REGIONS_CONFIG = {
             "claim about the document)"
         ),
     },
+    "provider": {
+        "type": "string",
+        "default": "apple",
+        "enum": ["apple", "vlm"],
+        "description": (
+            "apple: free on-device Vision OCR (measured boxes). vlm: send the "
+            "page to the vision model chosen in the Run Workflow menu (e.g. an "
+            "OpenRouter model) and ask IT for word boxes — for hands Apple "
+            "cannot read. VLM boxes are claimed, not measured; replies whose "
+            "box text is absent from their own transcription are rejected "
+            "whole rather than rendered."
+        ),
+    },
 }
 
 
@@ -57,8 +70,11 @@ DETECT_REGIONS_CONFIG = {
     parallelism="elementwise",
     display_name="Detect Regions",
     description=(
-        "On-device text-region detection (Apple Vision): normalized line and "
-        "word bounding boxes saved per page, before any transcription"
+        "Finds WHERE the words are, on-device and free. Apple Vision reads the "
+        "page locally to locate line and word boxes, so it does produce text — "
+        "that text is a by-product of finding the boxes, not a transcription: "
+        "it never replaces the page's transcript, and no model is called. Runs "
+        "before a transcriber so every box exists up front."
     ),
     category="vision",
     icon="rectangle.dashed.badge.record",
@@ -81,19 +97,37 @@ async def detect_regions(
     files = inputs.get("files") or state.get("input_files", [])
     documents = inputs.get("documents", [])
 
+    use_vlm = inputs.get("provider", "apple") == "vlm"
+    if use_vlm:
+        # The boxes prompt is transcribe's own (function-local import: the
+        # two tools import each other, both late, so neither loads first).
+        from fichero_server.workflows.tools.transcribe import (  # noqa: PLC0415
+            _build_prompt,
+        )
+        prompt = _build_prompt(inputs.get("language", "auto"), return_boxes=True)
+        effective_llm = llm_config
+    else:
+        # The Apple branch never sends a prompt to a model; kept explicit so
+        # the local path cannot silently inherit a transcription prompt.
+        prompt = ""
+        # Forced local provider — see module docstring.
+        effective_llm = LLMConfig(provider="apple", model="apple-vision")
+
     result = await process_vision(
         files=files,
         documents=documents,
-        # The Apple branch never sends a prompt to a model; kept explicit so
-        # a future non-Apple fallback cannot silently inherit a transcription
-        # prompt.
-        prompt="",
-        # Forced local provider — see module docstring.
-        llm_config=LLMConfig(provider="apple", model="apple-vision"),
+        prompt=prompt,
+        llm_config=effective_llm,
         library_path=state.get("library_path", ""),
         task_id=state.get("task_id"),
         tool_config=TOOL_CONFIG,
-        vision_mode="apple",
+        vision_mode="llm" if use_vlm else "apple",
+        # The user explicitly chose a VLM for BOXES — honour the request for
+        # any vision model; the orphan-rejection guard is the safety net, not
+        # a provider allow-list (2026-08-23, "some of these documents are
+        # hard hard to read").
+        return_boxes=use_vlm,
+        force_return_boxes=use_vlm,
         language=inputs.get("language", "en"),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
         force_ocr=True,

@@ -196,6 +196,12 @@ extension ContentView {
             // column (always present) rather than the sidebar, which leaves
             // the hierarchy when collapsed and made ⌘⌥I no-op (#1513/#1451).
             .focusedSceneValue(\.showInspector, $showInspectorSidebar)
+            // WHICH pane has focus, for commands that must act on the surface
+            // the user is looking at rather than on whichever surface happens
+            // to publish an action (⌘A, #4376 widened 2026-08-23). The hint is
+            // the durable half of the pair: `focusedPane` is @FocusState and
+            // goes nil on any write no `.focused` modifier claims.
+            .focusedSceneValue(\.focusedPaneKind, focusedPane ?? paneFocusHint)
             // Publish the reading-surface pane toggles so the View menu can
             // mirror the toolbar buttons for each pane (#1215).
             // Route every pane toggle through the invariant (#1696) so the View

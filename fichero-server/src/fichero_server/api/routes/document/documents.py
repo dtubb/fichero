@@ -21,6 +21,7 @@ from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.api.routes.ingest.iiif import build_document_annotation_page
 from fichero_server.db import Database
+from fichero_server.db.node_levels import NodeLevel, resolve_level
 from fichero_server.models.knowledge import (
     Annotation,
     ClassificationDimension,
@@ -373,6 +374,26 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     for item in items:
         item.child_count = counts.get(item.id, 0)
     return items
+
+
+def _batched_children_of(db: Database, rows: list[Document]):
+    """One committed IN-query prefetches every listed container's children —
+    resolve_level's per-container callable then answers from the dict.
+    2026-08-24: the content tier for a 152-child folder ran ~75 sequential
+    per-container queries and cost 2.4s of the sidebar-click wait.
+    """
+    prefetched: dict[str, list[Document]] = {row.id: [] for row in rows}
+    for child in db.query_in_committed(Document, "parent_id", [row.id for row in rows]):
+        if child.parent_id in prefetched:
+            prefetched[child.parent_id].append(child)
+
+    def children_of(doc: Document) -> list[Document]:
+        kids = _filter_document_visibility(
+            prefetched.get(doc.id, []), include_deleted=False, only_deleted=False
+        )
+        return _filter_resolvable_documents(db, kids, parent_id=doc.id)
+
+    return children_of
 
 
 def _get_document_row(
@@ -1021,9 +1042,28 @@ async def get_children(
         None, description="Optional server-side ordering; only 'document_date'."
     ),
     sort_direction: str = Query("asc", description="'asc' or 'desc'"),
+    level: NodeLevel = Query(
+        NodeLevel.stored,
+        description=(
+            "Which tier to return. 'stored' (default) is the tree as held — "
+            "openings AND whole pages side by side. 'content' looks THROUGH "
+            "containers to their pages, passing un-split pages through "
+            "unchanged."
+        ),
+    ),
     db: Database = Depends(get_library_database),
 ) -> DocumentListResponse:
-    """Get child documents."""
+    """Get child documents.
+
+    A diary folder legitimately holds two kinds of thing: openings (spreads
+    whose pages moved beneath them) and whole pages that were never split. So
+    "the folder's children" is an ambiguous question and only the caller knows
+    which tier it means (Daniel, 2026-08-22: "I want to be able to show
+    spreads, or show single pages").
+
+    `level` defaults to `stored`, so every existing caller sees exactly what it
+    saw before.
+    """
     with perf_span(
         "library.get_children",
         logger=logger,
@@ -1045,7 +1085,13 @@ async def get_children(
                 parent_id=normalized_id,
             )
             rows = _ordered_by_sort_order(rows)
-            return _apply_listing_sort(rows, sort_by, sort_direction)
+            rows = _apply_listing_sort(rows, sort_by, sort_direction)
+            # Resolved AFTER sorting so a container is replaced in place and
+            # the folder keeps the order the user was just looking at.
+            return resolve_level(
+                db, rows, level,
+                children_of=_batched_children_of(db, rows),
+            )
 
         children = await asyncio.to_thread(_fetch)
         perf["normalized_id"] = normalized_id
@@ -1889,6 +1935,17 @@ async def import_file(
             file,
             content_length=request.headers.get("content-length"),
         )
+        # A zero-byte upload is a failed read at the SOURCE — a drag whose
+        # provider promised data and delivered none (the "Document" node of
+        # 2026-08-23: AppKit names an unnamed empty representation literally
+        # "Document", and accepting it minted a permanent hollow node the
+        # thumbnail pipeline re-fails on forever). Refuse loudly; never
+        # ingest nothing.
+        if temp_path.stat().st_size == 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Empty upload refused: {file.filename!r} contained no data",
+            )
         result = await asyncio.to_thread(
             registry.invoke,
             db,
@@ -3076,13 +3133,24 @@ def _action_move_document(
     db: Database, params: DocumentMoveParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
     doc, before = move_document_impl(db, params.doc_id, params.parent_id)
+    # A move changes BOTH parents' child_count, and the sidebar's disclosure
+    # chevron/spinner read that count. Emitting only the moved doc left the
+    # old parent lying (Ann, 2026-08-24: folder moved out of Inbox → Inbox
+    # kept child_count ≥ 1 with no children → permanent spinner + phantom
+    # row). Name both parents so every window re-fetches them. Same shape as
+    # the #4205 parents work.
+    affected_ids = [doc.id]
+    old_parent_id = (before or {}).get("parent_id")
+    for parent_id in (old_parent_id, params.parent_id):
+        if parent_id and parent_id not in affected_ids:
+            affected_ids.append(parent_id)
     spec = ChangeSpec(
         domains=["document"],
         target_ids=[doc.id],
         before=before,
         after=doc.model_dump(mode="json"),
         emit_type="document.updated",
-        document_ids=[doc.id],
+        document_ids=affected_ids,
         emit_fn=_emit_document_change_spec,
     )
     return doc.model_dump(mode="json"), spec

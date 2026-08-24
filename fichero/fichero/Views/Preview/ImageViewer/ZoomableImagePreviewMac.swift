@@ -18,6 +18,9 @@ struct ZoomableImagePreview: View {
     /// over `url` for display — the URL is still used as a stable identity key
     /// but image data comes from this override (#1402).
     var renderedImage: NSImage?
+    /// The rendition `renderedImage`'s pixels already ARE (preferred-first
+    /// canvas path, 2026-08-24) — loadRenditions lands here without a fetch.
+    var renderedRenditionId: String?
     /// Optional callback fired when the user steps to a sibling image. macOS
     /// relies on the window-level sibling navigation (#593); the parameter is
     /// kept for API parity with the iOS overlay buttons (#2420).
@@ -30,27 +33,52 @@ struct ZoomableImagePreview: View {
     /// Entry-source highlight: normalized `[x,y,w,h]` boxes drawn with the
     /// saved-region layer (preview-layers M1, #27). Display-only.
     var highlightBoxes: [[Double]] = []
+    /// Entry ladder (2026-08-23, "we should only show the bounding box"):
+    /// when set, the image OPENS zoomed to this normalized rect instead of
+    /// fit-to-window.
+    var focusRegion: [Double]?
+    /// Entry ladder: the host's containment step (region → page → spread).
+    /// Vertical swipes/arrows call this FIRST; a `true` return consumes the
+    /// step, `false` falls through to the rendition flip — so on an entry the
+    /// vertical axis walks the containment ladder, on a plain page it keeps
+    /// flipping renditions.
+    var onContainmentStep: ((Int) -> Bool)?
 
     init(
         url: URL? = nil,
         documentId: String? = nil,
         renderedImage: NSImage? = nil,
+        renderedRenditionId: String? = nil,
         onNavigateToDocument: ((String) -> Void)? = nil,
         isEditing: Binding<Bool>? = nil,
-        highlightBoxes: [[Double]] = []
+        highlightBoxes: [[Double]] = [],
+        focusRegion: [Double]? = nil,
+        onContainmentStep: ((Int) -> Bool)? = nil
     ) {
         self.url = url
         self.documentId = documentId
         self.renderedImage = renderedImage
+        self.renderedRenditionId = renderedRenditionId
         self.onNavigateToDocument = onNavigateToDocument
         self.isEditing = isEditing
         self.highlightBoxes = highlightBoxes
+        self.focusRegion = focusRegion
+        self.onContainmentStep = onContainmentStep
+    }
+
+    /// One vertical step: the containment ladder when the host provides one,
+    /// the rendition flip otherwise.
+    private func verticalStep(_ step: Int) {
+        if let onContainmentStep, onContainmentStep(step) { return }
+        flipRendition(to: renditionIndex + step)
     }
 
     /// Annotation tools from the reader toolbar (#2458). Highlight/Note arm a
     /// region draw over the image; the resulting normalized box is persisted as
     /// a bounding-box annotation. Bookmark is a whole-image marker (no region).
-    private func requestAnnotation(_ tool: ReaderAnnotationTool) {
+    /// internal: the reader toolbar moved to +Overlays.swift (2026-08-23
+    /// file-length) and Swift's `private` is FILE-scoped.
+    func requestAnnotation(_ tool: ReaderAnnotationTool) {
         switch tool {
         case .highlight, .note:
             pendingAnnotationTool = tool
@@ -92,7 +120,7 @@ struct ZoomableImagePreview: View {
         guard let documentId else { return [] }
         return annotationStore.annotations
             .filter { ($0.documentId == documentId || $0.pageId == documentId) && $0.hasRegion }
-            .compactMap(\.bbox)
+            .compactMap(\.regionRect)
     }
 
     func loadAnnotations() {
@@ -166,6 +194,10 @@ struct ZoomableImagePreview: View {
     @State var renditionOverrideImage: NSImage?
 
     @State var scale: CGFloat = 1.0
+    /// S6 (Daniel, 2026-08-23): a sibling step resets to FIT-ALL — a tall
+    /// item must not arrive overflowing at the previous item's scale. Armed
+    /// on document change, consumed when the new image lands.
+    @State var pendingFitOnNextImage = false
     @State var minScale: CGFloat = 0.01
     @State var maxScale: CGFloat = 10.0
     @State var cursorPosition: CGPoint = CGPoint(x: 0.5, y: 0.5)  // Current cursor position over image
@@ -183,6 +215,9 @@ struct ZoomableImagePreview: View {
     // Full-resolution source image fetched lazily when zoom exceeds 1.5× (#2427).
     @State var highResImage: NSImage?
     @State var isLoadingHighRes = false
+    /// Word boxes lit by the READER's text selection (2026-08-23 linking) —
+    /// transient, cleared when the selection clears or the item changes.
+    @State var linkedSelectionBoxes: [[Double]] = []
 
     // Zoom actions live in ZoomableImagePreviewMac+ZoomActions.swift and the
     // opening-zoom rule in PreviewInitialZoomPolicy.swift (moved/extracted to
@@ -208,7 +243,13 @@ struct ZoomableImagePreview: View {
                             // rendition a different FRAME, which moves every
                             // box on the page.
                             overrideImage: renditionOverrideImage ?? renderedImage ?? highResImage,
-                            itemKey: documentId,
+                            // Rendition index in the key: a flip counts as
+                            // an ITEM change so the view refits — renditions
+                            // have different pixel sizes, and preserving
+                            // apparent width left one at 70% and the next at
+                            // 26% (Daniel, 2026-08-22).
+                            itemKey: "\(documentId ?? "")#r\(renditionIndex)",
+                            focusRegion: focusRegion,
                             scale: $scale,
                             cursorPosition: $cursorPosition,
                             imageSize: $imageSize,
@@ -264,7 +305,7 @@ struct ZoomableImagePreview: View {
                         .frame(height: CGFloat(panelHeight))
                     }
                 }
-                .background(Color(nsColor: .underPageBackgroundColor))
+                .background(Color(nsColor: .windowBackgroundColor))
 
                 // Mini-map navigator (top right) - show when zoomed in (visible rect < full) or loupe active.
                 // The visible window starts at (0,0,0,0) before layout completes,
@@ -295,6 +336,9 @@ struct ZoomableImagePreview: View {
         .task(id: documentId) { await loadRenditions() }
         .onAppear { handleViewAppeared() }
         .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
+        .onReceive(NotificationCenter.default.publisher(for: .readerTextSelection)) { note in
+            handleReaderTextSelection(note)
+        }
         .onChange(of: annotationStore.changeToken) { _, _ in loadAnnotations() }
         .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
         .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
@@ -329,17 +373,17 @@ struct ZoomableImagePreview: View {
         // vertically still pans; otherwise the keys flip.
         .onReceive(NotificationCenter.default.publisher(for: .previewRenditionSwipe)) { note in
             guard let step = note.object as? Int else { return }
-            flipRendition(to: renditionIndex + step)
+            verticalStep(step)
         }
         .onKeyPress(.upArrow, phases: .down) { _ in
             if canPanVertically { panUp() } else {
-                flipRendition(to: renditionIndex - 1)
+                verticalStep(-1)
             }
             return .handled
         }
         .onKeyPress(.downArrow, phases: .down) { _ in
             if canPanVertically { panDown() } else {
-                flipRendition(to: renditionIndex + 1)
+                verticalStep(1)
             }
             return .handled
         }
@@ -351,25 +395,6 @@ struct ZoomableImagePreview: View {
             canZoomIn: scale < maxScale,
             canZoomOut: scale > minScale
         ))
-    }
-
-    var readerToolbar: some View {
-        ReaderToolbar(
-            pageNav: imagePageNav,
-            renditionNav: renditionNav,
-            scalePercent: Int(scale * 100),
-            zoomIn: zoomIn,
-            zoomOut: zoomOut,
-            fitToWindow: fitToWindow,
-            actualSize: actualSize,
-            magnifierEnabled: $magnifierEnabled,
-            textBoxesEnabled: $ocrBoxesEnabled,
-            loupeEnabled: $loupeEnabled,
-            loupeLocked: $loupeLocked,
-            loupeMagnification: $loupeMagnification,
-            isEditing: isEditing,
-            onAnnotate: requestAnnotation
-        )
     }
 }
 

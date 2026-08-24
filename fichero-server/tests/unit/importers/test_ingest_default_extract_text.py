@@ -99,8 +99,12 @@ class TestIngestDefaultExtractText:
         fake_db.save.side_effect = _save
         docs = ingest_folder(tmp_path, db=fake_db, create_collection=False)
         assert len(docs) == 1
-        assert docs[0].page_content is not None
-        assert "extract this sentence" in docs[0].page_content
+        # Extraction is proven on the SAVED row; the RETURNED copy sheds
+        # page_content deliberately (the 2026-08-22 Air OOM: retaining a
+        # 39k-file folder's extracted text in RAM outlived the ingest).
+        assert saved_docs[0].page_content is not None
+        assert docs[0].page_content is None
+        assert "extract this sentence" in (saved_docs[0].page_content or "")
 
     @patch("fichero_server.bookmarks.create_bookmark", return_value=None)
     def test_folder_ingest_skips_unchanged_files_by_hash(self, _mock_bookmark, tmp_path):

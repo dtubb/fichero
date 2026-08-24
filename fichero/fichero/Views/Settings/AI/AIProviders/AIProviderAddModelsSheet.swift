@@ -12,6 +12,7 @@ struct AIProviderAddModelsSheet: View {
 
     @State private var selectedModel: ModelInfo?
     @State private var isAdding = false
+    @State private var addError: String?
 
     // For HuggingFace, show the full browser
     @State private var selectedHFModel: HFModelInfo?
@@ -30,17 +31,31 @@ struct AIProviderAddModelsSheet: View {
                         }
                     )
                 } else {
-                    // Use shared AIModelSelectionView with selection mode
+                    // Click-to-add (Daniel, 2026-08-24): the row click IS the
+                    // add — no staged selection to lose, no confirm button.
                     AIModelSelectionView(
                         providerType: provider.providerType,
                         providerId: provider.id,
-                        selectionMode: .select,
+                        selectionMode: .immediate,
                         selectedModel: $selectedModel,
-                        onModelAdded: {}
+                        onModelAdded: { Task { await onAdd() } }
                     )
                 }
             }
             .navigationTitle("Add Model to \(provider.name)")
+            // A rejected add must be SEEN — swallowing it into a log line is
+            // how "we added a model and it wasn't saved" happens (Ann,
+            // 2026-08-24). The sheet stays open with the reason.
+            .safeAreaInset(edge: .bottom) {
+                if let addError {
+                    Text(addError)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 6)
+                }
+            }
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -48,13 +63,22 @@ struct AIProviderAddModelsSheet: View {
             // macOS) instead of a hand-rolled footer HStack (#2806).
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    if provider.providerType == "huggingface" {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add Model") {
-                        addModel()
+                    // Standard providers add on row click now; only the
+                    // HuggingFace catalog still stages a pick that needs a
+                    // confirm (its browser is selection-based).
+                    if provider.providerType == "huggingface" {
+                        Button("Add Model") {
+                            addModel()
+                        }
+                        .disabled(isAdding || selectedHFModel == nil)
+                    } else {
+                        Button("Done") { dismiss() }
                     }
-                    .disabled(isAdding || (selectedModel == nil && selectedHFModel == nil))
                 }
             }
         }
@@ -66,6 +90,7 @@ struct AIProviderAddModelsSheet: View {
 
     private func addModel() {
         isAdding = true
+        addError = nil
 
         Task {
             do {
@@ -88,6 +113,7 @@ struct AIProviderAddModelsSheet: View {
                 dismiss()
             } catch {
                 logger.error("Add model failed: \(String(describing: error))")
+                addError = "Couldn't add the model: \(error.localizedDescription)"
             }
             isAdding = false
         }
@@ -98,6 +124,7 @@ struct AIProviderAddModelsSheet: View {
 struct ModelInfoRow: View {
     let model: ModelInfo
     let isSelected: Bool
+    var isAdded: Bool = false  // Click-to-add feedback: the row says it took
     var onSelect: (() -> Void)?  // Optional action when tapped
 
     var body: some View {
@@ -106,6 +133,10 @@ struct ModelInfoRow: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
+                        if isAdded {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                        }
                         Text(model.fullName)
                             .font(.headline)
 

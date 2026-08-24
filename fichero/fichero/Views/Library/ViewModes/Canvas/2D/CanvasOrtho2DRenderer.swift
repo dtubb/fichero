@@ -52,6 +52,27 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// trade `LibraryView+CanvasModes.swift` made when #4353 forced that split.
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
+
+    /// WHAT each card is, in colour (§20.3 Colour by). Held for the same
+    /// reason as `emphasis`: a card inserted or reskinned while a colouring is
+    /// live must arrive already coloured.
+    var tint: CanvasTint = .neutral
+
+    /// Whether a card currently carries a page image — a textured card keeps
+    /// its page, so the tint yields to legibility (see `CanvasTintPainter`).
+    func isTextured(_ id: String) -> Bool {
+        texturedIds.contains(id)
+    }
+
+    /// Seconds a `.move` animates for, set per diff by `apply`. Internal, not
+    /// private: `applyMove` lives in +Ops.swift and `private` is FILE-scoped.
+    var moveDuration = CanvasMoveAnimation.feedbackDuration
+
+    /// WHICH cards matter right now — a search's heat map or an entity
+    /// highlight. Held so a card inserted while emphasis is live is painted on
+    /// arrival, not left bright until the next emphasis change.
+    var emphasis: CanvasEmphasis = .neutral
+
     /// Live card size while a resize handle is being dragged — visual feedback
     /// only, cleared by the `.resize` op the release persists. Stored here
     /// because an extension cannot hold state; used from
@@ -69,7 +90,25 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// The detail tier the view derives from the reported zoom; gates thumbnail
     /// loads so a zoomed-out overview issues zero image requests.
-    var detailTier: CanvasDetailTier = .thumbnail
+    var detailTier: CanvasDetailTier = .thumbnail {
+        didSet {
+            // Zooming IN has to fetch what the glyph tier skipped. Cards are
+            // only given a texture when they are BUILT, and a reconcile that
+            // changes nothing builds nothing — so a board framed at .glyph
+            // stayed flat colour no matter how far the user then zoomed in
+            // (Daniel, live 2026-08-23: "all cards are blue rectangles").
+            guard detailTier >= .thumbnail, oldValue < .thumbnail else { return }
+            loadMissingThumbnails()
+        }
+    }
+
+    /// Ids whose card currently CARRIES a page texture.
+    ///
+    /// Not derivable from `CanvasCardGeometry.knownAspect`: the memo says a
+    /// texture was measured once, which stays true after a rebuild that left
+    /// the new card flat. Tracking the entity's actual state is what makes
+    /// "which cards still need one" answerable.
+    var texturedIds: Set<String> = []
 
     var onIntent: ((CanvasIntent) -> Void)?
 
@@ -97,6 +136,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     // MARK: - CanvasSceneRenderer
 
     func apply(_ ops: [CanvasSceneOp]) {
+        // Cards moving TOGETHER are a transition to watch; one echoing in from
+        // another window is feedback (R10 / §20.2).
+        moveDuration = CanvasMoveAnimation.duration(for: ops)
         for operation in ops { applyOne(operation) }
         // Decoration is derived from the cards, so it settles ONCE after the
         // whole op list rather than per-op: a batch that moves three selected
@@ -161,7 +203,11 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     // MARK: - Camera control (view drives these from gestures)
 
     func setOrthoScale(_ scale: Float) {
-        orthoScale = min(max(scale, 0.5), 200)
+        orthoScale = min(max(scale, 0.1), 200)  // 0.5→0.1 (2026-08-22): zoom close enough to read
+        // The tier follows the zoom here for the same reason as 3D: this is a
+        // plain class, so a pinch that only moves the scale republishes
+        // nothing and a SwiftUI update pass may never re-read it.
+        detailTier = CanvasDetailTier.forZoomScale(reportedZoomScale)
         applyOrthoScale()
         // Zoom-constant selection chrome (#4601): redraw at the new ratio.
         refreshSelectionDecoration()
@@ -230,60 +276,16 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     // MARK: - Op application (granular; never a rebuild)
 
-    private func applyOne(_ operation: CanvasSceneOp) {
-        switch operation {
-        case .insert(let placeable):
-            placeablesById[placeable.id] = placeable
-            placeablesRoot.addChild(makeCard(placeable))
-        case .move(let id, let position):
-            // Don't fight a local drag (#3084): a store echo for the id being
-            // dragged is skipped; every other move animates to the new spot so a
-            // cross-window / agent move glides rather than jumps (issue point 3).
-            guard isDragSuppressed?(id) != true else { return }
-            placeablesById[id]?.position = position
-            if let entity = placeablesRoot.findEntity(named: id) {
-                var transform = entity.transform
-                transform.translation = Canvas2DProjection.scenePosition(position)
-                entity.move(to: transform, relativeTo: entity.parent, duration: 0.18)
-            }
-        case .resize(let id, let size):
-            placeablesById[id]?.size = size
-            // Mesh + collision IN PLACE, keeping the materials — a `reskinCard`
-            // here would drop the loaded page texture and flash the base colour
-            // for exactly the same reason selection used to (#4409).
-            resizeCardInPlace(id)
-        case .updateContent(let id):
-            reskinCard(id)
-        case .remove(let id):
-            placeablesById[id] = nil
-            placeablesRoot.findEntity(named: id)?.removeFromParent()
-        case .setEdges(let edges):
-            rebuildEdges(edges)
-        case .setSelection(let newSelection):
-            // NOTHING happens to the cards. This used to `reskinCard` every id
-            // in the symmetric difference — destroying and rebuilding a
-            // textured card to add or remove a decoration — which is #4409's
-            // blue flash and the no-wholesale-re-render rule broken at card
-            // granularity. `refreshSelectionDecoration` (called once by
-            // `apply`) redraws the frames instead.
-            selection = newSelection
-        }
-    }
-
     // MARK: - Cards
 
     static let defaultCardSize = CGSize(width: 1.0, height: 0.75)
 
-    func reskinCard(_ id: String) {
-        guard let placeable = placeablesById[id] else { return }
-        placeablesRoot.findEntity(named: id)?.removeFromParent()
-        placeablesRoot.addChild(makeCard(placeable))
-    }
-
-    private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
+    // Internal, not private: `reskinCard` lives in the +Thumbnails file (this
+    // one is at its file_length ceiling) and Swift's `private` is FILE-scoped.
+    func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let (width, height) = cardDimensions(placeable)
         let mesh = MeshResource.generatePlane(width: width, height: height, cornerRadius: min(width, height) * 0.08)
-        let entity = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: baseColor(for: placeable.content))])
+        let entity = ModelEntity(mesh: mesh, materials: [UnlitMaterial(color: cardColor(for: placeable))])
         entity.name = placeable.id
         entity.position = Canvas2DProjection.scenePosition(placeable.position)
         entity.components.set(InputTargetComponent())
@@ -314,7 +316,17 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// Load the page thumbnail through the storage service (never raw URLSession)
     /// and swap it onto the card when ready — mirrors the 3D texture path.
-    private func baseColor(for content: CanvasContent) -> PlatformColor {
+    /// The colour a card is built with: the tint channel's answer when it has
+    /// one, else the card's kind tint — which IS the default "colour by kind",
+    /// not a competing encoding.
+    func cardColor(for placeable: CanvasPlaceable) -> PlatformColor {
+        tint.slot(for: placeable.id).map(CanvasTintPainter.color(forSlot:))
+            ?? baseColor(for: placeable.content)
+    }
+
+    // Internal, not private: the op-application extension needs it to repaint
+    // a card when the colouring changes, and Swift's `private` is FILE-scoped.
+    func baseColor(for content: CanvasContent) -> PlatformColor {
         switch content {
         case .node(let node):
             return SpaceTheme.materialColor(for: node.nodeType)
@@ -335,7 +347,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     // MARK: - Edges (rebuilt wholesale — few and cheap, per the contract)
 
-    private func rebuildEdges(_ edges: [CanvasEdge]) {
+    // Internal, not private: the op-application extension (+Ops.swift) needs
+    // it and Swift's `private` is FILE-scoped — the same trade documented on
+    // CanvasSceneView's split state.
+    func rebuildEdges(_ edges: [CanvasEdge]) {
         edgesRoot.children.forEach { $0.removeFromParent() }
         for edge in edges {
             guard

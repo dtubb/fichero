@@ -13,11 +13,29 @@ import SwiftUI
 /// (#4331: four incidents on 2026-08-11 alone, all rooted in this routing's
 /// branch product type).
 struct PaneSpec: Identifiable, Equatable {
-    enum Kind: String {
+    enum Kind: String, CaseIterable {
         case library
         case preview
         case reading
         case chat
+
+        var title: String {
+            switch self {
+            case .library: "Library"
+            case .preview: "Preview"
+            case .reading: "Reader"
+            case .chat: "Chat"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .library: "books.vertical"
+            case .preview: "photo"
+            case .reading: "book"
+            case .chat: "bubble.left.and.bubble.right"
+            }
+        }
     }
 
     let kind: Kind
@@ -25,6 +43,33 @@ struct PaneSpec: Identifiable, Equatable {
     var fixedWidth: CGFloat?
 
     var id: String { kind.rawValue }
+}
+
+/// Injected per pane SLOT so the head's kind icon can switch what the slot
+/// hosts (Daniel, 2026-08-23: "clicking on the view type icon should let us
+/// change what it is"). nil = the pane is not hosted in a switchable slot.
+///
+/// EQUATABLE BY SLOT ID (2026-08-24, the morning slowness): a bare closure
+/// in the environment is never equal to itself, so every parent render read
+/// as an environment CHANGE and re-walked the whole pane subtree — the
+/// EnvironmentBox/copyItems stall storm in the live log. The closure
+/// captures only the slot id, so identity by id is exact.
+struct PaneKindSwitcher: Equatable {
+    let slotId: String
+    let switchKind: @MainActor (PaneSpec.Kind) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.slotId == rhs.slotId }
+}
+
+private struct PaneKindSwitcherKey: EnvironmentKey {
+    static let defaultValue: PaneKindSwitcher? = nil
+}
+
+extension EnvironmentValues {
+    var paneKindSwitcher: PaneKindSwitcher? {
+        get { self[PaneKindSwitcherKey.self] }
+        set { self[PaneKindSwitcherKey.self] = newValue }
+    }
 }
 
 extension ContentView {
@@ -108,12 +153,33 @@ extension ContentView {
 
     /// One pane's content — AnyView by construction: each pane's generic
     /// ends at its own boundary instead of multiplying into the row's.
+    /// The SLOT's kind can be overridden (Daniel, 2026-08-23): any slot can
+    /// host any pane kind, switched from its head's kind icon; multiple
+    /// instances of a kind may coexist.
     private func paneContent(for spec: PaneSpec) -> AnyView {
+        let effectiveKind = paneKindOverrides[spec.id] ?? spec.kind
+        return AnyView(
+            kindContent(kind: effectiveKind, slotId: spec.id, fixedWidth: spec.fixedWidth)
+                .environment(\.paneKindSwitcher, PaneKindSwitcher(slotId: spec.id) { newKind in
+                    paneKindOverrides[spec.id] = newKind == spec.kind ? nil : newKind
+                })
+        )
+    }
+
+    /// `slotId` survives a kind override (2026-08-24): the split state is
+    /// keyed "<slot>-<kind>", so two slots hosting the SAME kind split
+    /// independently — the per-window "canvas" key made splitting one
+    /// preview split both.
+    private func kindContent(
+        kind: PaneSpec.Kind, slotId: String, fixedWidth: CGFloat?
+    ) -> AnyView {
+        let spec = PaneSpec(kind: kind, fixedWidth: fixedWidth)
+        let splitKey = "\(slotId)-\(kind.rawValue)"
         switch spec.kind {
         case .library:
             return AnyView(
                 // Splittable (h/v) Library list pane — #2276.
-                adaptiveSplittablePane(storageKey: "library") {
+                adaptiveSplittablePane(storageKey: splitKey) {
                     contentWithOptionalModeRail
                 }
                 .frame(width: spec.fixedWidth)
@@ -126,12 +192,27 @@ extension ContentView {
                 .overlay { paneFocusIndicator(for: .content) }
             )
         case .preview:
-            return AnyView(widescreenCanvasPane)
+            // Clicking a pane FOCUSES it — the same gesture .content and .chat
+            // already carried. Without it the focus hint never left .content,
+            // so ⌘A over a clicked preview still went to the library (Daniel,
+            // live 2026-08-23).
+            return AnyView(
+                widescreenCanvasPane(splitKey: splitKey)
+                    .simultaneousGesture(
+                        TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview }
+                    )
+                    .overlay { paneFocusIndicator(for: .preview) }
+            )
         case .reading:
+            let reading = widescreenReadingPane(splitKey: splitKey)
+                .simultaneousGesture(
+                    TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading }
+                )
+                .overlay { paneFocusIndicator(for: .reading) }
             if let width = spec.fixedWidth {
-                return AnyView(widescreenReadingPane.frame(width: width))
+                return AnyView(reading.frame(width: width))
             }
-            return AnyView(widescreenReadingPane.frame(maxWidth: .infinity))
+            return AnyView(reading.frame(maxWidth: .infinity))
         case .chat:
             return AnyView(
                 chatPaneContent
@@ -155,7 +236,9 @@ extension ContentView {
             }(),
             selectedDocuments: $chatSelectedDocuments,
             attachContext: chatAttachContext,
-            onConversationUpdated: { refreshConversations() }
+            onConversationUpdated: { refreshConversations() },
+            // X on the chat head hides the pane — the toolbar toggle's seam.
+            onClosePane: { setChatPaneVisible(false) }
         )
     }
 }

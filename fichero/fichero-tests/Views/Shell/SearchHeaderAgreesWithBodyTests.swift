@@ -87,12 +87,18 @@ final class SearchHeaderAgreesWithBodyTests: XCTestCase {
     /// `store.results.count`, or at any second computation, whatever its
     /// arithmetic happens to be that day.
     func testTheHeaderReadsTheSameCountsTheBodyRenders() throws {
+        // Header line moved to ContentView+SearchResultsBar.swift in the
+        // 2026-08-21 split; scan the whole surface.
         let source = Self.code(
             of: try AppSource.text("Views/Shell/ContentView/ContentView+SearchResults.swift")
+                + AppSource.text("Views/Shell/ContentView/ContentView+SearchResultsBar.swift")
         )
 
+        // #4118: the grid IS the result set — legs resolve into it as nodes —
+        // so the body renders `searchResultDocuments` and the header counts
+        // that same array. One value, one source, cannot disagree.
         XCTAssertTrue(
-            source.contains("let total = transientSearchHitCounts.total"),
+            source.contains("let total = searchResultDocuments.count"),
             "the header must read the counts the body is built from"
         )
         XCTAssertFalse(

@@ -1377,6 +1377,10 @@ async def _run_workflow_in_background(
             library_path=str(db.path.parent) if hasattr(db, "path") else "",
         )
         initial_state["workflow_id"] = request.workflow_id
+        # "Run it again for real" reaches the graph (2026-08-23). Same lesson
+        # as `request.selection` below: a field validated at the boundary and
+        # never put into the state is a field that does nothing.
+        initial_state["force_recompute"] = bool(request.force_recompute)
         # #4397/#4427: the typed selection is what the run is scoped to, so it
         # must reach the graph. Until this line NOTHING in the server read
         # `request.selection` — it was validated at the boundary and then
@@ -1645,9 +1649,47 @@ async def _run_workflow_in_background(
                                 f"({node_duration_ms:.0f}ms)"
                             )
                         else:
-                            await log_execution(
-                                f"Node '{original_id}' completed in {node_duration_ms:.0f}ms"
-                            )
+                            # A node that REUSED cached work is not the same as
+                            # one that did the work instantly, and "completed in
+                            # 0ms" cannot tell them apart. Daniel re-ran a page,
+                            # saw 0ms on Transcribe, and had no way to learn
+                            # whether anything had happened. A run must be
+                            # narratable from its log alone.
+                            _reused = 0
+                            _processed = 0
+                            _reused_ids: list = []
+                            if isinstance(output, dict):
+                                _reused = int(output.get("reused_count") or 0)
+                                _processed = int(output.get("processed_count") or 0)
+                                _reused_ids = list(
+                                    output.get("reused_artifact_ids") or []
+                                )
+                                activity_metadata["reused_count"] = _reused
+                                activity_metadata["processed_count"] = _processed
+                                node_end_data["reused_count"] = _reused
+                                node_end_data["processed_count"] = _processed
+
+                            if _reused and not _processed:
+                                _artifact = (
+                                    f" (artifact {_reused_ids[0]})"
+                                    if len(_reused_ids) == 1
+                                    else ""
+                                )
+                                await log_execution(
+                                    f"Node '{original_id}' reused existing output "
+                                    f"for {_reused} item(s){_artifact} — nothing "
+                                    f"re-computed ({node_duration_ms:.0f}ms)"
+                                )
+                            elif _reused:
+                                await log_execution(
+                                    f"Node '{original_id}' completed in "
+                                    f"{node_duration_ms:.0f}ms — {_processed} "
+                                    f"processed, {_reused} reused from cache"
+                                )
+                            else:
+                                await log_execution(
+                                    f"Node '{original_id}' completed in {node_duration_ms:.0f}ms"
+                                )
 
                     # Log activity: node completed/skipped
                     activity_tracker.node_completed(
@@ -1839,8 +1881,11 @@ async def _run_workflow_in_background(
                 },
             )
             if completed_count:
+                # Status bookkeeping, NOT a result count (S7, 2026-08-23:
+                # "Marked 2 documents" after Detect Regions read as the run's
+                # output). Say what it is.
                 await log_execution(
-                    f"Marked {completed_count} document(s) completed"
+                    f"Run settled — {completed_count} document(s) marked done processing"
                 )
             # The document.updated change-stream broadcast lives inside
             # complete_run_documents (centralised so both the main and batch

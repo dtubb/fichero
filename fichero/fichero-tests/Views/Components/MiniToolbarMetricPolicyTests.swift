@@ -9,10 +9,12 @@ final class MiniToolbarMetricPolicyTests: XCTestCase {
         return try String(contentsOf: url, encoding: .utf8)
     }
 
-    func testMacMetricsPreserveCompactPaneToolbar() {
+    func testMacMetricsMatchTheXcodeDebugBar() {
+        // ONE height for every bottom mini toolbar, Xcode-debug-bar sized
+        // (Daniel, 2026-08-23: "it's like half").
         XCTAssertEqual(
             MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false),
-            MiniToolbarMetrics(standardHeight: 44, touchTargetSide: 28)
+            MiniToolbarMetrics(standardHeight: 30, touchTargetSide: 22)
         )
     }
 

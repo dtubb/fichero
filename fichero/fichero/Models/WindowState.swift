@@ -43,6 +43,13 @@ class WindowState {
     /// that had worked.
     var dropErrorMessage: String?
 
+    /// Monotonic request token for "open the workflow picker over the current
+    /// selection" (the island's ⚡ chip). A counter, not a Bool: LibraryView
+    /// reacts to the CHANGE, so pressing the chip again after dismissing the
+    /// picker fires again. Direct @Observable seam per §6b — never a
+    /// NotificationCenter post.
+    var workflowPickerRequestToken = 0
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }

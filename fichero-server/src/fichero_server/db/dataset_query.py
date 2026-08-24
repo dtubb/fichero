@@ -58,6 +58,12 @@ class DatasetQuery(BaseModel):
     # list with the dates, and then below that the images"): rows must CARRY
     # data to appear in a data view — a prototype, or any attributes.
     attributed_only: bool = False
+    # Search scoping (Daniel 2026-08-22: "91 results" header over a
+    # "4,237 items" dataset — data views ran their own folder-wide query and
+    # search never reached them). When set, rows are constrained to THESE
+    # document ids; None means unscoped. An EMPTY list is a real scope that
+    # matches nothing — a search with zero hits must show zero rows, not all.
+    ids: Optional[list[str]] = None
     filters: list[DatasetFilter] = Field(default_factory=list)
     sort: Optional[DatasetSort] = None
     limit: int = 100
@@ -106,6 +112,13 @@ def _scope_sql(query: DatasetQuery, params: list[Any]) -> str:
     elif parent_id:
         clauses.append("parent_id = ?")
         params.append(parent_id)
+    if query.ids is not None:
+        if query.ids:
+            placeholders = ", ".join("?" for _ in query.ids)
+            clauses.append(f"id IN ({placeholders})")
+            params.extend(query.ids)
+        else:
+            clauses.append("1 = 0")  # empty scope matches nothing, never all
     if query.prototype_key:
         clauses.append("prototype_key = ?")
         params.append(query.prototype_key)

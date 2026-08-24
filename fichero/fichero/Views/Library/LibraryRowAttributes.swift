@@ -7,6 +7,9 @@ import SwiftUI
 /// transcript, and everything else (date, type, status text, entity
 /// lozenges) is opt-in per user choice.
 enum LibraryRowAttribute: String, CaseIterable, Identifiable {
+    /// The item's NAME — hideable in icon view (Daniel, 2026-08-23: "icon
+    /// view should be able to hide icon name"). Default ON.
+    case name
     case date
     case type
     case status
@@ -16,6 +19,7 @@ enum LibraryRowAttribute: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .name: return "Name"
         case .date: return "Date"
         case .type: return "Type"
         case .status: return "Status"
@@ -25,6 +29,7 @@ enum LibraryRowAttribute: String, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
+        case .name: return "textformat"
         case .date: return "calendar"
         case .type: return "doc"
         case .status: return "circle.badge.checkmark"
@@ -35,13 +40,20 @@ enum LibraryRowAttribute: String, CaseIterable, Identifiable {
     /// Codec for the @AppStorage backing string (comma-joined raw values).
     /// Unknown tokens are dropped so an old build's value can never trap.
     static func set(from raw: String) -> Set<LibraryRowAttribute> {
-        Set(raw.split(separator: ",").compactMap {
+        var set = Set(raw.split(separator: ",").compactMap {
             LibraryRowAttribute(rawValue: String($0).trimmingCharacters(in: .whitespaces))
         })
+        // NAME defaults ON and is stored as its ABSENCE marker ("!name"):
+        // stored raws predate the attribute, and reading them as name-off
+        // would hide every icon label on upgrade.
+        if !raw.contains("!name") { set.insert(.name) }
+        return set
     }
 
     static func raw(from set: Set<LibraryRowAttribute>) -> String {
-        allCases.filter(set.contains).map(\.rawValue).joined(separator: ",")
+        var tokens = allCases.filter { $0 != .name && set.contains($0) }.map(\.rawValue)
+        if !set.contains(.name) { tokens.append("!name") }
+        return tokens.joined(separator: ",")
     }
 
     /// The default row: entities only — the decluttered look Daniel ruled

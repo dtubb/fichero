@@ -54,8 +54,9 @@ KNOWN: dict[str, str] = {
     # menu ("Zoom to Card", LibraryView+CanvasModes) posts
     # .canvasFocusZoomToggle to the same toggle — but it lives in the HOST
     # file, which this per-file scan cannot see (2026-08-22).
-    "fichero/fichero/Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Gestures.swift":
-        "context-menu route in LibraryView+CanvasModes (canvasFocusZoomToggle)",
+    # (The 2D entry retired 2026-08-22: the ghost-marquee rework folded a
+    # manual double-tap into tapSelect, which the scan now sees as a
+    # same-file fallback.)
     "fichero/fichero/Views/Library/ViewModes/Canvas/3D/CanvasSpaceView+Gestures.swift":
         "context-menu route in LibraryView+CanvasModes (canvasFocusZoomToggle)",
 }

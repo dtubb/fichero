@@ -37,12 +37,64 @@ _CONFIDENCE_RANK: dict[RegionConfidence, int] = {
 }
 
 
-def _require_normalized(region: NodeRegion, what: str) -> None:
-    if region.space is not AnchorSpace.normalized:
+def require_normalized(geometry, what: str) -> None:
+    """Refuse to treat a rect as fractions unless it says it IS fractions.
+
+    Takes anything carrying a ``space`` — ``NodeRegion`` or ``SourceAnchor`` —
+    because both are read the same way by callers that multiply a rect by a
+    frame's width and height, and both can now be in pixel space.
+
+    That generality is the point. Before the anchor consolidation,
+    ``Annotation.bbox`` was validated into [0, 1], so "these are fractions"
+    was true by construction and no consumer had to check. Adding ``space``
+    made a pixel rect REPRESENTABLE, and every consumer that multiplies by a
+    dimension inherited a way to be silently, enormously wrong: a PDF rect at
+    x=72 points, scaled as though 72 were a fraction, lands 44,000 points off
+    the page.
+
+    Raising is deliberate. There is no safe default here — guessing normalized
+    crops the wrong region and reports success, which is precisely the failure
+    this whole program exists to remove.
+    """
+    space = getattr(geometry, "space", None)
+    if space is not AnchorSpace.normalized:
+        got = getattr(space, "value", space)
         raise ValueError(
-            f"{what} must be in normalized space to compose, got {region.space.value}. "
+            f"{what} must be in normalized space to compose, got {got}. "
             "Convert with the frame's pixel dimensions first — mixing spaces "
             "silently is exactly the bug this module exists to prevent."
+        )
+
+
+#: Kept as the old private name so existing call sites read unchanged.
+_require_normalized = require_normalized
+
+
+def require_original_frame(geometry, what: str) -> None:
+    """Refuse to compose a rect that was measured on a NAMED rendition.
+
+    ``rendition_id`` (2026-08-23) records that a rect's fractions are of some
+    specific rendition's frame rather than the node's own. Frames CHAIN — cut
+    to spreads, to pages, rotated, deskewed, background-removed, enhanced —
+    and a fraction of the rotated frame is simply not the same fraction of the
+    original.
+
+    Converting between them needs the rendition's actual pixel dimensions and
+    its transform. This module is pure and takes no database, so it cannot do
+    that resolution and must not pretend to: composing regardless would put a
+    plausible, wrong rect into the grandparent frame, which is precisely the
+    silent-wrongness this module exists to prevent.
+
+    So the caller resolves first — load the rendition, convert to the node's
+    own frame — and composes after. Refusing is the whole contribution.
+    """
+    rendition_id = getattr(geometry, "rendition_id", None)
+    if rendition_id:
+        raise ValueError(
+            f"{what} was measured on rendition {rendition_id}, not the node's "
+            "own frame, so it cannot be composed directly. Resolve it through "
+            "that rendition's pixel dimensions first — a fraction of a rotated "
+            "or cropped frame is not the same fraction of the original."
         )
 
 
@@ -124,9 +176,15 @@ def compose(outer: NodeRegion, inner: NodeRegion) -> NodeRegion:
     """
     _require_normalized(outer, "outer region")
     _require_normalized(inner, "inner region")
+    # `inner`'s fractions must be of the frame `outer` places — if inner names
+    # a rendition of its own, the two are measuring different pictures.
+    require_original_frame(inner, "inner region")
     return NodeRegion(
         rect=rect_to_parent(inner.rect, outer),
         space=AnchorSpace.normalized,
+        # The result lives in whatever frame OUTER was measured on: collapsing
+        # two hops does not change which picture the answer is about.
+        rendition_id=outer.rendition_id,
         confidence=weakest_confidence(outer, inner),
         method=_composed_method(outer, inner),
         note=None,

@@ -446,6 +446,34 @@ def _generate_node_names(workflow: WorkflowDef) -> dict[str, str]:
     return node_names
 
 
+#: Tools that only route or combine — an "exit" that is one of these is not the
+#: workflow's real deliverable, so the recompute rule looks past it.
+_PASSTHROUGH_TOOLS = {"aggregate", "route", "merge", "collect", "sub_workflow"}
+
+
+def _should_recompute(
+    state: dict, node_id: str, node_tool: str, workflow_config: dict | None
+) -> bool:
+    """Whether this node must redo its work rather than reuse a cached result.
+
+    Two ways in, and they are different intents:
+
+    * a FORCED run (Option-held) — everything recomputes, no exceptions;
+    * an ordinary explicit run — the workflow's terminal deliverable
+      recomputes, while upstream dependencies may still reuse.
+
+    The second is what makes "rerun Detect Regions" mean something. Without it
+    the only honest options were "reuse everything and report 0ms" or "redo
+    everything including a transcription nobody asked to redo".
+    """
+    if state.get("force_recompute"):
+        return True
+    if node_tool in _PASSTHROUGH_TOOLS:
+        return False
+    exits = (workflow_config or {}).get("exit_node_ids") or set()
+    return node_id in exits
+
+
 def build_graph(
     workflow: WorkflowDef,
     enable_parallel: bool = True,
@@ -483,12 +511,31 @@ def build_graph(
     )
 
     # Workflow-level config for resolver
+    # THE WORKFLOW'S TERMINAL DELIVERABLE (2026-08-23). Daniel, running the
+    # Detect Regions workflow: "if we rerun region it should redo it."
+    #
+    # An explicit run of a workflow recomputes what that workflow is FOR.
+    # Upstream nodes may still reuse — that is what reuse is for, and a
+    # transcription feeding a regions pass should not be redone to satisfy a
+    # regions re-run. So the rule is scoped to the exit node(s): the ones no
+    # edge leaves.
+    #
+    # A fan-in aggregator sitting after the real tool would make "exit" the
+    # wrong node, so the set is narrowed to nodes that actually DO work —
+    # a pure router or aggregator at the end is skipped and its upstream tool
+    # nodes take its place, per branch.
+    _edge_sources = {edge.source for edge in workflow.edges}
+    _exit_node_ids = {
+        node.id for node in workflow.nodes if node.id not in _edge_sources
+    }
+
     workflow_config = {
         "provider": workflow.provider,
         "model": workflow.model,
         "timeout": workflow.timeout_seconds,
         "workflow_id": workflow.id,
         "skip_cache": skip_cache,
+        "exit_node_ids": _exit_node_ids,
     }
 
     # Validate edge references before any downstream node_names lookup.
@@ -970,6 +1017,16 @@ def _make_node_function(
                 state,
                 workflow_config,
             )
+
+            # The terminal deliverable of an explicit run redoes its work;
+            # upstream dependencies may still reuse. Node config still wins —
+            # a node deliberately set force_ocr=False stays that way.
+            if (
+                _should_recompute(state, node_id, node_def.tool, workflow_config)
+                and "force_ocr" not in resolved_inputs
+                and "force_ocr" not in node_def.config
+            ):
+                resolved_inputs["force_ocr"] = True
 
             # Merge with static config (config takes precedence)
             tool_kwargs = {**resolved_inputs, **node_def.config}
@@ -1838,6 +1895,15 @@ def _make_parallel_node_function(
                 "documents": [document] if document else [],
                 **node_def.config,  # Static config
             }
+            # The elementwise fan-out builds its inputs here rather than through
+            # resolve_inputs, so the rule has to be honoured in both places or
+            # a re-run would redo sequential nodes and silently not per-file
+            # ones. Explicit node config still wins.
+            if (
+                _should_recompute(state, node_id, node_def.tool, workflow_config)
+                and "force_ocr" not in tool_inputs
+            ):
+                tool_inputs["force_ocr"] = True
             # Chained stage: the item's payload is the upstream branch's
             # OUTPUT — a text-consuming tool (extract_entities, summarize)
             # reads it as its `text` input instead of erroring on a bare file.

@@ -19,8 +19,10 @@ struct DocumentStoreSpliceTests {
         DocumentStore(apiClient: APIClient())
     }
 
-    private func doc(_ id: String, parent: String? = nil, name: String? = nil) -> Document {
-        Document(id: id, parentId: parent, docType: .file, name: name ?? id)
+    private func doc(
+        _ id: String, parent: String? = nil, name: String? = nil, docType: DocType = .file
+    ) -> Document {
+        Document(id: id, parentId: parent, docType: docType, name: name ?? id)
     }
 
     @Test("a new root document joins collections")
@@ -76,18 +78,35 @@ struct DocumentStoreSpliceTests {
     // makes the row visible. The cost — `collections` transiently holding
     // non-roots until the next `loadCollections()` — is the lesser evil: the
     // pollution is invisible, a missing row is not.
-    @Test("a child of a CLOSED folder still reaches the sidebar, via collections")
+    @Test("a CONTAINER child of a CLOSED folder still reaches the sidebar, via collections")
     func childOfUnloadedParentIsDeliveredViaCollections() {
         let store = store()
-        store.collections = [doc("folder", name: "Folder")]
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
 
-        store.spliceDocument(doc("file-1", parent: "folder"))
+        // CONTAINERS only (perf audit 2026-08-19): the sidebar renders
+        // folders/groups, so only container rows take this delivery route.
+        store.spliceDocument(doc("sub", parent: "folder", docType: .folder))
 
         #expect(store.childrenCache["folder"] == nil, "the closed folder is still unfetched")
         #expect(
-            store.collections.map(\.id) == ["folder", "file-1"],
+            store.collections.map(\.id) == ["folder", "sub"],
             "the row must be visible somewhere — collections is the only container left"
         )
+    }
+
+    /// The other half of the 2026-08-19 narrowing: a PAGE/FILE inside an
+    /// unexpanded folder gains nothing from the sidebar delivery — a
+    /// 1,100-page import used to pump every page row into `collections` and
+    /// re-run the whole-tree rebuild once a second.
+    @Test("a FILE child of a CLOSED folder does not pollute collections")
+    func fileChildOfUnloadedParentStaysOut() {
+        let store = store()
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
+
+        store.spliceDocument(doc("file-1", parent: "folder"))
+
+        #expect(store.childrenCache["folder"] == nil)
+        #expect(store.collections.map(\.id) == ["folder"])
     }
 
     @Test("an existing row is patched in place, not duplicated")
@@ -117,6 +136,9 @@ struct DocumentStoreSpliceTests {
     @Test("a child of the selected collection still reaches the grid")
     func childOfSelectionReachesGrid() {
         let store = store()
+        // Direct grid delivery is the STORED tier's contract; at the content
+        // default the engine re-answers instead (2026-08-23 splice rule).
+        store.setLibraryLevelForTesting(.stored)
         let folder = Document(id: "folder", docType: .folder, name: "Folder")
         store.collections = [folder]
         store.selectedCollection = folder
@@ -150,5 +172,39 @@ struct DocumentStoreSpliceTests {
         store.spliceDocuments([root, child])
 
         #expect(!fired, "an identical batch reassigned a published container — no-op polls now rebuild the sidebar")
+    }
+
+    // MARK: Content tier (2026-08-23: Detect Regions made spreads reappear)
+
+    /// At the CONTENT tier the grid shows a container's CHILDREN; an updated
+    /// container arriving on the change stream must never be appended beside
+    /// them — the engine re-answers the tier question instead.
+    @Test("content tier: an updated container is not appended to the grid")
+    func contentTierNeverAppendsAContainer() {
+        let store = store()
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
+        store.setLibraryLevelForTesting(.content)
+        store.selectedCollection = store.collections[0]
+        store.currentDocuments = [doc("part1", parent: "spread"), doc("part2", parent: "spread")]
+
+        store.spliceDocument(doc("spread", parent: "folder", docType: .folder))
+
+        #expect(!store.currentDocuments.contains { $0.id == "spread" },
+                "the spread joined the grid beside its own pages")
+    }
+
+    /// Stored tier keeps today's live-delivery behaviour untouched.
+    @Test("stored tier still appends a new child of the selected folder")
+    func storedTierStillAppends() {
+        let store = store()
+        store.collections = [doc("folder", name: "Folder", docType: .folder)]
+        // The grid DEFAULTS to content (the level-selector ruling) — the
+        // stored-tier delivery contract needs the tier said out loud.
+        store.setLibraryLevelForTesting(.stored)
+        store.selectedCollection = store.collections[0]
+
+        store.spliceDocument(doc("new-row", parent: "folder"))
+
+        #expect(store.currentDocuments.contains { $0.id == "new-row" })
     }
 }

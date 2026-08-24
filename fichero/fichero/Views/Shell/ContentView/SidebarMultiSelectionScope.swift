@@ -33,6 +33,17 @@ func sidebarScopeIsExpandableContainer(_ doc: Document) -> Bool {
     (doc.fileType == .pdf && doc.docType != .page) || doc.docType == .folder
 }
 
+/// The shown set is a SET (2026-08-23 crash, sidebar ⌘A in 3D): ⌘A selects
+/// every visible row, so an expanded folder arrives alongside its own
+/// children — the folder contributes child D via expansion AND D contributes
+/// itself as a selected leaf. The duplicate flowed into `currentDocuments`,
+/// through `SpatialLibraryProjector` (1:1), and trapped
+/// `CanvasArrangement.slotIndices`. First occurrence wins, order kept.
+func sidebarScopeDeduped(_ docs: [Document]) -> [Document] {
+    var seen = Set<String>()
+    return docs.filter { seen.insert($0.id).inserted }
+}
+
 /// The #156 single-leaf gate: a lone selected document scopes the library to
 /// itself only when NOTHING else owns the selection — containers browse in,
 /// pages move the cursor.
@@ -107,6 +118,6 @@ extension ContentView {
                 shown.append(doc)
             }
         }
-        return shown
+        return sidebarScopeDeduped(shown)
     }
 }

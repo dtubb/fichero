@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from fichero_server import db as db_module
 from fichero_server.models import (
-    Document, Artifact, Workflow, Run, Trace, Note as LegacyNote, Event,
+    Document, Artifact, Workflow, Run, Trace, Event,
     DocType, FileType, Status, RunStatus, SavedSearch
 )
 from fichero_server.db import Database
@@ -45,7 +45,10 @@ from fichero_server.models.canvas import (
     SpatialRoom,
     SpatialViewport,
 )
+from fichero_server.models.anchors import AnchorSpace, SourceAnchor
 from fichero_server.models.knowledge import (
+    AnnotationKind,
+    Annotation,
     ClaimRelationType,
     ClassificationDimension,
     ClassificationValue,
@@ -761,41 +764,51 @@ class TestTraceCRUD:
 
 
 class TestNoteCRUD:
-    """Test Note CRUD operations."""
+    """A positioned note on a document.
+
+    These used to exercise `models.Note`, a second class of that name whose
+    rows shared the `notes` table with `knowledge.Note`. It folded into
+    `Annotation(kind=note)` on 2026-08-23 — the capability did not go away, so
+    neither did the tests; they moved to the type that owns it now.
+    """
 
     def test_save_and_get_note(self, temp_db):
-        """Test saving and retrieving a note."""
         doc = Document(name="test.jpg", path="/test.jpg")
         temp_db.save(doc)
 
-        note = LegacyNote(
-            target_type="Document",
-            target_id=doc.id,
-            content="This handwriting is hard to read",
-            note_type="comment"
+        note = Annotation(
+            document_id=doc.id,
+            kind=AnnotationKind.note,
+            text="This handwriting is hard to read",
         )
         temp_db.save(note)
 
-        retrieved = temp_db.get(LegacyNote, note.id)
-        assert retrieved.content == "This handwriting is hard to read"
-        assert retrieved.note_type == "comment"
+        retrieved = temp_db.get(Annotation, note.id)
+        assert retrieved.text == "This handwriting is hard to read"
+        assert retrieved.kind is AnnotationKind.note
 
     def test_note_with_position(self, temp_db):
-        """Test note with bbox position."""
+        """The old `bbox` was PIXEL ints against an unnamed frame. The anchor
+        says which space it is in, which is the entire point of the fold."""
         doc = Document(name="test.jpg", path="/test.jpg")
         temp_db.save(doc)
 
-        note = LegacyNote(
-            target_type="Document",
-            target_id=doc.id,
-            content="Check this signature",
-            note_type="flag",
-            bbox=(600, 850, 300, 100)
+        note = Annotation(
+            document_id=doc.id,
+            kind=AnnotationKind.note,
+            text="Check this signature",
+            anchor=SourceAnchor(
+                document_id=doc.id,
+                rect=[600, 850, 300, 100],
+                space=AnchorSpace.pixel,
+            ),
+            metadata={"legacy_note_type": "flag"},
         )
         temp_db.save(note)
 
-        retrieved = temp_db.get(LegacyNote, note.id)
-        assert retrieved.bbox == (600, 850, 300, 100)
+        retrieved = temp_db.get(Annotation, note.id)
+        assert retrieved.anchor.rect == [600.0, 850.0, 300.0, 100.0]
+        assert retrieved.anchor.space is AnchorSpace.pixel
 
 
 class TestEventCRUD:

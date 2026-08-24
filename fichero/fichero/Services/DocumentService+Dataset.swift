@@ -77,6 +77,9 @@ struct DatasetRequest {
     /// Only rows that CARRY data (a prototype or attributes) — the data
     /// views' scope; bare page images stay in the Browse modes.
     var attributedOnly = false
+    /// Search scoping (2026-08-22): non-nil constrains rows to these ids —
+    /// the active search's hits. Empty = a real scope matching nothing.
+    var ids: [String]?
     var filters: [DatasetFilterSpec] = []
     var sortAttr: String?
     var sortDescending = false
@@ -130,6 +133,7 @@ extension DocumentService {
                 recursive: request.recursive,
                 prototypeKey: request.prototypeKey,
                 attributedOnly: request.attributedOnly,
+                ids: request.ids,
                 filters: filters,
                 sort: sort,
                 limit: request.limit,

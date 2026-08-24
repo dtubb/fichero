@@ -8,7 +8,9 @@ struct MiniToolbarMetrics: Equatable {
 enum MiniToolbarMetricPolicy {
     static func metrics(isMac: Bool, isTV: Bool) -> MiniToolbarMetrics {
         if isMac {
-            return MiniToolbarMetrics(standardHeight: 44, touchTargetSide: 28)
+            // Xcode-debug-bar proportions (Daniel, 2026-08-23: "its like
+            // half"): ONE height for every bottom mini toolbar, small icons.
+            return MiniToolbarMetrics(standardHeight: 30, touchTargetSide: 22)
         }
         if isTV {
             return MiniToolbarMetrics(standardHeight: 64, touchTargetSide: 44)
@@ -77,9 +79,10 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     // bar on top (#2309).
     @Environment(\.splitAxisActions) private var splitActions
 
-    private var shouldShowSplitButtons: Bool {
-        horizontalSizeClass != .compact
-    }
+    // Split controls moved to the pane HEAD's "+" menu (Daniel, 2026-08-23:
+    // the bottom-right split icons were a second owner). The environment
+    // injection stays wired for the head; this bar no longer draws them.
+    private var shouldShowSplitButtons: Bool { false }
 
     init(@ViewBuilder content: () -> Content, @ViewBuilder trailing: () -> Trailing) {
         self.content = content()

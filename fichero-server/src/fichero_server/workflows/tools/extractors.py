@@ -25,6 +25,7 @@ from __future__ import annotations
 
 # EntityType import placed here so future authors see the KG mapping next
 # to the section table below.
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import EntityType
 
 import asyncio
@@ -2437,7 +2438,23 @@ def _write_kg_rows(
         # on disk + page number.
         char_start: int | None = None
         char_end: int | None = None
-        source_bbox = item.get("source_bbox")
+        # The extractor's payload still speaks `source_bbox`; wrap it in the
+        # shared anchor at the boundary rather than letting a bare rect travel
+        # further into the system. `space` is left at its default because the
+        # extractor does not say which it used — an honest unknown beats a
+        # guessed declaration.
+        raw_source_bbox = item.get("source_bbox")
+        source_anchor = None
+        if isinstance(raw_source_bbox, list) and len(raw_source_bbox) == 4:
+            try:
+                source_anchor = SourceAnchor(
+                    document_id=str(item.get("source_document_id") or container_id or ""),
+                    rect=[float(v) for v in raw_source_bbox],
+                )
+            except (TypeError, ValueError) as exc:
+                # A malformed rect is dropped, never coerced: a claim pointing
+                # at the wrong place is worse than one pointing nowhere.
+                logger.warning("claim source_bbox rejected: %s", exc)
         verbatim_source_text: str | None = None
         model_paraphrase: str | None = None
         unverified_source_text: str | None = None
@@ -2751,7 +2768,7 @@ def _write_kg_rows(
             source_page_label=page_label,
             source_char_start=char_start,
             source_char_end=char_end,
-            source_bbox=source_bbox,
+            source_anchor=source_anchor,
             claim_type=ctype or ClaimType.fact,
             metadata=meta,
             epistemic_status=epistemic,

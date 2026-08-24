@@ -28,18 +28,17 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
 
     // MARK: - Source loading
 
-    /// App-target source root: fichero/fichero (this file lives in
-    /// fichero/fichero-tests, a sibling of the app folder).
+    /// App-target source root via the landmark walk — the hand-rolled
+    /// depth-counted version this replaces is the exact class AppSource
+    /// (#4493) exists to kill, and it also skipped symlink resolution, which
+    /// mangled every relative path under a /tmp snapshot worktree.
     private static var appSourceRoot: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent()   // fichero-tests
-            .deletingLastPathComponent()   // fichero (project dir)
-            .appendingPathComponent("fichero")
+        get throws { try AppSource.root() }
     }
 
     /// Every .swift file in the app target, path relative to the source root.
     private static func appSwiftFiles() throws -> [(path: String, source: String)] {
-        let root = appSourceRoot
+        let root = try appSourceRoot
         guard let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: nil
@@ -50,7 +49,7 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
         var files: [(String, String)] = []
         for case let url as URL in enumerator where url.pathExtension == "swift" {
             let source = try String(contentsOf: url, encoding: .utf8)
-            let relative = url.path.replacingOccurrences(of: root.path + "/", with: "")
+            let relative = AppSource.relativePath(of: url, under: root)
             files.append((relative, source))
         }
         XCTAssertFalse(files.isEmpty, "No app sources found under \(root.path)")

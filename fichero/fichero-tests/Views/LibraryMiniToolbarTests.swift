@@ -54,45 +54,41 @@ struct LibraryMiniToolbarTests {
 
     // MARK: - …and arrived in one container
 
-    @Test("all three controls live in the one library mini toolbar")
+    @Test("the mini toolbar keeps sort and filter; search moved to the window toolbar")
     func allThreeLiveInOneContainer() throws {
+        // #4604 (2026-08-19) SUPERSEDED #4521's summoned field: search is a
+        // RESIDENT top-right window field (ContentView+ToolbarSearch.swift),
+        // so the mini toolbar keeps the two library-scoped controls only.
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("var libraryMiniToolbar"))
-        #expect(mini.contains("librarySearchField"))
         #expect(mini.contains("var librarySortMenu"))
         #expect(mini.contains("var libraryFilterToggleButton"))
+        #expect(
+            !mini.contains("librarySearchField"),
+            "a second search field in the mini toolbar would compete with the #4604 resident one"
+        )
     }
 
     /// One container, mounted once per edge — not one per control.
-    @Test("the container is mounted exactly once per edge")
-    func containerIsMountedOncePerEdge() throws {
+    @Test("the cluster lives ONLY inside the one bottom action bar")
+    func clusterLivesInTheActionBar() throws {
+        // ONE bottom row (Daniel, 2026-08-23): no PaneFilterBar mount for the
+        // library cluster on either edge — the action bar's adaptive row
+        // hosts it (inline when wide, overflow menu when narrow).
         let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
             ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
-        #expect(
-            library.components(separatedBy: "PaneFilterBar(placement: .top) { libraryMiniToolbar }")
-                .count - 1 == 1
-        )
-        #expect(
-            library.components(separatedBy: "PaneFilterBar(placement: .bottom) { libraryMiniToolbar }")
-                .count - 1 == 1
-        )
+        #expect(!library.contains("PaneFilterBar(placement: .top) { libraryMiniToolbar }"))
+        #expect(!library.contains("PaneFilterBar(placement: .bottom) { libraryMiniToolbar }"))
+        let bar = try Self.appSource("Views/Library/LibraryView+BottomActionBar.swift")
+        #expect(bar.contains("libraryMiniToolbar"))
+        #expect(bar.contains("librarySortMenu"))
     }
 
-    /// It uses the SAME shared container and the SAME platform decision as the
-    /// reader's find bar — the bar that was already correctly scoped, and the
-    /// reason the window-spanning one looked wrong beside it.
-    @Test("it reuses the reader's container and placement decision")
-    func itReusesTheReadersModel() throws {
-        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
-        #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
-
-        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
-            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
-        #expect(library.contains("PaneFilterBar("))
-
-        // The reader still owns its own find bar — unchanged, and still the model.
+    /// The reader keeps its find bar in the shared container at the shared
+    /// bottom placement (its .top branch is Mac-dead by the one decision).
+    @Test("the reader keeps the shared find-bar container")
+    func readerKeepsTheSharedContainer() throws {
         let reader = try Self.appSource("Views/Reader/Page/ReadingPaneView.swift")
-        #expect(reader.contains("PaneFilterBar(placement: .top) { readerFindBar }"))
         #expect(reader.contains("PaneFilterBar(placement: .bottom) { readerFindBar }"))
     }
 
@@ -142,49 +138,57 @@ struct LibraryMiniToolbarTests {
         try #require(pieces.count > 1, "bottomInsetContent declaration not found")
         let body = pieces[1]
             .components(separatedBy: "\n    }")[0]
-        let mini = body.range(of: "libraryMiniToolbar")
+        // ONE persistent row since 2026-08-23: the transient ⌘F reveal sits
+        // above the action bar, which hosts the whole cluster.
         let filter = body.range(of: "filterBarView")
-        let status = body.range(of: "libraryBottomActionBar")
-        #expect(mini != nil)
+        let bar = body.range(of: "libraryBottomActionBar")
         #expect(filter != nil)
-        #expect(status != nil)
-        if let mini, let filter, let status {
-            #expect(mini.lowerBound < filter.lowerBound, "the pane's control sits nearest its rows")
-            #expect(filter.lowerBound < status.lowerBound, "the status row is outermost")
+        #expect(bar != nil)
+        if let filter, let bar {
+            #expect(filter.lowerBound < bar.lowerBound, "the reveal sits above the one bar")
         }
     }
 
-    /// The top/bottom question for Mac mini toolbars is Daniel's to decide and
-    /// is explicitly deferred (#4424) — this change must not have quietly
-    /// answered it. The placement still comes from the one shared decision.
-    @Test("the placement decision is untouched and still shared with the reader")
-    func placementDecisionIsUntouched() throws {
+    /// ANSWERED 2026-08-23 (supersedes the #4424 deferral): bottom, for every
+    /// pane — one shared decision, one shared value.
+    @Test("the placement decision is bottom, shared with the reader")
+    func placementDecisionIsBottom() throws {
         let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
         #expect(mini.contains("MiniToolbarPlacement.preferredForReader"))
-        let library = // LibraryView.swift was split 2026-08-13; scan all four parts.
-            ((try Self.appSource("Views/Library/LibraryView.swift")) + (try Self.appSource("Views/Library/LibraryView+Body.swift")) + (try Self.appSource("Views/Library/LibraryView+ContentBranches.swift")) + (try Self.appSource("Views/Library/LibraryView+Insets.swift")))
-        #expect(library.contains("if Self.miniToolbarPlacement == .top"))
-        #expect(library.contains("if Self.miniToolbarPlacement == .bottom"))
+        // The library no longer branches on the placement at all: its ONE
+        // bottom row is the action bar, unconditionally at the bottom.
     }
 
-    // MARK: - Summoned search (#4521)
+    // MARK: - Resident search (#4604, superseding the #4521 summon)
 
-    /// The search field is summoned, not resident: the mini toolbar renders
-    /// it only while `searchFieldVisible` is on, and a toolbar toggle exists
-    /// to turn it on — without the toggle, conditional chrome would make
-    /// search unreachable.
-    @Test("the search field is summoned by a toolbar toggle, not resident")
+    /// #4521 made the field summoned by a toolbar toggle. #4604 (2026-08-19)
+    /// reversed that: the search field is RESIDENT, top-right in the window
+    /// toolbar, with the mode menu on the magnifier — no toggle, no
+    /// conditional chrome, and still deliberately NOT `.searchable` (which
+    /// attaches to a navigation container: the #4407 three-pane span and the
+    /// duplicate-.searchable crash class).
+    @Test("the search field is resident in the window toolbar, not summoned")
     func searchFieldIsSummonedNotResident() throws {
-        let mini = try Self.appSource("Views/Library/LibraryView+MiniToolbar.swift")
-        #expect(mini.contains("if searchFieldVisible.wrappedValue {"))
+        let toolbarSearch = try Self.appSource("Views/Shell/ContentView/ContentView+ToolbarSearch.swift")
+        #expect(toolbarSearch.contains("var toolbarSearchField"))
+        #expect(toolbarSearch.contains("TextField(\"Search your library\""))
 
+        // The field MOUNTS in the inspector-section toolbar since 2026-08-23
+        // (Daniel: right of the inspector toggle; the content section always
+        // renders left of the inspector section). The honest pin is still on
+        // the summon STATE being gone, now checked in both homes.
+        let inspector = try Self.appSource(
+            "Views/Shell/ContentView/Layout/ContentView+InspectorContainer.swift"
+        )
+        #expect(inspector.contains("toolbarSearchField"))
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.searchToggle"))
-        #expect(toolbar.contains("setSearchFieldVisible($0)"))
-        // Deliberately NOT `.searchable`: it attaches to a navigation
-        // container (the #4407 three-pane span, and the duplicate-.searchable
-        // crash class). The summon state is plain per-window storage instead.
         #expect(!toolbar.contains(".searchable("))
+        for source in [toolbar, inspector] {
+            #expect(
+                !source.contains("setSearchFieldVisible"),
+                "the #4521 summon state is back — #4604 made the field resident"
+            )
+        }
     }
 
     /// Dismissing the chrome exits transient-search presentation through the

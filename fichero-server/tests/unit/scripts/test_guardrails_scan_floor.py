@@ -283,7 +283,9 @@ FLOORED_CHECKS: dict[str, dict] = {
         "dirs": ["fichero-server/src/fichero_server/models", "fichero/fichero/Services"],
         "files": {
             "fichero-server/src/fichero_server/models/__init__.py": "",
-            "fichero/fichero/Services/DocumentService.swift": "",
+            # The decoder moved to the +DocumentConversion split (2026-08-23);
+            # the seeded skeleton must track the checker's DECODER path.
+            "fichero/fichero/Services/DocumentService+DocumentConversion.swift": "",
         },
         "extra_scripts": [],
     },

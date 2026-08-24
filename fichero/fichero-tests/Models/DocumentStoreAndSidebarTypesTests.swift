@@ -67,8 +67,9 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let prefetch = try Self.appSource("Models/DocumentStore+SidebarPrefetch.swift")
         // Root load prefetches so top-level folders show chevrons before a click.
         XCTAssertTrue(store.contains("prefetchChildContainerChildren(of: collections)"))
-        // Expanding a folder caches its children AND one level deeper.
-        XCTAssertTrue(prefetch.contains("cacheSidebarChildren(of: document)"))
+        // Expanding a folder REFRESHES its children (2026-08-23: a sparse
+        // early fetch is not forever) AND still prefetches one level deeper.
+        XCTAssertTrue(prefetch.contains("fetchSidebarChildren(of: document)"))
         XCTAssertTrue(prefetch.contains("prefetchChildContainerChildren(of: children)"))
         // Only containers are prefetched — leaf rows have nothing to reveal.
         // (The batching refactor moved the guard from a `for … where` clause
@@ -378,8 +379,8 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         let menuSource = try Self.appSource("App/Menus/ViewMenuPaneSections.swift")
 
         XCTAssertTrue(toolbarSource.contains("placement: .principal"))
-        XCTAssertTrue(toolbarSource.contains("LibraryManager.shared.getLibrary(id: windowState.libraryId)?.displayName"))
-        XCTAssertTrue(toolbarSource.contains("Text(libraryName)"))
+        // The library-name crumb LEFT the toolbar (Daniel, 2026-08-23):
+        // panes carry their own crumbs; the island answers the selection.
         XCTAssertTrue(menuSource.contains("Show Library Browser"))
         XCTAssertTrue(menuSource.contains("Hide Library Browser"))
         XCTAssertTrue(menuSource.contains("icon: \"books.vertical\""))

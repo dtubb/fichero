@@ -1,106 +1,49 @@
 @testable import Fichero
-import XCTest
+import Testing
 
-final class SplitPaneStateTests: XCTestCase {
-    func testVerticalToggleCyclesThroughTwoThreeAndOnePanes() {
+/// The 2×2 grid rules (Daniel, 2026-08-23: "two vertical and two horizontal"
+/// must coexist — splitting one axis used to DELETE the other).
+struct SplitPaneStateTests {
+    @Test("splitting one axis keeps the other — the grid exists")
+    func axesCoexist() {
         var state = SplitPaneState()
-
-        state.toggleVertical()
-        XCTAssertEqual(state.verticalPaneCount, 2)
-        XCTAssertEqual(state.horizontalPaneCount, 1)
-        XCTAssertTrue(state.hasVertical)
-        XCTAssertEqual(state.paneCount, 2)
-
-        state.toggleVertical()
-        XCTAssertEqual(state.verticalPaneCount, 3)
-        XCTAssertEqual(state.horizontalPaneCount, 1)
-        XCTAssertTrue(state.hasVertical)
-        XCTAssertEqual(state.paneCount, 3)
-
-        state.toggleVertical()
-        XCTAssertEqual(state.verticalPaneCount, 1)
-        XCTAssertEqual(state.horizontalPaneCount, 1)
-        XCTAssertFalse(state.hasVertical)
-        XCTAssertEqual(state.paneCount, 1)
-    }
-
-    func testHorizontalToggleClearsVerticalStateAndCyclesThroughThreePanes() {
-        var state = SplitPaneState()
-
         state.toggleVertical()
         state.toggleHorizontal()
-
-        XCTAssertEqual(state.verticalPaneCount, 1)
-        XCTAssertEqual(state.horizontalPaneCount, 2)
-        XCTAssertTrue(state.hasHorizontal)
-        XCTAssertEqual(state.paneCount, 2)
-
-        state.toggleHorizontal()
-        XCTAssertEqual(state.horizontalPaneCount, 3)
-        XCTAssertTrue(state.hasHorizontal)
-        XCTAssertEqual(state.paneCount, 3)
+        #expect(state.verticalPaneCount == 2)
+        #expect(state.horizontalPaneCount == 2)
+        #expect(state.isGrid)
     }
 
-    func testCollapseOnePaneStepsBackToTwoThenOne() {
+    @Test("thirds are a single-axis affair — a grid axis cycles 2 → 1")
+    func gridCapsAxesAtTwo() {
+        var state = SplitPaneState()
+        state.toggleVertical()
+        state.toggleHorizontal()
+        state.toggleVertical()
+        #expect(state.verticalPaneCount == 1, "in a grid, toggling a 2-axis collapses it, never a third")
+        #expect(state.horizontalPaneCount == 2)
+    }
+
+    @Test("a lone axis still cycles 1 → 2 → 3 → 1")
+    func singleAxisStillReachesThree() {
         var state = SplitPaneState()
         state.toggleVertical()
         state.toggleVertical()
-
-        state.collapseOnePane()
-        XCTAssertEqual(state.verticalPaneCount, 2)
-        XCTAssertTrue(state.hasVertical)
-        XCTAssertEqual(state.paneCount, 2)
-
-        state.collapseOnePane()
-        XCTAssertEqual(state.verticalPaneCount, 1)
-        XCTAssertFalse(state.hasVertical)
-        XCTAssertEqual(state.paneCount, 1)
-
-        state.collapseOnePane()
-        XCTAssertEqual(state.verticalPaneCount, 1)
-        XCTAssertEqual(state.horizontalPaneCount, 1)
-    }
-
-    /// The horizontal branch of `collapseOnePane` (vertical already at 1) — the
-    /// previously-uncovered `horizontalPaneCount > 1` path.
-    func testCollapseOnePaneStepsBackHorizontalWhenVerticalIsUnsplit() {
-        var state = SplitPaneState()
-        state.toggleHorizontal()
-        state.toggleHorizontal()
-        XCTAssertEqual(state.horizontalPaneCount, 3)
-
-        state.collapseOnePane()
-        XCTAssertEqual(state.horizontalPaneCount, 2)
-        XCTAssertEqual(state.verticalPaneCount, 1)
-        XCTAssertTrue(state.hasHorizontal)
-
-        state.collapseOnePane()
-        XCTAssertEqual(state.horizontalPaneCount, 1)
-        XCTAssertFalse(state.hasHorizontal)
-        XCTAssertEqual(state.paneCount, 1)
-    }
-
-    /// Only one axis is ever split at a time: toggling vertical must reset an
-    /// active horizontal split back to 1 (the mirror of the horizontal test).
-    func testToggleVerticalClearsActiveHorizontalSplit() {
-        var state = SplitPaneState()
-        state.toggleHorizontal()
-        state.toggleHorizontal()
-        XCTAssertEqual(state.horizontalPaneCount, 3)
-
+        #expect(state.verticalPaneCount == 3)
         state.toggleVertical()
-        XCTAssertEqual(state.verticalPaneCount, 2)
-        XCTAssertEqual(state.horizontalPaneCount, 1)
-        XCTAssertFalse(state.hasHorizontal)
-        XCTAssertTrue(state.hasVertical)
-        XCTAssertEqual(state.paneCount, 2)
+        #expect(state.verticalPaneCount == 1)
     }
 
-    /// A fresh 1×1 state reports no split on either axis.
-    func testDefaultStateHasNoSplit() {
-        let state = SplitPaneState()
-        XCTAssertFalse(state.hasVertical)
-        XCTAssertFalse(state.hasHorizontal)
-        XCTAssertEqual(state.paneCount, 1)
+    @Test("X collapses the horizontal axis first, one pane at a time")
+    func collapseOrderIsHorizontalFirst() {
+        var state = SplitPaneState()
+        state.toggleVertical()
+        state.toggleHorizontal()
+        state.collapseOnePane()
+        #expect(state.horizontalPaneCount == 1)
+        #expect(state.verticalPaneCount == 2)
+        state.collapseOnePane()
+        #expect(state.verticalPaneCount == 1)
+        #expect(!state.hasVertical && !state.hasHorizontal)
     }
 }

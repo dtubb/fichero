@@ -165,7 +165,7 @@ struct PDFPageWithToolbar: View {
                     && $0.pageIndex == effectivePageIndex
                     && $0.hasRegion
             }
-            .compactMap(\.bbox)
+            .compactMap(\.regionRect)
     }
 
     /// Regions to draw: words when the pass produced them, lines otherwise —

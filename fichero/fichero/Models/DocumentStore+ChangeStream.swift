@@ -144,9 +144,26 @@ extension DocumentStore: ObservableDomainStore {
                 collections: &nextCollections,
                 currentDocuments: &nextCurrent,
                 childrenCache: &nextChildren,
-                selectedCollectionId: selectedId,
+                context: SpliceContext(
+                    selectedCollectionId: selectedId, libraryLevel: libraryLevel
+                ),
                 changes: &changed
             )
+        }
+
+        // Content tier: an updated container (a spread whose artifact write
+        // bumped it) must NOT be appended to a grid that deliberately shows
+        // its CHILDREN instead — that is how Detect Regions made spreads
+        // reappear beside their own pages (2026-08-23). The splice rules skip
+        // the append and raise this flag; ONE debounced engine reload answers
+        // the tier question the only place it can be answered.
+        if changed.needsLevelReload {
+            levelReloadDebouncer.schedule { [weak self] in
+                await MainActor.run {
+                    guard let self, let selected = self.selectedCollection else { return }
+                    Task { await self.selectCollection(selected) }
+                }
+            }
         }
 
         // One assignment each, gated on the CHANGED FLAGS the splice rules set
@@ -158,6 +175,9 @@ extension DocumentStore: ObservableDomainStore {
         if changed.collections { collections = nextCollections }
         if changed.currentDocuments { currentDocuments = nextCurrent }
         if changed.childrenCache { childrenCache = nextChildren }
+        // Outline freshness (Mandate 1, approved v1 rule): a touched document
+        // evicts its neighbourhood; the next crumb read refetches.
+        evictOutlines(touching: docs)
 
         // Publish which rows this batch touched, and make sure `revision`
         // moved (#4318): `childrenCache` and `collections` are
@@ -221,18 +241,61 @@ extension DocumentStore: ObservableDomainStore {
         var collections = false
         var currentDocuments = false
         var childrenCache = false
+        /// Content tier only: a row arrived that the tier-resolved grid may
+        /// or may not show — the engine must re-answer, never the client.
+        var needsLevelReload = false
+    }
+
+    /// The GRID half of the splice rules (2026-08-23 tier fix, its own home):
+    /// patch in place always; append only at the STORED tier; at the content
+    /// tier the engine re-answers, because whether a row belongs is its
+    /// prefer_children resolution — LibraryLevel's whole contract is that the
+    /// client never re-derives it. A PART updating under a spread reaches the
+    /// grid the same way: it may be on screen right now, and only the engine
+    /// knows.
+    private static func spliceIntoGrid(
+        _ doc: Document,
+        currentDocuments: inout [Document],
+        context: SpliceContext,
+        changes: inout SpliceChanges
+    ) {
+        let selectedCollectionId = context.selectedCollectionId
+        let libraryLevel = context.libraryLevel
+        if let index = currentDocuments.firstIndex(where: { $0.id == doc.id }) {
+            if currentDocuments[index] != doc {
+                currentDocuments[index] = doc
+                changes.currentDocuments = true
+            }
+        } else if let selectedCollectionId, doc.parentId == selectedCollectionId {
+            if libraryLevel == .content {
+                changes.needsLevelReload = true
+            } else {
+                currentDocuments.append(doc)
+                changes.currentDocuments = true
+            }
+        } else if libraryLevel == .content, selectedCollectionId != nil, doc.parentId != nil {
+            changes.needsLevelReload = true
+        }
     }
 
     /// The per-document splice rules, over plain values so a batch can apply
     /// them without touching published state until it is done.
+    /// The where-the-grid-points half of the splice inputs, bundled so the
+    /// rule functions stay under the parameter budget as tiers arrived.
+    struct SpliceContext {
+        let selectedCollectionId: String?
+        var libraryLevel: LibraryLevel = .gridDefault
+    }
+
     private static func splice(
         _ doc: Document,
         collections: inout [Document],
         currentDocuments: inout [Document],
         childrenCache: inout [String: [Document]],
-        selectedCollectionId: String?,
+        context: SpliceContext,
         changes: inout SpliceChanges
     ) {
+        let selectedCollectionId = context.selectedCollectionId
         // ROOTS ONLY — `loadCollections()` assigns `getRoots()`
         // (`/api/documents/roots`), so a nested document does not belong here.
         // The append used to be unguarded, unlike the two blocks below, and an
@@ -276,16 +339,9 @@ extension DocumentStore: ObservableDomainStore {
             changes.collections = true
         }
 
-        // Grid for the selected collection.
-        if let index = currentDocuments.firstIndex(where: { $0.id == doc.id }) {
-            if currentDocuments[index] != doc {
-                currentDocuments[index] = doc
-                changes.currentDocuments = true
-            }
-        } else if let selectedCollectionId, doc.parentId == selectedCollectionId {
-            currentDocuments.append(doc)
-            changes.currentDocuments = true
-        }
+        spliceIntoGrid(
+            doc, currentDocuments: &currentDocuments, context: context, changes: &changes
+        )
 
         // Children cache (only a parent already loaded — i.e. a folder the user
         // has open). This is the live-delivery path during an import: rows

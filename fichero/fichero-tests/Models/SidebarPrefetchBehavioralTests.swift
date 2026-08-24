@@ -220,9 +220,19 @@ final class SidebarPrefetchBehavioralTests: XCTestCase {
 
         await store.loadSidebarChildren(of: folder)
 
+        // 2026-08-23 (Daniel: sidebar showed 3 children while the grid showed
+        // 151): an explicit expansion RE-FETCHES the expanded folder — a
+        // sparse early fetch must not be forever — while the chevron prefetch
+        // of the child level stays cache-first. So exactly ONE more request,
+        // for the expanded folder itself.
+        let secondExpansion = PrefetchStubURLProtocol.recordedPaths()
         XCTAssertEqual(
-            PrefetchStubURLProtocol.recordedPaths().count, pathsAfterFirst,
-            "a second expansion of a fully cached subtree issues no requests"
+            secondExpansion.count, pathsAfterFirst + 1,
+            "a second expansion refreshes the expanded folder, and nothing else"
+        )
+        XCTAssertTrue(
+            secondExpansion.last?.hasSuffix("/documents/top/children") == true,
+            "the one extra request is the expanded folder's own listing"
         )
     }
 }

@@ -29,8 +29,24 @@ func stackRotationDegrees(forCardAt index: Int) -> Double {
     }
 }
 
+/// The fan with `frontId`'s card rotated to the front, order otherwise
+/// preserved cyclically — ←/→ rotation WITHIN a multi-selection (Daniel,
+/// 2026-08-23: "have three cards selected, preview should let us rotate just
+/// between them"). File scope for the same off-main Swift Testing reason as
+/// the helpers above.
+func stackOrder(_ documents: [Document], frontId: String?) -> [Document] {
+    guard let frontId,
+          let idx = documents.firstIndex(where: { $0.id == frontId }), idx > 0 else {
+        return documents
+    }
+    return Array(documents[idx...] + documents[..<idx])
+}
+
 struct MultiSelectionPreviewStack: View {
     let documents: [Document]
+    /// The selection member currently "in hand" (detailDocument); nil keeps
+    /// document order. Stepping ←/→ rotates this, never the selection itself.
+    var frontDocumentId: String?
 
     /// Finder fans at most a few cards; the count line carries the rest.
     private static let maxCards = 3
@@ -42,10 +58,12 @@ struct MultiSelectionPreviewStack: View {
     var body: some View {
         VStack(spacing: 20) {
             ZStack {
-                // Reverse so the FIRST document (the document-order primary)
-                // draws last — on top of the fan, like Finder.
+                // Reverse so the FRONT document (detailDocument if it is in
+                // the selection, else the document-order primary) draws last —
+                // on top of the fan, like Finder.
+                let ordered = stackOrder(documents, frontId: frontDocumentId)
                 ForEach(
-                    Array(documents.prefix(Self.maxCards).enumerated()).reversed(),
+                    Array(ordered.prefix(Self.maxCards).enumerated()).reversed(),
                     id: \.element.id
                 ) { card in
                     stackCard(for: card.element)
@@ -54,6 +72,8 @@ struct MultiSelectionPreviewStack: View {
                 }
             }
             .frame(height: Self.cardHeight + 40)
+            // A step within the selection shuffles the fan, not a hard swap.
+            .animation(.easeInOut(duration: 0.2), value: frontDocumentId)
 
             Text("\(documents.count) Items")
                 .font(.title3)

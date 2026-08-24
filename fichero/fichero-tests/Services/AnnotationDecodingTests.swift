@@ -128,3 +128,54 @@ final class AnnotationDecodingTests: XCTestCase {
         XCTAssertFalse(DocumentAnnotation(id: "a").canRevealSource)
     }
 }
+
+/// The 2026-08-23 regression, pinned: the engine moved annotations to a typed
+/// `anchor` and the HAND-WRITTEN decoder kept reading only the retired
+/// `bbox` — written with anchors, read back without, every symptom a valid
+/// nil. These decode real wire shapes.
+final class AnnotationAnchorDecodingTests: XCTestCase {
+    private func decode(_ json: String) throws -> DocumentAnnotation {
+        try JSONDecoder().decode(DocumentAnnotation.self, from: Data(json.utf8))
+    }
+
+    func testAnchorRectDecodesAndDrivesHasRegion() throws {
+        let annotation = try decode("""
+        {"id": "a1", "document_id": "d1",
+         "anchor": {"document_id": "d1", "space": "normalized",
+                    "rect": [0.1, 0.2, 0.3, 0.1], "rendition_id": "r9"}}
+        """)
+        XCTAssertEqual(annotation.anchor?.rect, [0.1, 0.2, 0.3, 0.1])
+        XCTAssertEqual(annotation.anchor?.renditionId, "r9")
+        XCTAssertTrue(annotation.hasRegion)
+        XCTAssertEqual(annotation.regionRect, [0.1, 0.2, 0.3, 0.1])
+    }
+
+    func testPixelSpaceAnchorIsNeverDrawnAsFractions() throws {
+        // The engine-side lesson of the same morning (21ba500f9): a PDF rect
+        // at x=72 POINTS scaled as a fraction lands off the page. A pixel
+        // anchor is honest data but not a drawable fraction.
+        let annotation = try decode("""
+        {"id": "a2", "document_id": "d1",
+         "anchor": {"document_id": "d1", "space": "pixel", "rect": [72, 144, 200, 24]}}
+        """)
+        XCTAssertNil(annotation.regionRect)
+        XCTAssertFalse(annotation.hasRegion)
+    }
+
+    func testLegacyBboxRowsStillCarryTheirRegion() throws {
+        let annotation = try decode("""
+        {"id": "a3", "document_id": "d1", "bbox": [0.2, 0.2, 0.4, 0.2]}
+        """)
+        XCTAssertEqual(annotation.regionRect, [0.2, 0.2, 0.4, 0.2])
+        XCTAssertTrue(annotation.hasRegion)
+    }
+
+    func testSpanOnlyAnchorHasNoRegionButKeepsItsSpan() throws {
+        let annotation = try decode("""
+        {"id": "a4", "document_id": "d1",
+         "anchor": {"document_id": "d1", "char_start": 10, "char_end": 24}}
+        """)
+        XCTAssertFalse(annotation.hasRegion)
+        XCTAssertEqual(annotation.anchor?.charStart, 10)
+    }
+}

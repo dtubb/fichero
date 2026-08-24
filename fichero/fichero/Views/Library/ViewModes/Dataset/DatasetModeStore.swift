@@ -81,7 +81,7 @@ final class DatasetModeStore {
     /// caption source and (later) the grid's column source.
     var declaredAttributes: [String] = []
 
-    func load(folderId: String?, service: DocumentService) async {
+    func load(folderId: String?, searchHitIds: [String]? = nil, service: DocumentService) async {
         isLoading = true
         defer { isLoading = false }
         errorText = nil
@@ -89,7 +89,8 @@ final class DatasetModeStore {
             // First pass without bins: the date attribute is only known after
             // the declarations arrive.
             var request = DatasetRequest(parentId: folderId, recursive: true,
-                                         attributedOnly: true, limit: 500)
+                                         attributedOnly: true,
+                                         ids: searchHitIds, limit: 500)
             var loaded = try await service.datasetQuery(request)
             if loaded.rows.isEmpty, let folderId {
                 // A LEAF selection (a diary entry, a single page) scopes to
@@ -116,6 +117,12 @@ final class DatasetModeStore {
                 loaded = Self.withLocalDayBins(loaded, dateOf: { $0.dateIso })
             }
             page = loaded
+            // The store outlives folder/renderer switches now (owned by the
+            // pane since 2026-08-24): a type filter naming a prototype the
+            // new page doesn't have would silently show zero rows.
+            if let filtered = prototypeFilter, !availablePrototypes.contains(filtered) {
+                prototypeFilter = nil
+            }
         } catch is CancellationError {
             // A superseded load (view re-render, scope change) cancels the
             // in-flight request — that's routine, not a failure. Showing it

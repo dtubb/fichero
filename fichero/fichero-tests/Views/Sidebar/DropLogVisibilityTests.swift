@@ -102,8 +102,10 @@ final class DropLogVisibilityTests: XCTestCase {
             "the insertion refusal is silent again (#4533)"
         )
         XCTAssertEqual(
-            source.components(separatedBy: "DragDropLog.refused(").count - 1, 8,
-            "expected every wired refusal in this file to report through the shared seam"
+            source.components(separatedBy: "DragDropLog.refused(").count - 1, 11,
+            "expected every wired refusal in this file to report through the shared " +
+            "seam (8 from #4533; +3 on 2026-08-21 when 5e906feca's drop-to-promote " +
+            "path added its own refusals)"
         )
     }
 
@@ -145,11 +147,15 @@ final class DropLogVisibilityTests: XCTestCase {
     /// Every surface that can swallow a drop reports through the seam. Counted,
     /// not just present: a file can lose one refusal and still contain others.
     func testEverySidebarDropSurfaceReportsRefusals() throws {
+        // Counts grew on 2026-08-21: 5e906feca (drop-to-promote) added three
+        // refusal reports to the row drop path, and d989a789f (entity drags
+        // onto workspaces) added one to the section header — new drop kinds,
+        // each refusing loudly. Growth is fine; SHRINKING is the regression.
         let expected = [
-            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": 8,
+            "Views/Sidebar/ItemRow/SidebarItemRow+Drop.swift": 11,
             "Views/Sidebar/ItemRow/SidebarDropOperation.swift": 2,
             "Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift": 3,
-            "Views/Sidebar/Sections/SidebarSectionHeader.swift": 8
+            "Views/Sidebar/Sections/SidebarSectionHeader.swift": 9
         ]
         for (path, count) in expected {
             let source = try Self.appSource(path)

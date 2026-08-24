@@ -16,10 +16,10 @@ extension ContentView {
             // the tiny screen and doesn't fit, so it's hidden — the reader gets
             // the full height (#2811). macOS reports a regular/nil size class, so
             // the chrome always renders there.
-            if horizontalSizeClass != .compact {
-                detailTabStrip
-                Divider()
-            }
+            // The detail tab strip is RETIRED (Daniel, 2026-08-23): the
+            // selected item reads from the top dynamic island, and "open in
+            // new tab" returns on the real tab bar when that exists. Panes
+            // carry their own PaneHead — no second chrome row above them.
             centerContent
             // NO window-wide status bar any more (Daniel #106-108,
             // 2026-08-09: "we want the status bar just on the library") —
@@ -33,34 +33,6 @@ extension ContentView {
         .clipped()
     }
 
-    private var detailTabStrip: some View {
-        HStack(spacing: 8) {
-            Label {
-                Text(toolbarTitle)
-                    .font(.subheadline)
-                    .lineLimit(1)
-            } icon: {
-                Image(systemName: toolbarIcon)
-            }
-            .labelStyle(.titleAndIcon)
-
-            Spacer(minLength: 8)
-
-            Button {
-                WindowOpener.open(libraryId: windowState.libraryId, asTab: true, using: openWindow)
-            } label: {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .help("Open current library in new tab")
-            .accessibilityLabel("Open current library in new tab")
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 32)
-        .background(.bar)
-    }
-
     // detailStatusPathBar is RETIRED (Daniel #106-108) — see the comment at
     // its old mount above. selectionStatusText remains in StateDisplay for
     // the toolbar/other readers.
@@ -70,10 +42,22 @@ extension ContentView {
     /// its own flexible width so it fills whatever the list/reading panes leave.
     /// Extracted so the canvas can be conditionally shown/hidden (#1448).
     @ViewBuilder
-    var widescreenCanvasPane: some View {
-        // Splittable (h/v) image / canvas viewer — #2276.
-        adaptiveSplittablePane(storageKey: "canvas") {
+    func widescreenCanvasPane(splitKey: String = "canvas") -> some View {
+        // Splittable (h/v) image / canvas viewer — #2276. The split key is
+        // SLOT-scoped (2026-08-24): two slots hosting previews shared the
+        // per-window "canvas" @SceneStorage, so splitting one split both.
+        adaptiveSplittablePane(storageKey: splitKey) {
             widescreenCanvasPaneContent
+                // The preview's floating head (Daniel, 2026-08-23): same
+                // grammar and components as reader/library/chat.
+                .safeAreaInset(edge: .top, spacing: 0) { previewPaneHead }
+                // Mandate 1, consumer 1: the shown item's outline feeds the
+                // head's crumb chain (entry → page → spread parents included).
+                .task(id: detailDocument?.id) {
+                    if let id = detailDocument?.id {
+                        await documentStore.loadOutline(for: id)
+                    }
+                }
         }
     }
 
@@ -82,14 +66,30 @@ extension ContentView {
         let stackDocuments = previewStackDocuments(
             selection: browserSelection, in: selectedDocuments
         )
+        // Pinned: frozen on the captured document, whatever the selection
+        // does (Daniel, 2026-08-23: pin = pin to current view).
+        if let pinned = pinnedPreviewDocument {
+            EditorView(
+                document: pinned,
+                showHeader: false,
+                onPDFPageIndexChange: { _ in },
+                onNavigateToDocument: { _ in },
+                selectedDocumentIDs: []
+            )
+            .frame(maxWidth: .infinity)
+            .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
+            .overlay { paneFocusIndicator(for: .preview) }
         // Finder's stacked multi-selection preview (#95) — same gate as the
         // standard-layout preview pane.
-        if stackDocuments.count > 1 {
-            MultiSelectionPreviewStack(documents: stackDocuments)
+        } else if stackDocuments.count > 1 {
+            MultiSelectionPreviewStack(
+                documents: stackDocuments,
+                frontDocumentId: detailDocument?.id
+            )
                 .overlay { paneFocusIndicator(for: .preview) }
                 .simultaneousGesture(TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview })
                 .frame(maxWidth: .infinity)
-        } else if let pdfDocumentId = detailPDFDocumentId {
+        } else if let pdfDocumentId = detailPDFDocumentId, previewLens == .preview {
             PDFPageWithToolbar(
                 documentId: pdfDocumentId,
                 pageIndex: selectedPageIndex,
@@ -130,7 +130,12 @@ extension ContentView {
     /// The reading / WebKit "Knowledge" pane of the widescreen layout.
     /// Extracted so it can be conditionally shown/hidden per-window (#1448).
     @ViewBuilder
-    var widescreenReadingPane: some View {
+    func widescreenReadingPane(splitKey: String = "reading") -> some View {
+        widescreenReadingPaneBody(readingSplitKey: splitKey)
+    }
+
+    @ViewBuilder
+    private func widescreenReadingPaneBody(readingSplitKey: String) -> some View {
         // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
         // (isEmpty + count) recomputed a filter+sort per read — 2x O(n log n) per
         // render. The pane needs only the count, so use the sort-free accessor.
@@ -154,12 +159,12 @@ extension ContentView {
         // _ConditionalContent grew the value past what the copy machinery
         // survives; erasure at the case boundary caps it, same as the root
         // layout and window root.
-        adaptiveSplittablePane(storageKey: "reading") {
+        adaptiveSplittablePane(storageKey: readingSplitKey) {
             if readerStack.count > 1 {
-                AnyView(PaneEmptyStateView(
-                    reason: "\(readerStack.count) Items Selected",
-                    systemImage: "square.on.square"
-                ))
+                // All N selected transcripts, archival order + headers
+                // (Daniel's ruling, 2026-08-23) — replaces the honest-but-empty
+                // "N Items Selected" state. AnyView stays load-bearing (#4331).
+                AnyView(MultiSelectionReaderView(documents: readerStack))
             } else {
                 AnyView(ReadingPaneView(
                     liveDocument: detailDocument,
@@ -223,8 +228,11 @@ extension ContentView {
                 if stackDocuments.count > 1 {
                     // Finder's stacked multi-selection preview (#95): the fan
                     // + count, not a silent preview of only the primary.
-                    MultiSelectionPreviewStack(documents: stackDocuments)
-                } else if let pdfDocumentId = detailPDFDocumentId {
+                    MultiSelectionPreviewStack(
+                        documents: stackDocuments,
+                        frontDocumentId: detailDocument?.id
+                    )
+                } else if let pdfDocumentId = detailPDFDocumentId, previewLens == .preview {
                     PDFReadingView(
                         document: pageFocusDocument ?? detailDocument,
                         pdfDocumentId: pdfDocumentId,

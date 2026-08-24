@@ -132,10 +132,13 @@ struct ToolbarGroupingTests {
     /// group is positional; customisation identity belongs to the items.
     @Test("every toolbar item carries an explicit identifier")
     func everyItemHasAnExplicitIdentifier() throws {
-        // Strip the status-island VIEW first: `StatusIslandToolbarItem(` is a
-        // plain view whose name merely ends in "ToolbarItem(".
+        // Strip the plain VIEWS whose names merely end in "ToolbarItem(" —
+        // the island, and (since 2026-08-23) the engine/activity views the
+        // toolbar hosts as their own identified items.
         let source = try Self.toolbarSource
             .replacingOccurrences(of: "StatusIslandToolbarItem(", with: "")
+            .replacingOccurrences(of: "EngineStatusToolbarItem(", with: "")
+            .replacingOccurrences(of: "ActivityStatusToolbarItem(", with: "")
         let itemDeclarations = source.components(separatedBy: "ToolbarItem(").count - 1
         let identifiedItems = source.components(separatedBy: "ToolbarItem(id: ").count - 1
         #expect(itemDeclarations > 0, "no ToolbarItem declarations found — wrong file?")
@@ -163,13 +166,28 @@ struct ToolbarGroupingTests {
     /// a duplicate-identifier crash, not a layout that resolves badly — and it
     /// is invisible in review because each declaration reads fine alone.
     ///
-    /// Counts the whole toolbar rather than naming the two known items, so a
-    /// third claimant added later fails here instead of at runtime.
-    @Test("exactly one toolbar item claims .principal")
-    func exactlyOnePrincipalItem() throws {
+    /// THREE principal items since 2026-08-23 (Daniel: island, engine status
+    /// and activity each get their own glass) — counted deliberately so a
+    /// fourth claimant still fails here instead of at runtime. Each carries
+    /// a DISTINCT id (the #3163 crash class is duplicate identifiers, not
+    /// multiple placements).
+    @Test("exactly four toolbar ITEMS claim .principal, each with its own id, separated by spacers")
+    func exactlyFourPrincipalItems() throws {
+        // C10 (2026-08-24): the ⚡ workflow chip joined the principal zone,
+        // and ToolbarSpacer(.fixed) sits between every pair — the spacers are
+        // what actually break the Liquid Glass capsule groups, so they claim
+        // .principal too and are counted separately from the ITEMS.
         let source = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        let principals = source.components(separatedBy: "placement: .principal").count - 1
-        #expect(principals == 1, Comment(rawValue: "\(principals) items claim .principal"))
+        let principalItems = source.components(separatedBy: "placement: .principal").count - 1
+        let spacers = source.components(separatedBy: "ToolbarSpacer(.fixed, placement: .principal)").count - 1
+        #expect(principalItems - spacers == 4, Comment(rawValue: "\(principalItems - spacers) items claim .principal (\(spacers) spacers)"))
+        #expect(spacers == 3, Comment(rawValue: "\(spacers) fixed spacers — one between each adjacent pair"))
+        for id in [
+            "ContentToolbarID.breadcrumb", "ContentToolbarID.workflowSuggest",
+            "ContentToolbarID.engineStatus", "ContentToolbarID.activityStatus"
+        ] {
+            #expect(source.contains("ToolbarItem(id: \(id), placement: .principal)"))
+        }
     }
 
     /// The breadcrumb is the one that keeps it: `.principal` is the window's

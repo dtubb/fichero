@@ -72,12 +72,18 @@ final class CanvasCardGeometryTests: XCTestCase {
         let base = try AppSource.root().appendingPathComponent("Views/Library/ViewModes/Canvas")
         // Each renderer is one or more FILES: e68a82fc0 (#4409) split the 2D
         // renderer's card sizing into CanvasOrtho2DRenderer+Selection.swift,
-        // so the shared-geometry call is asserted across the renderer's whole
-        // file set, not one filename.
+        // and the 2026-08-20 type_body_length splits moved thumbnail loading
+        // (where the texture aspect is memoized) into +Thumbnails.swift for
+        // both renderers — so the shared-geometry call is asserted across the
+        // renderer's whole file set, not one filename.
         for fileSet in [
             ["3D/SpaceSceneView.swift"],
-            ["3D/CanvasScene3DRenderer.swift"],
-            ["2D/CanvasOrtho2DRenderer.swift", "2D/CanvasOrtho2DRenderer+Selection.swift"]
+            ["3D/CanvasScene3DRenderer.swift", "3D/CanvasScene3DRenderer+Thumbnails.swift"],
+            [
+                "2D/CanvasOrtho2DRenderer.swift",
+                "2D/CanvasOrtho2DRenderer+Selection.swift",
+                "2D/CanvasOrtho2DRenderer+Thumbnails.swift"
+            ]
         ] {
             var combined = ""
             for relative in fileSet {

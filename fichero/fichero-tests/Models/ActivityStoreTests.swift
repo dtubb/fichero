@@ -69,37 +69,44 @@ struct ActivityStoreTests {
         #expect(store.refreshToken == before)
     }
 
-    @Test("applyActivityEvent increments refreshToken once per event")
-    func applyActivityEventIncrementsToken() {
+    /// RULING CHANGE (perf audit 2026-08-19): refreshToken is DEBOUNCED. A
+    /// running workflow emits several frames per second, and a synchronous
+    /// per-event bump fanned out to ~10 GET /api/activity per second across
+    /// the sidebar, activity pane and pending-status poll. The debounce
+    /// TIMING is covered by ReloadDebouncerWaitTests on the pure wait()
+    /// function — the house pattern; a live-clock wait here raced the two
+    /// test runners sharing the main actor and flaked. What this store owns
+    /// is the ROUTING: the burst goes through the debouncer, and no bare
+    /// synchronous bump remains on the event path.
+    @Test("activity events route through the debouncer, never a bare bump")
+    func activityEventsRouteThroughTheDebouncer() throws {
         let store = makeStore()
         let before = store.refreshToken
-        let event = ActivityItem(
+        store.applyActivityEvent(ActivityItem(
             id: "act-1",
             type: "workflow_started",
             level: "info",
             timestamp: "2026-06-25T12:00:00Z",
             message: "Started",
             threadId: "thread-1"
-        )
-        store.applyActivityEvent(event)
-        #expect(store.refreshToken == before + 1)
-    }
+        ))
+        // Synchronously NOTHING: the bump rides the trailing debounce.
+        #expect(store.refreshToken == before)
 
-    @Test("duplicate activity events each bump refreshToken")
-    func duplicateActivityEventsBumpEveryTime() {
-        let store = makeStore()
-        let event = ActivityItem(
-            id: "act-1",
-            type: "workflow_completed",
-            level: "info",
-            timestamp: "2026-06-25T12:00:01Z",
-            message: "Completed",
-            threadId: "thread-1"
-        )
-        let first = store.refreshToken
-        store.applyActivityEvent(event)
-        store.applyActivityEvent(event)
-        #expect(store.refreshToken == first + 2)
+        // And structurally: the event path schedules, it does not assign.
+        let url = try AppSource.root().appendingPathComponent("Models/ActivityStore.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let body = source
+            .components(separatedBy: "func applyActivityEvent(")[1]
+            .components(separatedBy: "\n    private func")[0]
+        #expect(body.contains("refreshDebouncer.schedule"))
+        // The one bump lives INSIDE the scheduled closure — so the first
+        // mention of the token must come AFTER the schedule call. A bump
+        // before it is the pre-2026-08-19 synchronous fan-out defect.
+        let scheduleAt = try #require(body.range(of: "refreshDebouncer.schedule"))
+        if let bumpAt = body.range(of: "refreshToken += 1") {
+            #expect(scheduleAt.lowerBound < bumpAt.lowerBound)
+        }
     }
 
     // MARK: Folded change frames (#3159 / #2479)

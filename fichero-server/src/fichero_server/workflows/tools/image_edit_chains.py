@@ -179,11 +179,14 @@ def persist_workflow_renditions(
                 report["unmatched_outputs"].append(str(output))
                 continue
 
+            width, height = _pixel_size(stored)
             rendition = Rendition(
                 document_id=doc.id,
                 role=role,
                 path=str(stored),
                 produced_from=str(output),
+                pixel_width=width,
+                pixel_height=height,
                 # NOT primary. A workflow producing a new rendition must not
                 # silently change what the reader opens on — that is the
                 # user's call, and a pass that quietly reassigns the primary
@@ -221,6 +224,14 @@ def describe_no_effect(
         return f"{len(files)} input file(s) produced no output"
     if report.get("renditions"):
         return None
+    already = report.get("already_children", 0)
+    if already:
+        # The reuse narration (S11): a re-run that found every part already
+        # persisted did exactly what it should — say THAT, not a warning.
+        return (
+            f"already split — {already} part(s) exist from an earlier run; "
+            "nothing new to attach"
+        )
     reason = report.get("skipped_reason")
     if reason:
         return f"{len(output_files)} file(s) written but not persisted: {reason}"
@@ -273,6 +284,7 @@ def persist_workflow_child_regions(
         "children": [],
         "unmatched_sources": [],
         "skipped_no_region": 0,
+        "already_children": 0,
         # Parts whose bytes could not be stored. A failure here MUST reach the
         # caller: a part that silently vanishes is a page the user cut and
         # never got, reported as success.
@@ -309,6 +321,10 @@ def persist_workflow_child_regions(
                 (child.metadata or {}).get("produced_from") == str(output)
                 for child in db.query(Document, parent_id=parent.id)
             ):
+                # Idempotent re-run (S11, 2026-08-23): COUNTED, so the
+                # narration can say "already split" instead of the false
+                # "no rendition was attached".
+                report["already_children"] += 1
                 continue
 
             region = _region_from_part(part, method)
@@ -352,12 +368,15 @@ def persist_workflow_child_regions(
                 image_provenance=parent.image_provenance,
             )
             db.save(child)
+            child_width, child_height = _pixel_size(stored)
             db.save(
                 Rendition(
                     document_id=child.id,
                     role=role,
                     path=str(stored),
                     produced_from=str(output),
+                    pixel_width=child_width,
+                    pixel_height=child_height,
                     is_primary=True,
                     producer_tool=str(state.get("tool_name") or ""),
                     producer_run_id=str(state.get("run_id") or ""),
@@ -369,9 +388,39 @@ def persist_workflow_child_regions(
     return report
 
 
+def _pixel_size(path: Path) -> tuple[int | None, int | None]:
+    """The stored image's own frame, or (None, None) if it cannot be read.
+
+    A rendition that does not record its pixel dimensions cannot be checked
+    against the node it belongs to, and the whole "same frame = rendition,
+    different frame = node" rule becomes unverifiable — a rotated rendition
+    (width and height swapped) is then indistinguishable from a same-frame
+    one, and any child region measured against "the parent" is ambiguous.
+    `Rendition` has carried these two fields all along; nothing filled them.
+
+    Unreadable dimensions are recorded as absent, never guessed: an unknown
+    frame is a fact, and inventing one would recreate the defect this program
+    removes.
+    """
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            return image.width, image.height
+    except Exception as exc:  # pragma: no cover - depends on the stored file
+        logger.warning("could not read pixel size of %s: %s", path, exc)
+        return None, None
+
+
 def _region_from_part(part: dict[str, Any], method: str) -> NodeRegion | None:
     """Normalize a part's pixel bbox against the frame it was cut from."""
     bbox = part.get("bbox")
+    # `rendition_id` is deliberately left unset here, and that is currently
+    # CORRECT rather than an omission: the split tools cut the document's own
+    # source file, so `source_size` IS the node's original frame and None
+    # means exactly that. This is the seam that must start setting it when a
+    # tool cuts from a RENDITION instead — the entry-scoped-run work, where a
+    # crop is taken from a rotated or enhanced picture.
     size = part.get("source_size")
     if not (isinstance(bbox, list) and len(bbox) == 4):
         return None

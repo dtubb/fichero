@@ -33,7 +33,9 @@ struct ClaimSourceRequestTests {
             sourcePageLabel: pageLabel,
             sourceCharStart: charStart,
             sourceCharEnd: charEnd,
-            sourceBbox: bbox
+            // Step 3 (bbox retirement): the wire carries a typed anchor; the
+            // helper keeps its [Double] parameter and wraps it here.
+            sourceAnchor: bbox.map { .init(documentId: documentId ?? "doc-1", rect: $0) }
         )
     }
 

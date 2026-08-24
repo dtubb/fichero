@@ -183,6 +183,15 @@ extension DocumentStore {
         for kids in childrenCache.values {
             if let doc = kids.first(where: { $0.id == documentId }) { return doc }
         }
+        // The outline cache knows whole neighbourhoods (Mandate 1) — this is
+        // what ends the crumbs-lose-the-middle-ancestor class: a deep
+        // anchor's parents arrive with its outline even when no list view
+        // ever loaded them.
+        for entry in outlineCache.values {
+            if entry.document.id == documentId { return entry.document }
+            if let doc = entry.ancestors.first(where: { $0.id == documentId }) { return doc }
+            if let doc = entry.children.first(where: { $0.id == documentId }) { return doc }
+        }
         return nil
     }
 
@@ -287,6 +296,27 @@ extension DocumentStore {
     /// workflow completes so backend-written content (e.g. a Transcribe
     /// transcript) replaces the stale in-memory `pageContent` without forcing a
     /// full folder reload. (#1445)
+    /// Fresh records for `ids` — merged into the caches AND handed back, for a
+    /// surface that must render records the listings may only hold shallowly
+    /// (the multi-selection reader needs page_content the grid never loads).
+    /// Failure degrades to an empty array and logs; the caller falls back to
+    /// whatever content its snapshot already carried.
+    func freshDocuments(ids: [String]) async -> [Document] {
+        guard !ids.isEmpty else { return [] }
+        do {
+            let fresh = try await documentService.getDocuments(ids: ids)
+            for doc in fresh { refreshLocalContent(doc) }
+            return fresh
+        } catch {
+            if error.isCancellationError { return [] }
+            let logger = Logger(subsystem: "app.fichero.fichero", category: "DocumentStore")
+            logger.warning(
+                "freshDocuments: failed to fetch \(ids.count) id(s): \(error.localizedDescription, privacy: .public)"
+            )
+            return []
+        }
+    }
+
     func refreshDocumentsByIds(_ ids: [String]) async {
         guard !ids.isEmpty else { return }
         // ONE batched round-trip (perf audit 2026-08-19) — this was a

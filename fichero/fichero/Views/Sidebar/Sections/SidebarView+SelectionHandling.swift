@@ -48,6 +48,23 @@ extension SidebarView {
         default:
             let item = cachedItem(id: destination.serializedID)
             if item == nil {
+                // S10 (2026-08-23): a DOCUMENT click whose id misses the
+                // sidebar item index must still route — dropping it left the
+                // content pane on the PARENT folder, which read as "clicking
+                // the item selected its parent" and made run-workflow scope
+                // to every sibling. The stores still know the document, so
+                // resolve through them and route the SAME id.
+                if case .document(let docId) = destination {
+                    for library in libraryManager.openLibraries {
+                        if let doc = library.documentStore.resolveDocument(docId) {
+                            sidebarViewLogger.warning(
+                                "Selection \(docId, privacy: .public) missed the item index — routed via the document store"
+                            )
+                            routeDocumentSelection(doc, libraryId: library.id)
+                            return
+                        }
+                    }
+                }
                 // LOUD (workflow-routing bug): a click that resolves to
                 // nothing routes NOTHING — the pane silently keeps its
                 // previous mode, which reads as "it doesn't open the editor".
@@ -332,5 +349,36 @@ extension SidebarView {
             // Regular folders just toggle expansion
             sidebarViewLogger.info("Regular folder - just toggling expansion")
         }
+    }
+}
+
+// MARK: - Reveal in sidebar (2026-08-23)
+
+extension Notification.Name {
+    /// Ask the sidebar to expand, load, and select the row for a document —
+    /// posted by the relaunch-restore path (and usable by any future
+    /// "Reveal in Sidebar" verb). userInfo: `documentId`.
+    static let sidebarRevealDocument = Notification.Name("sidebarRevealDocument")
+}
+
+extension SidebarView {
+    /// Expand the ancestor chain, LOAD each level so the row exists, then
+    /// select through the same proposal seam a click uses. Tries each open
+    /// library — `sidebarRevealPath` answers nil for a library that does not
+    /// know the document.
+    func revealDocument(_ documentId: String) async {
+        for library in libraryManager.openLibraries {
+            let store = library.documentStore
+            guard let path = await store.sidebarRevealPath(to: documentId) else { continue }
+            for ancestor in path {
+                sidebarState.expandedItems.insert(ancestor.id)
+            }
+            for ancestor in path {
+                await store.cacheSidebarChildren(of: ancestor)
+            }
+            applySidebarSelectionProposal([.document(documentId)])
+            return
+        }
+        sidebarViewLogger.info("revealDocument: \(documentId) not found in any open library")
     }
 }

@@ -63,6 +63,13 @@ struct CanvasSceneState: Equatable {
     var placeables: [CanvasPlaceable]
     var edges: [CanvasEdge]
     var selection: Set<String>
+    /// WHICH cards matter right now (a search's heat map, an entity highlight).
+    /// Neutral by default, and never part of position resolution — emphasis
+    /// moves nothing (R10).
+    var emphasis: CanvasEmphasis = .neutral
+    /// WHAT each card is, said in colour — the other re-encode channel. Hue and
+    /// strength stay separate so neither number means two things.
+    var tint: CanvasTint = .neutral
 
     static let empty = CanvasSceneState(placeables: [], edges: [], selection: [])
 }
@@ -99,8 +106,14 @@ extension CanvasSceneState {
         links: [SpatialLink],
         layoutRows: [CanvasItemLayout],
         items: [CanvasItemDisplay],
-        defaultPlacement: CanvasDefaultPlacement = .backendPosition
+        defaultPlacement: CanvasDefaultPlacement = .backendPosition,
+        gridCell: CGSize = CanvasGridPlacement.nominalCell,
+        arrangement: CanvasArrangement = .asFiled
     ) -> CanvasSceneState {
+        // Which slot each card takes. `.asFiled` returns the walk order below,
+        // so the default board is byte-for-byte what it was before arrangements
+        // existed — pinned by `asFiledMatchesThePreArrangementOrder`.
+        let arrangedSlots = CanvasArrangement.slotIndices(arrangement, nodes: nodes, items: items)
         let rowsById = Dictionary(layoutRows.map { ($0.itemId, $0) }, uniquingKeysWith: { _, latest in latest })
 
         var placeables: [CanvasPlaceable] = []
@@ -116,10 +129,10 @@ extension CanvasSceneState {
         // Nodes: saved row wins, else the chosen default.
         for node in nodes {
             let row = rowsById[node.id]
-            let gridSlot = slot
+            let gridSlot = arrangedSlots[node.id] ?? slot
             slot += 1
             let position = row.map { SIMD3<Double>($0.x, $0.y, $0.z) }
-                ?? nodeDefaultPosition(node, slot: gridSlot, placement: defaultPlacement)
+                ?? nodeDefaultPosition(node, slot: gridSlot, placement: defaultPlacement, cell: gridCell)
             placeables.append(
                 CanvasPlaceable(
                     id: node.id,
@@ -134,7 +147,7 @@ extension CanvasSceneState {
         // Non-link items: saved row wins, else the chosen default.
         var cascadeIndex = 0
         for item in items where item.kind != .link {
-            let gridSlot = slot
+            let gridSlot = arrangedSlots[item.id] ?? slot
             slot += 1
             let position: SIMD3<Double>
             if let row = rowsById[item.id] {
@@ -145,7 +158,7 @@ extension CanvasSceneState {
                     position = cascadePosition(cascadeIndex)
                     cascadeIndex += 1
                 case .grid(let columns):
-                    position = CanvasGridPlacement.position(index: gridSlot, columns: columns)
+                    position = CanvasGridPlacement.position(index: gridSlot, columns: columns, cell: gridCell)
                 }
             }
             placeables.append(
@@ -198,13 +211,13 @@ extension CanvasSceneState {
     /// values are laid out on the XZ plane and the 2D projection drops z — which
     /// is precisely how a whole folder ended up on one line (#4290).
     private static func nodeDefaultPosition(
-        _ node: SpatialNode, slot: Int, placement: CanvasDefaultPlacement
+        _ node: SpatialNode, slot: Int, placement: CanvasDefaultPlacement, cell: CGSize
     ) -> SIMD3<Double> {
         switch placement {
         case .backendPosition:
             return SIMD3<Double>(node.positionX, node.positionY, node.positionZ)
         case .grid(let columns):
-            return CanvasGridPlacement.position(index: slot, columns: columns)
+            return CanvasGridPlacement.position(index: slot, columns: columns, cell: cell)
         }
     }
 

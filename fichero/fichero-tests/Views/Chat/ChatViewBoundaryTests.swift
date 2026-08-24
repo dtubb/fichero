@@ -33,7 +33,11 @@ final class ChatViewBoundaryTests: XCTestCase {
         let source = try Self.appSource("Views/Chat/ChatView.swift")
 
         XCTAssertFalse(source.contains("@State var conversations"))
-        XCTAssertTrue(source.contains("conversations: visibleConversations"))
+        // The old toolbar's `conversations:` argument is gone (2026-08-23) —
+        // switching rides the crumb's jump-bar menu over the SAME
+        // service-owned list, in the chrome split file.
+        let chrome = try Self.appSource("Views/Chat/ChatView+PaneChrome.swift")
+        XCTAssertTrue(chrome.contains("visibleConversations.map"))
     }
 
     func testResearchChatPaneScopesConversationsToProjectFolder() throws {

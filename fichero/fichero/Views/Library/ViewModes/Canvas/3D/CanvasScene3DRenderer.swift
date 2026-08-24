@@ -5,12 +5,13 @@ import RealityKit
 import simd
 import SwiftUI
 
-// MARK: - RealityKit perspective-3D renderer (#3104)
+// MARK: - RealityKit 3D renderer (#3104)
 
-/// The 3D 'Space' renderer — the perspective twin of `CanvasOrtho2DRenderer`.
+/// The 3D 'Space' renderer — the orbiting twin of `CanvasOrtho2DRenderer`.
 /// Same #3103 contract, same shared `CanvasInteractionController`, so 2D and 3D
 /// behave identically (selection / drag / persist / CRUD); the ONLY differences
-/// are renderer-local: a `PerspectiveCamera` with orbit/pan/zoom, the full xyz
+/// are renderer-local: an orbit/pan/zoom camera (ORTHOGRAPHIC for boards since
+/// §18.1 defect 1, perspective still reachable via `projection`), the full xyz
 /// projection (z USED, via `Canvas3DProjection`), and cylinder connectors.
 ///
 /// Supersedes the internals of #3088's `SpaceSceneView`: scene content is driven
@@ -37,7 +38,24 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     let decorator = CanvasSelectionDecorator(
         showsHandles: false, accentColor: .controlAccentColorCompat3D
     )
-    let camera = PerspectiveCamera()
+    /// A plain `Entity`, not a `PerspectiveCamera`: which camera component it
+    /// carries is the shell's choice (`projection`), and swapping components on
+    /// one entity keeps the orbit rig — position, look-at, distance — untouched.
+    let camera = Entity()
+
+    /// How the board is projected. ORTHOGRAPHIC by default (§18.1 defect 1):
+    /// zoomed out to a whole diary, a perspective camera rendered 2,228 cards
+    /// as a tapering wedge — two identical pages at different depths came out
+    /// different sizes, so nothing could be compared and the field's shape was
+    /// an artifact of the camera rather than of the data.
+    ///
+    /// Perspective stays available, on the SHELL and not on the arrangement,
+    /// because it is exactly right for the panel-sequence and station-walk
+    /// shells §18.1 reserves it for — there depth carries the sequence and
+    /// foreshortening is the cue. Those shells are not built here.
+    var projection: CanvasCameraProjection = .orthographic {
+        didSet { if projection != oldValue { updateCamera() } }
+    }
 
     /// Internal rather than private, as are `placeablesRoot` and `decorator`:
     /// the selection half of this renderer lives in
@@ -45,6 +63,27 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// FILE-scoped, so an extension in another file cannot see it.
     var placeablesById: [String: CanvasPlaceable] = [:]
     var selection: Set<String> = []
+
+    /// WHAT each card is, in colour (§20.3 Colour by). Held for the same
+    /// reason as `emphasis`: a card inserted or reskinned while a colouring is
+    /// live must arrive already coloured.
+    var tint: CanvasTint = .neutral
+
+    /// Whether a card currently carries a page image — a textured card keeps
+    /// its page, so the tint yields to legibility (see `CanvasTintPainter`).
+    func isTextured(_ id: String) -> Bool {
+        texturedIds.contains(id)
+    }
+
+    /// Seconds a `.move` animates for, set per diff by `apply`. Internal, not
+    /// private: `applyMove` lives in +Ops.swift and `private` is FILE-scoped.
+    var moveDuration = CanvasMoveAnimation.feedbackDuration
+
+    /// WHICH cards matter right now — a search's heat map or an entity
+    /// highlight. Held so a card INSERTED while emphasis is live is painted on
+    /// arrival instead of staying bright until the next emphasis change.
+    var emphasis: CanvasEmphasis = .neutral
+
     private var appliedState = CanvasSceneState.empty
 
     // Orbit camera state (renderer-local, ported from the proven #3088 rig).
@@ -69,7 +108,25 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     /// cannot fire before the placeables it is meant to frame exist.
     var needsFitOnNextContent = false
 
-    var detailTier: CanvasDetailTier = .thumbnail
+    var detailTier: CanvasDetailTier = .thumbnail {
+        didSet {
+            // Zooming IN has to fetch what the glyph tier skipped. Cards are
+            // only given a texture when they are BUILT, and a reconcile that
+            // changes nothing builds nothing — so a board framed at .glyph
+            // stayed flat colour no matter how far the user then zoomed in
+            // (Daniel, live 2026-08-23: "all cards are blue rectangles").
+            guard detailTier >= .thumbnail, oldValue < .thumbnail else { return }
+            loadMissingThumbnails()
+        }
+    }
+
+    /// Ids whose card currently CARRIES a page texture.
+    ///
+    /// Not derivable from `CanvasCardGeometry.knownAspect`: the memo says a
+    /// texture was measured once, which stays true after a rebuild that left
+    /// the new card flat. Tracking the entity's actual state is what makes
+    /// "which cards still need one" answerable.
+    var texturedIds: Set<String> = []
     var onIntent: ((CanvasIntent) -> Void)?
     var isDragSuppressed: ((String) -> Bool)?
     /// The CURRENT library's storage service — the texture cache's fallback
@@ -91,6 +148,9 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
     // MARK: - CanvasSceneRenderer
 
     func apply(_ ops: [CanvasSceneOp]) {
+        // Cards moving TOGETHER are a transition to watch; one echoing in from
+        // another window is feedback (R10 / §20.2).
+        moveDuration = CanvasMoveAnimation.duration(for: ops)
         for operation in ops { applyOne(operation) }
         if !ops.isEmpty { refreshSelectionDecoration() }
     }
@@ -204,46 +264,14 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     // MARK: - Op application (granular; never a rebuild)
 
-    private func applyOne(_ operation: CanvasSceneOp) {
-        switch operation {
-        case .insert(let placeable):
-            placeablesById[placeable.id] = placeable
-            placeablesRoot.addChild(makeCard(placeable))
-        case .move(let id, let position):
-            // Don't fight a local drag: a store echo for the dragged id is skipped
-            // (the isDragSuppressed seam); every other move repositions in place.
-            guard isDragSuppressed?(id) != true else { return }
-            placeablesById[id]?.position = position
-            placeablesRoot.findEntity(named: id)?.position = Canvas3DProjection.scenePosition(position)
-        case .resize(let id, let size):
-            placeablesById[id]?.size = size
-            reskinCard(id)
-        case .updateContent(let id):
-            reskinCard(id)
-        case .remove(let id):
-            placeablesById[id] = nil
-            placeablesRoot.findEntity(named: id)?.removeFromParent()
-        case .setEdges(let edges):
-            rebuildEdges(edges)
-        case .setSelection(let newSelection):
-            // No card is touched. This used to `reskinCard` the symmetric
-            // difference, destroying and rebuilding a textured card just to
-            // add or remove an outline — #4409's blue flash (#4409).
-            selection = newSelection
-        }
-    }
-
     // MARK: - Cards
 
     static let defaultCardSize = CGSize(width: 0.8, height: 0.6)
 
-    func reskinCard(_ id: String) {
-        guard let placeable = placeablesById[id] else { return }
-        placeablesRoot.findEntity(named: id)?.removeFromParent()
-        placeablesRoot.addChild(makeCard(placeable))
-    }
-
-    private func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
+    // Internal, not private: the op-application extension (+Ops.swift) needs
+    // it and Swift's `private` is FILE-scoped — the same trade documented on
+    // CanvasSceneView's split state.
+    func makeCard(_ placeable: CanvasPlaceable) -> ModelEntity {
         let size = placeable.size ?? Self.defaultCardSize
         // Source cards take their page's true aspect once the texture has
         // loaded (#4193), area-normalized to the configured card footprint;
@@ -261,7 +289,7 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         )
         let entity = ModelEntity(
             mesh: mesh,
-            materials: [SimpleMaterial(color: baseColor(for: placeable.content), isMetallic: false)]
+            materials: [SimpleMaterial(color: cardColor(for: placeable), isMetallic: false)]
         )
         entity.name = placeable.id
         entity.position = Canvas3DProjection.scenePosition(placeable.position)
@@ -278,7 +306,17 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
         return entity
     }
 
-    private func baseColor(for content: CanvasContent) -> PlatformColor {
+    /// The colour a card is built with: the tint channel's answer when it has
+    /// one, else the card's kind tint — which IS the default "colour by kind",
+    /// not a competing encoding.
+    func cardColor(for placeable: CanvasPlaceable) -> PlatformColor {
+        tint.slot(for: placeable.id).map(CanvasTintPainter.color(forSlot:))
+            ?? baseColor(for: placeable.content)
+    }
+
+    // Internal, not private: the op-application extension needs it to repaint
+    // a card when the colouring changes, and Swift's `private` is FILE-scoped.
+    func baseColor(for content: CanvasContent) -> PlatformColor {
         switch content {
         case .node(let node): return SpaceTheme.materialColor(for: node.nodeType)
         case .item(let item): return Self.itemColor(for: item.kind)
@@ -297,7 +335,10 @@ final class CanvasScene3DRenderer: CanvasSceneRenderer {
 
     // MARK: - Edges (cylinders between xyz endpoints; rebuilt wholesale)
 
-    private func rebuildEdges(_ edges: [CanvasEdge]) {
+    // Internal, not private: the op-application extension (+Ops.swift) needs
+    // it and Swift's `private` is FILE-scoped — the same trade documented on
+    // CanvasSceneView's split state.
+    func rebuildEdges(_ edges: [CanvasEdge]) {
         edgesRoot.children.forEach { $0.removeFromParent() }
         for edge in edges {
             guard

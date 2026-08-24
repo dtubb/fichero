@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.knowledge import Annotation, AnnotationKind
 from fichero_server.models import Document, DocType
 from fichero_server.workflows.tools._annotation_input import (
@@ -75,9 +76,10 @@ class TestCropImage:
     def test_returns_png_bytes_for_bbox(self, big_image):
         ann = Annotation(
             document_id="d", kind=AnnotationKind.highlight,
-            # bbox is normalized [0,1] fractions (x,y,w,h): 0.4,0.4,0.2,0.2
-            # on a 200×200 image = a 40×40 crop at (80,80), inside the blue square.
-            bbox=[0.4, 0.4, 0.2, 0.2],
+            # The anchor's rect is normalized [0,1] fractions (x,y,w,h):
+            # 0.4,0.4,0.2,0.2 on a 200x200 image = a 40x40 crop at (80,80),
+            # inside the blue square.
+            anchor=SourceAnchor(document_id="d", rect=[0.4, 0.4, 0.2, 0.2]),
         )
         png = crop_image(big_image, ann)
         assert png is not None
@@ -94,7 +96,7 @@ class TestCropImage:
     def test_returns_none_for_missing_file(self, tmp_path):
         ann = Annotation(
             document_id="d", kind=AnnotationKind.highlight,
-            bbox=[0, 0, 0.1, 0.1],
+            anchor=SourceAnchor(document_id="d", rect=[0, 0, 0.1, 0.1]),
         )
         assert crop_image(tmp_path / "no.png", ann) is None
 

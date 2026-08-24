@@ -88,3 +88,25 @@ final class EntrySourcePreviewTests: XCTestCase {
         ).isEmpty)
     }
 }
+
+// MARK: - Frame gate (2026-08-23)
+
+extension EntrySourcePreviewTests {
+    /// A region measured on a NAMED rendition must not highlight on the
+    /// parent's base image — a plausible band in the wrong frame is the
+    /// misplaced-spread-band bug's class. The pixel-bbox fallback still runs.
+    func testRenditionNamedRegionNeverHighlightsOnTheParent() {
+        var entry = Document(id: "e1", name: "Entry")
+        entry.regionInParent = DocumentRegion(
+            rect: [0.1, 0.2, 0.3, 0.4], space: "normalized",
+            confidence: nil, method: nil, note: nil, renditionId: "r-crop"
+        )
+        XCTAssertTrue(EntrySourcePreview.highlight(for: entry, sourceMetadata: [:]).isEmpty)
+
+        entry.regionInParent?.renditionId = nil
+        XCTAssertEqual(
+            EntrySourcePreview.highlight(for: entry, sourceMetadata: [:]),
+            [[0.1, 0.2, 0.3, 0.4]]
+        )
+    }
+}

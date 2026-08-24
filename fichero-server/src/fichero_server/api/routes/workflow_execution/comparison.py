@@ -50,7 +50,9 @@ class ComparisonSideResponse(BaseModel):
     workflow_name: str
     status: str
     error: str | None = None
-    duration_ms: int | None = None
+    # float, not int (2026-08-23): run durations arrive as fractional ms
+    # (3018.59…) and the int field 500'd every Compare Runs click.
+    duration_ms: float | None = None
     artifact_count: int = 0
     steps_total: int = 0
     steps_failed: int = 0

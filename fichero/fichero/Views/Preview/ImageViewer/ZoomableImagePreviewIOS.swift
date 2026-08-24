@@ -17,6 +17,12 @@ struct ZoomableImagePreview: View {
     /// Entry-source highlight boxes (preview-layers M1, #27). API parity with
     /// the macOS variant; drawn over the image below.
     var highlightBoxes: [[Double]] = []
+    /// API parity with macOS (entry ladder, 2026-08-23). The iOS viewer opens
+    /// fitted and has no swipe-axis grammar yet, so both are accepted and
+    /// unused — the shared DocumentCanvas call site compiles on every
+    /// platform, and the iOS ladder lands with the touch grammar pass.
+    var focusRegion: [Double]?
+    var onContainmentStep: ((Int) -> Bool)?
 
     init(
         url: URL? = nil,
@@ -24,7 +30,9 @@ struct ZoomableImagePreview: View {
         renderedImage: PlatformImage? = nil,
         onNavigateToDocument: ((String) -> Void)? = nil,
         isEditing: Binding<Bool>? = nil,
-        highlightBoxes: [[Double]] = []
+        highlightBoxes: [[Double]] = [],
+        focusRegion: [Double]? = nil,
+        onContainmentStep: ((Int) -> Bool)? = nil
     ) {
         self.url = url
         self.documentId = documentId
@@ -32,6 +40,8 @@ struct ZoomableImagePreview: View {
         self.onNavigateToDocument = onNavigateToDocument
         self.isEditing = isEditing
         self.highlightBoxes = highlightBoxes
+        self.focusRegion = focusRegion
+        self.onContainmentStep = onContainmentStep
     }
 
     @Environment(DocumentStore.self) var documentStore
@@ -269,8 +279,10 @@ struct ZoomableImagePreview: View {
         guard !neighbors.isEmpty else { return }
         await storageService.prefetchDisplayImages(neighbors)
     }
+}
 
-    // MARK: - Zoom Actions
+// MARK: - Zoom actions (extension, 2026-08-23: type_body_length)
+extension ZoomableImagePreview {
 
     func zoomIn() {
         imageCoordinator?.markManualZoom()

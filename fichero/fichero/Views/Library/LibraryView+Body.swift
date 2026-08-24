@@ -63,6 +63,25 @@ extension LibraryView {
 
     var body: some View {
         withKeyboardShortcuts(eventWiredContent)
+            // The island's bolt (v1 suggest chip) opens THIS pane's picker —
+            // same sheet, same batch path as the bottom bar's bolt. Direct
+            // @Observable seam (§6b): the toolbar bumps the token, this pane
+            // reacts to the change.
+            .onChange(of: windowState.workflowPickerRequestToken) {
+                showWorkflowPicker = true
+            }
+            // Warm the run-menu provider cache from the PANE's lifecycle, not
+            // the Menu's .onAppear: AppKit snapshots a context menu at open,
+            // so a cache loaded by the menu itself always rendered one open
+            // stale (Ann, 2026-08-24: newly added provider missing on first
+            // right-click).
+            .task {
+                let chatService = libraryManager
+                    .getLibrary(id: windowState.libraryId)?
+                    .chatService
+                    ?? libraryManager.globalLibrary?.chatService
+                await workflowRunProviderCache.ensureLoaded(chatService: chatService)
+            }
         // No toolbar .searchable here — ContentView owns the single GLOBAL
         // toolbar search (files), which already routes to runToolbarSearch. A
         // second .searchable in this window is a duplicate com.apple.SwiftUI.search
@@ -77,6 +96,9 @@ extension LibraryView {
         VStack(spacing: 0) {
             libraryContent
         }
+            // The library's floating head (Daniel, 2026-08-23): view-mode
+            // picker + breadcrumb, same grammar and components as the reader.
+            .safeAreaInset(edge: .top, spacing: 0) { libraryPaneHead }
             // No-silent-fallback (F7): if this library's change stream drops, say
             // so with a pill above the content instead of quietly showing stale
             // rows. Reserving real space keeps the first row from peeking
@@ -90,15 +112,17 @@ extension LibraryView {
             // bar makes, from the same place, so the two panes agree. Because
             // it is an inset on THIS view it resizes with the library pane and
             // disappears with it, which window chrome could never do.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if Self.miniToolbarPlacement == .top {
-                    PaneFilterBar(placement: .top) { libraryMiniToolbar }
-                }
-            }
             // Closes the sidebar-click interval opened in `handleSelectionChange`
             // (#4228). See `InteractionProfile.Phase.selectionToContent` for what
             // this end point does and does not measure.
             .task(id: folderId) { InteractionProfile.end(.selectionToContent, detail: folderId ?? "nil") }
+            // Mandate 1, consumer 1: the folder's outline feeds the head's
+            // crumb chain + jump menus from ONE fetch.
+            .task(id: folderId) {
+                if let anchor = folderId.map({ $0.hasPrefix("doc:") ? String($0.dropFirst(4)) : $0 }) {
+                    await documentStore.loadOutline(for: anchor)
+                }
+            }
             // Xcode-navigator-style quick filter, pinned to the BOTTOM of the
             // library list pane. Narrows the rows currently shown client-side
             // (binds `searchText`, which drives `filteredDocuments`) — distinct

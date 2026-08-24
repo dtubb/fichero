@@ -21,23 +21,10 @@ extension AnnotationService {
     ) async -> DocumentAnnotation? {
         syncLibraryPath()
         do {
-            let documentId: String?
-            let pageId: String?
-            let folderId: String?
-            switch scope {
-            case .document(let scopedDocumentId):
-                documentId = scopedDocumentId
-                pageId = nil
-                folderId = nil
-            case .page(let scopedPageId):
-                documentId = nil
-                pageId = scopedPageId
-                folderId = nil
-            case .folder(let scopedFolderId):
-                documentId = nil
-                pageId = nil
-                folderId = scopedFolderId
-            }
+            let ids = Self.scopeIds(scope)
+            let documentId = ids.documentId
+            let pageId = ids.pageId
+            let folderId = ids.folderId
             let request = Components.Schemas.AnnotationCreateRequest(
                 documentId: documentId,
                 pageId: pageId,
@@ -47,7 +34,10 @@ extension AnnotationService {
                 pageLabel: pageLabel,
                 charStart: charStart,
                 charEnd: charEnd,
-                bbox: bbox,
+                anchor: Self.wireAnchor(
+                    bbox: bbox, documentId: documentId, pageId: pageId, folderId: folderId
+                ),
+
                 text: text.isEmpty ? nil : text,
                 color: color,
                 tags: tags,
@@ -81,6 +71,40 @@ extension AnnotationService {
             return folderAnnotation(from: generated)
         case .document, .page:
             return annotation(from: generated)
+        }
+    }
+}
+
+extension AnnotationService {
+    /// The three mutually-exclusive wire ids an `AnnotationScope` maps to.
+    struct ScopeIds {
+        let documentId: String?
+        let pageId: String?
+        let folderId: String?
+    }
+
+    static func scopeIds(_ scope: AnnotationScope) -> ScopeIds {
+        switch scope {
+        case .document(let id): return ScopeIds(documentId: id, pageId: nil, folderId: nil)
+        case .page(let id): return ScopeIds(documentId: nil, pageId: id, folderId: nil)
+        case .folder(let id): return ScopeIds(documentId: nil, pageId: nil, folderId: id)
+        }
+    }
+
+    /// Step 3 (bbox retirement): the wire takes a typed SourceAnchor. The one
+    /// region-drawing caller (the PDF reader's drawn highlight) hands
+    /// NORMALIZED page fractions on a document scope, so the anchor names the
+    /// document and the space instead of shipping bare numbers.
+    static func wireAnchor(
+        bbox: [Double]?, documentId: String?, pageId: String?, folderId: String?
+    ) -> Components.Schemas.SourceAnchorInput? {
+        bbox.map { rect in
+            .init(
+                documentId: documentId ?? pageId ?? folderId ?? "",
+                pageId: pageId,
+                space: .normalized,
+                rect: rect
+            )
         }
     }
 }

@@ -7,6 +7,19 @@ import simd
 // type_body_length — the class keeps state + reconcile; the camera verbs
 // live here).
 
+/// Which camera the 3D shell puts on the board (§18.1 defect 1). One flag on
+/// the SHELL, deliberately not on the arrangement: a board is a board whichever
+/// arrangement filled it, and perspective belongs to a different kind of shell.
+enum CanvasCameraProjection: Equatable {
+    /// Boards — Grid, Shelf, As Filed, Timeline, Calendar, Terrain. Position is
+    /// the datum and comparability is the point, so no foreshortening.
+    case orthographic
+    /// Reserved for panel-sequence and station-walk shells, where depth carries
+    /// the sequence. Not built yet; the camera path is kept alive so building
+    /// one is a flag, not a rewrite.
+    case perspective
+}
+
 extension CanvasScene3DRenderer {
     /// Pan the look-at target across the camera's right/up plane; speed scales
     /// with distance so the pan feels constant at any zoom (ported from #3088).
@@ -41,7 +54,11 @@ extension CanvasScene3DRenderer {
     func focusZoom(on id: String) {
         guard let placeable = placeablesById[id] else { return }
         lookAt = Canvas3DProjection.scenePosition(placeable.position)
-        setDistance(CanvasZoomRange.minDistance(itemExtent: Self.itemExtent) * 1.8)
+        // Face the card head-on (Daniel, 2026-08-22: "camera is not set to
+        // straight on") — the reading pose, not the orbit's last angle.
+        yaw = 0
+        pitch = 0
+        setDistance(CanvasZoomRange.minDistance(itemExtent: Self.itemExtent) * 1.4)
     }
 
     func setDistance(_ value: Float) {
@@ -51,6 +68,12 @@ extension CanvasScene3DRenderer {
         distance = CanvasZoomRange.clamp(
             value, arrangementSpan: arrangementSpan, itemExtent: Self.itemExtent
         )
+        // The tier follows the zoom HERE, not only when a SwiftUI update pass
+        // happens to re-read it: this renderer is a plain class, so a pinch
+        // that only moves `distance` republishes nothing. Without this a
+        // zoom-in could leave every card at the glyph tier — flat colour, no
+        // textures (Daniel, live 2026-08-23).
+        detailTier = CanvasDetailTier.forZoomScale(reportedZoomScale)
         updateCamera()
     }
 
@@ -90,14 +113,15 @@ extension CanvasScene3DRenderer {
     }
 
     /// Screen positions of every placeable — the ⇧⌥ marquee's hit metric
-    /// (user, 2026-08-20: "3D shift-option rubber band"). Manual perspective
-    /// projection from the camera basis; RealityView exposes no projector on
-    /// macOS. Vertical fov matches PerspectiveCamera's 60° default.
+    /// (user, 2026-08-20: "3D shift-option rubber band"). Projected by hand from
+    /// the camera basis; RealityView exposes no projector on macOS. It has to
+    /// use the SAME projection the camera does, or the rubber band selects cards
+    /// other than the ones it is drawn around — which is why this follows
+    /// `projection` rather than assuming perspective.
     func screenPositions(in viewSize: CGSize) -> [String: CGPoint] {
         guard viewSize.width > 0, viewSize.height > 0 else { return [:] }
         let forward = simd_normalize(lookAt - camera.position)
-        let fovRadians: Float = 60 * .pi / 180
-        let focal = Float(viewSize.height) / (2 * tan(fovRadians / 2))
+        let orthoScale = Canvas3DProjection.orthoScale(forDistance: distance)
         var out: [String: CGPoint] = [:]
         for (id, placeable) in placeablesById {
             let rel = Canvas3DProjection.scenePosition(placeable.position) - camera.position
@@ -105,10 +129,16 @@ extension CanvasScene3DRenderer {
             guard depth > 0.01 else { continue }  // behind the camera
             let lateral = simd_dot(rel, cameraRight)
             let vertical = simd_dot(rel, cameraUp)
-            out[id] = CGPoint(
-                x: CGFloat(Float(viewSize.width) / 2 + focal * lateral / depth),
-                y: CGFloat(Float(viewSize.height) / 2 - focal * vertical / depth)
-            )
+            switch projection {
+            case .orthographic:
+                out[id] = Canvas3DProjection.orthoScreenPoint(
+                    lateral: lateral, vertical: vertical, orthoScale: orthoScale, viewSize: viewSize
+                )
+            case .perspective:
+                out[id] = Canvas3DProjection.perspectiveScreenPoint(
+                    lateral: lateral, vertical: vertical, depth: depth, viewSize: viewSize
+                )
+            }
         }
         return out
     }
@@ -121,5 +151,23 @@ extension CanvasScene3DRenderer {
         )
         camera.position = lookAt + offset
         camera.look(at: lookAt, from: camera.position, relativeTo: nil)
+        applyProjection()
+    }
+
+    /// Put the current projection on the camera entity. `distance` remains the
+    /// one zoom variable in both modes — under ortho it becomes a scale rather
+    /// than a standoff, so every consumer of `distance` (zoom range, detail
+    /// tier, pan speed, fit, focus) is unchanged.
+    private func applyProjection() {
+        switch projection {
+        case .orthographic:
+            var ortho = OrthographicCameraComponent()
+            ortho.scale = Canvas3DProjection.orthoScale(forDistance: distance)
+            camera.components.remove(PerspectiveCameraComponent.self)
+            camera.components.set(ortho)
+        case .perspective:
+            camera.components.remove(OrthographicCameraComponent.self)
+            camera.components.set(PerspectiveCameraComponent())
+        }
     }
 }

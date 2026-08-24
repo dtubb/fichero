@@ -28,9 +28,12 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from fichero_server.core.timeutil import utc_now
 from fichero_server.db import Database, db_manager
+from fichero_server.db.node_levels import resolve_workflow_targets
 from fichero_server.histdate import parse_historical_date
 from fichero_server.llm import LLMConfig, chat_structured
+from fichero_server.models.anchors import NodeRegion, RegionConfidence
 from fichero_server.models import Artifact, DocType, Document, Status
 from fichero_server.models.knowledge import (
     ClassificationDimension,
@@ -42,6 +45,14 @@ from fichero_server.workflows.types import DataType, PortDef, State
 logger = logging.getLogger(__name__)
 
 _DIARY_TOOL_KEY = "diary_entries_tool"
+
+#: Per-page counts from the most recent split, so the tool wrapper can
+#: say what it DID rather than only how many nodes exist now.
+_LAST_SPLIT_REPORT: dict[str, dict[str, int]] = {}
+
+#: Marks a soft-delete this tool performed, as opposed to a person's. Only the
+#: tool's own removals are resurrected when an entry reappears.
+_TOOL_REMOVED_KEY = "diary_entries_tool_removed"
 DEFAULT_PROTOTYPE_KEY = "diary_entry"
 
 _SYSTEM = (
@@ -120,18 +131,62 @@ def _normalized_iso(entry: DiaryEntry) -> str | None:
     return None
 
 
-def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any]]:
-    """The page's newest transcription geometry: (artifact content, boxes)."""
+def _geometry_boxes(db: Database, page: Document) -> tuple[str, list[Any], str | None]:
+    """The page's newest transcription geometry: (content, boxes, provider).
+
+    The provider is returned because it decides how much the resulting region
+    is WORTH. Apple Vision detects boxes from the pixels; a VLM is ASKED for
+    them and answers — `detect_regions` says so itself ("VLM boxes are claimed,
+    not measured"). Collapsing both into `measured` would make a model's guess
+    indistinguishable from a measurement, which is the exact distinction
+    `RegionConfidence` exists to preserve.
+    """
     artifacts = db.query(Artifact, document_id=page.id) or []
+    candidates = [a for a in artifacts if a.ocr_geometry and a.ocr_geometry.boxes]
+    if not candidates:
+        return "", [], None
+
+    # WHICH FRAME ARE THESE BOXES IN? (2026-08-23 consumer audit.)
+    #
+    # This works today by CONSTRUCTION rather than by checking, and the
+    # reasoning is worth stating because it is not obvious: an artifact's
+    # `rendition_id` names a rendition OF THE DOCUMENT IT BELONGS TO. For a
+    # region node, that rendition is its own crop — and the crop IS the node's
+    # extent, so crop-fractions and node-fractions are the same numbers. Spans
+    # measured against them are therefore already page-relative.
+    #
+    # That equivalence breaks the moment two artifacts on one page disagree
+    # about their frame — one measured on the base image, another on a rotated
+    # rendition whose width and height are swapped. Sorting those by DATE
+    # silently picks a frame, and the caller cannot tell which it got: the
+    # entries would be laid out against a picture nobody chose.
+    #
+    # So: prefer the document's own frame, and REFUSE rather than choose when
+    # the candidates are incommensurable. Same argument as `compose` refusing
+    # to mix frames instead of picking one.
+    own_frame = [a for a in candidates if not a.ocr_geometry.rendition_id]
+    if own_frame:
+        candidates = own_frame
+    else:
+        frames = {a.ocr_geometry.rendition_id for a in candidates}
+        if len(frames) > 1:
+            logger.warning(
+                "page %s carries geometry in %d different frames (%s) and none "
+                "in its own — refusing to pick one by date. Entries get no "
+                "regions rather than regions against a picture nobody chose.",
+                page.id, len(frames), ", ".join(sorted(str(f) for f in frames)),
+            )
+            return "", [], None
+
     dated = sorted(
-        (a for a in artifacts if a.ocr_geometry and a.ocr_geometry.boxes),
+        candidates,
         key=lambda a: (a.created_at is None, a.created_at),
     )
-    if not dated:
-        return "", []
     newest = dated[-1]
-    return newest.ocr_geometry.text or newest.content or "", list(
-        newest.ocr_geometry.boxes
+    return (
+        newest.ocr_geometry.text or newest.content or "",
+        list(newest.ocr_geometry.boxes),
+        newest.provider or newest.ocr_geometry.provider,
     )
 
 
@@ -169,15 +224,25 @@ def _body_without_date_heading(text: str, date_text: str) -> str:
     return text.strip()
 
 
-def _normalized_with_offsets(content: str) -> tuple[str, list[int]]:
+#: Punctuation the ledger's PRINTED date headers vary on between the page and
+#: the OCR of the page: the stationery prints "SUNDAY. JANUARY 8. 1933" while
+#: transcripts write "SUNDAY, JANUARY 8, 1933" — same heading, different
+#: separators. Dropped on BOTH sides of the heading match, never for body text.
+_HEADING_PUNCTUATION = ".,;:"
+
+
+def _normalized_with_offsets(
+    content: str, *, drop_punctuation: bool = False
+) -> tuple[str, list[int]]:
     """Whitespace-collapsed copy of ``content`` plus, per normalized char,
     its RAW offset — so a match in the normalized text maps back to the
-    geometry's own coordinates."""
+    geometry's own coordinates. With ``drop_punctuation`` the heading
+    separators vanish too (see ``_HEADING_PUNCTUATION``)."""
     chars: list[str] = []
     offsets: list[int] = []
     previous_space = True
     for index, ch in enumerate(content):
-        if ch.isspace():
+        if ch.isspace() or (drop_punctuation and ch in _HEADING_PUNCTUATION):
             if previous_space:
                 continue
             chars.append(" ")
@@ -200,55 +265,106 @@ def _entry_spans(content: str, entries: list[DiaryEntry]) -> list[tuple[int, int
     genuinely absent still gets None — recorded, never guessed."""
     spans: list[tuple[int, int] | None] = []
     haystack, offsets = _normalized_with_offsets(content)
+    # Heading search runs punctuation-blind on BOTH sides (2026-08-23): the
+    # stationery prints "SUNDAY. JANUARY 8. 1933", transcripts write commas,
+    # and the strict match lost the anchor over a period.
+    bare_haystack, bare_offsets = _normalized_with_offsets(content, drop_punctuation=True)
+    # Case-blind too: the stationery sets headings in CAPS, the transcript
+    # writes "Wednesday, January 11" — the second-largest miss class on the
+    # real corpus after punctuation.
+    bare_haystack = bare_haystack.casefold()
     cursor = 0
+    bare_cursor = 0
     starts: list[int | None] = []
     for entry in entries:
-        prefix = " ".join(entry.text.split())[:24]
         found: int | None = None
-        if prefix:
-            probe = prefix
+        # The PRINTED date heading first (2026-08-23, "not all the entries
+        # have them"): entry text is split from the LLM vision transcript,
+        # but the geometry is OCR — and on handwritten pages the OCR mangles
+        # every cursive line ("Watching laboratory…" came back "dealing
+        # elenty else use t"), so a body-prefix match failed for 128 of 201
+        # entries. The typeset date header is the one line OCR reads
+        # reliably, and structurally an entry IS the band from its heading
+        # to the next — so the heading is the anchor, the prefix the
+        # fallback.
+        heading = " ".join(
+            ch for ch in entry.date_text.split() if ch
+        )
+        heading = " ".join(
+            "".join(c for c in heading if c not in _HEADING_PUNCTUATION).split()
+        ).casefold()[:24]
+        if heading:
+            probe = heading
             while len(probe) >= 8:
-                index = haystack.find(probe, cursor)
+                index = bare_haystack.find(probe, bare_cursor)
                 if index >= 0:
-                    found = offsets[index]
-                    cursor = index + 1
+                    found = bare_offsets[index]
+                    bare_cursor = index + 1
                     break
                 probe = probe[: len(probe) - 4]
+        if found is None:
+            prefix = " ".join(entry.text.split())[:24]
+            if prefix:
+                probe = prefix
+                while len(probe) >= 8:
+                    index = haystack.find(probe, cursor)
+                    if index >= 0:
+                        found = offsets[index]
+                        cursor = index + 1
+                        break
+                    probe = probe[: len(probe) - 4]
         starts.append(found)
     for position, start in enumerate(starts):
         if start is None:
             spans.append(None)
             continue
+        # RAW length, not normalized (2026-08-23): starts are raw offsets,
+        # and the normalized haystack is shorter — the old default cut the
+        # LAST entry's span short of the page's trailing boxes.
         next_start = next(
-            (s for s in starts[position + 1:] if s is not None), len(haystack)
+            (s for s in starts[position + 1:] if s is not None), len(content)
         )
         spans.append((start, max(next_start, start + 1)))
     return spans
 
 
-def _page_pixel_size(page: Document) -> tuple[int, int] | None:
-    """The page image's pixel dimensions from its metadata — the scale that
-    turns normalized OCR geometry into ``Document.bbox`` pixel ints."""
-    for source in (page.metadata or {}, page.source_metadata or {}):
-        width, height = source.get("width"), source.get("height")
-        try:
-            width_px, height_px = int(width), int(height)
-        except (TypeError, ValueError):
-            continue
-        if width_px > 0 and height_px > 0:
-            return width_px, height_px
-    return None
+#: Providers whose boxes are DETECTED from pixels rather than claimed by a
+#: model. Apple Vision measures; a VLM is asked and answers.
+_MEASURING_PROVIDERS = {"apple", "apple-vision", "vision"}
 
 
-def _bbox_union(
+def _region_confidence(provider: str | None) -> RegionConfidence:
+    """How much an entry region derived from these boxes is worth.
+
+    Unknown provenance is treated as NOMINAL rather than measured: the safe
+    default is to under-claim. A region wrongly marked `measured` tells a
+    reader the fold was verified when nobody verified it, and that is the
+    failure this vocabulary was introduced to stop.
+    """
+    if provider and provider.strip().casefold() in _MEASURING_PROVIDERS:
+        return RegionConfidence.measured
+    return RegionConfidence.nominal
+
+
+def _region_union(
     boxes: list[Any],
     span: tuple[int, int] | None,
-    pixel_size: tuple[int, int] | None,
-) -> tuple[int, int, int, int] | None:
-    """Union of the normalized [x, y, w, h] line boxes whose char span
-    overlaps the entry span, scaled to page pixels (``Document.bbox`` is
-    pixel ints). No page dimensions → no bbox, recorded honestly."""
-    if span is None or pixel_size is None:
+    provider: str | None = None,
+) -> NodeRegion | None:
+    """Union of the OCR line boxes overlapping the entry's char span.
+
+    The entry node's ``parent_id`` IS the page, so where the entry sits on that
+    page is exactly ``region_in_parent`` — the one field for that fact.
+
+    This used to scale the union DOWN into ``Document.bbox`` pixel ints, which
+    needed the page's pixel dimensions and returned None without them. The OCR
+    boxes are already normalized, so the conversion only ever lost information:
+    entries whose page carried no width/height in metadata were given no
+    geometry at all despite the geometry being right there. Keeping it
+    normalized removes the conversion, the helper that fed it, and that entire
+    failure mode.
+    """
+    if span is None:
         return None
     xs0: list[float] = []
     ys0: list[float] = []
@@ -269,13 +385,53 @@ def _bbox_union(
     if not xs0:
         return None
     x0, y0 = min(xs0), min(ys0)
-    width_px, height_px = pixel_size
-    return (
-        round(x0 * width_px),
-        round(y0 * height_px),
-        round((max(xs1) - x0) * width_px),
-        round((max(ys1) - y0) * height_px),
-    )
+    try:
+        return NodeRegion(
+            rect=[x0, y0, max(xs1) - x0, max(ys1) - y0],
+            # The union of MEASURED OCR line boxes — not a nominal guess at
+            # where an entry might fall.
+            confidence=_region_confidence(provider),
+            # Name the source in the method, so a region carries WHERE its
+            # numbers came from and not merely how they were combined.
+            method=f"diary-entry-word-union:{(provider or 'unknown').strip().casefold()}",
+        )
+    except ValueError:
+        # Malformed OCR geometry must not cost us the entry. The node is the
+        # transcript; the region is a convenience. Losing the node would lose
+        # the text, and guessing a rect would be the defect this program
+        # removes — so: node yes, region no, recorded in `bbox_basis`.
+        logger.warning("diary entry OCR union rejected for span %s", span)
+        return None
+
+
+
+def _entry_identity(iso: str | None, date_text: str, body: str) -> str:
+    """What makes two extractions "the same entry".
+
+    The DATE first: a diary entry is the day it describes, and the date is the
+    one thing a re-extraction reproduces reliably even when the transcript
+    wobbles. Body text is the fallback for undated entries, normalized so
+    whitespace and case changes between runs do not read as a different entry.
+    """
+    if iso:
+        return f"date:{iso}"
+    heading = " ".join(date_text.split()).casefold()
+    if heading:
+        return f"heading:{heading}"
+    return "body:" + " ".join(body.split()).casefold()[:120]
+
+
+def _entry_unchanged(node: Document, body: str, iso: str | None) -> bool:
+    """Whether re-extraction produced materially the same entry.
+
+    Region is deliberately NOT compared. A recomputed region can differ by a
+    pixel because the OCR ran again, and calling that "changed" would make
+    every re-run report churn it did not cause — which is the reporting
+    problem this work exists to fix.
+    """
+    same_body = " ".join((node.page_content or "").split()) == " ".join(body.split())
+    same_date = (node.attributes or {}).get("date") == iso
+    return same_body and same_date
 
 
 async def split_page_into_entries(
@@ -303,24 +459,98 @@ async def split_page_into_entries(
 
     ensure_diary_prototype(db, prototype_key)
 
-    geometry_content, boxes = _geometry_boxes(db, page)
-    pixel_size = _page_pixel_size(page)
+    geometry_content, boxes, geometry_provider = _geometry_boxes(db, page)
     spans = (
         _entry_spans(geometry_content, entries)
         if geometry_content and boxes
         else [None] * len(entries)
     )
 
-    # Idempotent re-run: this tool's previous children go, others stay.
+    # RE-RUN MATCHING (2026-08-23). This used to hard-delete every previous
+    # entry and recreate it, so a re-run that changed nothing still replaced
+    # every node with a new id — Daniel's "I saw no change" was true on screen
+    # while identity churned underneath, and any curation on an entry was
+    # destroyed. Verified: nothing restored it. Workflow runs write no
+    # ActionAudit and no MutationLog, and the "workflow snapshot" is the graph
+    # definition, not the data.
+    #
+    # So: match, reuse, update in place, and SOFT-delete what is genuinely gone.
+    existing_by_identity: dict[str, Document] = {}
+    existing_nodes: list[Document] = []
     for child in db.query(Document, parent_id=page.id) or []:
-        if (child.metadata or {}).get(_DIARY_TOOL_KEY):
-            db.delete(child)
+        if not (child.metadata or {}).get(_DIARY_TOOL_KEY):
+            continue
+        if child.deleted_at is not None:
+            # A previously soft-deleted entry is still MATCHABLE, but only if
+            # THIS TOOL removed it. LLM output flickers — an entry can vanish
+            # on one run and return on the next — and creating a fresh node on
+            # its return would lose the curation a second time, defeating the
+            # point of keeping the row. Resurrecting it restores the id and
+            # everything attached to it.
+            #
+            # A user's own deletion is NOT resurrected: they meant it, and a
+            # re-run that quietly undid a person's delete would be worse than
+            # a duplicate.
+            if not (child.metadata or {}).get(_TOOL_REMOVED_KEY):
+                continue
+        existing_nodes.append(child)
+        identity = _entry_identity(
+            (child.attributes or {}).get("date"),
+            str((child.metadata or {}).get("date_text") or ""),
+            child.page_content or "",
+        )
+        existing_by_identity.setdefault(identity, child)
 
     created: list[Document] = []
+    matched_ids: set[str] = set()
+    report = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
+
     for index, entry in enumerate(entries, start=1):
         iso = _normalized_iso(entry)
-        bbox = _bbox_union(boxes, spans[index - 1], pixel_size)
+        region = _region_union(boxes, spans[index - 1], geometry_provider)
         body = _body_without_date_heading(entry.text, entry.date_text)
+
+        identity = _entry_identity(iso, entry.date_text, body)
+        prior = existing_by_identity.get(identity)
+        if prior is not None and prior.id not in matched_ids:
+            matched_ids.add(prior.id)
+            unchanged = _entry_unchanged(prior, body, iso)
+
+            # A REGION A PERSON PLACED OR CORRECTED SURVIVES RE-EXTRACTION.
+            # That is what RegionConfidence.user is for, and the old
+            # delete-and-recreate defeated it every run. Daniel's ruling: keep
+            # the correction even when the text around it changed.
+            keep_user_region = (
+                prior.region_in_parent is not None
+                and prior.region_in_parent.confidence is RegionConfidence.user
+            )
+            prior.page_content = body
+            prior.name = iso or entry.date_text.strip() or f"Entry {index}"
+            prior.sequence = index
+            prior.attributes = {"date": iso} if iso else {}
+            if not keep_user_region and region is not None:
+                prior.region_in_parent = region
+            # Back from the dead, if it had been removed by a previous run.
+            prior.deleted_at = None
+            prior.metadata = {
+                **(prior.metadata or {}),
+                _DIARY_TOOL_KEY: True,
+                _TOOL_REMOVED_KEY: False,
+                "source_document_id": page.id,
+                "source_document_name": page.name,
+                "date_text": entry.date_text,
+                "date_parsed": iso is not None,
+                "bbox_basis": (
+                    "user-corrected" if keep_user_region
+                    else ("ocr_geometry" if region else "none")
+                ),
+            }
+            db.save(prior)
+            created.append(prior)
+            report["unchanged" if unchanged else "updated"] += 1
+            continue
+
+        report["created"] += 1
         node = Document(
             parent_id=page.id,
             doc_type=DocType.file,
@@ -331,7 +561,7 @@ async def split_page_into_entries(
             sequence=index,
             status=Status.completed,
             page_content=body,
-            bbox=bbox,
+            region_in_parent=region,
             prototype_key=prototype_key,
             attributes={"date": iso} if iso else {},
             metadata={
@@ -340,11 +570,29 @@ async def split_page_into_entries(
                 "source_document_name": page.name,
                 "date_text": entry.date_text,
                 "date_parsed": iso is not None,
-                "bbox_basis": "ocr_geometry" if bbox else ("no_page_dimensions" if pixel_size is None else "none"),
+                # "no_page_dimensions" is gone: a normalized region never
+                # needed the page's pixel size, so that outcome cannot occur.
+                "bbox_basis": "ocr_geometry" if region else "none",
             },
         )
         db.save(node)
         created.append(node)
+
+    # Entries the extraction no longer sees are SOFT-deleted (Daniel's ruling,
+    # 2026-08-23, after the evidence that nothing restores a hard delete). The
+    # cost asymmetry decides it: a soft-deleted entry nobody wanted is
+    # invisible clutter, while a hard-deleted entry someone had corrected is
+    # unrecoverable work.
+    for node in existing_nodes:
+        if node.id in matched_ids:
+            continue
+        node.deleted_at = utc_now()
+        # Stamped so a later run can tell ITS OWN removal from a person's.
+        node.metadata = {**(node.metadata or {}), _TOOL_REMOVED_KEY: True}
+        db.save(node)
+        report["removed"] += 1
+
+    _LAST_SPLIT_REPORT[page.id] = report
     return created
 
 
@@ -420,15 +668,18 @@ async def diary_entries(
     ).strip() or DEFAULT_PROTOTYPE_KEY
 
     raw_documents = inputs.get("documents") or state.get("documents") or []
+    # Resolve containers to the pages inside them (2026-08-22). Handed an
+    # OPENING, this tool used to treat the spread as a page: it transcribed two
+    # pages as one blob and anchored every entry to the spread's frame. A
+    # container is not a unit of work.
+    pages = resolve_workflow_targets(db, raw_documents)
     created: list[Document] = []
     lines: list[str] = []
     errors: list[str] = []
-    for raw in raw_documents:
-        doc_id = raw.get("id") if isinstance(raw, dict) else None
-        page = db.get(Document, doc_id) if doc_id else None
-        if page is None:
-            errors.append(f"document {doc_id!r} not found")
-            continue
+    totals = {"unchanged": 0, "updated": 0, "created": 0, "removed": 0}
+    if not pages and raw_documents:
+        errors.append(f"{len(raw_documents)} selected document(s) resolved to no pages")
+    for page in pages:
         try:
             entries = await split_page_into_entries(
                 db, page, llm_config, prototype_key=prototype_key
@@ -437,9 +688,29 @@ async def diary_entries(
             errors.append(str(exc))
             continue
         created.extend(entries)
+        page_report = _LAST_SPLIT_REPORT.pop(page.id, None) or {}
+        for key in totals:
+            totals[key] += page_report.get(key, 0)
         for node in entries:
-            marker = "▣" if node.bbox else "·"
+            marker = "▣" if node.region_in_parent else "·"
             lines.append(f"{marker} {node.name} — {page.name}")
+
+    # SAY WHAT THE RUN DID, not just what exists now. "Marked 3 completed"
+    # told Daniel nothing about whether re-running had changed anything —
+    # and until this pass it genuinely could not, because every entry was
+    # deleted and recreated regardless.
+    verdict = ", ".join(
+        f"{count} {label}"
+        for label, count in (
+            ("unchanged", totals["unchanged"]),
+            ("updated", totals["updated"]),
+            ("new", totals["created"]),
+            ("removed", totals["removed"]),
+        )
+        if count
+    )
+    if lines:
+        lines.insert(0, verdict or "no entries changed")
 
     summary = "\n".join(lines) if lines else "No entries created"
     if errors:
@@ -451,4 +722,10 @@ async def diary_entries(
         "text": summary,
         "error": "; ".join(errors) if errors and not created else None,
         "cached": False,
+        # Counts the runner can narrate, same vocabulary as the vision tools'
+        # reused/processed split.
+        "unchanged_count": totals["unchanged"],
+        "updated_count": totals["updated"],
+        "created_count": totals["created"],
+        "removed_count": totals["removed"],
     }

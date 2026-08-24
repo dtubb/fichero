@@ -11,6 +11,10 @@ struct DatasetTimelineView: View {
     @Binding var selection: Set<String>
     var onOpen: (DatasetPage.Row) -> Void = { _ in }
     var onOpenSource: (DatasetPage.Row) -> Void = { _ in }
+    /// Nil = exclusion items hidden (previews, closed library).
+    var documentService: DocumentService?
+    var workflows: [WorkflowSidebarItem] = []
+    var onRunWorkflow: (String, [String], String?, String?) -> Void = { _, _, _, _ in }
 
     /// ⇧-click range anchor — SelectionGrammar owns the semantics (#4598,
     /// same pattern as DatasetCardsView; before this a timeline click could
@@ -44,12 +48,7 @@ struct DatasetTimelineView: View {
                                     .onTapGesture(count: 2) { onOpen(row) }
                                     .onTapGesture { handleTap(row) }
                                     // Touch parity: iPad has no double-click.
-                                    .contextMenu {
-                                        Button("Open") { onOpen(row) }
-                                        if row.parentId != nil {
-                                            Button("Show Source Page") { onOpenSource(row) }
-                                        }
-                                    }
+                                    .contextMenu { rowMenu(row) }
                                 Divider().padding(.leading, 16)
                             }
                         } header: {
@@ -138,9 +137,25 @@ struct DatasetTimelineView: View {
               (1...12).contains(monthNumber) else { return month }
         return "\(Calendar.current.monthSymbols[monthNumber - 1]) \(pieces[0])"
     }
+
+    /// The ONE dataset row menu — Timeline gained exclusion and Run Workflow
+    /// by adopting it, rather than being taught them separately.
+    private func rowMenu(_ row: DatasetPage.Row) -> some View {
+        DatasetRowMenu(
+            rows: [row],
+            targets: selection.contains(row.id) ? Array(selection) : [row.id],
+            documentService: documentService,
+            workflows: workflows,
+            onOpen: onOpen,
+            onOpenSource: onOpenSource,
+            onRunWorkflow: onRunWorkflow
+        )
+    }
+
 }
 
 #Preview("Timeline — diary") {
     DatasetTimelineView(store: .previewDiary(), selection: .constant([]))
         .frame(width: 640, height: 640)
+
 }

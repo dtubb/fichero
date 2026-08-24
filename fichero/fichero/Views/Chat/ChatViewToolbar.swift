@@ -152,7 +152,7 @@ private struct ChatConversationMenu: View, Equatable {
     }
 }
 
-private struct ChatModelPicker: View, Equatable {
+struct ChatModelPicker: View, Equatable {
     let providers: [LLMProvider]
     @Binding var selectedProvider: String
     @Binding var selectedModel: String
@@ -190,14 +190,11 @@ private struct ChatModelPicker: View, Equatable {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu")
-                Text(selectedModel.isEmpty ? "Select Model" : selectedModel)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-            }
-            .font(.caption)
+            // Icon only (Daniel, 2026-08-23: the bar "doesn't need to say
+            // what the model is") — the choice lives in the menu and the
+            // hover help.
+            Image(systemName: "cpu")
+                .font(.caption)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Color(.controlBackgroundColor))

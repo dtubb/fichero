@@ -4,10 +4,12 @@ import SwiftUI
 
 /// Arrow keys move the SELECTION spatially — left/right/up/down to the
 /// nearest node by board position (user, 2026-08-20: "left and right and up
-/// and down would take us left right up and down in our selection") — and
-/// ⌘A selects every node. One shared grammar for all three canvas surfaces,
-/// so they cannot drift apart the way their click grammars once did (#4436).
-/// Camera movement stays on two-finger scroll / Space-drag.
+/// and down would take us left right up and down in our selection"). One
+/// shared grammar for all three canvas surfaces, so they cannot drift apart the
+/// way their click grammars once did (#4436). Camera movement stays on
+/// two-finger scroll / Space-drag.
+///
+/// ⌘A is deliberately NOT here — see the note in `body`.
 struct CanvasKeyboardNav: ViewModifier {
     /// World ids in the scene, in layout order.
     let nodeIds: [String]
@@ -32,11 +34,12 @@ struct CanvasKeyboardNav: ViewModifier {
                 selectedNodeIds = SelectionGrammar.select(target).selection
                 return .handled
             }
-            .onKeyPress(.init("a"), phases: .down) { press in
-                guard press.modifiers.contains(.command) else { return .ignored }
-                selectedNodeIds = SelectionGrammar.selectAll(in: nodeIds).selection
-                return .handled
-            }
+            // ⌘A is NOT handled here. One chord, one owner (Daniel,
+            // 2026-08-23): `SelectAllButton` routes it by focus, and in a
+            // canvas the library's `selectAllIds` answers with the nodes the
+            // board is actually rendering. A private handler here answered a
+            // DIFFERENT question — every node in scope, cap ignored — and which
+            // answer you got depended on where focus happened to be.
     }
 
     private var currentAnchor: String? {

@@ -118,7 +118,17 @@ def test_geometry_retains_text_when_confidence_and_word_boxes_are_missing():
             char_end=11,
         )
     ]
-    assert result.word_boxes == []
+    # RULING CHANGE (2026-08-23, "70% of words have boxes"): a word whose
+    # range Vision cannot map is no longer DROPPED — it gets a proportional
+    # slice of its line's measured box, marked confidence=None so derived
+    # never masquerades as measured (#4394). Both words present, both
+    # honest, both inside the line's own band.
+    assert [b.text for b in result.word_boxes] == ["No", "geometry"]
+    assert all(b.confidence is None for b in result.word_boxes)
+    line = result.line_boxes[0].bbox
+    for box in result.word_boxes:
+        assert box.bbox[1] == line[1] and box.bbox[3] == line[3]
+        assert line[0] - 1e-9 <= box.bbox[0] <= line[0] + line[2] + 1e-9
 
 
 def test_plain_text_wrapper_keeps_compatibility():

@@ -26,6 +26,75 @@ struct ImageZoomActionsKey: FocusedValueKey {
     typealias Value = ImageZoomActions
 }
 
+/// Camera commands for the focused canvas — zoom to fit, and the Back/Forward
+/// jump history (§16, R10 step 4).
+///
+/// Published only by the canvas modes, so it is nil in List, Table or Reader —
+/// which is what makes the View menu's Canvas section disable itself outside a
+/// canvas instead of teasing a control that cannot apply.
+///
+/// Equatable on the FLAGS only, for the reason `ImageZoomActions` documents:
+/// the closures capture the same view state, so comparing them republishes on
+/// every body pass and trips the "FocusedValue update tried to update multiple
+/// times per frame" fault.
+struct CanvasViewActions: Equatable {
+    let zoomToFit: () -> Void
+    let jumpBack: () -> Void
+    let jumpForward: () -> Void
+    let canJumpBack: Bool
+    let canJumpForward: Bool
+
+    static func == (lhs: CanvasViewActions, rhs: CanvasViewActions) -> Bool {
+        lhs.canJumpBack == rhs.canJumpBack && lhs.canJumpForward == rhs.canJumpForward
+    }
+}
+
+struct CanvasViewActionsKey: FocusedValueKey {
+    typealias Value = CanvasViewActions
+}
+
+/// Which PANE holds focus, published by the shell.
+///
+/// ⌘A needs this because the select-all publications are scene-scoped: the
+/// library publishes whenever a library pane is in the focused scene, whether
+/// or not the user's last click went to the inspector. "Who published" cannot
+/// decide precedence; "who has focus" can.
+struct FocusedPaneKindKey: FocusedValueKey {
+    typealias Value = PaneFocus
+}
+
+/// A selectable list in the inspector answering ⌘A over its own rows.
+struct InspectorSelectAllKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+/// The sidebar answering ⌘A over the CURRENT library's visible rows.
+struct SidebarSelectAllKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+/// The preview answering ⌘A by selecting the whole image.
+struct PreviewSelectAllKey: FocusedValueKey {
+    typealias Value = FocusedLibraryAction
+}
+
+/// The focused Reader's current lens, and the setter for it (R3).
+///
+/// The pane head and the View menu render the SAME value through this: one
+/// binding shown twice, never two switches that can disagree. Equatable on the
+/// VALUE only, the `FocusedSortField` shape — comparing the setter would
+/// republish on every body pass.
+struct FocusedReaderLens: Equatable {
+    let value: ReaderLens
+    let set: (ReaderLens) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.value == rhs.value }
+}
+
+struct ReaderLensKey: FocusedValueKey {
+    typealias Value = FocusedReaderLens
+}
+
 /// Actions that can be performed on the sidebar selection.
 ///
 /// Equatable returns `true` unconditionally: all instances constructed by
@@ -174,10 +243,23 @@ struct NavigateForwardActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
 
+/// The READER's zoom, on its own key (2026-08-24): sharing imageZoomActions
+/// with the preview meant two publishers whenever both panes were mounted —
+/// the "FocusedValue update tried to update multiple times per frame" fault.
+/// The menu prefers the image preview's actions and falls back to these.
+struct ReaderZoomActionsKey: FocusedValueKey {
+    typealias Value = ImageZoomActions
+}
+
 extension FocusedValues {
     var imageZoomActions: ImageZoomActionsKey.Value? {
         get { self[ImageZoomActionsKey.self] }
         set { self[ImageZoomActionsKey.self] = newValue }
+    }
+
+    var readerZoomActions: ReaderZoomActionsKey.Value? {
+        get { self[ReaderZoomActionsKey.self] }
+        set { self[ReaderZoomActionsKey.self] = newValue }
     }
 
     var sidebarActions: SidebarActionsKey.Value? {
@@ -248,5 +330,35 @@ extension FocusedValues {
     var navigateForwardAction: NavigateForwardActionKey.Value? {
         get { self[NavigateForwardActionKey.self] }
         set { self[NavigateForwardActionKey.self] = newValue }
+    }
+
+    var canvasViewActions: CanvasViewActionsKey.Value? {
+        get { self[CanvasViewActionsKey.self] }
+        set { self[CanvasViewActionsKey.self] = newValue }
+    }
+
+    var focusedPaneKind: FocusedPaneKindKey.Value? {
+        get { self[FocusedPaneKindKey.self] }
+        set { self[FocusedPaneKindKey.self] = newValue }
+    }
+
+    var inspectorSelectAll: InspectorSelectAllKey.Value? {
+        get { self[InspectorSelectAllKey.self] }
+        set { self[InspectorSelectAllKey.self] = newValue }
+    }
+
+    var sidebarSelectAll: SidebarSelectAllKey.Value? {
+        get { self[SidebarSelectAllKey.self] }
+        set { self[SidebarSelectAllKey.self] = newValue }
+    }
+
+    var previewSelectAll: PreviewSelectAllKey.Value? {
+        get { self[PreviewSelectAllKey.self] }
+        set { self[PreviewSelectAllKey.self] = newValue }
+    }
+
+    var readerLens: ReaderLensKey.Value? {
+        get { self[ReaderLensKey.self] }
+        set { self[ReaderLensKey.self] = newValue }
     }
 }

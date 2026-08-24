@@ -329,7 +329,9 @@ extension ContentView {
         }
     }
 
-    private static func stripPrefix(_ value: String, prefix: String) -> String {
+    /// internal (not private): the restore path in +StatePreview.swift strips
+    /// the doc: prefix for the sidebar reveal — `private` is FILE-scoped.
+    static func stripPrefix(_ value: String, prefix: String) -> String {
         if value.hasPrefix(prefix) {
             return String(value.dropFirst(prefix.count))
         }

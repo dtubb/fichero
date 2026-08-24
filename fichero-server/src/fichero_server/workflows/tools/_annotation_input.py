@@ -29,6 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from fichero_server.models.knowledge import Annotation
     from fichero_server.models import Document
 
+from fichero_server.models.anchors import AnchorSpace
 from fichero_server.core.utf16_offsets import utf16_range_to_codepoint_range
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,19 @@ def crop_image(
     Useful for huge photographic plates / maps / scans where the
     annotated region is much smaller than the full image.
     """
-    if not annotation.bbox or len(annotation.bbox) != 4:
+    if annotation.anchor is not None and annotation.anchor.space is not AnchorSpace.normalized:
+        # The maths below multiplies the rect by the frame, which is only
+        # meaningful for fractions. A pixel rect scaled that way lands far off
+        # the image and the crop would still "succeed" — so refuse. This
+        # returns None like every other failure here, and the caller already
+        # treats None as "no crop available".
+        logger.warning(
+            "crop skipped: anchor is in %s space, not normalized (annotation %s)",
+            annotation.anchor.space.value, annotation.id,
+        )
+        return None
+    rect = annotation.anchor.rect if annotation.anchor else None
+    if not rect or len(rect) != 4:
         return None
     try:
         from PIL import Image
@@ -81,7 +94,7 @@ def crop_image(
         return None
     try:
         with Image.open(path) as img:
-            x, y, w, h = annotation.bbox
+            x, y, w, h = rect
             iw, ih = img.size
             # Denormalize from [0,1] fractions to pixel coordinates.
             px = int(x * iw)
@@ -102,7 +115,7 @@ def crop_pdf_page(
     annotation: "Annotation",
     dpi: int = 144,
 ) -> bytes | None:
-    """Render a PDF page region (bounded by annotation.bbox) as PNG bytes.
+    """Render a PDF page region (bounded by the annotation's anchor) as PNG bytes.
 
     Looks up the page number from ``annotation.page_label`` (parsed
     out of strings like "Page 14" → 13 zero-indexed). When no bbox
@@ -130,8 +143,16 @@ def crop_pdf_page(
             page = doc[page_idx]
         zoom = dpi / 72.0
         matrix = fitz.Matrix(zoom, zoom)
-        if annotation.bbox and len(annotation.bbox) == 4:
-            x, y, w, h = annotation.bbox
+        if annotation.anchor is not None and annotation.anchor.space is not AnchorSpace.normalized:
+            logger.warning(
+                "PDF region crop skipped: anchor is in %s space, not normalized "
+                "(annotation %s)",
+                annotation.anchor.space.value, annotation.id,
+            )
+            return None
+        rect = annotation.anchor.rect if annotation.anchor else None
+        if rect and len(rect) == 4:
+            x, y, w, h = rect
             rect = page.rect
             # Denormalize from [0,1] fractions to PDF point coordinates.
             px = x * rect.width
@@ -184,7 +205,7 @@ def annotation_crops_for_document(
             continue
 
         # Image / PDF path: prefer bbox crop when present.
-        if ann.bbox and document.path:
+        if ann.anchor and ann.anchor.rect and document.path:
             suffix = Path(document.path).suffix.lower()
             if suffix == ".pdf":
                 png = crop_pdf_page(document.path, ann)

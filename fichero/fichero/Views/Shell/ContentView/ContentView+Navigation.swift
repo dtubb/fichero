@@ -40,7 +40,8 @@ extension ContentView {
             // Transient search (#4106/S2): while a toolbar query is
             // active the library column shows its resolved hits in
             // relevance order; every Library view mode presents them.
-            documents: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments,
+            documents: pinnedLibrary?.documents
+                ?? (activeSearchQuery == nil ? selectedDocuments : searchResultDocuments),
             contentCollection: isEntityLibrarySelection ? .entities : .documents,
             isLoading: documentStore.isLoading,
             isConnected: documentStore.isConnected,
@@ -62,8 +63,26 @@ extension ContentView {
             // accent-bar-with-white. Every pane tap already writes the
             // hint, so hint==.content is "the library is the active pane".
             isPaneFocused: focusedPane == .content || paneFocusHint == .content,
-            displayMode: viewDisplayMode,
-            folderId: sidebarSelectionState.selectedItemId,
+            defaultDisplayMode: viewDisplayMode,
+            availableDisplayModes: availableViewDisplayModes,
+            onChangeDisplayMode: { updateViewDisplayMode($0) },
+            // X on the library head = hide the library list pane, the same
+            // seam as the toolbar toggle; absent when it's the last pane.
+            onClosePane: LibraryPaneToggleModel(paneVisibility: paneVisibility).canHide
+                ? { withAnimation(FrameAnimation.snappy) { setLibraryPaneVisible(false) } }
+                : nil,
+            isPanePinned: Binding(
+                get: { pinnedLibrary != nil },
+                set: { pin in
+                    pinnedLibrary = pin
+                        ? PinnedLibraryScope(
+                            documents: activeSearchQuery == nil ? selectedDocuments : searchResultDocuments,
+                            folderId: sidebarSelectionState.selectedItemId
+                        )
+                        : nil
+                }
+            ),
+            folderId: pinnedLibrary?.folderId ?? sidebarSelectionState.selectedItemId,
             onRequestFocus: { focusedPane = .content; paneFocusHint = .content },
             onRequestPreviousPaneFocus: { cyclePaneFocus(reverse: true) },
             onRequestNextPaneFocus: { cyclePaneFocus(reverse: false) },

@@ -37,7 +37,9 @@ extension Document {
             && lhs.path == rhs.path
             && lhs.sequence == rhs.sequence
             && lhs.bbox == rhs.bbox
+            && lhs.regionInParent == rhs.regionInParent
             && lhs.excludeFromProcessing == rhs.excludeFromProcessing
+            && lhs.excludeFromSearch == rhs.excludeFromSearch
             && lhs.isWorkspace == rhs.isWorkspace
             && lhs.childCount == rhs.childCount
             && lhs.dateOriginal == rhs.dateOriginal

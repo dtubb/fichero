@@ -138,6 +138,18 @@ struct SidebarView: View {
     var body: some View {
         sidebarContent
             .sidebarStyle()
+            // Reveal-in-sidebar (2026-08-23, Daniel: "sidebar should have the
+            // appropriate folder selected, once library loads"): the restore
+            // path — and anything else that lands on a nested folder without
+            // clicking sidebar rows — posts this; the sidebar expands the
+            // ancestor chain, loads the children so the row EXISTS, and
+            // selects it through the same seam a click uses.
+            .onReceive(
+                NotificationCenter.default.publisher(for: .sidebarRevealDocument)
+            ) { note in
+                guard let docId = note.userInfo?["documentId"] as? String else { return }
+                Task { await revealDocument(docId) }
+            }
             // Suppress the NavigationSplitView sidebar-column title header (#2309).
             // The title is now shown centred in the main window toolbar by another
             // worker; the redundant sidebar column header is removed here.

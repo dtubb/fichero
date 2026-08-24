@@ -154,7 +154,10 @@ extension ZoomableImagePreview {
     /// type-body-length budget.
     func loadOCRGeometry() async {
         ocrGeometry = nil
-        guard ocrBoxesEnabled, let documentId, let artifactService else { return }
+        // Loads regardless of the boxes TOGGLE (2026-08-23): the reader's
+        // word-selection linking needs the geometry even when the full box
+        // layer is off — the toggle gates drawing that layer, not knowing.
+        guard let documentId, let artifactService else { return }
         do {
             // The probe itself lives on OCRGeometrySelection so the PDF surface
             // shares this exact decision rather than reimplementing it (#4418).

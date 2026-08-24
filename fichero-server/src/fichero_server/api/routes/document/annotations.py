@@ -20,12 +20,12 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.actions.registry import registry
+from fichero_server.models.anchors import SourceAnchor
 from fichero_server.db import Database
 from fichero_server.models.knowledge import (
     Annotation,
     AnnotationKind,
     KnowledgeClaim,
-    validate_annotation_bbox,
     validate_annotation_color,
 )
 from fichero_server.core.utf16_offsets import utf16_range_to_codepoint_range
@@ -52,7 +52,11 @@ class AnnotationCreateRequest(BaseModel):
     page_label: str | None = None
     char_start: int | None = None
     char_end: int | None = None
-    bbox: list[float] | None = None
+    # WHERE the annotation points, naming the rendition its coordinates belong
+    # to (2026-08-22). Was a bare `bbox` of "fractions of source dimensions"
+    # with "source" undefined — so a highlight drawn on an enhanced, deskewed
+    # rendition was stored indistinguishably from one drawn on the original.
+    anchor: SourceAnchor | None = None
     anchor_kind: str | None = None
     paragraph_index: int | None = None
     ink_payload: str | None = None
@@ -69,11 +73,6 @@ class AnnotationCreateRequest(BaseModel):
     linked_entity_ids: list[str] = []
     linked_note_ids: list[str] = []
     metadata: dict[str, Any] = {}
-
-    @field_validator("bbox")
-    @classmethod
-    def validate_bbox(cls, v: list[float] | None) -> list[float] | None:
-        return validate_annotation_bbox(v)
 
     @field_validator("color")
     @classmethod
@@ -260,7 +259,7 @@ class AnnotationPatchRequest(BaseModel):
     linked_note_ids: list[str] | None = None
     char_start: int | None = None
     char_end: int | None = None
-    bbox: list[float] | None = None
+    anchor: SourceAnchor | None = None
     anchor_kind: str | None = None
     paragraph_index: int | None = None
     ink_payload: str | None = None
@@ -271,11 +270,6 @@ class AnnotationPatchRequest(BaseModel):
     ocr_recorded_at: datetime | None = None
     paragraph_index: int | None = None
     metadata: dict[str, Any] | None = None
-
-    @field_validator("bbox")
-    @classmethod
-    def validate_bbox(cls, v: list[float] | None) -> list[float] | None:
-        return validate_annotation_bbox(v)
 
     @field_validator("color")
     @classmethod
@@ -409,7 +403,7 @@ def _crop_response(db: Database, ann: Annotation):
         raise HTTPException(404, f"Document not found: {ann.document_id}")
 
     source_path = resolve_source(doc, library_root=db.path.parent)
-    if source_path and ann.bbox:
+    if source_path and ann.anchor and ann.anchor.rect:
         suffix = source_path.suffix.lower()
         if suffix == ".pdf":
             png = crop_pdf_page(str(source_path), ann)
@@ -456,7 +450,10 @@ class EphemeralCropRequest(BaseModel):
 
     document_id: str
     kind: AnnotationKind = AnnotationKind.highlight
-    bbox: list[float] | None = None
+    #: Same anchor the persisted path takes, so an on-the-fly crop and a saved
+    #: highlight describe their region identically — including WHICH rendition
+    #: the coordinates belong to.
+    anchor: SourceAnchor | None = None
     char_start: int | None = None
     char_end: int | None = None
     page_index: int | None = None
@@ -483,7 +480,7 @@ async def crop_ephemeral(
     ann = Annotation(
         document_id=request.document_id,
         kind=request.kind,
-        bbox=request.bbox,
+        anchor=request.anchor,
         char_start=request.char_start,
         char_end=request.char_end,
         page_index=request.page_index,
@@ -549,7 +546,12 @@ def promote_to_claim_impl(
         source_page_label=ann.page_label,
         source_char_start=ann.char_start,
         source_char_end=ann.char_end,
-        source_bbox=ann.bbox,
+        # The whole anchor, not `.rect`. The bridge here used to unwrap it to
+        # four bare numbers, which threw away the space and the rendition_id
+        # the annotation had already recorded — the claim then pointed at a
+        # rect against an unnamed frame, which is the exact defect this
+        # program exists to remove. Now both sides speak the same type.
+        source_anchor=ann.anchor,
         source_excerpt=excerpt,
         created_by=actor or ann.created_by,
     )

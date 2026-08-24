@@ -35,23 +35,26 @@ final class CanvasScrollPanTests: XCTestCase {
     // MARK: - Wiring: panCamera has a scroll caller, not just the drag one
 
     func testPanCameraHasBothADragCallerAndAScrollCaller() throws {
+        // Camera inputs were split out of CanvasSceneView.swift on 2026-08-20
+        // (type_body_length) — the wiring now spans both files, so both are
+        // scanned. Counting call sites — not just checking one exists — is
+        // what catches "the scroll handler stopped calling it" without
+        // catching a comment mentioning the name.
         let source = try Self.appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift")
-        // `panCamera(worldDelta:` had exactly ONE caller before #4408 (the
-        // Space-drag path). Counting call sites — not just checking one
-        // exists — is what catches "the scroll handler stopped calling it"
-        // without catching a comment mentioning the name.
+            + Self.appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Camera.swift")
         let callSites = source.components(separatedBy: "renderer.panCamera(").count - 1
         XCTAssertEqual(
-            callSites, 2,
-            "expected exactly 2 callers (drag + scroll #4408); got \(callSites) — " +
-            "the scroll path either isn't wired or a caller was silently removed"
+            callSites, 3,
+            "expected exactly 3 callers (drag baseline + scroll #4408 + " +
+            "cursor-anchored zoom compensation, 2026-08-20); got \(callSites) — " +
+            "a pan input either isn't wired or a caller was silently removed"
         )
     }
 
     func testScrollPathConvertsThroughTheSameCalibrationAsDrag() throws {
-        let source = try Self.appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift")
+        let source = try Self.appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Camera.swift")
         let scrollFn = source
-            .components(separatedBy: "private func scrollPanCamera(by delta: CGSize, in size: CGSize) {")[1]
+            .components(separatedBy: "func scrollPanCamera(by delta: CGSize, in size: CGSize) {")[1]
             .components(separatedBy: "\n    }")[0]
         // Same conversion the drag path uses — no second scale factor.
         XCTAssertTrue(scrollFn.contains("Canvas2DProjection.cameraPanDelta("))
@@ -68,14 +71,23 @@ final class CanvasScrollPanTests: XCTestCase {
         XCTAssertTrue(source.contains(".allowsHitTesting(false)"))
     }
 
-    // MARK: - Direction: read from the event, never a hardcoded sign
+    // MARK: - Direction: raw scrollingDelta, no per-device un-flip
 
     func testDirectionIsReadFromTheEventNotHardcoded() throws {
         let source = try Self.appSource("Views/Library/ViewModes/Canvas/CanvasScrollPan.swift")
-        XCTAssertTrue(
+        // RULING CHANGE (user, live 2026-08-20): un-flipping via
+        // `isDirectionInvertedFromDevice` made the Magic Mouse x-axis reverse
+        // while the trackpad stayed right — the flag differs per DEVICE. Raw
+        // `scrollingDelta` is what NSScrollView pans with, so raw deltas are
+        // now the locked behavior and the un-flip is the regression.
+        XCTAssertFalse(
             source.contains("event.isDirectionInvertedFromDevice"),
-            "the sign must come from the OS's natural-scrolling preference, " +
-            "not a bare + or - baked into the source"
+            "per-device un-flip reintroduced — this made Magic Mouse and " +
+            "trackpad disagree (2026-08-20); pan must use raw scrollingDelta"
+        )
+        XCTAssertTrue(
+            source.contains("event.scrollingDeltaX") && source.contains("event.scrollingDeltaY"),
+            "pan must read the event's scrollingDelta, not a synthesized sign"
         )
         // Momentum/inertial phases must not be filtered — that's what makes
         // trackpad panning glide instead of feeling dead.

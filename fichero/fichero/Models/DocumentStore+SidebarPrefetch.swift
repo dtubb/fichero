@@ -20,7 +20,17 @@ extension DocumentStore {
     /// round-trip. Whether that is still worth a fetch per root on window open
     /// is a separate question from the one it was filed to answer.
     func loadSidebarChildren(of document: Document) async {
-        let children = await cacheSidebarChildren(of: document)
+        // Expansion REFRESHES (2026-08-23, Daniel: sidebar showed 3 children
+        // while the grid showed 151). The cache-first helper below made a
+        // sparse early fetch permanent for the session; an explicit expand
+        // is the user asking what is in here NOW, so it answers with a fetch
+        // and leaves the cache to the chevron prefetch, where stale but
+        // instant is the point.
+        if let fresh = await fetchSidebarChildren(of: document),
+           childrenCache[document.id] != fresh {
+            childrenCache[document.id] = fresh
+        }
+        let children = childrenCache[document.id] ?? []
         await prefetchChildContainerChildren(of: children)
     }
 
@@ -93,6 +103,34 @@ extension DocumentStore {
     /// One child fetch with no cache write — the piece `cacheSidebarChildren`
     /// and the batched prefetch share. `nil` means "don't record anything"
     /// (cancelled, or failed and already reported).
+    /// The ancestor DOCUMENTS of `id`, ROOT-FIRST, excluding `id` itself — the
+    /// folders the sidebar must expand and load to make the row exist. `nil`
+    /// when this store does not know the document at all, so a multi-library
+    /// caller can try the next library. Walks parentId with a visited-set and
+    /// a depth cap: an ancestors loop once ran a test suite to 50GB
+    /// (2026-08-16), and a cycle in bad data must degrade to a short path,
+    /// never a hang.
+    func sidebarRevealPath(to id: String) async -> [Document]? {
+        func resolve(_ docId: String) async -> Document? {
+            if let cached = currentDocuments.first(where: { $0.id == docId }) { return cached }
+            if let cached = childrenCache.values.lazy
+                .compactMap({ $0.first(where: { $0.id == docId }) }).first { return cached }
+            return try? await documentService.getDocument(docId)
+        }
+        guard var current = await resolve(id) else { return nil }
+        var chain: [Document] = []
+        var visited: Set<String> = [id]
+        for _ in 0..<32 {
+            guard let parentId = current.parentId, !parentId.isEmpty,
+                  !visited.contains(parentId),
+                  let parent = await resolve(parentId) else { break }
+            visited.insert(parentId)
+            chain.append(parent)
+            current = parent
+        }
+        return chain.reversed()
+    }
+
     private func fetchSidebarChildren(of document: Document) async -> [Document]? {
         do {
             return applyStatusOverrides(

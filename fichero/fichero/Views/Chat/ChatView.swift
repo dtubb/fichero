@@ -82,10 +82,16 @@ struct ChatView: View {
     /// Saved-workspace store (#3533) — a chat is ephemeral until saved on-demand.
     @Environment(WorkspaceStore.self) var workspaceStore
 
+    /// Pin = stay on THIS conversation (Daniel, 2026-08-23): switching and
+    /// new-chat are refused while pinned.
+    @State var isConversationPinned = false
+    /// Hides the chat pane — the host's seam; nil hides the X.
+    var onClosePane: (() -> Void)?
+
     /// Per-window chat tab (#3532), like the document inspector's @SceneStorage.
     @SceneStorage("chat.surfaceTab") private var chatTabRaw = ChatSurfaceTab.conversation.rawValue
     private var chatTab: ChatSurfaceTab { ChatSurfaceTab(rawValue: chatTabRaw) ?? .conversation }
-    private var chatTabBinding: Binding<ChatSurfaceTab> {
+    var chatTabBinding: Binding<ChatSurfaceTab> {
         Binding(get: { chatTab }, set: { chatTabRaw = $0.rawValue })
     }
 
@@ -95,7 +101,8 @@ struct ChatView: View {
         attachContext: ChatAttachContext = .empty,
         conversationFolderPath: String? = nil,
         researchProject: ResearchProject? = nil,
-        onConversationUpdated: (() -> Void)? = nil
+        onConversationUpdated: (() -> Void)? = nil,
+        onClosePane: (() -> Void)? = nil
     ) {
         self.conversation = conversation
         self._selectedDocuments = selectedDocuments
@@ -103,41 +110,29 @@ struct ChatView: View {
         self.conversationFolderPath = conversationFolderPath
         self.researchProject = researchProject
         self.onConversationUpdated = onConversationUpdated
+        self.onClosePane = onClosePane
         self._currentConversation = State(initialValue: conversation ?? Conversation())
     }
 
     var body: some View {
         VStack(spacing: 0) {
             // View-specific toolbar at top (conversation switcher / provider).
-            ChatViewToolbar(
-                conversationTitle: currentConversation.title,
-                conversations: visibleConversations,
-                onSelectConversation: switchConversation,
-                implicitScopeLabel: attachContext.implicitScopeLabel,
-                selectedDocumentsCount: selectedDocuments.count,
-                onClearDocuments: { selectedDocuments.removeAll() },
-                providers: providers,
-                selectedProvider: $selectedProvider,
-                selectedModel: $selectedModel,
-                onNewChat: startNewChat
-            )
-
-            // Shared top-tab chrome (#3532): Conversation / Sources / Knowledge.
-            SurfaceTabBar(
-                tabs: ChatSurfaceTab.allCases,
-                selection: chatTabBinding,
-                accessibilityID: "chatSurfaceTabBar"
-            )
-
-            Divider()
-
-            switch chatTab {
-            case .conversation: conversationTabContent
-            case .sources: sourcesTabContent
-            case .plan: planTabContent
-            case .knowledge: knowledgeTabContent
-            case .compare: compareTabContent
+            // The old top toolbar row is GONE (Daniel, 2026-08-23): the head
+            // is first. New-chat + model live in the bottom mini toolbar;
+            // conversation switching is the crumb's jump-bar menu.
+            // The tab bar is GONE (Daniel, 2026-08-23): the chat's surfaces
+            // are lenses in the shared PaneHead, floating over the content —
+            // the same grammar as the reader and the library.
+            Group {
+                switch chatTab {
+                case .conversation: conversationTabContent
+                case .sources: sourcesTabContent
+                case .plan: planTabContent
+                case .knowledge: knowledgeTabContent
+                case .compare: compareTabContent
+                }
             }
+            .safeAreaInset(edge: .top, spacing: 0) { chatPaneHead }
 
             Divider()
             chatBottomBar
@@ -164,7 +159,7 @@ struct ChatView: View {
         }
     }
 
-    private var visibleConversations: [Conversation] {
+    var visibleConversations: [Conversation] {
         Self.visibleConversations(
             conversationService.conversations,
             folderPath: conversationFolderPath
@@ -292,29 +287,9 @@ struct ChatView: View {
     /// Shared bottom mini-toolbar (#3532) — a per-tab status line plus the
     /// on-demand "Save as Workspace" action (#3533): a chat is ephemeral until
     /// the user saves it as a persistent workspace node (#3547 backend).
-    private var chatBottomBar: some View {
-        MiniToolbar {
-            Text(chatBottomStatus)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            Button {
-                saveAsWorkspace()
-            } label: {
-                Label("Save as Workspace", systemImage: "square.and.arrow.down")
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .disabled(backendConversationId == nil)
-            .help(backendConversationId == nil
-                  ? "Send a message first, then save this chat as a workspace"
-                  : "Save this chat as a reusable workspace node")
-            .accessibilityIdentifier("chatSaveAsWorkspace")
-        }
-    }
 
     /// Persist the current conversation as a workspace via the store (#3533).
-    private func saveAsWorkspace() {
+    func saveAsWorkspace() {
         guard let conversationId = backendConversationId else { return }
         let title = currentConversation.title
         Task {
@@ -322,25 +297,6 @@ struct ChatView: View {
                 conversationId: conversationId,
                 title: title.isEmpty ? nil : title
             )
-        }
-    }
-
-    private var chatBottomStatus: String {
-        switch chatTab {
-        case .conversation:
-            let count = currentConversation.messages.count
-            return "\(count) message\(count == 1 ? "" : "s")"
-        case .sources:
-            let count = selectedDocuments.count
-            return count == 0 ? "No sources pinned" : "\(count) source\(count == 1 ? "" : "s")"
-        case .plan:
-            return researchProject == nil ? "Not a workspace yet" : "Plan"
-        case .knowledge:
-            let summary = ConversationKnowledgeSummary.summarize(currentConversation)
-            if summary.isEmpty { return "No knowledge used" }
-            return "\(summary.entityReferences) entity · \(summary.claimReferences) claim references"
-        case .compare:
-            return "Compare agents / models"
         }
     }
 

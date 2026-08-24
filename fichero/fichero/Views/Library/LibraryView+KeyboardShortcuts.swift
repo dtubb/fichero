@@ -211,7 +211,11 @@ extension LibraryView {
             .focusedSceneValue(
                 \.librarySelectAll,
                 FocusedLibraryAction(
-                    isEnabled: !(isShowingEntitiesCollection ? filteredEntities.isEmpty : filteredDocuments.isEmpty),
+                    // Enabled by the SAME list ⌘A will act on. Asking a
+                    // different question here than `selectAllIds` answers is
+                    // how a command comes up enabled and then does nothing —
+                    // or comes up dead over a surface full of rows.
+                    isEnabled: !selectAllIds.isEmpty,
                     run: { selectAll() }
                 )
             )

@@ -257,12 +257,30 @@ extension DocumentService {
     ///     pre-existing behaviour, not a missing argument.
     /// - Returns: Array of child documents, in the order the server returned
     ///   them. Callers must not re-sort a server-ordered result.
-    func getChildren(_ parentId: String, sort: ListingSort? = nil) async throws -> [Document] {
-        logger.info("Fetching children of: \(parentId) sort: \(sort?.field ?? "default")")
+    /// - Parameter level: Which TIER to fetch. `nil` means the engine default
+    ///     (`stored`), so existing callers — notably the sidebar, which is a
+    ///     tree browser and must show the structure as held — keep their
+    ///     behaviour without passing anything.
+    func getChildren(
+        _ parentId: String,
+        sort: ListingSort? = nil,
+        level: LibraryLevel? = nil
+    ) async throws -> [Document] {
+        logger.info(
+            "Fetching children of: \(parentId) sort: \(sort?.field ?? "default") level: \(level?.wireValue ?? "default")"
+        )
 
+        // The engine owns the resolution; this only names the tier. Deriving
+        // the tier client-side would be a second implementation free to
+        // disagree with the server's — which is precisely how the library came
+        // to show spreads while workflows ran on them.
         let response = try await client.api.getChildrenApiDocumentsDocIdChildrenGet(.init(
             path: .init(docId: parentId),
-            query: .init(sortBy: sort?.field, sortDirection: sort?.direction)
+            query: .init(
+                sortBy: sort?.field,
+                sortDirection: sort?.direction,
+                level: level.flatMap { Components.Schemas.NodeLevel(rawValue: $0.wireValue) }
+            )
         ))
 
         switch response {
@@ -719,159 +737,6 @@ extension DocumentService {
 // Split into a same-file extension so the primary class body stays within
 // SwiftLint's type_body_length budget (#3030 added several ops). It was
 // `private` only because every caller lived in this file;
-// `DocumentService+Roots.swift` now calls `convertToDocument` too, so these are
-// internal — still confined to the app target. The split was always for the
-// lint budget, never for encapsulation.
-extension DocumentService {
-    /// Convert generated Document to local Document
-    func convertToDocument(_ doc: Components.Schemas.Document) throws -> Document {
-        // A field this converter forgets is a field the whole app does not have.
-        //
-        // Every key TYPED on the schema decodes into its typed property and
-        // NEVER into `additionalProperties` — the generated decoder strips
-        // known keys first — so the `?? extras[…]` fallbacks that used to sit
-        // on these lines were dead code, not defence. They read as
-        // belt-and-braces and hid the neighbours with no read at all: #4515
-        // child_count, #4516 prototype_key/node_kind/alias_target_id, #4514
-        // attributes, plus sort_order and is_workspace.
-        // `DocumentConverterFieldSourceTests` fails if a typed key is read
-        // from extras here again.
-        //
-        // fileType is a typed enum; take its raw value so the local FileType
-        // can decode it.
-        let fileType = doc.fileType?.rawValue
-        let childCount = doc.childCount ?? 0
-        // `date_meta`'s ABSENCE is the "never extracted" state, so this stays
-        // nil when the server sent nothing. Defaulting it to [:] would read as
-        // "extraction ran and found nothing" — a different fact.
-        let dateMeta = doc.dateMeta.map { payload in
-            payload.additionalProperties.value.mapValues { AnyCodable($0 ?? "") }
-        }
-        // bbox is OpenAPIArrayContainer — extract its inner [Int] payload.
-        let bbox = doc.bbox?.value as? [Int]
-
-        return Document(
-            id: doc.id ?? UUID().uuidString,
-            parentId: doc.parentId,
-            docType: convertFromGeneratedDocType(doc.docType),
-            fileType: fileType.flatMap { FileType(rawValue: $0) },
-            name: doc.name,
-            path: doc.path,
-            sequence: doc.sequence,
-            bbox: bbox,
-            status: convertFromGeneratedStatus(doc.status),
-            metadata: convertMetadata(doc.metadata),
-            pageContent: doc.pageContent,
-            excludeFromProcessing: doc.excludeFromProcessing ?? false,
-            isWorkspace: doc.isWorkspace ?? false,
-            childCount: childCount,
-            dateOriginal: doc.dateOriginal,   // #3322
-            dateJdn: doc.dateJdn,
-            dateMeta: dateMeta,
-            sortOrder: doc.sortOrder ?? 0,
-            // #4516: `prototypeKey` is what `isWorkflowNode` reads; dropping
-            // it made the workflow icon, the mirror lock badge, the running
-            // spinner and mirror selection routing dead code at once. #2591's
-            // alias fields died the same way. #4514: `attributes` carries the
-            // engine's `read_only`.
-            prototypeKey: doc.prototypeKey,
-            nodeKind: doc.nodeKind,
-            aliasTargetId: doc.aliasTargetId,
-            attributes: convertAttributes(doc.attributes),
-            createdAt: doc.createdAt ?? Date(),
-            updatedAt: doc.updatedAt ?? Date(),
-            expectedThumbnailPath: doc.expectedThumbnailPath,
-            expectedDisplayPath: doc.expectedDisplayPath
-        )
-    }
-
-    /// Convert local DocType to generated DocType
-    private func convertToGeneratedDocType(_ docType: DocType) -> Components.Schemas.DocType {
-        switch docType {
-        case .folder: return .folder
-        case .group: return .group
-        case .file: return .file
-        case .page: return .page
-        case .chunk: return .chunk
-        }
-    }
-
-    /// Convert generated DocType to local DocType
-    private func convertFromGeneratedDocType(_ docType: Components.Schemas.DocType?) -> DocType {
-        guard let docType = docType else { return .file }
-        switch docType {
-        case .folder: return .folder
-        case .group: return .group
-        case .file: return .file
-        case .page: return .page
-        case .chunk: return .chunk
-        }
-    }
-
-    /// Generated FileType → local FileType. A TABLE, not a switch: the
-    /// mapping is data (docx folds into word), and the cyclomatic rule is
-    /// right that a 12-way switch reads as logic it isn't.
-    private static let fileTypeMap: [Components.Schemas.FileType: FileType] = [
-        .image: .image, .pdf: .pdf, .text: .text, .word: .word,
-        .docx: .word, .audio: .audio, .video: .video, .epub: .epub,
-        .spreadsheet: .spreadsheet, .presentation: .presentation,
-        .other: .other
-    ]
-
-    private func convertFromGeneratedFileType(_ fileType: Components.Schemas.FileType?) -> FileType? {
-        fileType.flatMap { Self.fileTypeMap[$0] }
-    }
-
-    /// Convert generated Status to local Status
-    private func convertFromGeneratedStatus(_ status: Components.Schemas.Status?) -> Status {
-        guard let status = status else { return .pending }
-        switch status {
-        case .pending: return .pending
-        case .processing: return .processing
-        case .active: return .processing  // active is an in-progress state
-        case .completed: return .completed
-        case .failed: return .failed
-        }
-    }
-
-    /// Convert bbox from OpenAPIArrayContainer to [Int]
-    private func convertBbox(_ bbox: OpenAPIRuntime.OpenAPIArrayContainer?) -> [Int]? {
-        guard let bbox = bbox else { return nil }
-        // Extract array values - bbox should be an array of integers
-        return bbox.value.compactMap { item -> Int? in
-            if let intValue = item as? Int {
-                return intValue
-            }
-            if let doubleValue = item as? Double {
-                return Int(doubleValue)
-            }
-            return nil
-        }
-    }
-
-    /// Convert metadata from generated type to local type
-    private func convertMetadata(_ metadata: Components.Schemas.Document.MetadataPayload?) -> [String: AnyCodable] {
-        guard let metadata = metadata else { return [:] }
-        var result: [String: AnyCodable] = [:]
-        for (key, value) in metadata.additionalProperties.value {
-            result[key] = AnyCodable(value ?? "")
-        }
-        return result
-    }
-
-    /// Prototype-scoped node attributes (`read_only`, `scope`, …). Same shape
-    /// as `convertMetadata`, distinct generated payload type (#4514).
-    private func convertAttributes(
-        _ attributes: Components.Schemas.Document.AttributesPayload?
-    ) -> [String: AnyCodable] {
-        guard let attributes = attributes else { return [:] }
-        var result: [String: AnyCodable] = [:]
-        for (key, value) in attributes.additionalProperties.value {
-            result[key] = AnyCodable(value ?? "")
-        }
-        return result
-    }
-}
 
 private extension Sequence {
     func asyncMap<T>(_ transform: (Element) async throws -> T) async rethrows -> [T] {
@@ -961,6 +826,51 @@ extension DocumentService {
         switch response {
         case .ok(let okResponse):
             return try okResponse.body.json.items
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")
+        default:
+            throw DocumentServiceError.unexpectedResponse
+        }
+    }
+}
+
+// MARK: - The outline endpoint (Mandate 1, 2026-08-24)
+
+/// One document's whole neighbourhood, from ONE request — the response the
+/// five per-view tree constructions migrate onto (consumer 1: crumbs).
+struct DocumentOutline: Equatable {
+    let ancestors: [Document]
+    let document: Document
+    let children: [Document]
+}
+
+extension DocumentService {
+    /// GET /documents/{id}/view — ancestors root-first, level-aware children.
+    /// Attachments are skipped here until their first consumer (the Content
+    /// representations submenu) lands; asking for them would be paying for
+    /// payload nothing reads yet.
+    func getDocumentView(
+        _ id: String,
+        level: LibraryLevel? = nil
+    ) async throws -> DocumentOutline {
+        let response = try await client.api.getDocumentViewApiDocumentsDocIdViewGet(.init(
+            path: .init(docId: id),
+            query: .init(
+                level: level.flatMap { Components.Schemas.NodeLevel(rawValue: $0.wireValue) },
+                attachments: false
+            )
+        ))
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return DocumentOutline(
+                ancestors: try body.ancestors.map { try convertToDocument($0) },
+                document: try convertToDocument(body.document),
+                children: try body.children.map { try convertToDocument($0) }
+            )
+        case .notFound:
+            throw DocumentServiceError.notFound(id)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw DocumentServiceError.serverError(detail?.detail?.description ?? "Validation error")

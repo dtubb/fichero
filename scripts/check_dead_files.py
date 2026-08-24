@@ -41,6 +41,8 @@ IDENTIFIER = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 # Current candidate-dead backlog. Drop entries as files are removed or wired.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Services/AnnotationService+Create.swift": "#4235-class — extension file; ScopeIds is the private scope-unpacking carrier for the same-file create path (2026-08-23 large_tuple fix)",
+    "Views/Preview/EntrySourcePreview.swift": "#4235-class — extension-heavy view file; LadderLevel is the private containment-ladder rung enum used only by this view's own step logic (2026-08-23)",
     "Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift": "#4235-class — extension file; SidebarRowDropGate is the private drop-gate helper used by the same-file SidebarItemRow body (surfaced when the 2026-08-10 dead-code sweep removed the sibling files the scanner had credited)",
     "Views/Workflow/Library/WorkflowChainListView.swift": "2026-08-10 — candidate dead file: orphaned when the legacy WorkflowLibraryView list was removed (workflow clicks route straight to the node editor). Daniel is leaning 'chains fold into workflows'; delete this (and its Parts/) or rewire once he rules. Do not let this entry outlive the decision.",
     "Models/DocumentStore+ChangeStream.swift": "#4235 — extension file; SpliceChanges is the private changed-flags carrier for spliceDocuments",

@@ -25,6 +25,7 @@ RULE_DOC = "agents/ROADMAP.md"
 
 # Rekeyed to stable content signatures so unrelated line shifts do not churn the backlog.
 KNOWN_VIOLATIONS: dict[str, str] = {
+    "Reader/MultiSelectionReaderView.swift#59b0e99ae5": "2026-08-23 multi-selection reader: continuous transcript SECTIONS under pinned headers — prose, not a row collection; List would impose row selection and separators on reading text",
     "Activity/Overview/ActivityOverviewView+Cards.swift#d6f20143ab": "#1912 baseline (re-hashed by function_body extraction; same docStep grid)",
     "Library/ViewModes/Graph/Ontology/Entity/EntitySourceGroupsView.swift#c6a609c38d": "#1912 baseline",
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "#1912 baseline",
@@ -56,7 +57,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # preview host (Fichero-2026-08-14-0933xx.ips ×3). Reason also recorded
     # in-file and in native_row_containers_allowlist.json. Revisit List if a
     # selection model arrives.
-    "Library/ViewModes/Dataset/Timeline/DatasetTimelineView.swift#b6e4c9714f": "2026-08-14 List SIGTRAP; re-hashed 2026-08-19 by the SelectionGrammar clicks + Full Text cap lift (#4598) — same sanctioned block. NOTE: rows now multi-select, so the List constraint deserves a revisit next preview session",
+    "Library/ViewModes/Dataset/Timeline/DatasetTimelineView.swift#1c431f5c23": "2026-08-14 List SIGTRAP; re-hashed 2026-08-19 by the SelectionGrammar clicks + Full Text cap lift (#4598) — same sanctioned block. NOTE: rows now multi-select, so the List constraint deserves a revisit next preview session",
 }
 
 ALLOWLIST_FILES = {

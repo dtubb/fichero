@@ -15,18 +15,23 @@ struct EntrySourcePreview: View {
     @Environment(DocumentStore.self) private var documentStore
     @State private var source: Document?
     @State private var loadFailed = false
+    /// The containment ladder (Daniel, 2026-08-23: "we should only show the
+    /// bounding box, but be able to get back to full page by swiping…which
+    /// will also bring us up to the full spread"). Fingers-up (step +1) walks
+    /// OUT — region → page → spread; fingers-down walks back in. On an entry
+    /// the vertical axis IS this ladder; renditions keep the axis on plain
+    /// pages.
+    private enum LadderLevel: Int { case region = 0, page = 1, spread = 2 }
+    @State private var ladderLevel: LadderLevel = .region
+    /// The source page's parent — the spread/opening — loaded lazily the
+    /// first time the ladder reaches for it. nil while unknown; the ladder
+    /// simply stops at .page when the parent has no image of its own.
+    @State private var spread: Document?
 
     var body: some View {
         Group {
             if let source {
-                DocumentCanvas(
-                    content: .imageStorageDisplay(documentId: source.id),
-                    onNavigateToDocument: onNavigateToDocument,
-                    highlightBoxes: Self.normalizedHighlight(
-                        bbox: entry.bbox,
-                        sourceMetadata: source.metadata
-                    )
-                )
+                entryLadderCanvas(source: source)
             } else if loadFailed {
                 // The reference is broken (source deleted, cross-library) —
                 // fall back to the entry's own text rather than a dead pane,
@@ -47,6 +52,8 @@ struct EntrySourcePreview: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: entry.id) {
             loadFailed = false
+            ladderLevel = entry.regionInParent == nil ? .page : .region
+            spread = nil
             guard let sourceId = Self.sourceDocumentId(of: entry) else {
                 loadFailed = true
                 return
@@ -54,6 +61,73 @@ struct EntrySourcePreview: View {
             source = try? await documentStore.documentService.getDocument(sourceId)
             if source == nil { loadFailed = true }
         }
+    }
+
+    /// The three rungs share ONE canvas type; `.id` keys the rung so a step
+    /// re-opens at the rung's own framing (the region rung opens zoomed to
+    /// the band, the page rung fitted, the spread rung fitted with the
+    /// page's band highlighted when the import recorded one).
+    @ViewBuilder
+    private func entryLadderCanvas(source: Document) -> some View {
+        let region = Self.highlight(for: entry, sourceMetadata: source.metadata)
+        switch ladderLevel {
+        case .region, .page:
+            DocumentCanvas(
+                content: .imageStorageDisplay(documentId: source.id),
+                onNavigateToDocument: onNavigateToDocument,
+                highlightBoxes: region,
+                focusRegion: ladderLevel == .region ? region.first : nil,
+                onContainmentStep: { step in containmentStep(step, source: source) }
+            )
+            .id("entry-ladder-\(entry.id)-\(ladderLevel.rawValue)")
+        case .spread:
+            DocumentCanvas(
+                content: .imageStorageDisplay(documentId: spread?.id ?? source.id),
+                onNavigateToDocument: onNavigateToDocument,
+                // The PAGE's band on the spread, when the import recorded one
+                // (the Marshall drop folders stamp part regions) — so the
+                // zoom-out keeps pointing at where you came from.
+                // Same frame gate: the page's band draws on the spread only
+                // when it was measured in the spread's own frame.
+                highlightBoxes: spread != nil
+                    ? (source.regionInParent.flatMap { $0.isInParentFrame ? [$0.rect] : nil } ?? [])
+                    : region,
+                onContainmentStep: { step in containmentStep(step, source: source) }
+            )
+            .id("entry-ladder-\(entry.id)-2")
+        }
+    }
+
+    /// Walk the ladder. Returns true when the step was consumed — the viewer
+    /// falls back to its rendition flip otherwise (never here: an entry's
+    /// vertical axis is the ladder end to end).
+    private func containmentStep(_ step: Int, source: Document) -> Bool {
+        switch (ladderLevel, step > 0) {
+        case (.region, true):
+            ladderLevel = .page
+        case (.page, true):
+            guard let parentId = source.parentId else { return true }
+            if let spread {
+                _ = spread  // already loaded — reuse
+                ladderLevel = .spread
+                return true
+            }
+            Task { @MainActor in
+                let parent = try? await documentStore.documentService.getDocument(parentId)
+                // A parent with no visual of its own (a plain folder) is not
+                // a rung — the ladder honestly stops at the page.
+                guard let parent, parent.docType != .folder else { return }
+                spread = parent
+                ladderLevel = .spread
+            }
+        case (.spread, false):
+            ladderLevel = .page
+        case (.page, false):
+            if entry.regionInParent != nil { ladderLevel = .region }
+        case (.region, false), (.spread, true):
+            break  // ends of the ladder — a step past them is a no-op
+        }
+        return true
     }
 
     /// The page this entry came from: the stamped provenance id first, the
@@ -64,6 +138,26 @@ struct EntrySourcePreview: View {
             return stamped
         }
         return entry.parentId
+    }
+
+    /// Step 3 (bbox retirement, 2026-08-22): new extractions write ONLY the
+    /// typed `region_in_parent` (already normalized — no page-size dependency,
+    /// which is exactly why entries on pages with no recorded size now get
+    /// regions at all). Pre-rename rows still carry pixel `bbox`; both render.
+    static func highlight(
+        for entry: Document,
+        sourceMetadata: [String: AnyCodable]
+    ) -> [[Double]] {
+        if let region = entry.regionInParent, region.rect.count == 4,
+           region.space ?? "normalized" == "normalized",
+           // Frame gate (2026-08-23): a region measured on a NAMED rendition
+           // is only valid on that rendition's pixels — drawing it on the
+           // parent's base image is a plausible band in the wrong place (the
+           // misplaced spread-band bug's class). No highlight beats a lie.
+           region.isInParentFrame {
+            return [region.rect]
+        }
+        return normalizedHighlight(bbox: entry.bbox, sourceMetadata: sourceMetadata)
     }
 
     /// `Document.bbox` pixel ints `[x, y, w, h]` → the overlay's normalized

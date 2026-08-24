@@ -93,9 +93,11 @@ struct CanvasGridPlacementTests {
     func degenerateColumns() {
         for columns in [0, -1, -99] {
             #expect(CanvasGridPlacement.position(index: 0, columns: columns) == SIMD3<Double>(0, 0, 0))
+            // y INCREASES per line (the projection flips it) — the negative
+            // expectation here predated that fix and pinned the old sign.
             #expect(
                 CanvasGridPlacement.position(index: 1, columns: columns)
-                    == SIMD3<Double>(0, -CanvasGridPlacement.cellHeight, 0)
+                    == SIMD3<Double>(0, CanvasGridPlacement.cellHeight, 0)
             )
         }
     }
@@ -109,15 +111,19 @@ struct CanvasGridPlacementTests {
 
     @Test("column count is how many cells fit across the world width")
     func columnCountFromWorldWidth() {
-        // 6 world units / 1.5 per cell = 4 columns.
-        #expect(CanvasGridPlacement.columnCount(worldWidth: 6) == 4)
-        #expect(CanvasGridPlacement.columnCount(worldWidth: 6.4) == 4)   // partial cell doesn't count
-        #expect(CanvasGridPlacement.columnCount(worldWidth: 7.5) == 5)
+        // Expressed in cells, not in literal world units: cell pitch now derives
+        // from the board's card extents (§18.1 defect 4), so a literal would
+        // pin the gutter rather than the counting rule.
+        let cell = CanvasGridPlacement.cellWidth
+        #expect(CanvasGridPlacement.columnCount(worldWidth: 4 * cell) == 4)
+        #expect(CanvasGridPlacement.columnCount(worldWidth: 4.6 * cell) == 4)  // partial cell doesn't count
+        #expect(CanvasGridPlacement.columnCount(worldWidth: 5 * cell + 0.01) == 5)
     }
 
     @Test("a narrow, empty, or nonsense viewport still yields at least one column")
     func columnCountFloor() {
         #expect(CanvasGridPlacement.columnCount(worldWidth: 0.1) == 1)     // narrower than one cell
+        #expect(CanvasGridPlacement.columnCount(worldWidth: 0.1, cell: CGSize(width: 3, height: 3)) == 1)
         #expect(CanvasGridPlacement.columnCount(worldWidth: 0) == 1)
         #expect(CanvasGridPlacement.columnCount(worldWidth: -5) == 1)
         #expect(CanvasGridPlacement.columnCount(worldWidth: .nan) == 1)
@@ -135,7 +141,7 @@ struct CanvasGridPlacementTests {
         let columns = CanvasGridPlacement.columnCount(
             viewportSize: CGSize(width: 1250, height: 800), worldPerPoint: worldPerPoint
         )
-        #expect(columns == 16)   // 25 / 1.5 = 16.67
+        #expect(columns == Int(25.0 / CanvasGridPlacement.cellWidth))
 
         // A sliver of a window: one column, not a stack.
         let narrow = CanvasGridPlacement.columnCount(
@@ -221,7 +227,7 @@ struct CanvasResolveDefaultPlacementTests {
         #expect(state.placeables.map(\.position.x) == [0, 0, 0])
         #expect(
             state.placeables.map(\.position.y)
-                == [0, -CanvasGridPlacement.cellHeight, -2 * CanvasGridPlacement.cellHeight]
+                == [0, CanvasGridPlacement.cellHeight, 2 * CanvasGridPlacement.cellHeight]
         )
     }
 
@@ -394,5 +400,158 @@ struct CanvasMovePersistenceRoundTripTests {
         #expect(layout.rows.count == 1)           // in place, not appended twice
         #expect(layout.rows.first?.x == 5)
         #expect(layout.rows.first?.y == -3)
+    }
+}
+
+// MARK: - Cell pitch from the board's ACTUAL card extents (§18.1 defect 4)
+
+/// The gutter was a flat 0.5 against a 1.0-wide card — 50% of card width, where
+/// §6.3 asks for ≈0.15 at the `.thumbnail` tier. The fix is not just a smaller
+/// constant: because `CanvasCardGeometry` normalises every card on AREA, a
+/// double-spread at aspect 2.0 renders 1.22 wide while covering the same area,
+/// so a pitch built on the nominal 1.0 × 0.75 would overlap exactly the cards
+/// that need the most room. Pitch therefore derives from the board's real
+/// extents, and these pin both halves of that.
+@Suite("CanvasGridPlacement cell pitch (§18.1 defect 4)")
+struct CanvasGridCellPitchTests {
+
+    @Test("the nominal gutter is 0.15 of card width, not 0.5")
+    func nominalGutter() {
+        let cell = CanvasGridPlacement.nominalCell
+        #expect(abs(Double(cell.width) - 1.15) < 1e-9)    // 1.0 + 0.15
+        #expect(abs(Double(cell.height) - 0.90) < 1e-9)   // 0.75 + 0.15
+        // The gutter is one number on both axes, so the whitespace reads square.
+        let gutter = Double(cell.width) - CanvasGridPlacement.cardWidth
+        #expect(abs((Double(cell.height) - CanvasGridPlacement.cardHeight) - gutter) < 1e-9)
+        #expect(abs(gutter / CanvasGridPlacement.cardWidth - CanvasGridPlacement.gutterFraction) < 1e-9)
+    }
+
+    @Test("a double-spread widens the cell to its area-normalised 1.22, not 1.0")
+    func wideSpreadWidensThePitch() {
+        // area 0.75, aspect 2.0 → width = sqrt(1.5) = 1.2247, height = 0.6124.
+        let extents = CanvasGridPlacement.cardExtents(forAspects: [2.0])
+        #expect(abs(Double(extents.width) - (0.75 * 2.0).squareRoot()) < 1e-9)
+        // The TALLEST card still sets the row pitch, and no page is shorter than
+        // the nominal card until one actually loads that way.
+        #expect(abs(Double(extents.height) - CanvasGridPlacement.cardHeight) < 1e-9)
+
+        let cell = CanvasGridPlacement.cell(forAspects: [2.0])
+        #expect(Double(cell.width) > Double(CanvasGridPlacement.nominalCell.width))
+        // Still exactly one gutter of 0.15 × the widest card.
+        let gutter = Double(cell.width) - Double(extents.width)
+        #expect(abs(gutter / Double(extents.width) - CanvasGridPlacement.gutterFraction) < 1e-9)
+    }
+
+    @Test("a tall page raises the row pitch, and the gutter stays width-derived")
+    func tallPageRaisesRowPitch() {
+        // aspect 0.5 → height = sqrt(0.75 / 0.5) = 1.2247.
+        let extents = CanvasGridPlacement.cardExtents(forAspects: [0.5])
+        #expect(abs(Double(extents.height) - (0.75 / 0.5).squareRoot()) < 1e-9)
+        #expect(abs(Double(extents.width) - CanvasGridPlacement.cardWidth) < 1e-9)
+
+        let cell = CanvasGridPlacement.cell(forAspects: [0.5])
+        #expect(Double(cell.height) > Double(CanvasGridPlacement.nominalCell.height))
+    }
+
+    @Test("a mixed board is sized by its widest AND its tallest card")
+    func mixedBoardTakesBothExtremes() {
+        // ONE gutter, from the widest card, on both axes — the whitespace reads
+        // square, which is what `nominalGutter` pins. So a mixed board's ROW
+        // pitch is its tallest extent plus the WIDEST card's gutter, and it is
+        // deliberately NOT equal to the pitch that card would get on a board of
+        // its own (that board's widest card is narrower, so its gutter is
+        // smaller). Composing the expectation from the extents rather than from
+        // another cell is what says which rule is in force.
+        let aspects = [2.0, 0.5, 1.33, 1.0]
+        let mixed = CanvasGridPlacement.cell(forAspects: aspects)
+        let extents = CanvasGridPlacement.cardExtents(forAspects: aspects)
+        let gutter = CanvasGridPlacement.gutterFraction * Double(extents.width)
+
+        #expect(abs(Double(extents.width) - Double(CanvasGridPlacement.cardExtents(forAspects: [2.0]).width)) < 1e-9)
+        #expect(abs(Double(extents.height) - Double(CanvasGridPlacement.cardExtents(forAspects: [0.5]).height)) < 1e-9)
+        #expect(abs(Double(mixed.width) - (Double(extents.width) + gutter)) < 1e-9)
+        #expect(abs(Double(mixed.height) - (Double(extents.height) + gutter)) < 1e-9)
+        // The same gutter on both axes: pitch minus extent is one number.
+        #expect(abs((Double(mixed.width) - Double(extents.width))
+                        - (Double(mixed.height) - Double(extents.height))) < 1e-9)
+    }
+
+    @Test("an empty or nonsense aspect list falls back to the nominal cell")
+    func degenerateAspects() {
+        let nominal = CanvasGridPlacement.nominalCell
+        for aspects in [[Double](), [0], [-2], [Double.nan], [Double.infinity], [0, -1, Double.nan]] {
+            let cell = CanvasGridPlacement.cell(forAspects: aspects)
+            #expect(abs(Double(cell.width) - Double(nominal.width)) < 1e-9)
+            #expect(abs(Double(cell.height) - Double(nominal.height)) < 1e-9)
+        }
+    }
+
+    @Test("no aspect, however extreme, can drop a pitch to the drop threshold")
+    func pitchNeverReadsAsADrop() {
+        // THE invariant `gridSlotsNeverReadAsDrops` protects, restated over the
+        // aspect axis: a tighter gutter is only safe while both pitches clear
+        // `CanvasDropResolver.defaultThreshold`, or a card released on its own
+        // clean slot resolves onto its neighbour and the move becomes a link.
+        for aspect in [0.01, 0.1, 0.5, 1.0, 1.33, 2.0, 10.0, 100.0] {
+            let cell = CanvasGridPlacement.cell(forAspects: [aspect])
+            #expect(Double(cell.width) > CanvasDropResolver.defaultThreshold)
+            #expect(Double(cell.height) > CanvasDropResolver.defaultThreshold)
+        }
+    }
+
+    @Test("slots march at the cell they are given, and default to the nominal one")
+    func positionHonoursTheCell() {
+        let cell = CGSize(width: 3, height: 2)
+        #expect(CanvasGridPlacement.position(index: 1, columns: 2, cell: cell) == SIMD3<Double>(3, 0, 0))
+        #expect(CanvasGridPlacement.position(index: 2, columns: 2, cell: cell) == SIMD3<Double>(0, 2, 0))
+        #expect(
+            CanvasGridPlacement.position(index: 3, columns: 2)
+                == CanvasGridPlacement.position(index: 3, columns: 2, cell: CanvasGridPlacement.nominalCell)
+        )
+    }
+
+    @Test("resolve lays row-less cards out at the pitch the host passes")
+    func resolveHonoursGridCell() {
+        let nodes = (0..<4).map {
+            SpatialNode(id: "n\($0)", roomId: "room", nodeType: .source, label: "n\($0)",
+                        positionX: 0, positionY: 0, positionZ: 0)
+        }
+        let wide = CanvasGridPlacement.cell(forAspects: [2.0])
+        let state = CanvasSceneState.resolve(
+            nodes: nodes, connections: [], links: [], layoutRows: [], items: [],
+            defaultPlacement: .grid(columns: 2), gridCell: wide
+        )
+        let byId = Dictionary(uniqueKeysWithValues: state.placeables.map { ($0.id, $0.position) })
+        #expect(byId["n1"] == SIMD3<Double>(Double(wide.width), 0, 0))
+        #expect(byId["n2"] == SIMD3<Double>(0, Double(wide.height), 0))
+        // Omitting it is the nominal cell — every existing caller is unchanged.
+        let defaulted = CanvasSceneState.resolve(
+            nodes: nodes, connections: [], links: [], layoutRows: [], items: [],
+            defaultPlacement: .grid(columns: 2)
+        )
+        #expect(defaulted.placeables[1].position == CanvasGridPlacement.position(index: 1, columns: 2))
+    }
+}
+
+// MARK: - The board's aspects come from the texture memo
+
+@MainActor
+@Suite("CanvasCardGeometry.knownAspects (§18.1 defect 4)")
+struct CanvasCardGeometryKnownAspectsTests {
+
+    @Test("only sources whose texture has loaded contribute an aspect")
+    func onlyLoadedSourcesContribute() {
+        let wide = "pitch-test-wide-\(UUID().uuidString)"
+        let unknown = "pitch-test-unknown-\(UUID().uuidString)"
+        CanvasCardGeometry.recordAspect(2.0, forSourceId: wide)
+
+        let aspects = CanvasCardGeometry.knownAspects(forSourceIds: [wide, unknown])
+        #expect(aspects == [2.0])
+        // An all-unknown board is the nominal cell, not a degenerate one.
+        #expect(CanvasCardGeometry.knownAspects(forSourceIds: [unknown]).isEmpty)
+        #expect(
+            CanvasGridPlacement.cell(forAspects: CanvasCardGeometry.knownAspects(forSourceIds: [unknown]))
+                == CanvasGridPlacement.nominalCell
+        )
     }
 }

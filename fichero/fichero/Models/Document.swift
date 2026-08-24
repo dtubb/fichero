@@ -180,6 +180,36 @@ struct LibraryItemDrag: Codable, Equatable, Transferable {
 }
 
 /// Main document model matching Python Document (Pydantic)
+/// Mirror of the engine's `NodeRegion` (Step 3): a rect that names its
+/// coordinate space instead of four bare numbers.
+struct DocumentRegion: Codable, Hashable {
+    /// `[x, y, width, height]`, fractions of the parent's frame when
+    /// `space == "normalized"` (the only space extractions write today).
+    var rect: [Double]
+    var space: String?
+    /// "measured" | "nominal" | "user" — how much the rect is worth (the
+    /// Marshall nominal-even-split openings are guesses, not measurements).
+    var confidence: String?
+    var method: String?
+    var note: String?
+    /// Which RENDITION of the parent the rect was measured on (2026-08-23).
+    /// `nil` — the overwhelmingly common case — means the parent's own frame.
+    /// Non-nil means the rect is only valid on that rendition's pixels:
+    /// zooming/highlighting on the parent's base image with it would place a
+    /// plausible band in the wrong frame, so consumers must treat it like the
+    /// engine's `compose` does — refuse, don't approximate.
+    var renditionId: String?
+
+    /// True when the rect can be applied directly to the parent's own image —
+    /// the only case the preview's zoom/highlight paths may consume.
+    var isInParentFrame: Bool { renditionId == nil }
+
+    enum CodingKeys: String, CodingKey {
+        case rect, space, confidence, method, note
+        case renditionId = "rendition_id"
+    }
+}
+
 struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     let id: String
     var parentId: String?
@@ -189,6 +219,10 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
     var path: String?
     var sequence: Int?
     var bbox: [Int]?
+    /// WHERE this node sits on its parent, as a typed region (Step 3 of the
+    /// bbox program, 2026-08-22). Normalized rect — no page-size dependency.
+    /// New extractions write ONLY this; `bbox` remains for pre-rename rows.
+    var regionInParent: DocumentRegion?
     var status: Status
     var metadata: [String: AnyCodable]
     var pageContent: String?
@@ -255,6 +289,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         case path
         case sequence
         case bbox
+        case regionInParent = "region_in_parent"
         case status
         case metadata
         case pageContent = "page_content"
@@ -287,6 +322,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         path: String? = nil,
         sequence: Int? = nil,
         bbox: [Int]? = nil,
+        regionInParent: DocumentRegion? = nil,
         status: Status = .pending,
         metadata: [String: AnyCodable] = [:],
         pageContent: String? = nil,
@@ -317,6 +353,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.path = path
         self.sequence = sequence
         self.bbox = bbox
+        self.regionInParent = regionInParent
         self.status = status
         self.metadata = metadata
         self.pageContent = pageContent
@@ -353,6 +390,7 @@ struct Document: Identifiable, Codable, Hashable, @unchecked Sendable {
         self.path = try container.decodeIfPresent(String.self, forKey: .path)
         self.sequence = try container.decodeIfPresent(Int.self, forKey: .sequence)
         self.bbox = try container.decodeIfPresent([Int].self, forKey: .bbox)
+        self.regionInParent = try container.decodeIfPresent(DocumentRegion.self, forKey: .regionInParent)
         self.status = try container.decode(Status.self, forKey: .status)
         self.metadata = try container.decode([String: AnyCodable].self, forKey: .metadata)
         self.pageContent = try container.decodeIfPresent(String.self, forKey: .pageContent)

@@ -8990,7 +8990,7 @@
           "documents"
         ],
         "summary": "Get Children",
-        "description": "Get child documents.",
+        "description": "Get child documents.\n\nA diary folder legitimately holds two kinds of thing: openings (spreads\nwhose pages moved beneath them) and whole pages that were never split. So\n\"the folder's children\" is an ambiguous question and only the caller knows\nwhich tier it means (Daniel, 2026-08-22: \"I want to be able to show\nspreads, or show single pages\").\n\n`level` defaults to `stored`, so every existing caller sees exactly what it\nsaw before.",
         "operationId": "get_children_api_documents__doc_id__children_get",
         "parameters": [
           {
@@ -9038,6 +9038,17 @@
               "title": "Sort Direction"
             },
             "description": "'asc' or 'desc'"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/NodeLevel",
+              "description": "Which tier to return. 'stored' (default) is the tree as held \u2014 openings AND whole pages side by side. 'content' looks THROUGH containers to their pages, passing un-split pages through unchanged.",
+              "default": "stored"
+            },
+            "description": "Which tier to return. 'stored' (default) is the tree as held \u2014 openings AND whole pages side by side. 'content' looks THROUGH containers to their pages, passing un-split pages through unchanged."
           }
         ],
         "responses": {
@@ -10246,6 +10257,87 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{doc_id}/view": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Get Document View",
+        "description": "One response for 'where am I, what's in here, what does it have'.",
+        "operationId": "get_document_view_api_documents__doc_id__view_get",
+        "parameters": [
+          {
+            "name": "doc_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Doc Id"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/NodeLevel",
+              "description": "Which tier `children` returns. 'stored' (default) is the tree as held \u2014 the sidebar's STRUCTURAL view (ruled 2026-08-24); 'content' looks through containers to their pages, the grid's view.",
+              "default": "stored"
+            },
+            "description": "Which tier `children` returns. 'stored' (default) is the tree as held \u2014 the sidebar's STRUCTURAL view (ruled 2026-08-24); 'content' looks through containers to their pages, the grid's view."
+          },
+          {
+            "name": "children",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include the children list.",
+              "default": true,
+              "title": "Children"
+            },
+            "description": "Include the children list."
+          },
+          {
+            "name": "attachments",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include the anchor's attachment summary.",
+              "default": true,
+              "title": "Attachments"
+            },
+            "description": "Include the anchor's attachment summary."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentViewResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No document with this id exists"
           },
           "422": {
             "description": "Validation Error",
@@ -35532,14 +35624,10 @@
             "nullable": true,
             "title": "Char End"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
             "nullable": true,
-            "title": "Bbox",
-            "description": "Bounding box [x, y, width, height] as fractions of source dimensions in [0, 1]."
+            "description": "Where this annotation points: the region and/or span, naming the rendition its coordinates belong to."
           },
           "anchor_kind": {
             "type": "string",
@@ -35702,13 +35790,9 @@
             "nullable": true,
             "title": "Char End"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "anchor_kind": {
             "type": "string",
@@ -35925,13 +36009,9 @@
             "nullable": true,
             "title": "Char End"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "anchor_kind": {
             "type": "string",
@@ -36555,6 +36635,16 @@
           "ocr_geometry": {
             "$ref": "#/components/schemas/OCRGeometryResult",
             "nullable": true
+          },
+          "region_count": {
+            "type": "integer",
+            "title": "Region Count",
+            "default": 0
+          },
+          "geometry_rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Geometry Rendition Id"
           },
           "version": {
             "type": "integer",
@@ -39883,13 +39973,9 @@
             "nullable": true,
             "title": "Source Char End"
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Bbox"
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "entity_ids": {
             "items": {
@@ -40793,13 +40879,9 @@
             "type": "string",
             "title": "Kind"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
           }
         },
         "type": "object",
@@ -41075,7 +41157,7 @@
             "title": "Error"
           },
           "duration_ms": {
-            "type": "integer",
+            "type": "number",
             "nullable": true,
             "title": "Duration Ms"
           },
@@ -41258,7 +41340,7 @@
             "title": "Script"
           },
           "source_anchor": {
-            "$ref": "#/components/schemas/ContentSourceAnchor"
+            "$ref": "#/components/schemas/SourceAnchor-Output"
           },
           "parent_representation_id": {
             "type": "string",
@@ -41408,42 +41490,6 @@
           "reviewed"
         ],
         "title": "ContentReviewState"
-      },
-      "ContentSourceAnchor": {
-        "properties": {
-          "document_id": {
-            "type": "string",
-            "title": "Document Id"
-          },
-          "page_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Page Id"
-          },
-          "char_start": {
-            "type": "integer",
-            "nullable": true,
-            "title": "Char Start"
-          },
-          "char_end": {
-            "type": "integer",
-            "nullable": true,
-            "title": "Char End"
-          },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
-          }
-        },
-        "type": "object",
-        "required": [
-          "document_id"
-        ],
-        "title": "ContentSourceAnchor"
       },
       "ContradictionEvidence": {
         "properties": {
@@ -42564,6 +42610,14 @@
             "type": "boolean",
             "title": "Attributed Only",
             "default": false
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Ids"
           },
           "filters": {
             "items": {
@@ -44125,6 +44179,74 @@
         "title": "DocumentUpdate",
         "description": "Request model for updating a document."
       },
+      "DocumentViewAttachments": {
+        "properties": {
+          "renditions": {
+            "items": {
+              "$ref": "#/components/schemas/Rendition"
+            },
+            "type": "array",
+            "title": "Renditions"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactResponse"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          },
+          "annotation_count": {
+            "type": "integer",
+            "title": "Annotation Count"
+          },
+          "entity_count": {
+            "type": "integer",
+            "title": "Entity Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "renditions",
+          "artifacts",
+          "annotation_count",
+          "entity_count"
+        ],
+        "title": "DocumentViewAttachments",
+        "description": "What the anchor document HAS \u2014 the attachment summary consumers read\ninstead of fanning out to the renditions/artifacts/annotations routes."
+      },
+      "DocumentViewResponse": {
+        "properties": {
+          "ancestors": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Ancestors"
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "attachments": {
+            "$ref": "#/components/schemas/DocumentViewAttachments",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "ancestors",
+          "document",
+          "children"
+        ],
+        "title": "DocumentViewResponse",
+        "description": "One document's whole neighbourhood: where it sits, what it holds,\nwhat hangs off it."
+      },
       "DownloadStartedResponse": {
         "properties": {
           "status": {
@@ -45539,13 +45661,9 @@
             "$ref": "#/components/schemas/AnnotationKind",
             "default": "highlight"
           },
-          "bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Bbox"
+          "anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
           },
           "char_start": {
             "type": "integer",
@@ -46042,6 +46160,11 @@
           "skip_cache": {
             "type": "boolean",
             "title": "Skip Cache",
+            "default": false
+          },
+          "force_recompute": {
+            "type": "boolean",
+            "title": "Force Recompute",
             "default": false
           },
           "provider_override": {
@@ -48752,14 +48875,10 @@
             "title": "Date Values",
             "description": "Structured temporal evidence ranges. Each value records basis/assertion type, confidence, and source anchoring."
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
             "nullable": true,
-            "title": "Source Bbox",
-            "description": "[x, y, width, height] in PDF page coordinates. Populated via PyMuPDF page.search(excerpt) for PDF-backed claims; None for text-only or when the search misses."
+            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to."
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType",
@@ -53484,6 +53603,15 @@
         "title": "NodeDef",
         "type": "object"
       },
+      "NodeLevel": {
+        "type": "string",
+        "enum": [
+          "stored",
+          "content"
+        ],
+        "title": "NodeLevel",
+        "description": "Which tier of the tree to return."
+      },
       "NodeModelApplyPatch": {
         "properties": {
           "provider_name": {
@@ -53504,6 +53632,11 @@
       },
       "NodeRegion": {
         "properties": {
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
+          },
           "rect": {
             "items": {
               "type": "number"
@@ -54103,6 +54236,11 @@
             "nullable": true,
             "title": "Source"
           },
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
@@ -54430,13 +54568,9 @@
             "nullable": true,
             "title": "Source Excerpt"
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Bbox"
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
           },
           "source_char_start": {
             "type": "integer",
@@ -59236,14 +59370,10 @@
             "title": "Date Values",
             "description": "Structured temporal evidence ranges. Each value records basis/assertion type, confidence, and source anchoring."
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
             "nullable": true,
-            "title": "Source Bbox",
-            "description": "[x, y, width, height] in PDF page coordinates. Populated via PyMuPDF page.search(excerpt) for PDF-backed claims; None for text-only or when the search misses."
+            "description": "Where this claim's evidence sits on the page, naming the coordinate space and the rendition it belongs to."
           },
           "source_type": {
             "$ref": "#/components/schemas/SourceType",
@@ -60792,6 +60922,150 @@
         ],
         "title": "SnapshotRestoreResponse"
       },
+      "SourceAnchor-Input": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
+          },
+          "space": {
+            "$ref": "#/components/schemas/AnchorSpace",
+            "default": "normalized"
+          },
+          "rect": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Rect"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Polygon"
+          },
+          "rotation": {
+            "type": "number",
+            "title": "Rotation",
+            "default": 0.0
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "granularity": {
+            "type": "string",
+            "nullable": true,
+            "title": "Granularity"
+          },
+          "refines": {
+            "$ref": "#/components/schemas/SourceAnchor-Input",
+            "nullable": true
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "title": "SourceAnchor",
+        "description": "Where a record points on a page \u2014 the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one \"scroll to this\", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable \u2014 new writes must set it whenever the frame is not the node's own."
+      },
+      "SourceAnchor-Output": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "page_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Page Id"
+          },
+          "rendition_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Rendition Id"
+          },
+          "space": {
+            "$ref": "#/components/schemas/AnchorSpace",
+            "default": "normalized"
+          },
+          "rect": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Rect"
+          },
+          "polygon": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Polygon"
+          },
+          "rotation": {
+            "type": "number",
+            "title": "Rotation",
+            "default": 0.0
+          },
+          "char_start": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char Start"
+          },
+          "char_end": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Char End"
+          },
+          "granularity": {
+            "type": "string",
+            "nullable": true,
+            "title": "Granularity"
+          },
+          "refines": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "title": "SourceAnchor",
+        "description": "Where a record points on a page \u2014 the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one \"scroll to this\", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable \u2014 new writes must set it whenever the frame is not the node's own."
+      },
       "SourceAttribution": {
         "properties": {
           "source_id": {
@@ -61077,13 +61351,9 @@
             "nullable": true,
             "title": "Source Char End"
           },
-          "source_bbox": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "nullable": true,
-            "title": "Source Bbox"
+          "source_anchor": {
+            "$ref": "#/components/schemas/SourceAnchor-Output",
+            "nullable": true
           },
           "support_basis": {
             "$ref": "#/components/schemas/EvidenceBasis",

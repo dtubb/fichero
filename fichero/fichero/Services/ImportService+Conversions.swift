@@ -30,6 +30,16 @@ extension ImportService {
             path: generated.path,
             sequence: generated.sequence,
             bbox: generated.bbox?.value as? [Int],
+            regionInParent: generated.regionInParent.map { region in
+                DocumentRegion(
+                    rect: region.rect,
+                    space: region.space?.rawValue,
+                    confidence: region.confidence?.rawValue,
+                    method: region.method,
+                    note: region.note,
+                    renditionId: region.renditionId
+                )
+            },
             status: convertFromGeneratedStatus(generated.status),
             metadata: convertMetadata(generated.metadata),
             pageContent: generated.pageContent,

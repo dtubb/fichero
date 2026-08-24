@@ -99,26 +99,54 @@ enum SelectAllRoute: Equatable {
     case focusedTextEditor
     /// The library pane holds focus — select every row it is showing.
     case libraryRows
+    /// A selectable list in the inspector holds focus — select its rows.
+    case inspectorList
+    /// The sidebar holds focus — select the CURRENT library's visible rows
+    /// (Daniel, 2026-08-23: never across libraries).
+    case sidebarRows
+    /// The preview holds focus over an image — select the WHOLE image, which
+    /// is what the marquee's unit rect means.
+    case previewImage
     /// Nobody the app speaks for holds focus. Disabled; let it fall through.
     case none
+}
+
+/// A surface that can answer ⌘A with rows, once text focus has been ruled out.
+///
+/// The publications are scene-scoped (`focusedSceneValue`), so more than one
+/// can be live at the same instant — the library publishes whenever a library
+/// pane is in the focused scene, whether or not the pointer went to the
+/// inspector. Precedence therefore cannot be inferred from "who published"; it
+/// has to come from which PANE holds focus, which is why `route` takes the
+/// pane rather than a set of booleans.
+enum SelectAllSurface: Equatable {
+    case libraryRows
+    case inspectorList
+    case sidebarRows
+    case previewImage
 }
 
 /// Pure focus→route policy. No AppKit, no view state: testable on its own.
 enum SelectAllRoutingPolicy {
     /// - Parameters:
     ///   - isTextEditing: an editable text responder holds focus.
-    ///   - libraryHasSelectableRows: a focused library pane published a
-    ///     select-all action AND has rows to select. Nil/false means either no
-    ///     library focus or an empty list — both of which must fall through
-    ///     rather than fire an empty selection.
+    ///   - focusedSurface: the surface that both HOLDS focus and has rows to
+    ///     select, or nil. Nil covers every falling-through case — no focus the
+    ///     app speaks for, or a focused surface whose list is empty — and both
+    ///     must decline rather than fire an empty selection.
     static func route(
         isTextEditing: Bool,
-        libraryHasSelectableRows: Bool
+        focusedSurface: SelectAllSurface?
     ) -> SelectAllRoute {
         // Text focus wins outright. "Select all" while typing means the text,
-        // and it must never reach past the caret to the library behind it.
+        // and it must never reach past the caret to the rows behind it.
         if isTextEditing { return .focusedTextEditor }
-        if libraryHasSelectableRows { return .libraryRows }
-        return .none
+        switch focusedSurface {
+        case .libraryRows: return .libraryRows
+        case .inspectorList: return .inspectorList
+        case .sidebarRows: return .sidebarRows
+        case .previewImage: return .previewImage
+        case nil: return .none
+        }
     }
 }

@@ -32,6 +32,22 @@ mind-palace routes, renamed to `/api/canvas`), and more.
 - Response: `200` with the JSON-LD AnnotationPage object; missing documents
   return `404`.
 
+## Document outline view (Mandate 1, 2026-08-24)
+
+`GET /api/documents/{doc_id}/view`
+
+- Purpose: one answer for "where am I, what's in here, what does it have" —
+  ancestors root-first, the anchor document, level-aware children, and an
+  attachment summary (renditions, artifacts, annotation/entity counts). The
+  ONE outline endpoint every tree consumer (sidebar, grid, breadcrumbs,
+  entry ladder, dataset router) migrates onto, replacing five client-side
+  tree builders that each cached and disagreed.
+- Query params: `level` (`stored` default — the sidebar's structural tier;
+  `content` looks through containers, the grid's tier), `children` and
+  `attachments` (booleans; a cheap caller skips halves).
+- Response: `200` `DocumentViewResponse`; unknown ids return a declared
+  `404`.
+
 ## Renditions (bbox program, 2026-08-20)
 
 `GET /api/documents/{document_id}/renditions`

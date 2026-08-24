@@ -62,8 +62,12 @@ final class DocumentConverterFieldSourceTests: XCTestCase {
     /// `DocumentService`'s; `ImportService+Conversions` carried the identical
     /// defect (`sort_order` from extras, so always 0). One of two identical
     /// converters being right is how the class comes back.
+    // DocumentService.swift split its conversion extension out on 2026-08-23
+    // (1000-line hard ceiling) — the guard follows the code, per the
+    // guard-audit rule: a literal-coupled scan is re-pointed in the SAME
+    // commit as the split, or it silently reads the wrong file forever.
     private static let converterFiles = [
-        "Services/DocumentService.swift",
+        "Services/DocumentService+DocumentConversion.swift",
         "Services/ImportService+Conversions.swift"
     ]
 
@@ -142,6 +146,11 @@ final class DocumentConverterFieldSourceTests: XCTestCase {
                 ".aliasTargetId",
                 ".sortOrder",
                 ".isWorkspace",
+                // Step 3 (2026-08-23): the typed region every new extraction
+                // writes — its omission was exactly this defect class (the
+                // entry-source preview lost its highlight while the decoder
+                // path carried dead support).
+                ".regionInParent",
                 "convertAttributes("
             ] {
                 XCTAssertTrue(

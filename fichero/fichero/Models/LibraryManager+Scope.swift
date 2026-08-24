@@ -76,7 +76,8 @@ extension LibraryManager.LibraryReference {
             researchService,
             noteService,
             annotationService,
-            actionsService
+            actionsService,
+            renditionService
         ]
     }
 }

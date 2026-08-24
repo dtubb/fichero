@@ -129,6 +129,13 @@ _EXEMPT_FILES = {
     # symmetric-difference reskin to work.
     "CanvasOrtho2DRenderer.swift",
     "CanvasScene3DRenderer.swift",
+    # The same mirrors, after the 2026-08-23 file-length split moved the
+    # op-application (`case .setSelection: selection = newSelection`) into the
+    # +Ops extension files. Same derived display state, same reason; the split
+    # changed the file name, not the design. (The audit-trigger firing on a
+    # declaration move is this guardrail working as intended.)
+    "CanvasOrtho2DRenderer+Ops.swift",
+    "CanvasScene3DRenderer+Ops.swift",
 }
 
 # Post-mutation pruning is not a gesture: after a delete, ids that no longer

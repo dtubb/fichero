@@ -204,7 +204,16 @@ final class DocumentInspectorTests: XCTestCase {
     func testArtifactInspectorListSupportsDoubleClickOpenInWindow() throws {
         let source = try Self.appSource("Views/Inspector/Artifacts/ArtifactListView.swift")
 
-        XCTAssertTrue(source.contains(".onTapGesture(count: 2)"))
+        // 5e906feca (2026-08-21): `.onTapGesture(count: 2)` CLAIMED single
+        // clicks over the row label while ruling out a double, so List
+        // selection only worked on the row margin (Daniel: "I cannot click on
+        // artifact, except by clicking on space beside name"). Simultaneous
+        // lets the single click select while the double still opens.
+        XCTAssertTrue(source.contains(".simultaneousGesture(TapGesture(count: 2)"))
+        XCTAssertFalse(
+            source.contains(".onTapGesture(count: 2)"),
+            "a plain double-tap recognizer steals single clicks from List selection"
+        )
         XCTAssertTrue(source.contains("focused.select(artifact.id, in: store.items)"))
         XCTAssertTrue(source.contains("onOpenInWindow()"))
     }

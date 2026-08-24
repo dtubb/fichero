@@ -162,6 +162,9 @@ extension LibraryView {
             DatasetModeView(
                 renderer: renderer,
                 folderId: folderId,
+                // Under an active search, data views show ONLY the hits —
+                // `documents` IS the result set then (#4118 swap upstream).
+                searchHitIds: activeSearchQuery != nil ? documents.map(\.id) : nil,
                 documentService: service,
                 entityService: scopedLibraryReference?.entityService,
                 onOpen: { row in
@@ -187,6 +190,7 @@ extension LibraryView {
                 // (debounced inside DatasetModeView).
                 refreshToken: documentStore.revision,
                 onSelectionStatus: { datasetSelectionStatus = $0 },
+                onVisibleIds: { datasetVisibleIds = $0 },
                 // Card selections run workflows through the SAME batch seam
                 // as the grid context menu (#3820 library binding), which is
                 // how "select entries, run SVO" works (2026-08-15 night).
@@ -200,7 +204,13 @@ extension LibraryView {
                             modelOverride: model
                         )
                     }
-                }
+                },
+                // The visible surface's selection IS the library's (Daniel,
+                // 2026-08-23: "visible surface, always") — so the bottom bar
+                // and the menu bar act on the rows the user picked rather than
+                // on a browser selection they cannot see.
+                selection: $selection,
+                store: datasetStore
             )
         } else {
             ContentUnavailableView(

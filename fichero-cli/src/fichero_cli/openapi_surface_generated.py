@@ -888,8 +888,8 @@ def register_generated_openapi_commands(
     @target_app.command("create-an")
     def annotations_create_an_post(
         ctx: typer.Context,
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
         anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
         char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
         char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
@@ -919,8 +919,8 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/annotations"
             params = None
             payload = _build_json_payload({
+                "anchor": anchor,
                 "anchor_kind": anchor_kind,
-                "bbox": bbox,
                 "char_end": char_end,
                 "char_start": char_start,
                 "color": color,
@@ -945,8 +945,8 @@ def register_generated_openapi_commands(
                 "tags": tags,
                 "text": text,
             }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
-                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
@@ -977,7 +977,7 @@ def register_generated_openapi_commands(
     @target_app.command("ephemeral-crop-for-an-unsaved-region-no-persisted")
     def annotations_ephemeral_crop_for_an_unsaved_region_no_persisted_post(
         ctx: typer.Context,
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
         char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
         char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
         document_id: str = typer.Option(..., "--document-id", help="Request field: document_id."),
@@ -991,7 +991,7 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/annotations/crop"
             params = None
             payload = _build_json_payload({
-                "bbox": bbox,
+                "anchor": anchor,
                 "char_end": char_end,
                 "char_start": char_start,
                 "document_id": document_id,
@@ -1000,7 +1000,7 @@ def register_generated_openapi_commands(
                 "page_label": page_label,
                 "text": text,
             }, {
-                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "document_id": {'type': 'string', 'title': 'Document Id', 'x-cli-required': True},
@@ -1043,8 +1043,8 @@ def register_generated_openapi_commands(
     def annotations_patch_patch(
         ctx: typer.Context,
         annotation_id: str = typer.Argument(..., help="Path parameter: annotation_id."),
+        anchor: Optional[str] = typer.Option(None, "--anchor", help="Request field: anchor."),
         anchor_kind: Optional[str] = typer.Option(None, "--anchor-kind", help="Request field: anchor_kind."),
-        bbox: Optional[str] = typer.Option(None, "--bbox", help="Request field: bbox."),
         char_end: Optional[int] = typer.Option(None, "--char-end", help="Request field: char_end."),
         char_start: Optional[int] = typer.Option(None, "--char-start", help="Request field: char_start."),
         color: Optional[str] = typer.Option(None, "--color", help="Request field: color."),
@@ -1071,8 +1071,8 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/annotations/{annotation_id}"
             params = None
             payload = _build_json_payload({
+                "anchor": anchor,
                 "anchor_kind": anchor_kind,
-                "bbox": bbox,
                 "char_end": char_end,
                 "char_start": char_start,
                 "color": color,
@@ -1094,8 +1094,8 @@ def register_generated_openapi_commands(
                 "tags": tags,
                 "text": text,
             }, {
+                "anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "anchor_kind": {'type': 'string', 'nullable': True, 'title': 'Anchor Kind', 'x-cli-required': False},
-                "bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Bbox', 'x-cli-required': False},
                 "char_end": {'type': 'integer', 'nullable': True, 'title': 'Char End', 'x-cli-required': False},
                 "char_start": {'type': 'integer', 'nullable': True, 'title': 'Char Start', 'x-cli-required': False},
                 "color": {'type': 'string', 'nullable': True, 'title': 'Color', 'x-cli-required': False},
@@ -3304,7 +3304,7 @@ def register_generated_openapi_commands(
         quotation_kind: Optional[str] = typer.Option(None, "--quotation-kind", help="Request field: quotation_kind."),
         scribe_entity_id: Optional[str] = typer.Option(None, "--scribe-entity-id", help="Request field: scribe_entity_id."),
         scribe_name: Optional[str] = typer.Option(None, "--scribe-name", help="Request field: scribe_name."),
-        source_bbox: Optional[str] = typer.Option(None, "--source-bbox", help="Request field: source_bbox."),
+        source_anchor: Optional[str] = typer.Option(None, "--source-anchor", help="Request field: source_anchor."),
         source_char_end: Optional[int] = typer.Option(None, "--source-char-end", help="Request field: source_char_end."),
         source_char_start: Optional[int] = typer.Option(None, "--source-char-start", help="Request field: source_char_start."),
         source_document_id: Optional[str] = typer.Option(None, "--source-document-id", help="Request field: source_document_id."),
@@ -3360,7 +3360,7 @@ def register_generated_openapi_commands(
                 "quotation_kind": quotation_kind,
                 "scribe_entity_id": scribe_entity_id,
                 "scribe_name": scribe_name,
-                "source_bbox": source_bbox,
+                "source_anchor": source_anchor,
                 "source_char_end": source_char_end,
                 "source_char_start": source_char_start,
                 "source_document_id": source_document_id,
@@ -3411,7 +3411,7 @@ def register_generated_openapi_commands(
                 "quotation_kind": {'type': 'string', 'enum': ['verbatim', 'paraphrase', 'indirect', 'inference', 'free_indirect'], 'title': 'QuotationKind', 'description': "How literally a claim reproduces its source text.\n\nPicks up the warrant strength: a verbatim quotation supports a stronger\nepistemic status than an inferred one. Defaults to ``paraphrase`` —\nthat's the realistic default for an LLM extractor that summarised the\nsource rather than copying it verbatim.", 'x-cli-required': False},
                 "scribe_entity_id": {'type': 'string', 'nullable': True, 'title': 'Scribe Entity Id', 'x-cli-required': False},
                 "scribe_name": {'type': 'string', 'nullable': True, 'title': 'Scribe Name', 'x-cli-required': False},
-                "source_bbox": {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Source Bbox', 'x-cli-required': False},
+                "source_anchor": {'properties': {'document_id': {'type': 'string', 'title': 'Document Id'}, 'page_id': {'type': 'string', 'nullable': True, 'title': 'Page Id'}, 'rendition_id': {'type': 'string', 'nullable': True, 'title': 'Rendition Id'}, 'space': {'$ref': '#/components/schemas/AnchorSpace', 'default': 'normalized'}, 'rect': {'items': {'type': 'number'}, 'type': 'array', 'nullable': True, 'title': 'Rect'}, 'polygon': {'items': {'items': {'type': 'number'}, 'type': 'array'}, 'type': 'array', 'nullable': True, 'title': 'Polygon'}, 'rotation': {'type': 'number', 'title': 'Rotation', 'default': 0.0}, 'char_start': {'type': 'integer', 'nullable': True, 'title': 'Char Start'}, 'char_end': {'type': 'integer', 'nullable': True, 'title': 'Char End'}, 'granularity': {'type': 'string', 'nullable': True, 'title': 'Granularity'}, 'refines': {'$ref': '#/components/schemas/SourceAnchor-Input', 'nullable': True}}, 'additionalProperties': True, 'type': 'object', 'required': ['document_id'], 'title': 'SourceAnchor', 'description': 'Where a record points on a page — the one anchor type.\n\nUsed by annotations, OCR geometry, entity mentions, claim evidence and\ncontent representations. One type means one overlay renderer, one hit\ntester, one "scroll to this", and one place to get the coordinate maths\nright.\n\n``rendition_id`` is the field whose absence caused the original defect: a\nbox carried four numbers and never said which pixel frame they were\nfractions OF, so geometry computed on an enhanced or split rendition was\ndrawn over the original spread. It is optional only so existing rows stay\nreadable — new writes must set it whenever the frame is not the node\'s own.', 'x-cli-required': False},
                 "source_char_end": {'type': 'integer', 'nullable': True, 'title': 'Source Char End', 'x-cli-required': False},
                 "source_char_start": {'type': 'integer', 'nullable': True, 'title': 'Source Char Start', 'x-cli-required': False},
                 "source_document_id": {'type': 'string', 'nullable': True, 'title': 'Source Document Id', 'x-cli-required': False},
@@ -3868,6 +3868,7 @@ def register_generated_openapi_commands(
         bins: Optional[str] = typer.Option(None, "--bins", help="Request field: bins."),
         facets: Optional[str] = typer.Option(None, "--facets", help="Request field: facets."),
         filters: Optional[str] = typer.Option(None, "--filters", help="Request field: filters."),
+        ids: Optional[str] = typer.Option(None, "--ids", help="Request field: ids."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Request field: limit."),
         offset: Optional[int] = typer.Option(None, "--offset", help="Request field: offset."),
         parent_id: Optional[str] = typer.Option(None, "--parent-id", help="Request field: parent_id."),
@@ -3884,6 +3885,7 @@ def register_generated_openapi_commands(
                 "bins": bins,
                 "facets": facets,
                 "filters": filters,
+                "ids": ids,
                 "limit": limit,
                 "offset": offset,
                 "parent_id": parent_id,
@@ -3895,6 +3897,7 @@ def register_generated_openapi_commands(
                 "bins": {'properties': {'attr': {'type': 'string', 'title': 'Attr'}, 'granularity': {'type': 'string', 'enum': ['year', 'month', 'day'], 'title': 'Granularity', 'default': 'month'}}, 'type': 'object', 'required': ['attr'], 'title': 'DatasetBins', 'x-cli-required': False},
                 "facets": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Facets', 'x-cli-required': False},
                 "filters": {'items': {'$ref': '#/components/schemas/DatasetFilter'}, 'type': 'array', 'title': 'Filters', 'x-cli-required': False},
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Ids', 'x-cli-required': False},
                 "limit": {'type': 'integer', 'title': 'Limit', 'default': 100, 'x-cli-required': False},
                 "offset": {'type': 'integer', 'title': 'Offset', 'default': 0, 'x-cli-required': False},
                 "parent_id": {'type': 'string', 'nullable': True, 'title': 'Parent Id', 'x-cli-required': False},
@@ -4163,6 +4166,7 @@ def register_generated_openapi_commands(
     def documents_get_children_get(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
         limit: Optional[int] = typer.Option(None, "--limit", help="Query parameter: limit."),
         sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
         sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
@@ -4171,6 +4175,7 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/documents/{doc_id}/children"
             params = {
+                "level": level,
                 "limit": limit,
                 "sort_by": sort_by,
                 "sort_direction": sort_direction,
@@ -4399,6 +4404,25 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/documents/{doc_id}/restore"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-view")
+    def documents_get_view_get(
+        ctx: typer.Context,
+        doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        attachments: Optional[bool] = typer.Option(None, "--attachments/--no-attachments", help="Query parameter: attachments."),
+        children: Optional[bool] = typer.Option(None, "--children/--no-children", help="Query parameter: children."),
+        level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
+    ) -> None:
+        """Get Document View (GET /api/documents/{doc_id}/view)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{doc_id}/view"
+            params = {
+                "attachments": attachments,
+                "children": children,
+                "level": level,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("get-workflow-provenance-for-a")
@@ -13187,6 +13211,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         checkpoint_ns: Optional[str] = typer.Option(None, "--checkpoint-ns", help="Request field: checkpoint_ns."),
         force_new: Optional[bool] = typer.Option(None, "--force-new/--no-force-new", help="Request field: force_new."),
+        force_recompute: Optional[bool] = typer.Option(None, "--force-recompute/--no-force-recompute", help="Request field: force_recompute."),
         inputs: Optional[str] = typer.Option(None, "--inputs", help="Request field: inputs."),
         interrupt_after: Optional[str] = typer.Option(None, "--interrupt-after", help="Request field: interrupt_after."),
         interrupt_before: Optional[str] = typer.Option(None, "--interrupt-before", help="Request field: interrupt_before."),
@@ -13204,6 +13229,7 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "checkpoint_ns": checkpoint_ns,
                 "force_new": force_new,
+                "force_recompute": force_recompute,
                 "inputs": inputs,
                 "interrupt_after": interrupt_after,
                 "interrupt_before": interrupt_before,
@@ -13216,6 +13242,7 @@ def register_generated_openapi_commands(
             }, {
                 "checkpoint_ns": {'type': 'string', 'title': 'Checkpoint Ns', 'default': '', 'x-cli-required': False},
                 "force_new": {'type': 'boolean', 'title': 'Force New', 'default': False, 'x-cli-required': False},
+                "force_recompute": {'type': 'boolean', 'title': 'Force Recompute', 'default': False, 'x-cli-required': False},
                 "inputs": {'additionalProperties': True, 'type': 'object', 'title': 'Inputs', 'x-cli-required': False},
                 "interrupt_after": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt After', 'x-cli-required': False},
                 "interrupt_before": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Interrupt Before', 'x-cli-required': False},

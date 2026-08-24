@@ -1,17 +1,16 @@
 import Foundation
 import SwiftUI
 
-/// Xcode-style center status island (#4036 follow-up): ONE `.principal`
-/// toolbar element — [engine button] [message area] [activity button] — that
+/// Xcode-style center status island (#4036 follow-up): the MESSAGE area that
 /// says what the app is doing (starting the engine, connecting to libraries,
-/// importing, running workflows, errors) beside the window title, instead of
-/// scattering a spinner in the leading zone and an activity pill after the
-/// view-mode icons.
+/// importing, running workflows, errors, the selection) beside the window
+/// title.
 ///
-/// The flanking buttons are the EXISTING `EngineStatusToolbarItem` and
-/// `ActivityStatusToolbarItem` views hosted unchanged — each keeps its own
-/// popover (connection diagnosis + Retry; activity list). This view only adds
-/// the layout shell and the aggregated message text.
+/// The engine and activity buttons are NOT in here (Daniel, 2026-08-23: "the
+/// island must separate from server status and activity — they're all in one
+/// right now"): `EngineStatusToolbarItem` and `ActivityStatusToolbarItem` are
+/// their own toolbar items, so each gets its own Liquid Glass section and its
+/// own popover.
 ///
 /// Hosted by ONE unconditionally-declared `ToolbarItem` (#3163 guard: only
 /// CONTENT varies with state, the item itself never appears/disappears).
@@ -26,15 +25,16 @@ struct StatusIslandToolbarItem: View {
     let importProgress: String?
     let libraryId: UUID
     let libraryName: String
-    /// Photos-style selection indicator (#29, Daniel #138): while a
-    /// multi-selection is being built the island says "N selected" — the
-    /// count is the thing the user is actively producing.
-    let selectionCount: Int
+    /// Photos-style selection indicator (#29, Daniel #138): the count being
+    /// built, the single item's display name and glyph, and the noun a
+    /// multi-selection counts in ("2 images selected" — no totals, Daniel,
+    /// bedtime 2026-08-23). One value, so the island and `resolve` cannot
+    /// take different slices of the same selection.
+    let selection: StatusIslandSelection
     @Binding var importError: String?
 
     var body: some View {
         HStack(spacing: 8) {
-            EngineStatusToolbarItem()
             // A live folder import replaces the generic message with real
             // numbers and a Cancel — the island is where the user looks first,
             // and "importing…" with no count is what #4203 is about.
@@ -64,13 +64,6 @@ struct StatusIslandToolbarItem: View {
             } else {
                 message
             }
-            ActivityStatusToolbarItem(
-                isImporting: isImporting,
-                importProgress: importProgress,
-                libraryId: libraryId,
-                libraryName: libraryName,
-                importError: $importError
-            )
         }
         // No painted background (#4360). On macOS 26 the toolbar itself wraps
         // this principal item in the system's Liquid Glass; the old
@@ -101,13 +94,22 @@ struct StatusIslandToolbarItem: View {
             importProgress: importProgress,
             backendWorkLabel: activityStore.backendWork.map(Self.label(for:)),
             runningWorkflows: executionObserver.activeExecutions.count,
-            selectionCount: selectionCount
+            selection: selection
         )
-        return Text(status.text)
-            .font(.subheadline)
-            .foregroundStyle(status.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
-            .lineLimit(1)
-            .truncationMode(.tail)
+        // Icon + standard body type (Daniel, bedtime 2026-08-23): the island
+        // wears the selection's glyph and the system's standard size; a quiet
+        // app shows NOTHING rather than "Ready".
+        return HStack(spacing: 5) {
+            if !status.text.isEmpty, let icon = selection.icon, selection.count >= 1, !status.isError {
+                Image(systemName: icon)
+                    .foregroundStyle(Color.accentColor)
+            }
+            Text(status.text)
+                .font(.body)
+                .foregroundStyle(status.isError ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
             // The width `StatusIslandMessage.budget` was derived from (#4366).
             // Named rather than inlined so the two cannot drift: widen the
             // island and the budget test tells you to re-derive the character
@@ -128,6 +130,17 @@ struct StatusIslandToolbarItem: View {
 /// connect" and "an import failed" and "three workflows are running" is real
 /// logic with real branches, and keeping it out of the view body is what makes
 /// it testable without an engine, a store, or a rendered environment (#4036).
+/// The selection as the island renders it: the count being built, the single
+/// item's display name and glyph, the noun a multi-selection counts in. One
+/// value type instead of four loose parameters (the swiftlint parameter-count
+/// guard is right: four siblings travelling separately WILL drift).
+struct StatusIslandSelection: Equatable {
+    var count = 0
+    var label: String?
+    var icon: String?
+    var noun = "items"
+}
+
 struct StatusIslandMessage: Equatable {
     let text: String
     let isError: Bool
@@ -152,11 +165,10 @@ struct StatusIslandMessage: Equatable {
     /// progress line) are not in here; they cannot be written short in advance,
     /// so they go through `shortForm(_:)` instead.
     static let authoredMessages: [String] = [
-        "Ready",
         "Importing…",
         "Running 1 workflow…",
         "Running 99 workflows…",
-        "9,999 selected"
+        "9,999 documents selected"
     ]
 
     /// The short form of a string the app did not author.
@@ -213,7 +225,7 @@ struct StatusIslandMessage: Equatable {
         importProgress: String?,
         backendWorkLabel: String?,
         runningWorkflows: Int,
-        selectionCount: Int = 0
+        selection: StatusIslandSelection = .init()
     ) -> StatusIslandMessage {
         switch enginePhase {
         case .portConflict, .authRejected, .unreachable, .failed:
@@ -230,13 +242,11 @@ struct StatusIslandMessage: Equatable {
         // app-authored and short by construction.
         if let importError { return .init(text: shortForm(importError), isError: true) }
         if isImporting { return .init(text: shortForm(importProgress ?? "Importing…"), isError: false) }
-        // Photos grammar (#29/#138): a multi-selection in progress is what the
-        // user is actively doing — it outranks background work and workflow
-        // chatter, but never an error or a live import. A SINGLE selection is
-        // the app's normal state and stays quiet.
-        if selectionCount > 1 {
-            return .init(text: "\(selectionCount.formatted()) selected", isError: false)
-        }
+        // LIVE WORK outranks the selection (Ann, 2026-08-24: she ran a
+        // workflow on 98 files and the island kept saying "98 selected" — "it
+        // should say working on processing… it's not clear to her that it's
+        // working"). The selection is usually the very thing being processed,
+        // so echoing its count during a run reads as "nothing happened".
         if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         if runningWorkflows > 0 {
             let text = runningWorkflows == 1
@@ -244,6 +254,20 @@ struct StatusIslandMessage: Equatable {
                 : "Running \(runningWorkflows) workflows…"
             return .init(text: text, isError: false)
         }
-        return .init(text: "Ready", isError: false)
+        // Photos grammar (#29/#138): a multi-selection in progress is what the
+        // user is actively doing when nothing is running.
+        if selection.count > 1 {
+            // "2 images selected" (Daniel, bedtime 2026-08-23) — the noun,
+            // never a total.
+            return .init(text: "\(selection.count.formatted()) \(selection.noun) selected", isError: false)
+        }
+        // ONE selection: the island names the ITEM (Daniel, 2026-08-23) —
+        // what is selected, not which view shows it.
+        if selection.count == 1, let label = selection.label, !label.isEmpty {
+            return .init(text: shortForm(label), isError: false)
+        }
+        // Quiet idle shows NOTHING (Daniel: "it said ready on launch,
+        // don't need that").
+        return .init(text: "", isError: false)
     }
 }

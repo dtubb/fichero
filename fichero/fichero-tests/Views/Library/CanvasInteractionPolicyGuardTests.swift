@@ -27,7 +27,9 @@ struct CanvasInteractionPolicyGuardTests {
     @Test("panning requires Space; it is no longer what a plain drag does")
     func panRequiresModifier() throws {
         let source = try appSource(sceneViewPath)
-        #expect(source.contains("if spaceHeld {"))
+        // Shape changed with the ghost-marquee fix (2026-08-22): pan moved to
+        // .onChanged behind a positive spaceHeld guard; the policy is the same.
+        #expect(source.contains("draggingNodeId == nil, spaceHeld else { return }"))
         #expect(source.contains("panCamera(by:"))
         // The old policy read `if shiftHeld { marquee } else { pan }` — a plain
         // drag panning. Nothing may reintroduce an unmodified pan.
@@ -43,16 +45,42 @@ struct CanvasInteractionPolicyGuardTests {
     @Test("the pan/marquee gesture stands down while a card drag is live")
     func panDoesNotFightTheCardDrag() throws {
         let source = try appSource(sceneViewPath)
-        #expect(source.contains("guard draggingNodeId == nil else { marqueeRect = nil; return }"))
+        // Both halves stand down: the marquee (.updating) resets its rect and
+        // the pan (.onChanged) returns while a card drag or resize is live.
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {"))
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, spaceHeld else { return }"))
+    }
+
+    @Test("the marquee rect cannot outlive a cancelled drag")
+    func marqueeRectResetsOnCancel() throws {
+        let source = try appSource(sceneViewPath)
+        // Ghost-marquee fix (2026-08-22): SwiftUI never calls .onEnded on a
+        // CANCELLED gesture (a competing recognizer winning, Space mid-drag,
+        // focus loss), so a @State rect cleared only in .onEnded stayed
+        // painted. @GestureState resets on end AND cancel.
+        // @GestureState is the property under test, not its access level: the
+        // 2026-08-22 file_length split moved `marqueeOverlay` into +Gestures,
+        // and Swift's `private` is FILE-scoped, so the rect had to widen. What
+        // must never come back is @State, which is what left ghost marquees on
+        // screen after a CANCELLED gesture.
+        #expect(source.contains("@GestureState var marqueeRect: CGRect?"))
+        #expect(!source.contains("@State private var marqueeRect"))
+        #expect(!source.contains("@State var marqueeRect"))
+        #expect(source.contains(".updating($marqueeRect)"))
     }
 
     @Test("Space is a visible mode: a cursor change, on a focusable canvas")
     func spaceHasAnAffordance() throws {
+        // applyPanCursor's body moved to CanvasSceneView+Camera.swift in the
+        // 2026-08-20 split; the wiring (.onChange caller) stays in the host.
         let source = try appSource(sceneViewPath)
+            + appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Camera.swift")
         #expect(source.contains("applyPanCursor"))
         #expect(source.contains("NSCursor.openHand"))
-        // `.onKeyPress` only fires on a focused view.
-        #expect(source.contains(".focusable()"))
+        // `.onKeyPress` only fires on a focused view; `.focusable()` moved
+        // into the shared CanvasKeyboardNav modifier the host applies.
+        let keyboardNav = try appSource("Views/Library/ViewModes/Canvas/CanvasKeyboardNav.swift")
+        #expect(keyboardNav.contains(".focusable()"))
     }
 
     @Test("the shared modifier tracker observes Space without swallowing it")
@@ -65,7 +93,12 @@ struct CanvasInteractionPolicyGuardTests {
     @Test("the 2D canvas asks for the grid default, and the camera frames it")
     func canvasUsesGridDefault() throws {
         let source = try appSource(sceneViewPath)
-        #expect(source.contains("defaultPlacement: .grid(columns:"))
+        // §18.1 defect 3 (2026-08-22): the column count now comes from the ONE
+        // shared viewport derivation, so the call wraps across lines — pin the
+        // derivation itself, which is also the stronger property (2D and 3D
+        // cannot drift apart).
+        #expect(source.contains("defaultPlacement: .grid("))
+        #expect(source.contains("CanvasGridPlacement.sharedColumnCount("))
         #expect(source.contains("needsFitOnNextContent = true"))
     }
 }

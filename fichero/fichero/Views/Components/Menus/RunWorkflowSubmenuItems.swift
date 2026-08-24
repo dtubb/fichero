@@ -43,18 +43,28 @@ struct RunWorkflowSubmenuItems: View {
             // tri-state fallback and the UI filter is an affordance, not a gate.
             Menu(workflow.name) {
                 Button("Default") { action(workflow.id, nil, nil) }
-                ForEach(providerCache.providers.filter { $0.available }) { provider in
-                    switch provider.runMenuEntry(requiresVision: workflow.requiresVision) {
-                    case .providerOnly:
-                        Button(provider.name) { action(workflow.id, provider.id, nil) }
-                    case .models(let models):
-                        Menu(provider.name) {
-                            ForEach(models, id: \.self) { model in
-                                Button(model) { action(workflow.id, provider.id, model) }
+                ForEach(providerCache.providers) { provider in
+                    if provider.available {
+                        switch provider.runMenuEntry(requiresVision: workflow.requiresVision) {
+                        case .providerOnly:
+                            Button(provider.name) { action(workflow.id, provider.id, nil) }
+                        case .models(let models):
+                            Menu(provider.name) {
+                                ForEach(models, id: \.self) { model in
+                                    Button(model) { action(workflow.id, provider.id, model) }
+                                }
                             }
+                        case nil:
+                            EmptyView()
                         }
-                    case nil:
-                        EmptyView()
+                    } else {
+                        // A keyless provider used to VANISH from this menu
+                        // (Ann, 2026-08-24: added Google Gemini without a key
+                        // yet — the menu kept offering only the GPT-4 default,
+                        // reading as "my provider never saved"). A disabled
+                        // row says the truth: it exists, it needs its key.
+                        Button("\(provider.name) — needs API key") {}
+                            .disabled(true)
                     }
                 }
             }

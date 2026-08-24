@@ -22,8 +22,14 @@ extension Notification.Name {
 final class SiblingSwipeScrollView: NSScrollView {
     private var accumulatedX: CGFloat = 0
     private var accumulatedY: CGFloat = 0
-    private var horizontalIntent = false
+    private var firedThisGesture = false
     private static let threshold: CGFloat = 60
+    /// Entry ladder (2026-08-23): at the REGION rung the crop is fully
+    /// visible but the page around it still pans, so pan-first would swallow
+    /// the zoom-out swipe. When set, vertical swipes NAVIGATE regardless of
+    /// pannability (and vertical panning yields); horizontal keeps the
+    /// pan-first sibling grammar.
+    var verticalSwipeAlwaysNavigates = false
 
     override func scrollWheel(with event: NSEvent) {
         guard let doc = documentView else {
@@ -40,40 +46,60 @@ final class SiblingSwipeScrollView: NSScrollView {
         // move anything if the entire image is visible?"). The gesture is
         // pure navigation in that state; native panning returns the moment
         // either axis actually overflows.
-        if canPanHorizontally || canPanVertically {
+        // A vertical-leaning event in ladder mode belongs to the ladder, not
+        // the pan — passing it to super would scroll the page out from under
+        // the step.
+        let verticalLeaning = abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX)
+        let ladderOwnsThisEvent = verticalSwipeAlwaysNavigates && verticalLeaning
+        if (canPanHorizontally || canPanVertically) && !ladderOwnsThisEvent {
             super.scrollWheel(with: event)
         }
-        switch event.phase {
-        case .began:
+        // Flaky-swipe fix (Daniel, 2026-08-21: "doesn't always let you swipe
+        // up or down"). Two causes, both timing:
+        //   * intent was classified at .began from the FIRST event's deltas,
+        //     which are often (0, 0) — a coin-flip start misrouted the axis;
+        //   * a quick FLICK delivers most of its distance as MOMENTUM events,
+        //     which were never accumulated — so slow deliberate drags worked
+        //     and fast natural ones under-counted the 60pt threshold.
+        // Now the axis is read from the totals at evaluation time, momentum
+        // keeps accumulating, and the swipe fires at whichever end (gesture
+        // or momentum) first crosses the threshold — once per gesture.
+        if event.phase == .began {
             accumulatedX = 0
             accumulatedY = 0
-            horizontalIntent = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
-        case .changed:
+            firedThisGesture = false
+        }
+        if event.phase == .changed || event.momentumPhase == .changed {
             accumulatedX += event.scrollingDeltaX
             accumulatedY += event.scrollingDeltaY
-        case .ended:
+        }
+        if event.phase == .ended || event.momentumPhase == .ended, !firedThisGesture {
+            let horizontalIntent = abs(accumulatedX) > abs(accumulatedY)
             if horizontalIntent, !canPanHorizontally, abs(accumulatedX) > Self.threshold {
                 // Natural scrolling: fingers left → negative deltaX → NEXT,
                 // matching Preview.app's page grammar.
+                firedThisGesture = true
                 NotificationCenter.default.post(
                     name: .previewSiblingSwipe,
                     object: accumulatedX < 0 ? 1 : -1
                 )
-            } else if !horizontalIntent, !canPanVertically, abs(accumulatedY) > Self.threshold {
+            } else if !horizontalIntent,
+                      !canPanVertically || verticalSwipeAlwaysNavigates,
+                      abs(accumulatedY) > Self.threshold {
                 // Vertical = the RENDITION axis (Daniel, 2026-08-21). Same
                 // pan-first rule: a vertically-overflowing zoom keeps native
                 // scrolling; the flip engages only when there is nothing to
                 // pan. Fingers up → negative deltaY → NEXT rendition.
+                firedThisGesture = true
                 NotificationCenter.default.post(
                     name: .previewRenditionSwipe,
                     object: accumulatedY < 0 ? 1 : -1
                 )
             }
+        }
+        if event.momentumPhase == .ended {
             accumulatedX = 0
             accumulatedY = 0
-            horizontalIntent = false
-        default:
-            break
         }
     }
 }

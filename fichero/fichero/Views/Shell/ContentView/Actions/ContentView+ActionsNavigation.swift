@@ -147,12 +147,20 @@ extension ContentView {
     /// `navigableSiblings` above then keeps later steps inside the folder.
     private func navigateIntoFolder(_ folder: Document, forward: Bool) {
         Task { @MainActor in
+            // Same filter FolderContentsPreview uses — the folder's preview IS
+            // its first previewable child, so the sets must agree or the first
+            // step can land on an item the preview never showed.
             let kids = displayOrdered(
                 await documentStore.children(of: folder.id)
-                    .filter { $0.docType != .folder },
+                    .filter { $0.docType != .folder && !$0.isWorkflowNode },
                 folderId: folder.id
             )
-            guard let target = forward ? kids.first : kids.last else { return }
+            // The folder preview already shows kids.first: a forward step to it
+            // swaps identical pixels and reads as a dead swipe (Daniel: "same
+            // preview twice, then it moves to the second"). Forward therefore
+            // seeds PAST the shown child; backward still enters at the end.
+            let target = forward ? (kids.dropFirst().first ?? kids.first) : kids.last
+            guard let target else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 detailDocument = target
                 browserSelection = [target.id]
@@ -170,37 +178,6 @@ extension ContentView {
     /// current folder's sort order. Wraps with a small easeInOut animation so
     /// the EditorView's `.transition(.opacity)` produces a crossfade instead
     /// of a hard cut.
-
-    /// Sidebar-scoped stepping (Daniel, 2026-08-21): with MULTIPLE sidebar
-    /// rows selected, ←/→ rotates within that selection (wrap-around); the
-    /// walk works whether or not the library pane has focus, because it rides
-    /// the same notification the swipe posts. Returns true when it consumed
-    /// the step.
-    private func stepWithinSidebarSelection(forward: Bool, from current: Document) -> Bool {
-        let selectedDocIds = sidebarSelectionState.selectedDestinations.compactMap { dest -> String? in
-            if case .document(let id) = dest { return id }
-            return nil
-        }
-        guard selectedDocIds.count > 1, selectedDocIds.contains(current.id) else { return false }
-        let pool = documentStore.currentDocuments
-            + documentStore.collections
-            + documentStore.childrenCache.values.flatMap { $0 }
-        var docsById: [String: Document] = [:]
-        for doc in pool where docsById[doc.id] == nil { docsById[doc.id] = doc }
-        let members = displayOrdered(
-            selectedDocIds.compactMap { docsById[$0] },
-            folderId: current.parentId
-        )
-        guard members.count > 1,
-              let idx = members.firstIndex(where: { $0.id == current.id }) else { return false }
-        let target = members[(idx + (forward ? 1 : members.count - 1)) % members.count]
-        NavTrace.log("stepWithinSidebarSelection", "\(current.id) → \(target.id)")
-        withAnimation(.easeInOut(duration: 0.2)) {
-            detailDocument = target
-            browserSelection = [target.id]
-        }
-        return true
-    }
 
     /// The "single sidebar file" fallback (Daniel, 2026-08-21: "it should
     /// swipe to next file in sidebar. right now it does nothing"): the doc's
@@ -226,13 +203,40 @@ extension ContentView {
         }
     }
 
+    /// A multi-selection with nothing "in hand" (the fan is showing,
+    /// detailDocument nil — icon and dataset views land here): seed the walk
+    /// from the selection's document-order primary so ←/→ starts rotating
+    /// instead of dying in the guard (Daniel, 2026-08-23: "if three icons are
+    /// selected I can't seem to rotate between them").
+    private func seededCurrentDocument() -> Document? {
+        if let detailDocument { return detailDocument }
+        guard browserSelection.count > 1 else { return nil }
+        let pool = documentStore.currentDocuments
+            + documentStore.childrenCache.values.flatMap { $0 }
+        var docsById: [String: Document] = [:]
+        for doc in pool where docsById[doc.id] == nil { docsById[doc.id] = doc }
+        // Document-order primary, never Set.first (2026-08-09 rule 2) — the
+        // guardrail caught exactly that here.
+        let primaryId = shellPrimarySelectionId(
+            in: browserSelection, orderedBy: documentStore.currentDocuments
+        ) ?? browserSelection.compactMap { docsById[$0] }.map(\.id).sorted().first
+        let members = displayOrdered(
+            browserSelection.compactMap { docsById[$0] },
+            folderId: primaryId.flatMap { docsById[$0]?.parentId }
+        )
+        guard let primary = members.first else { return nil }
+        detailDocument = primary
+        return primary
+    }
+
     func navigateSiblingPrevious() {
-        guard let current = detailDocument else { return }
+        guard let current = seededCurrentDocument() else { return }
         if isPlainFolder(current) {
             navigateIntoFolder(current, forward: false)
             return
         }
         if stepWithinSidebarSelection(forward: false, from: current) { return }
+        if stepWithinLibrarySelection(forward: false, from: current) { return }
         let docs = navigableSiblings(for: current)
         if docs.count <= 1 { stepViaFetchedSiblings(forward: false, from: current); return }
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx > 0 else { return }
@@ -243,12 +247,13 @@ extension ContentView {
 
     /// Move to the next sibling. Symmetric to navigateSiblingPrevious.
     func navigateSiblingNext() {
-        guard let current = detailDocument else { return }
+        guard let current = seededCurrentDocument() else { return }
         if isPlainFolder(current) {
             navigateIntoFolder(current, forward: true)
             return
         }
         if stepWithinSidebarSelection(forward: true, from: current) { return }
+        if stepWithinLibrarySelection(forward: true, from: current) { return }
         let docs = navigableSiblings(for: current)
         if docs.count <= 1 { stepViaFetchedSiblings(forward: true, from: current); return }
         guard let idx = docs.firstIndex(where: { $0.id == current.id }), idx < docs.count - 1 else { return }

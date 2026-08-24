@@ -42,13 +42,26 @@ struct CanvasSelectionVisualGuardTests {
     /// type, split only for file length, so a guard about the view should not
     /// care which half a line landed in.
     private func hostSource() throws -> String {
+        // Gestures split out on 2026-08-22 (ghost-marquee rework) — the
+        // decoration guards live there now; the host is all three files.
         try appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView.swift")
+            + appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Gestures.swift")
             + appSource("Views/Library/ViewModes/Canvas/2D/CanvasSceneView+Resize.swift")
     }
 
     /// The renderers' `applyOne` bodies, which is where the defect lived.
+    ///
+    /// Each renderer is a FILE SET: the 2026-08-22 file_length split moved op
+    /// application into +Ops.swift, and a guard still reading only the main
+    /// file would pass because the code it forbids is no longer in the file it
+    /// reads — a guard that has stopped guarding.
     private func renderers() throws -> [(name: String, source: String)] {
-        [("2D ortho", try appSource(ortho2DPath)), ("3D scene", try appSource(scene3DPath))]
+        [
+            ("2D ortho", try appSource(ortho2DPath)
+                + appSource("Views/Library/ViewModes/Canvas/2D/CanvasOrtho2DRenderer+Ops.swift")),
+            ("3D scene", try appSource(scene3DPath)
+                + appSource("Views/Library/ViewModes/Canvas/3D/CanvasScene3DRenderer+Ops.swift")),
+        ]
     }
 
     @Test("neither renderer reskins a card when the selection changes")
@@ -112,7 +125,10 @@ struct CanvasSelectionVisualGuardTests {
         let source = try hostSource()
         // A resize starts on a HANDLE, so `draggingNodeId` stays nil and the
         // background gesture's existing guard does not cover it.
-        #expect(source.contains("guard resizeHandle == nil else { marqueeRect = nil; return }"))
+        // Ghost-marquee fix (2026-08-22): the marquee is @GestureState now, so
+        // the resize stand-down is the combined guard in .updating rather than
+        // an explicit nil assignment.
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {"))
         #expect(source.contains("if resizeHandle == nil, draggingNodeId == nil, !spaceHeld"))
     }
 

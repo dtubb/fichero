@@ -9,7 +9,7 @@ extension ContentView {
     // MARK: Resident search field (#4604)
 
     /// The always-there window search: magnifier-as-menu + field + clear.
-    // internal: ContentView+Toolbar.swift mounts this; `private` is FILE-scoped.
+    /// internal: ContentView+Toolbar.swift mounts this; `private` is FILE-scoped.
     var toolbarSearchField: some View {
         HStack(spacing: 4) {
             searchModeMenu
@@ -39,9 +39,11 @@ extension ContentView {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
+        // No grey pill (Daniel, 2026-08-23: "weird grey background … look at
+        // Finder"): a hairline-stroked field like Finder's, not a filled chip.
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(.quaternary.opacity(0.5))
+                .strokeBorder(.quaternary, lineWidth: 1)
         )
         .help("Search the library — the magnifier picks the mode")
     }

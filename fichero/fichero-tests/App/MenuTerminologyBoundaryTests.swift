@@ -2,7 +2,10 @@ import XCTest
 
 final class MenuTerminologyBoundaryTests: XCTestCase {
     func testFileAndImportMenusUseLibraryAndMoveTerminology() throws {
+        // Export handlers split to FileMenuCommands+Export.swift (2026-08-21,
+        // file_length) — the service call moved there; the labels stayed.
         let fileMenuSource = try Self.appSource("App/Menus/FileMenuCommands.swift")
+            + Self.appSource("App/Menus/FileMenuCommands+Export.swift")
         XCTAssertTrue(fileMenuSource.contains("Button(\"Close Library\")"))
         XCTAssertTrue(fileMenuSource.contains("Button(\"Save Library As...\")"))
         XCTAssertTrue(fileMenuSource.contains("Label(\"Markdown Static Site...\", systemImage: \"globe\")"))

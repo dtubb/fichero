@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fichero_server.models.anchors import AnchorSpace, SourceAnchor
 from fichero_server.models.knowledge import KnowledgeClaim
 from fichero_server.knowledge.paragraph import ParagraphStyle, render_paragraph_claims
 from fichero_server.workflows.tools._entity_writer import save_claim
@@ -26,7 +27,12 @@ def _seed_claim(
         source_excerpt=source_excerpt,
         source_char_start=source_char_start,
         source_char_end=source_char_end,
-        source_bbox=[10.0, 20.0, 30.0, 40.0],
+        source_anchor=SourceAnchor(
+            document_id=source_document_id,
+            rect=[10.0, 20.0, 30.0, 40.0],
+            # PDF page coordinates, which is what the old bare field held.
+            space=AnchorSpace.pixel,
+        ),
         subject_canonical=subject,
         predicate_verb=verb,
         object_phrase=obj,

@@ -43,6 +43,8 @@ struct AIModelSelectionView: View {
     @State private var models: [ModelInfo] = []
     @State private var isLoading = true
     @State private var loadError: String?
+    @State private var addError: String?
+    @State private var addedModelIds: Set<String> = []
     @State private var searchText = ""
     @State private var sortOrder: ModelSortOrder = .recommended
     @State private var filters = ModelFilters()
@@ -230,7 +232,11 @@ struct AIModelSelectionView: View {
             } else {
                 List {
                     ForEach(filteredModels) { model in
-                        ModelInfoRow(model: model, isSelected: selectedModel?.modelId == model.modelId) {
+                        ModelInfoRow(
+                            model: model,
+                            isSelected: selectedModel?.modelId == model.modelId,
+                            isAdded: addedModelIds.contains(model.modelId)
+                        ) {
                             handleModelTap(model)
                         }
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
@@ -238,6 +244,18 @@ struct AIModelSelectionView: View {
                     }
                 }
                 .listStyle(.plain)
+            }
+        }
+        // An immediate-mode add that fails must be SEEN, not just logged
+        // (Ann, 2026-08-24: "we added a model and it wasn't saved").
+        .safeAreaInset(edge: .bottom) {
+            if let addError {
+                Text(addError)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 6)
             }
         }
         .task {
@@ -271,6 +289,7 @@ struct AIModelSelectionView: View {
     }
 
     private func addModel(_ model: ModelInfo) {
+        addError = nil
         Task {
             do {
                 _ = try await providerService.addModel(
@@ -279,9 +298,11 @@ struct AIModelSelectionView: View {
                     name: model.fullName,
                     isDefault: false
                 )
+                addedModelIds.insert(model.modelId)
                 onModelAdded()
             } catch {
                 logger.error("Add model failed: \(String(describing: error))")
+                addError = "Couldn't add \(model.modelId): \(error.localizedDescription)"
             }
         }
     }

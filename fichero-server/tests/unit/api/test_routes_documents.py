@@ -1037,6 +1037,19 @@ class TestImportDocument:
         assert result.id == "imported-doc"
         assert not temp_path.exists()
 
+    def test_import_rejects_empty_upload_with_422(self, client):
+        """A zero-byte upload is a failed read at the source (the 2026-08-23
+        "Document" node: a drag provider promised data, wrote nothing, and the
+        import minted a permanent hollow document). Refuse, never ingest."""
+        r = client.post(
+            "/api/documents/import",
+            files={"file": ("Document", b"", "application/octet-stream")},
+        )
+
+        assert r.status_code == 422, r.text
+        assert "Empty upload refused" in r.json()["detail"]
+        assert len(client.get("/api/documents").json()["items"]) == 1
+
     def test_import_rejects_oversized_upload_with_413(self, client, db, monkeypatch):
         monkeypatch.setattr(storage_module.settings, "max_upload_bytes", 128)
 

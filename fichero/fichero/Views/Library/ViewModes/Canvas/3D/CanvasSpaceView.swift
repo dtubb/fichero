@@ -36,6 +36,7 @@ struct CanvasSpaceView: View {
     var layoutStore: CanvasLayoutStore?
     /// The CURRENT library's storage service for thumbnail textures (#4160).
     var storageService: StorageService?
+
     var itemStore: CanvasItemStore?
     var folderScopeId: String?
     /// Container spatial node ids (folder / workspace) from LibraryView — drives
@@ -45,6 +46,16 @@ struct CanvasSpaceView: View {
     /// LibraryView. `(nodeId, containerNodeId)`.
     var moveIntoContainer: (String, String) -> Void = { _, _ in }
 
+    /// WHICH cards matter right now — the active search's score-weighted heat
+    /// map today, an entity highlight when a picker lands (§25.4 step 2). One
+    /// channel, so the two can never grow different visual languages. Neutral
+    /// outside a search, and it moves nothing.
+    var emphasis: CanvasEmphasis = .neutral
+
+    /// WHAT each card is, in colour (§20.3 Colour by) — the other re-encode
+    /// channel, produced by the host from document attributes.
+    var tint: CanvasTint = .neutral
+
     @Environment(\.undoManager) var undoManager
 
     @State var renderer = CanvasScene3DRenderer()
@@ -53,14 +64,31 @@ struct CanvasSpaceView: View {
     @State private var zoomBaseline: Float = 0
     @State var optionHeld = false
 
+    /// Where this WINDOW has been looking (§16). View state: per window, saved
+    /// nowhere, never near the layout store.
+    @State var jumpHistory = CanvasJumpHistory<(lookAt: SIMD3<Float>, distance: Float)>()
+
     @State var draggingNodeId: String?
     @State var dragStartWorld: SIMD3<Double>?
 
     /// Upper bound on entities placed at once (#1400 WindowServer watchdog): a
     /// large scope renders a bounded prefix + a banner, never a runaway scene.
-    private static let maxRenderedPlaceables = 10_000
+    ///
+    /// Internal, not private: `LibraryView.renderedSpaceDocumentIds` reads it so
+    /// ⌘A covers exactly what this view renders. One constant, one meaning of
+    /// "visible" — duplicating the bound is how the two would drift.
+    ///
+    /// `nonisolated`: a View static inherits MainActor under the macOS 26 SDK
+    /// and SIGTRAPs any off-main Swift Testing suite that reads it (#4201) —
+    /// the ⌘A visible-surface tests read this cap.
+    nonisolated static let maxRenderedPlaceables = 10_000
 
     private var scopeKey: String { folderScopeId ?? wholeLibraryRoomId }
+
+    /// The §20.3 "Arrange by" axis, written by `CanvasArrangePicker`. Both
+    /// canvases READ this one key: they share a layout store, so a board they
+    /// disagree about is two different boards.
+    @AppStorage(CanvasArrangement.storageKey) private var arrangementRaw = CanvasArrangement.asFiled.rawValue
 
     private var renderableItems: [CanvasItemDisplay] {
         (itemStore?.items(for: scopeKey) ?? []).filter { $0.kind != .link }
@@ -69,7 +97,24 @@ struct CanvasSpaceView: View {
     private var isTruncated: Bool { nodes.count + renderableItems.count > Self.maxRenderedPlaceables }
     private var isEmpty: Bool { nodes.isEmpty && (itemStore?.items(for: scopeKey).isEmpty ?? true) }
 
-    private var resolvedState: CanvasSceneState {
+    /// The default grid's cell pitch, from the page aspects loaded so far
+    /// (§18.1 defect 4). Aspects arrive as textures load, so a board of
+    /// row-less cards can re-flow ONCE as they land — the same class of re-flow
+    /// as resizing the window, and bounded the same way: a saved row always
+    /// wins, so nothing the user has placed ever moves.
+    private var gridCell: CGSize {
+        CanvasGridPlacement.cell(
+            forAspects: CanvasCardGeometry.knownAspects(
+                forSourceIds: nodes.compactMap(\.sourceId)
+            )
+        )
+    }
+
+    /// How many cards the board lays out — nodes plus the non-link items, the
+    /// same sequence `CanvasSceneState.resolve` slots.
+    private var placeableCount: Int { nodes.count + renderableItems.count }
+
+    private func resolvedState(in viewportSize: CGSize) -> CanvasSceneState {
         var state = CanvasSceneState.resolve(
             nodes: nodes,
             connections: connections,
@@ -79,15 +124,26 @@ struct CanvasSpaceView: View {
             // Daniel's ruling (2026-08-19, #4601): a folder with no saved
             // layout opens as a PAGE-ORDER grid, left to right, in BOTH
             // canvases — the phyllotaxis default made 3D open scattered and
-            // different from 2D. Columns follow the ceil(sqrt(n)) convention
-            // the Arrange-in-Grid button and the backend `grid` strategy
-            // already use; saved rows still win over the default.
-            defaultPlacement: .grid(columns: 10)
+            // different from 2D. Columns come from the ONE shared derivation
+            // (§18.1 defect 3), which takes no camera precisely so this and the
+            // 2D canvas cannot produce different boards; saved rows still win.
+            defaultPlacement: .grid(
+                columns: CanvasGridPlacement.sharedColumnCount(
+                    itemCount: placeableCount, viewportSize: viewportSize, cell: gridCell
+                )
+            ),
+            // Pitch from the board's ACTUAL card extents, not the nominal
+            // 1.0 × 0.75 (§18.1 defect 4): CanvasCardGeometry normalises on
+            // area, so a double-spread is 1.22 wide and needs the room.
+            gridCell: gridCell,
+            arrangement: CanvasArrangement.stored(arrangementRaw)
         )
         if state.placeables.count > Self.maxRenderedPlaceables {
             state.placeables = Array(state.placeables.prefix(Self.maxRenderedPlaceables))
         }
         state.selection = selectedNodeIds
+        state.emphasis = emphasis
+        state.tint = tint
         return state
     }
 
@@ -112,12 +168,19 @@ struct CanvasSpaceView: View {
     private var scene: some View {
         GeometryReader { geo in
             RealityView { content in
+                // BEFORE the first reconcile (first-load fix, 2026-08-22):
+                // `configureController()` runs in `.task`, which fires after
+                // this closure — cards built here fetched thumbnails with a
+                // nil service, fell back to the global library, 404'd, and
+                // sat out a retry wait before the right library was asked.
+                renderer.storageService = storageService
                 content.add(renderer.camera)
                 content.add(renderer.root)
-                renderer.reconcile(to: resolvedState)
+                renderer.reconcile(to: resolvedState(in: geo.size))
             } update: { _ in
+                renderer.storageService = storageService
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
-                renderer.reconcile(to: resolvedState)
+                renderer.reconcile(to: resolvedState(in: geo.size))
             }
             .highPriorityGesture(marqueeGesture(in: geo.size), isEnabled: marqueeModifiersHeld)
             .highPriorityGesture(nodeDrag)
@@ -174,6 +237,7 @@ struct CanvasSpaceView: View {
                 },
                 selectedNodeIds: $selectedNodeIds
             ))
+            .focusedSceneValue(\.canvasViewActions, canvasCommandActions)
             .overlay(alignment: .top) { if isTruncated { truncationBanner } }
             .overlay(alignment: .topTrailing) { canvasToolbar }
             .modifier(CanvasModifierTracker(optionHeld: $optionHeld))
@@ -203,7 +267,10 @@ struct CanvasSpaceView: View {
     /// ALL through the shared `CanvasInteractionController`, so 3D CRUD behaves
     /// identically to 2D (it IS the same controller).
     private var canvasToolbar: some View {
-        HStack(spacing: 6) {
+        // VERTICAL, top-right going down (Daniel, 2026-08-23): spatial
+        // manipulation is the right-edge capsule stack; Arrange/Colour-by
+        // moved to the library's bottom bar with the other filters.
+        VStack(spacing: 6) {
             Menu {
                 Button("Note") { addItem(.note) }
                 Button("Quote") { addItem(.quote) }
@@ -245,7 +312,10 @@ struct CanvasSpaceView: View {
     /// controller (the 2D canvas ignores z, so this stays two projections of one
     /// row). Reads the resolved current position so it works with or without a row.
     private func adjustZ(of id: String, by delta: Double) {
-        guard let current = resolvedState.placeables.first(where: { $0.id == id })?.position else { return }
+        // From the renderer's applied placeables rather than a fresh resolve:
+        // it IS the state on screen, and resolving needs a viewport now that
+        // columns are viewport-derived (§18.1 defect 3).
+        guard let current = renderer.placeablesById[id]?.position else { return }
         let moved = SIMD3<Double>(current.x, current.y, current.z + delta)
         Task { await controller?.moveItem(id: id, to: moved) }
     }

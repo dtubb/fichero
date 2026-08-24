@@ -35,21 +35,56 @@ struct StatusIslandToolbarTests {
             importProgress: importProgress,
             backendWorkLabel: backendWorkLabel,
             runningWorkflows: runningWorkflows,
-            selectionCount: selectionCount
+            selection: StatusIslandSelection(count: selectionCount)
         )
     }
 
     // MARK: - Photos-style selection indicator (#29 / Daniel #138)
 
-    @Test("a multi-selection reads N selected, outranking background work")
-    func multiSelectionOutranksBackgroundWork() {
-        let status = resolve(backendWorkLabel: "Embedding — 40%", runningWorkflows: 3, selectionCount: 12)
-        #expect(status == StatusIslandMessage(text: "12 selected", isError: false))
+    @Test("live work outranks the selection (Ann 2026-08-24: '98 selected' hid the run)")
+    func liveWorkOutranksSelection() {
+        // Backend work keeps its OWN precedence over the workflow count (it
+        // carries a %); both sit above the selection now.
+        let status = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: "Embedding — 40%", runningWorkflows: 3,
+            selection: StatusIslandSelection(count: 12, noun: "images")
+        )
+        #expect(status == StatusIslandMessage(text: "Embedding — 40%", isError: false))
     }
 
-    @Test("a single selection stays quiet — Ready wins")
-    func singleSelectionStaysQuiet() {
-        #expect(resolve(selectionCount: 1) == StatusIslandMessage(text: "Ready", isError: false))
+    @Test("running workflows outrank the selection when no backend label exists")
+    func workflowsOutrankSelection() {
+        let status = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: nil, runningWorkflows: 3,
+            selection: StatusIslandSelection(count: 98, noun: "images")
+        )
+        #expect(status == StatusIslandMessage(text: "Running 3 workflows…", isError: false))
+    }
+
+    @Test("a multi-selection counts in its noun when nothing is running")
+    func multiSelectionCountsWhenIdle() {
+        let status = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: nil, runningWorkflows: 0,
+            selection: StatusIslandSelection(count: 12, noun: "images")
+        )
+        #expect(status == StatusIslandMessage(text: "12 images selected", isError: false))
+    }
+
+    @Test("a single selection names the ITEM (Daniel, 2026-08-23)")
+    func singleSelectionNamesTheItem() {
+        let status = StatusIslandMessage.resolve(
+            enginePhase: .ready, engineStatusTitle: "Connected",
+            importError: nil, isImporting: false, importProgress: nil,
+            backendWorkLabel: nil, runningWorkflows: 0,
+            selection: StatusIslandSelection(count: 1, label: "January 1, 1933")
+        )
+        #expect(status == StatusIslandMessage(text: "January 1, 1933", isError: false))
     }
 
     @Test("an error or a live import outranks the selection count")
@@ -60,9 +95,9 @@ struct StatusIslandToolbarTests {
 
     // MARK: - Message precedence
 
-    @Test("an idle, connected app reads Ready")
-    func idleReadsReady() {
-        #expect(resolve() == StatusIslandMessage(text: "Ready", isError: false))
+    @Test("an idle, connected app shows NOTHING (Daniel, 2026-08-23: no 'Ready')")
+    func idleIsQuiet() {
+        #expect(resolve() == StatusIslandMessage(text: "", isError: false))
     }
 
     /// The island shows the SAME short title the popover puts on the same
@@ -110,7 +145,15 @@ struct StatusIslandToolbarTests {
                 let status = resolve(enginePhase: phase, engineStatusTitle: mapped.title)
                 #expect(!status.text.contains("PYTHONPATH"))
                 #expect(!status.text.contains("python -m"))
-                #expect(!status.text.isEmpty)
+                // .setupNeeded/.ready fall through to the QUIET idle
+                // (Daniel, 2026-08-23: no 'Ready') — only phases the island
+                // owns a line for must speak.
+                switch phase {
+                case .setupNeeded, .ready:
+                    break
+                default:
+                    #expect(!status.text.isEmpty)
+                }
             }
         }
     }
@@ -211,17 +254,18 @@ struct StatusIslandToolbarTests {
         #expect(!between.contains("ToolbarItem("))
     }
 
-    /// Engine and activity live INSIDE the island now. Leaving either declared
-    /// as its own toolbar item would put the same control on screen twice.
-    @Test("engine and activity are hosted only inside the island")
-    func engineAndActivityAreHostedOnlyInTheIsland() throws {
+    /// REVERSED 2026-08-23 (Daniel: "separate the dynamic island from server
+    /// status and activity — they're all in one right now"): each is its OWN
+    /// toolbar item with its own glass; the island hosts NEITHER.
+    @Test("engine and activity are separate toolbar items, not island tenants")
+    func engineAndActivityAreSeparateItems() throws {
         let toolbar = try Self.appSource("Views/Shell/ContentView/ContentView+Toolbar.swift")
-        #expect(!toolbar.contains("ToolbarItem(id: ContentToolbarID.engineStatus"))
-        #expect(!toolbar.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
+        #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.engineStatus"))
+        #expect(toolbar.contains("ToolbarItem(id: ContentToolbarID.activityStatus"))
 
         let island = try Self.appSource("Views/Shell/Toolbar/StatusIslandToolbarItem.swift")
-        #expect(island.contains("EngineStatusToolbarItem()"))
-        #expect(island.contains("ActivityStatusToolbarItem("))
+        #expect(!island.contains("EngineStatusToolbarItem()"))
+        #expect(!island.contains("ActivityStatusToolbarItem("))
     }
 
     @Test("the activity status popover opens the Activity window")

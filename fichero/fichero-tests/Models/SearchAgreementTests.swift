@@ -102,15 +102,23 @@ final class SearchAgreementTests: XCTestCase {
     /// And the header still reads the rendered arrays, not this field — the
     /// #4403 property that #4505 must not undo.
     func testTheHeaderStillDoesNotReadRenderedTotal() throws {
+        // The bar UI split to ContentView+SearchResultsBar.swift (2026-08-21);
+        // the header line lives there now, so both halves are scanned.
         let source = Self.code(
             of: try AppSource.text("Views/Shell/ContentView/ContentView+SearchResults.swift")
+                + AppSource.text("Views/Shell/ContentView/ContentView+SearchResultsBar.swift")
         )
 
         XCTAssertFalse(
             source.contains("renderedTotal"),
             "the header must stay derived from the arrays the body renders (#4403)"
         )
-        XCTAssertTrue(source.contains("let total = transientSearchHitCounts.total"))
+        // #4118 moved the ruling on again: every leg's hits resolve into the
+        // grid as nodes, so the header counts the rows actually on screen —
+        // summing the legs would double-count a doc that also matched an
+        // entity. Still ONE source (the rendered array), which is the property
+        // #4403 established and this file exists to keep.
+        XCTAssertTrue(source.contains("let total = searchResultDocuments.count"))
     }
 
     // MARK: - Support

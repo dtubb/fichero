@@ -24,7 +24,25 @@ struct LibraryView: View {
     @Binding var detailDocument: Document?
     @Binding var viewMode: LibraryLayout
     var isPaneFocused: Bool = false
-    let displayMode: ViewDisplayMode  // Universal view mode from toolbar
+    /// The WINDOW's mode — the default a pane starts from.
+    let defaultDisplayMode: ViewDisplayMode
+    /// The modes this window can offer, for the head's lens menu (Daniel,
+    /// 2026-08-23: the view-mode picker leaves the window toolbar).
+    var availableDisplayModes: [ViewDisplayMode] = ViewDisplayMode.allCases
+    /// Per-PANE mode override (Daniel, 2026-08-23: "if you choose one
+    /// library as 3D both become 3D" — the window value is shared, so a
+    /// secondary split pane keeps its own choice here).
+    @State var paneDisplayModeOverride: ViewDisplayMode?
+    /// What THIS pane shows: its own override, else the window's mode.
+    var displayMode: ViewDisplayMode { paneDisplayModeOverride ?? defaultDisplayMode }
+    /// Routes a lens pick through ContentView's one mode-change seam.
+    var onChangeDisplayMode: ((ViewDisplayMode) -> Void)?
+    /// Hides the library list pane (the toolbar toggle's seam). nil when
+    /// hiding is refused (last visible pane) — the head then shows no X.
+    var onClosePane: (() -> Void)?
+    /// Pin to current view (Daniel, 2026-08-23): the host freezes/thaws the
+    /// browsed set. nil hides the pin row.
+    var isPanePinned: Binding<Bool>?
 
     let folderId: String?  // Current folder ID for per-folder sort persistence
     var onRequestFocus: () -> Void = {}  // Called on tap to pull keyboard focus into content area
@@ -72,6 +90,10 @@ struct LibraryView: View {
     /// image?") and its relevance on the right. Empty outside search.
     var searchRowHits: [String: TransientSearchRowHit] = [:]
 
+    /// The §20.3 "Colour by" choice, written by `CanvasColourPicker` in the
+    /// canvas control strips and read here to build the tint channel.
+    @AppStorage(CanvasColourBy.storageKey) var canvasColourByRaw = CanvasColourBy.off.rawValue
+
     @State var searchText: String = ""
     /// Precomputed lowercased ⌘F search keys per docId (#3865). Rebuilt only when
     /// the document set changes, so keystroke filtering is a dict lookup, not a
@@ -112,6 +134,14 @@ struct LibraryView: View {
     /// The data views' own selection numbers for the status line (nil in
     /// browse modes) — reported by DatasetModeView.
     @State var datasetSelectionStatus: DatasetSelectionStatus?
+    /// The dataset facets' store — pane-owned (2026-08-24) so the ONE bottom
+    /// bar's cluster and the renderer act on the same state. Per pane
+    /// instance, like the split state: split panes keep independent facets.
+    @State var datasetStore = DatasetModeStore()
+    /// What a dataset renderer is SHOWING, in view order — what ⌘A covers in
+    /// those modes (Daniel, 2026-08-23: "visible surface, always"). Empty
+    /// outside them.
+    @State var datasetVisibleIds: [String] = []
 
     /// Document pending presentation in the Add-to-Workspace picker (#1494).
     /// Non-nil drives the `.sheet(item:)` below.

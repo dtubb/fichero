@@ -217,12 +217,19 @@ class Document(BaseModel):
     # measurement.
     region_in_parent: NodeRegion | None = None
 
-    # DEPRECATED (2026-08-20): superseded by `region_in_parent`. Kept readable
-    # so existing rows decode, and because `_ensure_table` would ADD COLUMN it
-    # back onto any library created before the rename. Pixel ints against an
-    # unnamed frame — which is the original defect in miniature. New writes
-    # must use `region_in_parent`; the crop/split routes and the manifest
-    # importer are the remaining callers to convert.
+    # DEPRECATED (2026-08-20), and as of 2026-08-22 NOTHING WRITES IT.
+    #
+    # The last writer was `diary_entries.py`, which scaled normalized OCR
+    # geometry DOWN into pixel ints here — a conversion that needed the page's
+    # width/height and silently produced no geometry at all when the page
+    # metadata lacked them. It now writes `region_in_parent` directly, which
+    # removes the conversion and recovers those entries.
+    #
+    # The field stays READ-ONLY so pre-rename rows still decode, and because
+    # `_ensure_table` would ADD COLUMN it back onto any older library anyway.
+    # Removing it is a reimport-time cleanup, not a code change: pixel ints
+    # against an unnamed frame are the original defect in miniature, and the
+    # only thing keeping them here is data that predates the fix.
     bbox: tuple[int, int, int, int] | None = None  # x, y, width, height
 
     prototype_key: str | None = None  # user-assigned document prototype/class key
@@ -753,14 +760,6 @@ class ContentReviewState(str, Enum):
     reviewed = "reviewed"
 
 
-class ContentSourceAnchor(BaseModel):
-    document_id: str
-    page_id: str | None = None
-    char_start: int | None = None
-    char_end: int | None = None
-    bbox: list[float] | None = None
-
-
 class ContentRepresentation(BaseModel):
     """Immutable source-linked content representation (#3443 slice 1)."""
 
@@ -772,7 +771,18 @@ class ContentRepresentation(BaseModel):
     content: str
     language: str | None = None
     script: str | None = None
-    source_anchor: ContentSourceAnchor
+    #: The SHARED anchor (2026-08-22). This field used to carry a local
+    #: `ContentSourceAnchor` whose four fields — document_id / page_id /
+    #: char_start / char_end — were a strict SUBSET of `SourceAnchor`, plus a
+    #: `bbox` that is `rect` here. Two types meaning "where this came from" in
+    #: a program whose purpose is collapsing anchor representations was one
+    #: type too many, so the local one is gone rather than aliased: the order
+    #: was to retire old paths, and an alias keeps two names for one thing.
+    #:
+    #: It also gains what the local type could not express — `rendition_id`,
+    #: `granularity`, `refines`, `polygon` — so a representation can now say
+    #: WHICH pixel frame its region belongs to.
+    source_anchor: SourceAnchor
     parent_representation_id: str | None = None
     derived_from_representation_id: str | None = None
     producer_run_id: str | None = None
@@ -1180,32 +1190,23 @@ class Trace(BaseModel):
 # =============================================================================
 
 
-class Note(BaseModel):
-    """
-    User annotation on any object.
-
-    Can be attached to Documents or Artifacts.
-    Can have a position (bbox) for image annotations.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str = Field(default_factory=_new_id)
-
-    # Target
-    target_type: str  # "Document", "Artifact"
-    target_id: str
-
-    # Content
-    content: str
-    note_type: str = "comment"  # "comment", "question", "flag", "correction"
-
-    # Position (for image annotations)
-    bbox: tuple[int, int, int, int] | None = None
-
-    # Timestamps
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
+# `Note` LIVED HERE AND IS GONE (2026-08-23, Daniel's ruling).
+#
+# There were two live classes named `Note` — this one
+# (target_type / target_id / content / bbox) and `knowledge.Note`
+# (title / body / linked_document_ids). The table name is derived as
+# "lowercase + s", so BOTH claimed the table `notes`, and reading a real note
+# through this one raised a ValidationError. `routes/library/links.py` used it
+# to check a note exists before linking, so linking to a note could not
+# succeed. Nothing ever constructed it.
+#
+# It folded into `Annotation(kind=note)`, which already anchors to a document,
+# carries tags/links, and has a validated `anchor` where this had a bare pixel
+# `bbox`. Legacy rows are converted by
+# `MigrationRunner.migrate_legacy_notes_to_annotations`.
+#
+# Top-level note NODES remain `knowledge.Note`; annotations attach to
+# documents. Two concepts, two names, no collision.
 
 
 class DocumentNote(BaseModel):

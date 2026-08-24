@@ -66,6 +66,46 @@ extension LibraryView {
         }
     }
 
+    /// The active search, as canvas emphasis (§25.4 step 2, §18.2 B).
+    ///
+    /// The 2026-08-19 ruling did the hard part: every leg's hits already
+    /// resolve to parent documents and join ONE node set, and their per-row
+    /// payload — excerpt plus relevance — already reaches this view as
+    /// `searchRowHits`. So the heat map is a projection of what the List rows
+    /// read, not a second search path: the same scores, normalised once, in
+    /// `CanvasEmphasis.scoreWeighted`.
+    ///
+    /// Keys cross from document ids into placeable ids here, at the producer,
+    /// because that mapping is the host's knowledge and not the channel's.
+    /// Outside a search this is neutral, which is what leaves the board alone
+    /// rather than dimming all of it.
+    var canvasSearchEmphasis: CanvasEmphasis {
+        guard !searchRowHits.isEmpty else { return .neutral }
+        return CanvasEmphasis.scoreWeighted(
+            scores: Dictionary(
+                uniqueKeysWithValues: searchRowHits.map {
+                    (SpatialLibraryProjector.nodeId(forDocument: $0.key), $0.value.score)
+                }
+            )
+        )
+    }
+
+    /// The active colouring, as canvas tint (§20.3 Colour by).
+    ///
+    /// The producer lives here for the same reason the search-emphasis one
+    /// does: what a folder or a status IS belongs to the host, and the channel
+    /// only ever sees `placeable id → palette slot`. Document ids cross into
+    /// placeable ids here.
+    var canvasTint: CanvasTint {
+        let mode = CanvasColourBy.stored(canvasColourByRaw)
+        guard mode != .off else { return .neutral }
+        let values = documentStore.currentDocuments.reduce(into: [String: String]()) { map, document in
+            guard let value = mode.value(for: document) else { return }
+            map[SpatialLibraryProjector.nodeId(forDocument: document.id)] = value
+        }
+        return CanvasTint.byValue(values)
+    }
+
     @ViewBuilder
     var spaceModeView: some View {
         if featureManager.isCanvasRealityKit3DEnabled {
@@ -78,7 +118,9 @@ extension LibraryView {
                 itemStore: canvasItemStore,
                 folderScopeId: folderId ?? wholeLibraryRoomId,
                 containerIds: canvasContainerIds,
-                moveIntoContainer: moveCanvasNodeIntoContainer
+                moveIntoContainer: moveCanvasNodeIntoContainer,
+                emphasis: canvasSearchEmphasis,
+                tint: canvasTint
             )
             .contextMenu { canvasContextMenu() }
         } else {
@@ -115,7 +157,9 @@ extension LibraryView {
                 folderScopeId: folderId ?? wholeLibraryRoomId,
                 containerIds: canvasContainerIds,
                 moveIntoContainer: moveCanvasNodeIntoContainer,
-                storageService: activeLibraryReference?.storageService
+                storageService: activeLibraryReference?.storageService,
+                emphasis: canvasSearchEmphasis,
+                tint: canvasTint
             )
             .contextMenu { canvasContextMenu() }
         } else {

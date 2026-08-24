@@ -327,7 +327,15 @@ async def split_images(
     )
 
     output_files = [path for result in results for path in result.get("outputs", [])]
-    no_effect = describe_no_effect(files, output_files, {"renditions": child_report["children"]})
+    no_effect = describe_no_effect(
+        files,
+        output_files,
+        {
+            "renditions": child_report["children"],
+            "already_children": child_report.get("already_children", 0),
+            "skipped_reason": child_report.get("skipped_reason"),
+        },
+    )
     if no_effect:
         logger.warning("split_images: %s", no_effect)
     parts = [part for result in results for part in result.get("parts", [])]

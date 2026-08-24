@@ -41,10 +41,11 @@ enum PreviewSwapAnimation {
         case .pageStep(let forward):
             transition.subtype = forward ? .fromRight : .fromLeft
         case .renditionFlip(let forward):
-            // AppKit layers are y-up: .fromTop pushes content in from the
-            // BOTTOM of the screen. Forward (next rendition, fingers up)
-            // reads as the new image rising from below.
-            transition.subtype = forward ? .fromTop : .fromBottom
+            // Empirical (Daniel, 2026-08-22: "the animation is the wrong
+            // direction for flipping up and down") — the y-up reasoning was
+            // backwards on this layer: forward = next rendition comes from
+            // the TOP of the screen sense below.
+            transition.subtype = forward ? .fromBottom : .fromTop
         }
         view.wantsLayer = true
         view.layer?.add(transition, forKey: "previewSwap")
