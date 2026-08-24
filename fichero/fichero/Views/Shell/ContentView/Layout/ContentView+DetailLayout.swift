@@ -65,8 +65,17 @@ extension ContentView {
     }
 
     private var previewPaneHead: some View {
+        // The crumb names what the preview SHOWS — the image / spread /
+        // page / region itself, never the folder it lives in (Daniel,
+        // 2026-08-23). Same resolution the content branches use.
+        let shown = CanvasDocumentPolicy.documentForCanvas(
+            selectedDocumentIds: browserSelection,
+            documents: selectedDocuments,
+            detailDocument: detailDocument,
+            inspectorDocument: inspectorDocument
+        ) ?? detailDocument
         var crumbs: [PaneCrumb] = []
-        if let doc = detailDocument {
+        if let doc = shown {
             let ancestry = libraryPathCrumbs(
                 anchorId: doc.id,
                 resolve: { documentStore.resolveDocument($0) }

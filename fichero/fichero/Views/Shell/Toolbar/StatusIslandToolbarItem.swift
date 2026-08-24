@@ -32,6 +32,9 @@ struct StatusIslandToolbarItem: View {
     /// How many items the browsed set holds — "3 of 151 selected" (Daniel,
     /// 2026-08-23: the island mirrors the accurate bottom-bar count, once).
     let selectionTotal: Int
+    /// The single selection's display name — the island names THE ITEM, not
+    /// the library view (Daniel, 2026-08-23).
+    let selectionLabel: String?
     @Binding var importError: String?
 
     var body: some View {
@@ -96,7 +99,8 @@ struct StatusIslandToolbarItem: View {
             backendWorkLabel: activityStore.backendWork.map(Self.label(for:)),
             runningWorkflows: executionObserver.activeExecutions.count,
             selectionCount: selectionCount,
-            selectionTotal: selectionTotal
+            selectionTotal: selectionTotal,
+            selectionLabel: selectionLabel
         )
         return Text(status.text)
             .font(.subheadline)
@@ -209,7 +213,8 @@ struct StatusIslandMessage: Equatable {
         backendWorkLabel: String?,
         runningWorkflows: Int,
         selectionCount: Int = 0,
-        selectionTotal: Int = 0
+        selectionTotal: Int = 0,
+        selectionLabel: String? = nil
     ) -> StatusIslandMessage {
         switch enginePhase {
         case .portConflict, .authRejected, .unreachable, .failed:
@@ -237,6 +242,11 @@ struct StatusIslandMessage: Equatable {
                 ? "\(selectionCount.formatted()) of \(selectionTotal.formatted()) selected"
                 : "\(selectionCount.formatted()) selected"
             return .init(text: text, isError: false)
+        }
+        // ONE selection: the island names the ITEM (Daniel, 2026-08-23) —
+        // what is selected, not which view shows it.
+        if selectionCount == 1, let selectionLabel, !selectionLabel.isEmpty {
+            return .init(text: shortForm(selectionLabel), isError: false)
         }
         if let backendWorkLabel { return .init(text: shortForm(backendWorkLabel), isError: false) }
         if runningWorkflows > 0 {

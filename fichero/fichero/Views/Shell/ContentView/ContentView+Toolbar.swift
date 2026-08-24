@@ -317,6 +317,7 @@ extension ContentView {
                         libraryName: windowState.library?.displayName ?? "Library",
                         selectionCount: browserSelection.count,
                         selectionTotal: documentStore.currentDocuments.count,
+                        selectionLabel: inspectorDocument.map { DocumentTitle.displayName(for: $0) },
                         importError: $importError
                     )
                 }

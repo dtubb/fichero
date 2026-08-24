@@ -250,20 +250,25 @@ struct ReadingPaneView: View {
         )
         // The menu bar shows the SAME lens list, reading this publication —
         // one binding rendered twice, never a second switch (R3).
-        return head
-            .focusedSceneValue(\.readerLens, publishedReaderLens)
-            // Reader zoom is menu-command only (Daniel, 2026-08-23): the same
-            // ⌘+/⌘−/⌘0 commands the preview uses drive `webZoom` here. The
-            // preview's own publication wins whenever an image view is the
-            // focused scene value's source — standard focused-value shadowing.
-            .focusedSceneValue(\.imageZoomActions, ImageZoomActions(
-                zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
-                zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
-                actualSize: { webZoom = 1.0 },
-                zoomToFit: { webZoom = 1.0 },
-                canZoomIn: webZoom < 3.0,
-                canZoomOut: webZoom > 0.5
-            ))
+        let withLens = head.focusedSceneValue(\.readerLens, publishedReaderLens)
+        // Reader zoom is menu-command only (⌘+/⌘−/⌘0). Published ONLY while
+        // this pane is the active surface: the preview publishes the same
+        // key, and two simultaneous publishers is the "FocusedValue update
+        // tried to update multiple times per frame" fault (2026-08-23 live).
+        return Group {
+            if isActiveSurface {
+                withLens.focusedSceneValue(\.imageZoomActions, ImageZoomActions(
+                    zoomIn: { webZoom = min(3.0, webZoom + 0.1) },
+                    zoomOut: { webZoom = max(0.5, webZoom - 0.1) },
+                    actualSize: { webZoom = 1.0 },
+                    zoomToFit: { webZoom = 1.0 },
+                    canZoomIn: webZoom < 3.0,
+                    canZoomOut: webZoom > 0.5
+                ))
+            } else {
+                withLens
+            }
+        }
             // "Open in New Tab/Window" (#3582) followed the chrome up from the
             // retired bottom bar: right-click the HEAD to pop this document out.
             .contextMenu {

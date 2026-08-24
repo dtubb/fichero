@@ -133,10 +133,13 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             capsule {
                 ViewThatFits(in: .horizontal) {
                     fullCrumbRow
-                    // Middle rung (Daniel, 2026-08-23): ancestors collapse to
-                    // their ICONS before the chain collapses to the leaf.
+                    // Degradation ladder (Daniel, 2026-08-23): ancestors to
+                    // ICONS → middle ancestors to an ellipsis → leaf name →
+                    // leaf icon alone. X and + never yield their space.
                     iconOnlyCrumbRow
+                    ellipsisCrumbRow
                     crumbSegment(crumbs[crumbs.count - 1], isLeaf: true)
+                    leafIconOnly
                 }
                 .accessibilityLabel(crumbs.map(\.name).joined(separator: ", "))
             }
@@ -191,6 +194,34 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                         .accessibilityLabel(crumb.name)
                 }
             }
+        }
+    }
+
+    /// Root icon › … › leaf name: the rung between icons-only and leaf-only.
+    @ViewBuilder
+    private var ellipsisCrumbRow: some View {
+        if crumbs.count > 2, let first = crumbs.first {
+            HStack(spacing: 3) {
+                Image(systemName: first.icon)
+                    .foregroundStyle(first.tint)
+                    .help(first.name)
+                Text("›").font(.caption).foregroundStyle(.secondary)
+                Text("…").font(.caption).foregroundStyle(.secondary)
+                Text("›").font(.caption).foregroundStyle(.secondary)
+                crumbSegment(crumbs[crumbs.count - 1], isLeaf: true)
+            }
+        }
+    }
+
+    /// The last rung: the leaf's coloured icon alone (its name survives in
+    /// hover help and the right-click full-path menu).
+    @ViewBuilder
+    private var leafIconOnly: some View {
+        if let leaf = crumbs.last {
+            Image(systemName: leaf.icon)
+                .foregroundStyle(leaf.tint)
+                .help(leaf.name)
+                .accessibilityLabel(leaf.name)
         }
     }
 
@@ -312,4 +343,24 @@ extension PaneCrumb {
             tint: Self.tint(for: doc)
         )
     }
+}
+
+#Preview("PaneHead crumb menus") {
+    PaneHead<EmptyView, EmptyView, EmptyView>(
+        crumbs: [
+            PaneCrumb(id: "a", name: "Marshall Diaries v4", icon: "books.vertical.fill", tint: .accentColor),
+            PaneCrumb(id: "b", name: "Inbox", icon: "folder.fill", tint: .accentColor),
+            PaneCrumb(id: "c", name: "Jan 10 1933", icon: "photo.fill")
+        ],
+        onClose: {},
+        onCrumb: { _ in },
+        crumbChildren: { _ in
+            [PaneCrumb(id: "x", name: "Child", icon: "doc.text.fill")]
+        },
+        selector: { EmptyView() },
+        controls: { EmptyView() },
+        tools: { EmptyView() }
+    )
+    .frame(width: 640)
+    .padding()
 }
