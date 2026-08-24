@@ -157,24 +157,29 @@ extension ContentView {
     /// host any pane kind, switched from its head's kind icon; multiple
     /// instances of a kind may coexist.
     private func paneContent(for spec: PaneSpec) -> AnyView {
-        let effective = PaneSpec(
-            kind: paneKindOverrides[spec.id] ?? spec.kind,
-            fixedWidth: spec.fixedWidth
-        )
+        let effectiveKind = paneKindOverrides[spec.id] ?? spec.kind
         return AnyView(
-            kindContent(for: effective)
+            kindContent(kind: effectiveKind, slotId: spec.id, fixedWidth: spec.fixedWidth)
                 .environment(\.paneKindSwitcher, PaneKindSwitcher(slotId: spec.id) { newKind in
                     paneKindOverrides[spec.id] = newKind == spec.kind ? nil : newKind
                 })
         )
     }
 
-    private func kindContent(for spec: PaneSpec) -> AnyView {
+    /// `slotId` survives a kind override (2026-08-24): the split state is
+    /// keyed "<slot>-<kind>", so two slots hosting the SAME kind split
+    /// independently — the per-window "canvas" key made splitting one
+    /// preview split both.
+    private func kindContent(
+        kind: PaneSpec.Kind, slotId: String, fixedWidth: CGFloat?
+    ) -> AnyView {
+        let spec = PaneSpec(kind: kind, fixedWidth: fixedWidth)
+        let splitKey = "\(slotId)-\(kind.rawValue)"
         switch spec.kind {
         case .library:
             return AnyView(
                 // Splittable (h/v) Library list pane — #2276.
-                adaptiveSplittablePane(storageKey: "library") {
+                adaptiveSplittablePane(storageKey: splitKey) {
                     contentWithOptionalModeRail
                 }
                 .frame(width: spec.fixedWidth)
@@ -192,14 +197,14 @@ extension ContentView {
             // so ⌘A over a clicked preview still went to the library (Daniel,
             // live 2026-08-23).
             return AnyView(
-                widescreenCanvasPane
+                widescreenCanvasPane(splitKey: splitKey)
                     .simultaneousGesture(
                         TapGesture().onEnded { _ in focusedPane = .preview; paneFocusHint = .preview }
                     )
                     .overlay { paneFocusIndicator(for: .preview) }
             )
         case .reading:
-            let reading = widescreenReadingPane
+            let reading = widescreenReadingPane(splitKey: splitKey)
                 .simultaneousGesture(
                     TapGesture().onEnded { _ in focusedPane = .reading; paneFocusHint = .reading }
                 )

@@ -42,9 +42,11 @@ extension ContentView {
     /// its own flexible width so it fills whatever the list/reading panes leave.
     /// Extracted so the canvas can be conditionally shown/hidden (#1448).
     @ViewBuilder
-    var widescreenCanvasPane: some View {
-        // Splittable (h/v) image / canvas viewer — #2276.
-        adaptiveSplittablePane(storageKey: "canvas") {
+    func widescreenCanvasPane(splitKey: String = "canvas") -> some View {
+        // Splittable (h/v) image / canvas viewer — #2276. The split key is
+        // SLOT-scoped (2026-08-24): two slots hosting previews shared the
+        // per-window "canvas" @SceneStorage, so splitting one split both.
+        adaptiveSplittablePane(storageKey: splitKey) {
             widescreenCanvasPaneContent
                 // The preview's floating head (Daniel, 2026-08-23): same
                 // grammar and components as reader/library/chat.
@@ -128,7 +130,12 @@ extension ContentView {
     /// The reading / WebKit "Knowledge" pane of the widescreen layout.
     /// Extracted so it can be conditionally shown/hidden per-window (#1448).
     @ViewBuilder
-    var widescreenReadingPane: some View {
+    func widescreenReadingPane(splitKey: String = "reading") -> some View {
+        widescreenReadingPaneBody(readingSplitKey: splitKey)
+    }
+
+    @ViewBuilder
+    private func widescreenReadingPaneBody(readingSplitKey: String) -> some View {
         // Compute the page count ONCE (#3866): reading `pdfDocPages` twice here
         // (isEmpty + count) recomputed a filter+sort per read — 2x O(n log n) per
         // render. The pane needs only the count, so use the sort-free accessor.
@@ -152,7 +159,7 @@ extension ContentView {
         // _ConditionalContent grew the value past what the copy machinery
         // survives; erasure at the case boundary caps it, same as the root
         // layout and window root.
-        adaptiveSplittablePane(storageKey: "reading") {
+        adaptiveSplittablePane(storageKey: readingSplitKey) {
             if readerStack.count > 1 {
                 // All N selected transcripts, archival order + headers
                 // (Daniel's ruling, 2026-08-23) — replaces the honest-but-empty
