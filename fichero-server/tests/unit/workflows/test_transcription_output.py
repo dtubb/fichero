@@ -326,3 +326,31 @@ def test_paleography_ensemble_asks_no_node_for_an_apparatus():
             f"node {node_id} asks for an apparatus appended to the "
             f"transcription; that text is stored as the transcription"
         )
+
+
+# ---------------------------------------------------------------------------
+# prompt-echo (2026-08-24): the model quoting our own instructions back
+# ---------------------------------------------------------------------------
+
+class TestPromptEcho:
+    def test_instruction_echo_in_the_opening_is_refused(self):
+        leaked = (
+            'tags... output your answer and nothing else".\n'
+            "- If I transcribe the entire calendar grid, the output will be massive\n"
+            "En La Ciu.d de Los R.s en diez y ocho dias"
+        )
+        assert commentary_reason(leaked) == "prompt-echo"
+
+    def test_a_real_transcription_is_untouched(self):
+        gold = (
+            "En La Ciu.d de Los R.s en diez y ocho dias del mes de henero\n"
+            "de mill y setecientos años ante mi el Esc.no publico"
+        )
+        assert commentary_reason(gold) is None
+        assert sanitize_transcription(gold) == gold
+
+    def test_echo_deep_in_the_text_is_not_matched(self):
+        # Only the OPENING window: a manuscript-length text that mentions
+        # nothing for 200+ chars is never re-scanned for these phrases.
+        body = ("linea de texto real del manuscrito, " * 10) + "output only the transcription"
+        assert commentary_reason(body) is None
