@@ -191,6 +191,22 @@ _FILE_TYPE_MAP = {
 }
 
 
+# Above this, a retained Document sheds its page_content (the 2026-08-22 Air
+# OOM: a 39k-file folder's OCR/PDF megatexts held in RAM after ingest). Below
+# it, content survives — the returned docs are a CONTRACT (the import route
+# hands them to the client; the ingest tests read page_content), and stripping
+# a 30-byte text file's content bought nothing (gate red, 2026-08-24).
+_RETAINED_PAGE_CONTENT_MAX = 100_000
+
+
+def _retained_copy(doc: "Document") -> "Document":
+    """The document as ingest retains and returns it — light only when big."""
+    content = doc.page_content
+    if isinstance(content, str) and len(content) > _RETAINED_PAGE_CONTENT_MAX:
+        return doc.model_copy(update={"page_content": None})
+    return doc
+
+
 def detect_file_type(path: Path) -> FileType:
     """Detect file type from extension.
 
@@ -1516,10 +1532,12 @@ def ingest_folder(
         for doc, source_key, checksum in saved:
             # RETAIN LIGHT (the 2026-08-22 Air OOM, mechanism 3): holding
             # every Document WITH its extracted page_content kept a whole
-            # 39k-file folder's text in RAM after ingest finished. Callers
-            # consume ids (the route's document_ids; queue_derivatives
-            # re-reads from the DB), so the retained copy drops the text.
-            documents.append(doc.model_copy(update={"page_content": None}))
+            # 39k-file folder's text in RAM after ingest finished. But the
+            # returned docs ARE a contract — the import route hands them to
+            # the client and the ingest tests read page_content — so only
+            # OVERSIZED text sheds (the Air balloon was OCR/PDF megatexts);
+            # ordinary documents keep their content (gate red, 2026-08-24).
+            documents.append(_retained_copy(doc))
             actual_checksum = (doc.metadata or {}).get("checksum")
             existing_hashes.add(
                 (
@@ -1628,7 +1646,7 @@ def ingest_folder(
                         )
 
                 # Same retain-light rule as the batch path above.
-                documents.append(doc.model_copy(update={"page_content": None}))
+                documents.append(_retained_copy(doc))
                 actual_checksum = (doc.metadata or {}).get("checksum")
                 existing_hashes.add(
                     (
