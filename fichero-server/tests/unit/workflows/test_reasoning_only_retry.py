@@ -80,3 +80,34 @@ def test_clean_answer_never_triggers_a_second_call(tmp_path, monkeypatch):
 
     assert len(prompts) == 1
     assert result["texts"] == [GOLD]
+
+
+def test_empty_response_retries_with_a_raised_token_ceiling(tmp_path, monkeypatch):
+    """qwen3.6-plus (2026-08-24) burned the whole 2048 max_tokens in its
+    native reasoning channel and returned EMPTY content; retrying at the same
+    cap failed identically. The empty-retry must raise the ceiling."""
+    image = tmp_path / "page.png"
+    Image.new("RGB", (24, 24), "white").save(image)
+
+    caps_seen: list[int] = []
+
+    async def fake_vision(*, images, prompt, config, language=None, **kwargs):
+        caps_seen.append(config.max_tokens)
+        return "" if len(caps_seen) == 1 else GOLD
+
+    monkeypatch.setattr(llm_module, "vision", fake_vision)
+
+    result = asyncio.run(process_vision(
+        files=[str(image)],
+        documents=[{"id": "doc-1", "name": "page.png"}],
+        prompt="Transcribe the page.",
+        llm_config=LLMConfig(provider="openrouter", model="qwen/qwen3.6-plus"),
+        library_path=str(tmp_path),
+        task_id=None,
+        tool_config=VisionToolConfig(artifact_type="transcription"),
+        save_to_db=False,
+    ))
+
+    assert result["texts"] == [GOLD]
+    assert len(caps_seen) == 2
+    assert caps_seen[1] >= max(8192, caps_seen[0] * 2)

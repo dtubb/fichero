@@ -3520,11 +3520,22 @@ async def process_vision(
                     f"retrying once before declaring failure"
                 )
                 try:
+                    # A NATIVE-reasoning model (qwen3.6-plus, 2026-08-24) can
+                    # burn the entire max_tokens budget in its reasoning
+                    # channel and hand back EMPTY content — the log signature
+                    # is output ≈ max_tokens exactly. Retrying with the same
+                    # cap fails identically, so the retry raises the ceiling;
+                    # a genuinely empty page still comes back empty and fails
+                    # loudly below.
+                    retry_config = dataclasses.replace(
+                        effective_config,
+                        max_tokens=max(8192, effective_config.max_tokens * 2),
+                    )
                     text = await _vision_resilient(
                         lambda: vision(
                             images=[image_uri],
                             prompt=final_prompt,
-                            config=effective_config,
+                            config=retry_config,
                             language=language,
                         )
                     )
