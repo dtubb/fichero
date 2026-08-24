@@ -726,6 +726,84 @@ def _vision_word_boxes(
     return boxes
 
 
+def _snap_word_boxes_to_ink(
+    image_path: str,
+    word_boxes: list["VisionOCRBox"],
+    *,
+    max_trim: float = 0.35,
+    pad_frac: float = 0.06,
+    work_width: int = 2400,
+) -> int:
+    """Tighten word boxes to their INK, in place; returns how many moved.
+
+    C2 (Daniel, 2026-08-24): Apple's per-character-range interpolation is
+    approximate on connected cursive — at 1:1 the box edges cut into glyphs
+    or slide over the neighbouring word, while printed text is pixel-tight.
+    The ink itself is the ground truth: within each box, threshold the
+    grayscale crop against its local stats and shrink every edge inward to
+    the ink extents plus a small pad.
+
+    TIGHTEN ONLY, bounded: an edge moves inward at most ``max_trim`` of the
+    box's dimension, and a box whose crop shows no ink is left untouched —
+    a snap must never move a box onto a lie. Ruled-line ghosts and paper
+    stain read lighter than pencil/ink, so the local threshold ignores them.
+    """
+    if not word_boxes:
+        return 0
+    try:
+        from PIL import Image
+        import numpy as np
+
+        with Image.open(image_path) as raw:
+            img = raw.convert("L")
+            if img.width > work_width:
+                scale = work_width / img.width
+                img = img.resize((work_width, max(1, int(img.height * scale))))
+            page = np.asarray(img, dtype=np.float32)
+    except Exception:
+        return 0
+
+    height, width = page.shape
+    moved = 0
+    for box in word_boxes:
+        bbox = getattr(box, "bbox", None)
+        if not bbox or len(bbox) != 4:
+            continue
+        x, y, w, h = bbox
+        left, top = int(x * width), int(y * height)
+        right, bottom = int((x + w) * width), int((y + h) * height)
+        if right - left < 4 or bottom - top < 4:
+            continue
+        crop = page[max(0, top):min(height, bottom), max(0, left):min(width, right)]
+        if crop.size == 0:
+            continue
+        # Local threshold: ink is well below the crop's own paper tone.
+        threshold = float(crop.mean()) - 0.9 * float(crop.std())
+        ink = crop < threshold
+        if not ink.any():
+            continue
+        cols = ink.any(axis=0).nonzero()[0]
+        rows = ink.any(axis=1).nonzero()[0]
+        pad_x = max(1, int(crop.shape[1] * pad_frac))
+        pad_y = max(1, int(crop.shape[0] * pad_frac))
+        trim_cap_x = int(crop.shape[1] * max_trim)
+        trim_cap_y = int(crop.shape[0] * max_trim)
+        new_left = max(0, min(int(cols[0]) - pad_x, trim_cap_x))
+        new_right = crop.shape[1] - max(0, min(crop.shape[1] - 1 - int(cols[-1]) - pad_x, trim_cap_x))
+        new_top = max(0, min(int(rows[0]) - pad_y, trim_cap_y))
+        new_bottom = crop.shape[0] - max(0, min(crop.shape[0] - 1 - int(rows[-1]) - pad_y, trim_cap_y))
+        if new_left == 0 and new_top == 0 and new_right == crop.shape[1] and new_bottom == crop.shape[0]:
+            continue
+        box.bbox = [
+            (left + new_left) / width,
+            (top + new_top) / height,
+            (new_right - new_left) / width,
+            (new_bottom - new_top) / height,
+        ]
+        moved += 1
+    return moved
+
+
 def _vision_geometry_from_results(
     results: list[Any],
     *,
@@ -1225,7 +1303,10 @@ def apple_vision_ocr_with_geometry(
                 )
 
             return _vision_ocr_cgimage_with_geometry(
-                cg_image, language, reference_text=reference_text
+                cg_image, language, reference_text=reference_text,
+                # The normalized flat-image path: the ink-snap re-reads these
+                # exact pixels to tighten cursive word boxes (C2).
+                source_path=effective_path,
             )
 
     except ImportError as e:
@@ -1256,6 +1337,7 @@ def _vision_ocr_cgimage_with_geometry(
     *,
     page_index: int | None = None,
     reference_text: str | None = None,
+    source_path: str | None = None,
 ) -> VisionOCRResult:
     """Run Vision OCR on a CGImage and return the recognized text.
 
@@ -1397,7 +1479,11 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Accurate")
     if geometry is not None:
-        return _escalate_gaps(geometry)
+        escalated = _escalate_gaps(geometry)
+        snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
+        if snapped:
+            logger.info("Ink-snap tightened %d word boxes", snapped)
+        return escalated
 
     # Retry with Fast if Accurate returned empty
     logger.info("Retrying with Fast recognition level")
@@ -1407,7 +1493,11 @@ def _vision_ocr_cgimage_with_geometry(
 
     geometry = _extract_text(request, "Fast")
     if geometry is not None:
-        return _escalate_gaps(geometry)
+        escalated = _escalate_gaps(geometry)
+        snapped = _snap_word_boxes_to_ink(source_path, escalated.word_boxes) if source_path else 0
+        if snapped:
+            logger.info("Ink-snap tightened %d word boxes", snapped)
+        return escalated
 
     # Both attempts returned empty
     msg = f"Vision OCR returned empty even at Fast level (lang={language})"
