@@ -31,9 +31,11 @@ struct PaneChromeMenu: View {
                 if let actions = splitActions {
                     if isPinned != nil { Divider() }
                     // ADDITIONS only (Daniel, 2026-08-23): the "+" never
-                    // removes a split — the pane's X collapses it. Named by
-                    // the divider's axis, wearing the old bottom-bar glyphs.
-                    if !(actions.hasVertical && actions.paneCount == 3) {
+                    // removes a split — the pane's X collapses it. A row
+                    // shows only while its toggle ADDS: thirds are a
+                    // single-axis affair, so a 2×2 grid offers neither.
+                    let grid = actions.hasVertical && actions.hasHorizontal
+                    if actions.verticalCount == 1 || (actions.verticalCount == 2 && !grid) {
                         Button {
                             actions.onToggleVertical()
                         } label: {
@@ -43,7 +45,7 @@ struct PaneChromeMenu: View {
                             )
                         }
                     }
-                    if !(actions.hasHorizontal && actions.paneCount == 3) {
+                    if actions.horizontalCount == 1 || (actions.horizontalCount == 2 && !grid) {
                         Button {
                             actions.onToggleHorizontal()
                         } label: {
