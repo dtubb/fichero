@@ -224,6 +224,14 @@ def describe_no_effect(
         return f"{len(files)} input file(s) produced no output"
     if report.get("renditions"):
         return None
+    already = report.get("already_children", 0)
+    if already:
+        # The reuse narration (S11): a re-run that found every part already
+        # persisted did exactly what it should — say THAT, not a warning.
+        return (
+            f"already split — {already} part(s) exist from an earlier run; "
+            "nothing new to attach"
+        )
     reason = report.get("skipped_reason")
     if reason:
         return f"{len(output_files)} file(s) written but not persisted: {reason}"
@@ -276,6 +284,7 @@ def persist_workflow_child_regions(
         "children": [],
         "unmatched_sources": [],
         "skipped_no_region": 0,
+        "already_children": 0,
         # Parts whose bytes could not be stored. A failure here MUST reach the
         # caller: a part that silently vanishes is a page the user cut and
         # never got, reported as success.
@@ -312,6 +321,10 @@ def persist_workflow_child_regions(
                 (child.metadata or {}).get("produced_from") == str(output)
                 for child in db.query(Document, parent_id=parent.id)
             ):
+                # Idempotent re-run (S11, 2026-08-23): COUNTED, so the
+                # narration can say "already split" instead of the false
+                # "no rendition was attached".
+                report["already_children"] += 1
                 continue
 
             region = _region_from_part(part, method)
