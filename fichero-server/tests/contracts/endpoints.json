@@ -9009,7 +9009,13 @@
         "path_params": [
           "doc_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "pages",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": null
       },

@@ -14,11 +14,24 @@ extension DocumentKGPaneRoute {
         "\(EngineWebViewURL.scheme)://\(EngineWebViewURL.host)"
     }
 
-    static func documentURL(documentId: String) -> URL? {
+    /// `pageIds` narrows the assembled transcript to those child pages
+    /// (`?pages=id1,id2`) — the multi-page SELECTION rides the same renderer
+    /// (Daniel, 2026-08-25: "we already have the WebKit renderer — it's just
+    /// telling it what to render").
+    static func documentURL(documentId: String, pageIds: [String] = []) -> URL? {
         guard let encoded = documentId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             return nil
         }
-        return URL(string: "\(baseURL)/view/document/\(encoded)")
+        if pageIds.isEmpty {
+            return URL(string: "\(baseURL)/view/document/\(encoded)")
+        }
+        // A filter that cannot encode must FAIL the URL, never silently widen
+        // a two-page selection back to the whole document.
+        guard let encodedPages = pageIds.joined(separator: ",")
+            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return nil
+        }
+        return URL(string: "\(baseURL)/view/document/\(encoded)?pages=\(encodedPages)")
     }
 
     /// The `FicheroClient` whose transport the KG page's scheme handler funnels
@@ -48,12 +61,12 @@ extension DocumentKGPaneRoute {
     /// EngineWebViewSchemeHandlerRoutingTests / EngineWebViewRoutingTests
     /// prove UDS + in-memory routing). The gate had become a dead switch
     /// that only blanked the KG pane over remote/UDS transports.
-    static func request(documentId: String, libraryPath: String) -> URLRequest? {
+    static func request(documentId: String, libraryPath: String, pageIds: [String] = []) -> URLRequest? {
         let url: URL?
         if documentId == globalKGDocumentID {
             url = URL(string: "\(baseURL)/view/kg/global")
         } else {
-            url = documentURL(documentId: documentId)
+            url = documentURL(documentId: documentId, pageIds: pageIds)
         }
         guard let url else { return nil }
         // No auth headers here: `EngineWebViewSchemeHandler` re-issues every load

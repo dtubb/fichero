@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
 from fichero_server.api.main import get_library_database
@@ -217,27 +217,47 @@ def _document_scoped_entities(
 async def document_view(
     request: Request,
     doc_id: str,
+    pages_filter: str | None = Query(default=None, alias="pages"),
     db: Database = Depends(get_library_database),
 ) -> HTMLResponse:
     document = db.get(Document, doc_id)
     if document is None:
         raise HTTPException(404, f"Document not found: {doc_id}")
 
+    # A multi-page SELECTION rides the same renderer (Daniel, 2026-08-25:
+    # "we already have the WebKit renderer — it's just telling it what to
+    # render"): `?pages=id1,id2` narrows the assembled transcript to those
+    # child pages, in their real sequence. Unknown ids are ignored rather
+    # than 404ing — a stale selection renders what still exists.
+    selected_page_ids: set[str] | None = None
+    if pages_filter:
+        selected_page_ids = {p for p in pages_filter.split(",") if p}
+
     from fichero_server.api.routes.claim.claims import _descendant_doc_ids
 
     # Per-page PDFs store claims on children, so scope the graph to the full
     # document subtree and let query_in filter before hydration (#3224).
     doc_scope = _descendant_doc_ids(db, doc_id)
+    if selected_page_ids is not None:
+        # Selection view: the parent's own claims plus the selected pages'.
+        doc_scope = {doc_id} | (set(doc_scope) & selected_page_ids)
     claims = db.query_in(KnowledgeClaim, "source_document_id", doc_scope)
 
     entities = _document_scoped_entities(db, doc_scope, claims)
     entities_by_id = {entity.id: entity for entity in entities}
 
-    pages = transcript_pages(document, _page_children(db, document))
+    child_pages = _page_children(db, document)
+    if selected_page_ids is not None:
+        child_pages = [p for p in child_pages if p.id in selected_page_ids]
+    pages = transcript_pages(document, child_pages)
     # Two sources, and which one applied decides whether the transcript has to
     # travel at all. When it comes from the page children it is `transcript_text`
     # — a PURE function of `pages` — so the client can rebuild it byte-for-byte.
-    if document.page_content:
+    #
+    # A page-filtered view ALWAYS derives from the (filtered) pages: the
+    # document's own `page_content` is the WHOLE document's text, which would
+    # silently widen a two-page selection back to everything.
+    if document.page_content and selected_page_ids is None:
         transcript = _strip_document_rtf(document.page_content)
         transcript_source = TRANSCRIPT_FROM_DOCUMENT
     else:

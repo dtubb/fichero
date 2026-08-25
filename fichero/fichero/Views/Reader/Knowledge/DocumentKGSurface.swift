@@ -156,6 +156,9 @@ struct DocumentKGSurface: View {
     let documentId: String
     let documentScope: InspectorClaimDocumentScope
     let libraryPath: String
+    /// Non-empty = the multi-page selection view (2026-08-25): the WebKit
+    /// transcript renders ONLY these child pages of `documentId`.
+    var pageIds: [String] = []
     var selectedEntityId: String?
     var selectedClaimId: String?
     var activePageNumber: Int?
@@ -268,6 +271,7 @@ struct DocumentKGSurface: View {
                 DocumentKGWebPane(
                     documentId: documentId,
                     libraryPath: libraryPath,
+                    pageIds: pageIds,
                     selectedEntityId: selectedEntityId,
                     selectedClaimId: selectedClaimId,
                     activeTab: activeTab.rawValue,

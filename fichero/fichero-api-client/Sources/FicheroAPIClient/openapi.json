@@ -22253,6 +22253,16 @@
               "type": "string",
               "title": "Doc Id"
             }
+          },
+          {
+            "name": "pages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Pages"
+            }
           }
         ],
         "responses": {

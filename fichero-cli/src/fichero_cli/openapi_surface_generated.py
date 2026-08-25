@@ -4413,6 +4413,8 @@ def register_generated_openapi_commands(
         attachments: Optional[bool] = typer.Option(None, "--attachments/--no-attachments", help="Query parameter: attachments."),
         children: Optional[bool] = typer.Option(None, "--children/--no-children", help="Query parameter: children."),
         level: Optional[str] = typer.Option(None, "--level", help="Query parameter: level."),
+        sort_by: Optional[str] = typer.Option(None, "--sort-by", help="Query parameter: sort_by."),
+        sort_direction: Optional[str] = typer.Option(None, "--sort-direction", help="Query parameter: sort_direction."),
     ) -> None:
         """Get Document View (GET /api/documents/{doc_id}/view)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4421,6 +4423,8 @@ def register_generated_openapi_commands(
                 "attachments": attachments,
                 "children": children,
                 "level": level,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13140,11 +13144,14 @@ def register_generated_openapi_commands(
     def view_document_get(
         ctx: typer.Context,
         doc_id: str = typer.Argument(..., help="Path parameter: doc_id."),
+        pages: Optional[str] = typer.Option(None, "--pages", help="Query parameter: pages."),
     ) -> None:
         """Document View (GET /view/document/{doc_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/view/document/{doc_id}"
-            params = None
+            params = {
+                "pages": pages,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

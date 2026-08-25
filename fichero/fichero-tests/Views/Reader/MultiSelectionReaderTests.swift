@@ -49,3 +49,40 @@ final class MultiSelectionReaderWiringTests: XCTestCase {
         )
     }
 }
+
+// Same-parent page selections ride the shared WebKit transcript via its
+// `?pages=` filter; everything else keeps the native list (2026-08-25).
+struct MultiReaderCommonParentTests {
+    @Test("pages of one parent resolve to that parent")
+    func samePagesResolve() {
+        let docs = [
+            Document(id: "p1", parentId: "pdf", docType: .page, name: "Page 1"),
+            Document(id: "p2", parentId: "pdf", docType: .page, name: "Page 2")
+        ]
+        #expect(multiReaderCommonPageParent(docs) == "pdf")
+    }
+
+    @Test("pages of different parents fall back to the native list")
+    func mixedParentsFallBack() {
+        let docs = [
+            Document(id: "p1", parentId: "pdf-a", docType: .page, name: "Page 1"),
+            Document(id: "p2", parentId: "pdf-b", docType: .page, name: "Page 2")
+        ]
+        #expect(multiReaderCommonPageParent(docs) == nil)
+    }
+
+    @Test("a non-page in the selection falls back to the native list")
+    func nonPageFallsBack() {
+        let docs = [
+            Document(id: "p1", parentId: "pdf", docType: .page, name: "Page 1"),
+            Document(id: "f1", parentId: "pdf", docType: .file, name: "Other.jpg")
+        ]
+        #expect(multiReaderCommonPageParent(docs) == nil)
+    }
+
+    @Test("an orphan page has no common parent")
+    func orphanPage() {
+        let docs = [Document(id: "p1", docType: .page, name: "Page 1")]
+        #expect(multiReaderCommonPageParent(docs) == nil)
+    }
+}
