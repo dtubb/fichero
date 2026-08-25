@@ -71,6 +71,8 @@ extension LibraryManager {
         // Save open libraries for restoration on next launch
         saveOpenLibraryPaths()
 
+        LibraryRecents.shared.note(url: url, displayName: displayName)
+
         promptForAccessIfUnavailable(url: url, needsSecurityAccess: needsSecurityAccess)
 
         loadAndRegister(library, at: url, displayName: displayName, needsSecurityAccess: needsSecurityAccess)
@@ -451,6 +453,7 @@ extension LibraryManager {
                     displayName: displayName
                 )
             }
+            LibraryRecents.shared.note(url: url, displayName: displayName)
 
         } catch {
             libraryManagerLogger.error("Failed to save library: \(error.localizedDescription)")

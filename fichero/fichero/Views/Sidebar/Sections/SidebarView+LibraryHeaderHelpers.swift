@@ -45,7 +45,24 @@ extension SidebarView {
                 showingRenameLibraryPrompt = true
             },
             onShare: { libraryToShare = library },
-            onClose: { closeLibraryFromSidebar(library) }
+            onClose: { closeLibraryFromSidebar(library) },
+            onNewFolder: { [library] in
+                // Select the library first so the shared New Folder dialog
+                // (SidebarCreationHandlers, via `selectedItemLibrary`) creates
+                // at THIS library's root, not wherever selection last was.
+                selectionState.selectedDestinations = [.library(library.id)]
+                selectedItemId = sidebarLibrarySelectionId(library.id)
+                sidebarState.newFolderParentId = nil
+                sidebarState.newFolderCategory = .folder
+                sidebarState.showingNewFolderDialog = true
+            },
+            onImport: { [library] in
+                selectionState.selectedDestinations = [.library(library.id)]
+                selectedItemId = sidebarLibrarySelectionId(library.id)
+                // Routes to this library's Inbox when no folder is selected —
+                // same destination logic as a header drop (#4401 flow).
+                importFiles()
+            }
         )
     }
 
@@ -234,6 +251,12 @@ struct LibraryHeaderRow: View {
     let onRename: () -> Void
     let onShare: () -> Void
     let onClose: () -> Void
+    // Create/import INTO this library (Daniel, 2026-08-25: "right click on
+    // library, ought to be able to add folder, or import to there"). Injected
+    // like onDropError — the row has no sidebarState of its own; both flows
+    // resolve their target via the selection the closure sets first.
+    let onNewFolder: () -> Void
+    let onImport: () -> Void
 
     // ponytail: this row loads its own authz snapshot, the same GET the
     // LibrarySharingBadge in the header already makes — two cheap authz reads
@@ -301,6 +324,14 @@ struct LibraryHeaderRow: View {
         Button("Show in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting([library.url])
         }
+        Divider()
+        // Finder semantics again: create into / import into the thing you
+        // right-clicked. Both closures select this library first, so the
+        // shared dialogs (which resolve via `selectedItemLibrary`) target it.
+        Button("New Folder", action: onNewFolder)
+            .disabled(!canWrite)
+        Button("Import Files…", action: onImport)
+            .disabled(!canWrite)
         Divider()
         // Close removes the library from the sidebar + the global registry
         // WITHOUT deleting the .fichero package on disk (#1661). Stays enabled

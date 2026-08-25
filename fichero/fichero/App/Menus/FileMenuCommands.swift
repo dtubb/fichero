@@ -57,9 +57,31 @@ struct FileMenuCommands: View {
             }
             .keyboardShortcut("o", modifiers: [.command])
 
+            // Local recents come from `LibraryRecents` — the registry the menu
+            // used before is the authoritative OPEN set, so Close Library
+            // erased a library from "recent" at exactly the moment Open Recent
+            // exists for (Daniel, 2026-08-25: made a library, closed it, gone).
+            // Remote hosts keep the registry list: their recents genuinely are
+            // the host's known libraries (#3151).
             Menu("Open Recent") {
-                if let fetchError = registry.fetchError,
-                   registry.libraries.isEmpty {
+                if BackendHost.appDefault.isLocal {
+                    if LibraryRecents.shared.entries.isEmpty {
+                        Text("No Recent Libraries")
+                    } else {
+                        ForEach(LibraryRecents.shared.entries) { entry in
+                            Button(entry.displayName) {
+                                openRecentEntry(entry)
+                            }
+                        }
+
+                        Divider()
+
+                        Button("Clear Menu") {
+                            LibraryRecents.shared.clearAll()
+                        }
+                    }
+                } else if let fetchError = registry.fetchError,
+                          registry.libraries.isEmpty {
                     Text("Couldn’t load recent libraries")
                     Text(fetchError)
                         .foregroundStyle(.secondary)
@@ -81,7 +103,11 @@ struct FileMenuCommands: View {
                     }
                 }
             }
-            .disabled(registry.libraries.isEmpty && registry.fetchError == nil)
+            .disabled(
+                BackendHost.appDefault.isLocal
+                    ? LibraryRecents.shared.entries.isEmpty
+                    : registry.libraries.isEmpty && registry.fetchError == nil
+            )
 
             Button("Close Library") {
                 closeLibraryAction?.run()
@@ -187,6 +213,17 @@ struct FileMenuCommands: View {
         }
     }
 
+    /// Open a LOCAL recents entry, pruning entries whose package is gone.
+    private func openRecentEntry(_ entry: LibraryRecents.Entry) {
+        let url = URL(fileURLWithPath: entry.path)
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            LibraryRecents.shared.remove(path: entry.path)
+            return
+        }
+        let opened = libraryManager.openLibrary(at: url)
+        libraryManager.currentLibraryId = opened.id
+    }
+
     private func openRecentLibrary(_ library: KnownLibraryMenuEntry) {
         // Remote host (#3151): the path lives on the remote engine, not this
         // Mac's disk, so the `fileExists` gate below would always fail and drop
@@ -229,11 +266,16 @@ private extension FileMenuCommands {
         let savePanel = NewLibraryPanel.makeSavePanel()
         guard savePanel.runModal() == .OK, let url = savePanel.url else { return }
         let finalURL = NewLibraryPanel.resolvedLibraryURL(for: url)
+        guard NewLibraryPanel.confirmSyncedLocationIfNeeded(at: finalURL) else {
+            createLibraryAtAppScope()  // reopen the panel — the user chose to relocate
+            return
+        }
 
         let newLibrary = libraryManager.createNewLibrary()
         do {
             try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
             libraryManager.currentLibraryId = newLibrary.id
+            NewLibraryPanel.noteChosenDirectory(forLibraryAt: finalURL)
             openWindow(id: "main")
             logger.info("Created new library at app scope: \(finalURL.lastPathComponent)")
         } catch {

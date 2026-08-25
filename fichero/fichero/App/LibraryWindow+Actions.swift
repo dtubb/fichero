@@ -150,6 +150,10 @@ extension LibraryWindow {
 
         if savePanel.runModal() == .OK, let url = savePanel.url {
             let finalURL = NewLibraryPanel.resolvedLibraryURL(for: url)
+            guard NewLibraryPanel.confirmSyncedLocationIfNeeded(at: finalURL) else {
+                handleNewLibrary()  // reopen the panel — the user chose to relocate
+                return
+            }
 
             // Create unsaved library, immediately save to chosen location, then
             // switch THIS window to it in-place — no new window (#4062). New
@@ -163,6 +167,7 @@ extension LibraryWindow {
             do {
                 try libraryManager.saveLibrary(newLibrary.id, to: finalURL)
                 assignLibrary(id: newLibrary.id)
+                NewLibraryPanel.noteChosenDirectory(forLibraryAt: finalURL)
                 libraryWindowLogger.info("Created and saved new library in-place: \(finalURL.lastPathComponent)")
             } catch {
                 // #4530: a failed create used to be log-only, so the user
