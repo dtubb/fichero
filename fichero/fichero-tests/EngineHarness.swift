@@ -256,6 +256,11 @@ enum EngineHarness {
         env["FICHERO_BASE_PATH"] = Self.isContainerSandboxTemp
             ? Self.sandboxWritableRoot().appendingPathComponent(".itest-base", isDirectory: true).path
             : repo.appendingPathComponent("fichero-server").path + "/.itest-base"
+        // Isolate the TOKEN files too (2026-08-24): a spawned test engine's
+        // boot rewrote the USER's ~/Library .api-key + sandbox copy, silently
+        // 401ing every live engine ("stale_bootstrap_token") until restart.
+        // The engine honors FICHERO_TOKEN_DIR for exactly this.
+        env["FICHERO_TOKEN_DIR"] = NSTemporaryDirectory() + "fichero-test-tokens"
         // The engine watches this PID and self-terminates if it dies. atexit
         // is unreliable when the test process is SIGKILL'd (or crashes before
         // the C handler runs), which orphans the engine on :8765 and then

@@ -74,13 +74,28 @@ def _token_file_path() -> Path:
     """Resolve the per-user token file location.
 
     macOS convention: ~/Library/Application Support/Fichero/.api-key.
+
+    FICHERO_TOKEN_DIR relocates it — for TEST engines only. Hosted Swift
+    suites spawn real engines whose boot rewrote the USER's token files,
+    silently 401ing every live engine until restart (2026-08-24, a full
+    afternoon of phantom "stale_bootstrap_token"s). An isolated dir keeps a
+    test engine's credentials out of the user's. Not a security boundary:
+    whoever sets this env owns the process anyway.
     """
+    override = os.environ.get("FICHERO_TOKEN_DIR", "").strip()
+    if override:
+        return Path(override) / ".api-key"
     base = Path.home() / "Library" / "Application Support" / "Fichero"
     return base / ".api-key"
 
 
 def _sandbox_token_file_path(app_id: str) -> Path:
     """Sandbox container token path for the local macOS app bundle."""
+    override = os.environ.get("FICHERO_TOKEN_DIR", "").strip()
+    if override:
+        # Same isolation as _token_file_path: a test engine must never write
+        # the real container copy either.
+        return Path(override) / f"sandbox-{app_id}.api-key"
     return (
         Path.home()
         / "Library"

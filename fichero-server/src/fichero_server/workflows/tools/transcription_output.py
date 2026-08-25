@@ -133,6 +133,15 @@ _COMMENTARY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("refusal", re.compile(r"\A\s*(i'm sorry|i am sorry|i cannot|i can't|unfortunately,? i)\b", re.I)),
     # A reasoning tag that survived stripping (malformed nesting, stray close).
     ("unstripped-reasoning-tag", re.compile(r"\A\s*</?(?:think|thinking|thought|reasoning|scratchpad)\b", re.I)),
+    # The model quoting OUR OWN instructions back (run 4, 2026-08-24: a
+    # 9,904-char draft opening `tags... output your answer and nothing
+    # else".` was stored as a transcription). These phrases exist only in
+    # the prompts this codebase writes; no manuscript contains them, so
+    # matching anywhere in the OPENING is safe where mid-text would not be.
+    ("prompt-echo", re.compile(
+        r"\A[\s\S]{0,200}?(output your answer and nothing else"
+        r"|put all of that reasoning inside"
+        r"|output only the transcription)", re.I)),
 )
 
 

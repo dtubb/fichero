@@ -156,14 +156,29 @@ DEFAULT_DUCKDB_MEMORY_LIMIT = "1.5GB"
 
 
 def apply_memory_limit(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
-    """Cap this connection's memory and point its spill at the temp dir."""
-    limit = os.environ.get(DUCKDB_MEMORY_LIMIT_ENV, DEFAULT_DUCKDB_MEMORY_LIMIT)
+    """Cap this connection's memory and point its spill at the temp dir.
+
+    The cap IS the Air-OOM guard (2026-08-24): an uncapped DuckDB claims 80%
+    of RAM per open database. A cap that silently fails to apply is the
+    #4395 shape — a protection that reads as present and does nothing — so
+    an EXPLICIT limit that cannot be applied raises (the user asked for a
+    bound; running unbounded instead is a substitution). Only the DEFAULT
+    cap degrades to a loud warning, because refusing every connect on an
+    exotic DuckDB build would trade a memory risk for a broken app.
+    """
+    explicit = os.environ.get(DUCKDB_MEMORY_LIMIT_ENV)
+    limit = explicit or DEFAULT_DUCKDB_MEMORY_LIMIT
     try:
         conn.execute(f"SET memory_limit='{limit}'")
         conn.execute(
             "SET temp_directory=?", [str(Path(tempfile.gettempdir()) / "fichero-duckdb-spill")]
         )
     except Exception as exc:  # pragma: no cover - setting unsupported
+        if explicit:
+            raise RuntimeError(
+                f"{DUCKDB_MEMORY_LIMIT_ENV}={explicit!r} could not be applied — "
+                f"refusing to run this connection unbounded: {exc}"
+            ) from exc
         logger.warning("Could not cap DuckDB memory (%s): %s", limit, exc)
     return conn
 

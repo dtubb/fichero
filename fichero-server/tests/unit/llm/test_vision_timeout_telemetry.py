@@ -22,6 +22,10 @@ def _make_config(provider: str = "openai", model: str = "gpt-4o") -> MagicMock:
     cfg = MagicMock()
     cfg.provider = provider
     cfg.model = model
+    # Sampling params are in the cache key now (2026-08-24) — real values,
+    # not MagicMock attrs, or the key builder's JSON encoding throws.
+    cfg.max_tokens = 2048
+    cfg.temperature = 0.1
     return cfg
 
 

@@ -3012,6 +3012,16 @@
             "name": "level",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "sort_by",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "sort_direction",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,

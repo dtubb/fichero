@@ -10323,6 +10323,30 @@
               "title": "Attachments"
             },
             "description": "Include the anchor's attachment summary."
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "Optional server-side child ordering; only 'document_date' (#3322 \u2014 same contract as /children, so the grid can migrate without losing its listing sort).",
+              "title": "Sort By"
+            },
+            "description": "Optional server-side child ordering; only 'document_date' (#3322 \u2014 same contract as /children, so the grid can migrate without losing its listing sort)."
+          },
+          {
+            "name": "sort_direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "'asc' or 'desc'",
+              "default": "asc",
+              "title": "Sort Direction"
+            },
+            "description": "'asc' or 'desc'"
           }
         ],
         "responses": {
