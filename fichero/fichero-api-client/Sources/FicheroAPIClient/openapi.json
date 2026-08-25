@@ -20309,6 +20309,48 @@
         }
       }
     },
+    "/api/tasks/reanchor": {
+      "post": {
+        "tags": [
+          "tasks",
+          "tasks"
+        ],
+        "summary": "Create frame re-anchor job",
+        "description": "Bbox step 4: classify every rendition's pixel frame against its node's, and mark frame-divergent renditions that recorded no transform as frame_status=unknown so overlays render unanchored on them. Pass options={\"dry_run\": true} to report without writing.",
+        "operationId": "create_reanchor_task_api_tasks_reanchor_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/tasks/vector-repair": {
       "post": {
         "tags": [
@@ -57843,6 +57885,11 @@
             "type": "string",
             "nullable": true,
             "title": "Note"
+          },
+          "frame_status": {
+            "type": "string",
+            "nullable": true,
+            "title": "Frame Status"
           },
           "created_at": {
             "type": "string",

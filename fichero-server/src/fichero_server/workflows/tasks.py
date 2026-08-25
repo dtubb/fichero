@@ -409,6 +409,8 @@ class TaskQueue(TaskWorkersMixin):
                 result = await self._do_vector_repair(task)
             elif task.task_type == TaskType.KG_METRICS:
                 result = await self._do_kg_metrics(task)
+            elif task.task_type == TaskType.REANCHOR:
+                result = await self._do_reanchor(task)
             else:
                 raise ValueError(f"Unknown task type: {task.task_type}")
 

@@ -175,7 +175,12 @@ final class RenditionService {
             pixelWidth: item.pixelWidth,
             pixelHeight: item.pixelHeight,
             isMaterialized: item.materialized ?? true,
-            hasOwnFrame: item.transform != nil,
+            // A rendition whose frame is UNPROVEN (marked by the re-anchor
+            // pass, bbox step 4) counts as having its own frame: node-frame
+            // boxes must SKIP it — blank beats boxes on pixels whose frame
+            // nobody can vouch for. Same match-or-skip matrix, one more way
+            // to fail closed.
+            hasOwnFrame: item.transform != nil || item.frameStatus == "unknown",
             note: item.note
         )
     }

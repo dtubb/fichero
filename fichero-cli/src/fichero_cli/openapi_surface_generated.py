@@ -12771,6 +12771,29 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("create-frame-re-anchor-job")
+    def tasks_create_frame_re_anchor_job_post(
+        ctx: typer.Context,
+        name: Optional[str] = typer.Option(None, "--name", help="Request field: name."),
+        options: Optional[str] = typer.Option(None, "--options", help="Request field: options."),
+        priority: Optional[int] = typer.Option(None, "--priority", help="Request field: priority."),
+    ) -> None:
+        """Create frame re-anchor job (POST /api/tasks/reanchor)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/tasks/reanchor"
+            params = None
+            payload = _build_json_payload({
+                "name": name,
+                "options": options,
+                "priority": priority,
+            }, {
+                "name": {'type': 'string', 'nullable': True, 'title': 'Name', 'description': 'Optional display name for the task', 'x-cli-required': False},
+                "options": {'additionalProperties': True, 'type': 'object', 'title': 'Options', 'description': 'Task-specific options', 'x-cli-required': False},
+                "priority": {'type': 'integer', 'maximum': 100.0, 'minimum': 0.0, 'title': 'Priority', 'description': 'Priority (lower = higher priority)', 'default': 0, 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("create-reindex-job")
     def tasks_create_reindex_job_post(
         ctx: typer.Context,

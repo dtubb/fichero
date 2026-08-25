@@ -121,3 +121,19 @@ final class ReaderRenditionNavTests: XCTestCase {
         XCTAssertTrue(nav.hasOwnFrame)
     }
 }
+
+// Bbox step 4 (2026-08-25): a rendition the re-anchor pass marked
+// frame_status="unknown" must fail CLOSED in the overlay matrix — it counts
+// as having its own (unproven) frame, so node-frame boxes skip it. Source
+// pin: the mapping is one expression inside convert(), unreachable as a unit
+// without the generated schema type.
+final class RenditionFrameStatusTests: XCTestCase {
+    func testUnknownFrameStatusCountsAsOwnFrame() throws {
+        let source = try String(contentsOf: AppSource.root()
+            .appendingPathComponent("Services/RenditionService.swift"))
+        XCTAssertTrue(
+            source.contains(#"item.transform != nil || item.frameStatus == "unknown""#),
+            "frame-unproven renditions must skip node-frame overlays (fail closed)"
+        )
+    }
+}

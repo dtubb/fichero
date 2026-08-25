@@ -17,6 +17,7 @@ class TaskType(str, Enum):
     KG_METRICS = (
         "kg_metrics"  # Recompute knowledge graph metrics (claims, links, entities)
     )
+    REANCHOR = "reanchor"  # Bbox step 4: mark frame-unproven renditions
 
 
 class TaskStatus(str, Enum):

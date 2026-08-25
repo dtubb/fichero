@@ -925,6 +925,13 @@ class Rendition(BaseModel):
     #: Terse provenance note. Machine-honest and short, not prose.
     note: str | None = None
 
+    #: Frame trust marker, written by the re-anchor pass (bbox step 4).
+    #: ``"unknown"`` = the pixels demonstrably disagree with the node's frame
+    #: (aspect diverges) while no transform was recorded — overlays must
+    #: render UNANCHORED on this rendition rather than draw boxes on pixels
+    #: whose frame is unproven. ``None`` (the norm) = no doubt recorded.
+    frame_status: str | None = None
+
     created_at: datetime = Field(default_factory=utc_now)
 
 
