@@ -161,6 +161,12 @@ struct ZoomableImagePreview: View {
     /// Optional for the same reason; without it the page arrows hide and
     /// sibling stepping stays swipe-only.
     @Environment(DocumentStore.self) var documentStore: DocumentStore?
+    /// Optional: geometry reloads when a run finishes (2026-08-25 — a fresh
+    /// Detect Regions run wrote 52 good boxes and the overlay kept showing
+    /// the stale ones until the document was switched). Artifact change
+    /// events don't reach the client stream yet; run completion is the
+    /// signal the app already observes.
+    @Environment(WorkflowExecutionObserver.self) var executionObserver: WorkflowExecutionObserver?
 
     // Bounding-box annotation state (#2458). `isDrawingRegion` arms the overlay
     // drag; `pendingAnnotationTool` carries the tool kind into the saved box.
@@ -332,7 +338,9 @@ struct ZoomableImagePreview: View {
             readerToolbar
         }
         .task(id: url) { await handleImageURLChanged() }
-        .task(id: "\(documentId ?? "")|\(ocrBoxesEnabled)") { await loadOCRGeometry() }
+        .task(
+            id: "\(documentId ?? "")|\(ocrBoxesEnabled)|\(executionObserver?.activeExecutions.count ?? 0)"
+        ) { await loadOCRGeometry() }
         .task(id: documentId) { await loadRenditions() }
         .onAppear { handleViewAppeared() }
         .onChange(of: documentId) { _, _ in handleDocumentIDChanged() }
