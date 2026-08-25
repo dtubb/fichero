@@ -70,6 +70,20 @@ extension LibraryView {
             .onChange(of: windowState.workflowPickerRequestToken) {
                 showWorkflowPicker = true
             }
+            // A contextual suggestion button (2026-08-25): resolve the
+            // canonical name in THIS library's workflows and run it over the
+            // selection through the same batch seam every other run surface
+            // uses. An unresolvable name opens the picker instead of doing
+            // nothing — the nudge degrades to the chooser, never to silence.
+            .onChange(of: windowState.suggestedWorkflowRequest) { _, request in
+                guard let request else { return }
+                if let workflow = libraryWorkflows.first(where: { $0.name == request.workflowName }) {
+                    selectedDocumentIdsForBatch = Array(selection)
+                    Task { await runBatchWorkflow(workflowId: workflow.id) }
+                } else {
+                    showWorkflowPicker = true
+                }
+            }
             // Warm the run-menu provider cache from the PANE's lifecycle, not
             // the Menu's .onAppear: AppKit snapshots a context menu at open,
             // so a cache loaded by the menu itself always rendered one open

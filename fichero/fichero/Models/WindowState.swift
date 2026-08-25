@@ -50,6 +50,15 @@ class WindowState {
     /// NotificationCenter post.
     var workflowPickerRequestToken = 0
 
+    /// A contextual suggestion button was pressed (2026-08-25): run THIS
+    /// default workflow (by canonical name — ids are per-library) over the
+    /// current selection. Token-stamped so the same button fires twice.
+    struct SuggestedWorkflowRequest: Equatable {
+        let workflowName: String
+        let token: Int
+    }
+    var suggestedWorkflowRequest: SuggestedWorkflowRequest?
+
     init(libraryId: UUID) {
         self.libraryId = libraryId
     }

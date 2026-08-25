@@ -307,17 +307,40 @@ extension ContentView {
     /// arrives as an outline-endpoint consumer.
     @ViewBuilder
     var workflowSuggestButton: some View {
-        Button {
-            windowState.workflowPickerRequestToken += 1
-        } label: {
-            Label("Run Workflow", systemImage: "bolt")
-                .labelStyle(.iconOnly)
+        // ONE toolbar item, growing contextual members (Daniel, 2026-08-25:
+        // "toolbar buttons that appear as things are selected") — the ⚡
+        // picker always, plus up to two suggested next steps for what the
+        // selection IS. Same principal item, so the zone pin holds.
+        let selectedDocs = documentStore.currentDocuments.filter {
+            browserSelection.contains($0.id)
         }
-        .disabled(browserSelection.isEmpty)
-        .help(browserSelection.isEmpty
-              ? "Select items to run a workflow on"
-              : "Run a workflow on the \(browserSelection.count) selected item(s)")
-        .accessibilityLabel("Run a workflow on the selection")
+        HStack(spacing: 2) {
+            Button {
+                windowState.workflowPickerRequestToken += 1
+            } label: {
+                Label("Run Workflow", systemImage: "bolt")
+                    .labelStyle(.iconOnly)
+            }
+            .disabled(browserSelection.isEmpty)
+            .help(browserSelection.isEmpty
+                  ? "Select items to run a workflow on"
+                  : "Run a workflow on the \(browserSelection.count) selected item(s)")
+            .accessibilityLabel("Run a workflow on the selection")
+
+            ForEach(WorkflowSuggestionPolicy.suggestions(for: selectedDocs)) { suggestion in
+                Button {
+                    windowState.suggestedWorkflowRequest = .init(
+                        workflowName: suggestion.workflowName,
+                        token: (windowState.suggestedWorkflowRequest?.token ?? 0) + 1
+                    )
+                } label: {
+                    Label(suggestion.workflowName, systemImage: suggestion.systemImage)
+                        .labelStyle(.iconOnly)
+                }
+                .help("Run \(suggestion.workflowName) on the selection")
+                .accessibilityLabel("Run \(suggestion.workflowName) on the selection")
+            }
+        }
     }
 
     func syncFocusedDocumentSelection(_ document: Document?) {
