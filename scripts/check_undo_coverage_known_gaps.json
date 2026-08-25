@@ -324,6 +324,7 @@
   "POST /api/storage/snapshots": "no undo registration in current tree",
   "POST /api/tasks/kg-metrics": "no undo registration in current tree",
   "POST /api/tasks/metrics": "no undo registration in current tree",
+  "POST /api/tasks/reanchor": "2026-08-25 bbox step 4 \u2014 additive frame_status marker; reversal = clear the column, an explicit un-mark pass if ever needed; dry_run is the safety",
   "POST /api/tasks/reindex": "no undo registration in current tree",
   "POST /api/tasks/vector-repair": "no undo registration in current tree",
   "POST /api/tasks/{task_id}/cancel": "no undo registration in current tree",
