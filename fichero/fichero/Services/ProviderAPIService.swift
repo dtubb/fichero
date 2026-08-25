@@ -6,7 +6,7 @@ import OSLog
 
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "ProviderAPIService")
 
-// TODO (#4438): split the global provider catalog from a library's provider
+// Follow-up (#4438): split the global provider catalog from a library's provider
 // refs. The header below already names the seam — most endpoints are global,
 // only refs are library-scoped — so one type holds two scopes and nothing in
 // its signatures says which methods need a library. The 369-line body is the

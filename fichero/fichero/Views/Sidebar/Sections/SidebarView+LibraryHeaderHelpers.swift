@@ -1,6 +1,5 @@
 import FicheroAPIClient
 import OSLog
-import OSLog
 import SwiftUI
 
 private let libraryHeaderLogger = Logger(
@@ -46,10 +45,9 @@ extension SidebarView {
             },
             onShare: { libraryToShare = library },
             onClose: { closeLibraryFromSidebar(library) },
+            // Both closures select the library first so the shared dialogs
+            // (which resolve via `selectedItemLibrary`) target THIS library.
             onNewFolder: { [library] in
-                // Select the library first so the shared New Folder dialog
-                // (SidebarCreationHandlers, via `selectedItemLibrary`) creates
-                // at THIS library's root, not wherever selection last was.
                 selectionState.selectedDestinations = [.library(library.id)]
                 selectedItemId = sidebarLibrarySelectionId(library.id)
                 sidebarState.newFolderParentId = nil
@@ -59,9 +57,7 @@ extension SidebarView {
             onImport: { [library] in
                 selectionState.selectedDestinations = [.library(library.id)]
                 selectedItemId = sidebarLibrarySelectionId(library.id)
-                // Routes to this library's Inbox when no folder is selected —
-                // same destination logic as a header drop (#4401 flow).
-                importFiles()
+                importFiles()  // routes to this library's Inbox, as a drop does
             }
         )
     }
@@ -321,9 +317,11 @@ struct LibraryHeaderRow: View {
         // Where the package actually lives (Daniel, 2026-08-25: "we should
         // be able to show in finder in contextual menu") — the standard Mac
         // answer to "what IS this thing on disk".
+        #if os(macOS)
         Button("Show in Finder") {
             NSWorkspace.shared.activateFileViewerSelecting([library.url])
         }
+        #endif
         Divider()
         // Finder semantics again: create into / import into the thing you
         // right-clicked. Both closures select this library first, so the
