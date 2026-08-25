@@ -16,7 +16,7 @@ APP_NAME="Fichero.app"
 source "$ROOT_DIR/scripts/tier_build_map.sh"
 APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/$MAC_CONFIG/$APP_NAME"
 ICON_SOURCE="$ROOT_DIR/icons/fichero-icon.png"
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://tubb.ca/apps/fichero/appcast.xml}"
 
 EXTRA_ARGS=()
 SKIP_APP_BUILD=false

@@ -31,7 +31,7 @@ Audited against the repo on **2026-06-27**. Version in `project.pbxproj`:
 | `build-release-dmg.sh` | Canonical DMG builder. Builds Release app (`build-release.sh`), stages `Fichero.app` + `/Applications` symlink, **overrides `SUFeedURL` in the staged Info.plist** to the canonical feed, runs the load-bearing **[2b/6] inside-out Developer ID re-sign**, styles + compresses to `Fichero.dmg`, writes `release-manifest.txt`. | `Developer ID Application: … (QAPB6CWYR6)` (or `FICHERO_DEV_IDENTITY`); `icon.png`. |
 | `build-release.sh` | Builds the Release `Fichero.app` (incl. embedded engine) into `fichero/build/xcode/Products/Release/`. | Xcode toolchain; signing identity. |
 | `notarize.sh` | Submits the DMG to Apple notary (`xcrun notarytool submit --wait`) then `xcrun stapler staple`. Tries the `notarytool` Keychain profile first, falls back to the ASC API key. | `notarytool` keychain profile **or** ASC API key `.p8`; Developer ID cert. |
-| `create-github-release.sh` | **Preflight asserts built app `SUFeedURL` == canonical appcast URL.** Sparkle EdDSA-signs the DMG (`sign_update`, key read from Keychain), `gh release create vX` + uploads DMG, inserts a new `<item>` into `fichero/appcast.xml`, tags + pushes the source repo. Flags `--draft --prerelease --dry-run`. | `gh` auth (`dtubb`); `~/code/sparkle-tools/bin/sign_update`; Sparkle Ed25519 key in Keychain (`account=ed25519`, `service=https://sparkle-project.org`). |
+| `create-github-release.sh` | **Preflight asserts built app `SUFeedURL` == canonical appcast URL.** Sparkle EdDSA-signs the DMG (`sign_update`, key read from Keychain), `gh release create vX` + uploads DMG, inserts a new `<item>` into the tubb.ca site repo appcast (`apps/fichero/appcast.xml`, auto-committed there), tags + pushes the source repo. Flags `--draft --prerelease --dry-run`. | `gh` auth (`dtubb`); `~/code/sparkle-tools/bin/sign_update`; Sparkle Ed25519 key in Keychain (`account=ed25519`, `service=https://sparkle-project.org`). |
 | `set-release-version.sh` | Sets `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` for the project. | — (writes `fichero/Configs/Version.xcconfig`, the single version source since #3234). |
 | `release-notes-gen.sh` | Generates `RELEASE_NOTES.md` Apple-style per-day prose via local ollama (zero Claude cost). Separate from the literal dated changelog. | ollama; `gh`. |
 | `notarize.sh --dry-run` / `create-github-release.sh --dry-run` | Print every step without executing — use to rehearse. | none. |
@@ -51,13 +51,13 @@ Audited against the repo on **2026-06-27**. Version in `project.pbxproj`:
    staple → `xcrun stapler validate`.
 4. `scripts/create-github-release.sh --prerelease` → preflight feed-URL match →
    **Sparkle EdDSA sign** (`sign_update`, key from Keychain) → `gh release
-   create v2026.06.26-beta` + DMG upload → append `<item>` to
-   `fichero/appcast.xml` → tag + push.
-5. Commit + push the updated `fichero/appcast.xml` so the raw-GitHub feed serves
-   the new enclosure.
+   create v2026.06.26-beta` + DMG upload → append `<item>` to the appcast in
+   the tubb.ca site repo (`apps/fichero/appcast.xml`, auto-committed there) →
+   tag + push.
+5. Deploy the tubb.ca site so the feed serves the new enclosure.
 
 Appcast feed (canonical, baked by the scripts):
-`https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml`
+`https://tubb.ca/apps/fichero/appcast.xml`
 
 ## 3. Mac TestFlight path
 
@@ -97,7 +97,7 @@ Referenced by ID only: ASC API key ID `2MGYUR786H`, issuer
 | Earlier DMG notarized + stapled | DONE | a notarized/stapled submission exists from an earlier run. |
 | **Fresh archive after recent compile fixes** | BLOCKING | re-run `build-release-dmg.sh` so the shipped DMG includes the latest `main`. |
 | **DMG notarize + staple of the fresh build** | BLOCKING | manager-only (`notarize.sh`). |
-| **Sparkle-sign + appcast publish** | BLOCKING | `create-github-release.sh`; then commit/push `fichero/appcast.xml`. |
+| **Sparkle-sign + appcast publish** | BLOCKING | `create-github-release.sh`; appcast auto-committed in the tubb.ca site repo — deploy the site to publish. |
 | **GitHub release upload** | BLOCKING | no `v*` tags / releases exist yet — this is the first. |
 | **TestFlight archive + upload** | BLOCKING | manager-only; needs Keychain approval for signing. |
 | **`SPARKLE_FEED_URL` in `project.pbxproj`** | ⚠️ STALE (non-blocking via scripts) | baked default still points at the retired `fichero-releases` repo — see Audit §6. Scripts override it at build time, so a script-built release is correct; a plain Xcode build is not. |
@@ -111,7 +111,7 @@ scripts/build-release-dmg.sh --skip-backend
 # spot-check signing (see release-lane.md §DMG Details), then:
 scripts/notarize.sh build/releases/Fichero.dmg
 scripts/create-github-release.sh --prerelease     # or --draft to stage
-git add fichero/appcast.xml && git commit -m "chore(release): publish appcast" && git push   # via PR
+# appcast is auto-committed in ~/code/sites/tubb.ca — deploy the site to publish it
 
 # Mac TestFlight (separate lane)
 scripts/release-all.sh --skip-dmg --skip-notarize
@@ -122,17 +122,11 @@ Do not run `xcodebuild test` / `verify_all.sh` on Daniel's desktop for this lane
 
 ## 6. Audit findings (Sparkle #2582 / code-signing #2581)
 
-- **Sparkle appcast feed URL — wired, with one stale default.** Scripts +
-  `release-lane.md` use the canonical
-  `https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml`,
-  and `create-github-release.sh` *asserts* the built app matches it. But
-  `project.pbxproj` still bakes `SPARKLE_FEED_URL =
-  https://raw.githubusercontent.com/dtubb/fichero-releases/main/appcast.xml`
-  (retired repo). `build-release-dmg.sh`/`release-all.sh` override it at build
-  time so a script-built release is fine; a plain Xcode ⌘R/archive is not.
-  **Proposed fix (manager, `project.pbxproj` is off-limits to this worker):**
-  set `SPARKLE_FEED_URL = "https://raw.githubusercontent.com/dtubb/fichero/main/fichero/appcast.xml";`
-  in both build configs so the default matches the scripts.
+- **Sparkle appcast feed URL — wired, one canonical URL everywhere**
+  (2026-08-25). Scripts, `project.pbxproj` build settings, and
+  `create-github-release.sh`'s built-app assertion all use
+  `https://tubb.ca/apps/fichero/appcast.xml`; the feed file lives in the
+  tubb.ca site repo and publishes with the site deploy.
 - **EdDSA public key — present in Info.plist (via build setting).**
   `SUPublicEDKey=$(SPARKLE_PUBLIC_ED_KEY)` resolves to
   `z3UPbmGi74NGSqTQL25E2WFD1yulIzYRvtDitbIZvNY=`, matching the runbook and the

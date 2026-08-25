@@ -27,7 +27,9 @@ mkdocs build --strict
 
 echo "[2/3] Syncing built site to $DEST"
 mkdir -p "$DEST"
-rsync -av --delete "$BUILD_DIR/" "$DEST/"
+# --exclude appcast.xml: the Sparkle feed is written into apps/fichero/ by
+# create-github-release.sh, NOT by this MkDocs build — --delete would nuke it.
+rsync -av --delete --exclude appcast.xml "$BUILD_DIR/" "$DEST/"
 
 echo "[3/3] Committing and pushing tubb.ca"
 cd "$TUBB_SITE"

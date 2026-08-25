@@ -79,10 +79,12 @@ scripts/create-github-release.sh --prerelease
 ```
 
 Creates the GitHub release on `dtubb/fichero`, uploads the DMG, EdDSA-signs it with
-the Sparkle key from the Keychain, and updates `fichero/appcast.xml`. If it hangs,
-approve the Keychain prompt for the Sparkle private key — never print or export it.
+the Sparkle key from the Keychain, and writes + commits the appcast in the tubb.ca
+site repo (`~/code/sites/tubb.ca/apps/fichero/appcast.xml`, served at
+`https://tubb.ca/apps/fichero/appcast.xml`). If it hangs, approve the Keychain
+prompt for the Sparkle private key — never print or export it.
 
-Commit and push the updated `fichero/appcast.xml`, then deploy the site:
+The feed is live only once the site deploys — deploy tubb.ca:
 
 ```bash
 scripts/deploy-site.sh

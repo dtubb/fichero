@@ -2,7 +2,10 @@
 set -euo pipefail
 
 # Create a GitHub release on dtubb/fichero and upload the DMG. Then update
-# fichero/appcast.xml in this repo so Sparkle can pick up the new version.
+# the appcast in the tubb.ca site repo (served at
+# https://tubb.ca/apps/fichero/appcast.xml) so Sparkle can pick up the new
+# version. The site's 11ty build passes **/*.xml straight through; deploying
+# the site publishes the feed.
 #
 # Sparkle EdDSA signs the DMG via sign_update from ~/code/sparkle-tools/.
 # The Ed25519 private key is read from the macOS Keychain (account "ed25519",
@@ -18,8 +21,11 @@ APP_PATH="$ROOT_DIR/fichero/build/xcode/Products/Release/Fichero.app"
 STAGED_APP_PATH="$ROOT_DIR/build/releases/dmg-stage/Fichero.app"
 
 RELEASE_REPO="dtubb/fichero"
-APPCAST_PATH="$ROOT_DIR/fichero/appcast.xml"
-APPCAST_URL="https://raw.githubusercontent.com/$RELEASE_REPO/main/fichero/appcast.xml"
+# The appcast lives in the tubb.ca site repo, NOT in this repo (Daniel's
+# 2026-08-25 ruling: tubb.ca/apps/fichero is the permanent product home).
+SITE_DIR="${FICHERO_SITE_DIR:-$HOME/code/sites/tubb.ca}"
+APPCAST_PATH="$SITE_DIR/apps/fichero/appcast.xml"
+APPCAST_URL="https://tubb.ca/apps/fichero/appcast.xml"
 
 # Sparkle CLI tools (downloaded tarball at ~/code/sparkle-tools/, not brew cask)
 SPARKLE_BIN="${SPARKLE_BIN:-$HOME/code/sparkle-tools/bin}"
@@ -94,6 +100,14 @@ if [ "$DRY_RUN" = false ]; then
     echo "error: Sparkle Ed25519 private key not found in Keychain" >&2
     echo "  (expected generic-password: account='ed25519', service='https://sparkle-project.org')" >&2
     echo "  Generate with: $SPARKLE_BIN/generate_keys" >&2
+    exit 1
+  fi
+
+  # The appcast is written into the site repo — its absence means the feed
+  # update would silently go nowhere. Fail before the release, not after.
+  if [ ! -d "$SITE_DIR/apps/fichero" ]; then
+    echo "error: site repo not found at $SITE_DIR/apps/fichero" >&2
+    echo "  (set FICHERO_SITE_DIR if the tubb.ca checkout lives elsewhere)" >&2
     exit 1
   fi
 else
@@ -349,8 +363,20 @@ PY
   fi
 
   echo "  Updated: $APPCAST_PATH"
+
+  # Commit the feed in the site repo (COMMIT-ONLY — deploying/pushing the site
+  # is Daniel's step; the feed is not live until the site deploys).
+  if git -C "$SITE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$SITE_DIR" add "apps/fichero/appcast.xml"
+    if ! git -C "$SITE_DIR" diff --cached --quiet; then
+      git -C "$SITE_DIR" commit -m "appcast: Fichero $VERSION (build $BUILD)"
+      echo "  Committed in site repo — DEPLOY tubb.ca to publish the feed."
+    fi
+  else
+    echo "  warning: $SITE_DIR is not a git repo — appcast written but not committed" >&2
+  fi
 else
-  echo "[DRY RUN] would: update $APPCAST_PATH"
+  echo "[DRY RUN] would: update $APPCAST_PATH and commit it in $SITE_DIR"
 fi
 
 cd "$ROOT_DIR"
