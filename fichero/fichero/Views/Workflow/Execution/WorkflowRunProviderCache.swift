@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 
 /// Provider/model overrides for the Run Workflow submenus (#722, deduped
 /// #4121). One app-wide list shared by every context menu — the sidebar row
@@ -18,6 +19,9 @@ final class WorkflowRunProviderCache {
     static let shared = WorkflowRunProviderCache()
 
     private(set) var providers: [LLMProvider] = []
+    /// The last load attempt threw (engine down, auth) — the menu renders a
+    /// disabled explanatory row instead of silently offering only "Default".
+    private(set) var lastLoadFailed = false
     private var loaded = false
 
     /// Total fetches performed — regression guard: menu re-opens with a warm
@@ -39,9 +43,17 @@ final class WorkflowRunProviderCache {
         do {
             providers = try await fetch()
             loaded = true
+            lastLoadFailed = false
             loadCount += 1
         } catch {
-            // Non-fatal; keep menu usable with Default option.
+            // Non-fatal; keep menu usable with Default option — but SAY SO
+            // (2026-08-25: "sometimes it doesn't show all the new models, or
+            // even the openrouter models" — this silent catch was the only
+            // trace). loaded stays false, so the next menu mount retries.
+            lastLoadFailed = true
+            Self.logger.error(
+                "Run-menu provider list failed to load: \(String(describing: error))"
+            )
         }
     }
 
@@ -51,4 +63,8 @@ final class WorkflowRunProviderCache {
     func invalidate() {
         loaded = false
     }
+
+    private static let logger = Logger(
+        subsystem: "app.fichero.fichero", category: "WorkflowRunProviderCache"
+    )
 }
