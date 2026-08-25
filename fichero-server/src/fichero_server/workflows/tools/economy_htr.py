@@ -12,7 +12,8 @@ Backends (config ``backend``):
 - ``apple``  — Apple Vision's own recognized text per line. Zero extra models;
   the floor/baseline every other backend must beat.
 - ``trocr``  — any local TrOCR-family line model via ``transformers``
-  (default: TRIDIS v2, MIT, trained on Old Spanish CODEA + medieval cursiva).
+  (default: TRIDIS v1, MIT, trained on Old Spanish CODEA + medieval cursiva;
+  needs ``transformers<5`` — v1 loads under 4.x, and v2's packaging is broken).
 - ``kraken`` — kraken CLI with a CC-BY model (e.g. CATMuS Medieval) doing its
   own baseline segmentation on the full page image. Uses kraken's segmenter
   rather than Apple Vision boxes because kraken recognizers are trained
@@ -44,7 +45,10 @@ logger = logging.getLogger(__name__)
 
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp"}
 
-DEFAULT_TROCR_MODEL = "magistermilitum/tridis_v2_HTR_historical_manuscripts"
+# TRIDIS v1, not v2: v2's hub packaging is internally inconsistent (input
+# embeddings sized for RoBERTa's 50265-piece vocab, output head for an
+# 8000-piece one) and cannot be loaded as published (bench, 2026-08-25).
+DEFAULT_TROCR_MODEL = "magistermilitum/tridis_HTR"
 
 ECONOMY_HTR_CONFIG = {
     "backend": {
