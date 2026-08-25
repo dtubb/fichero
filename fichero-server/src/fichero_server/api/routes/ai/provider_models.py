@@ -165,6 +165,18 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
         {"model_id": "accounts/fireworks/models/mixtral-8x22b-instruct"},
         {"model_id": "accounts/fireworks/models/qwen2-vl-72b-instruct"},
     ],
+    # Daniel's picks (2026-08-25): the cheap-and-good tier, pinned on top of
+    # the LIVE list — recommendation flags only, the catalog itself is live.
+    "openrouter": [
+        {"model_id": "anthropic/claude-haiku-4.5", "is_recommended": True,
+         "description": "Cheap, fast Anthropic tier — Daniel's pick for everyday runs."},
+        {"model_id": "openai/gpt-5-mini", "is_recommended": True,
+         "description": "OpenAI's cheap tier — Daniel's pick."},
+        {"model_id": "google/gemini-3.1-flash-lite", "is_recommended": True, "supports_vision": True,
+         "description": "The known-good paleography draft model — cheap, vision-capable."},
+        {"model_id": "qwen/qwen3-vl-8b-instruct", "is_recommended": True, "supports_vision": True,
+         "description": "Small vision model for OCR/handwriting — Daniel's pick."},
+    ],
     "huggingface": [
         {
             "model_id": "Qwen/Qwen3-VL-8B-Instruct",
@@ -348,6 +360,254 @@ def _configured_api_base(provider_type: str, default: str) -> str:
     except Exception as exc:
         logger.debug("Provider api_base lookup failed for %s: %s", provider_type, exc)
     return default.rstrip("/")
+
+
+# ---------------------------------------------------------------------------
+# LIVE catalogs (2026-08-25). LiteLLM's bundled registry is a SNAPSHOT — the
+# standing rule is "litellm for PRICING only", yet it had become the model
+# catalog: HuggingFace showed exactly our 3 curated entries and OpenRouter
+# lagged its weekly churn ("some seemed off"). Providers that publish a live
+# catalog get asked LIVE, with an in-process TTL cache and the old static
+# path as the fallback — a network hiccup can never make the list worse
+# than it was before this.
+# ---------------------------------------------------------------------------
+
+_LIVE_CATALOG_TTL_SECONDS = 3600.0
+_live_catalog_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def _live_cache_get(key: str) -> list[dict] | None:
+    import time
+
+    hit = _live_catalog_cache.get(key)
+    if hit and (time.monotonic() - hit[0]) < _LIVE_CATALOG_TTL_SECONDS:
+        return hit[1]
+    return None
+
+
+def _live_cache_put(key: str, models: list[dict]) -> None:
+    import time
+
+    _live_catalog_cache[key] = (time.monotonic(), models)
+
+
+async def _live_openrouter_models() -> list[dict]:
+    """OpenRouter's own /models — id, name, per-token pricing, modality."""
+    import httpx  # lazy, matching the route's own import discipline
+
+    if (cached := _live_cache_get("openrouter")) is not None:
+        return cached
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://openrouter.ai/api/v1/models", timeout=8.0
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+    def per_million(raw: object) -> float | None:
+        try:
+            return float(raw) * 1_000_000  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+
+    models: list[dict] = []
+    for m in payload.get("data", []):
+        modality = str((m.get("architecture") or {}).get("modality") or "")
+        pricing = m.get("pricing") or {}
+        models.append({
+            "model_id": m.get("id", ""),
+            "full_name": m.get("name") or m.get("id", ""),
+            "input_cost_per_million": per_million(pricing.get("prompt")),
+            "output_cost_per_million": per_million(pricing.get("completion")),
+            "supports_vision": "image" in modality,
+            "supports_pdf_input": "file" in modality,
+            "max_input_tokens": m.get("context_length"),
+            "description": (m.get("description") or "")[:200],
+            "provider": "openrouter",
+            "mode": "chat",
+        })
+    models = [m for m in models if m["model_id"]]
+    if models:
+        _live_cache_put("openrouter", models)
+    return models
+
+
+async def _live_huggingface_models() -> list[dict]:
+    """HF Hub models with WARM serverless inference — the ones an API key can
+    actually call. Two sweeps: vision document models and text generation,
+    by downloads, capped so the browser stays navigable."""
+    import httpx
+
+    if (cached := _live_cache_get("huggingface")) is not None:
+        return cached
+    sweeps = [
+        ("image-text-to-text", True),
+        ("image-to-text", True),
+        ("text-generation", False),
+    ]
+    models: list[dict] = []
+    seen: set[str] = set()
+    async with httpx.AsyncClient() as client:
+        for pipeline, vision in sweeps:
+            response = await client.get(
+                "https://huggingface.co/api/models",
+                params={
+                    "pipeline_tag": pipeline,
+                    "sort": "downloads",
+                    "limit": 60,
+                    "inference": "warm",
+                },
+                timeout=8.0,
+            )
+            response.raise_for_status()
+            for m in response.json():
+                model_id = m.get("id", "")
+                if not model_id or model_id in seen:
+                    continue
+                seen.add(model_id)
+                models.append({
+                    "model_id": model_id,
+                    "full_name": model_id,
+                    "supports_vision": vision,
+                    "description": f"{pipeline} · Hugging Face serverless inference",
+                    "provider": "huggingface",
+                    "mode": "chat",
+                    "is_local": False,
+                })
+    if models:
+        _live_cache_put("huggingface", models)
+    return models
+
+
+async def _live_openai_compatible_models(provider_type: str) -> list[dict]:
+    """GET {base}/v1/models with the stored key — the OpenAI wire format a
+    dozen providers speak. Returns ids only (these endpoints carry no
+    pricing); costs enrich from LiteLLM afterwards, pricing-only."""
+    import httpx
+
+    cache_key = f"oai:{provider_type}"
+    if (cached := _live_cache_get(cache_key)) is not None:
+        return cached
+    from fichero_server.llm import _OPENAI_COMPATIBLE_BASE_URLS
+
+    default_base = (
+        "https://api.openai.com/v1"
+        if provider_type == "openai"
+        else _OPENAI_COMPATIBLE_BASE_URLS.get(provider_type, "")
+    )
+    if not default_base:
+        raise RuntimeError(f"no known base URL for {provider_type}")
+    base = _configured_api_base(provider_type, default_base)
+    api_key = get_api_key(provider_type)
+    if not api_key:
+        raise RuntimeError(f"no API key stored for {provider_type}")
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            _openai_models_url(base),
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=8.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    models = [
+        {
+            "model_id": m.get("id", ""),
+            "full_name": m.get("id", ""),
+            "provider": provider_type,
+            "mode": "chat",
+        }
+        for m in payload.get("data", [])
+        if m.get("id")
+    ]
+    if models:
+        _live_cache_put(cache_key, models)
+    return models
+
+
+async def _live_anthropic_models() -> list[dict]:
+    import httpx
+
+    if (cached := _live_cache_get("anthropic")) is not None:
+        return cached
+    api_key = get_api_key("anthropic")
+    if not api_key:
+        raise RuntimeError("no API key stored for anthropic")
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.anthropic.com/v1/models",
+            headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+            timeout=8.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    models = [
+        {
+            "model_id": m.get("id", ""),
+            "full_name": m.get("display_name") or m.get("id", ""),
+            "provider": "anthropic",
+            "mode": "chat",
+        }
+        for m in payload.get("data", [])
+        if m.get("id")
+    ]
+    if models:
+        _live_cache_put("anthropic", models)
+    return models
+
+
+async def _live_google_models() -> list[dict]:
+    import httpx
+
+    if (cached := _live_cache_get("google")) is not None:
+        return cached
+    api_key = get_api_key("google")
+    if not api_key:
+        raise RuntimeError("no API key stored for google")
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            params={"key": api_key, "pageSize": 200},
+            timeout=8.0,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    models = []
+    for m in payload.get("models", []):
+        name = str(m.get("name", "")).removeprefix("models/")
+        if not name or "generateContent" not in (m.get("supportedGenerationMethods") or []):
+            continue
+        models.append({
+            "model_id": name,
+            "full_name": m.get("displayName") or name,
+            "max_input_tokens": m.get("inputTokenLimit"),
+            "description": (m.get("description") or "")[:200],
+            "provider": "google",
+            "mode": "chat",
+        })
+    if models:
+        _live_cache_put("google", models)
+    return models
+
+
+def _openai_compatible_fetcher(provider_type: str):
+    async def fetch() -> list[dict]:
+        return await _live_openai_compatible_models(provider_type)
+    return fetch
+
+
+_LIVE_CATALOG_FETCHERS = {
+    "openrouter": _live_openrouter_models,
+    "huggingface": _live_huggingface_models,
+    "anthropic": _live_anthropic_models,
+    "google": _live_google_models,
+    **{
+        p: _openai_compatible_fetcher(p)
+        for p in (
+            "openai", "groq", "together", "deepseek",
+            "dashscope", "xai", "perplexity", "fireworks",
+        )
+    },
+}
 
 
 def _openai_models_url(api_base: str) -> str:
@@ -612,11 +872,45 @@ async def list_models_for_provider(
         except Exception as e:
             logger.warning(f"Failed to query oMLX: {e}")
 
-    # Cloud providers - combine curated recommendations with LiteLLM registry
+    # Cloud providers — LIVE catalog when the provider publishes one
+    # (2026-08-25), else LiteLLM's static registry; curated flags merge on
+    # top either way. A live fetch that fails falls straight through to the
+    # static path, so the list can never be worse than before.
     else:
         from fichero_server.llm import list_models_for_provider as llm_list_models
 
-        raw_models = llm_list_models(provider_type)
+        raw_models: list[dict] = []
+        if (fetch_live := _LIVE_CATALOG_FETCHERS.get(provider_type)) is not None:
+            try:
+                raw_models = await fetch_live()
+            except Exception as exc:
+                logger.warning(
+                    "Live model catalog for %s failed (%s) — using the static registry",
+                    provider_type, exc,
+                )
+        if raw_models:
+            # PRICING-ONLY enrichment (the LiteLLM rule): live catalogs
+            # mostly ship ids without costs; fill missing cost/capability
+            # fields from the static registry WITHOUT letting it decide
+            # which models exist. Absent pricing stays absent — an honest
+            # blank beats a stale number.
+            static_by_id: dict[str, dict] = {}
+            try:
+                for m in llm_list_models(provider_type):
+                    static_by_id[m["model_id"]] = m
+                    static_by_id[m["model_id"].split("/", 1)[-1]] = m
+            except Exception:
+                static_by_id = {}
+            for live in raw_models:
+                static = static_by_id.get(live["model_id"]) or static_by_id.get(
+                    live["model_id"].split("/", 1)[-1]
+                )
+                if static:
+                    for key, value in static.items():
+                        if value is not None:
+                            live.setdefault(key, value)
+        else:
+            raw_models = llm_list_models(provider_type)
         litellm_models = {m["model_id"]: m for m in raw_models}
         curated_models = {
             m["model_id"]: m for m in RECOMMENDED_MODELS.get(provider_type, [])
