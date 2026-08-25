@@ -6,6 +6,33 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.08.25</title>
+            <pubDate>Tue, 25 Aug 2026 05:29:34 -0300</pubDate>
+            <sparkle:version>2026082501</sparkle:version>
+            <sparkle:shortVersionString>2026.08.25</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<p>The overnight reliability build. Word bounding boxes on cursive
+handwriting now snap to their ink — boxes that cut into glyphs or
+spanned two lines hug the words instead — and the Apple Vision geometry
+pass reads the background-removed rendition when one exists, recovering
+faint pencil lines the original scan loses. Transcription drafts that
+quote the prompt's own instructions are refused instead of stored.</p>
+<p>The sidebar's reveal path and child fetch now ride the one outline
+endpoint (which also learned server-side date ordering), test engines
+keep their credentials out of yours (the phantom sign-out bug), an
+explicitly configured database memory cap that cannot apply refuses to
+run unbounded, and the empty-response retry chain from yesterday's
+paleography work is fully regression-pinned.</p>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.08.25/Fichero.dmg"
+                length="569400070"
+                type="application/octet-stream"
+                sparkle:edSignature="Jfd00lNQ6prhkuKWn2MV29qtUGOSI55P7zv8wQHeSjma0I7dfr02ladI788r6QPqRLjWQZWManNT2YNgxJMgCQ=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.08.24</title>
             <pubDate>Mon, 24 Aug 2026 17:31:33 -0300</pubDate>
             <sparkle:version>2026082401</sparkle:version>
