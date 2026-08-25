@@ -78,8 +78,13 @@ struct ConnectionPresentationTests {
     @Test("a starting engine narrates nothing it is not observing")
     func startingNarratesNothing() {
         let appManaged = status(.starting, .appManaged)
-        #expect(appManaged.title == "Starting engine…")
-        #expect(appManaged.detail.isEmpty)
+        #expect(appManaged.title == "Starting the Fichero server…")
+        // #4380 still holds: the detail may set a TIME EXPECTATION (Daniel,
+        // 2026-08-25: "say it might take a few moments") but must never
+        // narrate engine states the app is not observing.
+        #expect(appManaged.detail == "Your libraries run on a local server. This can take a few moments.")
+        #expect(!appManaged.detail.localizedCaseInsensitiveContains("import"))
+        #expect(!appManaged.detail.localizedCaseInsensitiveContains("database"))
         #expect(appManaged.action == nil)
         #expect(appManaged.isRecovering)
         #expect(!appManaged.isError)
@@ -308,7 +313,7 @@ struct ConnectionPresentationTests {
             loadErrorMessage: nil
         )
         #expect(starting == .startingEngine)
-        #expect(starting.message == "Starting engine…")
+        #expect(starting.message == "Starting server…")
 
         let loading = LibraryLoadPhase.resolve(
             enginePhase: .ready,

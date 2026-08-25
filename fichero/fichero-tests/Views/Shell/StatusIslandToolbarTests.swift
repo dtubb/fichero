@@ -160,15 +160,20 @@ struct StatusIslandToolbarTests {
 
     @Test("a booting engine says so, in the words the popover uses")
     func bootingEngineSaysSo() {
-        let title = ConnectionPresentation.status(
+        // "It's a server; say it might take a few moments" (Daniel,
+        // 2026-08-25): the popover carries the full sentence, the island
+        // carries the SHORT form — the island renders shortTitle, so that is
+        // what feeds resolve here.
+        let status = ConnectionPresentation.status(
             phase: .starting,
             ownership: .appManaged,
             accessError: nil,
             authBroken: false
-        ).title
-        #expect(title == "Starting engine…")
-        #expect(resolve(enginePhase: .starting, engineStatusTitle: title)
-            == StatusIslandMessage(text: "Starting engine…", isError: false))
+        )
+        #expect(status.title == "Starting the Fichero server…")
+        #expect(status.shortTitle == "Starting server…")
+        #expect(resolve(enginePhase: .starting, engineStatusTitle: status.shortTitle)
+            == StatusIslandMessage(text: "Starting server…", isError: false))
     }
 
     /// The load-bearing precedence: an engine problem must not be masked by an

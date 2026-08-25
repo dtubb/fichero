@@ -133,17 +133,17 @@ extension ContentView {
                     get: { showDocumentCanvas },
                     set: { setCanvasPaneVisible($0) }
                 )) {
-                    Label("Preview Pane", systemImage: ToolbarSymbols.previewPane)
+                    Label("Preview", systemImage: ToolbarSymbols.previewPane)
                 }
-                .help(showDocumentCanvas ? "Hide preview pane" : "Show preview pane")
+                .help(showDocumentCanvas ? "Hide the Preview" : "Show the Preview")
 
                 Toggle(isOn: Binding(
                     get: { showReadingPane },
                     set: { setReadingPaneVisible($0) }
                 )) {
-                    Label("Reading Pane", systemImage: ToolbarSymbols.readingPane)
+                    Label("Reader", systemImage: ToolbarSymbols.readingPane)
                 }
-                .help(showReadingPane ? "Hide reading pane" : "Show reading pane")
+                .help(showReadingPane ? "Hide the Reader" : "Show the Reader — transcripts, translations, and the knowledge graph")
 
                 // Chat is a ROW pane (Daniel 2026-08-12: "there is no button
                 // to turn it on and off") — fourth member of the pane group,
@@ -152,9 +152,9 @@ extension ContentView {
                     get: { showChatPane },
                     set: { setChatPaneVisible($0) }
                 )) {
-                    Label("Chat Pane", systemImage: ToolbarSymbols.chatPane)
+                    Label("Chat", systemImage: ToolbarSymbols.chatPane)
                 }
-                .help(showChatPane ? "Hide chat pane" : "Show chat pane")
+                .help(showChatPane ? "Hide the Chat" : "Show the Chat")
             }
 
             // The resident search field MOVED to the inspector-section

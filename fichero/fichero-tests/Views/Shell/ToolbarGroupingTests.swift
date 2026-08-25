@@ -85,8 +85,10 @@ struct ToolbarGroupingTests {
         let group = parts[1].components(separatedBy: "ToolbarItem(").first ?? parts[1]
         // …and the three members are inside it, in column order.
         let library = group.range(of: "libraryPaneToggleButton")
-        let preview = group.range(of: "Preview Pane")
-        let reading = group.range(of: "Reading Pane")
+        // "no Pane in the labels" (Daniel, 2026-08-25) — match the Labels'
+        // actual strings.
+        let preview = group.range(of: "Label(\"Preview\"")
+        let reading = group.range(of: "Label(\"Reader\"")
         #expect(library != nil)
         #expect(preview != nil)
         #expect(reading != nil)
