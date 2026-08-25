@@ -16,7 +16,7 @@ api/main.py::lifespan._start_bonjour 1
 api/main.py::lifespan._warm_workflow_stack 1
 api/main.py::prefetch_library_caches 2
 api/routes/ai/provider_models.py::_configured_api_base 1
-api/routes/ai/provider_models.py::list_models_for_provider 3
+api/routes/ai/provider_models.py::list_models_for_provider 4
 api/routes/citation/rendering.py::_metadata_for_document 2
 api/routes/document/artifacts.py::_action_translate 1
 api/routes/document/artifacts.py::_delete_artifact_impl 2
@@ -92,8 +92,9 @@ importers/ingest.py::_extract_image_metadata 1
 importers/ingest.py::_save_pdf_page_artifacts 2
 importers/ingest.py::_save_pdf_text_layer_geometry 1
 importers/ingest.py::_save_pending_artifacts 1
-importers/ingest.py::ingest_file 1
+importers/ingest.py::ingest_file 2
 importers/ingest.py::ingest_file.delete_original 1
+importers/pdf_annotations.py::import_pdf_annotations 1
 importers/ingest.py::ingest_folder 2
 importers/ingest.py::ingest_folder.notify_document 1
 importers/manifest_import.py::import_manifest 2

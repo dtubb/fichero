@@ -78,23 +78,61 @@ def append_image_edit_operations(
     return records
 
 
-def _document_by_source_path(db, doc_ids: list[str]) -> dict[str, Document]:
+def _document_by_source_path(
+    db, doc_ids: list[str], library_path: str | None = None
+) -> dict[str, Document]:
     """Map every path a document is known by onto that document.
 
     A workflow tool is handed FILE PATHS and knows nothing about document ids,
     so pairing an output back to its node has to go through the path it was
     derived from. Both ``path`` and ``metadata["source_path"]`` are indexed
     because LINK imports record the original location while COPY records the
-    library one, and a workflow may have been handed either.
+    library one, and a workflow may have been handed either. Each is indexed
+    under its stored spelling AND resolved against ``library_path``: the files
+    tool hands tools ABSOLUTE paths, while a copy import stores a
+    library-RELATIVE one — matching only the stored spelling silently
+    unmatched every copy-imported document.
     """
+
+    def spellings(candidate: str | None) -> list[str]:
+        if not candidate:
+            return []
+        keys = [str(Path(candidate))]
+        if library_path and not Path(candidate).is_absolute():
+            keys.append(str(Path(library_path) / candidate))
+        return keys
+
     by_path: dict[str, Document] = {}
     for doc_id in doc_ids:
         doc = db.get(Document, doc_id)
         if doc is None:
             continue
+        matched = False
         for candidate in (doc.path, (doc.metadata or {}).get("source_path")):
-            if candidate:
-                by_path[str(Path(candidate))] = doc
+            for key in spellings(candidate):
+                by_path[key] = doc
+                matched = True
+        # A PAGE document has no file of its own — the files tool resolves it
+        # through its PARENT's path on the way in ("resolved through parent …
+        # path"), so the split result's `source` is the parent's file. Without
+        # the same resolution here every part of a selected page landed in
+        # unmatched_sources and a "successful" run attached nothing (Daniel,
+        # 2026-08-25, split on doc 0685e4b5…). Map the parent's path to the
+        # SELECTED page — the run's scope — but never shadow a doc that owns
+        # the path outright, and first-selected wins if two selected pages
+        # share one parent file.
+        # ponytail: two pages of one parent PDF in a single run still collapse
+        # to the first; disambiguating needs per-page indices threaded through
+        # split results.
+        if not matched and doc.parent_id:
+            parent = db.get(Document, doc.parent_id)
+            for candidate in (
+                parent.path if parent else None,
+                ((parent.metadata or {}).get("source_path") if parent else None),
+            ):
+                for key in spellings(candidate):
+                    if key not in by_path:
+                        by_path[key] = doc
     return by_path
 
 
@@ -143,7 +181,7 @@ def persist_workflow_renditions(
     db = db_manager.get_database(library_path)
     package_path = Path(library_path)
     doc_ids = _candidate_document_ids(inputs, state)
-    by_path = _document_by_source_path(db, doc_ids)
+    by_path = _document_by_source_path(db, doc_ids, library_path)
 
     for result in results:
         source = result.get("source")
@@ -298,7 +336,9 @@ def persist_workflow_child_regions(
 
     db = db_manager.get_database(library_path)
     package_path = Path(library_path)
-    by_path = _document_by_source_path(db, _candidate_document_ids(inputs, state))
+    by_path = _document_by_source_path(
+        db, _candidate_document_ids(inputs, state), library_path
+    )
 
     for result in results:
         source = result.get("source")
