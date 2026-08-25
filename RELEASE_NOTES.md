@@ -2,6 +2,22 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.08.25
+
+The overnight reliability build. Word bounding boxes on cursive
+handwriting now snap to their ink — boxes that cut into glyphs or
+spanned two lines hug the words instead — and the Apple Vision geometry
+pass reads the background-removed rendition when one exists, recovering
+faint pencil lines the original scan loses. Transcription drafts that
+quote the prompt's own instructions are refused instead of stored.
+
+The sidebar's reveal path and child fetch now ride the one outline
+endpoint (which also learned server-side date ordering), test engines
+keep their credentials out of yours (the phantom sign-out bug), an
+explicitly configured database memory cap that cannot apply refuses to
+run unbounded, and the empty-response retry chain from yesterday's
+paleography work is fully regression-pinned.
+
 ## 2026.08.24
 
 The reliability build. Paleography transcription now survives the models'
