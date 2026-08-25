@@ -33,7 +33,8 @@ api/routes/kg/predictions.py::apply_prediction_run 1
 api/routes/kg/review.py::_maybe_trigger_retrain 1
 api/routes/kg/review.py::_run_retrain 1
 api/routes/kg/review.py::accept_pair 1
-api/routes/library/core.py::create_library 3
+api/routes/library/core.py::_register_known_library 1
+api/routes/library/core.py::create_library 2
 api/routes/library/registry.py::add_known_library 1
 api/routes/mcp/tools.py::_emit_mcp_kg_change 1
 api/routes/mcp/tools.py::_log_mcp_claim_creation 1

@@ -485,6 +485,7 @@
     "/api/tasks/kg-metrics/{task_id}/data": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/tasks/metrics": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/tasks/metrics/{task_id}/data": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
+    "/api/tasks/reanchor": "2026-08-25 bbox step 4 maintenance pass; per-path markdown callout queued with the tasks family",
     "/api/tasks/reindex": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/tasks/reindex/{task_id}/progress": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
     "/api/tasks/vector-repair": "Current API reference index documents route families and the committed schema render, not per-path markdown callouts yet.",
