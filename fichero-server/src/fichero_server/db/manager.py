@@ -7,6 +7,7 @@ Each .fichero package directory gets its own Database instance.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -80,7 +81,7 @@ class DatabaseManager:
 
         package_path = Path(nfc_path(package_path))
         package_str = str(package_path)
-        cache_key = package_str
+        cache_key = self._cache_key(package_path)
 
         with self._lock:
             if cache_key not in self._databases:
@@ -170,9 +171,21 @@ class DatabaseManager:
 
             return self._databases[cache_key]
 
+    @staticmethod
+    def _cache_key(package_path: str | Path) -> str:
+        """The ONE `_databases` key form for a package: NFC + realpath, so
+        `/var/…` and `/private/var/…` spellings of one package share one
+        connection (#2518, proven live 2026-08-25: the create flow opened the
+        same temp package under both and held two). get/close/quiesce all
+        funnel through this — close previously `.resolve()`d while quiesce
+        did not, so a `/var`-spelled quiesce could miss the open handle.
+        The Database keeps the caller's spelling; only the KEY canonicalizes.
+        """
+        return os.path.realpath(str(Path(nfc_path(package_path)).expanduser()))
+
     def close_database(self, package_path: str | Path):
         """Close the shared connection for a package."""
-        package_str = str(Path(nfc_path(package_path)).expanduser().resolve())
+        package_str = self._cache_key(package_path)
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]
@@ -196,7 +209,7 @@ class DatabaseManager:
         writes; independent direct DuckDB connections outside the manager remain
         outside this lock's scope.
         """
-        package_str = str(Path(nfc_path(package_path)))
+        package_str = self._cache_key(package_path)
 
         with self._lock:
             keys = [k for k in self._databases if k == package_str]

@@ -446,6 +446,13 @@ extension LibraryManager {
                     engineWork: {
                         loadedLibraryIds.remove(library.id)
                         scheduleLoadWhenBackendReady(for: library)
+                        // Defect C of the new-library cluster (2026-08-25):
+                        // workflows on a fresh library didn't run until
+                        // relaunch — the store's only load could ride the
+                        // TEMP path / pre-seed window and nothing retried.
+                        // One explicit reload against the FINAL path, after
+                        // the grant, is idempotent and closes that window.
+                        await library.workflowStore.loadWorkflows()
                     }
                 )
                 await KnownLibraryRegistryStore.shared.noteOpenedLibrary(

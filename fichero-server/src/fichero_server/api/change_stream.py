@@ -24,8 +24,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 import weakref
+from functools import lru_cache
 from pathlib import Path
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
@@ -178,6 +180,7 @@ class _ChangeHub:
         self._lock = threading.Lock()
 
     @staticmethod
+    @lru_cache(maxsize=512)
     def _canonical_key(library_path: str) -> str:
         """The canonical hub key form. BOTH seams — subscriber register
         (``connect``/``unsubscribe``) and publish (``emit``) — MUST funnel through
@@ -185,12 +188,14 @@ class _ChangeHub:
         (``str(db.path.parent)`` → ``/lib/Foo.fichero``) map to the SAME subscriber
         set (#2518). ``Path()`` strips trailing slashes and redundant separators.
 
-        ``.resolve()`` is deliberately NOT used: it would touch the filesystem and
-        resolve symlinks. Add it only if a real ``/private``-vs-``/var`` (or
-        security-scoped bookmark) divergence between the header and the db path is
-        proven — see the #2518 follow-up note.
+        Symlinks ARE resolved now (``os.path.realpath``): the #2518 follow-up's
+        proof arrived on 2026-08-25 — Daniel's create-library log showed the
+        SAME package opened under ``/private/var/…`` and ``/var/…`` spellings,
+        emitting to zero subscribers. ``realpath`` (not ``Path.resolve``)
+        resolves the symlinked prefix without requiring the leaf to exist, and
+        the ``lru_cache`` keeps the per-emit filesystem walk off the hot path.
         """
-        return str(Path(library_path)) if library_path else library_path
+        return os.path.realpath(library_path) if library_path else library_path
 
     def subscribe(self, library_path: str) -> asyncio.Queue:
         """Register a new subscriber queue for ``library_path`` and return it."""

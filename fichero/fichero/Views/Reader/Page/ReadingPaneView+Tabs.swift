@@ -35,7 +35,15 @@ extension ReadingPaneView {
     /// TWO PANES — Reader + Preview — not an embedded source view.
     @ViewBuilder
     private var pageTabContent: some View {
-        surfaceView(tab: .transcript)
+        if multiDocuments.count > 1 {
+            // All N selected transcripts under THIS pane's chrome
+            // (2026-08-25). Native list, not the WebKit surface — the shared
+            // surface renders ONE document's assembled transcript; a
+            // multi-doc WebKit render is the follow-up, ledgered.
+            MultiSelectionReaderView(documents: multiDocuments)
+        } else {
+            surfaceView(tab: .transcript)
+        }
     }
 
     /// Notes tab — the human reading layer. A sub-mode toggle (#3513) switches

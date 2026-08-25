@@ -15,6 +15,7 @@ let arbitrary filesystem paths through, even though this endpoint
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
@@ -30,6 +31,41 @@ from fichero_server.db.storage import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _is_staging_location(path: str) -> bool:
+    """True when ``path`` lives where TEMPORARY packages are materialized —
+    the darwin per-user temp tree (``/var/folders/…`` and its ``/private``
+    spelling), a sandbox container's ``Data/tmp``, or plain ``/tmp``. A real
+    user library never lives there; a package that does is the app's
+    pre-save-panel staging copy and must not enter the known-libraries
+    registry (the 2026-08-25 ghost-library generator).
+    """
+    real = os.path.realpath(path)
+    return (
+        real.startswith(("/private/var/folders/", "/var/folders/", "/tmp/", "/private/tmp/"))
+        or "/Data/tmp/" in real
+    )
+
+
+def _register_known_library(stored_path: str, package: Path) -> None:
+    """Best-effort registry row for a created library (#1131) — never fails
+    the create."""
+    try:
+        # Write to the global registry DB (where GET /api/registry reads from)
+        registry_db = db_manager.get_database(str(settings.global_library_path))
+        existing = registry_db.query(KnownLibrary, path=stored_path)
+        if not existing:
+            # New library — register it with basename as name
+            library = KnownLibrary(
+                path=stored_path,
+                name=nfc_path(package.name),  # e.g. "My Library.fichero"
+            )
+            registry_db.save(library)
+            logger.info("Registered new library in registry: %s", package)
+    except Exception as exc:
+        # Registry registration is best-effort; don't fail library creation
+        logger.warning("Failed to register library in registry: %s", exc)
 
 
 @router.post("/library", response_model=LibraryCreateResponse)
@@ -108,22 +144,16 @@ def create_library(
             detail=f"Failed to initialize library database: {exc}",
         ) from exc
 
-    # Auto-register the library in the known_libraries registry (#1131)
-    try:
-        # Write to the global registry DB (where GET /api/registry reads from)
-        registry_db = db_manager.get_database(str(settings.global_library_path))
-        existing = registry_db.query(KnownLibrary, path=stored_path)
-        if not existing:
-            # New library — register it with basename as name
-            library = KnownLibrary(
-                path=stored_path,
-                name=nfc_path(package.name),  # e.g. "My Library.fichero"
-            )
-            registry_db.save(library)
-            logger.info("Registered new library in registry: %s", package)
-    except Exception as exc:
-        # Registry registration is best-effort; don't fail library creation
-        logger.warning("Failed to register library in registry: %s", exc)
+    # Auto-register the library in the known_libraries registry (#1131) —
+    # UNLESS the package is a temp-directory staging library. The app's New
+    # Library flow materializes an `Untitled-<UUID>.fichero` under TMPDIR
+    # before the save panel, and registering it is the ghost-library
+    # generator (Daniel's sidebar/Open Recent, 2026-08-25): the package moves
+    # away moments later and the registry row points at nothing forever.
+    if _is_staging_location(stored_path):
+        logger.info("Staging package not registered in registry: %s", package)
+    else:
+        _register_known_library(stored_path, package)
 
     try:
         from fichero_server.security import authz

@@ -68,6 +68,11 @@ extension LibraryView {
             // @Observable seam (§6b): the toolbar bumps the token, this pane
             // reacts to the change.
             .onChange(of: windowState.workflowPickerRequestToken) {
+                // Refresh the batch scope at OPEN time (2026-08-25): without
+                // this the sheet ran on a STALE earlier selection — a folder
+                // picked minutes ago — while the sidebar-picked page never
+                // entered the scope at all.
+                selectedDocumentIdsForBatch = toolbarRunScope
                 showWorkflowPicker = true
             }
             // A contextual suggestion button (2026-08-25): resolve the
@@ -78,9 +83,13 @@ extension LibraryView {
             .onChange(of: windowState.suggestedWorkflowRequest) { _, request in
                 guard let request else { return }
                 if let workflow = libraryWorkflows.first(where: { $0.name == request.workflowName }) {
-                    selectedDocumentIdsForBatch = Array(selection)
+                    // Same open-time scope rule as the picker token above —
+                    // `Array(selection)` alone dropped the sidebar-picked
+                    // document (pane selection empty after a sidebar click).
+                    selectedDocumentIdsForBatch = toolbarRunScope
                     Task { await runBatchWorkflow(workflowId: workflow.id) }
                 } else {
+                    selectedDocumentIdsForBatch = toolbarRunScope
                     showWorkflowPicker = true
                 }
             }
