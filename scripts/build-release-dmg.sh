@@ -8,8 +8,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE_DIR="$ROOT_DIR/build/releases/dmg-stage"
-DMG_RW="$ROOT_DIR/build/releases/Fichero-rw.dmg"
-DMG_PATH="$ROOT_DIR/build/releases/Fichero.dmg"
+# FICHERO_DMG_PATH lets release-all.sh build the dual DMGs (Fichero.dmg =
+# beta, Fichero-dev.dmg = dev) without two copies of this script.
+DMG_PATH="${FICHERO_DMG_PATH:-$ROOT_DIR/build/releases/Fichero.dmg}"
+DMG_RW="${DMG_PATH%.dmg}-rw.dmg"
 MANIFEST_PATH="$ROOT_DIR/build/releases/release-manifest.txt"
 VOLUME_NAME="Fichero"
 APP_NAME="Fichero.app"
