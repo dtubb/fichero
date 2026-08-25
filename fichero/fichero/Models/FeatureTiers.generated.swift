@@ -209,21 +209,21 @@ enum FeatureTiers {
         ),
         .modelComparison: .init(
             name: "Model comparison",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: nil,
             uxGroup: "Models",
             notes: "Compare model behavior and metadata in-app."
         ),
         .cli: .init(
             name: "CLI",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: nil,
             uxGroup: "Clients",
             notes: "Typed CLI over the same HTTP API surface."
         ),
         .mcpServer: .init(
             name: "MCP server",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: nil,
             uxGroup: "Clients",
             notes: "MCP server surface backed by the engine."
@@ -237,7 +237,7 @@ enum FeatureTiers {
         ),
         .research: .init(
             name: "Research",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: "fichero.features.research",
             uxGroup: "Knowledge",
             notes: "KG-backed research workflows and answer surface."
@@ -279,7 +279,7 @@ enum FeatureTiers {
         ),
         .chat: .init(
             name: "Chat",
-            tier: .beta,
+            tier: .dev,
             swiftFlag: "fichero.features.chat",
             uxGroup: "Knowledge",
             notes: "RAG conversation over the active library."
