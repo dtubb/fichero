@@ -1,6 +1,11 @@
 import FicheroAPIClient
 import OSLog
+import OSLog
 import SwiftUI
+
+private let libraryHeaderLogger = Logger(
+    subsystem: "app.fichero.fichero", category: "LibraryHeader"
+)
 
 // MARK: - Library Header Helpers
 
@@ -236,6 +241,8 @@ struct LibraryHeaderRow: View {
     @State private var snapshot: Components.Schemas.LibraryAuthzSnapshot?
     /// Presents the prototype (document type) editor for THIS library.
     @State private var showTypeEditor = false
+    /// Confirms Delete Library… before anything moves to the Trash.
+    @State private var showDeleteLibraryConfirmation = false
 
     private static let readOnlyHelp =
         "You have view-only access to this library. Ask an owner for edit access to rename or add files."
@@ -288,11 +295,39 @@ struct LibraryHeaderRow: View {
             Button("Share Library…", action: onShare)
                 .disabled(!canWrite)
         }
+        // Where the package actually lives (Daniel, 2026-08-25: "we should
+        // be able to show in finder in contextual menu") — the standard Mac
+        // answer to "what IS this thing on disk".
+        Button("Show in Finder") {
+            NSWorkspace.shared.activateFileViewerSelecting([library.url])
+        }
         Divider()
         // Close removes the library from the sidebar + the global registry
         // WITHOUT deleting the .fichero package on disk (#1661). Stays enabled
         // for viewers — it's a local sidebar op, not a library mutation.
         Button("Close Library", action: onClose)
+        // Delete = close AND move the package to the TRASH (recoverable,
+        // never an unlink) after an explicit confirmation. Write access
+        // required — a viewer must not be able to trash a shared library.
+        Button("Delete Library…", role: .destructive) {
+            showDeleteLibraryConfirmation = true
+        }
+        .disabled(!canWrite)
+    }
+
+    /// Close the library, then move its package to the Trash. Trash, not
+    /// unlink: a mistaken delete of an archive is recoverable from the bin,
+    /// and Finder shows exactly what happened.
+    private func deleteLibraryMovingToTrash() {
+        let packageURL = library.url
+        onClose()
+        do {
+            try FileManager.default.trashItem(at: packageURL, resultingItemURL: nil)
+        } catch {
+            libraryHeaderLogger.error(
+                "Delete Library: trash failed for \(packageURL.path): \(error.localizedDescription)"
+            )
+        }
     }
 
     private var header: some View {
@@ -312,6 +347,18 @@ struct LibraryHeaderRow: View {
         .help(canWrite ? "" : Self.readOnlyHelp)
         .sheet(isPresented: $showTypeEditor) {
             PrototypeEditorSheet(entityService: library.entityService)
+        }
+        .alert("Delete Library?", isPresented: $showDeleteLibraryConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Move to Trash", role: .destructive) {
+                deleteLibraryMovingToTrash()
+            }
+        } message: {
+            Text(
+                "\u{201C}\(library.displayName)\u{201D} will close and its "
+                + "package will move to the Trash. You can restore it from "
+                + "the Trash and open it again."
+            )
         }
         .task(id: library.id) {
             guard EngineConfig.multiuserEnabled, !isGlobal else {
