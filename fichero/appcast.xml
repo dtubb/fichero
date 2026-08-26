@@ -6,6 +6,49 @@
         <description>Appcast feed for Fichero Sparkle updates.</description>
         <language>en</language>
         <item>
+            <title>Fichero 2026.08.26</title>
+            <pubDate>Wed, 26 Aug 2026 07:11:33 -0300</pubDate>
+            <sparkle:version>2026082601</sparkle:version>
+            <sparkle:shortVersionString>2026.08.26</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+<p>A day of testing feedback, fixed the same day. Daniel drove the app all
+morning; everything he hit is in this build.</p>
+<ul>
+<li>New Library, the Mac way: the save dialog remembers your last folder;
+  creating in a synced location (iCloud Drive, Dropbox, Google Drive, Box)
+  warns first — a live database and a sync engine are a bad pairing.</li>
+<li>Open Recent actually works: closed libraries stay in the menu, ghost
+  "Untitled" entries and duplicate rows are gone, and a brand-new library
+  can run workflows immediately — no relaunch.</li>
+<li>Run Workflow runs on what you selected: the long-standing bug where a
+  run landed on the parent folder instead of the selected page is fixed —
+  the toolbar picker now resolves its scope at the moment it opens.</li>
+<li>Multi-select reading: select several pages and the reader shows exactly
+  those pages in the real WebKit transcript — with the pane's header,
+  lens switcher and breadcrumbs intact. Mixed selections get a clean
+  archival-order list.</li>
+<li>Split on a page works: parts are attached as child nodes with regions
+  (they used to be cut, written, and silently lost).</li>
+<li>Transcriptions stay clean: the "[Script: …]" classification line the
+  paleography prompts request is stored as metadata, never in your text.</li>
+<li>Honest boxes (bbox step 4): a maintenance pass marks renditions whose
+  pixels can't be matched to a recorded frame, and overlays render
+  unanchored on them — blank beats boxes on the wrong pixels.</li>
+<li>Under the hood: the engine no longer opens duplicate connections for
+  one library reached by two path spellings; library context menus gain
+  New Folder / Import Files; a 12-second launch stall moved off the main
+  thread; live model catalogs stay per-provider live.</li>
+</ul>
+]]></description>
+            <enclosure
+                url="https://github.com/dtubb/fichero/releases/download/v2026.08.26/Fichero.dmg"
+                length="569426626"
+                type="application/octet-stream"
+                sparkle:edSignature="SiEKB1B2V7AHRoEVBACdX5fULB9xV4i06nJP/cpSM1YYdg1ssQwPI9ULvVchs9pFGHq6tuLelNCgYSY86uw+AA=="
+            />
+        </item>
+        <item>
             <title>Fichero 2026.08.25</title>
             <pubDate>Tue, 25 Aug 2026 05:29:34 -0300</pubDate>
             <sparkle:version>2026082501</sparkle:version>
